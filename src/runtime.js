@@ -3,8 +3,13 @@
 function buildRuntime(display, terminal) {
   let hudEnabled = Boolean(display.hud && display.hud.enabled);
   const hudWidth = hudEnabled ? Number(display.hud.width || 0) : 0;
+  const hudColumns = hudEnabled ? Number(display.hud.columns || 1) : 1;
+  const hudColumnGap = hudEnabled ? Number(display.hud.columnGap || 2) : 2;
   const headerHeight = display.header && display.header.enabled
     ? Math.max(0, Number(display.header.height || 2))
+    : 0;
+  const footerHeight = display.footer && display.footer.enabled
+    ? Math.max(0, Number(display.footer.height || 0))
     : 0;
   const fallbackWidth = Number(display.width || 80);
   const fallbackHeight = Number(display.height || 24);
@@ -22,7 +27,7 @@ function buildRuntime(display, terminal) {
   }
 
   let gridWidth = totalWidth;
-  const gridHeight = Math.max(0, totalHeight - headerHeight);
+  const gridHeight = Math.max(0, totalHeight - headerHeight - footerHeight);
 
   if (hudEnabled && gridWidth > hudWidth + 3) {
     gridWidth = gridWidth - (hudWidth + 3);
@@ -34,8 +39,11 @@ function buildRuntime(display, terminal) {
     gridWidth,
     gridHeight,
     headerHeight,
+    footerHeight,
     hudEnabled,
     hudWidth,
+    hudColumns,
+    hudColumnGap,
     totalWidth,
     totalHeight,
   };

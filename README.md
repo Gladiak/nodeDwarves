@@ -10,19 +10,23 @@ alive while you watch the chaos unfold in ASCII.
 - Fast feedback loop with a lightweight terminal renderer.
 
 ## How the simulation works
-- The world is a fixed-size ASCII grid with resource nodes and dwarves.
+- The world is a fixed-size ASCII grid with resource nodes, structures, and dwarves.
 - Each tick:
   1) Dwarves accumulate needs (hunger, thirst, sleep, safety, social).
   2) Resources are consumed when needs cross thresholds.
   3) Shortages are computed vs target stockpile levels.
   4) Jobs are assigned based on the largest shortages.
   5) Dwarves move to targets, work, and update stockpiles.
+- Resource nodes have finite capacity and regenerate slowly.
+- Seasons apply simple modifiers to pace (needs, gather/craft speed, regen).
+- Population is dynamic: dwarves age, form bonds, reproduce with gestation, and can die.
 - Rendering is done as a full-frame redraw with a header + side HUD.
 
 ## Job system and priorities
 - Shortages are sorted by severity (missing/target ratio).
 - If a resource has nodes on the map, a gather job is created.
-- If the resource is crafted, a craft job is created when inputs are available.
+- If the resource is crafted, a craft job is created when inputs are available
+  and a workshop slot is free.
 - Top priorities are displayed in the HUD queue.
 
 ## Quick start
@@ -35,12 +39,18 @@ All core knobs live in `config.json`.
 
 Highlights:
 - `display`: grid size, auto-resize, header, HUD width.
+- `events`: size of the recent event log (births/deaths) shown in the HUD.
 - `dwarves.count`: number of dwarves.
 - `resources.stockpile`: initial resource amounts.
 - `resources.targets`: target levels used to drive priorities.
+- `resources.nodeCapacity` and `resources.nodeRegen`: node depletion/regen.
+- `resources.removeDepletedNodes`: remove nodes when empty.
 - `jobs`: gather timing/yields per resource.
 - `recipes`: crafting inputs/outputs and time.
+- `structures.workshop`: count and capacity for craft throughput.
 - `needs.decayPerTick` and `consumption`: pace of survival dynamics.
+- `seasons`: duration and modifiers for pacing shifts.
+- `population`: aging, relationships, reproduction, and death.
 
 ## ASCII legend
 The legend is printed in the header above the map. Symbols are configurable in
@@ -75,7 +85,6 @@ Ways to jump in:
 Open a PR or start a discussion with your ideas.
 
 ## Roadmap ideas
-- Workshop tiles with crafting locations.
 - Smarter AI policies (Python bridge).
 - World events and biome variation.
 - Simple trading or tech progression.

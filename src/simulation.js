@@ -4,25 +4,474 @@ const { clamp } = require('./utils');
 
 function stepState(state, config, runtime) {
   state.tick += 1;
+  updateSeason(state, config);
 
   for (const dwarf of state.dwarves) {
-    applyNeedDecay(dwarf, config.needs.decayPerTick || {});
+    advanceAge(dwarf, config);
+    applyNeedDecay(dwarf, config.needs.decayPerTick || {}, getSeasonModifier(state, 'needDecay', 1));
     consumeResources(dwarf, state.stockpile, config.consumption || {});
     updateDerivedState(dwarf);
   }
+
+  handleDeaths(state, config);
+  updateRelationships(state, config);
+  handleReproduction(state, config);
 
   assignJobs(state, config);
 
   for (const dwarf of state.dwarves) {
     processDwarfAction(dwarf, state, config, runtime);
   }
+
+  regenerateNodes(state, config);
 }
 
-function applyNeedDecay(dwarf, decay) {
+function pushEvent(state, config, message) {
+  const eventsConfig = (config && config.events) || {};
+  const maxEvents = Number(eventsConfig.maxEntries ?? 5);
+  if (!message) {
+    return;
+  }
+  state.events = Array.isArray(state.events) ? state.events : [];
+  state.events.unshift(message);
+  if (state.events.length > maxEvents) {
+    state.events = state.events.slice(0, maxEvents);
+  }
+}
+
+function advanceAge(dwarf, config) {
+  const aging = (config.population && config.population.aging) || {};
+  const adultAge = Number(aging.adultAge || 0);
+  const oldAgeStart = Number(aging.oldAgeStart || Infinity);
+
+  dwarf.ageTicks = Number(dwarf.ageTicks || 0) + 1;
+  if (dwarf.ageTicks < adultAge) {
+    dwarf.lifeStage = 'child';
+  } else if (dwarf.ageTicks >= oldAgeStart) {
+    dwarf.lifeStage = 'elder';
+  } else {
+    dwarf.lifeStage = 'adult';
+  }
+
+  if (Number(dwarf.fertilityCooldown || 0) > 0) {
+    dwarf.fertilityCooldown = Math.max(0, Number(dwarf.fertilityCooldown || 0) - 1);
+  }
+}
+
+function updateSeason(state, config) {
+  const seasons = config.seasons || {};
+  const enabled = seasons.enabled !== false;
+  if (!enabled) {
+    state.season = null;
+    return;
+  }
+
+  const order = Array.isArray(seasons.order) && seasons.order.length > 0
+    ? seasons.order
+    : ['spring', 'summer', 'autumn', 'winter'];
+  const duration = Math.max(1, Number(seasons.durationTicks || 200));
+  const seasonIndex = Math.floor((state.tick - 1) / duration) % order.length;
+  const name = order[seasonIndex];
+  const tickInSeason = ((state.tick - 1) % duration) + 1;
+  const modifiers = (seasons.modifiers && seasons.modifiers[name]) || {};
+
+  state.season = {
+    name,
+    index: seasonIndex,
+    tickInSeason,
+    duration,
+    modifiers,
+  };
+}
+
+function getSeasonModifier(state, key, fallback) {
+  const safeFallback = Number(fallback || 1);
+  if (!state || !state.season || !state.season.modifiers) {
+    return safeFallback;
+  }
+  const value = state.season.modifiers[key];
+  return Number.isFinite(value) ? Number(value) : safeFallback;
+}
+
+function applyNeedDecay(dwarf, decay, multiplier) {
+  const scale = Number(multiplier || 1);
   // Need values are 0..1 where 0 is satisfied and 1 is critical.
   for (const [need, delta] of Object.entries(decay)) {
     const current = Number(dwarf.needs[need] || 0);
-    dwarf.needs[need] = clamp(current + Number(delta || 0), 0, 1);
+    dwarf.needs[need] = clamp(current + Number(delta || 0) * scale, 0, 1);
+  }
+}
+
+function handleDeaths(state, config) {
+  const death = (config.population && config.population.death) || {};
+  const aging = (config.population && config.population.aging) || {};
+  const starvationThreshold = Number(death.starvationThreshold ?? 0.9);
+  const starvationTicks = Math.max(1, Number(death.starvationTicks ?? 50));
+  const oldAgeStart = Number(aging.oldAgeStart ?? Infinity);
+  const maxAge = Number(aging.maxAge ?? Infinity);
+  const chanceMin = Number(death.oldAgeChanceMin ?? 0.0002);
+  const chanceMax = Number(death.oldAgeChanceMax ?? 0.005);
+
+  const deadIds = new Set();
+  const deathMessages = [];
+
+  for (const dwarf of state.dwarves) {
+    const hunger = Number(dwarf.needs.hunger || 0);
+    const thirst = Number(dwarf.needs.thirst || 0);
+
+    if (hunger >= starvationThreshold || thirst >= starvationThreshold) {
+      dwarf.starvationTicks = Number(dwarf.starvationTicks || 0) + 1;
+    } else {
+      dwarf.starvationTicks = 0;
+    }
+
+    if (dwarf.starvationTicks >= starvationTicks) {
+      deadIds.add(dwarf.id);
+      deathMessages.push(`Death: ${dwarf.id} (starvation)`);
+      continue;
+    }
+
+    const ageTicks = Number(dwarf.ageTicks || 0);
+    if (Number.isFinite(maxAge) && ageTicks >= maxAge) {
+      deadIds.add(dwarf.id);
+      deathMessages.push(`Death: ${dwarf.id} (old age)`);
+      continue;
+    }
+
+    if (Number.isFinite(oldAgeStart) && ageTicks >= oldAgeStart && Number.isFinite(maxAge)) {
+      const span = Math.max(1, maxAge - oldAgeStart);
+      const progress = clamp((ageTicks - oldAgeStart) / span, 0, 1);
+      const chance = clamp(chanceMin + progress * (chanceMax - chanceMin), 0, 1);
+      if (Math.random() < chance) {
+        deadIds.add(dwarf.id);
+        deathMessages.push(`Death: ${dwarf.id} (old age)`);
+      }
+    }
+  }
+
+  if (deadIds.size === 0) {
+    return;
+  }
+
+  state.dwarves = state.dwarves.filter((dwarf) => !deadIds.has(dwarf.id));
+  state.jobs = state.jobs.filter((job) => !deadIds.has(job.dwarfId));
+
+  for (const dwarf of state.dwarves) {
+    if (dwarf.partnerId && deadIds.has(dwarf.partnerId)) {
+      dwarf.partnerId = null;
+      dwarf.bondTargetId = null;
+      dwarf.bondScore = 0;
+    }
+    if (dwarf.pregnancy && deadIds.has(dwarf.pregnancy.partnerId)) {
+      dwarf.pregnancy = null;
+    }
+  }
+
+  for (const message of deathMessages) {
+    pushEvent(state, config, message);
+  }
+}
+
+function updateRelationships(state, config) {
+  const relationships = (config.population && config.population.relationships) || {};
+  const interactions = Math.max(0, Number(relationships.interactionsPerTick ?? 2));
+  const maxDistance = Math.max(0, Number(relationships.maxDistance ?? 6));
+  const bondGain = Number(relationships.bondGain ?? 1);
+  const bondDecay = Number(relationships.bondDecay ?? 0.2);
+  const bondThreshold = Number(relationships.bondThreshold ?? 20);
+
+  const adults = state.dwarves.filter((dwarf) => isAdult(dwarf, config));
+  if (adults.length < 2 || interactions === 0) {
+    return;
+  }
+
+  for (let i = 0; i < interactions; i += 1) {
+    const a = adults[Math.floor(Math.random() * adults.length)];
+    let b = adults[Math.floor(Math.random() * adults.length)];
+    if (a === b) {
+      continue;
+    }
+
+    if (a.partnerId || b.partnerId) {
+      continue;
+    }
+
+    if (distance(a, b) > maxDistance) {
+      continue;
+    }
+
+    progressBond(a, b, bondGain, bondDecay, bondThreshold);
+    progressBond(b, a, bondGain, bondDecay, bondThreshold);
+
+    if (a.bondTargetId === b.id && b.bondTargetId === a.id) {
+      if (a.bondScore >= bondThreshold && b.bondScore >= bondThreshold) {
+        a.partnerId = b.id;
+        b.partnerId = a.id;
+      }
+    }
+  }
+}
+
+function progressBond(dwarf, partner, bondGain, bondDecay, bondThreshold) {
+  if (dwarf.partnerId) {
+    return;
+  }
+
+  if (dwarf.bondTargetId && dwarf.bondTargetId !== partner.id) {
+    dwarf.bondScore = Math.max(0, Number(dwarf.bondScore || 0) - bondDecay);
+    if (dwarf.bondScore <= 0) {
+      dwarf.bondTargetId = null;
+    }
+    return;
+  }
+
+  if (!dwarf.bondTargetId) {
+    dwarf.bondTargetId = partner.id;
+    dwarf.bondScore = 0;
+  }
+
+  dwarf.bondScore = Math.min(bondThreshold, Number(dwarf.bondScore || 0) + bondGain);
+}
+
+function handleReproduction(state, config) {
+  const reproduction = (config.population && config.population.reproduction) || {};
+  if (reproduction.enabled === false) {
+    return;
+  }
+
+  processBirths(state, config, reproduction);
+  attemptConceptions(state, config, reproduction);
+}
+
+function processBirths(state, config, reproduction) {
+  const cooldownTicks = Math.max(0, Number(reproduction.cooldownTicks ?? 150));
+
+  for (const dwarf of state.dwarves) {
+    if (!dwarf.pregnancy) {
+      continue;
+    }
+    if (state.tick < Number(dwarf.pregnancy.dueTick || 0)) {
+      continue;
+    }
+
+    const partner = state.dwarves.find((candidate) => candidate.id === dwarf.pregnancy.partnerId) || null;
+    spawnNewborn(state, config, dwarf, partner);
+    dwarf.pregnancy = null;
+    dwarf.fertilityCooldown = cooldownTicks;
+    if (partner) {
+      partner.fertilityCooldown = cooldownTicks;
+    }
+  }
+}
+
+function attemptConceptions(state, config, reproduction) {
+  const baseChance = Number(reproduction.baseChance ?? 0.001);
+  if (baseChance <= 0) {
+    return;
+  }
+
+  const couples = collectCouples(state);
+  if (couples.length === 0) {
+    return;
+  }
+
+  const resourceFactor = getResourceFactor(state, reproduction);
+  const crowdingFactor = getCrowdingFactor(state, reproduction);
+  const moraleFactor = getMoraleFactor(state, reproduction);
+  const seasonFactor = getSeasonModifier(state, 'reproductionChance', 1);
+  const chance = clamp(baseChance * resourceFactor * crowdingFactor * moraleFactor * seasonFactor, 0, 1);
+
+  if (chance <= 0) {
+    return;
+  }
+
+  for (const [a, b] of couples) {
+    if (!isFertileAdult(a, config) || !isFertileAdult(b, config)) {
+      continue;
+    }
+    if (a.pregnancy || b.pregnancy) {
+      continue;
+    }
+    if (Number(a.fertilityCooldown || 0) > 0 || Number(b.fertilityCooldown || 0) > 0) {
+      continue;
+    }
+
+    const birthCost = reproduction.birthCost || {};
+    if (!hasInputs(state.stockpile, birthCost)) {
+      continue;
+    }
+
+    if (Math.random() >= chance) {
+      continue;
+    }
+
+    consumeInputs(state.stockpile, birthCost);
+    const carrier = Math.random() < 0.5 ? a : b;
+    const dueTick = state.tick + Math.max(1, Number(reproduction.gestationTicks ?? 80));
+    carrier.pregnancy = { dueTick, partnerId: carrier === a ? b.id : a.id };
+  }
+}
+
+function collectCouples(state) {
+  const couples = [];
+  const visited = new Set();
+
+  for (const dwarf of state.dwarves) {
+    if (!dwarf.partnerId || visited.has(dwarf.id) || visited.has(dwarf.partnerId)) {
+      continue;
+    }
+    const partner = state.dwarves.find((candidate) => candidate.id === dwarf.partnerId);
+    if (!partner) {
+      continue;
+    }
+    visited.add(dwarf.id);
+    visited.add(partner.id);
+    couples.push([dwarf, partner]);
+  }
+
+  return couples;
+}
+
+function getResourceFactor(state, reproduction) {
+  const perCapita = reproduction.resourcePerCapita || {};
+  const population = Math.max(1, state.dwarves.length);
+  let ratio = 1;
+
+  for (const [resource, amount] of Object.entries(perCapita)) {
+    const need = Number(amount || 0);
+    if (need <= 0) {
+      continue;
+    }
+    const available = Number(state.stockpile[resource] || 0);
+    ratio = Math.min(ratio, available / (need * population));
+  }
+
+  return clamp(ratio, 0, 1);
+}
+
+function getCrowdingFactor(state, reproduction) {
+  const softCap = Number(reproduction.softCap ?? 0);
+  if (softCap <= 0) {
+    return 1;
+  }
+  const minFactor = clamp(Number(reproduction.crowdingMinFactor ?? 0.2), 0, 1);
+  const ratio = 1 - state.dwarves.length / softCap;
+  return clamp(ratio, minFactor, 1);
+}
+
+function getMoraleFactor(state, reproduction) {
+  const influence = clamp(Number(reproduction.moraleInfluence ?? 0.5), 0, 1);
+  if (state.dwarves.length === 0) {
+    return 1;
+  }
+  const avgMorale = averageValue(state.dwarves, (dwarf) => dwarf.state.morale);
+  return clamp((1 - influence) + avgMorale * influence, 0, 1);
+}
+
+function isAdult(dwarf, config) {
+  const aging = (config.population && config.population.aging) || {};
+  const adultAge = Number(aging.adultAge ?? 0);
+  const age = Number(dwarf.ageTicks || 0);
+  return age >= adultAge;
+}
+
+function isFertileAdult(dwarf, config) {
+  const aging = (config.population && config.population.aging) || {};
+  const adultAge = Number(aging.adultAge ?? 0);
+  const fertileStart = Number(aging.fertileStart ?? adultAge);
+  const fertileEnd = Number(aging.fertileEnd ?? Infinity);
+  const age = Number(dwarf.ageTicks || 0);
+
+  if (age < adultAge) {
+    return false;
+  }
+  if (age < fertileStart || age > fertileEnd) {
+    return false;
+  }
+  return true;
+}
+
+function spawnNewborn(state, config, parentA, parentB) {
+  const needsTemplate = config.needs.initial || {};
+  const aging = (config.population && config.population.aging) || {};
+  const newborn = {
+    id: `dwarf_${++state.dwarfCounter}`,
+    x: parentA ? parentA.x : 0,
+    y: parentA ? parentA.y : 0,
+    ageTicks: 0,
+    lifeStage: 'child',
+    needs: { ...needsTemplate },
+    state: {
+      health: 1,
+      morale: 1,
+      stress: 0,
+      fatigue: 0,
+    },
+    job: null,
+    partnerId: null,
+    bondTargetId: null,
+    bondScore: 0,
+    fertilityCooldown: 0,
+    pregnancy: null,
+    starvationTicks: 0,
+  };
+
+  if (parentA && parentB) {
+    if (Math.random() < 0.5) {
+      newborn.x = parentB.x;
+      newborn.y = parentB.y;
+    }
+  }
+
+  newborn.lifeStage = newborn.ageTicks < Number(aging.adultAge || 0) ? 'child' : 'adult';
+  state.dwarves.push(newborn);
+  pushEvent(state, config, `Birth: ${newborn.id}`);
+}
+
+function averageValue(dwarves, selector) {
+  if (dwarves.length === 0) {
+    return 0;
+  }
+
+  const total = dwarves.reduce((sum, dwarf) => sum + Number(selector(dwarf) || 0), 0);
+  return total / dwarves.length;
+}
+
+function regenerateNodes(state, config) {
+  const resourceConfig = config.resources || {};
+  const regenConfig = resourceConfig.nodeRegen || {};
+  if (regenConfig.enabled === false) {
+    return;
+  }
+
+  const interval = Math.max(1, Number(regenConfig.intervalTicks || 30));
+  if (state.tick % interval !== 0) {
+    return;
+  }
+
+  const amount = Number(regenConfig.amount || 1);
+  if (amount <= 0) {
+    return;
+  }
+
+  const multiplier = getSeasonModifier(state, 'nodeRegen', 1);
+  const delta = Math.floor(amount * multiplier);
+  if (delta <= 0) {
+    return;
+  }
+
+  const onlyDepleted = regenConfig.onlyDepleted === true;
+
+  for (const node of state.nodes) {
+    const capacity = Math.max(0, Number(node.capacity || 0));
+    const remaining = Math.max(0, Number(node.remaining || 0));
+    if (capacity <= 0 || remaining >= capacity) {
+      continue;
+    }
+    if (onlyDepleted && remaining > 0) {
+      continue;
+    }
+    node.remaining = Math.min(capacity, remaining + delta);
   }
 }
 
@@ -71,7 +520,7 @@ function updateDerivedState(dwarf) {
 }
 
 function assignJobs(state, config) {
-  const idleDwarves = state.dwarves.filter((dwarf) => !dwarf.job);
+  const idleDwarves = state.dwarves.filter((dwarf) => !dwarf.job && canWork(dwarf, config));
   const resourceConfig = config.resources || {};
   const targets = resourceConfig.targets || resourceConfig.stockpile || {};
   const shortages = computeShortages(state.stockpile, targets);
@@ -123,6 +572,10 @@ function assignJobs(state, config) {
       workshopUsage[job.workshopId] = Number(workshopUsage[job.workshopId] || 0) + 1;
     }
   }
+}
+
+function canWork(dwarf, config) {
+  return isAdult(dwarf, config);
 }
 
 function computeShortages(stockpile, targets) {
@@ -258,7 +711,7 @@ function createCraftJob(resourceId, recipe, state, dwarf, workshops, workshopUsa
 
   consumeInputs(state.stockpile, inputs);
   const outputs = recipe.outputs || { [resourceId]: 1 };
-  const workTicks = getRecipeTicks(recipe);
+  const workTicks = getRecipeTicks(recipe, state);
 
   return {
     id: `job_${state.jobCounter++}`,
@@ -278,9 +731,11 @@ function getRecipe(config, resourceId) {
   return recipe || null;
 }
 
-function getRecipeTicks(recipe) {
+function getRecipeTicks(recipe, state) {
   const ticks = recipe.ticks !== undefined ? recipe.ticks : recipe.time;
-  return Math.max(1, Number(ticks || 6));
+  const base = Math.max(1, Number(ticks || 6));
+  const multiplier = getSeasonModifier(state, 'craftTicks', 1);
+  return Math.max(1, Math.round(base * multiplier));
 }
 
 function hasInputs(stockpile, inputs) {
@@ -314,7 +769,7 @@ function createGatherJob(resourceId, state, config) {
   }
 
   const node = nodes[Math.floor(Math.random() * nodes.length)];
-  const workTicks = getGatherTicks(config, resourceId);
+  const workTicks = getGatherTicks(config, resourceId, state);
 
   return {
     id: `job_${state.jobCounter++}`,
@@ -397,11 +852,16 @@ function processDwarfJob(dwarf, state, config, runtime) {
     return;
   }
 
-  const amount = getGatherYield(config, job.resource, targetNode);
+  const amount = getGatherYield(config, job.resource, targetNode, state);
   state.stockpile[job.resource] = Number(state.stockpile[job.resource] || 0) + amount;
   if (targetNode) {
-    targetNode.remaining = Number(targetNode.remaining || 0) - amount;
-    if (targetNode.remaining <= 0) {
+    const resourceConfig = config.resources || {};
+    const regenConfig = resourceConfig.nodeRegen || {};
+    const regenEnabled = regenConfig.enabled !== false;
+    const removeDepleted = resourceConfig.removeDepletedNodes === true;
+
+    targetNode.remaining = Math.max(0, Number(targetNode.remaining || 0) - amount);
+    if (targetNode.remaining <= 0 && (removeDepleted || !regenEnabled)) {
       removeNode(state, targetNode.nodeId);
     }
   }
@@ -453,24 +913,27 @@ function removeNode(state, nodeId) {
   }
 }
 
-function getGatherTicks(config, resourceId) {
+function getGatherTicks(config, resourceId, state) {
   const jobs = config.jobs || {};
   const specific = jobs.gatherTicks && jobs.gatherTicks[resourceId];
   const value = specific !== undefined ? specific : jobs.defaultGatherTicks;
-
-  return Math.max(1, Number(value || 6));
+  const base = Math.max(1, Number(value || 6));
+  const multiplier = getSeasonModifier(state, 'gatherTicks', 1);
+  return Math.max(1, Math.round(base * multiplier));
 }
 
-function getGatherYield(config, resourceId, node) {
+function getGatherYield(config, resourceId, node, state) {
   const jobs = config.jobs || {};
   const specific = jobs.gatherYield && jobs.gatherYield[resourceId];
   const value = specific !== undefined ? specific : jobs.defaultGatherYield;
   const baseYield = Math.max(1, Number(value || 1));
+  const multiplier = getSeasonModifier(state, 'gatherYield', 1);
+  const scaledYield = Math.max(1, Math.round(baseYield * multiplier));
   if (!node) {
-    return baseYield;
+    return scaledYield;
   }
   const remaining = Math.max(0, Number(node.remaining || 0));
-  return Math.min(baseYield, remaining);
+  return Math.min(scaledYield, remaining);
 }
 
 function moveDwarf(dwarf, runtime) {

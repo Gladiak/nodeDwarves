@@ -17,6 +17,8 @@ function createInitialState(config, runtime) {
     jobs: [],
     jobCounter: 1,
     lastPriorities: [],
+    dwarfCounter: dwarves.length,
+    events: [],
   };
 }
 
@@ -86,12 +88,20 @@ function createDwarves(config, runtime, occupied) {
   const count = Number(config.dwarves.count || 0);
   const positions = createPositions(count, runtime.gridWidth, runtime.gridHeight, occupied);
   const needsTemplate = config.needs.initial || {};
+  const population = config.population || {};
+  const aging = population.aging || {};
+  const initialAgeRange = population.initialAgeRange || {};
+  const minAge = Number(initialAgeRange.min ?? aging.adultAge ?? 0);
+  const maxAge = Number(initialAgeRange.max ?? aging.fertileEnd ?? minAge);
 
   return positions.map((pos, index) => {
+    const ageTicks = clamp(randomBetween(minAge, maxAge), 0, Number(aging.maxAge || maxAge || 0));
     return {
       id: `dwarf_${index + 1}`,
       x: pos.x,
       y: pos.y,
+      ageTicks,
+      lifeStage: getLifeStage(ageTicks, aging),
       needs: { ...needsTemplate },
       state: {
         health: 1,
@@ -100,6 +110,12 @@ function createDwarves(config, runtime, occupied) {
         fatigue: 0,
       },
       job: null,
+      partnerId: null,
+      bondTargetId: null,
+      bondScore: 0,
+      fertilityCooldown: 0,
+      pregnancy: null,
+      starvationTicks: 0,
     };
   });
 }
@@ -182,6 +198,27 @@ function placeEntity(entity, occupied, runtime) {
 
   entity.x = x;
   entity.y = y;
+}
+
+function randomBetween(min, max) {
+  const low = Number.isFinite(min) ? Number(min) : 0;
+  const high = Number.isFinite(max) ? Number(max) : low;
+  if (high <= low) {
+    return low;
+  }
+  return Math.floor(Math.random() * (high - low + 1)) + low;
+}
+
+function getLifeStage(ageTicks, aging) {
+  const adultAge = Number(aging.adultAge || 0);
+  const oldAgeStart = Number(aging.oldAgeStart || Infinity);
+  if (ageTicks < adultAge) {
+    return 'child';
+  }
+  if (ageTicks >= oldAgeStart) {
+    return 'elder';
+  }
+  return 'adult';
 }
 
 module.exports = { createInitialState, fitStateToGrid };

@@ -8,19 +8,28 @@
     "tickMs": 200,
     "header": {
       "enabled": true,
-      "height": 2,
+      "height": 1,
       "title": "NodeDwarves Simulation"
+    },
+    "footer": {
+      "enabled": true,
+      "height": 2
     },
     "hud": {
       "enabled": true,
-      "width": 28
+      "width": 50,
+      "columns": 2,
+      "columnGap": 2
     }
+  },
+  "events": {
+    "maxEntries": 5
   },
   "simulation": {
     "maxTicks": 0
   },
   "dwarves": {
-    "count": 12
+    "count": 6
   },
   "resources": {
     "stockpile": {
@@ -54,6 +63,13 @@
       "stone": 14,
       "ore": 8
     },
+    "removeDepletedNodes": false,
+    "nodeRegen": {
+      "enabled": true,
+      "intervalTicks": 40,
+      "amount": 1,
+      "onlyDepleted": false
+    },
     "nodes": {
       "food_raw": 24,
       "water": 16,
@@ -66,6 +82,88 @@
     "workshop": {
       "count": 2,
       "capacity": 1
+    }
+  },
+  "population": {
+    "initialAgeRange": {
+      "min": 260,
+      "max": 900
+    },
+    "aging": {
+      "adultAge": 200,
+      "fertileStart": 260,
+      "fertileEnd": 1200,
+      "oldAgeStart": 1400,
+      "maxAge": 1800
+    },
+    "relationships": {
+      "interactionsPerTick": 2,
+      "maxDistance": 6,
+      "bondGain": 1,
+      "bondDecay": 0.2,
+      "bondThreshold": 20
+    },
+    "reproduction": {
+      "enabled": true,
+      "gestationTicks": 80,
+      "baseChance": 0.001,
+      "cooldownTicks": 150,
+      "resourcePerCapita": {
+        "food_raw": 2,
+        "water": 2
+      },
+      "softCap": 20,
+      "crowdingMinFactor": 0.2,
+      "moraleInfluence": 0.5,
+      "birthCost": {
+        "food_raw": 2,
+        "water": 2
+      }
+    },
+    "death": {
+      "starvationThreshold": 0.9,
+      "starvationTicks": 50,
+      "oldAgeChanceMin": 0.0002,
+      "oldAgeChanceMax": 0.005
+    }
+  },
+  "seasons": {
+    "enabled": true,
+    "durationTicks": 200,
+    "order": ["spring", "summer", "autumn", "winter"],
+    "modifiers": {
+      "spring": {
+        "needDecay": 0.95,
+        "gatherYield": 1.1,
+        "gatherTicks": 0.9,
+        "craftTicks": 0.9,
+        "nodeRegen": 1.2,
+        "reproductionChance": 1.1
+      },
+      "summer": {
+        "needDecay": 1.0,
+        "gatherYield": 1.0,
+        "gatherTicks": 1.0,
+        "craftTicks": 1.0,
+        "nodeRegen": 1.0,
+        "reproductionChance": 1.0
+      },
+      "autumn": {
+        "needDecay": 1.02,
+        "gatherYield": 1.05,
+        "gatherTicks": 1.0,
+        "craftTicks": 1.0,
+        "nodeRegen": 0.9,
+        "reproductionChance": 0.95
+      },
+      "winter": {
+        "needDecay": 1.08,
+        "gatherYield": 0.95,
+        "gatherTicks": 1.1,
+        "craftTicks": 1.1,
+        "nodeRegen": 0.7,
+        "reproductionChance": 0.85
+      }
     }
   },
   "needs": {
