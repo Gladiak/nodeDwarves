@@ -1,0 +1,146 @@
+{
+  "display": {
+    "autoSize": true,
+    "width": 96,
+    "height": 28,
+    "maxWidth": 96,
+    "maxHeight": 28,
+    "tickMs": 200,
+    "header": {
+      "enabled": true,
+      "height": 2,
+      "title": "NodeDwarves Simulation"
+    },
+    "hud": {
+      "enabled": true,
+      "width": 28
+    }
+  },
+  "simulation": {
+    "maxTicks": 0
+  },
+  "dwarves": {
+    "count": 12
+  },
+  "resources": {
+    "stockpile": {
+      "food_raw": 30,
+      "water": 30,
+      "wood": 20,
+      "stone": 20,
+      "ore": 10,
+      "plant_fiber": 10,
+      "meal": 0,
+      "booze": 0,
+      "charcoal": 0,
+      "metal": 0
+    },
+    "targets": {
+      "food_raw": 50,
+      "water": 50,
+      "wood": 30,
+      "stone": 30,
+      "ore": 15,
+      "meal": 20,
+      "booze": 20,
+      "charcoal": 12,
+      "metal": 8
+    },
+    "defaultNodeCapacity": 12,
+    "nodeCapacity": {
+      "food_raw": 10,
+      "water": 16,
+      "wood": 14,
+      "stone": 14,
+      "ore": 8
+    },
+    "nodes": {
+      "food_raw": 24,
+      "water": 16,
+      "wood": 32,
+      "stone": 32,
+      "ore": 12
+    }
+  },
+  "structures": {
+    "workshop": {
+      "count": 2,
+      "capacity": 1
+    }
+  },
+  "needs": {
+    "initial": {
+      "hunger": 0.1,
+      "thirst": 0.1,
+      "sleep": 0.1,
+      "safety": 0.1,
+      "social": 0.1
+    },
+    "decayPerTick": {
+      "hunger": 0.002,
+      "thirst": 0.003,
+      "sleep": 0.0015,
+      "safety": 0.0006,
+      "social": 0.0008
+    }
+  },
+  "consumption": {
+    "hungerThreshold": 0.6,
+    "thirstThreshold": 0.6,
+    "mealRelief": 0.5,
+    "rawFoodRelief": 0.35,
+    "boozeRelief": 0.5,
+    "waterRelief": 0.35
+  },
+  "jobs": {
+    "defaultGatherTicks": 6,
+    "defaultGatherYield": 1,
+    "gatherTicks": {
+      "food_raw": 6,
+      "water": 4,
+      "wood": 6,
+      "stone": 7,
+      "ore": 8
+    },
+    "gatherYield": {
+      "food_raw": 1,
+      "water": 1,
+      "wood": 1,
+      "stone": 1,
+      "ore": 1
+    }
+  },
+  "recipes": {
+    "meal": {
+      "inputs": { "food_raw": 2 },
+      "outputs": { "meal": 1 },
+      "ticks": 4
+    },
+    "booze": {
+      "inputs": { "food_raw": 1, "water": 1 },
+      "outputs": { "booze": 1 },
+      "ticks": 5
+    },
+    "charcoal": {
+      "inputs": { "wood": 2 },
+      "outputs": { "charcoal": 1 },
+      "ticks": 5
+    },
+    "metal": {
+      "inputs": { "ore": 2, "charcoal": 1 },
+      "outputs": { "metal": 1 },
+      "ticks": 8
+    }
+  },
+  "symbols": {
+    "empty": ".",
+    "dwarf": "@",
+    "food_raw": "f",
+    "water": "w",
+    "wood": "t",
+    "stone": "s",
+    "ore": "o",
+    "structure": "#",
+    "workshop": "W"
+  }
+}
