@@ -1,0 +1,7952 @@
+# NodeDwarves training debug log
+start_time=2026-01-26 22:22:02
+config=config.json
+settings episodes=50000 max_steps=900 step_ticks=5 batch_episodes=8 workers=8 gamma=0.99 gae_lambda=0.95 clip_range=0.2 entropy_coef=0.005 value_coef=0.5 lr=0.0003 lr_final=0.0001 difficulty_start=0.08 difficulty_end=1.0 difficulty_ramp=50000 min_weight=0.0 max_weight=2.0
+resources=food_raw stone water wood
+scenarios=baseline:0.15 water_scarce:0.25 food_scarce:0.20 low_stockpile:0.20 housing_pressure:0.20
+eval_scenarios=baseline water_scarce food_scarce low_stockpile housing_pressure
+log_every_console=1000 log_every_file=500
+
+# Legend (all values are averaged over each file window)
+# Summary.avg_reward: mean episode reward in the window.
+# Summary.avg_steps: mean episode steps in the window.
+# Summary.avg_births: mean births per episode in the window.
+# Summary.avg_deaths: mean deaths per episode in the window.
+# Summary.lr: optimizer learning rate at log time.
+# Summary.difficulty: curriculum difficulty factor (0..1).
+# Summary.tick: last tick observed in the window.
+# Summary.pop: population at the last tick in the window.
+# Scenario mix.<name>: scenario counts and share within the window.
+# Stockpile.avg: mean of stockpile ratios across resources.
+# Stockpile.min: minimum stockpile ratio across resources.
+# Stockpile.<resource>: current/target ratio per resource.
+# Nodes.<resource>: remaining/total capacity ratio per resource node.
+# Needs.<need>: average need value (0..1).
+# Housing.houses: total houses.
+# Housing.beds: total bed capacity.
+# Housing.ratio: beds/population ratio.
+# Housing.unsheltered: fraction of population without beds.
+# Reproduction.ticks: ticks accumulated in the window.
+# Reproduction.couples_per_tick: average couples per tick.
+# Reproduction.fertile_per_tick: average fertile adults per tick.
+# Reproduction.pregnancies_per_tick: average pregnancies per tick.
+# Reproduction.cooldowns_per_tick: average cooldowns per tick.
+# Reproduction.chance: average conception chance per tick.
+# Reproduction.resource_factor: average resource factor for conception.
+# Reproduction.crowding_factor: average crowding factor for conception.
+# Reproduction.morale_factor: average morale factor for conception.
+# Reproduction.season_factor: average season factor for conception.
+# Reproduction.attempts: average attempts per episode.
+# Reproduction.successes: average successes per episode.
+# Reproduction.blocked.<reason>: average blocked counts per episode.
+# Merchant.trades_per_tick: average trades per tick.
+# Merchant.given_per_tick.<resource>: average units given per tick.
+# Merchant.received_per_tick.<resource>: average units received per tick.
+# Fields.nodes: count of field nodes.
+# Fields.node_ratio: remaining/total capacity ratio for field nodes.
+# Fields.water_ratio: water stockpile ratio used for irrigation.
+# Fields.irrigation: irrigation multiplier.
+# Fields.season: seasonal multiplier applied to field regen.
+# Fields.regen: irrigation * season multiplier.
+# Signals.critical_needs: fraction of dwarves at critical needs.
+# Signals.idle_adults: fraction of idle adults.
+
+=== episode=500 window=1-500 count=500 ===
+Summary:
+  avg_reward: 3728.82
+  avg_steps: 900.0
+  avg_births: 163.46
+  avg_deaths: 17.67
+  lr: 0.000298
+  difficulty: 0.09
+  tick: 5261
+  pop: 96
+Scenario mix:
+  baseline        : 76 (15.2%)
+  food_scarce     : 104 (20.8%)
+  housing_pressure: 111 (22.2%)
+  low_stockpile   : 100 (20.0%)
+  water_scarce    : 109 (21.8%)
+Stockpile ratios:
+  avg: 0.94
+  min: 0.78
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.82
+  wood    : 0.98
+Nodes ratio:
+  food_raw: 0.78
+  stone   : 0.96
+  water   : 0.44
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.16
+Housing:
+  houses: 65
+  beds: 133
+  ratio: 0.86
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.40
+  fertile_per_tick: 59.52
+  pregnancies_per_tick: 1.80
+  cooldowns_per_tick: 5.03
+  chance: 0.0025
+  resource_factor: 0.82
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 77837
+  successes: 166
+  blocked:
+    infertile: 4829
+    pregnant: 8059
+    cooldown: 11189
+    no_resources: 0
+    no_housing: 0
+    chance: 77671
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.01
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.82
+  irrigation: 0.90
+  season: 0.89
+  regen: 0.81
+Signals:
+  critical_needs: 0.00
+  idle_adults: 0.32
+
+=== episode=1000 window=501-1000 count=500 ===
+Summary:
+  avg_reward: 3685.20
+  avg_steps: 900.0
+  avg_births: 162.58
+  avg_deaths: 17.80
+  lr: 0.000296
+  difficulty: 0.10
+  tick: 5128
+  pop: 173
+Scenario mix:
+  baseline        : 84 (16.8%)
+  food_scarce     : 95 (19.0%)
+  housing_pressure: 79 (15.8%)
+  low_stockpile   : 113 (22.6%)
+  water_scarce    : 129 (25.8%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.73
+  food_raw: 0.96
+  stone   : 0.98
+  water   : 0.78
+  wood    : 0.98
+Nodes ratio:
+  food_raw: 0.79
+  stone   : 0.97
+  water   : 0.42
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 65
+  beds: 132
+  ratio: 0.86
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.42
+  fertile_per_tick: 58.97
+  pregnancies_per_tick: 1.79
+  cooldowns_per_tick: 5.00
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 77329
+  successes: 165
+  blocked:
+    infertile: 4710
+    pregnant: 8007
+    cooldown: 11113
+    no_resources: 0
+    no_housing: 0
+    chance: 77163
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.01
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.78
+  irrigation: 0.88
+  season: 0.91
+  regen: 0.80
+Signals:
+  critical_needs: 0.00
+  idle_adults: 0.27
+
+=== episode=1500 window=1001-1500 count=500 ===
+Summary:
+  avg_reward: 3702.70
+  avg_steps: 900.0
+  avg_births: 164.35
+  avg_deaths: 18.59
+  lr: 0.000294
+  difficulty: 0.11
+  tick: 5000
+  pop: 143
+Scenario mix:
+  baseline        : 78 (15.6%)
+  food_scarce     : 99 (19.8%)
+  housing_pressure: 115 (23.0%)
+  low_stockpile   : 93 (18.6%)
+  water_scarce    : 115 (23.0%)
+Stockpile ratios:
+  avg: 0.94
+  min: 0.77
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.81
+  wood    : 0.99
+Nodes ratio:
+  food_raw: 0.77
+  stone   : 0.97
+  water   : 0.43
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.16
+Housing:
+  houses: 65
+  beds: 133
+  ratio: 0.86
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.72
+  fertile_per_tick: 60.30
+  pregnancies_per_tick: 1.81
+  cooldowns_per_tick: 5.05
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.91
+  season_factor: 0.93
+  attempts: 78251
+  successes: 167
+  blocked:
+    infertile: 4862
+    pregnant: 8094
+    cooldown: 11232
+    no_resources: 0
+    no_housing: 0
+    chance: 78084
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.01
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.97
+  water_ratio: 0.81
+  irrigation: 0.90
+  season: 0.90
+  regen: 0.81
+Signals:
+  critical_needs: 0.00
+  idle_adults: 0.30
+
+=== episode=2000 window=1501-2000 count=500 ===
+Summary:
+  avg_reward: 3708.59
+  avg_steps: 900.0
+  avg_births: 164.51
+  avg_deaths: 17.87
+  lr: 0.000292
+  difficulty: 0.12
+  tick: 4988
+  pop: 139
+Scenario mix:
+  baseline        : 65 (13.0%)
+  food_scarce     : 112 (22.4%)
+  housing_pressure: 105 (21.0%)
+  low_stockpile   : 90 (18.0%)
+  water_scarce    : 128 (25.6%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.74
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.78
+  wood    : 0.99
+Nodes ratio:
+  food_raw: 0.77
+  stone   : 0.96
+  water   : 0.40
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 65
+  beds: 133
+  ratio: 0.86
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.77
+  fertile_per_tick: 60.31
+  pregnancies_per_tick: 1.81
+  cooldowns_per_tick: 5.06
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.91
+  season_factor: 0.93
+  attempts: 78589
+  successes: 167
+  blocked:
+    infertile: 4805
+    pregnant: 8105
+    cooldown: 11251
+    no_resources: 0
+    no_housing: 0
+    chance: 78422
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.97
+  water_ratio: 0.78
+  irrigation: 0.88
+  season: 0.90
+  regen: 0.80
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.29
+
+=== episode=2500 window=2001-2500 count=500 ===
+Summary:
+  avg_reward: 3702.69
+  avg_steps: 900.0
+  avg_births: 166.04
+  avg_deaths: 18.08
+  lr: 0.000290
+  difficulty: 0.13
+  tick: 5032
+  pop: 119
+Scenario mix:
+  baseline        : 83 (16.6%)
+  food_scarce     : 101 (20.2%)
+  housing_pressure: 99 (19.8%)
+  low_stockpile   : 101 (20.2%)
+  water_scarce    : 116 (23.2%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.75
+  food_raw: 0.96
+  stone   : 0.99
+  water   : 0.79
+  wood    : 0.99
+Nodes ratio:
+  food_raw: 0.77
+  stone   : 0.96
+  water   : 0.41
+  wood    : 0.95
+Needs avg:
+  hunger: 0.15
+  thirst: 0.16
+Housing:
+  houses: 66
+  beds: 134
+  ratio: 0.86
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.74
+  fertile_per_tick: 60.10
+  pregnancies_per_tick: 1.82
+  cooldowns_per_tick: 5.10
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 78566
+  successes: 168
+  blocked:
+    infertile: 4760
+    pregnant: 8177
+    cooldown: 11352
+    no_resources: 0
+    no_housing: 0
+    chance: 78398
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.97
+  water_ratio: 0.79
+  irrigation: 0.89
+  season: 0.88
+  regen: 0.78
+Signals:
+  critical_needs: 0.00
+  idle_adults: 0.27
+
+=== episode=3000 window=2501-3000 count=500 ===
+Summary:
+  avg_reward: 3703.65
+  avg_steps: 900.0
+  avg_births: 164.39
+  avg_deaths: 18.26
+  lr: 0.000288
+  difficulty: 0.14
+  tick: 5154
+  pop: 171
+Scenario mix:
+  baseline        : 81 (16.2%)
+  food_scarce     : 98 (19.6%)
+  housing_pressure: 99 (19.8%)
+  low_stockpile   : 116 (23.2%)
+  water_scarce    : 106 (21.2%)
+Stockpile ratios:
+  avg: 0.94
+  min: 0.78
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.81
+  wood    : 0.99
+Nodes ratio:
+  food_raw: 0.79
+  stone   : 0.96
+  water   : 0.43
+  wood    : 0.97
+Needs avg:
+  hunger: 0.15
+  thirst: 0.16
+Housing:
+  houses: 65
+  beds: 134
+  ratio: 0.87
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.53
+  fertile_per_tick: 59.64
+  pregnancies_per_tick: 1.81
+  cooldowns_per_tick: 5.05
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 77996
+  successes: 167
+  blocked:
+    infertile: 4701
+    pregnant: 8098
+    cooldown: 11243
+    no_resources: 0
+    no_housing: 0
+    chance: 77829
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.81
+  irrigation: 0.90
+  season: 0.91
+  regen: 0.81
+Signals:
+  critical_needs: 0.00
+  idle_adults: 0.31
+
+=== episode=3500 window=3001-3500 count=500 ===
+Summary:
+  avg_reward: 3723.61
+  avg_steps: 900.0
+  avg_births: 163.28
+  avg_deaths: 17.42
+  lr: 0.000286
+  difficulty: 0.14
+  tick: 5257
+  pop: 187
+Scenario mix:
+  baseline        : 74 (14.8%)
+  food_scarce     : 105 (21.0%)
+  housing_pressure: 113 (22.6%)
+  low_stockpile   : 98 (19.6%)
+  water_scarce    : 110 (22.0%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.76
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.79
+  wood    : 0.99
+Nodes ratio:
+  food_raw: 0.79
+  stone   : 0.96
+  water   : 0.44
+  wood    : 0.97
+Needs avg:
+  hunger: 0.15
+  thirst: 0.16
+Housing:
+  houses: 65
+  beds: 132
+  ratio: 0.85
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.33
+  fertile_per_tick: 59.38
+  pregnancies_per_tick: 1.79
+  cooldowns_per_tick: 5.02
+  chance: 0.0025
+  resource_factor: 0.82
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 77440
+  successes: 166
+  blocked:
+    infertile: 4793
+    pregnant: 8044
+    cooldown: 11159
+    no_resources: 0
+    no_housing: 0
+    chance: 77274
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.79
+  irrigation: 0.89
+  season: 0.90
+  regen: 0.80
+Signals:
+  critical_needs: 0.00
+  idle_adults: 0.29
+
+=== episode=4000 window=3501-4000 count=500 ===
+Summary:
+  avg_reward: 3687.92
+  avg_steps: 900.0
+  avg_births: 161.94
+  avg_deaths: 17.66
+  lr: 0.000284
+  difficulty: 0.15
+  tick: 4683
+  pop: 126
+Scenario mix:
+  baseline        : 69 (13.8%)
+  food_scarce     : 104 (20.8%)
+  housing_pressure: 98 (19.6%)
+  low_stockpile   : 103 (20.6%)
+  water_scarce    : 126 (25.2%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.74
+  food_raw: 0.97
+  stone   : 0.98
+  water   : 0.79
+  wood    : 0.98
+Nodes ratio:
+  food_raw: 0.78
+  stone   : 0.97
+  water   : 0.43
+  wood    : 0.97
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 65
+  beds: 132
+  ratio: 0.86
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.27
+  fertile_per_tick: 58.91
+  pregnancies_per_tick: 1.78
+  cooldowns_per_tick: 4.98
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 76755
+  successes: 164
+  blocked:
+    infertile: 4713
+    pregnant: 7979
+    cooldown: 11070
+    no_resources: 0
+    no_housing: 0
+    chance: 76590
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.79
+  irrigation: 0.89
+  season: 0.90
+  regen: 0.80
+Signals:
+  critical_needs: 0.00
+  idle_adults: 0.28
+
+=== episode=4500 window=4001-4500 count=500 ===
+Summary:
+  avg_reward: 3679.21
+  avg_steps: 900.0
+  avg_births: 160.92
+  avg_deaths: 18.22
+  lr: 0.000282
+  difficulty: 0.16
+  tick: 4616
+  pop: 157
+Scenario mix:
+  baseline        : 70 (14.0%)
+  food_scarce     : 100 (20.0%)
+  housing_pressure: 103 (20.6%)
+  low_stockpile   : 90 (18.0%)
+  water_scarce    : 137 (27.4%)
+Stockpile ratios:
+  avg: 0.92
+  min: 0.72
+  food_raw: 0.96
+  stone   : 0.98
+  water   : 0.77
+  wood    : 0.99
+Nodes ratio:
+  food_raw: 0.79
+  stone   : 0.97
+  water   : 0.41
+  wood    : 0.97
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 64
+  beds: 131
+  ratio: 0.87
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.29
+  fertile_per_tick: 58.96
+  pregnancies_per_tick: 1.77
+  cooldowns_per_tick: 4.95
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.91
+  season_factor: 0.93
+  attempts: 76339
+  successes: 163
+  blocked:
+    infertile: 4739
+    pregnant: 7922
+    cooldown: 10998
+    no_resources: 0
+    no_housing: 0
+    chance: 76175
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.77
+  irrigation: 0.87
+  season: 0.89
+  regen: 0.78
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.27
+
+=== episode=5000 window=4501-5000 count=500 ===
+Summary:
+  avg_reward: 3692.90
+  avg_steps: 900.0
+  avg_births: 162.66
+  avg_deaths: 17.83
+  lr: 0.000280
+  difficulty: 0.17
+  tick: 4991
+  pop: 187
+Scenario mix:
+  baseline        : 75 (15.0%)
+  food_scarce     : 100 (20.0%)
+  housing_pressure: 95 (19.0%)
+  low_stockpile   : 117 (23.4%)
+  water_scarce    : 113 (22.6%)
+Stockpile ratios:
+  avg: 0.94
+  min: 0.76
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.81
+  wood    : 0.98
+Nodes ratio:
+  food_raw: 0.79
+  stone   : 0.96
+  water   : 0.44
+  wood    : 0.97
+Needs avg:
+  hunger: 0.15
+  thirst: 0.16
+Housing:
+  houses: 65
+  beds: 132
+  ratio: 0.86
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.29
+  fertile_per_tick: 59.10
+  pregnancies_per_tick: 1.79
+  cooldowns_per_tick: 5.00
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 76958
+  successes: 165
+  blocked:
+    infertile: 4774
+    pregnant: 8015
+    cooldown: 11127
+    no_resources: 0
+    no_housing: 0
+    chance: 76793
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.00
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.81
+  irrigation: 0.89
+  season: 0.90
+  regen: 0.81
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.27
+
+=== episode=5500 window=5001-5500 count=500 ===
+Summary:
+  avg_reward: 3708.93
+  avg_steps: 900.0
+  avg_births: 163.39
+  avg_deaths: 17.90
+  lr: 0.000278
+  difficulty: 0.18
+  tick: 5194
+  pop: 129
+Scenario mix:
+  baseline        : 72 (14.4%)
+  food_scarce     : 100 (20.0%)
+  housing_pressure: 112 (22.4%)
+  low_stockpile   : 94 (18.8%)
+  water_scarce    : 122 (24.4%)
+Stockpile ratios:
+  avg: 0.94
+  min: 0.75
+  food_raw: 0.98
+  stone   : 0.99
+  water   : 0.79
+  wood    : 0.98
+Nodes ratio:
+  food_raw: 0.79
+  stone   : 0.97
+  water   : 0.43
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.16
+Housing:
+  houses: 65
+  beds: 132
+  ratio: 0.85
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.47
+  fertile_per_tick: 59.59
+  pregnancies_per_tick: 1.79
+  cooldowns_per_tick: 5.03
+  chance: 0.0025
+  resource_factor: 0.82
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 77617
+  successes: 166
+  blocked:
+    infertile: 4786
+    pregnant: 8046
+    cooldown: 11172
+    no_resources: 0
+    no_housing: 0
+    chance: 77451
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.79
+  irrigation: 0.88
+  season: 0.92
+  regen: 0.81
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.29
+
+=== episode=6000 window=5501-6000 count=500 ===
+Summary:
+  avg_reward: 3680.34
+  avg_steps: 900.0
+  avg_births: 160.87
+  avg_deaths: 18.01
+  lr: 0.000276
+  difficulty: 0.19
+  tick: 5131
+  pop: 125
+Scenario mix:
+  baseline        : 70 (14.0%)
+  food_scarce     : 101 (20.2%)
+  housing_pressure: 103 (20.6%)
+  low_stockpile   : 94 (18.8%)
+  water_scarce    : 132 (26.4%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.74
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.77
+  wood    : 0.99
+Nodes ratio:
+  food_raw: 0.79
+  stone   : 0.97
+  water   : 0.42
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 64
+  beds: 130
+  ratio: 0.86
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.19
+  fertile_per_tick: 58.85
+  pregnancies_per_tick: 1.77
+  cooldowns_per_tick: 4.95
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 76158
+  successes: 163
+  blocked:
+    infertile: 4713
+    pregnant: 7924
+    cooldown: 11001
+    no_resources: 0
+    no_housing: 0
+    chance: 75994
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.77
+  irrigation: 0.87
+  season: 0.89
+  regen: 0.79
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.30
+
+=== episode=6500 window=6001-6500 count=500 ===
+Summary:
+  avg_reward: 3706.70
+  avg_steps: 900.0
+  avg_births: 162.42
+  avg_deaths: 17.58
+  lr: 0.000274
+  difficulty: 0.20
+  tick: 5200
+  pop: 170
+Scenario mix:
+  baseline        : 78 (15.6%)
+  food_scarce     : 103 (20.6%)
+  housing_pressure: 106 (21.2%)
+  low_stockpile   : 90 (18.0%)
+  water_scarce    : 123 (24.6%)
+Stockpile ratios:
+  avg: 0.94
+  min: 0.75
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.80
+  wood    : 0.98
+Nodes ratio:
+  food_raw: 0.79
+  stone   : 0.96
+  water   : 0.43
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.16
+Housing:
+  houses: 65
+  beds: 132
+  ratio: 0.86
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.34
+  fertile_per_tick: 59.34
+  pregnancies_per_tick: 1.78
+  cooldowns_per_tick: 4.99
+  chance: 0.0025
+  resource_factor: 0.82
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 76896
+  successes: 165
+  blocked:
+    infertile: 4778
+    pregnant: 8002
+    cooldown: 11102
+    no_resources: 0
+    no_housing: 0
+    chance: 76731
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.80
+  irrigation: 0.89
+  season: 0.90
+  regen: 0.80
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.30
+
+=== episode=7000 window=6501-7000 count=500 ===
+Summary:
+  avg_reward: 3704.08
+  avg_steps: 900.0
+  avg_births: 161.87
+  avg_deaths: 17.21
+  lr: 0.000272
+  difficulty: 0.21
+  tick: 5147
+  pop: 133
+Scenario mix:
+  baseline        : 62 (12.4%)
+  food_scarce     : 100 (20.0%)
+  housing_pressure: 106 (21.2%)
+  low_stockpile   : 107 (21.4%)
+  water_scarce    : 125 (25.0%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.73
+  food_raw: 0.97
+  stone   : 0.98
+  water   : 0.78
+  wood    : 0.98
+Nodes ratio:
+  food_raw: 0.79
+  stone   : 0.95
+  water   : 0.43
+  wood    : 0.97
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 65
+  beds: 132
+  ratio: 0.86
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.15
+  fertile_per_tick: 58.72
+  pregnancies_per_tick: 1.78
+  cooldowns_per_tick: 4.98
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 76479
+  successes: 164
+  blocked:
+    infertile: 4745
+    pregnant: 7969
+    cooldown: 11063
+    no_resources: 0
+    no_housing: 0
+    chance: 76314
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.78
+  irrigation: 0.88
+  season: 0.90
+  regen: 0.79
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.24
+
+=== episode=7500 window=7001-7500 count=500 ===
+Summary:
+  avg_reward: 3707.85
+  avg_steps: 900.0
+  avg_births: 162.69
+  avg_deaths: 17.28
+  lr: 0.000270
+  difficulty: 0.22
+  tick: 4677
+  pop: 148
+Scenario mix:
+  baseline        : 77 (15.4%)
+  food_scarce     : 103 (20.6%)
+  housing_pressure: 98 (19.6%)
+  low_stockpile   : 100 (20.0%)
+  water_scarce    : 122 (24.4%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.75
+  food_raw: 0.97
+  stone   : 0.98
+  water   : 0.79
+  wood    : 0.98
+Nodes ratio:
+  food_raw: 0.79
+  stone   : 0.97
+  water   : 0.43
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 65
+  beds: 133
+  ratio: 0.86
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.32
+  fertile_per_tick: 59.00
+  pregnancies_per_tick: 1.79
+  cooldowns_per_tick: 5.00
+  chance: 0.0025
+  resource_factor: 0.82
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 77258
+  successes: 165
+  blocked:
+    infertile: 4746
+    pregnant: 8015
+    cooldown: 11121
+    no_resources: 0
+    no_housing: 0
+    chance: 77093
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.99
+  water_ratio: 0.79
+  irrigation: 0.89
+  season: 0.90
+  regen: 0.80
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.31
+
+=== episode=8000 window=7501-8000 count=500 ===
+Summary:
+  avg_reward: 3726.41
+  avg_steps: 900.0
+  avg_births: 164.54
+  avg_deaths: 16.72
+  lr: 0.000268
+  difficulty: 0.23
+  tick: 5119
+  pop: 124
+Scenario mix:
+  baseline        : 87 (17.4%)
+  food_scarce     : 107 (21.4%)
+  housing_pressure: 92 (18.4%)
+  low_stockpile   : 98 (19.6%)
+  water_scarce    : 116 (23.2%)
+Stockpile ratios:
+  avg: 0.94
+  min: 0.76
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.80
+  wood    : 0.99
+Nodes ratio:
+  food_raw: 0.77
+  stone   : 0.96
+  water   : 0.42
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.16
+Housing:
+  houses: 66
+  beds: 134
+  ratio: 0.85
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.62
+  fertile_per_tick: 59.49
+  pregnancies_per_tick: 1.81
+  cooldowns_per_tick: 5.06
+  chance: 0.0025
+  resource_factor: 0.82
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 78622
+  successes: 167
+  blocked:
+    infertile: 4776
+    pregnant: 8107
+    cooldown: 11244
+    no_resources: 0
+    no_housing: 0
+    chance: 78455
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.80
+  irrigation: 0.89
+  season: 0.91
+  regen: 0.81
+Signals:
+  critical_needs: 0.00
+  idle_adults: 0.30
+
+=== episode=8500 window=8001-8500 count=500 ===
+Summary:
+  avg_reward: 3703.37
+  avg_steps: 900.0
+  avg_births: 161.72
+  avg_deaths: 18.02
+  lr: 0.000266
+  difficulty: 0.24
+  tick: 5160
+  pop: 193
+Scenario mix:
+  baseline        : 68 (13.6%)
+  food_scarce     : 94 (18.8%)
+  housing_pressure: 110 (22.0%)
+  low_stockpile   : 106 (21.2%)
+  water_scarce    : 122 (24.4%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.74
+  food_raw: 0.96
+  stone   : 0.99
+  water   : 0.79
+  wood    : 0.99
+Nodes ratio:
+  food_raw: 0.79
+  stone   : 0.96
+  water   : 0.44
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 65
+  beds: 132
+  ratio: 0.87
+  unsheltered: 0.15
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.21
+  fertile_per_tick: 58.72
+  pregnancies_per_tick: 1.78
+  cooldowns_per_tick: 4.97
+  chance: 0.0025
+  resource_factor: 0.82
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 76625
+  successes: 164
+  blocked:
+    infertile: 4825
+    pregnant: 7964
+    cooldown: 11059
+    no_resources: 0
+    no_housing: 0
+    chance: 76461
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.79
+  irrigation: 0.88
+  season: 0.90
+  regen: 0.80
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.30
+
+=== episode=9000 window=8501-9000 count=500 ===
+Summary:
+  avg_reward: 3704.55
+  avg_steps: 900.0
+  avg_births: 164.30
+  avg_deaths: 17.69
+  lr: 0.000264
+  difficulty: 0.25
+  tick: 5063
+  pop: 171
+Scenario mix:
+  baseline        : 72 (14.4%)
+  food_scarce     : 109 (21.8%)
+  housing_pressure: 96 (19.2%)
+  low_stockpile   : 104 (20.8%)
+  water_scarce    : 119 (23.8%)
+Stockpile ratios:
+  avg: 0.94
+  min: 0.76
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.80
+  wood    : 0.99
+Nodes ratio:
+  food_raw: 0.79
+  stone   : 0.96
+  water   : 0.43
+  wood    : 0.97
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 65
+  beds: 133
+  ratio: 0.86
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.51
+  fertile_per_tick: 59.60
+  pregnancies_per_tick: 1.81
+  cooldowns_per_tick: 5.05
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 77908
+  successes: 167
+  blocked:
+    infertile: 4730
+    pregnant: 8096
+    cooldown: 11228
+    no_resources: 0
+    no_housing: 0
+    chance: 77741
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.80
+  irrigation: 0.89
+  season: 0.90
+  regen: 0.81
+Signals:
+  critical_needs: 0.00
+  idle_adults: 0.29
+
+=== episode=9500 window=9001-9500 count=500 ===
+Summary:
+  avg_reward: 3661.37
+  avg_steps: 900.0
+  avg_births: 160.17
+  avg_deaths: 19.14
+  lr: 0.000262
+  difficulty: 0.25
+  tick: 4590
+  pop: 126
+Scenario mix:
+  baseline        : 72 (14.4%)
+  food_scarce     : 89 (17.8%)
+  housing_pressure: 80 (16.0%)
+  low_stockpile   : 102 (20.4%)
+  water_scarce    : 157 (31.4%)
+Stockpile ratios:
+  avg: 0.92
+  min: 0.71
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.74
+  wood    : 0.99
+Nodes ratio:
+  food_raw: 0.81
+  stone   : 0.97
+  water   : 0.41
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 65
+  beds: 132
+  ratio: 0.88
+  unsheltered: 0.14
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.21
+  fertile_per_tick: 58.57
+  pregnancies_per_tick: 1.76
+  cooldowns_per_tick: 4.93
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 76119
+  successes: 162
+  blocked:
+    infertile: 4674
+    pregnant: 7886
+    cooldown: 10948
+    no_resources: 0
+    no_housing: 0
+    chance: 75956
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.99
+  water_ratio: 0.74
+  irrigation: 0.86
+  season: 0.90
+  regen: 0.78
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.28
+
+=== episode=10000 window=9501-10000 count=500 ===
+Summary:
+  avg_reward: 3684.46
+  avg_steps: 900.0
+  avg_births: 164.03
+  avg_deaths: 17.84
+  lr: 0.000260
+  difficulty: 0.26
+  tick: 5067
+  pop: 189
+Scenario mix:
+  baseline        : 81 (16.2%)
+  food_scarce     : 102 (20.4%)
+  housing_pressure: 86 (17.2%)
+  low_stockpile   : 101 (20.2%)
+  water_scarce    : 130 (26.0%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.72
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.76
+  wood    : 0.98
+Nodes ratio:
+  food_raw: 0.79
+  stone   : 0.96
+  water   : 0.42
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 66
+  beds: 133
+  ratio: 0.86
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.67
+  fertile_per_tick: 59.67
+  pregnancies_per_tick: 1.80
+  cooldowns_per_tick: 5.04
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 77890
+  successes: 166
+  blocked:
+    infertile: 4665
+    pregnant: 8082
+    cooldown: 11211
+    no_resources: 0
+    no_housing: 0
+    chance: 77723
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.76
+  irrigation: 0.87
+  season: 0.90
+  regen: 0.78
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.27
+
+=== episode=10500 window=10001-10500 count=500 ===
+Summary:
+  avg_reward: 3703.96
+  avg_steps: 900.0
+  avg_births: 163.91
+  avg_deaths: 16.83
+  lr: 0.000258
+  difficulty: 0.27
+  tick: 5217
+  pop: 156
+Scenario mix:
+  baseline        : 76 (15.2%)
+  food_scarce     : 115 (23.0%)
+  housing_pressure: 87 (17.4%)
+  low_stockpile   : 110 (22.0%)
+  water_scarce    : 112 (22.4%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.75
+  food_raw: 0.96
+  stone   : 0.98
+  water   : 0.80
+  wood    : 0.99
+Nodes ratio:
+  food_raw: 0.78
+  stone   : 0.97
+  water   : 0.43
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.16
+Housing:
+  houses: 65
+  beds: 133
+  ratio: 0.85
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.38
+  fertile_per_tick: 59.14
+  pregnancies_per_tick: 1.80
+  cooldowns_per_tick: 5.04
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 77463
+  successes: 166
+  blocked:
+    infertile: 4705
+    pregnant: 8074
+    cooldown: 11200
+    no_resources: 0
+    no_housing: 0
+    chance: 77296
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.80
+  irrigation: 0.89
+  season: 0.90
+  regen: 0.81
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.29
+
+=== episode=11000 window=10501-11000 count=500 ===
+Summary:
+  avg_reward: 3682.58
+  avg_steps: 900.0
+  avg_births: 162.05
+  avg_deaths: 18.38
+  lr: 0.000256
+  difficulty: 0.28
+  tick: 4867
+  pop: 99
+Scenario mix:
+  baseline        : 71 (14.2%)
+  food_scarce     : 109 (21.8%)
+  housing_pressure: 101 (20.2%)
+  low_stockpile   : 91 (18.2%)
+  water_scarce    : 128 (25.6%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.75
+  food_raw: 0.96
+  stone   : 0.99
+  water   : 0.79
+  wood    : 0.99
+Nodes ratio:
+  food_raw: 0.79
+  stone   : 0.95
+  water   : 0.42
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 65
+  beds: 132
+  ratio: 0.87
+  unsheltered: 0.15
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.43
+  fertile_per_tick: 59.17
+  pregnancies_per_tick: 1.78
+  cooldowns_per_tick: 4.98
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 77185
+  successes: 164
+  blocked:
+    infertile: 4723
+    pregnant: 7981
+    cooldown: 11076
+    no_resources: 0
+    no_housing: 0
+    chance: 77020
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.79
+  irrigation: 0.89
+  season: 0.91
+  regen: 0.81
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.30
+
+=== episode=11500 window=11001-11500 count=500 ===
+Summary:
+  avg_reward: 3688.64
+  avg_steps: 900.0
+  avg_births: 161.16
+  avg_deaths: 17.74
+  lr: 0.000254
+  difficulty: 0.29
+  tick: 5259
+  pop: 166
+Scenario mix:
+  baseline        : 67 (13.4%)
+  food_scarce     : 110 (22.0%)
+  housing_pressure: 91 (18.2%)
+  low_stockpile   : 103 (20.6%)
+  water_scarce    : 129 (25.8%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.75
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.79
+  wood    : 0.99
+Nodes ratio:
+  food_raw: 0.79
+  stone   : 0.97
+  water   : 0.44
+  wood    : 0.97
+Needs avg:
+  hunger: 0.15
+  thirst: 0.16
+Housing:
+  houses: 65
+  beds: 132
+  ratio: 0.86
+  unsheltered: 0.15
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.10
+  fertile_per_tick: 58.32
+  pregnancies_per_tick: 1.77
+  cooldowns_per_tick: 4.95
+  chance: 0.0025
+  resource_factor: 0.82
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 76215
+  successes: 164
+  blocked:
+    infertile: 4759
+    pregnant: 7942
+    cooldown: 11015
+    no_resources: 0
+    no_housing: 0
+    chance: 76051
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.79
+  irrigation: 0.88
+  season: 0.90
+  regen: 0.81
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.30
+
+=== episode=12000 window=11501-12000 count=500 ===
+Summary:
+  avg_reward: 3698.66
+  avg_steps: 900.0
+  avg_births: 162.27
+  avg_deaths: 17.37
+  lr: 0.000252
+  difficulty: 0.30
+  tick: 4929
+  pop: 121
+Scenario mix:
+  baseline        : 89 (17.8%)
+  food_scarce     : 102 (20.4%)
+  housing_pressure: 89 (17.8%)
+  low_stockpile   : 100 (20.0%)
+  water_scarce    : 120 (24.0%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.75
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.79
+  wood    : 0.98
+Nodes ratio:
+  food_raw: 0.79
+  stone   : 0.96
+  water   : 0.44
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.16
+Housing:
+  houses: 65
+  beds: 133
+  ratio: 0.86
+  unsheltered: 0.15
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.19
+  fertile_per_tick: 58.67
+  pregnancies_per_tick: 1.78
+  cooldowns_per_tick: 4.99
+  chance: 0.0025
+  resource_factor: 0.82
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 76843
+  successes: 165
+  blocked:
+    infertile: 4740
+    pregnant: 7992
+    cooldown: 11099
+    no_resources: 0
+    no_housing: 0
+    chance: 76678
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.79
+  irrigation: 0.88
+  season: 0.89
+  regen: 0.79
+Signals:
+  critical_needs: 0.00
+  idle_adults: 0.28
+
+=== episode=12500 window=12001-12500 count=500 ===
+Summary:
+  avg_reward: 3691.31
+  avg_steps: 900.0
+  avg_births: 161.87
+  avg_deaths: 17.85
+  lr: 0.000250
+  difficulty: 0.31
+  tick: 4661
+  pop: 168
+Scenario mix:
+  baseline        : 80 (16.0%)
+  food_scarce     : 90 (18.0%)
+  housing_pressure: 107 (21.4%)
+  low_stockpile   : 103 (20.6%)
+  water_scarce    : 120 (24.0%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.75
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.80
+  wood    : 0.98
+Nodes ratio:
+  food_raw: 0.80
+  stone   : 0.96
+  water   : 0.45
+  wood    : 0.97
+Needs avg:
+  hunger: 0.15
+  thirst: 0.16
+Housing:
+  houses: 65
+  beds: 132
+  ratio: 0.87
+  unsheltered: 0.15
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.24
+  fertile_per_tick: 58.85
+  pregnancies_per_tick: 1.78
+  cooldowns_per_tick: 4.97
+  chance: 0.0025
+  resource_factor: 0.82
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 76666
+  successes: 164
+  blocked:
+    infertile: 4783
+    pregnant: 7978
+    cooldown: 11061
+    no_resources: 0
+    no_housing: 0
+    chance: 76501
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.80
+  irrigation: 0.89
+  season: 0.90
+  regen: 0.81
+Signals:
+  critical_needs: 0.00
+  idle_adults: 0.29
+
+=== episode=13000 window=12501-13000 count=500 ===
+Summary:
+  avg_reward: 3693.86
+  avg_steps: 900.0
+  avg_births: 163.83
+  avg_deaths: 17.91
+  lr: 0.000248
+  difficulty: 0.32
+  tick: 4748
+  pop: 136
+Scenario mix:
+  baseline        : 77 (15.4%)
+  food_scarce     : 96 (19.2%)
+  housing_pressure: 99 (19.8%)
+  low_stockpile   : 95 (19.0%)
+  water_scarce    : 133 (26.6%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.72
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.76
+  wood    : 0.99
+Nodes ratio:
+  food_raw: 0.78
+  stone   : 0.97
+  water   : 0.41
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 65
+  beds: 133
+  ratio: 0.86
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.53
+  fertile_per_tick: 59.73
+  pregnancies_per_tick: 1.80
+  cooldowns_per_tick: 5.04
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 77760
+  successes: 166
+  blocked:
+    infertile: 4748
+    pregnant: 8066
+    cooldown: 11200
+    no_resources: 0
+    no_housing: 0
+    chance: 77593
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.76
+  irrigation: 0.87
+  season: 0.90
+  regen: 0.78
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.29
+
+=== episode=13500 window=13001-13500 count=500 ===
+Summary:
+  avg_reward: 3688.97
+  avg_steps: 900.0
+  avg_births: 161.38
+  avg_deaths: 17.34
+  lr: 0.000246
+  difficulty: 0.33
+  tick: 5192
+  pop: 134
+Scenario mix:
+  baseline        : 69 (13.8%)
+  food_scarce     : 108 (21.6%)
+  housing_pressure: 90 (18.0%)
+  low_stockpile   : 102 (20.4%)
+  water_scarce    : 131 (26.2%)
+Stockpile ratios:
+  avg: 0.92
+  min: 0.72
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.75
+  wood    : 0.99
+Nodes ratio:
+  food_raw: 0.78
+  stone   : 0.97
+  water   : 0.43
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 65
+  beds: 132
+  ratio: 0.87
+  unsheltered: 0.15
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.31
+  fertile_per_tick: 58.93
+  pregnancies_per_tick: 1.77
+  cooldowns_per_tick: 4.96
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 76890
+  successes: 164
+  blocked:
+    infertile: 4742
+    pregnant: 7945
+    cooldown: 11030
+    no_resources: 0
+    no_housing: 0
+    chance: 76726
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.75
+  irrigation: 0.87
+  season: 0.89
+  regen: 0.78
+Signals:
+  critical_needs: 0.00
+  idle_adults: 0.28
+
+=== episode=14000 window=13501-14000 count=500 ===
+Summary:
+  avg_reward: 3700.45
+  avg_steps: 900.0
+  avg_births: 163.88
+  avg_deaths: 17.96
+  lr: 0.000244
+  difficulty: 0.34
+  tick: 5291
+  pop: 109
+Scenario mix:
+  baseline        : 77 (15.4%)
+  food_scarce     : 94 (18.8%)
+  housing_pressure: 100 (20.0%)
+  low_stockpile   : 104 (20.8%)
+  water_scarce    : 125 (25.0%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.75
+  food_raw: 0.96
+  stone   : 0.98
+  water   : 0.79
+  wood    : 0.99
+Nodes ratio:
+  food_raw: 0.79
+  stone   : 0.97
+  water   : 0.43
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 65
+  beds: 133
+  ratio: 0.86
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.40
+  fertile_per_tick: 59.39
+  pregnancies_per_tick: 1.80
+  cooldowns_per_tick: 5.04
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 77231
+  successes: 166
+  blocked:
+    infertile: 4803
+    pregnant: 8070
+    cooldown: 11201
+    no_resources: 0
+    no_housing: 0
+    chance: 77065
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.97
+  water_ratio: 0.79
+  irrigation: 0.89
+  season: 0.90
+  regen: 0.80
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.29
+
+=== episode=14500 window=14001-14500 count=500 ===
+Summary:
+  avg_reward: 3688.44
+  avg_steps: 900.0
+  avg_births: 161.32
+  avg_deaths: 17.40
+  lr: 0.000242
+  difficulty: 0.35
+  tick: 4898
+  pop: 138
+Scenario mix:
+  baseline        : 80 (16.0%)
+  food_scarce     : 96 (19.2%)
+  housing_pressure: 95 (19.0%)
+  low_stockpile   : 92 (18.4%)
+  water_scarce    : 137 (27.4%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.72
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.77
+  wood    : 0.98
+Nodes ratio:
+  food_raw: 0.79
+  stone   : 0.97
+  water   : 0.43
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 65
+  beds: 132
+  ratio: 0.86
+  unsheltered: 0.15
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.17
+  fertile_per_tick: 58.72
+  pregnancies_per_tick: 1.77
+  cooldowns_per_tick: 4.96
+  chance: 0.0025
+  resource_factor: 0.82
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 76321
+  successes: 164
+  blocked:
+    infertile: 4709
+    pregnant: 7945
+    cooldown: 11029
+    no_resources: 0
+    no_housing: 0
+    chance: 76157
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.77
+  irrigation: 0.87
+  season: 0.90
+  regen: 0.79
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.27
+
+=== episode=15000 window=14501-15000 count=500 ===
+Summary:
+  avg_reward: 3690.00
+  avg_steps: 900.0
+  avg_births: 163.79
+  avg_deaths: 18.28
+  lr: 0.000240
+  difficulty: 0.36
+  tick: 4986
+  pop: 98
+Scenario mix:
+  baseline        : 86 (17.2%)
+  food_scarce     : 81 (16.2%)
+  housing_pressure: 116 (23.2%)
+  low_stockpile   : 84 (16.8%)
+  water_scarce    : 133 (26.6%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.74
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.78
+  wood    : 0.98
+Nodes ratio:
+  food_raw: 0.79
+  stone   : 0.96
+  water   : 0.42
+  wood    : 0.97
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 65
+  beds: 132
+  ratio: 0.86
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.62
+  fertile_per_tick: 59.98
+  pregnancies_per_tick: 1.80
+  cooldowns_per_tick: 5.03
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.91
+  season_factor: 0.93
+  attempts: 77868
+  successes: 166
+  blocked:
+    infertile: 4860
+    pregnant: 8069
+    cooldown: 11197
+    no_resources: 0
+    no_housing: 0
+    chance: 77701
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.78
+  irrigation: 0.88
+  season: 0.89
+  regen: 0.79
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.28
+
+=== episode=15500 window=15001-15500 count=500 ===
+Summary:
+  avg_reward: 3684.73
+  avg_steps: 900.0
+  avg_births: 162.57
+  avg_deaths: 18.30
+  lr: 0.000238
+  difficulty: 0.37
+  tick: 5178
+  pop: 129
+Scenario mix:
+  baseline        : 80 (16.0%)
+  food_scarce     : 88 (17.6%)
+  housing_pressure: 105 (21.0%)
+  low_stockpile   : 95 (19.0%)
+  water_scarce    : 132 (26.4%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.73
+  food_raw: 0.97
+  stone   : 0.98
+  water   : 0.77
+  wood    : 0.98
+Nodes ratio:
+  food_raw: 0.79
+  stone   : 0.97
+  water   : 0.42
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 65
+  beds: 133
+  ratio: 0.87
+  unsheltered: 0.15
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.54
+  fertile_per_tick: 59.24
+  pregnancies_per_tick: 1.79
+  cooldowns_per_tick: 5.00
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 77169
+  successes: 165
+  blocked:
+    infertile: 4809
+    pregnant: 8009
+    cooldown: 11114
+    no_resources: 0
+    no_housing: 0
+    chance: 77004
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.99
+  water_ratio: 0.77
+  irrigation: 0.87
+  season: 0.90
+  regen: 0.79
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.28
+
+=== episode=16000 window=15501-16000 count=500 ===
+Summary:
+  avg_reward: 3686.61
+  avg_steps: 900.0
+  avg_births: 161.66
+  avg_deaths: 17.94
+  lr: 0.000236
+  difficulty: 0.37
+  tick: 5196
+  pop: 127
+Scenario mix:
+  baseline        : 71 (14.2%)
+  food_scarce     : 86 (17.2%)
+  housing_pressure: 100 (20.0%)
+  low_stockpile   : 116 (23.2%)
+  water_scarce    : 127 (25.4%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.75
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.78
+  wood    : 0.99
+Nodes ratio:
+  food_raw: 0.80
+  stone   : 0.96
+  water   : 0.44
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 65
+  beds: 132
+  ratio: 0.87
+  unsheltered: 0.15
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.26
+  fertile_per_tick: 58.81
+  pregnancies_per_tick: 1.78
+  cooldowns_per_tick: 4.97
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 76485
+  successes: 164
+  blocked:
+    infertile: 4746
+    pregnant: 7967
+    cooldown: 11049
+    no_resources: 0
+    no_housing: 0
+    chance: 76321
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.01
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.78
+  irrigation: 0.88
+  season: 0.90
+  regen: 0.79
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.33
+
+=== episode=16500 window=16001-16500 count=500 ===
+Summary:
+  avg_reward: 3687.41
+  avg_steps: 900.0
+  avg_births: 162.67
+  avg_deaths: 18.53
+  lr: 0.000234
+  difficulty: 0.38
+  tick: 4827
+  pop: 164
+Scenario mix:
+  baseline        : 76 (15.2%)
+  food_scarce     : 97 (19.4%)
+  housing_pressure: 102 (20.4%)
+  low_stockpile   : 86 (17.2%)
+  water_scarce    : 139 (27.8%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.74
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.77
+  wood    : 0.99
+Nodes ratio:
+  food_raw: 0.79
+  stone   : 0.96
+  water   : 0.40
+  wood    : 0.97
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 65
+  beds: 132
+  ratio: 0.86
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.57
+  fertile_per_tick: 59.82
+  pregnancies_per_tick: 1.79
+  cooldowns_per_tick: 5.00
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 77511
+  successes: 165
+  blocked:
+    infertile: 4734
+    pregnant: 8012
+    cooldown: 11122
+    no_resources: 0
+    no_housing: 0
+    chance: 77346
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.77
+  irrigation: 0.87
+  season: 0.90
+  regen: 0.79
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.27
+
+=== episode=17000 window=16501-17000 count=500 ===
+Summary:
+  avg_reward: 3688.14
+  avg_steps: 900.0
+  avg_births: 162.87
+  avg_deaths: 17.72
+  lr: 0.000232
+  difficulty: 0.39
+  tick: 4915
+  pop: 112
+Scenario mix:
+  baseline        : 66 (13.2%)
+  food_scarce     : 114 (22.8%)
+  housing_pressure: 92 (18.4%)
+  low_stockpile   : 92 (18.4%)
+  water_scarce    : 136 (27.2%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.74
+  food_raw: 0.97
+  stone   : 0.98
+  water   : 0.78
+  wood    : 0.99
+Nodes ratio:
+  food_raw: 0.79
+  stone   : 0.97
+  water   : 0.42
+  wood    : 0.97
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 65
+  beds: 132
+  ratio: 0.86
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.62
+  fertile_per_tick: 59.47
+  pregnancies_per_tick: 1.79
+  cooldowns_per_tick: 5.01
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 77950
+  successes: 165
+  blocked:
+    infertile: 4751
+    pregnant: 8021
+    cooldown: 11130
+    no_resources: 0
+    no_housing: 0
+    chance: 77785
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.78
+  irrigation: 0.88
+  season: 0.89
+  regen: 0.78
+Signals:
+  critical_needs: 0.00
+  idle_adults: 0.30
+
+=== episode=17500 window=17001-17500 count=500 ===
+Summary:
+  avg_reward: 3707.91
+  avg_steps: 900.0
+  avg_births: 162.33
+  avg_deaths: 17.60
+  lr: 0.000230
+  difficulty: 0.40
+  tick: 4898
+  pop: 154
+Scenario mix:
+  baseline        : 75 (15.0%)
+  food_scarce     : 91 (18.2%)
+  housing_pressure: 107 (21.4%)
+  low_stockpile   : 100 (20.0%)
+  water_scarce    : 127 (25.4%)
+Stockpile ratios:
+  avg: 0.92
+  min: 0.72
+  food_raw: 0.96
+  stone   : 0.99
+  water   : 0.76
+  wood    : 0.99
+Nodes ratio:
+  food_raw: 0.80
+  stone   : 0.96
+  water   : 0.43
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 65
+  beds: 132
+  ratio: 0.86
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.24
+  fertile_per_tick: 58.86
+  pregnancies_per_tick: 1.78
+  cooldowns_per_tick: 4.99
+  chance: 0.0025
+  resource_factor: 0.82
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 76985
+  successes: 165
+  blocked:
+    infertile: 4727
+    pregnant: 7997
+    cooldown: 11104
+    no_resources: 0
+    no_housing: 0
+    chance: 76820
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.76
+  irrigation: 0.87
+  season: 0.92
+  regen: 0.80
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.30
+
+=== episode=18000 window=17501-18000 count=500 ===
+Summary:
+  avg_reward: 3715.36
+  avg_steps: 900.0
+  avg_births: 163.55
+  avg_deaths: 17.64
+  lr: 0.000228
+  difficulty: 0.41
+  tick: 4925
+  pop: 140
+Scenario mix:
+  baseline        : 73 (14.6%)
+  food_scarce     : 105 (21.0%)
+  housing_pressure: 111 (22.2%)
+  low_stockpile   : 94 (18.8%)
+  water_scarce    : 117 (23.4%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.75
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.78
+  wood    : 0.98
+Nodes ratio:
+  food_raw: 0.78
+  stone   : 0.96
+  water   : 0.43
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.16
+Housing:
+  houses: 65
+  beds: 133
+  ratio: 0.86
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.56
+  fertile_per_tick: 59.64
+  pregnancies_per_tick: 1.80
+  cooldowns_per_tick: 5.03
+  chance: 0.0025
+  resource_factor: 0.82
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 77877
+  successes: 166
+  blocked:
+    infertile: 4896
+    pregnant: 8053
+    cooldown: 11185
+    no_resources: 0
+    no_housing: 0
+    chance: 77711
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.97
+  water_ratio: 0.78
+  irrigation: 0.88
+  season: 0.91
+  regen: 0.80
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.27
+
+=== episode=18500 window=18001-18500 count=500 ===
+Summary:
+  avg_reward: 3695.47
+  avg_steps: 900.0
+  avg_births: 164.95
+  avg_deaths: 18.22
+  lr: 0.000226
+  difficulty: 0.42
+  tick: 5148
+  pop: 167
+Scenario mix:
+  baseline        : 68 (13.6%)
+  food_scarce     : 88 (17.6%)
+  housing_pressure: 112 (22.4%)
+  low_stockpile   : 112 (22.4%)
+  water_scarce    : 120 (24.0%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.75
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.79
+  wood    : 0.98
+Nodes ratio:
+  food_raw: 0.79
+  stone   : 0.96
+  water   : 0.42
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 65
+  beds: 133
+  ratio: 0.85
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.65
+  fertile_per_tick: 59.97
+  pregnancies_per_tick: 1.81
+  cooldowns_per_tick: 5.07
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 78061
+  successes: 167
+  blocked:
+    infertile: 4826
+    pregnant: 8130
+    cooldown: 11276
+    no_resources: 0
+    no_housing: 0
+    chance: 77893
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.79
+  irrigation: 0.88
+  season: 0.92
+  regen: 0.81
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.29
+
+=== episode=19000 window=18501-19000 count=500 ===
+Summary:
+  avg_reward: 3700.61
+  avg_steps: 900.0
+  avg_births: 162.98
+  avg_deaths: 17.55
+  lr: 0.000224
+  difficulty: 0.43
+  tick: 4990
+  pop: 125
+Scenario mix:
+  baseline        : 67 (13.4%)
+  food_scarce     : 103 (20.6%)
+  housing_pressure: 96 (19.2%)
+  low_stockpile   : 118 (23.6%)
+  water_scarce    : 116 (23.2%)
+Stockpile ratios:
+  avg: 0.94
+  min: 0.76
+  food_raw: 0.96
+  stone   : 0.99
+  water   : 0.80
+  wood    : 0.98
+Nodes ratio:
+  food_raw: 0.80
+  stone   : 0.97
+  water   : 0.44
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.16
+Housing:
+  houses: 65
+  beds: 132
+  ratio: 0.86
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.28
+  fertile_per_tick: 59.02
+  pregnancies_per_tick: 1.79
+  cooldowns_per_tick: 5.01
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 76957
+  successes: 165
+  blocked:
+    infertile: 4687
+    pregnant: 8030
+    cooldown: 11147
+    no_resources: 0
+    no_housing: 0
+    chance: 76791
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.80
+  irrigation: 0.89
+  season: 0.91
+  regen: 0.81
+Signals:
+  critical_needs: 0.00
+  idle_adults: 0.28
+
+=== episode=19500 window=19001-19500 count=500 ===
+Summary:
+  avg_reward: 3704.20
+  avg_steps: 900.0
+  avg_births: 163.71
+  avg_deaths: 18.11
+  lr: 0.000222
+  difficulty: 0.44
+  tick: 5174
+  pop: 183
+Scenario mix:
+  baseline        : 69 (13.8%)
+  food_scarce     : 105 (21.0%)
+  housing_pressure: 92 (18.4%)
+  low_stockpile   : 112 (22.4%)
+  water_scarce    : 122 (24.4%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.75
+  food_raw: 0.96
+  stone   : 0.99
+  water   : 0.80
+  wood    : 0.99
+Nodes ratio:
+  food_raw: 0.78
+  stone   : 0.96
+  water   : 0.42
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.16
+Housing:
+  houses: 65
+  beds: 134
+  ratio: 0.87
+  unsheltered: 0.15
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.44
+  fertile_per_tick: 59.42
+  pregnancies_per_tick: 1.80
+  cooldowns_per_tick: 5.03
+  chance: 0.0025
+  resource_factor: 0.82
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 77380
+  successes: 166
+  blocked:
+    infertile: 4637
+    pregnant: 8066
+    cooldown: 11198
+    no_resources: 0
+    no_housing: 0
+    chance: 77213
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.01
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.97
+  water_ratio: 0.80
+  irrigation: 0.89
+  season: 0.90
+  regen: 0.80
+Signals:
+  critical_needs: 0.00
+  idle_adults: 0.27
+
+=== episode=20000 window=19501-20000 count=500 ===
+Summary:
+  avg_reward: 3696.95
+  avg_steps: 900.0
+  avg_births: 162.43
+  avg_deaths: 17.25
+  lr: 0.000220
+  difficulty: 0.45
+  tick: 5159
+  pop: 168
+Scenario mix:
+  baseline        : 84 (16.8%)
+  food_scarce     : 85 (17.0%)
+  housing_pressure: 89 (17.8%)
+  low_stockpile   : 109 (21.8%)
+  water_scarce    : 133 (26.6%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.74
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.78
+  wood    : 0.98
+Nodes ratio:
+  food_raw: 0.79
+  stone   : 0.96
+  water   : 0.41
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 65
+  beds: 133
+  ratio: 0.86
+  unsheltered: 0.15
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.40
+  fertile_per_tick: 59.04
+  pregnancies_per_tick: 1.78
+  cooldowns_per_tick: 5.00
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 77164
+  successes: 165
+  blocked:
+    infertile: 4783
+    pregnant: 8001
+    cooldown: 11101
+    no_resources: 0
+    no_housing: 0
+    chance: 76999
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.01
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.78
+  irrigation: 0.88
+  season: 0.89
+  regen: 0.79
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.29
+
+=== episode=20500 window=20001-20500 count=500 ===
+Summary:
+  avg_reward: 3685.43
+  avg_steps: 900.0
+  avg_births: 163.30
+  avg_deaths: 18.17
+  lr: 0.000218
+  difficulty: 0.46
+  tick: 5224
+  pop: 170
+Scenario mix:
+  baseline        : 72 (14.4%)
+  food_scarce     : 99 (19.8%)
+  housing_pressure: 91 (18.2%)
+  low_stockpile   : 99 (19.8%)
+  water_scarce    : 139 (27.8%)
+Stockpile ratios:
+  avg: 0.92
+  min: 0.71
+  food_raw: 0.96
+  stone   : 0.99
+  water   : 0.75
+  wood    : 0.98
+Nodes ratio:
+  food_raw: 0.80
+  stone   : 0.96
+  water   : 0.41
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 65
+  beds: 133
+  ratio: 0.87
+  unsheltered: 0.15
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.69
+  fertile_per_tick: 59.58
+  pregnancies_per_tick: 1.79
+  cooldowns_per_tick: 5.02
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 77979
+  successes: 165
+  blocked:
+    infertile: 4739
+    pregnant: 8039
+    cooldown: 11160
+    no_resources: 0
+    no_housing: 0
+    chance: 77813
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.75
+  irrigation: 0.86
+  season: 0.91
+  regen: 0.79
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.27
+
+=== episode=21000 window=20501-21000 count=500 ===
+Summary:
+  avg_reward: 3711.86
+  avg_steps: 900.0
+  avg_births: 162.56
+  avg_deaths: 18.04
+  lr: 0.000216
+  difficulty: 0.47
+  tick: 5185
+  pop: 102
+Scenario mix:
+  baseline        : 84 (16.8%)
+  food_scarce     : 98 (19.6%)
+  housing_pressure: 99 (19.8%)
+  low_stockpile   : 90 (18.0%)
+  water_scarce    : 129 (25.8%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.75
+  food_raw: 0.96
+  stone   : 0.99
+  water   : 0.79
+  wood    : 0.98
+Nodes ratio:
+  food_raw: 0.79
+  stone   : 0.96
+  water   : 0.43
+  wood    : 0.97
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 65
+  beds: 133
+  ratio: 0.87
+  unsheltered: 0.15
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.37
+  fertile_per_tick: 59.15
+  pregnancies_per_tick: 1.79
+  cooldowns_per_tick: 5.00
+  chance: 0.0025
+  resource_factor: 0.82
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 77253
+  successes: 165
+  blocked:
+    infertile: 4782
+    pregnant: 8008
+    cooldown: 11107
+    no_resources: 0
+    no_housing: 0
+    chance: 77087
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.99
+  water_ratio: 0.79
+  irrigation: 0.89
+  season: 0.89
+  regen: 0.79
+Signals:
+  critical_needs: 0.00
+  idle_adults: 0.28
+
+=== episode=21500 window=21001-21500 count=500 ===
+Summary:
+  avg_reward: 3652.29
+  avg_steps: 900.0
+  avg_births: 161.02
+  avg_deaths: 18.91
+  lr: 0.000214
+  difficulty: 0.48
+  tick: 4543
+  pop: 169
+Scenario mix:
+  baseline        : 80 (16.0%)
+  food_scarce     : 87 (17.4%)
+  housing_pressure: 71 (14.2%)
+  low_stockpile   : 105 (21.0%)
+  water_scarce    : 157 (31.4%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.72
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.76
+  wood    : 0.98
+Nodes ratio:
+  food_raw: 0.80
+  stone   : 0.97
+  water   : 0.40
+  wood    : 0.97
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 64
+  beds: 131
+  ratio: 0.87
+  unsheltered: 0.15
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.37
+  fertile_per_tick: 59.09
+  pregnancies_per_tick: 1.77
+  cooldowns_per_tick: 4.95
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 76498
+  successes: 163
+  blocked:
+    infertile: 4608
+    pregnant: 7929
+    cooldown: 11008
+    no_resources: 0
+    no_housing: 0
+    chance: 76335
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.76
+  irrigation: 0.87
+  season: 0.90
+  regen: 0.79
+Signals:
+  critical_needs: 0.00
+  idle_adults: 0.27
+
+=== episode=22000 window=21501-22000 count=500 ===
+Summary:
+  avg_reward: 3713.36
+  avg_steps: 900.0
+  avg_births: 163.14
+  avg_deaths: 17.45
+  lr: 0.000212
+  difficulty: 0.48
+  tick: 4656
+  pop: 178
+Scenario mix:
+  baseline        : 66 (13.2%)
+  food_scarce     : 100 (20.0%)
+  housing_pressure: 113 (22.6%)
+  low_stockpile   : 97 (19.4%)
+  water_scarce    : 124 (24.8%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.75
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.79
+  wood    : 0.99
+Nodes ratio:
+  food_raw: 0.79
+  stone   : 0.97
+  water   : 0.42
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.16
+Housing:
+  houses: 65
+  beds: 133
+  ratio: 0.86
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.43
+  fertile_per_tick: 59.41
+  pregnancies_per_tick: 1.79
+  cooldowns_per_tick: 5.02
+  chance: 0.0025
+  resource_factor: 0.82
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 77552
+  successes: 165
+  blocked:
+    infertile: 4765
+    pregnant: 8035
+    cooldown: 11147
+    no_resources: 0
+    no_housing: 0
+    chance: 77387
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.99
+  water_ratio: 0.79
+  irrigation: 0.88
+  season: 0.90
+  regen: 0.80
+Signals:
+  critical_needs: 0.00
+  idle_adults: 0.28
+
+=== episode=22500 window=22001-22500 count=500 ===
+Summary:
+  avg_reward: 3690.65
+  avg_steps: 900.0
+  avg_births: 163.06
+  avg_deaths: 18.58
+  lr: 0.000210
+  difficulty: 0.49
+  tick: 4844
+  pop: 155
+Scenario mix:
+  baseline        : 69 (13.8%)
+  food_scarce     : 107 (21.4%)
+  housing_pressure: 97 (19.4%)
+  low_stockpile   : 97 (19.4%)
+  water_scarce    : 130 (26.0%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.75
+  food_raw: 0.96
+  stone   : 0.99
+  water   : 0.79
+  wood    : 0.98
+Nodes ratio:
+  food_raw: 0.79
+  stone   : 0.97
+  water   : 0.42
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 65
+  beds: 133
+  ratio: 0.87
+  unsheltered: 0.15
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.54
+  fertile_per_tick: 59.44
+  pregnancies_per_tick: 1.79
+  cooldowns_per_tick: 5.01
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 77472
+  successes: 165
+  blocked:
+    infertile: 4778
+    pregnant: 8034
+    cooldown: 11142
+    no_resources: 0
+    no_housing: 0
+    chance: 77306
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.79
+  irrigation: 0.88
+  season: 0.91
+  regen: 0.80
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.30
+
+=== episode=23000 window=22501-23000 count=500 ===
+Summary:
+  avg_reward: 3701.34
+  avg_steps: 900.0
+  avg_births: 164.61
+  avg_deaths: 18.39
+  lr: 0.000208
+  difficulty: 0.50
+  tick: 5158
+  pop: 92
+Scenario mix:
+  baseline        : 78 (15.6%)
+  food_scarce     : 106 (21.2%)
+  housing_pressure: 102 (20.4%)
+  low_stockpile   : 87 (17.4%)
+  water_scarce    : 127 (25.4%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.75
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.79
+  wood    : 0.98
+Nodes ratio:
+  food_raw: 0.78
+  stone   : 0.96
+  water   : 0.42
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 65
+  beds: 133
+  ratio: 0.86
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.83
+  fertile_per_tick: 60.14
+  pregnancies_per_tick: 1.81
+  cooldowns_per_tick: 5.06
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.91
+  season_factor: 0.93
+  attempts: 78489
+  successes: 167
+  blocked:
+    infertile: 4796
+    pregnant: 8106
+    cooldown: 11255
+    no_resources: 0
+    no_housing: 0
+    chance: 78322
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.79
+  irrigation: 0.89
+  season: 0.90
+  regen: 0.80
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.28
+
+=== episode=23500 window=23001-23500 count=500 ===
+Summary:
+  avg_reward: 3697.22
+  avg_steps: 900.0
+  avg_births: 163.63
+  avg_deaths: 18.01
+  lr: 0.000206
+  difficulty: 0.51
+  tick: 5092
+  pop: 189
+Scenario mix:
+  baseline        : 76 (15.2%)
+  food_scarce     : 87 (17.4%)
+  housing_pressure: 107 (21.4%)
+  low_stockpile   : 114 (22.8%)
+  water_scarce    : 116 (23.2%)
+Stockpile ratios:
+  avg: 0.94
+  min: 0.79
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.82
+  wood    : 0.99
+Nodes ratio:
+  food_raw: 0.79
+  stone   : 0.97
+  water   : 0.44
+  wood    : 0.97
+Needs avg:
+  hunger: 0.15
+  thirst: 0.16
+Housing:
+  houses: 65
+  beds: 133
+  ratio: 0.86
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.45
+  fertile_per_tick: 59.27
+  pregnancies_per_tick: 1.80
+  cooldowns_per_tick: 5.03
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 77541
+  successes: 166
+  blocked:
+    infertile: 4749
+    pregnant: 8065
+    cooldown: 11186
+    no_resources: 0
+    no_housing: 0
+    chance: 77375
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.82
+  irrigation: 0.90
+  season: 0.91
+  regen: 0.82
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.30
+
+=== episode=24000 window=23501-24000 count=500 ===
+Summary:
+  avg_reward: 3697.82
+  avg_steps: 900.0
+  avg_births: 162.78
+  avg_deaths: 18.53
+  lr: 0.000204
+  difficulty: 0.52
+  tick: 5038
+  pop: 133
+Scenario mix:
+  baseline        : 86 (17.2%)
+  food_scarce     : 76 (15.2%)
+  housing_pressure: 114 (22.8%)
+  low_stockpile   : 88 (17.6%)
+  water_scarce    : 136 (27.2%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.73
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.77
+  wood    : 0.98
+Nodes ratio:
+  food_raw: 0.80
+  stone   : 0.97
+  water   : 0.43
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 65
+  beds: 132
+  ratio: 0.86
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.47
+  fertile_per_tick: 59.48
+  pregnancies_per_tick: 1.79
+  cooldowns_per_tick: 5.00
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 77249
+  successes: 165
+  blocked:
+    infertile: 4785
+    pregnant: 8021
+    cooldown: 11124
+    no_resources: 0
+    no_housing: 0
+    chance: 77083
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.99
+  water_ratio: 0.77
+  irrigation: 0.87
+  season: 0.90
+  regen: 0.79
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.30
+
+=== episode=24500 window=24001-24500 count=500 ===
+Summary:
+  avg_reward: 3721.98
+  avg_steps: 900.0
+  avg_births: 163.35
+  avg_deaths: 17.49
+  lr: 0.000202
+  difficulty: 0.53
+  tick: 4631
+  pop: 118
+Scenario mix:
+  baseline        : 78 (15.6%)
+  food_scarce     : 87 (17.4%)
+  housing_pressure: 114 (22.8%)
+  low_stockpile   : 91 (18.2%)
+  water_scarce    : 130 (26.0%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.72
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.77
+  wood    : 0.98
+Nodes ratio:
+  food_raw: 0.80
+  stone   : 0.96
+  water   : 0.42
+  wood    : 0.97
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 65
+  beds: 133
+  ratio: 0.86
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.39
+  fertile_per_tick: 59.31
+  pregnancies_per_tick: 1.79
+  cooldowns_per_tick: 5.02
+  chance: 0.0025
+  resource_factor: 0.82
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 77376
+  successes: 166
+  blocked:
+    infertile: 4817
+    pregnant: 8047
+    cooldown: 11171
+    no_resources: 0
+    no_housing: 0
+    chance: 77210
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.77
+  irrigation: 0.87
+  season: 0.92
+  regen: 0.80
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.29
+
+=== episode=25000 window=24501-25000 count=500 ===
+Summary:
+  avg_reward: 3699.73
+  avg_steps: 900.0
+  avg_births: 162.53
+  avg_deaths: 17.28
+  lr: 0.000200
+  difficulty: 0.54
+  tick: 5184
+  pop: 102
+Scenario mix:
+  baseline        : 78 (15.6%)
+  food_scarce     : 105 (21.0%)
+  housing_pressure: 85 (17.0%)
+  low_stockpile   : 112 (22.4%)
+  water_scarce    : 120 (24.0%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.75
+  food_raw: 0.97
+  stone   : 0.98
+  water   : 0.79
+  wood    : 0.99
+Nodes ratio:
+  food_raw: 0.79
+  stone   : 0.96
+  water   : 0.44
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 65
+  beds: 133
+  ratio: 0.86
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.29
+  fertile_per_tick: 58.64
+  pregnancies_per_tick: 1.79
+  cooldowns_per_tick: 4.99
+  chance: 0.0025
+  resource_factor: 0.82
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 77051
+  successes: 165
+  blocked:
+    infertile: 4711
+    pregnant: 8013
+    cooldown: 11107
+    no_resources: 0
+    no_housing: 0
+    chance: 76886
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.01
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.79
+  irrigation: 0.88
+  season: 0.90
+  regen: 0.80
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.29
+
+=== episode=25500 window=25001-25500 count=500 ===
+Summary:
+  avg_reward: 3715.62
+  avg_steps: 900.0
+  avg_births: 164.43
+  avg_deaths: 17.52
+  lr: 0.000198
+  difficulty: 0.55
+  tick: 4932
+  pop: 154
+Scenario mix:
+  baseline        : 76 (15.2%)
+  food_scarce     : 118 (23.6%)
+  housing_pressure: 87 (17.4%)
+  low_stockpile   : 92 (18.4%)
+  water_scarce    : 127 (25.4%)
+Stockpile ratios:
+  avg: 0.94
+  min: 0.77
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.80
+  wood    : 0.99
+Nodes ratio:
+  food_raw: 0.78
+  stone   : 0.96
+  water   : 0.41
+  wood    : 0.97
+Needs avg:
+  hunger: 0.15
+  thirst: 0.16
+Housing:
+  houses: 66
+  beds: 134
+  ratio: 0.86
+  unsheltered: 0.15
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.68
+  fertile_per_tick: 59.74
+  pregnancies_per_tick: 1.81
+  cooldowns_per_tick: 5.06
+  chance: 0.0025
+  resource_factor: 0.82
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 78673
+  successes: 167
+  blocked:
+    infertile: 4829
+    pregnant: 8105
+    cooldown: 11250
+    no_resources: 0
+    no_housing: 0
+    chance: 78506
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.97
+  water_ratio: 0.80
+  irrigation: 0.89
+  season: 0.91
+  regen: 0.82
+Signals:
+  critical_needs: 0.00
+  idle_adults: 0.30
+
+=== episode=26000 window=25501-26000 count=500 ===
+Summary:
+  avg_reward: 3717.11
+  avg_steps: 900.0
+  avg_births: 164.35
+  avg_deaths: 17.43
+  lr: 0.000196
+  difficulty: 0.56
+  tick: 4534
+  pop: 165
+Scenario mix:
+  baseline        : 79 (15.8%)
+  food_scarce     : 97 (19.4%)
+  housing_pressure: 107 (21.4%)
+  low_stockpile   : 97 (19.4%)
+  water_scarce    : 120 (24.0%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.75
+  food_raw: 0.98
+  stone   : 0.99
+  water   : 0.78
+  wood    : 0.99
+Nodes ratio:
+  food_raw: 0.78
+  stone   : 0.96
+  water   : 0.43
+  wood    : 0.97
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 66
+  beds: 133
+  ratio: 0.85
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.61
+  fertile_per_tick: 59.70
+  pregnancies_per_tick: 1.80
+  cooldowns_per_tick: 5.05
+  chance: 0.0025
+  resource_factor: 0.82
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 78207
+  successes: 167
+  blocked:
+    infertile: 4809
+    pregnant: 8094
+    cooldown: 11234
+    no_resources: 0
+    no_housing: 0
+    chance: 78040
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.78
+  irrigation: 0.88
+  season: 0.89
+  regen: 0.79
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.28
+
+=== episode=26500 window=26001-26500 count=500 ===
+Summary:
+  avg_reward: 3726.61
+  avg_steps: 900.0
+  avg_births: 164.36
+  avg_deaths: 16.95
+  lr: 0.000194
+  difficulty: 0.57
+  tick: 4938
+  pop: 175
+Scenario mix:
+  baseline        : 76 (15.2%)
+  food_scarce     : 118 (23.6%)
+  housing_pressure: 94 (18.8%)
+  low_stockpile   : 99 (19.8%)
+  water_scarce    : 113 (22.6%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.75
+  food_raw: 0.96
+  stone   : 0.99
+  water   : 0.79
+  wood    : 0.99
+Nodes ratio:
+  food_raw: 0.79
+  stone   : 0.97
+  water   : 0.44
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 66
+  beds: 134
+  ratio: 0.86
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.59
+  fertile_per_tick: 59.51
+  pregnancies_per_tick: 1.81
+  cooldowns_per_tick: 5.05
+  chance: 0.0025
+  resource_factor: 0.82
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 78291
+  successes: 167
+  blocked:
+    infertile: 4710
+    pregnant: 8099
+    cooldown: 11232
+    no_resources: 0
+    no_housing: 0
+    chance: 78124
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.01
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.79
+  irrigation: 0.88
+  season: 0.90
+  regen: 0.80
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.27
+
+=== episode=27000 window=26501-27000 count=500 ===
+Summary:
+  avg_reward: 3707.80
+  avg_steps: 900.0
+  avg_births: 163.12
+  avg_deaths: 17.85
+  lr: 0.000192
+  difficulty: 0.58
+  tick: 4619
+  pop: 158
+Scenario mix:
+  baseline        : 78 (15.6%)
+  food_scarce     : 94 (18.8%)
+  housing_pressure: 99 (19.8%)
+  low_stockpile   : 96 (19.2%)
+  water_scarce    : 133 (26.6%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.73
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.76
+  wood    : 0.99
+Nodes ratio:
+  food_raw: 0.79
+  stone   : 0.96
+  water   : 0.42
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 65
+  beds: 133
+  ratio: 0.87
+  unsheltered: 0.15
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.53
+  fertile_per_tick: 59.59
+  pregnancies_per_tick: 1.79
+  cooldowns_per_tick: 5.01
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 77525
+  successes: 165
+  blocked:
+    infertile: 4780
+    pregnant: 8035
+    cooldown: 11150
+    no_resources: 0
+    no_housing: 0
+    chance: 77359
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.76
+  irrigation: 0.87
+  season: 0.89
+  regen: 0.78
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.30
+
+=== episode=27500 window=27001-27500 count=500 ===
+Summary:
+  avg_reward: 3694.55
+  avg_steps: 900.0
+  avg_births: 163.35
+  avg_deaths: 18.36
+  lr: 0.000190
+  difficulty: 0.59
+  tick: 5134
+  pop: 143
+Scenario mix:
+  baseline        : 58 (11.6%)
+  food_scarce     : 101 (20.2%)
+  housing_pressure: 104 (20.8%)
+  low_stockpile   : 102 (20.4%)
+  water_scarce    : 135 (27.0%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.73
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.78
+  wood    : 0.98
+Nodes ratio:
+  food_raw: 0.80
+  stone   : 0.96
+  water   : 0.42
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 65
+  beds: 133
+  ratio: 0.86
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.63
+  fertile_per_tick: 59.90
+  pregnancies_per_tick: 1.79
+  cooldowns_per_tick: 5.02
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 77663
+  successes: 166
+  blocked:
+    infertile: 4722
+    pregnant: 8048
+    cooldown: 11158
+    no_resources: 0
+    no_housing: 0
+    chance: 77497
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.78
+  irrigation: 0.88
+  season: 0.90
+  regen: 0.79
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.29
+
+=== episode=28000 window=27501-28000 count=500 ===
+Summary:
+  avg_reward: 3719.36
+  avg_steps: 900.0
+  avg_births: 164.31
+  avg_deaths: 17.84
+  lr: 0.000188
+  difficulty: 0.60
+  tick: 4904
+  pop: 154
+Scenario mix:
+  baseline        : 67 (13.4%)
+  food_scarce     : 106 (21.2%)
+  housing_pressure: 107 (21.4%)
+  low_stockpile   : 101 (20.2%)
+  water_scarce    : 119 (23.8%)
+Stockpile ratios:
+  avg: 0.94
+  min: 0.76
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.80
+  wood    : 0.98
+Nodes ratio:
+  food_raw: 0.78
+  stone   : 0.97
+  water   : 0.42
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.16
+Housing:
+  houses: 66
+  beds: 134
+  ratio: 0.86
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.53
+  fertile_per_tick: 59.62
+  pregnancies_per_tick: 1.81
+  cooldowns_per_tick: 5.05
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 78028
+  successes: 167
+  blocked:
+    infertile: 4772
+    pregnant: 8096
+    cooldown: 11229
+    no_resources: 0
+    no_housing: 0
+    chance: 77860
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.97
+  water_ratio: 0.80
+  irrigation: 0.89
+  season: 0.91
+  regen: 0.82
+Signals:
+  critical_needs: 0.00
+  idle_adults: 0.30
+
+=== episode=28500 window=28001-28500 count=500 ===
+Summary:
+  avg_reward: 3719.77
+  avg_steps: 900.0
+  avg_births: 163.95
+  avg_deaths: 17.28
+  lr: 0.000186
+  difficulty: 0.60
+  tick: 5091
+  pop: 172
+Scenario mix:
+  baseline        : 63 (12.6%)
+  food_scarce     : 122 (24.4%)
+  housing_pressure: 93 (18.6%)
+  low_stockpile   : 94 (18.8%)
+  water_scarce    : 128 (25.6%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.74
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.78
+  wood    : 0.98
+Nodes ratio:
+  food_raw: 0.78
+  stone   : 0.97
+  water   : 0.42
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 66
+  beds: 134
+  ratio: 0.86
+  unsheltered: 0.15
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.55
+  fertile_per_tick: 59.33
+  pregnancies_per_tick: 1.80
+  cooldowns_per_tick: 5.04
+  chance: 0.0025
+  resource_factor: 0.82
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 77887
+  successes: 166
+  blocked:
+    infertile: 4735
+    pregnant: 8075
+    cooldown: 11211
+    no_resources: 0
+    no_housing: 0
+    chance: 77720
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.01
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.78
+  irrigation: 0.88
+  season: 0.90
+  regen: 0.80
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.30
+
+=== episode=29000 window=28501-29000 count=500 ===
+Summary:
+  avg_reward: 3711.53
+  avg_steps: 900.0
+  avg_births: 164.77
+  avg_deaths: 17.79
+  lr: 0.000184
+  difficulty: 0.61
+  tick: 4898
+  pop: 167
+Scenario mix:
+  baseline        : 83 (16.6%)
+  food_scarce     : 86 (17.2%)
+  housing_pressure: 105 (21.0%)
+  low_stockpile   : 94 (18.8%)
+  water_scarce    : 132 (26.4%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.75
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.78
+  wood    : 0.99
+Nodes ratio:
+  food_raw: 0.81
+  stone   : 0.96
+  water   : 0.41
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 65
+  beds: 133
+  ratio: 0.86
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.68
+  fertile_per_tick: 59.99
+  pregnancies_per_tick: 1.81
+  cooldowns_per_tick: 5.06
+  chance: 0.0025
+  resource_factor: 0.82
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 77881
+  successes: 167
+  blocked:
+    infertile: 4811
+    pregnant: 8115
+    cooldown: 11260
+    no_resources: 0
+    no_housing: 0
+    chance: 77714
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.78
+  irrigation: 0.88
+  season: 0.90
+  regen: 0.79
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.28
+
+=== episode=29500 window=29001-29500 count=500 ===
+Summary:
+  avg_reward: 3739.01
+  avg_steps: 900.0
+  avg_births: 165.12
+  avg_deaths: 17.12
+  lr: 0.000182
+  difficulty: 0.62
+  tick: 4813
+  pop: 94
+Scenario mix:
+  baseline        : 81 (16.2%)
+  food_scarce     : 106 (21.2%)
+  housing_pressure: 110 (22.0%)
+  low_stockpile   : 95 (19.0%)
+  water_scarce    : 108 (21.6%)
+Stockpile ratios:
+  avg: 0.94
+  min: 0.78
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.81
+  wood    : 0.99
+Nodes ratio:
+  food_raw: 0.78
+  stone   : 0.96
+  water   : 0.42
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.16
+Housing:
+  houses: 66
+  beds: 134
+  ratio: 0.86
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.61
+  fertile_per_tick: 59.75
+  pregnancies_per_tick: 1.81
+  cooldowns_per_tick: 5.07
+  chance: 0.0025
+  resource_factor: 0.82
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 78436
+  successes: 168
+  blocked:
+    infertile: 4838
+    pregnant: 8136
+    cooldown: 11284
+    no_resources: 0
+    no_housing: 0
+    chance: 78268
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.00
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.81
+  irrigation: 0.89
+  season: 0.91
+  regen: 0.81
+Signals:
+  critical_needs: 0.00
+  idle_adults: 0.30
+
+=== episode=30000 window=29501-30000 count=500 ===
+Summary:
+  avg_reward: 3713.72
+  avg_steps: 900.0
+  avg_births: 164.20
+  avg_deaths: 17.64
+  lr: 0.000180
+  difficulty: 0.63
+  tick: 4820
+  pop: 176
+Scenario mix:
+  baseline        : 63 (12.6%)
+  food_scarce     : 95 (19.0%)
+  housing_pressure: 107 (21.4%)
+  low_stockpile   : 102 (20.4%)
+  water_scarce    : 133 (26.6%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.72
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.77
+  wood    : 0.98
+Nodes ratio:
+  food_raw: 0.78
+  stone   : 0.96
+  water   : 0.41
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 65
+  beds: 133
+  ratio: 0.86
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.60
+  fertile_per_tick: 59.91
+  pregnancies_per_tick: 1.80
+  cooldowns_per_tick: 5.05
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 78107
+  successes: 166
+  blocked:
+    infertile: 4766
+    pregnant: 8082
+    cooldown: 11234
+    no_resources: 0
+    no_housing: 0
+    chance: 77940
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.00
+    stone   : 0.01
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.97
+  water_ratio: 0.77
+  irrigation: 0.87
+  season: 0.89
+  regen: 0.78
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.29
+
+=== episode=30500 window=30001-30500 count=500 ===
+Summary:
+  avg_reward: 3702.42
+  avg_steps: 900.0
+  avg_births: 163.37
+  avg_deaths: 18.12
+  lr: 0.000178
+  difficulty: 0.64
+  tick: 4847
+  pop: 136
+Scenario mix:
+  baseline        : 71 (14.2%)
+  food_scarce     : 105 (21.0%)
+  housing_pressure: 97 (19.4%)
+  low_stockpile   : 100 (20.0%)
+  water_scarce    : 127 (25.4%)
+Stockpile ratios:
+  avg: 0.94
+  min: 0.76
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.80
+  wood    : 0.98
+Nodes ratio:
+  food_raw: 0.79
+  stone   : 0.97
+  water   : 0.43
+  wood    : 0.97
+Needs avg:
+  hunger: 0.15
+  thirst: 0.16
+Housing:
+  houses: 65
+  beds: 134
+  ratio: 0.87
+  unsheltered: 0.15
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.56
+  fertile_per_tick: 59.45
+  pregnancies_per_tick: 1.79
+  cooldowns_per_tick: 5.02
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 77682
+  successes: 166
+  blocked:
+    infertile: 4715
+    pregnant: 8051
+    cooldown: 11160
+    no_resources: 0
+    no_housing: 0
+    chance: 77516
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.80
+  irrigation: 0.89
+  season: 0.92
+  regen: 0.82
+Signals:
+  critical_needs: 0.00
+  idle_adults: 0.28
+
+=== episode=31000 window=30501-31000 count=500 ===
+Summary:
+  avg_reward: 3734.56
+  avg_steps: 900.0
+  avg_births: 165.09
+  avg_deaths: 17.19
+  lr: 0.000176
+  difficulty: 0.65
+  tick: 4546
+  pop: 192
+Scenario mix:
+  baseline        : 83 (16.6%)
+  food_scarce     : 94 (18.8%)
+  housing_pressure: 113 (22.6%)
+  low_stockpile   : 90 (18.0%)
+  water_scarce    : 120 (24.0%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.75
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.78
+  wood    : 0.98
+Nodes ratio:
+  food_raw: 0.80
+  stone   : 0.96
+  water   : 0.42
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.16
+Housing:
+  houses: 66
+  beds: 135
+  ratio: 0.86
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.54
+  fertile_per_tick: 59.74
+  pregnancies_per_tick: 1.81
+  cooldowns_per_tick: 5.08
+  chance: 0.0025
+  resource_factor: 0.82
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 78082
+  successes: 167
+  blocked:
+    infertile: 4743
+    pregnant: 8129
+    cooldown: 11289
+    no_resources: 0
+    no_housing: 0
+    chance: 77914
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.78
+  irrigation: 0.88
+  season: 0.91
+  regen: 0.80
+Signals:
+  critical_needs: 0.00
+  idle_adults: 0.27
+
+=== episode=31500 window=31001-31500 count=500 ===
+Summary:
+  avg_reward: 3727.94
+  avg_steps: 900.0
+  avg_births: 164.72
+  avg_deaths: 17.58
+  lr: 0.000174
+  difficulty: 0.66
+  tick: 4747
+  pop: 122
+Scenario mix:
+  baseline        : 70 (14.0%)
+  food_scarce     : 100 (20.0%)
+  housing_pressure: 114 (22.8%)
+  low_stockpile   : 99 (19.8%)
+  water_scarce    : 117 (23.4%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.75
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.80
+  wood    : 0.98
+Nodes ratio:
+  food_raw: 0.78
+  stone   : 0.97
+  water   : 0.43
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.16
+Housing:
+  houses: 66
+  beds: 134
+  ratio: 0.86
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.56
+  fertile_per_tick: 59.75
+  pregnancies_per_tick: 1.81
+  cooldowns_per_tick: 5.06
+  chance: 0.0025
+  resource_factor: 0.82
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 77997
+  successes: 167
+  blocked:
+    infertile: 4792
+    pregnant: 8116
+    cooldown: 11262
+    no_resources: 0
+    no_housing: 0
+    chance: 77829
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.99
+  water_ratio: 0.80
+  irrigation: 0.89
+  season: 0.90
+  regen: 0.80
+Signals:
+  critical_needs: 0.00
+  idle_adults: 0.31
+
+=== episode=32000 window=31501-32000 count=500 ===
+Summary:
+  avg_reward: 3718.21
+  avg_steps: 900.0
+  avg_births: 163.16
+  avg_deaths: 17.26
+  lr: 0.000172
+  difficulty: 0.67
+  tick: 5227
+  pop: 139
+Scenario mix:
+  baseline        : 90 (18.0%)
+  food_scarce     : 89 (17.8%)
+  housing_pressure: 94 (18.8%)
+  low_stockpile   : 105 (21.0%)
+  water_scarce    : 122 (24.4%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.74
+  food_raw: 0.98
+  stone   : 0.99
+  water   : 0.78
+  wood    : 0.98
+Nodes ratio:
+  food_raw: 0.79
+  stone   : 0.97
+  water   : 0.43
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 65
+  beds: 134
+  ratio: 0.87
+  unsheltered: 0.15
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.34
+  fertile_per_tick: 59.28
+  pregnancies_per_tick: 1.79
+  cooldowns_per_tick: 5.02
+  chance: 0.0025
+  resource_factor: 0.82
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 77306
+  successes: 165
+  blocked:
+    infertile: 4723
+    pregnant: 8035
+    cooldown: 11158
+    no_resources: 0
+    no_housing: 0
+    chance: 77140
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.00
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.78
+  irrigation: 0.88
+  season: 0.89
+  regen: 0.78
+Signals:
+  critical_needs: 0.00
+  idle_adults: 0.27
+
+=== episode=32500 window=32001-32500 count=500 ===
+Summary:
+  avg_reward: 3724.16
+  avg_steps: 900.0
+  avg_births: 164.21
+  avg_deaths: 17.22
+  lr: 0.000170
+  difficulty: 0.68
+  tick: 5296
+  pop: 163
+Scenario mix:
+  baseline        : 75 (15.0%)
+  food_scarce     : 104 (20.8%)
+  housing_pressure: 97 (19.4%)
+  low_stockpile   : 110 (22.0%)
+  water_scarce    : 114 (22.8%)
+Stockpile ratios:
+  avg: 0.94
+  min: 0.76
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.80
+  wood    : 0.98
+Nodes ratio:
+  food_raw: 0.78
+  stone   : 0.97
+  water   : 0.43
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 66
+  beds: 134
+  ratio: 0.86
+  unsheltered: 0.15
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.44
+  fertile_per_tick: 59.14
+  pregnancies_per_tick: 1.80
+  cooldowns_per_tick: 5.05
+  chance: 0.0025
+  resource_factor: 0.82
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 77863
+  successes: 167
+  blocked:
+    infertile: 4746
+    pregnant: 8091
+    cooldown: 11235
+    no_resources: 0
+    no_housing: 0
+    chance: 77696
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.99
+  water_ratio: 0.80
+  irrigation: 0.89
+  season: 0.90
+  regen: 0.80
+Signals:
+  critical_needs: 0.00
+  idle_adults: 0.30
+
+=== episode=33000 window=32501-33000 count=500 ===
+Summary:
+  avg_reward: 3708.63
+  avg_steps: 900.0
+  avg_births: 162.53
+  avg_deaths: 18.14
+  lr: 0.000168
+  difficulty: 0.69
+  tick: 4778
+  pop: 184
+Scenario mix:
+  baseline        : 64 (12.8%)
+  food_scarce     : 99 (19.8%)
+  housing_pressure: 112 (22.4%)
+  low_stockpile   : 99 (19.8%)
+  water_scarce    : 126 (25.2%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.74
+  food_raw: 0.98
+  stone   : 0.98
+  water   : 0.78
+  wood    : 0.98
+Nodes ratio:
+  food_raw: 0.80
+  stone   : 0.96
+  water   : 0.44
+  wood    : 0.97
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 65
+  beds: 133
+  ratio: 0.87
+  unsheltered: 0.15
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.34
+  fertile_per_tick: 58.95
+  pregnancies_per_tick: 1.79
+  cooldowns_per_tick: 5.00
+  chance: 0.0025
+  resource_factor: 0.82
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 77036
+  successes: 165
+  blocked:
+    infertile: 4807
+    pregnant: 8010
+    cooldown: 11112
+    no_resources: 0
+    no_housing: 0
+    chance: 76870
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.78
+  irrigation: 0.88
+  season: 0.91
+  regen: 0.80
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.32
+
+=== episode=33500 window=33001-33500 count=500 ===
+Summary:
+  avg_reward: 3735.89
+  avg_steps: 900.0
+  avg_births: 165.82
+  avg_deaths: 17.13
+  lr: 0.000166
+  difficulty: 0.70
+  tick: 4505
+  pop: 176
+Scenario mix:
+  baseline        : 84 (16.8%)
+  food_scarce     : 116 (23.2%)
+  housing_pressure: 94 (18.8%)
+  low_stockpile   : 97 (19.4%)
+  water_scarce    : 109 (21.8%)
+Stockpile ratios:
+  avg: 0.94
+  min: 0.75
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.81
+  wood    : 0.98
+Nodes ratio:
+  food_raw: 0.78
+  stone   : 0.96
+  water   : 0.44
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.16
+Housing:
+  houses: 66
+  beds: 135
+  ratio: 0.86
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.64
+  fertile_per_tick: 59.66
+  pregnancies_per_tick: 1.82
+  cooldowns_per_tick: 5.09
+  chance: 0.0025
+  resource_factor: 0.82
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 78812
+  successes: 168
+  blocked:
+    infertile: 4750
+    pregnant: 8173
+    cooldown: 11342
+    no_resources: 0
+    no_housing: 0
+    chance: 78643
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.81
+  irrigation: 0.89
+  season: 0.91
+  regen: 0.82
+Signals:
+  critical_needs: 0.00
+  idle_adults: 0.30
+
+=== episode=34000 window=33501-34000 count=500 ===
+Summary:
+  avg_reward: 3693.52
+  avg_steps: 900.0
+  avg_births: 163.03
+  avg_deaths: 18.09
+  lr: 0.000164
+  difficulty: 0.71
+  tick: 5255
+  pop: 143
+Scenario mix:
+  baseline        : 87 (17.4%)
+  food_scarce     : 80 (16.0%)
+  housing_pressure: 108 (21.6%)
+  low_stockpile   : 92 (18.4%)
+  water_scarce    : 133 (26.6%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.75
+  food_raw: 0.96
+  stone   : 0.99
+  water   : 0.79
+  wood    : 1.00
+Nodes ratio:
+  food_raw: 0.80
+  stone   : 0.97
+  water   : 0.41
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 65
+  beds: 132
+  ratio: 0.86
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.62
+  fertile_per_tick: 59.94
+  pregnancies_per_tick: 1.79
+  cooldowns_per_tick: 5.01
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 77775
+  successes: 165
+  blocked:
+    infertile: 4788
+    pregnant: 8031
+    cooldown: 11142
+    no_resources: 0
+    no_housing: 0
+    chance: 77609
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.99
+  water_ratio: 0.79
+  irrigation: 0.88
+  season: 0.90
+  regen: 0.80
+Signals:
+  critical_needs: 0.00
+  idle_adults: 0.31
+
+=== episode=34500 window=34001-34500 count=500 ===
+Summary:
+  avg_reward: 3724.97
+  avg_steps: 900.0
+  avg_births: 164.84
+  avg_deaths: 17.28
+  lr: 0.000162
+  difficulty: 0.71
+  tick: 5081
+  pop: 184
+Scenario mix:
+  baseline        : 86 (17.2%)
+  food_scarce     : 97 (19.4%)
+  housing_pressure: 99 (19.8%)
+  low_stockpile   : 105 (21.0%)
+  water_scarce    : 113 (22.6%)
+Stockpile ratios:
+  avg: 0.94
+  min: 0.77
+  food_raw: 0.97
+  stone   : 0.98
+  water   : 0.81
+  wood    : 0.98
+Nodes ratio:
+  food_raw: 0.78
+  stone   : 0.97
+  water   : 0.43
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.16
+Housing:
+  houses: 65
+  beds: 134
+  ratio: 0.86
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.40
+  fertile_per_tick: 59.39
+  pregnancies_per_tick: 1.81
+  cooldowns_per_tick: 5.07
+  chance: 0.0025
+  resource_factor: 0.82
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 77686
+  successes: 167
+  blocked:
+    infertile: 4767
+    pregnant: 8120
+    cooldown: 11276
+    no_resources: 0
+    no_housing: 0
+    chance: 77518
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.81
+  irrigation: 0.90
+  season: 0.90
+  regen: 0.81
+Signals:
+  critical_needs: 0.00
+  idle_adults: 0.30
+
+=== episode=35000 window=34501-35000 count=500 ===
+Summary:
+  avg_reward: 3696.53
+  avg_steps: 900.0
+  avg_births: 163.59
+  avg_deaths: 17.90
+  lr: 0.000160
+  difficulty: 0.72
+  tick: 5014
+  pop: 171
+Scenario mix:
+  baseline        : 81 (16.2%)
+  food_scarce     : 91 (18.2%)
+  housing_pressure: 90 (18.0%)
+  low_stockpile   : 95 (19.0%)
+  water_scarce    : 143 (28.6%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.73
+  food_raw: 0.98
+  stone   : 0.99
+  water   : 0.76
+  wood    : 0.99
+Nodes ratio:
+  food_raw: 0.80
+  stone   : 0.97
+  water   : 0.41
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 66
+  beds: 134
+  ratio: 0.87
+  unsheltered: 0.15
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.69
+  fertile_per_tick: 59.66
+  pregnancies_per_tick: 1.80
+  cooldowns_per_tick: 5.03
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 78171
+  successes: 166
+  blocked:
+    infertile: 4786
+    pregnant: 8061
+    cooldown: 11190
+    no_resources: 0
+    no_housing: 0
+    chance: 78005
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.99
+  water_ratio: 0.76
+  irrigation: 0.87
+  season: 0.90
+  regen: 0.79
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.29
+
+=== episode=35500 window=35001-35500 count=500 ===
+Summary:
+  avg_reward: 3726.07
+  avg_steps: 900.0
+  avg_births: 165.78
+  avg_deaths: 17.67
+  lr: 0.000158
+  difficulty: 0.73
+  tick: 5225
+  pop: 177
+Scenario mix:
+  baseline        : 69 (13.8%)
+  food_scarce     : 125 (25.0%)
+  housing_pressure: 106 (21.2%)
+  low_stockpile   : 82 (16.4%)
+  water_scarce    : 118 (23.6%)
+Stockpile ratios:
+  avg: 0.94
+  min: 0.77
+  food_raw: 0.98
+  stone   : 0.99
+  water   : 0.81
+  wood    : 0.98
+Nodes ratio:
+  food_raw: 0.78
+  stone   : 0.96
+  water   : 0.43
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.16
+Housing:
+  houses: 66
+  beds: 136
+  ratio: 0.86
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.79
+  fertile_per_tick: 59.98
+  pregnancies_per_tick: 1.82
+  cooldowns_per_tick: 5.09
+  chance: 0.0025
+  resource_factor: 0.82
+  crowding_factor: 0.42
+  morale_factor: 0.91
+  season_factor: 0.93
+  attempts: 78967
+  successes: 168
+  blocked:
+    infertile: 4830
+    pregnant: 8173
+    cooldown: 11332
+    no_resources: 0
+    no_housing: 0
+    chance: 78798
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.81
+  irrigation: 0.89
+  season: 0.90
+  regen: 0.81
+Signals:
+  critical_needs: 0.00
+  idle_adults: 0.32
+
+=== episode=36000 window=35501-36000 count=500 ===
+Summary:
+  avg_reward: 3689.75
+  avg_steps: 900.0
+  avg_births: 162.56
+  avg_deaths: 17.60
+  lr: 0.000156
+  difficulty: 0.74
+  tick: 4808
+  pop: 185
+Scenario mix:
+  baseline        : 77 (15.4%)
+  food_scarce     : 101 (20.2%)
+  housing_pressure: 82 (16.4%)
+  low_stockpile   : 94 (18.8%)
+  water_scarce    : 146 (29.2%)
+Stockpile ratios:
+  avg: 0.92
+  min: 0.70
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.74
+  wood    : 0.99
+Nodes ratio:
+  food_raw: 0.80
+  stone   : 0.96
+  water   : 0.40
+  wood    : 0.97
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 65
+  beds: 133
+  ratio: 0.87
+  unsheltered: 0.15
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.53
+  fertile_per_tick: 59.34
+  pregnancies_per_tick: 1.78
+  cooldowns_per_tick: 5.00
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 77219
+  successes: 165
+  blocked:
+    infertile: 4716
+    pregnant: 8007
+    cooldown: 11121
+    no_resources: 0
+    no_housing: 0
+    chance: 77054
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.74
+  irrigation: 0.86
+  season: 0.90
+  regen: 0.77
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.30
+
+=== episode=36500 window=36001-36500 count=500 ===
+Summary:
+  avg_reward: 3715.45
+  avg_steps: 900.0
+  avg_births: 165.83
+  avg_deaths: 17.56
+  lr: 0.000154
+  difficulty: 0.75
+  tick: 4630
+  pop: 147
+Scenario mix:
+  baseline        : 81 (16.2%)
+  food_scarce     : 96 (19.2%)
+  housing_pressure: 102 (20.4%)
+  low_stockpile   : 103 (20.6%)
+  water_scarce    : 118 (23.6%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.75
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.79
+  wood    : 0.99
+Nodes ratio:
+  food_raw: 0.79
+  stone   : 0.97
+  water   : 0.42
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.16
+Housing:
+  houses: 66
+  beds: 134
+  ratio: 0.85
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.80
+  fertile_per_tick: 60.23
+  pregnancies_per_tick: 1.82
+  cooldowns_per_tick: 5.10
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 78730
+  successes: 168
+  blocked:
+    infertile: 4806
+    pregnant: 8170
+    cooldown: 11331
+    no_resources: 0
+    no_housing: 0
+    chance: 78562
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.01
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.79
+  irrigation: 0.89
+  season: 0.89
+  regen: 0.79
+Signals:
+  critical_needs: 0.00
+  idle_adults: 0.30
+
+=== episode=37000 window=36501-37000 count=500 ===
+Summary:
+  avg_reward: 3705.38
+  avg_steps: 900.0
+  avg_births: 165.20
+  avg_deaths: 17.64
+  lr: 0.000152
+  difficulty: 0.76
+  tick: 5296
+  pop: 119
+Scenario mix:
+  baseline        : 88 (17.6%)
+  food_scarce     : 89 (17.8%)
+  housing_pressure: 98 (19.6%)
+  low_stockpile   : 93 (18.6%)
+  water_scarce    : 132 (26.4%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.74
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.78
+  wood    : 0.99
+Nodes ratio:
+  food_raw: 0.80
+  stone   : 0.97
+  water   : 0.41
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 65
+  beds: 134
+  ratio: 0.86
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.81
+  fertile_per_tick: 60.20
+  pregnancies_per_tick: 1.81
+  cooldowns_per_tick: 5.08
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 78579
+  successes: 168
+  blocked:
+    infertile: 4779
+    pregnant: 8135
+    cooldown: 11286
+    no_resources: 0
+    no_housing: 0
+    chance: 78411
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.78
+  irrigation: 0.88
+  season: 0.89
+  regen: 0.79
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.28
+
+=== episode=37500 window=37001-37500 count=500 ===
+Summary:
+  avg_reward: 3734.09
+  avg_steps: 900.0
+  avg_births: 166.02
+  avg_deaths: 16.83
+  lr: 0.000150
+  difficulty: 0.77
+  tick: 5292
+  pop: 139
+Scenario mix:
+  baseline        : 83 (16.6%)
+  food_scarce     : 112 (22.4%)
+  housing_pressure: 98 (19.6%)
+  low_stockpile   : 95 (19.0%)
+  water_scarce    : 112 (22.4%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.76
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.80
+  wood    : 0.98
+Nodes ratio:
+  food_raw: 0.78
+  stone   : 0.96
+  water   : 0.43
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 66
+  beds: 134
+  ratio: 0.85
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.70
+  fertile_per_tick: 59.79
+  pregnancies_per_tick: 1.82
+  cooldowns_per_tick: 5.10
+  chance: 0.0025
+  resource_factor: 0.82
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 78823
+  successes: 168
+  blocked:
+    infertile: 4795
+    pregnant: 8179
+    cooldown: 11349
+    no_resources: 0
+    no_housing: 0
+    chance: 78654
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.80
+  irrigation: 0.89
+  season: 0.91
+  regen: 0.81
+Signals:
+  critical_needs: 0.00
+  idle_adults: 0.29
+
+=== episode=38000 window=37501-38000 count=500 ===
+Summary:
+  avg_reward: 3719.73
+  avg_steps: 900.0
+  avg_births: 164.31
+  avg_deaths: 17.14
+  lr: 0.000148
+  difficulty: 0.78
+  tick: 5034
+  pop: 216
+Scenario mix:
+  baseline        : 74 (14.8%)
+  food_scarce     : 105 (21.0%)
+  housing_pressure: 106 (21.2%)
+  low_stockpile   : 106 (21.2%)
+  water_scarce    : 109 (21.8%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.75
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.80
+  wood    : 0.98
+Nodes ratio:
+  food_raw: 0.80
+  stone   : 0.96
+  water   : 0.44
+  wood    : 0.97
+Needs avg:
+  hunger: 0.15
+  thirst: 0.16
+Housing:
+  houses: 65
+  beds: 133
+  ratio: 0.86
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.46
+  fertile_per_tick: 59.53
+  pregnancies_per_tick: 1.81
+  cooldowns_per_tick: 5.05
+  chance: 0.0025
+  resource_factor: 0.82
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 77704
+  successes: 167
+  blocked:
+    infertile: 4754
+    pregnant: 8098
+    cooldown: 11227
+    no_resources: 0
+    no_housing: 0
+    chance: 77537
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.80
+  irrigation: 0.89
+  season: 0.90
+  regen: 0.80
+Signals:
+  critical_needs: 0.00
+  idle_adults: 0.31
+
+=== episode=38500 window=38001-38500 count=500 ===
+Summary:
+  avg_reward: 3679.14
+  avg_steps: 900.0
+  avg_births: 162.69
+  avg_deaths: 18.13
+  lr: 0.000146
+  difficulty: 0.79
+  tick: 4582
+  pop: 121
+Scenario mix:
+  baseline        : 72 (14.4%)
+  food_scarce     : 108 (21.6%)
+  housing_pressure: 72 (14.4%)
+  low_stockpile   : 113 (22.6%)
+  water_scarce    : 135 (27.0%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.74
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.78
+  wood    : 0.98
+Nodes ratio:
+  food_raw: 0.78
+  stone   : 0.97
+  water   : 0.43
+  wood    : 0.97
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 65
+  beds: 134
+  ratio: 0.88
+  unsheltered: 0.15
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.40
+  fertile_per_tick: 58.86
+  pregnancies_per_tick: 1.79
+  cooldowns_per_tick: 5.00
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 77064
+  successes: 165
+  blocked:
+    infertile: 4685
+    pregnant: 8017
+    cooldown: 11128
+    no_resources: 0
+    no_housing: 0
+    chance: 76898
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.78
+  irrigation: 0.88
+  season: 0.90
+  regen: 0.79
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.29
+
+=== episode=39000 window=38501-39000 count=500 ===
+Summary:
+  avg_reward: 3695.00
+  avg_steps: 900.0
+  avg_births: 163.28
+  avg_deaths: 17.94
+  lr: 0.000144
+  difficulty: 0.80
+  tick: 5156
+  pop: 169
+Scenario mix:
+  baseline        : 84 (16.8%)
+  food_scarce     : 95 (19.0%)
+  housing_pressure: 89 (17.8%)
+  low_stockpile   : 91 (18.2%)
+  water_scarce    : 141 (28.2%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.73
+  food_raw: 0.96
+  stone   : 0.99
+  water   : 0.76
+  wood    : 0.99
+Nodes ratio:
+  food_raw: 0.80
+  stone   : 0.96
+  water   : 0.42
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 65
+  beds: 134
+  ratio: 0.87
+  unsheltered: 0.15
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.55
+  fertile_per_tick: 59.45
+  pregnancies_per_tick: 1.79
+  cooldowns_per_tick: 5.02
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 77565
+  successes: 165
+  blocked:
+    infertile: 4704
+    pregnant: 8040
+    cooldown: 11165
+    no_resources: 0
+    no_housing: 0
+    chance: 77399
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.76
+  irrigation: 0.87
+  season: 0.89
+  regen: 0.78
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.27
+
+=== episode=39500 window=39001-39500 count=500 ===
+Summary:
+  avg_reward: 3702.49
+  avg_steps: 900.0
+  avg_births: 164.15
+  avg_deaths: 18.18
+  lr: 0.000142
+  difficulty: 0.81
+  tick: 4914
+  pop: 147
+Scenario mix:
+  baseline        : 70 (14.0%)
+  food_scarce     : 113 (22.6%)
+  housing_pressure: 91 (18.2%)
+  low_stockpile   : 113 (22.6%)
+  water_scarce    : 113 (22.6%)
+Stockpile ratios:
+  avg: 0.94
+  min: 0.76
+  food_raw: 0.96
+  stone   : 0.99
+  water   : 0.81
+  wood    : 0.99
+Nodes ratio:
+  food_raw: 0.79
+  stone   : 0.96
+  water   : 0.44
+  wood    : 0.97
+Needs avg:
+  hunger: 0.15
+  thirst: 0.16
+Housing:
+  houses: 66
+  beds: 134
+  ratio: 0.87
+  unsheltered: 0.15
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.54
+  fertile_per_tick: 59.33
+  pregnancies_per_tick: 1.80
+  cooldowns_per_tick: 5.05
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.92
+  attempts: 77777
+  successes: 167
+  blocked:
+    infertile: 4657
+    pregnant: 8094
+    cooldown: 11224
+    no_resources: 0
+    no_housing: 0
+    chance: 77610
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.81
+  irrigation: 0.90
+  season: 0.91
+  regen: 0.81
+Signals:
+  critical_needs: 0.00
+  idle_adults: 0.30
+
+=== episode=40000 window=39501-40000 count=500 ===
+Summary:
+  avg_reward: 3694.75
+  avg_steps: 900.0
+  avg_births: 166.19
+  avg_deaths: 18.33
+  lr: 0.000140
+  difficulty: 0.82
+  tick: 4656
+  pop: 146
+Scenario mix:
+  baseline        : 72 (14.4%)
+  food_scarce     : 111 (22.2%)
+  housing_pressure: 87 (17.4%)
+  low_stockpile   : 103 (20.6%)
+  water_scarce    : 127 (25.4%)
+Stockpile ratios:
+  avg: 0.94
+  min: 0.76
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.79
+  wood    : 0.99
+Nodes ratio:
+  food_raw: 0.77
+  stone   : 0.97
+  water   : 0.42
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.16
+Housing:
+  houses: 66
+  beds: 135
+  ratio: 0.87
+  unsheltered: 0.15
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.96
+  fertile_per_tick: 60.44
+  pregnancies_per_tick: 1.83
+  cooldowns_per_tick: 5.11
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 78924
+  successes: 169
+  blocked:
+    infertile: 4705
+    pregnant: 8190
+    cooldown: 11369
+    no_resources: 0
+    no_housing: 0
+    chance: 78755
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.79
+  irrigation: 0.89
+  season: 0.91
+  regen: 0.81
+Signals:
+  critical_needs: 0.00
+  idle_adults: 0.29
+
+=== episode=40500 window=40001-40500 count=500 ===
+Summary:
+  avg_reward: 3724.75
+  avg_steps: 900.0
+  avg_births: 164.91
+  avg_deaths: 17.42
+  lr: 0.000138
+  difficulty: 0.83
+  tick: 4877
+  pop: 192
+Scenario mix:
+  baseline        : 70 (14.0%)
+  food_scarce     : 107 (21.4%)
+  housing_pressure: 110 (22.0%)
+  low_stockpile   : 89 (17.8%)
+  water_scarce    : 124 (24.8%)
+Stockpile ratios:
+  avg: 0.94
+  min: 0.76
+  food_raw: 0.98
+  stone   : 0.99
+  water   : 0.79
+  wood    : 0.99
+Nodes ratio:
+  food_raw: 0.79
+  stone   : 0.96
+  water   : 0.42
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 65
+  beds: 134
+  ratio: 0.86
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.66
+  fertile_per_tick: 60.14
+  pregnancies_per_tick: 1.81
+  cooldowns_per_tick: 5.07
+  chance: 0.0025
+  resource_factor: 0.82
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 78115
+  successes: 167
+  blocked:
+    infertile: 4840
+    pregnant: 8125
+    cooldown: 11278
+    no_resources: 0
+    no_housing: 0
+    chance: 77947
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.79
+  irrigation: 0.88
+  season: 0.91
+  regen: 0.80
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.31
+
+=== episode=41000 window=40501-41000 count=500 ===
+Summary:
+  avg_reward: 3691.06
+  avg_steps: 900.0
+  avg_births: 164.26
+  avg_deaths: 18.80
+  lr: 0.000136
+  difficulty: 0.83
+  tick: 4502
+  pop: 120
+Scenario mix:
+  baseline        : 70 (14.0%)
+  food_scarce     : 83 (16.6%)
+  housing_pressure: 105 (21.0%)
+  low_stockpile   : 99 (19.8%)
+  water_scarce    : 143 (28.6%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.73
+  food_raw: 0.97
+  stone   : 0.98
+  water   : 0.77
+  wood    : 0.99
+Nodes ratio:
+  food_raw: 0.80
+  stone   : 0.96
+  water   : 0.41
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 65
+  beds: 134
+  ratio: 0.87
+  unsheltered: 0.15
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.79
+  fertile_per_tick: 60.27
+  pregnancies_per_tick: 1.80
+  cooldowns_per_tick: 5.05
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 78225
+  successes: 167
+  blocked:
+    infertile: 4809
+    pregnant: 8094
+    cooldown: 11231
+    no_resources: 0
+    no_housing: 0
+    chance: 78058
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.97
+  water_ratio: 0.77
+  irrigation: 0.87
+  season: 0.90
+  regen: 0.79
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.27
+
+=== episode=41500 window=41001-41500 count=500 ===
+Summary:
+  avg_reward: 3702.99
+  avg_steps: 900.0
+  avg_births: 165.64
+  avg_deaths: 17.93
+  lr: 0.000134
+  difficulty: 0.84
+  tick: 4888
+  pop: 181
+Scenario mix:
+  baseline        : 73 (14.6%)
+  food_scarce     : 98 (19.6%)
+  housing_pressure: 110 (22.0%)
+  low_stockpile   : 92 (18.4%)
+  water_scarce    : 127 (25.4%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.74
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.78
+  wood    : 0.98
+Nodes ratio:
+  food_raw: 0.78
+  stone   : 0.95
+  water   : 0.41
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 65
+  beds: 134
+  ratio: 0.86
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.94
+  fertile_per_tick: 60.64
+  pregnancies_per_tick: 1.82
+  cooldowns_per_tick: 5.09
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 78705
+  successes: 168
+  blocked:
+    infertile: 4788
+    pregnant: 8158
+    cooldown: 11318
+    no_resources: 0
+    no_housing: 0
+    chance: 78536
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.01
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.78
+  irrigation: 0.88
+  season: 0.89
+  regen: 0.79
+Signals:
+  critical_needs: 0.00
+  idle_adults: 0.29
+
+=== episode=42000 window=41501-42000 count=500 ===
+Summary:
+  avg_reward: 3697.97
+  avg_steps: 900.0
+  avg_births: 165.17
+  avg_deaths: 18.33
+  lr: 0.000132
+  difficulty: 0.85
+  tick: 4605
+  pop: 154
+Scenario mix:
+  baseline        : 73 (14.6%)
+  food_scarce     : 109 (21.8%)
+  housing_pressure: 83 (16.6%)
+  low_stockpile   : 99 (19.8%)
+  water_scarce    : 136 (27.2%)
+Stockpile ratios:
+  avg: 0.92
+  min: 0.72
+  food_raw: 0.97
+  stone   : 0.98
+  water   : 0.76
+  wood    : 0.99
+Nodes ratio:
+  food_raw: 0.77
+  stone   : 0.96
+  water   : 0.40
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 66
+  beds: 135
+  ratio: 0.87
+  unsheltered: 0.15
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.91
+  fertile_per_tick: 60.25
+  pregnancies_per_tick: 1.81
+  cooldowns_per_tick: 5.08
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 78736
+  successes: 167
+  blocked:
+    infertile: 4697
+    pregnant: 8133
+    cooldown: 11292
+    no_resources: 0
+    no_housing: 0
+    chance: 78568
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.01
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.76
+  irrigation: 0.87
+  season: 0.89
+  regen: 0.77
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.26
+
+=== episode=42500 window=42001-42500 count=500 ===
+Summary:
+  avg_reward: 3715.35
+  avg_steps: 900.0
+  avg_births: 166.54
+  avg_deaths: 18.06
+  lr: 0.000130
+  difficulty: 0.86
+  tick: 4827
+  pop: 97
+Scenario mix:
+  baseline        : 90 (18.0%)
+  food_scarce     : 91 (18.2%)
+  housing_pressure: 106 (21.2%)
+  low_stockpile   : 93 (18.6%)
+  water_scarce    : 120 (24.0%)
+Stockpile ratios:
+  avg: 0.94
+  min: 0.77
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.81
+  wood    : 0.99
+Nodes ratio:
+  food_raw: 0.80
+  stone   : 0.96
+  water   : 0.42
+  wood    : 0.97
+Needs avg:
+  hunger: 0.15
+  thirst: 0.16
+Housing:
+  houses: 66
+  beds: 135
+  ratio: 0.86
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.94
+  fertile_per_tick: 60.62
+  pregnancies_per_tick: 1.83
+  cooldowns_per_tick: 5.12
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 79328
+  successes: 169
+  blocked:
+    infertile: 4820
+    pregnant: 8208
+    cooldown: 11385
+    no_resources: 0
+    no_housing: 0
+    chance: 79159
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.01
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.81
+  irrigation: 0.89
+  season: 0.91
+  regen: 0.82
+Signals:
+  critical_needs: 0.00
+  idle_adults: 0.30
+
+=== episode=43000 window=42501-43000 count=500 ===
+Summary:
+  avg_reward: 3707.98
+  avg_steps: 900.0
+  avg_births: 164.79
+  avg_deaths: 17.95
+  lr: 0.000128
+  difficulty: 0.87
+  tick: 5160
+  pop: 123
+Scenario mix:
+  baseline        : 77 (15.4%)
+  food_scarce     : 105 (21.0%)
+  housing_pressure: 93 (18.6%)
+  low_stockpile   : 96 (19.2%)
+  water_scarce    : 129 (25.8%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.74
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.78
+  wood    : 0.98
+Nodes ratio:
+  food_raw: 0.79
+  stone   : 0.96
+  water   : 0.43
+  wood    : 0.95
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 66
+  beds: 134
+  ratio: 0.87
+  unsheltered: 0.15
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.72
+  fertile_per_tick: 59.91
+  pregnancies_per_tick: 1.81
+  cooldowns_per_tick: 5.07
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 78261
+  successes: 167
+  blocked:
+    infertile: 4765
+    pregnant: 8121
+    cooldown: 11264
+    no_resources: 0
+    no_housing: 0
+    chance: 78093
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.01
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.78
+  irrigation: 0.88
+  season: 0.90
+  regen: 0.79
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.29
+
+=== episode=43500 window=43001-43500 count=500 ===
+Summary:
+  avg_reward: 3706.12
+  avg_steps: 900.0
+  avg_births: 166.08
+  avg_deaths: 17.90
+  lr: 0.000126
+  difficulty: 0.88
+  tick: 4558
+  pop: 119
+Scenario mix:
+  baseline        : 80 (16.0%)
+  food_scarce     : 99 (19.8%)
+  housing_pressure: 102 (20.4%)
+  low_stockpile   : 91 (18.2%)
+  water_scarce    : 128 (25.6%)
+Stockpile ratios:
+  avg: 0.94
+  min: 0.77
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.80
+  wood    : 0.99
+Nodes ratio:
+  food_raw: 0.78
+  stone   : 0.97
+  water   : 0.41
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 66
+  beds: 134
+  ratio: 0.86
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.90
+  fertile_per_tick: 60.76
+  pregnancies_per_tick: 1.82
+  cooldowns_per_tick: 5.11
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 78949
+  successes: 168
+  blocked:
+    infertile: 4791
+    pregnant: 8184
+    cooldown: 11354
+    no_resources: 0
+    no_housing: 0
+    chance: 78781
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.01
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.97
+  water_ratio: 0.80
+  irrigation: 0.89
+  season: 0.90
+  regen: 0.81
+Signals:
+  critical_needs: 0.00
+  idle_adults: 0.31
+
+=== episode=44000 window=43501-44000 count=500 ===
+Summary:
+  avg_reward: 3724.42
+  avg_steps: 900.0
+  avg_births: 167.21
+  avg_deaths: 17.87
+  lr: 0.000124
+  difficulty: 0.89
+  tick: 4647
+  pop: 138
+Scenario mix:
+  baseline        : 69 (13.8%)
+  food_scarce     : 98 (19.6%)
+  housing_pressure: 109 (21.8%)
+  low_stockpile   : 90 (18.0%)
+  water_scarce    : 134 (26.8%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.73
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.77
+  wood    : 0.99
+Nodes ratio:
+  food_raw: 0.78
+  stone   : 0.96
+  water   : 0.40
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 66
+  beds: 136
+  ratio: 0.86
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 24.15
+  fertile_per_tick: 60.99
+  pregnancies_per_tick: 1.84
+  cooldowns_per_tick: 5.14
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 80136
+  successes: 170
+  blocked:
+    infertile: 4825
+    pregnant: 8235
+    cooldown: 11435
+    no_resources: 0
+    no_housing: 0
+    chance: 79966
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.77
+  irrigation: 0.87
+  season: 0.90
+  regen: 0.79
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.32
+
+=== episode=44500 window=44001-44500 count=500 ===
+Summary:
+  avg_reward: 3698.15
+  avg_steps: 900.0
+  avg_births: 165.59
+  avg_deaths: 18.46
+  lr: 0.000122
+  difficulty: 0.90
+  tick: 5203
+  pop: 204
+Scenario mix:
+  baseline        : 63 (12.6%)
+  food_scarce     : 107 (21.4%)
+  housing_pressure: 107 (21.4%)
+  low_stockpile   : 103 (20.6%)
+  water_scarce    : 120 (24.0%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.75
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.78
+  wood    : 0.99
+Nodes ratio:
+  food_raw: 0.78
+  stone   : 0.95
+  water   : 0.43
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 66
+  beds: 134
+  ratio: 0.86
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.86
+  fertile_per_tick: 60.38
+  pregnancies_per_tick: 1.82
+  cooldowns_per_tick: 5.09
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 78586
+  successes: 168
+  blocked:
+    infertile: 4800
+    pregnant: 8158
+    cooldown: 11323
+    no_resources: 0
+    no_housing: 0
+    chance: 78418
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.01
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.97
+  water_ratio: 0.78
+  irrigation: 0.88
+  season: 0.90
+  regen: 0.80
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.26
+
+=== episode=45000 window=44501-45000 count=500 ===
+Summary:
+  avg_reward: 3713.66
+  avg_steps: 900.0
+  avg_births: 166.55
+  avg_deaths: 17.86
+  lr: 0.000120
+  difficulty: 0.91
+  tick: 4730
+  pop: 159
+Scenario mix:
+  baseline        : 67 (13.4%)
+  food_scarce     : 117 (23.4%)
+  housing_pressure: 94 (18.8%)
+  low_stockpile   : 104 (20.8%)
+  water_scarce    : 118 (23.6%)
+Stockpile ratios:
+  avg: 0.94
+  min: 0.76
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.80
+  wood    : 0.98
+Nodes ratio:
+  food_raw: 0.77
+  stone   : 0.96
+  water   : 0.43
+  wood    : 0.97
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 66
+  beds: 135
+  ratio: 0.86
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 23.93
+  fertile_per_tick: 60.32
+  pregnancies_per_tick: 1.83
+  cooldowns_per_tick: 5.12
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 79092
+  successes: 169
+  blocked:
+    infertile: 4796
+    pregnant: 8203
+    cooldown: 11388
+    no_resources: 0
+    no_housing: 0
+    chance: 78923
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.01
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.97
+  water_ratio: 0.80
+  irrigation: 0.89
+  season: 0.90
+  regen: 0.81
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.29
+
+=== episode=45500 window=45001-45500 count=500 ===
+Summary:
+  avg_reward: 3721.07
+  avg_steps: 900.0
+  avg_births: 168.20
+  avg_deaths: 17.46
+  lr: 0.000118
+  difficulty: 0.92
+  tick: 5025
+  pop: 117
+Scenario mix:
+  baseline        : 79 (15.8%)
+  food_scarce     : 106 (21.2%)
+  housing_pressure: 108 (21.6%)
+  low_stockpile   : 96 (19.2%)
+  water_scarce    : 111 (22.2%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.74
+  food_raw: 0.97
+  stone   : 0.98
+  water   : 0.79
+  wood    : 0.99
+Nodes ratio:
+  food_raw: 0.78
+  stone   : 0.96
+  water   : 0.42
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.16
+Housing:
+  houses: 67
+  beds: 136
+  ratio: 0.85
+  unsheltered: 0.17
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 24.26
+  fertile_per_tick: 61.39
+  pregnancies_per_tick: 1.85
+  cooldowns_per_tick: 5.17
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 80354
+  successes: 171
+  blocked:
+    infertile: 4780
+    pregnant: 8288
+    cooldown: 11505
+    no_resources: 0
+    no_housing: 0
+    chance: 80183
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.01
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.79
+  irrigation: 0.88
+  season: 0.89
+  regen: 0.79
+Signals:
+  critical_needs: 0.00
+  idle_adults: 0.28
+
+=== episode=46000 window=45501-46000 count=500 ===
+Summary:
+  avg_reward: 3686.86
+  avg_steps: 900.0
+  avg_births: 166.23
+  avg_deaths: 18.99
+  lr: 0.000116
+  difficulty: 0.93
+  tick: 5183
+  pop: 208
+Scenario mix:
+  baseline        : 79 (15.8%)
+  food_scarce     : 94 (18.8%)
+  housing_pressure: 103 (20.6%)
+  low_stockpile   : 88 (17.6%)
+  water_scarce    : 136 (27.2%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.72
+  food_raw: 0.97
+  stone   : 0.98
+  water   : 0.77
+  wood    : 0.99
+Nodes ratio:
+  food_raw: 0.78
+  stone   : 0.97
+  water   : 0.41
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 66
+  beds: 135
+  ratio: 0.87
+  unsheltered: 0.15
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 24.19
+  fertile_per_tick: 61.03
+  pregnancies_per_tick: 1.83
+  cooldowns_per_tick: 5.11
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 79179
+  successes: 168
+  blocked:
+    infertile: 4716
+    pregnant: 8184
+    cooldown: 11360
+    no_resources: 0
+    no_housing: 0
+    chance: 79010
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.01
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.77
+  irrigation: 0.87
+  season: 0.91
+  regen: 0.80
+Signals:
+  critical_needs: 0.00
+  idle_adults: 0.27
+
+=== episode=46500 window=46001-46500 count=500 ===
+Summary:
+  avg_reward: 3713.17
+  avg_steps: 900.0
+  avg_births: 167.90
+  avg_deaths: 17.78
+  lr: 0.000114
+  difficulty: 0.94
+  tick: 4648
+  pop: 164
+Scenario mix:
+  baseline        : 97 (19.4%)
+  food_scarce     : 97 (19.4%)
+  housing_pressure: 91 (18.2%)
+  low_stockpile   : 97 (19.4%)
+  water_scarce    : 118 (23.6%)
+Stockpile ratios:
+  avg: 0.94
+  min: 0.78
+  food_raw: 0.97
+  stone   : 1.00
+  water   : 0.81
+  wood    : 0.99
+Nodes ratio:
+  food_raw: 0.78
+  stone   : 0.96
+  water   : 0.41
+  wood    : 0.97
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 66
+  beds: 136
+  ratio: 0.86
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 24.14
+  fertile_per_tick: 61.08
+  pregnancies_per_tick: 1.84
+  cooldowns_per_tick: 5.16
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 79962
+  successes: 170
+  blocked:
+    infertile: 4759
+    pregnant: 8273
+    cooldown: 11479
+    no_resources: 0
+    no_housing: 0
+    chance: 79791
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.01
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.81
+  irrigation: 0.90
+  season: 0.89
+  regen: 0.80
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.32
+
+=== episode=47000 window=46501-47000 count=500 ===
+Summary:
+  avg_reward: 3679.39
+  avg_steps: 900.0
+  avg_births: 167.16
+  avg_deaths: 19.18
+  lr: 0.000112
+  difficulty: 0.94
+  tick: 4630
+  pop: 169
+Scenario mix:
+  baseline        : 70 (14.0%)
+  food_scarce     : 96 (19.2%)
+  housing_pressure: 99 (19.8%)
+  low_stockpile   : 101 (20.2%)
+  water_scarce    : 134 (26.8%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.74
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.77
+  wood    : 0.99
+Nodes ratio:
+  food_raw: 0.78
+  stone   : 0.96
+  water   : 0.40
+  wood    : 0.97
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 66
+  beds: 135
+  ratio: 0.86
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 24.33
+  fertile_per_tick: 61.35
+  pregnancies_per_tick: 1.84
+  cooldowns_per_tick: 5.14
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 79995
+  successes: 169
+  blocked:
+    infertile: 4781
+    pregnant: 8235
+    cooldown: 11429
+    no_resources: 0
+    no_housing: 0
+    chance: 79825
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.01
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.77
+  irrigation: 0.87
+  season: 0.90
+  regen: 0.79
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.30
+
+=== episode=47500 window=47001-47500 count=500 ===
+Summary:
+  avg_reward: 3682.23
+  avg_steps: 900.0
+  avg_births: 166.42
+  avg_deaths: 19.08
+  lr: 0.000110
+  difficulty: 0.95
+  tick: 5253
+  pop: 187
+Scenario mix:
+  baseline        : 85 (17.0%)
+  food_scarce     : 84 (16.8%)
+  housing_pressure: 108 (21.6%)
+  low_stockpile   : 93 (18.6%)
+  water_scarce    : 130 (26.0%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.73
+  food_raw: 0.98
+  stone   : 0.99
+  water   : 0.76
+  wood    : 0.99
+Nodes ratio:
+  food_raw: 0.79
+  stone   : 0.97
+  water   : 0.41
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 66
+  beds: 135
+  ratio: 0.87
+  unsheltered: 0.15
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 24.22
+  fertile_per_tick: 61.09
+  pregnancies_per_tick: 1.83
+  cooldowns_per_tick: 5.12
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.91
+  season_factor: 0.93
+  attempts: 79242
+  successes: 169
+  blocked:
+    infertile: 4822
+    pregnant: 8200
+    cooldown: 11381
+    no_resources: 0
+    no_housing: 0
+    chance: 79072
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.01
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.76
+  irrigation: 0.87
+  season: 0.91
+  regen: 0.79
+Signals:
+  critical_needs: 0.00
+  idle_adults: 0.31
+
+=== episode=48000 window=47501-48000 count=500 ===
+Summary:
+  avg_reward: 3705.57
+  avg_steps: 900.0
+  avg_births: 166.87
+  avg_deaths: 18.75
+  lr: 0.000108
+  difficulty: 0.96
+  tick: 5280
+  pop: 182
+Scenario mix:
+  baseline        : 66 (13.2%)
+  food_scarce     : 95 (19.0%)
+  housing_pressure: 109 (21.8%)
+  low_stockpile   : 99 (19.8%)
+  water_scarce    : 131 (26.2%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.74
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.78
+  wood    : 0.99
+Nodes ratio:
+  food_raw: 0.79
+  stone   : 0.96
+  water   : 0.40
+  wood    : 0.95
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 66
+  beds: 136
+  ratio: 0.87
+  unsheltered: 0.15
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 24.17
+  fertile_per_tick: 60.88
+  pregnancies_per_tick: 1.83
+  cooldowns_per_tick: 5.13
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 79924
+  successes: 169
+  blocked:
+    infertile: 4781
+    pregnant: 8220
+    cooldown: 11409
+    no_resources: 0
+    no_housing: 0
+    chance: 79754
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.01
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.78
+  irrigation: 0.88
+  season: 0.90
+  regen: 0.79
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.31
+
+=== episode=48500 window=48001-48500 count=500 ===
+Summary:
+  avg_reward: 3699.48
+  avg_steps: 900.0
+  avg_births: 166.86
+  avg_deaths: 18.30
+  lr: 0.000106
+  difficulty: 0.97
+  tick: 4787
+  pop: 203
+Scenario mix:
+  baseline        : 67 (13.4%)
+  food_scarce     : 108 (21.6%)
+  housing_pressure: 101 (20.2%)
+  low_stockpile   : 104 (20.8%)
+  water_scarce    : 120 (24.0%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.76
+  food_raw: 0.97
+  stone   : 0.98
+  water   : 0.81
+  wood    : 0.97
+Nodes ratio:
+  food_raw: 0.78
+  stone   : 0.96
+  water   : 0.42
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 66
+  beds: 136
+  ratio: 0.87
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 24.18
+  fertile_per_tick: 60.86
+  pregnancies_per_tick: 1.83
+  cooldowns_per_tick: 5.13
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 79789
+  successes: 169
+  blocked:
+    infertile: 4794
+    pregnant: 8221
+    cooldown: 11406
+    no_resources: 0
+    no_housing: 0
+    chance: 79619
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.01
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.97
+  water_ratio: 0.81
+  irrigation: 0.89
+  season: 0.89
+  regen: 0.80
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.30
+
+=== episode=49000 window=48501-49000 count=500 ===
+Summary:
+  avg_reward: 3690.74
+  avg_steps: 900.0
+  avg_births: 167.39
+  avg_deaths: 18.53
+  lr: 0.000104
+  difficulty: 0.98
+  tick: 4933
+  pop: 162
+Scenario mix:
+  baseline        : 85 (17.0%)
+  food_scarce     : 101 (20.2%)
+  housing_pressure: 86 (17.2%)
+  low_stockpile   : 93 (18.6%)
+  water_scarce    : 135 (27.0%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.72
+  food_raw: 0.96
+  stone   : 0.99
+  water   : 0.76
+  wood    : 0.99
+Nodes ratio:
+  food_raw: 0.78
+  stone   : 0.97
+  water   : 0.40
+  wood    : 0.95
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 66
+  beds: 136
+  ratio: 0.87
+  unsheltered: 0.15
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 24.30
+  fertile_per_tick: 61.12
+  pregnancies_per_tick: 1.84
+  cooldowns_per_tick: 5.15
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 80094
+  successes: 170
+  blocked:
+    infertile: 4759
+    pregnant: 8248
+    cooldown: 11447
+    no_resources: 0
+    no_housing: 0
+    chance: 79924
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.02
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.98
+  water_ratio: 0.76
+  irrigation: 0.87
+  season: 0.89
+  regen: 0.79
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.30
+
+=== episode=49500 window=49001-49500 count=500 ===
+Summary:
+  avg_reward: 3702.70
+  avg_steps: 900.0
+  avg_births: 167.82
+  avg_deaths: 18.88
+  lr: 0.000102
+  difficulty: 0.99
+  tick: 4587
+  pop: 140
+Scenario mix:
+  baseline        : 68 (13.6%)
+  food_scarce     : 105 (21.0%)
+  housing_pressure: 100 (20.0%)
+  low_stockpile   : 86 (17.2%)
+  water_scarce    : 141 (28.2%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.72
+  food_raw: 0.97
+  stone   : 0.99
+  water   : 0.76
+  wood    : 0.98
+Nodes ratio:
+  food_raw: 0.79
+  stone   : 0.96
+  water   : 0.38
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 66
+  beds: 136
+  ratio: 0.86
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 24.51
+  fertile_per_tick: 61.70
+  pregnancies_per_tick: 1.84
+  cooldowns_per_tick: 5.16
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.91
+  season_factor: 0.93
+  attempts: 80847
+  successes: 170
+  blocked:
+    infertile: 4756
+    pregnant: 8262
+    cooldown: 11481
+    no_resources: 0
+    no_housing: 0
+    chance: 80676
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.01
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.97
+  water_ratio: 0.76
+  irrigation: 0.87
+  season: 0.90
+  regen: 0.79
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.28
+
+=== episode=50000 window=49501-50000 count=500 ===
+Summary:
+  avg_reward: 3726.67
+  avg_steps: 900.0
+  avg_births: 167.08
+  avg_deaths: 17.52
+  lr: 0.000100
+  difficulty: 1.00
+  tick: 5073
+  pop: 174
+Scenario mix:
+  baseline        : 79 (15.8%)
+  food_scarce     : 93 (18.6%)
+  housing_pressure: 103 (20.6%)
+  low_stockpile   : 99 (19.8%)
+  water_scarce    : 126 (25.2%)
+Stockpile ratios:
+  avg: 0.93
+  min: 0.74
+  food_raw: 0.96
+  stone   : 0.99
+  water   : 0.77
+  wood    : 0.99
+Nodes ratio:
+  food_raw: 0.79
+  stone   : 0.96
+  water   : 0.42
+  wood    : 0.96
+Needs avg:
+  hunger: 0.15
+  thirst: 0.17
+Housing:
+  houses: 67
+  beds: 136
+  ratio: 0.86
+  unsheltered: 0.16
+Reproduction:
+  ticks: 4500
+  couples_per_tick: 24.18
+  fertile_per_tick: 60.87
+  pregnancies_per_tick: 1.83
+  cooldowns_per_tick: 5.14
+  chance: 0.0025
+  resource_factor: 0.81
+  crowding_factor: 0.42
+  morale_factor: 0.90
+  season_factor: 0.93
+  attempts: 80148
+  successes: 169
+  blocked:
+    infertile: 4817
+    pregnant: 8228
+    cooldown: 11423
+    no_resources: 0
+    no_housing: 0
+    chance: 79978
+Merchant:
+  trades_per_tick: 0.04
+  given_per_tick:
+    food_raw: 0.01
+    stone   : 0.01
+    water   : 0.01
+    wood    : 0.01
+  received_per_tick:
+    food_raw: 0.02
+    stone   : 0.00
+    water   : 0.01
+    wood    : 0.01
+Fields:
+  nodes: 0
+  node_ratio: 0.97
+  water_ratio: 0.77
+  irrigation: 0.88
+  season: 0.89
+  regen: 0.78
+Signals:
+  critical_needs: 0.01
+  idle_adults: 0.29
