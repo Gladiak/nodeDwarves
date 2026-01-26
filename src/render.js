@@ -93,7 +93,8 @@ function buildFooterLines(config, runtime) {
   }
   for (const [type, definition] of Object.entries(structureConfig)) {
     const count = Number(definition && definition.count !== undefined ? definition.count : definition);
-    if (!Number.isFinite(count) || count <= 0) {
+    const hasDefinition = definition && typeof definition === 'object';
+    if ((!Number.isFinite(count) || count <= 0) && !hasDefinition) {
       continue;
     }
     const symbol = symbols[type] || symbols.structure || '#';
@@ -170,7 +171,11 @@ function buildHudColumns(state, config, columnWidth) {
   const topPriority = state.lastPriorities && state.lastPriorities[0]
     ? state.lastPriorities[0].resource
     : '-';
+  const structures = state.structures || [];
+  const wellCount = structures.filter((structure) => structure.type === 'well').length;
+  const fieldCount = structures.filter((structure) => structure.type === 'field').length;
   const seasonLabel = formatSeasonLabel(state.season);
+  const yearLabel = formatYearLabel(state, config);
   const lastEvent = formatLastEvent(state.events);
   const stageCounts = countLifeStages(dwarves);
   const targets = (config.resources && config.resources.targets) || {};
@@ -179,7 +184,7 @@ function buildHudColumns(state, config, columnWidth) {
 
   const left = [];
   left.push(`Tick: ${state.tick}`);
-  left.push(`Season: ${seasonLabel}`);
+  left.push(`Year ${yearLabel}, Season ${seasonLabel}`);
   left.push(`Event: ${lastEvent}`);
   left.push(`Pop: ${dwarves.length}`);
   left.push(`Adult: ${stageCounts.adult}`);
@@ -187,6 +192,8 @@ function buildHudColumns(state, config, columnWidth) {
   left.push(`Elder: ${stageCounts.elder}`);
   left.push(`Idle: ${idleCount}`);
   left.push(`Jobs: ${state.jobs.length}`);
+  left.push(`Wells: ${wellCount}`);
+  left.push(`Fields: ${fieldCount}`);
   left.push(`Priority: ${topPriority}`);
   left.push('');
   left.push('Avg hunger/thirst');
@@ -311,6 +318,24 @@ function formatSeasonLabel(season) {
     return `${season.name} ${tick}/${duration}`;
   }
   return String(season.name);
+}
+
+function formatYearLabel(state, config) {
+  const seasons = config.seasons || {};
+  if (seasons.enabled === false) {
+    return '-';
+  }
+  const order = Array.isArray(seasons.order) && seasons.order.length > 0
+    ? seasons.order
+    : ['spring', 'summer', 'autumn', 'winter'];
+  const duration = Math.max(1, Number(seasons.durationTicks || 200));
+  const cycle = duration * order.length;
+  if (cycle <= 0) {
+    return '-';
+  }
+  const tick = Number(state.tick || 0);
+  const year = Math.floor(Math.max(0, tick - 1) / cycle) + 1;
+  return String(year);
 }
 
 function formatLastEvent(events) {

@@ -8,6 +8,7 @@
     "ai:play": "node app.js --ai models/policy_best.json",
     "ai:server": "node ai_server.js",
     "ai:train": "npm run ai:bootstrap --silent && ./.venv/bin/python python/train.py --workers 8",
+    "ai:train:fresh": "npm run ai:bootstrap --silent && ./.venv/bin/python python/train.py --fresh --workers 8",
     "start": "node app.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },

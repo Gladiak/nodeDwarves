@@ -16,6 +16,8 @@ function createInitialState(config, runtime) {
     stockpile: { ...config.resources.stockpile },
     jobs: [],
     jobCounter: 1,
+    structureCounter: structures.length,
+    nodeCounter: nodes.length,
     lastPriorities: [],
     dwarfCounter: dwarves.length,
     events: [],
@@ -42,6 +44,7 @@ function createInitialState(config, runtime) {
       blockedPregnant: 0,
       blockedCooldown: 0,
       blockedNoResources: 0,
+      blockedNoHousing: 0,
       blockedChance: 0,
     },
   };
@@ -59,7 +62,7 @@ function createStructures(config, runtime, occupied) {
     }
 
     const positions = createPositions(count, runtime.gridWidth, runtime.gridHeight, occupied);
-    const symbol = type === 'workshop' ? (symbols.workshop || 'W') : (symbols.structure || '#');
+    const symbol = symbols[type] || (type === 'workshop' ? 'W' : (symbols.structure || '#'));
     const capacity = Math.max(1, Number(definition && definition.capacity !== undefined ? definition.capacity : 1));
 
     for (let index = 0; index < positions.length; index += 1) {
@@ -97,6 +100,7 @@ function createResourceNodes(config, runtime, occupied) {
         nodeId: `node_${nodeCounter++}`,
         id,
         symbol,
+        source: 'natural',
         x: pos.x,
         y: pos.y,
         capacity,
@@ -135,6 +139,7 @@ function createDwarves(config, runtime, occupied) {
         fatigue: 0,
       },
       job: null,
+      homeId: null,
       partnerId: null,
       bondTargetId: null,
       bondScore: 0,

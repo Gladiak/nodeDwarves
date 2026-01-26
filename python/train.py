@@ -68,6 +68,8 @@ def format_debug(info, resources):
     ratios = stockpile.get("ratios") or {}
     nodes = debug.get("nodes") or {}
     needs_avg = debug.get("needsAvg") or {}
+    housing = debug.get("housing") or {}
+    fields = debug.get("fields") or {}
     crit = debug.get("criticalNeedsFraction", 0.0)
     idle = debug.get("idleAdultsFraction", 0.0)
     attempts = int(reproduction.get("attempts", 0) or 0)
@@ -79,6 +81,7 @@ def format_debug(info, resources):
         f"preg={int(blocked.get('pregnant', 0) or 0)} "
         f"cool={int(blocked.get('cooldown', 0) or 0)} "
         f"noRes={int(blocked.get('noResources', 0) or 0)} "
+        f"house={int(blocked.get('noHousing', 0) or 0)} "
         f"chance={int(blocked.get('chance', 0) or 0)}"
     )
 
@@ -100,10 +103,140 @@ def format_debug(info, resources):
         f"blocked[{blocked_str}]] "
         f"stock[min={fmt(stockpile.get('minRatio', 0))} "
         f"avg={fmt(stockpile.get('avgRatio', 0))} {fmt_map(ratios, resources)}] "
+        f"housing[houses={int(housing.get('houses', 0) or 0)} "
+        f"beds={int(housing.get('beds', 0) or 0)} "
+        f"ratio={fmt(housing.get('ratio', 0))} "
+        f"unshel={fmt(housing.get('unshelteredFraction', 0))}] "
+        f"fields[nodes={int(fields.get('nodes', 0) or 0)} "
+        f"ratio={fmt(fields.get('nodeRatio', 0))} "
+        f"water={fmt(fields.get('waterRatio', 0))} "
+        f"irr={fmt(fields.get('irrigationMultiplier', 0))} "
+        f"season={fmt(fields.get('seasonMultiplier', 0))} "
+        f"regen={fmt(fields.get('regenMultiplier', 0))}] "
         f"nodes[{fmt_map(nodes, resources)}] "
         f"needs[{fmt_map(needs_avg, sorted(needs_avg.keys()))}] "
         f"crit={fmt(crit)} idle={fmt(idle)}"
     )
+
+
+def init_debug_accumulator():
+    return {
+        "count": 0,
+        "deaths": {},
+        "reproduction": {},
+        "reproduction_blocked": {},
+        "stockpile": {},
+        "stockpile_ratios": {},
+        "housing": {},
+        "fields": {},
+        "nodes": {},
+        "needsAvg": {},
+        "criticalNeedsFraction": 0.0,
+        "idleAdultsFraction": 0.0,
+    }
+
+
+def add_numeric(target, key, value):
+    try:
+        target[key] = target.get(key, 0.0) + float(value)
+    except (TypeError, ValueError):
+        return
+
+
+def add_map(target, values):
+    if not isinstance(values, dict):
+        return
+    for key, value in values.items():
+        try:
+            target[key] = target.get(key, 0.0) + float(value)
+        except (TypeError, ValueError):
+            continue
+
+
+def accumulate_debug(accumulator, info):
+    if not isinstance(info, dict):
+        return
+    debug = info.get("debug") or {}
+    if not debug:
+        return
+    accumulator["count"] += 1
+
+    deaths = debug.get("deaths") or {}
+    add_numeric(accumulator["deaths"], "starvation", deaths.get("starvation"))
+    add_numeric(accumulator["deaths"], "oldAge", deaths.get("oldAge"))
+
+    reproduction = debug.get("reproduction") or {}
+    for key in (
+        "ticks",
+        "couplesPerTick",
+        "fertileAdultsPerTick",
+        "pregnanciesPerTick",
+        "cooldownsPerTick",
+        "chance",
+        "resourceFactor",
+        "crowdingFactor",
+        "moraleFactor",
+        "seasonFactor",
+        "attempts",
+        "successes",
+    ):
+        add_numeric(accumulator["reproduction"], key, reproduction.get(key))
+    blocked = reproduction.get("blocked") or {}
+    for key in ("infertile", "pregnant", "cooldown", "noResources", "noHousing", "chance"):
+        add_numeric(accumulator["reproduction_blocked"], key, blocked.get(key))
+
+    stockpile = debug.get("stockpile") or {}
+    add_numeric(accumulator["stockpile"], "avgRatio", stockpile.get("avgRatio"))
+    add_numeric(accumulator["stockpile"], "minRatio", stockpile.get("minRatio"))
+    add_map(accumulator["stockpile_ratios"], stockpile.get("ratios") or {})
+
+    housing = debug.get("housing") or {}
+    for key in ("houses", "beds", "ratio", "unshelteredFraction"):
+        add_numeric(accumulator["housing"], key, housing.get(key))
+
+    fields = debug.get("fields") or {}
+    for key in (
+        "nodes",
+        "nodeRatio",
+        "waterRatio",
+        "irrigationMultiplier",
+        "seasonMultiplier",
+        "regenMultiplier",
+    ):
+        add_numeric(accumulator["fields"], key, fields.get(key))
+
+    add_map(accumulator["nodes"], debug.get("nodes") or {})
+    add_map(accumulator["needsAvg"], debug.get("needsAvg") or {})
+    add_numeric(accumulator, "criticalNeedsFraction", debug.get("criticalNeedsFraction"))
+    add_numeric(accumulator, "idleAdultsFraction", debug.get("idleAdultsFraction"))
+
+
+def average_debug(accumulator):
+    count = int(accumulator.get("count") or 0)
+    if count <= 0:
+        return None
+
+    def avg_map(values):
+        return {key: value / count for key, value in values.items()}
+
+    reproduction = avg_map(accumulator["reproduction"])
+    reproduction["blocked"] = avg_map(accumulator["reproduction_blocked"])
+
+    return {
+        "deaths": avg_map(accumulator["deaths"]),
+        "reproduction": reproduction,
+        "stockpile": {
+            "avgRatio": accumulator["stockpile"].get("avgRatio", 0.0) / count,
+            "minRatio": accumulator["stockpile"].get("minRatio", 0.0) / count,
+            "ratios": avg_map(accumulator["stockpile_ratios"]),
+        },
+        "housing": avg_map(accumulator["housing"]),
+        "fields": avg_map(accumulator["fields"]),
+        "nodes": avg_map(accumulator["nodes"]),
+        "needsAvg": avg_map(accumulator["needsAvg"]),
+        "criticalNeedsFraction": accumulator.get("criticalNeedsFraction", 0.0) / count,
+        "idleAdultsFraction": accumulator.get("idleAdultsFraction", 0.0) / count,
+    }
 
 
 def extract_resources(obs):
@@ -874,6 +1007,7 @@ def main():
     steps_window = 0
     births_window = 0
     deaths_window = 0
+    debug_window = init_debug_accumulator()
     window_start = 1
     eval_seed_base = (args.seed + 100000) if args.seed else None
 
@@ -987,6 +1121,7 @@ def main():
                 steps_window += steps
                 births_window += int(info.get("births", 0))
                 deaths_window += int(info.get("deaths", 0))
+                accumulate_debug(debug_window, info)
 
                 if batch_episode_count >= args.batch_episodes:
                     batch = {
@@ -1034,14 +1169,16 @@ def main():
                     avg_births = births_window / window_count
                     avg_deaths = deaths_window / window_count
                     print(
-                        f"episode={next_expected} avg_reward={avg_reward:.2f} avg_steps={avg_steps:.1f} "
+                        f"\nepisode={next_expected} avg_reward={avg_reward:.2f} avg_steps={avg_steps:.1f} "
                         f"avg_births={avg_births:.2f} avg_deaths={avg_deaths:.2f} "
                         f"lr={optimizer.param_groups[0]['lr']:.6f} diff={difficulty:.2f} "
                         f"tick={info.get('tick')} pop={info.get('population')}"
                     )
-                    debug_line = format_debug(info, resources)
-                    if debug_line:
-                        print(debug_line)
+                    avg_debug = average_debug(debug_window)
+                    if avg_debug:
+                        debug_line = format_debug({"debug": avg_debug}, resources)
+                        if debug_line:
+                            print(debug_line)
                     save_policy(
                         args.model_path,
                         model,
@@ -1056,6 +1193,7 @@ def main():
                     steps_window = 0
                     births_window = 0
                     deaths_window = 0
+                    debug_window = init_debug_accumulator()
                     window_start = next_expected + 1
 
                 if eval_proc and args.eval_every > 0 and next_expected % args.eval_every == 0:

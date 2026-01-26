@@ -4,47 +4,46 @@ An autonomous, gamey dwarf colony simulation that lives entirely in your termina
 No player input after launch: the colony gathers, adapts, and tries to keep itself
 alive while you watch the chaos unfold in ASCII.
 
-## Why this exists
+## Highlights
 
-- Experiment-friendly sandbox for AI policy training.
-- Clean, modular codebase that is easy to extend.
-- Fast feedback loop with a lightweight terminal renderer.
+- Fully autonomous simulation with a real-time ASCII renderer.
+- Resource economy with food, water, wood, and stone.
+- Village growth: houses (beds), wells (water nodes), fields (food nodes).
+- Seasons + housing effects (bonding, winter penalties).
+- PPO training in Python with JS-only inference.
 
-## How the simulation works
+## Simulation overview
 
 - The world is a fixed-size ASCII grid with resource nodes, structures, and dwarves.
 - Each tick:
   1. Dwarves accumulate needs (hunger, thirst).
   2. Resources are consumed when needs cross thresholds.
   3. Shortages are computed vs target stockpile levels.
-  4. Jobs are assigned based on the largest shortages (gathering only for now).
+  4. Jobs are assigned based on the largest shortages.
   5. Dwarves move to targets, work, and update stockpiles.
 - Resource nodes have finite capacity and regenerate slowly.
-- Seasons apply simple modifiers to pace (needs, gather speed, regen).
+- Fields regenerate based on water availability and seasonal limits.
+- Seasons apply modifiers to needs, gather speed, regen, and reproduction.
 - Population is dynamic: dwarves age, form bonds, reproduce with gestation, and can die.
-- Rendering is done as a full-frame redraw with a header + side HUD.
-- HUD includes ASCII bars for average hunger/thirst and stockpile levels.
+- Wood and stone build clustered villages (center-out placement).
+- Housing provides beds; insufficient shelter slows bonding and makes winter harsher.
+- HUD shows averages, bars, priorities, and counts for wells/fields.
 
 ## Job system and priorities
 
 - Shortages are sorted by severity (missing/target ratio).
 - If a resource has nodes on the map, a gather job is created.
-- Crafting is disabled for now; only food/water gathering is active.
-- Top priorities are displayed in the HUD queue.
+- Crafting is disabled for now; gathering covers food, water, wood, and stone.
+- House construction jobs spawn when housing is below the target ratio and vital stockpiles are healthy.
+- Wells are built when water stocks or water node reserves dip below thresholds.
+- Fields are built when food stocks or food node reserves dip below thresholds and baseline stockpiles are safe.
 
 ## Quick start
 
 Make sure you have Node.js and Python 3 installed.
 
-Install dependencies (none for now, but keep this for future use):
-
 ```bash
 npm install
-```
-
-Run the simulation:
-
-```bash
 npm start
 ```
 
@@ -60,51 +59,17 @@ Bootstrap the Python venv + deps (recommended once):
 npm run ai:bootstrap
 ```
 
-`ai:train` and `ai:agent` run the bootstrap automatically if needed.
-
-Run the headless server (optional if you use `ai:agent` or `ai:train`):
-
-```bash
-npm run ai:server
-```
-
-Run the example Python agent:
-
-```bash
-npm run ai:agent
-```
-
-Run the training loop (multiple episodes):
+Run training:
 
 ```bash
 npm run ai:train
 ```
 
-The training loop saves a PPO policy to the path in
-`ai.training.trainer.modelPath` (default `models/policy.json`). The best-eval
-snapshot is saved to `ai.training.trainer.bestModelPath` (default
-`models/policy_best.json`) and its score is tracked in
-`ai.training.trainer.bestModelMetaPath` (default `models/policy_best.meta.json`).
-`npm run ai:play` loads the best-eval snapshot by default.
-The policy is a 2x128 MLP that outputs **resource weight vectors** to bias job
-priorities each step. The training loop resets the environment between episodes
-and updates the policy.
-Training is incremental by default: if `ai.training.trainer.resumeFromBest` is
-enabled, training resumes from the best snapshot when it exists; otherwise it
-resumes from `modelPath`. To start fresh:
+If you change resources or action space, reset the policy files:
 
 ```bash
-python python/train.py --fresh
+npm run ai:train:fresh
 ```
-
-`--fresh` deletes the existing policy files (`modelPath`, `bestModelPath`,
-`bestModelMetaPath`) before training.
-Training runs on CPU for stability. You can enable parallel rollouts with
-`ai.training.trainer.workers`.
-
-Curriculum training (strong scarcity + randomization) is enabled by default.
-You can tune it with CLI flags like `--difficulty-start`, `--difficulty-end`,
-and `--difficulty-ramp`, or adjust ranges in `config.json` under `ai.training`.
 
 Run the visual simulation with the trained policy:
 
@@ -112,27 +77,19 @@ Run the visual simulation with the trained policy:
 npm run ai:play
 ```
 
-Or provide a custom policy path:
-
-```bash
-node app.js --ai models/policy_best.json
-```
-
-### Step-by-step setup (fresh machine)
-
-1. Install Node.js (LTS) and Python 3.
-2. Clone the repo and enter it.
-3. Run `npm install`.
-4. (Optional) Run `npm run ai:bootstrap` once to set up the venv.
-5. Start the game with `npm start`.
-6. For AI training, run `npm run ai:train`.
-7. To watch the learned policy, run `npm run ai:play`.
+The training loop saves a PPO policy to the path in
+`ai.training.trainer.modelPath` (default `models/policy.json`). The best-eval
+snapshot is saved to `ai.training.trainer.bestModelPath` (default
+`models/policy_best.json`) and its score is tracked in
+`ai.training.trainer.bestModelMetaPath` (default `models/policy_best.meta.json`).
+Training is incremental by default when `ai.training.trainer.resumeFromBest` is
+enabled. Training logs include a `diag` line with reproduction, housing, and
+field irrigation metrics.
 
 ## Configuration
 
-All core knobs live in `config.json`.
-The training loop reads defaults from `ai.training.trainer` and CLI flags can
-override any of them.
+All core knobs live in `config.json`. The training loop reads defaults from
+`ai.training.trainer` and CLI flags can override any of them.
 
 ### Parameter reference
 
@@ -173,7 +130,7 @@ AI and training:
 - `ai.reward.stockpileMin`: reward contribution for minimum stockpile ratio.
 - `ai.reward.stockpilePopGate`: gate stockpile reward by population factor.
 - `ai.reward.survival`: survival bonus scaled by population factor.
-- `ai.reward.populationDelta`: reward per net population change (positive for births, negative for losses).
+- `ai.reward.populationDelta`: reward per net population change.
 - `ai.reward.populationBalance`: reward for staying near soft cap.
 - `ai.reward.criticalNeeds`: penalty for critical needs fraction.
 - `ai.reward.idleAdults`: penalty for idle adults fraction.
@@ -240,6 +197,13 @@ Population:
 - `population.relationships.bondGain`: bond increase per interaction.
 - `population.relationships.bondDecay`: bond decay when not interacting.
 - `population.relationships.bondThreshold`: bond score to form a pair.
+- `population.housing.enabled`: enable housing effects.
+- `population.housing.bondingMinMultiplier`: bonding multiplier when housing is scarce.
+- `population.housing.bondingMaxMultiplier`: bonding multiplier when housing is sufficient.
+- `population.housing.buildTargetRatio`: build houses until beds/pop meets this ratio.
+- `population.housing.buildMinResources.<resource>`: minimum stockpile ratio required before building houses.
+- `population.housing.winterNeedPenalty`: extra need decay in winter per unsheltered fraction.
+- `population.housing.winterOldAgePenalty`: extra old-age chance in winter per unsheltered fraction.
 - `population.reproduction.enabled`: enable reproduction.
 - `population.reproduction.gestationTicks`: gestation length in ticks.
 - `population.reproduction.baseChance`: base conception chance.
@@ -266,6 +230,25 @@ Resources and economy:
 - `resources.nodeRegen.amount`: amount regenerated per pulse.
 - `resources.nodeRegen.onlyDepleted`: only regenerate fully depleted nodes.
 - `resources.nodes.<resource>`: number of nodes placed on the map.
+- Resources in this phase: `food_raw`, `water`, `wood`, `stone`.
+
+Structures:
+
+- `structures.<type>.count`: number of structures of a given type (e.g. `house`).
+- `structures.<type>.capacity`: capacity for the structure (beds for houses).
+- `structures.<type>.buildCost.<resource>`: resources consumed to build.
+- `structures.<type>.buildTicks`: time in ticks to build.
+- `structures.well.nodeCapacity`: capacity for water wells (artificial water nodes).
+- `structures.well.maxCount`: limit for how many wells can be built.
+- `structures.well.buildWhenNodeRatioBelow`: build well if water node ratio falls below this.
+- `structures.well.buildWhenStockpileRatioBelow`: build well if water stockpile ratio falls below this.
+- `structures.field.nodeCapacity`: capacity for fields (artificial food nodes).
+- `structures.field.maxCount`: limit for how many fields can be built.
+- `structures.field.buildWhenNodeRatioBelow`: build field if food node ratio falls below this.
+- `structures.field.buildWhenStockpileRatioBelow`: build field if food stockpile ratio falls below this.
+- `structures.field.buildMinResources.<resource>`: minimum stockpile ratio required before building fields.
+- `structures.field.irrigationMinMultiplier`: minimum field regen multiplier when water is scarce.
+- `structures.field.irrigationMaxMultiplier`: maximum field regen multiplier when water is abundant.
 
 Seasons:
 
@@ -277,6 +260,7 @@ Seasons:
 - `seasons.modifiers.<season>.gatherTicks`: gather time multiplier.
 - `seasons.modifiers.<season>.nodeRegen`: node regen multiplier.
 - `seasons.modifiers.<season>.reproductionChance`: reproduction chance multiplier.
+- `seasons.modifiers.<season>.fieldRegen`: extra regen multiplier for fields (food).
 
 Needs and consumption:
 
@@ -303,6 +287,11 @@ Symbols:
 - `symbols.dwarf`: dwarf symbol.
 - `symbols.food_raw`: raw food node symbol.
 - `symbols.water`: water node symbol.
+- `symbols.wood`: wood node symbol.
+- `symbols.stone`: stone node symbol.
+- `symbols.house`: house symbol.
+- `symbols.well`: well symbol.
+- `symbols.field`: field symbol.
 
 ## ASCII legend
 
@@ -345,15 +334,18 @@ Ways to jump in:
 
 - Propose features or balance ideas via issues.
 - Improve the job system and resource economy.
-- Prototype the Python AI bridge and policies.
+- Prototype new AI curricula or reward shaping.
 
 Open a PR or start a discussion with your ideas.
 
 ## Roadmap ideas
 
-- Smarter AI policies (Python bridge).
-- World events and biome variation.
-- Simple trading or tech progression.
+- Field labor jobs and irrigation upgrades (maintenance, drought mechanics).
+- Perimeter defenses and safety events.
+- Storage buildings and household stockpiles.
+- Visitor migration, trade, or caravans.
+- Biomes and rare world events (storms, blight, cave-ins).
+- Better village layout (paths, districts, zoning).
 
 ## License
 

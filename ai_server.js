@@ -142,6 +142,30 @@ function buildDebugInfo(state, config, metrics) {
   const successes = Number(reproduction.successes || 0);
   const resources = config.resources || {};
   const targets = resources.targets || {};
+  const housingConfig = (config.population && config.population.housing) || {};
+  const housingEnabled = housingConfig.enabled !== false;
+  const houses = housingEnabled
+    ? (state.structures || []).filter((structure) => structure.type === 'house')
+    : [];
+  const houseCount = houses.length;
+  const bedsTotal = houses.reduce((sum, house) => {
+    return sum + Math.max(0, Number(house.capacity || 0));
+  }, 0);
+  const population = Math.max(1, state.dwarves.length);
+  const housingRatio = housingEnabled
+    ? (bedsTotal > 0 ? bedsTotal / population : 0)
+    : 1;
+  const unshelteredFraction = housingEnabled ? clamp(1 - housingRatio, 0, 1) : 0;
+  const fieldConfig = (config.structures && config.structures.field) || {};
+  const minIrrigation = Number(fieldConfig.irrigationMinMultiplier ?? 1);
+  const maxIrrigation = Number(fieldConfig.irrigationMaxMultiplier ?? 1);
+  const irrigationLow = Math.min(minIrrigation, maxIrrigation);
+  const irrigationHigh = Math.max(minIrrigation, maxIrrigation);
+  const waterRatio = getStockpileRatio(state, config, 'water');
+  const irrigationMultiplier = irrigationLow + (irrigationHigh - irrigationLow) * clamp(waterRatio, 0, 1);
+  const fieldSeasonMultiplier = getSeasonValue(state, 'fieldRegen', 1);
+  const fieldNodes = (state.nodes || []).filter((node) => node.source === 'field' && node.id === 'food_raw');
+  const fieldNodeRatio = getNodeRatioForNodes(fieldNodes);
 
   return {
     deaths: {
@@ -167,6 +191,7 @@ function buildDebugInfo(state, config, metrics) {
         pregnant: Number(reproduction.blockedPregnant || 0),
         cooldown: Number(reproduction.blockedCooldown || 0),
         noResources: Number(reproduction.blockedNoResources || 0),
+        noHousing: Number(reproduction.blockedNoHousing || 0),
         chance: Number(reproduction.blockedChance || 0),
       },
     },
@@ -177,11 +202,61 @@ function buildDebugInfo(state, config, metrics) {
       avgRatio: Number(metrics.stockpileAvg || 0),
       minRatio: Number(metrics.stockpileMin || 0),
     },
+    housing: {
+      houses: houseCount,
+      beds: bedsTotal,
+      ratio: Number(housingRatio || 0),
+      unshelteredFraction: Number(unshelteredFraction || 0),
+    },
+    fields: {
+      nodes: fieldNodes.length,
+      nodeRatio: fieldNodeRatio,
+      waterRatio: Number(waterRatio || 0),
+      irrigationMultiplier: Number(irrigationMultiplier || 0),
+      seasonMultiplier: Number(fieldSeasonMultiplier || 0),
+      regenMultiplier: Number(irrigationMultiplier * fieldSeasonMultiplier || 0),
+    },
     nodes: { ...metrics.nodeRatio },
     needsAvg: { ...metrics.needsAvg },
     criticalNeedsFraction: Number(metrics.criticalNeedsFraction || 0),
     idleAdultsFraction: Number(metrics.idleAdultsFraction || 0),
   };
+}
+
+function getSeasonValue(state, key, fallback) {
+  if (!state || !state.season || !state.season.modifiers) {
+    return fallback;
+  }
+  const value = state.season.modifiers[key];
+  return Number.isFinite(value) ? Number(value) : fallback;
+}
+
+function getStockpileRatio(state, config, resourceId) {
+  const targets = (config.resources && config.resources.targets) || {};
+  const target = Number(targets[resourceId] || 0);
+  if (target <= 0) {
+    return 1;
+  }
+  const current = Number(state.stockpile[resourceId] || 0);
+  return clamp(current / target, 0, 1);
+}
+
+function getNodeRatioForNodes(nodes) {
+  if (!Array.isArray(nodes) || nodes.length === 0) {
+    return 1;
+  }
+  let totalCapacity = 0;
+  let totalRemaining = 0;
+  for (const node of nodes) {
+    const capacity = Math.max(0, Number(node.capacity || 0));
+    const remaining = Math.max(0, Number(node.remaining || 0));
+    totalCapacity += capacity;
+    totalRemaining += remaining;
+  }
+  if (totalCapacity <= 0) {
+    return 1;
+  }
+  return clamp(totalRemaining / totalCapacity, 0, 1);
 }
 
 function buildObservation(state, config, metrics) {

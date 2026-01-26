@@ -5,19 +5,25 @@ const { clamp } = require('./utils');
 function stepState(state, config, runtime, action) {
   state.tick += 1;
   updateSeason(state, config);
+  const housingPenalty = getWinterHousingPenalty(state, config);
 
   for (const dwarf of state.dwarves) {
     advanceAge(dwarf, config);
-    applyNeedDecay(dwarf, config.needs.decayPerTick || {}, getSeasonModifier(state, 'needDecay', 1));
+    applyNeedDecay(
+      dwarf,
+      config.needs.decayPerTick || {},
+      getSeasonModifier(state, 'needDecay', 1) * housingPenalty.needDecay,
+    );
     consumeResources(dwarf, state.stockpile, config.consumption || {});
     updateDerivedState(dwarf);
   }
 
   handleDeaths(state, config);
+  assignHousing(state, config);
   updateRelationships(state, config);
   handleReproduction(state, config);
 
-  assignJobs(state, config, action);
+  assignJobs(state, config, runtime, action);
 
   for (const dwarf of state.dwarves) {
     processDwarfAction(dwarf, state, config, runtime);
@@ -93,6 +99,130 @@ function getSeasonModifier(state, key, fallback) {
   return Number.isFinite(value) ? Number(value) : safeFallback;
 }
 
+function getHousingStats(state, config) {
+  const housingConfig = (config.population && config.population.housing) || {};
+  const enabled = housingConfig.enabled !== false;
+  if (!enabled) {
+    return {
+      enabled: false,
+      houses: 0,
+      beds: 0,
+      ratio: 1,
+      unshelteredFraction: 0,
+    };
+  }
+
+  const structures = state.structures || [];
+  const houses = structures.filter((structure) => structure.type === 'house');
+  const houseCount = houses.length;
+  const beds = houses.reduce((sum, house) => {
+    return sum + Math.max(0, Number(house.capacity || 0));
+  }, 0);
+  const population = Math.max(1, state.dwarves.length);
+  const ratio = beds > 0 ? beds / population : 0;
+  const unshelteredFraction = clamp(1 - ratio, 0, 1);
+
+  return {
+    enabled: true,
+    houses: houseCount,
+    beds,
+    ratio,
+    unshelteredFraction,
+  };
+}
+
+function getBondingHousingMultiplier(state, config) {
+  const housing = getHousingStats(state, config);
+  if (!housing.enabled) {
+    return 1;
+  }
+  const housingConfig = (config.population && config.population.housing) || {};
+  const minMultiplier = Number(housingConfig.bondingMinMultiplier ?? 1);
+  const maxMultiplier = Number(housingConfig.bondingMaxMultiplier ?? 1);
+  const low = Math.min(minMultiplier, maxMultiplier);
+  const high = Math.max(minMultiplier, maxMultiplier);
+  const ratio = clamp(housing.ratio, 0, 1);
+  return low + (high - low) * ratio;
+}
+
+function getWinterHousingPenalty(state, config) {
+  const housing = getHousingStats(state, config);
+  const winter = state.season && state.season.name === 'winter';
+  if (!housing.enabled || !winter) {
+    return { needDecay: 1, oldAge: 1 };
+  }
+  const housingConfig = (config.population && config.population.housing) || {};
+  const needPenalty = Math.max(0, Number(housingConfig.winterNeedPenalty ?? 0));
+  const oldAgePenalty = Math.max(0, Number(housingConfig.winterOldAgePenalty ?? 0));
+  const exposure = housing.unshelteredFraction;
+
+  return {
+    needDecay: 1 + needPenalty * exposure,
+    oldAge: 1 + oldAgePenalty * exposure,
+  };
+}
+
+function assignHousing(state, config) {
+  const housingConfig = (config.population && config.population.housing) || {};
+  if (housingConfig.enabled === false) {
+    return;
+  }
+
+  const houses = (state.structures || []).filter((structure) => structure.type === 'house');
+  for (const dwarf of state.dwarves) {
+    dwarf.homeId = null;
+  }
+
+  if (houses.length === 0) {
+    return;
+  }
+
+  const houseSlots = houses
+    .map((house) => ({
+      house,
+      remaining: Math.max(0, Number(house.capacity || 0)),
+    }))
+    .filter((entry) => entry.remaining > 0);
+
+  if (houseSlots.length === 0) {
+    return;
+  }
+
+  const assigned = new Set();
+
+  for (const dwarf of state.dwarves) {
+    if (!dwarf.partnerId || assigned.has(dwarf.id)) {
+      continue;
+    }
+    const partner = state.dwarves.find((candidate) => candidate.id === dwarf.partnerId);
+    if (!partner || assigned.has(partner.id)) {
+      continue;
+    }
+    const slot = houseSlots.find((entry) => entry.remaining >= 2);
+    if (!slot) {
+      continue;
+    }
+    dwarf.homeId = slot.house.id;
+    partner.homeId = slot.house.id;
+    slot.remaining -= 2;
+    assigned.add(dwarf.id);
+    assigned.add(partner.id);
+  }
+
+  const unassigned = state.dwarves
+    .filter((dwarf) => !dwarf.homeId)
+    .sort((a, b) => Number(isAdult(b, config)) - Number(isAdult(a, config)));
+
+  for (const dwarf of unassigned) {
+    const slot = houseSlots.find((entry) => entry.remaining >= 1);
+    if (!slot) {
+      break;
+    }
+    dwarf.homeId = slot.house.id;
+    slot.remaining -= 1;
+  }
+}
+
 function applyNeedDecay(dwarf, decay, multiplier) {
   const scale = Number(multiplier || 1);
   // Need values are 0..1 where 0 is satisfied and 1 is critical.
@@ -111,6 +241,7 @@ function handleDeaths(state, config) {
   const maxAge = Number(aging.maxAge ?? Infinity);
   const chanceMin = Number(death.oldAgeChanceMin ?? 0.0002);
   const chanceMax = Number(death.oldAgeChanceMax ?? 0.005);
+  const housingPenalty = getWinterHousingPenalty(state, config);
 
   const deadIds = new Set();
   const deathMessages = [];
@@ -143,7 +274,8 @@ function handleDeaths(state, config) {
     if (Number.isFinite(oldAgeStart) && ageTicks >= oldAgeStart && Number.isFinite(maxAge)) {
       const span = Math.max(1, maxAge - oldAgeStart);
       const progress = clamp((ageTicks - oldAgeStart) / span, 0, 1);
-      const chance = clamp(chanceMin + progress * (chanceMax - chanceMin), 0, 1);
+      const chanceBase = clamp(chanceMin + progress * (chanceMax - chanceMin), 0, 1);
+      const chance = clamp(chanceBase * housingPenalty.oldAge, 0, 1);
       if (Math.random() < chance) {
         deadIds.add(dwarf.id);
         state.deathsByCause.oldAge = Number(state.deathsByCause.oldAge || 0) + 1;
@@ -184,6 +316,8 @@ function updateRelationships(state, config) {
   const bondGain = Number(relationships.bondGain ?? 1);
   const bondDecay = Number(relationships.bondDecay ?? 0.2);
   const bondThreshold = Number(relationships.bondThreshold ?? 20);
+  const bondingMultiplier = getBondingHousingMultiplier(state, config);
+  const housing = getHousingStats(state, config);
 
   const adults = state.dwarves.filter((dwarf) => isAdult(dwarf, config));
   if (adults.length < 2 || baseInteractions === 0) {
@@ -193,7 +327,53 @@ function updateRelationships(state, config) {
   const idleAdults = adults.filter((dwarf) => !dwarf.job).length;
   const idleFraction = adults.length > 0 ? idleAdults / adults.length : 0;
   const bonusInteractions = Math.round(baseInteractions * idleFraction * idleMultiplier);
-  const interactions = baseInteractions + bonusInteractions;
+  const interactions = Math.max(0, Math.round((baseInteractions + bonusInteractions) * bondingMultiplier));
+  const adjustedBondGain = bondGain * bondingMultiplier;
+
+  if (housing.enabled) {
+    if (housing.houses === 0) {
+      return;
+    }
+
+    const byHouse = new Map();
+    for (const dwarf of adults) {
+      if (!dwarf.homeId) {
+        continue;
+      }
+      if (!byHouse.has(dwarf.homeId)) {
+        byHouse.set(dwarf.homeId, []);
+      }
+      byHouse.get(dwarf.homeId).push(dwarf);
+    }
+
+    const eligibleHouses = Array.from(byHouse.values()).filter((group) => group.length >= 2);
+    if (eligibleHouses.length === 0) {
+      return;
+    }
+
+    for (let i = 0; i < interactions; i += 1) {
+      const group = eligibleHouses[Math.floor(Math.random() * eligibleHouses.length)];
+      const a = group[Math.floor(Math.random() * group.length)];
+      let b = group[Math.floor(Math.random() * group.length)];
+      if (a === b) {
+        continue;
+      }
+      if (a.partnerId || b.partnerId) {
+        continue;
+      }
+
+      progressBond(a, b, adjustedBondGain, bondDecay, bondThreshold);
+      progressBond(b, a, adjustedBondGain, bondDecay, bondThreshold);
+
+      if (a.bondTargetId === b.id && b.bondTargetId === a.id) {
+        if (a.bondScore >= bondThreshold && b.bondScore >= bondThreshold) {
+          a.partnerId = b.id;
+          b.partnerId = a.id;
+        }
+      }
+    }
+    return;
+  }
 
   for (let i = 0; i < interactions; i += 1) {
     const a = adults[Math.floor(Math.random() * adults.length)];
@@ -210,8 +390,8 @@ function updateRelationships(state, config) {
       continue;
     }
 
-    progressBond(a, b, bondGain, bondDecay, bondThreshold);
-    progressBond(b, a, bondGain, bondDecay, bondThreshold);
+    progressBond(a, b, adjustedBondGain, bondDecay, bondThreshold);
+    progressBond(b, a, adjustedBondGain, bondDecay, bondThreshold);
 
     if (a.bondTargetId === b.id && b.bondTargetId === a.id) {
       if (a.bondScore >= bondThreshold && b.bondScore >= bondThreshold) {
@@ -277,6 +457,8 @@ function processBirths(state, config, reproduction) {
 function attemptConceptions(state, config, reproduction) {
   const baseChance = Number(reproduction.baseChance ?? 0.001);
   const stats = state.reproductionStats || {};
+  const housingConfig = (config.population && config.population.housing) || {};
+  const housingEnabled = housingConfig.enabled !== false;
   if (baseChance <= 0) {
     return;
   }
@@ -318,6 +500,12 @@ function attemptConceptions(state, config, reproduction) {
     if (Number(a.fertilityCooldown || 0) > 0 || Number(b.fertilityCooldown || 0) > 0) {
       stats.blockedCooldown = Number(stats.blockedCooldown || 0) + 1;
       continue;
+    }
+    if (housingEnabled) {
+      if (!a.homeId || a.homeId !== b.homeId) {
+        stats.blockedNoHousing = Number(stats.blockedNoHousing || 0) + 1;
+        continue;
+      }
     }
 
     const birthCost = reproduction.birthCost || {};
@@ -466,6 +654,7 @@ function spawnNewborn(state, config, parentA, parentB) {
       fatigue: 0,
     },
     job: null,
+    homeId: (parentA && parentA.homeId) || (parentB && parentB.homeId) || null,
     partnerId: null,
     bondTargetId: null,
     bondScore: 0,
@@ -514,12 +703,15 @@ function regenerateNodes(state, config) {
   }
 
   const multiplier = getSeasonModifier(state, 'nodeRegen', 1);
-  const delta = Math.floor(amount * multiplier);
-  if (delta <= 0) {
+  const baseDelta = amount * multiplier;
+  if (baseDelta <= 0) {
     return;
   }
 
   const onlyDepleted = regenConfig.onlyDepleted === true;
+
+  const fieldSeason = getSeasonModifier(state, 'fieldRegen', 1);
+  const fieldIrrigation = getFieldIrrigationMultiplier(state, config);
 
   for (const node of state.nodes) {
     const capacity = Math.max(0, Number(node.capacity || 0));
@@ -530,7 +722,14 @@ function regenerateNodes(state, config) {
     if (onlyDepleted && remaining > 0) {
       continue;
     }
-    node.remaining = Math.min(capacity, remaining + delta);
+    let nodeDelta = Math.floor(baseDelta);
+    if (node.source === 'field') {
+      nodeDelta = Math.round(baseDelta * fieldSeason * fieldIrrigation);
+    }
+    if (nodeDelta <= 0) {
+      continue;
+    }
+    node.remaining = Math.min(capacity, remaining + nodeDelta);
   }
 }
 
@@ -597,8 +796,17 @@ function updateDerivedState(dwarf) {
   dwarf.state.fatigue = clamp(avgNeed, 0, 1);
 }
 
-function assignJobs(state, config, action) {
+function assignJobs(state, config, runtime, action) {
   const idleDwarves = state.dwarves.filter((dwarf) => !dwarf.job && canWork(dwarf, config));
+  if (idleDwarves.length === 0) {
+    return;
+  }
+
+  assignBuildJobIfNeeded(state, config, runtime, idleDwarves);
+  if (idleDwarves.length === 0) {
+    return;
+  }
+
   const resourceConfig = config.resources || {};
   const targets = resourceConfig.targets || resourceConfig.stockpile || {};
   const weights = getActionWeights(action, config);
@@ -612,7 +820,7 @@ function assignJobs(state, config, action) {
 
   state.lastPriorities = shortages;
 
-  if (idleDwarves.length === 0 || shortages.length === 0) {
+  if (shortages.length === 0) {
     return;
   }
 
@@ -655,6 +863,36 @@ function assignJobs(state, config, action) {
 
 function canWork(dwarf, config) {
   return isAdult(dwarf, config);
+}
+
+function assignBuildJobIfNeeded(state, config, runtime, idleDwarves) {
+  const housingConfig = (config.population && config.population.housing) || {};
+  if (housingConfig.enabled === false) {
+    return;
+  }
+  if (!runtime || runtime.gridWidth <= 0 || runtime.gridHeight <= 0) {
+    return;
+  }
+  if (state.jobs.some((job) => job.type === 'build')) {
+    return;
+  }
+  if (idleDwarves.length === 0) {
+    return;
+  }
+
+  const buildJob = createWellBuildJob(state, config, runtime)
+    || createFieldBuildJob(state, config, runtime)
+    || createHouseBuildJob(state, config, runtime);
+  if (!buildJob) {
+    return;
+  }
+  const dwarf = idleDwarves.shift();
+  if (!dwarf) {
+    return;
+  }
+  buildJob.dwarfId = dwarf.id;
+  dwarf.job = buildJob;
+  state.jobs.push(buildJob);
 }
 
 function getActionWeights(action, config) {
@@ -867,6 +1105,303 @@ function applyOutputs(stockpile, outputs) {
   }
 }
 
+function createHouseBuildJob(state, config, runtime) {
+  const housingConfig = (config.population && config.population.housing) || {};
+  const houseConfig = (config.structures && config.structures.house) || {};
+  const targetRatio = Number(housingConfig.buildTargetRatio ?? 1);
+  if (targetRatio <= 0) {
+    return null;
+  }
+
+  const housing = getHousingStats(state, config);
+  if (housing.ratio >= targetRatio) {
+    return null;
+  }
+
+  const minResources = housingConfig.buildMinResources;
+  if (minResources && typeof minResources === 'object') {
+    for (const [resource, minRatioRaw] of Object.entries(minResources)) {
+      const minRatio = Number(minRatioRaw);
+      if (!Number.isFinite(minRatio) || minRatio <= 0) {
+        continue;
+      }
+      const ratio = getStockpileRatio(state, config, resource);
+      if (ratio < minRatio) {
+        return null;
+      }
+    }
+  }
+
+  const buildCost = houseConfig.buildCost || {};
+  if (Object.keys(buildCost).length > 0 && !hasInputs(state.stockpile, buildCost)) {
+    return null;
+  }
+
+  const target = findVillageBuildSpot(state, runtime);
+  if (!target) {
+    return null;
+  }
+
+  if (Object.keys(buildCost).length > 0) {
+    consumeInputs(state.stockpile, buildCost);
+  }
+
+  const buildTicks = Math.max(1, Number(houseConfig.buildTicks || 30));
+  return {
+    id: `job_${state.jobCounter++}`,
+    type: 'build',
+    structureType: 'house',
+    target,
+    workRemaining: buildTicks,
+    dwarfId: null,
+  };
+}
+
+function createWellBuildJob(state, config, runtime) {
+  const wellConfig = (config.structures && config.structures.well) || {};
+  const maxCount = Number(wellConfig.maxCount ?? 0);
+  const existingWells = (state.structures || []).filter((structure) => structure.type === 'well').length;
+  if (maxCount > 0 && existingWells >= maxCount) {
+    return null;
+  }
+
+  const nodeThreshold = Number(wellConfig.buildWhenNodeRatioBelow ?? 0.4);
+  const stockThreshold = Number(wellConfig.buildWhenStockpileRatioBelow ?? 0.6);
+  const nodeRatio = getResourceNodeRatio(state, 'water');
+  const stockRatio = getStockpileRatio(state, config, 'water');
+  if (nodeRatio >= nodeThreshold && stockRatio >= stockThreshold) {
+    return null;
+  }
+
+  const buildCost = wellConfig.buildCost || {};
+  if (Object.keys(buildCost).length > 0 && !hasInputs(state.stockpile, buildCost)) {
+    return null;
+  }
+
+  const target = findVillageBuildSpot(state, runtime);
+  if (!target) {
+    return null;
+  }
+
+  if (Object.keys(buildCost).length > 0) {
+    consumeInputs(state.stockpile, buildCost);
+  }
+
+  const buildTicks = Math.max(1, Number(wellConfig.buildTicks || 35));
+  return {
+    id: `job_${state.jobCounter++}`,
+    type: 'build',
+    structureType: 'well',
+    target,
+    workRemaining: buildTicks,
+    dwarfId: null,
+  };
+}
+
+function createFieldBuildJob(state, config, runtime) {
+  const fieldConfig = (config.structures && config.structures.field) || {};
+  const maxCount = Number(fieldConfig.maxCount ?? 0);
+  const existingFields = (state.structures || []).filter((structure) => structure.type === 'field').length;
+  if (maxCount > 0 && existingFields >= maxCount) {
+    return null;
+  }
+
+  const nodeThreshold = Number(fieldConfig.buildWhenNodeRatioBelow ?? 0.4);
+  const stockThreshold = Number(fieldConfig.buildWhenStockpileRatioBelow ?? 0.6);
+  const nodeRatio = getResourceNodeRatio(state, 'food_raw');
+  const stockRatio = getStockpileRatio(state, config, 'food_raw');
+  if (nodeRatio >= nodeThreshold && stockRatio >= stockThreshold) {
+    return null;
+  }
+
+  const minResources = fieldConfig.buildMinResources;
+  if (minResources && typeof minResources === 'object') {
+    for (const [resource, minRatioRaw] of Object.entries(minResources)) {
+      const minRatio = Number(minRatioRaw);
+      if (!Number.isFinite(minRatio) || minRatio <= 0) {
+        continue;
+      }
+      const ratio = getStockpileRatio(state, config, resource);
+      if (ratio < minRatio) {
+        return null;
+      }
+    }
+  }
+
+  const buildCost = fieldConfig.buildCost || {};
+  if (Object.keys(buildCost).length > 0 && !hasInputs(state.stockpile, buildCost)) {
+    return null;
+  }
+
+  const target = findVillageBuildSpot(state, runtime);
+  if (!target) {
+    return null;
+  }
+
+  if (Object.keys(buildCost).length > 0) {
+    consumeInputs(state.stockpile, buildCost);
+  }
+
+  const buildTicks = Math.max(1, Number(fieldConfig.buildTicks || 35));
+  return {
+    id: `job_${state.jobCounter++}`,
+    type: 'build',
+    structureType: 'field',
+    target,
+    workRemaining: buildTicks,
+    dwarfId: null,
+  };
+}
+
+function findVillageBuildSpot(state, runtime) {
+  const center = getVillageCenter(state, runtime);
+  const maxRadius = Math.max(runtime.gridWidth, runtime.gridHeight);
+
+  for (let radius = 0; radius <= maxRadius; radius += 1) {
+    for (let dx = -radius; dx <= radius; dx += 1) {
+      const dy = radius - Math.abs(dx);
+      const x1 = center.x + dx;
+      const y1 = center.y + dy;
+      if (isBuildableCell(state, runtime, x1, y1)) {
+        return { x: x1, y: y1 };
+      }
+      if (dy !== 0) {
+        const x2 = center.x + dx;
+        const y2 = center.y - dy;
+        if (isBuildableCell(state, runtime, x2, y2)) {
+          return { x: x2, y: y2 };
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+function getVillageCenter(state, runtime) {
+  const houses = (state.structures || []).filter((structure) => structure.type === 'house');
+  if (houses.length > 0) {
+    const sum = houses.reduce((acc, house) => {
+      acc.x += Number(house.x || 0);
+      acc.y += Number(house.y || 0);
+      return acc;
+    }, { x: 0, y: 0 });
+    return {
+      x: Math.round(sum.x / houses.length),
+      y: Math.round(sum.y / houses.length),
+    };
+  }
+
+  const workshops = (state.structures || []).filter((structure) => structure.type === 'workshop');
+  if (workshops.length > 0) {
+    const workshop = workshops[0];
+    return { x: Number(workshop.x || 0), y: Number(workshop.y || 0) };
+  }
+
+  return {
+    x: Math.floor(runtime.gridWidth / 2),
+    y: Math.floor(runtime.gridHeight / 2),
+  };
+}
+
+function isBuildableCell(state, runtime, x, y) {
+  if (x < 0 || y < 0 || x >= runtime.gridWidth || y >= runtime.gridHeight) {
+    return false;
+  }
+  for (const node of state.nodes) {
+    if (node.x === x && node.y === y) {
+      return false;
+    }
+  }
+  for (const structure of state.structures || []) {
+    if (structure.x === x && structure.y === y) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function getResourceNodeRatio(state, resourceId) {
+  let totalCapacity = 0;
+  let totalRemaining = 0;
+  for (const node of state.nodes) {
+    if (node.id !== resourceId) {
+      continue;
+    }
+    const capacity = Math.max(0, Number(node.capacity || 0));
+    const remaining = Math.max(0, Number(node.remaining || 0));
+    totalCapacity += capacity;
+    totalRemaining += remaining;
+  }
+  if (totalCapacity <= 0) {
+    return 1;
+  }
+  return clamp(totalRemaining / totalCapacity, 0, 1);
+}
+
+function getStockpileRatio(state, config, resourceId) {
+  const targets = (config.resources && config.resources.targets) || {};
+  const target = Number(targets[resourceId] || 0);
+  if (target <= 0) {
+    return 1;
+  }
+  const current = Number(state.stockpile[resourceId] || 0);
+  return clamp(current / target, 0, 1);
+}
+
+function getFieldIrrigationMultiplier(state, config) {
+  const fieldConfig = (config.structures && config.structures.field) || {};
+  const minMultiplier = Number(fieldConfig.irrigationMinMultiplier ?? 1);
+  const maxMultiplier = Number(fieldConfig.irrigationMaxMultiplier ?? 1);
+  const low = Math.min(minMultiplier, maxMultiplier);
+  const high = Math.max(minMultiplier, maxMultiplier);
+  const waterRatio = getStockpileRatio(state, config, 'water');
+  const ratio = clamp(waterRatio, 0, 1);
+  return low + (high - low) * ratio;
+}
+
+function createStructure(state, config, type, x, y) {
+  const structureConfig = (config.structures && config.structures[type]) || {};
+  const symbols = config.symbols || {};
+  const symbol = symbols[type] || symbols.structure || '#';
+  const capacity = Math.max(1, Number(structureConfig.capacity || 1));
+  const id = `${type}_${++state.structureCounter}`;
+  return {
+    id,
+    type,
+    symbol,
+    capacity,
+    x,
+    y,
+  };
+}
+
+function createResourceNode(state, config, resourceId, x, y, capacityOverride, source) {
+  const resources = config.resources || {};
+  const capacityConfig = resources.nodeCapacity || {};
+  const defaultCapacity = Number(resources.defaultNodeCapacity || 10);
+  const capacity = Math.max(
+    1,
+    Number(
+      capacityOverride !== undefined
+        ? capacityOverride
+        : (capacityConfig[resourceId] ?? defaultCapacity),
+    ),
+  );
+  const symbols = config.symbols || {};
+  const symbol = symbols[resourceId] || '?';
+  return {
+    nodeId: `node_${++state.nodeCounter}`,
+    id: resourceId,
+    symbol,
+    source: source || 'natural',
+    x,
+    y,
+    capacity,
+    remaining: capacity,
+  };
+}
+
 function createGatherJob(resourceId, state, config) {
   const nodes = state.nodes.filter(
     (node) => node.id === resourceId && Number(node.remaining || 0) > 0,
@@ -917,6 +1452,13 @@ function processDwarfJob(dwarf, state, config, runtime) {
   let targetNode = null;
   let targetWorkshop = null;
 
+  if (job.type === 'build') {
+    if (!isBuildableCell(state, runtime, targetX, targetY)) {
+      removeJob(state, job.id);
+      dwarf.job = null;
+      return;
+    }
+  }
   if (job.type === 'gather') {
     targetNode = findNodeById(state.nodes, job.nodeId);
     if (!targetNode || Number(targetNode.remaining || 0) <= 0) {
@@ -954,6 +1496,30 @@ function processDwarfJob(dwarf, state, config, runtime) {
 
   if (job.type === 'craft') {
     applyOutputs(state.stockpile, job.outputs || {});
+    removeJob(state, job.id);
+    dwarf.job = null;
+    return;
+  }
+  if (job.type === 'build') {
+    const type = job.structureType || 'house';
+    const structure = createStructure(state, config, type, targetX, targetY);
+    state.structures.push(structure);
+    if (type === 'well' || type === 'field') {
+      const structureConfig = (config.structures && config.structures[type]) || {};
+      const resourceId = type === 'well' ? 'water' : 'food_raw';
+      const nodeCapacity = structureConfig.nodeCapacity;
+      const node = createResourceNode(
+        state,
+        config,
+        resourceId,
+        targetX,
+        targetY,
+        nodeCapacity,
+        type,
+      );
+      state.nodes.push(node);
+    }
+    pushEvent(state, config, `Build: ${structure.id}`);
     removeJob(state, job.id);
     dwarf.job = null;
     return;

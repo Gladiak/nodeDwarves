@@ -1,9 +1,9 @@
 {
   "display": {
     "autoSize": true,
-    "width": 96,
+    "width": 200,
     "height": 28,
-    "maxWidth": 96,
+    "maxWidth": 200,
     "maxHeight": 28,
     "tickMs": 200,
     "header": {
@@ -17,7 +17,7 @@
     },
     "hud": {
       "enabled": true,
-      "width": 50,
+      "width": 60,
       "columns": 2,
       "columnGap": 2,
       "stockBarMax": 100
@@ -37,19 +37,21 @@
       "policyPath": "models/policy.json"
     },
     "defaultWeights": {
-      "food_raw": 1.2,
-      "water": 1.2
+      "food_raw": 2.0,
+      "water": 2.0,
+      "wood": 0.4,
+      "stone": 0.4
     },
     "reward": {
-      "stockpileAvg": 0.4,
-      "stockpileMin": 0.2,
+      "stockpileAvg": 0.6,
+      "stockpileMin": 0.5,
       "stockpilePopGate": true,
-      "survival": 1.0,
-      "populationDelta": 2.5,
+      "survival": 1.2,
+      "populationDelta": 1.6,
       "populationBalance": 3.2,
       "criticalNeeds": 3.3,
       "idleAdults": 0.1,
-      "death": 6.0,
+      "death": 7.0,
       "extinction": 320.0
     },
     "training": {
@@ -61,7 +63,9 @@
         "stockpileScale": [0.92, 1.05],
         "stockpileFloor": {
           "food_raw": 8,
-          "water": 8
+          "water": 8,
+          "wood": 4,
+          "stone": 4
         },
         "nodeCountScale": [0.92, 1.05],
         "nodeCountMin": 8,
@@ -79,7 +83,7 @@
         "gamma": 0.99,
         "gaeLambda": 0.95,
         "clipRange": 0.2,
-        "entropyCoef": 0.01,
+        "entropyCoef": 0.005,
         "valueCoef": 0.5,
         "lr": 0.0003,
         "lrFinal": 0.0001,
@@ -88,11 +92,11 @@
         "batchEpisodes": 8,
         "hiddenSizes": [128, 128],
         "activation": "tanh",
-        "logStdInit": -0.5,
+        "logStdInit": -0.8,
         "maxGradNorm": 0.5,
         "workers": 8,
-        "logEvery": 500,
-        "evalEvery": 500,
+        "logEvery": 1000,
+        "evalEvery": 1000,
         "evalEpisodes": 5,
         "modelPath": "models/policy.json",
         "bestModelPath": "models/policy_best.json",
@@ -106,32 +110,83 @@
     "maxTicks": 0
   },
   "dwarves": {
-    "count": 8
+    "count": 12
   },
   "resources": {
     "stockpile": {
-      "food_raw": 30,
-      "water": 30
+      "food_raw": 40,
+      "water": 40,
+      "wood": 8,
+      "stone": 6
     },
     "targets": {
-      "food_raw": 50,
-      "water": 50
+      "food_raw": 60,
+      "water": 60,
+      "wood": 8,
+      "stone": 6
     },
     "defaultNodeCapacity": 12,
     "nodeCapacity": {
-      "food_raw": 11,
-      "water": 18
+      "food_raw": 14,
+      "water": 22,
+      "wood": 10,
+      "stone": 10
     },
     "removeDepletedNodes": false,
     "nodeRegen": {
       "enabled": true,
-      "intervalTicks": 40,
-      "amount": 2,
+      "intervalTicks": 35,
+      "amount": 3,
       "onlyDepleted": false
     },
     "nodes": {
-      "food_raw": 24,
-      "water": 16
+      "food_raw": 28,
+      "water": 20,
+      "wood": 14,
+      "stone": 12
+    }
+  },
+  "structures": {
+    "house": {
+      "count": 0,
+      "capacity": 2,
+      "buildTicks": 30,
+      "buildCost": {
+        "wood": 6,
+        "stone": 4
+      }
+    },
+    "well": {
+      "count": 0,
+      "capacity": 1,
+      "nodeCapacity": 32,
+      "maxCount": 6,
+      "buildWhenNodeRatioBelow": 0.3,
+      "buildWhenStockpileRatioBelow": 0.35,
+      "buildTicks": 45,
+      "buildCost": {
+        "wood": 12,
+        "stone": 10
+      }
+    },
+    "field": {
+      "count": 0,
+      "capacity": 1,
+      "nodeCapacity": 26,
+      "maxCount": 8,
+      "buildWhenNodeRatioBelow": 0.3,
+      "buildWhenStockpileRatioBelow": 0.35,
+      "buildMinResources": {
+        "food_raw": 0.8,
+        "water": 0.8
+      },
+      "irrigationMinMultiplier": 0.45,
+      "irrigationMaxMultiplier": 1.0,
+      "buildTicks": 40,
+      "buildCost": {
+        "wood": 10,
+        "stone": 6
+      }
     }
   },
   "population": {
@@ -142,8 +197,8 @@
     "aging": {
       "adultAge": 150,
       "fertileStart": 150,
-      "fertileEnd": 3200,
-      "oldAgeStart": 3200,
+      "fertileEnd": 3600,
+      "oldAgeStart": 3600,
       "maxAge": 4600
     },
     "relationships": {
@@ -154,14 +209,26 @@
       "bondDecay": 0.12,
       "bondThreshold": 12
     },
+    "housing": {
+      "enabled": true,
+      "bondingMinMultiplier": 0.7,
+      "bondingMaxMultiplier": 1.1,
+      "buildTargetRatio": 1.2,
+      "buildMinResources": {
+        "food_raw": 0.75,
+        "water": 0.75
+      },
+      "winterNeedPenalty": 0.25,
+      "winterOldAgePenalty": 0.25
+    },
     "reproduction": {
       "enabled": true,
       "gestationTicks": 50,
-      "baseChance": 0.005,
-      "cooldownTicks": 90,
+      "baseChance": 0.0075,
+      "cooldownTicks": 70,
       "resourcePerCapita": {
-        "food_raw": 1.2,
-        "water": 1.2
+        "food_raw": 0.8,
+        "water": 0.8
       },
       "softCap": 38,
       "crowdingMinFactor": 0.4,
@@ -188,28 +255,32 @@
         "gatherYield": 1.1,
         "gatherTicks": 0.9,
         "nodeRegen": 1.2,
-        "reproductionChance": 1.1
+        "reproductionChance": 1.1,
+        "fieldRegen": 1.1
       },
       "summer": {
         "needDecay": 1.0,
         "gatherYield": 1.0,
         "gatherTicks": 1.0,
         "nodeRegen": 1.0,
-        "reproductionChance": 1.0
+        "reproductionChance": 1.0,
+        "fieldRegen": 1.0
       },
       "autumn": {
         "needDecay": 1.02,
         "gatherYield": 1.05,
         "gatherTicks": 1.0,
         "nodeRegen": 0.9,
-        "reproductionChance": 0.95
+        "reproductionChance": 0.95,
+        "fieldRegen": 0.9
       },
       "winter": {
         "needDecay": 1.08,
         "gatherYield": 0.95,
         "gatherTicks": 1.1,
         "nodeRegen": 0.7,
-        "reproductionChance": 0.85
+        "reproductionChance": 0.85,
+        "fieldRegen": 0.6
       }
     }
   },
@@ -236,18 +307,27 @@
     "defaultGatherTicks": 6,
     "defaultGatherYield": 1,
     "gatherTicks": {
-      "food_raw": 6,
-      "water": 4
+      "food_raw": 5,
+      "water": 3,
+      "wood": 6,
+      "stone": 7
     },
     "gatherYield": {
-      "food_raw": 1,
-      "water": 1
+      "food_raw": 2,
+      "water": 2,
+      "wood": 1,
+      "stone": 1
     }
   },
   "symbols": {
     "empty": ".",
     "dwarf": "@",
     "food_raw": "f",
-    "water": "w"
+    "water": "w",
+    "wood": "t",
+    "stone": "s",
+    "house": "h",
+    "well": "O",
+    "field": "c"
   }
 }
