@@ -59,6 +59,9 @@
       "stockpileAvg": 0.3,
       "stockpileMin": 1.6,
       "waterStockpile": 2.0,
+      "waterLowThreshold": 0.8,
+      "waterLowPenalty": 1.5,
+      "waterLowExponent": 2.0,
       "stockpilePopGate": true,
       "survival": 1.2,
       "populationDelta": 0.5,
@@ -67,6 +70,14 @@
       "idleAdults": 0.6,
       "death": 7.0,
       "extinction": 320.0
+    },
+    "priorityBoosts": {
+      "water": {
+        "threshold": 0.85,
+        "multiplier": 3.0,
+        "minWeight": 1.0,
+        "exponent": 1.5
+      }
     },
     "training": {
       "enabled": true,
@@ -293,8 +304,8 @@
       "capacity": 1,
       "nodeCapacity": 32,
       "maxCount": 6,
-      "buildWhenNodeRatioBelow": 0.3,
-      "buildWhenStockpileRatioBelow": 0.35,
+      "buildWhenNodeRatioBelow": 0.4,
+      "buildWhenStockpileRatioBelow": 0.55,
       "buildTicks": 45,
       "buildCost": {
         "wood": 12,

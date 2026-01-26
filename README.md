@@ -136,6 +136,9 @@ AI and training:
 - `ai.reward.stockpileAvg`: reward contribution for average stockpile ratio.
 - `ai.reward.stockpileMin`: reward contribution for minimum stockpile ratio.
 - `ai.reward.waterStockpile`: extra reward contribution for the water stockpile ratio.
+- `ai.reward.waterLowThreshold`: water ratio threshold for low-water penalty.
+- `ai.reward.waterLowPenalty`: penalty applied when water is below the low threshold.
+- `ai.reward.waterLowExponent`: curve exponent for the low-water penalty.
 - `ai.reward.stockpilePopGate`: gate stockpile reward by population factor.
 - `ai.reward.survival`: survival bonus scaled by population factor.
 - `ai.reward.populationDelta`: reward per net population change.
@@ -189,6 +192,10 @@ AI and training:
 - `ai.training.trainer.bestModelMetaPath`: best-eval metadata output path.
 - `ai.training.trainer.resumeFromBest`: resume training from the best snapshot.
 - `ai.training.trainer.seed`: base RNG seed (0 = random).
+- `ai.priorityBoosts.<resource>.threshold`: stockpile ratio below which to boost a resource.
+- `ai.priorityBoosts.<resource>.multiplier`: max multiplier for boosted priority.
+- `ai.priorityBoosts.<resource>.minWeight`: minimum weight enforced during boost.
+- `ai.priorityBoosts.<resource>.exponent`: curve exponent for how fast the boost ramps.
 
 Simulation:
 

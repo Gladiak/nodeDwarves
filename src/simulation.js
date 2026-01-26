@@ -811,7 +811,7 @@ function assignJobs(state, config, runtime, action) {
   const resourceConfig = config.resources || {};
   const targets = resourceConfig.targets || resourceConfig.stockpile || {};
   const weights = getActionWeights(action, config);
-  const shortages = computeShortages(state.stockpile, targets, weights);
+  const shortages = computeShortages(state.stockpile, targets, weights, config);
   const workshops = (state.structures || []).filter((structure) => structure.type === 'workshop');
   const workshopCapacity = getWorkshopCapacity(config, workshops);
   const workshopUsage = getWorkshopUsage(state.jobs);
@@ -916,8 +916,10 @@ function getActionWeights(action, config) {
   return weights;
 }
 
-function computeShortages(stockpile, targets, weights) {
+function computeShortages(stockpile, targets, weights, config) {
   const shortages = [];
+  const aiConfig = config && config.ai ? config.ai : {};
+  const priorityBoosts = aiConfig.priorityBoosts || {};
 
   for (const [resource, targetValue] of Object.entries(targets)) {
     const target = Number(targetValue || 0);
@@ -930,8 +932,21 @@ function computeShortages(stockpile, targets, weights) {
 
     if (missing > 0) {
       const ratio = missing / target;
+      const stockpileRatio = clamp(current / target, 0, 1);
       const weightRaw = weights && weights[resource] !== undefined ? weights[resource] : 1;
-      const weight = clamp(Number(weightRaw || 1), 0, Number.POSITIVE_INFINITY);
+      let weight = clamp(Number(weightRaw || 1), 0, Number.POSITIVE_INFINITY);
+      const boostConfig = priorityBoosts && priorityBoosts[resource];
+      if (boostConfig && typeof boostConfig === 'object') {
+        const threshold = clamp(Number(boostConfig.threshold ?? 0), 0, 1);
+        const multiplier = Math.max(0, Number(boostConfig.multiplier ?? 0));
+        const minWeight = Math.max(0, Number(boostConfig.minWeight ?? 0));
+        const exponent = Math.max(0.1, Number(boostConfig.exponent ?? 1));
+        if (threshold > 0 && stockpileRatio < threshold && (multiplier > 0 || minWeight > 0)) {
+          const severity = clamp((threshold - stockpileRatio) / threshold, 0, 1);
+          const boost = 1 + (Math.pow(severity, exponent) * multiplier);
+          weight = Math.max(weight, minWeight) * boost;
+        }
+      }
       const score = ratio * weight;
       shortages.push({
         resource,
