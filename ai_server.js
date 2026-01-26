@@ -48,6 +48,7 @@ rl.on('line', (line) => {
       training: payload.training,
       difficulty: payload.difficulty,
       randomize: payload.randomize,
+      scenario: payload.scenario,
     });
     writeResponse(buildResponse(0, false));
     return;
@@ -166,6 +167,13 @@ function buildDebugInfo(state, config, metrics) {
   const fieldSeasonMultiplier = getSeasonValue(state, 'fieldRegen', 1);
   const fieldNodes = (state.nodes || []).filter((node) => node.source === 'field' && node.id === 'food_raw');
   const fieldNodeRatio = getNodeRatioForNodes(fieldNodes);
+  const merchantStats = state.merchantStats || {};
+  const merchantTicks = Number(merchantStats.ticks || 0);
+  const merchantTradesPerTick = merchantTicks > 0
+    ? Number(merchantStats.trades || 0) / merchantTicks
+    : 0;
+  const merchantGivenPerTick = scaleMerchantMap(merchantStats.given, merchantTicks);
+  const merchantReceivedPerTick = scaleMerchantMap(merchantStats.received, merchantTicks);
 
   return {
     deaths: {
@@ -216,11 +224,29 @@ function buildDebugInfo(state, config, metrics) {
       seasonMultiplier: Number(fieldSeasonMultiplier || 0),
       regenMultiplier: Number(irrigationMultiplier * fieldSeasonMultiplier || 0),
     },
+    merchant: {
+      tradesPerTick: Number(merchantTradesPerTick || 0),
+      givenPerTick: merchantGivenPerTick,
+      receivedPerTick: merchantReceivedPerTick,
+    },
     nodes: { ...metrics.nodeRatio },
     needsAvg: { ...metrics.needsAvg },
     criticalNeedsFraction: Number(metrics.criticalNeedsFraction || 0),
     idleAdultsFraction: Number(metrics.idleAdultsFraction || 0),
   };
+}
+
+function scaleMerchantMap(values, ticks) {
+  const result = {};
+  if (!values || typeof values !== 'object') {
+    return result;
+  }
+  const divisor = Number(ticks || 0);
+  for (const [key, value] of Object.entries(values)) {
+    const amount = Number(value || 0);
+    result[key] = divisor > 0 ? amount / divisor : 0;
+  }
+  return result;
 }
 
 function getSeasonValue(state, key, fallback) {
@@ -463,20 +489,37 @@ function buildScenarioConfig(base, options) {
   const aiConfig = base.ai || {};
   const training = aiConfig.training || {};
   const randomization = training.randomization || {};
+  const scenarios = Array.isArray(training.scenarios) ? training.scenarios : [];
   const trainingFlag = options.training !== undefined ? options.training : true;
   const enabled = training.enabled !== false && trainingFlag !== false;
   const requestedDifficulty = options.difficulty !== undefined ? options.difficulty : training.difficultyStart;
   const difficulty = clamp(Number(requestedDifficulty ?? 0), 0, 1);
+  const requestedScenario = typeof options.scenario === 'string' ? options.scenario : null;
+  const scenarioDef = requestedScenario
+    ? scenarios.find((entry) => entry && entry.name === requestedScenario) || null
+    : null;
+  const hasScenarioOverrides = Boolean(scenarioDef && scenarioDef.overrides);
+  const shouldClone = enabled || requestedScenario || hasScenarioOverrides;
+  const config = shouldClone ? cloneConfig(base) : base;
+
+  if (hasScenarioOverrides) {
+    mergeDeep(config, scenarioDef.overrides);
+  }
 
   if (!enabled || options.randomize === false) {
     return {
-      config: base,
-      meta: { enabled: false, difficulty },
+      config,
+      meta: {
+        enabled: false,
+        difficulty,
+        name: requestedScenario,
+        overridesApplied: hasScenarioOverrides,
+        missing: Boolean(requestedScenario && !scenarioDef),
+      },
       initialTick: null,
     };
   }
 
-  const config = cloneConfig(base);
   const stockpileScale = scaleWithDifficulty(randomization.stockpileScale, difficulty, 1);
   const nodeCountScale = scaleWithDifficulty(randomization.nodeCountScale, difficulty, 1);
   const nodeCapacityScale = scaleWithDifficulty(randomization.nodeCapacityScale, difficulty, 1);
@@ -498,6 +541,9 @@ function buildScenarioConfig(base, options) {
     meta: {
       enabled: true,
       difficulty,
+      name: requestedScenario,
+      overridesApplied: hasScenarioOverrides,
+      missing: Boolean(requestedScenario && !scenarioDef),
       stockpileScale,
       nodeCountScale,
       nodeCapacityScale,
@@ -510,6 +556,30 @@ function buildScenarioConfig(base, options) {
 
 function cloneConfig(config) {
   return JSON.parse(JSON.stringify(config));
+}
+
+function mergeDeep(target, source) {
+  if (!isPlainObject(source)) {
+    return target;
+  }
+  const output = target && typeof target === 'object' ? target : {};
+
+  for (const [key, value] of Object.entries(source)) {
+    if (Array.isArray(value)) {
+      output[key] = value.slice();
+    } else if (isPlainObject(value)) {
+      const baseValue = isPlainObject(output[key]) ? output[key] : {};
+      output[key] = mergeDeep(baseValue, value);
+    } else {
+      output[key] = value;
+    }
+  }
+
+  return output;
+}
+
+function isPlainObject(value) {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
 function scaleWithDifficulty(range, difficulty, fallback) {

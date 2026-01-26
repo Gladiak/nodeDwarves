@@ -27,6 +27,10 @@ FEATURE_NAMES = [
     "seasonProgress",
 ]
 
+DEBUG_LOG_DIRNAME = "debug"
+DEBUG_LOG_EVERY = 500
+DEBUG_LOG_KEEP = 5
+
 
 def send(proc, payload):
     proc.stdin.write(json.dumps(payload) + "\n")
@@ -39,6 +43,12 @@ def send(proc, payload):
 
 def clamp(value, low, high):
     return max(low, min(high, value))
+
+
+def inference_mode():
+    if hasattr(torch, "inference_mode"):
+        return torch.inference_mode()
+    return torch.no_grad()
 
 
 def format_debug(info, resources):
@@ -70,6 +80,7 @@ def format_debug(info, resources):
     needs_avg = debug.get("needsAvg") or {}
     housing = debug.get("housing") or {}
     fields = debug.get("fields") or {}
+    merchant = debug.get("merchant") or {}
     crit = debug.get("criticalNeedsFraction", 0.0)
     idle = debug.get("idleAdultsFraction", 0.0)
     attempts = int(reproduction.get("attempts", 0) or 0)
@@ -84,6 +95,10 @@ def format_debug(info, resources):
         f"house={int(blocked.get('noHousing', 0) or 0)} "
         f"chance={int(blocked.get('chance', 0) or 0)}"
     )
+
+    merchant_trades = merchant.get("tradesPerTick", 0.0)
+    merchant_given = merchant.get("givenPerTick") or {}
+    merchant_received = merchant.get("receivedPerTick") or {}
 
     return (
         "diag "
@@ -103,6 +118,9 @@ def format_debug(info, resources):
         f"blocked[{blocked_str}]] "
         f"stock[min={fmt(stockpile.get('minRatio', 0))} "
         f"avg={fmt(stockpile.get('avgRatio', 0))} {fmt_map(ratios, resources)}] "
+        f"merchant[trades/t={fmt(merchant_trades)} "
+        f"give[{fmt_map(merchant_given, resources)}] "
+        f"recv[{fmt_map(merchant_received, resources)}]] "
         f"housing[houses={int(housing.get('houses', 0) or 0)} "
         f"beds={int(housing.get('beds', 0) or 0)} "
         f"ratio={fmt(housing.get('ratio', 0))} "
@@ -119,6 +137,238 @@ def format_debug(info, resources):
     )
 
 
+def format_debug_file_entry(
+    episode,
+    window_start,
+    window_count,
+    avg_reward,
+    avg_steps,
+    avg_births,
+    avg_deaths,
+    lr,
+    difficulty,
+    info,
+    debug,
+    resources,
+    diag_line,
+):
+    def fmt(value, digits=2):
+        try:
+            return f"{float(value):.{digits}f}"
+        except (TypeError, ValueError):
+            return f"{0.0:.{digits}f}"
+
+    def fmt_map_lines(values, keys, indent="  "):
+        if not values:
+            return [f"{indent}n/a"]
+        use_keys = [key for key in keys if key in values]
+        if not use_keys:
+            use_keys = sorted(values.keys())
+        width = max(len(str(key)) for key in use_keys) if use_keys else 0
+        lines = []
+        for key in use_keys:
+            lines.append(f"{indent}{str(key).ljust(width)}: {fmt(values.get(key))}")
+        return lines
+
+    reproduction = debug.get("reproduction") or {}
+    blocked = reproduction.get("blocked") or {}
+    stockpile = debug.get("stockpile") or {}
+    ratios = stockpile.get("ratios") or {}
+    nodes = debug.get("nodes") or {}
+    needs_avg = debug.get("needsAvg") or {}
+    housing = debug.get("housing") or {}
+    fields = debug.get("fields") or {}
+    merchant = debug.get("merchant") or {}
+    merchant_given = merchant.get("givenPerTick") or {}
+    merchant_received = merchant.get("receivedPerTick") or {}
+    crit = debug.get("criticalNeedsFraction", 0.0)
+    idle = debug.get("idleAdultsFraction", 0.0)
+    scenario_counts = debug.get("scenarioCounts") or {}
+
+    def fmt_scenario_lines(counts, total, indent="  "):
+        if not counts:
+            return [f"{indent}n/a"]
+        names = sorted(counts.keys())
+        width = max(len(str(name)) for name in names) if names else 0
+        lines = []
+        for name in names:
+            count = int(counts.get(name, 0) or 0)
+            pct = (count / total * 100.0) if total > 0 else 0.0
+            lines.append(f"{indent}{str(name).ljust(width)}: {count} ({pct:.1f}%)")
+        return lines
+
+    lines = [
+        f"=== episode={episode} window={window_start}-{episode} count={window_count} ===",
+        "Summary:",
+        f"  avg_reward: {fmt(avg_reward)}",
+        f"  avg_steps: {fmt(avg_steps, 1)}",
+        f"  avg_births: {fmt(avg_births)}",
+        f"  avg_deaths: {fmt(avg_deaths)}",
+        f"  lr: {fmt(lr, 6)}",
+        f"  difficulty: {fmt(difficulty, 2)}",
+        f"  tick: {info.get('tick')}",
+        f"  pop: {info.get('population')}",
+        "Scenario mix:",
+    ]
+    lines.extend(fmt_scenario_lines(scenario_counts, window_count, indent="  "))
+    lines.extend([
+        "Stockpile ratios:",
+        f"  avg: {fmt(stockpile.get('avgRatio', 0))}",
+        f"  min: {fmt(stockpile.get('minRatio', 0))}",
+    ])
+    lines.extend(fmt_map_lines(ratios, resources, indent="  "))
+    lines.append("Nodes ratio:")
+    lines.extend(fmt_map_lines(nodes, resources, indent="  "))
+    lines.append("Needs avg:")
+    lines.extend(fmt_map_lines(needs_avg, sorted(needs_avg.keys()), indent="  "))
+    lines.extend([
+        "Housing:",
+        f"  houses: {int(housing.get('houses', 0) or 0)}",
+        f"  beds: {int(housing.get('beds', 0) or 0)}",
+        f"  ratio: {fmt(housing.get('ratio', 0))}",
+        f"  unsheltered: {fmt(housing.get('unshelteredFraction', 0))}",
+        "Reproduction:",
+        f"  ticks: {int(reproduction.get('ticks', 0) or 0)}",
+        f"  couples_per_tick: {fmt(reproduction.get('couplesPerTick', 0))}",
+        f"  fertile_per_tick: {fmt(reproduction.get('fertileAdultsPerTick', 0))}",
+        f"  pregnancies_per_tick: {fmt(reproduction.get('pregnanciesPerTick', 0))}",
+        f"  cooldowns_per_tick: {fmt(reproduction.get('cooldownsPerTick', 0))}",
+        f"  chance: {fmt(reproduction.get('chance', 0), 4)}",
+        f"  resource_factor: {fmt(reproduction.get('resourceFactor', 0))}",
+        f"  crowding_factor: {fmt(reproduction.get('crowdingFactor', 0))}",
+        f"  morale_factor: {fmt(reproduction.get('moraleFactor', 0))}",
+        f"  season_factor: {fmt(reproduction.get('seasonFactor', 0))}",
+        f"  attempts: {int(reproduction.get('attempts', 0) or 0)}",
+        f"  successes: {int(reproduction.get('successes', 0) or 0)}",
+        "  blocked:",
+        f"    infertile: {int(blocked.get('infertile', 0) or 0)}",
+        f"    pregnant: {int(blocked.get('pregnant', 0) or 0)}",
+        f"    cooldown: {int(blocked.get('cooldown', 0) or 0)}",
+        f"    no_resources: {int(blocked.get('noResources', 0) or 0)}",
+        f"    no_housing: {int(blocked.get('noHousing', 0) or 0)}",
+        f"    chance: {int(blocked.get('chance', 0) or 0)}",
+        "Merchant:",
+        f"  trades_per_tick: {fmt(merchant.get('tradesPerTick', 0))}",
+        "  given_per_tick:",
+    ])
+    lines.extend(fmt_map_lines(merchant_given, resources, indent="    "))
+    lines.extend([
+        "  received_per_tick:",
+    ])
+    lines.extend(fmt_map_lines(merchant_received, resources, indent="    "))
+    lines.extend([
+        "Fields:",
+        f"  nodes: {int(fields.get('nodes', 0) or 0)}",
+        f"  node_ratio: {fmt(fields.get('nodeRatio', 0))}",
+        f"  water_ratio: {fmt(fields.get('waterRatio', 0))}",
+        f"  irrigation: {fmt(fields.get('irrigationMultiplier', 0))}",
+        f"  season: {fmt(fields.get('seasonMultiplier', 0))}",
+        f"  regen: {fmt(fields.get('regenMultiplier', 0))}",
+        "Signals:",
+        f"  critical_needs: {fmt(crit)}",
+        f"  idle_adults: {fmt(idle)}",
+    ])
+    return "\n" + "\n".join(lines) + "\n"
+
+
+def get_project_root():
+    return os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
+
+def init_debug_log(keep=DEBUG_LOG_KEEP):
+    debug_dir = os.path.join(get_project_root(), DEBUG_LOG_DIRNAME)
+    os.makedirs(debug_dir, exist_ok=True)
+    timestamp = time.strftime("%Y%m%d_%H%M%S")
+    filename = f"train_{timestamp}_{os.getpid()}.log"
+    path = os.path.join(debug_dir, filename)
+    prune_debug_logs(debug_dir, max(0, keep - 1))
+    return path
+
+
+def prune_debug_logs(debug_dir, keep):
+    try:
+        entries = []
+        for name in os.listdir(debug_dir):
+            path = os.path.join(debug_dir, name)
+            if os.path.isfile(path):
+                try:
+                    entries.append((os.path.getmtime(path), path))
+                except OSError:
+                    continue
+        entries.sort(key=lambda item: item[0])
+        while len(entries) > keep:
+            _, path = entries.pop(0)
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+    except OSError:
+        pass
+
+
+def write_debug_header(handle, args, resources, min_weight, max_weight, scenario_defs, eval_scenarios):
+    handle.write("# NodeDwarves training debug log\n")
+    handle.write(f"start_time={time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+    handle.write(f"config={args.config}\n")
+    handle.write(
+        "settings "
+        f"episodes={args.episodes} max_steps={args.max_steps} step_ticks={args.step_ticks} "
+        f"batch_episodes={args.batch_episodes} workers={args.workers} "
+        f"gamma={args.gamma} gae_lambda={args.gae_lambda} clip_range={args.clip_range} "
+        f"entropy_coef={args.entropy_coef} value_coef={args.value_coef} "
+        f"lr={args.lr} lr_final={args.lr_final} "
+        f"difficulty_start={args.difficulty_start} difficulty_end={args.difficulty_end} "
+        f"difficulty_ramp={args.difficulty_ramp} min_weight={min_weight} max_weight={max_weight}\n"
+    )
+    handle.write(f"resources={' '.join(resources)}\n")
+    handle.write(f"scenarios={format_scenario_weights(scenario_defs)}\n")
+    handle.write(f"eval_scenarios={' '.join(eval_scenarios) if eval_scenarios else 'n/a'}\n")
+    handle.write(f"log_every_console={args.log_every} log_every_file={DEBUG_LOG_EVERY}\n")
+    handle.write("\n# Legend (all values are averaged over each file window)\n")
+    handle.write("# Summary.avg_reward: mean episode reward in the window.\n")
+    handle.write("# Summary.avg_steps: mean episode steps in the window.\n")
+    handle.write("# Summary.avg_births: mean births per episode in the window.\n")
+    handle.write("# Summary.avg_deaths: mean deaths per episode in the window.\n")
+    handle.write("# Summary.lr: optimizer learning rate at log time.\n")
+    handle.write("# Summary.difficulty: curriculum difficulty factor (0..1).\n")
+    handle.write("# Summary.tick: last tick observed in the window.\n")
+    handle.write("# Summary.pop: population at the last tick in the window.\n")
+    handle.write("# Scenario mix.<name>: scenario counts and share within the window.\n")
+    handle.write("# Stockpile.avg: mean of stockpile ratios across resources.\n")
+    handle.write("# Stockpile.min: minimum stockpile ratio across resources.\n")
+    handle.write("# Stockpile.<resource>: current/target ratio per resource.\n")
+    handle.write("# Nodes.<resource>: remaining/total capacity ratio per resource node.\n")
+    handle.write("# Needs.<need>: average need value (0..1).\n")
+    handle.write("# Housing.houses: total houses.\n")
+    handle.write("# Housing.beds: total bed capacity.\n")
+    handle.write("# Housing.ratio: beds/population ratio.\n")
+    handle.write("# Housing.unsheltered: fraction of population without beds.\n")
+    handle.write("# Reproduction.ticks: ticks accumulated in the window.\n")
+    handle.write("# Reproduction.couples_per_tick: average couples per tick.\n")
+    handle.write("# Reproduction.fertile_per_tick: average fertile adults per tick.\n")
+    handle.write("# Reproduction.pregnancies_per_tick: average pregnancies per tick.\n")
+    handle.write("# Reproduction.cooldowns_per_tick: average cooldowns per tick.\n")
+    handle.write("# Reproduction.chance: average conception chance per tick.\n")
+    handle.write("# Reproduction.resource_factor: average resource factor for conception.\n")
+    handle.write("# Reproduction.crowding_factor: average crowding factor for conception.\n")
+    handle.write("# Reproduction.morale_factor: average morale factor for conception.\n")
+    handle.write("# Reproduction.season_factor: average season factor for conception.\n")
+    handle.write("# Reproduction.attempts: average attempts per episode.\n")
+    handle.write("# Reproduction.successes: average successes per episode.\n")
+    handle.write("# Reproduction.blocked.<reason>: average blocked counts per episode.\n")
+    handle.write("# Merchant.trades_per_tick: average trades per tick.\n")
+    handle.write("# Merchant.given_per_tick.<resource>: average units given per tick.\n")
+    handle.write("# Merchant.received_per_tick.<resource>: average units received per tick.\n")
+    handle.write("# Fields.nodes: count of field nodes.\n")
+    handle.write("# Fields.node_ratio: remaining/total capacity ratio for field nodes.\n")
+    handle.write("# Fields.water_ratio: water stockpile ratio used for irrigation.\n")
+    handle.write("# Fields.irrigation: irrigation multiplier.\n")
+    handle.write("# Fields.season: seasonal multiplier applied to field regen.\n")
+    handle.write("# Fields.regen: irrigation * season multiplier.\n")
+    handle.write("# Signals.critical_needs: fraction of dwarves at critical needs.\n")
+    handle.write("# Signals.idle_adults: fraction of idle adults.\n")
+
+
 def init_debug_accumulator():
     return {
         "count": 0,
@@ -129,8 +379,12 @@ def init_debug_accumulator():
         "stockpile_ratios": {},
         "housing": {},
         "fields": {},
+        "merchant": {},
+        "merchant_given": {},
+        "merchant_received": {},
         "nodes": {},
         "needsAvg": {},
+        "scenarios": {},
         "criticalNeedsFraction": 0.0,
         "idleAdultsFraction": 0.0,
     }
@@ -160,6 +414,14 @@ def accumulate_debug(accumulator, info):
     if not debug:
         return
     accumulator["count"] += 1
+    scenario_meta = info.get("scenario")
+    scenario_name = None
+    if isinstance(scenario_meta, dict):
+        scenario_name = scenario_meta.get("name") or scenario_meta.get("scenario")
+    elif isinstance(scenario_meta, str):
+        scenario_name = scenario_meta
+    if scenario_name:
+        accumulator["scenarios"][scenario_name] = accumulator["scenarios"].get(scenario_name, 0) + 1
 
     deaths = debug.get("deaths") or {}
     add_numeric(accumulator["deaths"], "starvation", deaths.get("starvation"))
@@ -205,6 +467,11 @@ def accumulate_debug(accumulator, info):
     ):
         add_numeric(accumulator["fields"], key, fields.get(key))
 
+    merchant = debug.get("merchant") or {}
+    add_numeric(accumulator["merchant"], "tradesPerTick", merchant.get("tradesPerTick"))
+    add_map(accumulator["merchant_given"], merchant.get("givenPerTick") or {})
+    add_map(accumulator["merchant_received"], merchant.get("receivedPerTick") or {})
+
     add_map(accumulator["nodes"], debug.get("nodes") or {})
     add_map(accumulator["needsAvg"], debug.get("needsAvg") or {})
     add_numeric(accumulator, "criticalNeedsFraction", debug.get("criticalNeedsFraction"))
@@ -232,8 +499,14 @@ def average_debug(accumulator):
         },
         "housing": avg_map(accumulator["housing"]),
         "fields": avg_map(accumulator["fields"]),
+        "merchant": {
+            "tradesPerTick": accumulator["merchant"].get("tradesPerTick", 0.0) / count,
+            "givenPerTick": avg_map(accumulator["merchant_given"]),
+            "receivedPerTick": avg_map(accumulator["merchant_received"]),
+        },
         "nodes": avg_map(accumulator["nodes"]),
         "needsAvg": avg_map(accumulator["needsAvg"]),
+        "scenarioCounts": dict(accumulator["scenarios"]),
         "criticalNeedsFraction": accumulator.get("criticalNeedsFraction", 0.0) / count,
         "idleAdultsFraction": accumulator.get("idleAdultsFraction", 0.0) / count,
     }
@@ -258,6 +531,78 @@ def get_resources_from_config(config):
     if stockpile:
         return sorted(stockpile.keys())
     return []
+
+
+def get_scenario_definitions(config):
+    if not isinstance(config, dict):
+        return []
+    training = (config.get("ai") or {}).get("training") or {}
+    scenarios = training.get("scenarios") or []
+    definitions = []
+    if not isinstance(scenarios, list):
+        return definitions
+    for entry in scenarios:
+        if not isinstance(entry, dict):
+            continue
+        name = entry.get("name")
+        if not name:
+            continue
+        try:
+            weight = float(entry.get("weight", 1.0))
+        except (TypeError, ValueError):
+            weight = 0.0
+        definitions.append({
+            "name": str(name),
+            "weight": weight,
+        })
+    return definitions
+
+
+def get_training_scenarios(scenario_defs):
+    return [entry for entry in scenario_defs if entry.get("weight", 0.0) > 0.0]
+
+
+def get_eval_scenarios(config, scenario_defs):
+    if not isinstance(config, dict):
+        return []
+    training = (config.get("ai") or {}).get("training") or {}
+    eval_names = training.get("evalScenarios") or []
+    if not eval_names:
+        return []
+    names = [str(name) for name in eval_names if name]
+    if not scenario_defs:
+        return names
+    scenario_names = {entry.get("name") for entry in scenario_defs}
+    return [name for name in names if name in scenario_names]
+
+
+def select_scenario(scenarios, rng):
+    if not scenarios:
+        return None
+    total_weight = sum(entry.get("weight", 0.0) for entry in scenarios)
+    if total_weight <= 0:
+        return None
+    pick = rng.random() * total_weight
+    cumulative = 0.0
+    for entry in scenarios:
+        weight = entry.get("weight", 0.0)
+        cumulative += weight
+        if pick <= cumulative:
+            return entry.get("name")
+    return scenarios[-1].get("name")
+
+
+def format_scenario_weights(scenario_defs):
+    if not scenario_defs:
+        return "n/a"
+    parts = []
+    for entry in scenario_defs:
+        name = entry.get("name")
+        weight = entry.get("weight")
+        if name is None:
+            continue
+        parts.append(f"{name}:{weight:.2f}")
+    return " ".join(parts) if parts else "n/a"
 
 
 def get_model_payload(model):
@@ -336,7 +681,7 @@ def worker_loop(worker_id, task_queue, result_queue, update_queue, resources, se
             if latest_payload:
                 load_model_payload(model, latest_payload)
 
-            episode_number, seed, difficulty = task
+            episode_number, seed, difficulty, scenario = task
             transitions, reward, steps, info, bootstrap_value = run_episode(
                 proc,
                 model,
@@ -348,6 +693,7 @@ def worker_loop(worker_id, task_queue, result_queue, update_queue, resources, se
                 difficulty,
                 settings["min_weight"],
                 settings["max_weight"],
+                scenario,
             )
             result_queue.put((episode_number, transitions, reward, steps, info, bootstrap_value))
     finally:
@@ -535,10 +881,13 @@ def run_episode(
     difficulty,
     min_weight,
     max_weight,
+    scenario,
 ):
     reset_payload = {"cmd": "reset", "seed": seed, "training": True}
     if difficulty is not None:
         reset_payload["difficulty"] = difficulty
+    if scenario:
+        reset_payload["scenario"] = scenario
     response = send(proc, reset_payload)
 
     transitions = []
@@ -546,42 +895,41 @@ def run_episode(
     steps = 0
     done = False
 
-    for step in range(max_steps):
-        obs = response.get("obs", {})
-        vector = build_obs_vector(obs, resources, feature_names)
-        obs_tensor = torch.tensor([vector], dtype=torch.float32)
-        with torch.no_grad():
+    with inference_mode():
+        for step in range(max_steps):
+            obs = response.get("obs", {})
+            vector = build_obs_vector(obs, resources, feature_names)
+            obs_tensor = torch.tensor([vector], dtype=torch.float32)
             action_tensor, log_prob, value = model.act(
                 obs_tensor,
                 min_weight,
                 max_weight,
                 deterministic=False,
             )
-        action = action_tensor.squeeze(0).tolist()
-        weights = {resource: float(action[idx]) for idx, resource in enumerate(resources)}
-        response = send(proc, {"cmd": "step", "action": {"weights": weights, "ticks": step_ticks}})
-        reward = float(response.get("reward", 0.0))
-        done = bool(response.get("done"))
+            action = action_tensor.squeeze(0).tolist()
+            weights = {resource: float(action[idx]) for idx, resource in enumerate(resources)}
+            response = send(proc, {"cmd": "step", "action": {"weights": weights, "ticks": step_ticks}})
+            reward = float(response.get("reward", 0.0))
+            done = bool(response.get("done"))
 
-        transitions.append({
-            "obs": vector,
-            "actions": action,
-            "log_prob": float(log_prob.item()),
-            "value": float(value.item()),
-            "reward": reward,
-            "done": done,
-        })
-        total_reward += reward
-        steps = step + 1
-        if done:
-            break
+            transitions.append({
+                "obs": vector,
+                "actions": action,
+                "log_prob": float(log_prob.item()),
+                "value": float(value.item()),
+                "reward": reward,
+                "done": done,
+            })
+            total_reward += reward
+            steps = step + 1
+            if done:
+                break
 
-    bootstrap_value = 0.0
-    if not done and steps > 0:
-        obs = response.get("obs", {})
-        vector = build_obs_vector(obs, resources, feature_names)
-        obs_tensor = torch.tensor([vector], dtype=torch.float32)
-        with torch.no_grad():
+        bootstrap_value = 0.0
+        if not done and steps > 0:
+            obs = response.get("obs", {})
+            vector = build_obs_vector(obs, resources, feature_names)
+            obs_tensor = torch.tensor([vector], dtype=torch.float32)
             bootstrap_value = float(model.value(obs_tensor).squeeze(-1).item())
 
     info = response.get("info", {})
@@ -600,42 +948,58 @@ def evaluate(
     difficulty,
     min_weight,
     max_weight,
+    scenarios,
 ):
     total_reward = 0.0
     total_steps = 0.0
     total_births = 0.0
     total_deaths = 0.0
+    scenario_plan = []
+    if scenarios:
+        per_scenario = max(1, episodes // max(1, len(scenarios)))
+        remainder = max(0, episodes - per_scenario * len(scenarios))
+        for idx, name in enumerate(scenarios):
+            count = per_scenario + (1 if idx < remainder else 0)
+            if count > 0:
+                scenario_plan.append((name, count))
+    else:
+        scenario_plan.append((None, episodes))
 
-    for idx in range(episodes):
-        seed = seed_base + idx if seed_base is not None else None
-        reset_payload = {"cmd": "reset", "seed": seed, "training": True}
-        if difficulty is not None:
-            reset_payload["difficulty"] = difficulty
-        response = send(proc, reset_payload)
+    episode_idx = 0
+    with inference_mode():
+        for scenario_name, scenario_episodes in scenario_plan:
+            for _ in range(scenario_episodes):
+                seed = seed_base + episode_idx if seed_base is not None else None
+                episode_idx += 1
+                reset_payload = {"cmd": "reset", "seed": seed, "training": True}
+                if difficulty is not None:
+                    reset_payload["difficulty"] = difficulty
+                if scenario_name:
+                    reset_payload["scenario"] = scenario_name
+                response = send(proc, reset_payload)
 
-        for step in range(max_steps):
-            obs = response.get("obs", {})
-            vector = build_obs_vector(obs, resources, feature_names)
-            obs_tensor = torch.tensor([vector], dtype=torch.float32)
-            with torch.no_grad():
-                action_tensor, _, _ = model.act(
-                    obs_tensor,
-                    min_weight,
-                    max_weight,
-                    deterministic=True,
-                )
-            action = action_tensor.squeeze(0).tolist()
-            weights = {resource: float(action[idx]) for idx, resource in enumerate(resources)}
-            response = send(proc, {"cmd": "step", "action": {"weights": weights, "ticks": step_ticks}})
-            reward = float(response.get("reward", 0.0))
-            total_reward += reward
-            total_steps += 1
-            if response.get("done"):
-                break
+                for step in range(max_steps):
+                    obs = response.get("obs", {})
+                    vector = build_obs_vector(obs, resources, feature_names)
+                    obs_tensor = torch.tensor([vector], dtype=torch.float32)
+                    action_tensor, _, _ = model.act(
+                        obs_tensor,
+                        min_weight,
+                        max_weight,
+                        deterministic=True,
+                    )
+                    action = action_tensor.squeeze(0).tolist()
+                    weights = {resource: float(action[idx]) for idx, resource in enumerate(resources)}
+                    response = send(proc, {"cmd": "step", "action": {"weights": weights, "ticks": step_ticks}})
+                    reward = float(response.get("reward", 0.0))
+                    total_reward += reward
+                    total_steps += 1
+                    if response.get("done"):
+                        break
 
-        info = response.get("info", {})
-        total_births += int(info.get("births", 0))
-        total_deaths += int(info.get("deaths", 0))
+                info = response.get("info", {})
+                total_births += int(info.get("births", 0))
+                total_deaths += int(info.get("deaths", 0))
 
     return {
         "avg_reward": total_reward / max(1, episodes),
@@ -944,6 +1308,10 @@ def main():
         torch.manual_seed(args.seed)
 
     config = load_config(args.config)
+    scenario_defs = get_scenario_definitions(config)
+    training_scenarios = get_training_scenarios(scenario_defs)
+    eval_scenarios = get_eval_scenarios(config, scenario_defs)
+    scenario_rng = random.Random(args.seed) if args.seed is not None else random.Random()
 
     if args.fresh:
         for stale_path in (args.model_path, args.best_model_path, args.best_model_meta_path):
@@ -1009,7 +1377,30 @@ def main():
     deaths_window = 0
     debug_window = init_debug_accumulator()
     window_start = 1
+    file_reward_window = 0.0
+    file_steps_window = 0
+    file_births_window = 0
+    file_deaths_window = 0
+    file_debug_window = init_debug_accumulator()
+    file_window_start = 1
     eval_seed_base = (args.seed + 100000) if args.seed else None
+    debug_log_path = init_debug_log()
+    debug_log_handle = None
+    if debug_log_path:
+        try:
+            debug_log_handle = open(debug_log_path, "a", encoding="utf-8")
+            write_debug_header(
+                debug_log_handle,
+                args,
+                resources,
+                min_weight,
+                max_weight,
+                scenario_defs,
+                eval_scenarios,
+            )
+            debug_log_handle.flush()
+        except OSError:
+            debug_log_handle = None
 
     batch_obs = []
     batch_actions = []
@@ -1076,7 +1467,8 @@ def main():
                 difficulty = args.difficulty_start + (args.difficulty_end - args.difficulty_start) * progress
                 difficulty = clamp(difficulty, 0.0, 1.0)
                 seed = (args.seed + next_episode) if args.seed else None
-                task_queue.put((next_episode, seed, difficulty))
+                scenario = select_scenario(training_scenarios, scenario_rng)
+                task_queue.put((next_episode, seed, difficulty, scenario))
                 in_flight += 1
                 next_episode += 1
 
@@ -1122,6 +1514,11 @@ def main():
                 births_window += int(info.get("births", 0))
                 deaths_window += int(info.get("deaths", 0))
                 accumulate_debug(debug_window, info)
+                file_reward_window += reward
+                file_steps_window += steps
+                file_births_window += int(info.get("births", 0))
+                file_deaths_window += int(info.get("deaths", 0))
+                accumulate_debug(file_debug_window, info)
 
                 if batch_episode_count >= args.batch_episodes:
                     batch = {
@@ -1174,11 +1571,6 @@ def main():
                         f"lr={optimizer.param_groups[0]['lr']:.6f} diff={difficulty:.2f} "
                         f"tick={info.get('tick')} pop={info.get('population')}"
                     )
-                    avg_debug = average_debug(debug_window)
-                    if avg_debug:
-                        debug_line = format_debug({"debug": avg_debug}, resources)
-                        if debug_line:
-                            print(debug_line)
                     save_policy(
                         args.model_path,
                         model,
@@ -1196,6 +1588,40 @@ def main():
                     debug_window = init_debug_accumulator()
                     window_start = next_expected + 1
 
+                if (
+                    debug_log_handle
+                    and (next_expected % DEBUG_LOG_EVERY == 0 or next_expected == args.episodes)
+                ):
+                    file_window_count = next_expected - file_window_start + 1
+                    file_avg_reward = file_reward_window / file_window_count
+                    file_avg_steps = file_steps_window / file_window_count
+                    file_avg_births = file_births_window / file_window_count
+                    file_avg_deaths = file_deaths_window / file_window_count
+                    file_debug = average_debug(file_debug_window) or {}
+                    entry = format_debug_file_entry(
+                        next_expected,
+                        file_window_start,
+                        file_window_count,
+                        file_avg_reward,
+                        file_avg_steps,
+                        file_avg_births,
+                        file_avg_deaths,
+                        optimizer.param_groups[0]["lr"],
+                        difficulty,
+                        info,
+                        file_debug,
+                        resources,
+                        "",
+                    )
+                    debug_log_handle.write(entry)
+                    debug_log_handle.flush()
+                    file_reward_window = 0.0
+                    file_steps_window = 0
+                    file_births_window = 0
+                    file_deaths_window = 0
+                    file_debug_window = init_debug_accumulator()
+                    file_window_start = next_expected + 1
+
                 if eval_proc and args.eval_every > 0 and next_expected % args.eval_every == 0:
                     stats = evaluate(
                         eval_proc,
@@ -1209,6 +1635,7 @@ def main():
                         args.difficulty_end,
                         min_weight,
                         max_weight,
+                        eval_scenarios,
                     )
                     print(
                         f"eval episode={next_expected} avg_reward={stats['avg_reward']:.2f} "
@@ -1262,6 +1689,11 @@ def main():
             except Exception:
                 pass
             eval_proc.terminate()
+        if debug_log_handle:
+            try:
+                debug_log_handle.close()
+            except OSError:
+                pass
 
 
 if __name__ == "__main__":

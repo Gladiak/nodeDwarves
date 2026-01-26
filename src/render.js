@@ -1,9 +1,15 @@
 'use strict';
 
-const { padRight, clamp } = require('./utils');
+const {
+  padRight,
+  clamp,
+  visibleLength,
+  sliceVisible,
+} = require('./utils');
 
 function renderFrame(state, config, runtime) {
   const symbols = config.symbols || {};
+  const colors = getColorConfig(config);
   const emptySymbol = symbols.empty || '.';
 
   const headerLines = buildHeaderLines(config, runtime);
@@ -14,19 +20,38 @@ function renderFrame(state, config, runtime) {
 
   for (const node of state.nodes) {
     if (grid[node.y] && grid[node.y][node.x] !== undefined) {
-      grid[node.y][node.x] = node.symbol;
+      grid[node.y][node.x] = applyColor(node.symbol, node.id, colors);
     }
   }
 
   for (const structure of state.structures || []) {
     if (grid[structure.y] && grid[structure.y][structure.x] !== undefined) {
-      grid[structure.y][structure.x] = structure.symbol;
+      let symbol = structure.symbol;
+      let colorKey = structure.type;
+      if (structure.type === 'house') {
+        const level = Number(structure.level);
+        if (Number.isFinite(level)) {
+          const safeLevel = Math.round(clamp(level, 1, 9));
+          symbol = String(safeLevel);
+        } else {
+          symbol = symbols.house || symbol;
+        }
+        colorKey = 'house';
+      }
+      grid[structure.y][structure.x] = applyColor(symbol, colorKey, colors);
     }
   }
 
   for (const dwarf of state.dwarves) {
     if (grid[dwarf.y] && grid[dwarf.y][dwarf.x] !== undefined) {
-      grid[dwarf.y][dwarf.x] = symbols.dwarf || '@';
+      grid[dwarf.y][dwarf.x] = applyColor(symbols.dwarf || '@', 'dwarf', colors);
+    }
+  }
+
+  const merchant = state.merchant;
+  if (merchant && merchant.phase && merchant.phase !== 'idle') {
+    if (grid[merchant.y] && grid[merchant.y][merchant.x] !== undefined) {
+      grid[merchant.y][merchant.x] = applyColor(symbols.merchant || 'M', 'merchant', colors);
     }
   }
 
@@ -82,23 +107,36 @@ function buildFooterLines(config, runtime) {
 
   const width = Number(runtime.totalWidth || runtime.gridWidth || 0);
   const symbols = config.symbols || {};
+  const colors = getColorConfig(config);
   const legendParts = [];
   const nodeConfig = (config.resources && config.resources.nodes) || {};
   const structureConfig = config.structures || {};
 
-  legendParts.push(`${symbols.dwarf || '@'} dwarf`);
+  legendParts.push(colorizeLegend(`${symbols.dwarf || '@'} dwarf`, 'dwarf', colors));
   for (const resource of Object.keys(nodeConfig)) {
     const symbol = symbols[resource] || resource[0] || '?';
-    legendParts.push(`${symbol} ${resource}`);
+    legendParts.push(colorizeLegend(`${symbol} ${resource}`, resource, colors));
+  }
+  const houseLegend = getHouseLegendLabel(structureConfig.house);
+  if (houseLegend) {
+    legendParts.push(colorizeLegend(`${houseLegend} house`, 'house', colors));
   }
   for (const [type, definition] of Object.entries(structureConfig)) {
+    if (type === 'house' && houseLegend) {
+      continue;
+    }
     const count = Number(definition && definition.count !== undefined ? definition.count : definition);
     const hasDefinition = definition && typeof definition === 'object';
     if ((!Number.isFinite(count) || count <= 0) && !hasDefinition) {
       continue;
     }
     const symbol = symbols[type] || symbols.structure || '#';
-    legendParts.push(`${symbol} ${type}`);
+    legendParts.push(colorizeLegend(`${symbol} ${type}`, type, colors));
+  }
+
+  const merchantConfig = config.merchant || {};
+  if (merchantConfig.enabled !== false) {
+    legendParts.push(colorizeLegend(`${symbols.merchant || 'M'} merchant`, 'merchant', colors));
   }
 
   const legendLine = `Legend: ${legendParts.join('  ')}`;
@@ -117,10 +155,10 @@ function fitLine(value, width) {
     return '';
   }
   const str = String(value);
-  if (str.length <= width) {
+  if (visibleLength(str) <= width) {
     return str;
   }
-  return str.slice(0, width);
+  return sliceVisible(str, width);
 }
 
 function wrapLine(value, width) {
@@ -130,14 +168,16 @@ function wrapLine(value, width) {
   let remaining = String(value);
   const lines = [];
 
-  while (remaining.length > width) {
-    const slice = remaining.slice(0, width);
-    let splitIndex = slice.lastIndexOf(' ');
+  while (visibleLength(remaining) > width) {
+    let splitIndex = findLastSpaceIndex(remaining, width);
     if (splitIndex <= 0) {
-      splitIndex = width;
+      const slice = sliceVisible(remaining, width);
+      lines.push(slice);
+      remaining = remaining.slice(slice.length).trimStart();
+      continue;
     }
-    lines.push(slice.slice(0, splitIndex));
-    remaining = remaining.slice(splitIndex).trimStart();
+    lines.push(remaining.slice(0, splitIndex));
+    remaining = remaining.slice(splitIndex + 1).trimStart();
   }
 
   lines.push(remaining);
@@ -172,6 +212,7 @@ function buildHudColumns(state, config, columnWidth) {
     ? state.lastPriorities[0].resource
     : '-';
   const structures = state.structures || [];
+  const houseCount = structures.filter((structure) => structure.type === 'house').length;
   const wellCount = structures.filter((structure) => structure.type === 'well').length;
   const fieldCount = structures.filter((structure) => structure.type === 'field').length;
   const seasonLabel = formatSeasonLabel(state.season);
@@ -186,12 +227,11 @@ function buildHudColumns(state, config, columnWidth) {
   left.push(`Tick: ${state.tick}`);
   left.push(`Year ${yearLabel}, Season ${seasonLabel}`);
   left.push(`Event: ${lastEvent}`);
-  left.push(`Pop: ${dwarves.length}`);
-  left.push(`Adult: ${stageCounts.adult}`);
-  left.push(`Child: ${stageCounts.child}`);
-  left.push(`Elder: ${stageCounts.elder}`);
+  left.push(`Merchant: ${formatMerchantStatus(state.merchant)}`);
+  left.push(`Pop: ${dwarves.length} (C:${stageCounts.child}/A:${stageCounts.adult}/E:${stageCounts.elder})`);
   left.push(`Idle: ${idleCount}`);
   left.push(`Jobs: ${state.jobs.length}`);
+  left.push(`Houses: ${houseCount}`);
   left.push(`Wells: ${wellCount}`);
   left.push(`Fields: ${fieldCount}`);
   left.push(`Priority: ${topPriority}`);
@@ -343,6 +383,86 @@ function formatLastEvent(events) {
     return '-';
   }
   return String(events[0]);
+}
+
+function getHouseLegendLabel(houseConfig) {
+  if (!houseConfig || !houseConfig.levels || typeof houseConfig.levels !== 'object') {
+    return '';
+  }
+  const levels = Object.keys(houseConfig.levels)
+    .map((key) => Number(key))
+    .filter((value) => Number.isFinite(value))
+    .sort((a, b) => a - b);
+  if (levels.length === 0) {
+    return '';
+  }
+  const min = levels[0];
+  const max = levels[levels.length - 1];
+  if (min === max) {
+    return String(min);
+  }
+  return `${min}-${max}`;
+}
+
+function formatMerchantStatus(merchant) {
+  if (!merchant || merchant.phase === 'idle') {
+    return '-';
+  }
+  if (merchant.phase === 'trading') {
+    const tradesMax = Number(merchant.tradesMax || 0);
+    const tradesDone = Number(merchant.tradeCount || 0);
+    if (tradesMax > 0) {
+      return `trading ${tradesDone}/${tradesMax}`;
+    }
+    return 'trading';
+  }
+  return String(merchant.phase);
+}
+
+function getColorConfig(config) {
+  const display = config.display || {};
+  const colors = display.colors || {};
+  const enabled = colors.enabled !== false;
+  const reset = colors.reset || '\x1b[0m';
+  const map = colors.map || {};
+  return { enabled, reset, map };
+}
+
+function applyColor(value, key, colors) {
+  if (!colors || colors.enabled === false) {
+    return String(value);
+  }
+  const code = colors.map && colors.map[key];
+  if (!code) {
+    return String(value);
+  }
+  return `${code}${value}${colors.reset}`;
+}
+
+function colorizeLegend(value, key, colors) {
+  return applyColor(value, key, colors);
+}
+
+function findLastSpaceIndex(value, width) {
+  let visible = 0;
+  let lastSpace = -1;
+
+  for (let i = 0; i < value.length && visible < width; ) {
+    if (value[i] === '\x1b') {
+      const match = value.slice(i).match(/^\x1b\[[0-9;]*m/);
+      if (match) {
+        i += match[0].length;
+        continue;
+      }
+    }
+    if (value[i] === ' ') {
+      lastSpace = i;
+    }
+    visible += 1;
+    i += 1;
+  }
+
+  return lastSpace;
 }
 
 function countLifeStages(dwarves) {

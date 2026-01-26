@@ -21,6 +21,19 @@
       "columns": 2,
       "columnGap": 2,
       "stockBarMax": 100
+    },
+    "colors": {
+      "enabled": true,
+      "reset": "\u001b[0m",
+      "map": {
+        "dwarf": "\u001b[93m",
+        "merchant": "\u001b[96m",
+        "house": "\u001b[91m",
+        "food_raw": "\u001b[32m",
+        "water": "\u001b[34m",
+        "wood": "\u001b[33m",
+        "stone": "\u001b[90m"
+      }
     }
   },
   "events": {
@@ -56,9 +69,9 @@
     },
     "training": {
       "enabled": true,
-      "difficultyStart": 0.03,
+      "difficultyStart": 0.08,
       "difficultyEnd": 1.0,
-      "difficultyRampEpisodes": 200000,
+      "difficultyRampEpisodes": 50000,
       "randomization": {
         "stockpileScale": [0.92, 1.05],
         "stockpileFloor": {
@@ -75,6 +88,84 @@
         "seasonStartRandom": true,
         "seasonTickRandom": true
       },
+      "scenarios": [
+        {
+          "name": "baseline",
+          "weight": 0.3
+        },
+        {
+          "name": "water_scarce",
+          "weight": 0.2,
+          "overrides": {
+            "resources": {
+              "nodes": {
+                "water": 10
+              },
+              "nodeCapacity": {
+                "water": 14
+              }
+            }
+          }
+        },
+        {
+          "name": "food_scarce",
+          "weight": 0.2,
+          "overrides": {
+            "resources": {
+              "nodes": {
+                "food_raw": 16
+              },
+              "nodeCapacity": {
+                "food_raw": 10
+              }
+            }
+          }
+        },
+        {
+          "name": "low_stockpile",
+          "weight": 0.15,
+          "overrides": {
+            "resources": {
+              "stockpile": {
+                "food_raw": 20,
+                "water": 20,
+                "wood": 4,
+                "stone": 3
+              }
+            }
+          }
+        },
+        {
+          "name": "housing_pressure",
+          "weight": 0.15,
+          "overrides": {
+            "dwarves": {
+              "count": 16
+            },
+            "population": {
+              "housing": {
+                "buildTargetRatio": 1.4
+              }
+            },
+            "structures": {
+              "house": {
+                "buildTicks": 30,
+                "buildCost": {
+                  "wood": 8,
+                  "stone": 6
+                }
+              }
+            }
+          }
+        }
+      ],
+      "evalScenarios": [
+        "baseline",
+        "water_scarce",
+        "food_scarce",
+        "low_stockpile",
+        "housing_pressure"
+      ],
       "trainer": {
         "algorithm": "ppo",
         "episodes": 20000,
@@ -154,7 +245,47 @@
       "buildCost": {
         "wood": 6,
         "stone": 4
-      }
+      },
+      "levels": {
+        "1": {
+          "capacity": 2
+        },
+        "2": {
+          "capacity": 3,
+          "upgradeTicks": 20,
+          "upgradeCost": {
+            "wood": 4,
+            "stone": 2
+          }
+        },
+        "3": {
+          "capacity": 4,
+          "upgradeTicks": 26,
+          "upgradeCost": {
+            "wood": 6,
+            "stone": 4
+          }
+        },
+        "4": {
+          "capacity": 5,
+          "upgradeTicks": 32,
+          "upgradeCost": {
+            "wood": 8,
+            "stone": 6
+          }
+        },
+        "5": {
+          "capacity": 6,
+          "upgradeTicks": 38,
+          "upgradeCost": {
+            "wood": 10,
+            "stone": 8
+          }
+        }
+      },
+      "upgradeMinHousingRatio": 1.2,
+      "upgradeMinHouses": 6,
+      "upgradeMinAdjacency": 2
     },
     "well": {
       "count": 0,
@@ -187,6 +318,20 @@
         "wood": 10,
         "stone": 6
       }
+    }
+  },
+  "merchant": {
+    "enabled": true,
+    "spawnRangeTicks": {
+      "min": 160,
+      "max": 200
+    },
+    "stayTicks": 20,
+    "maxTradesPerVisit": 10,
+    "reserveRatio": 0.7,
+    "tradeRate": {
+      "give": 1,
+      "receive": 1
     }
   },
   "population": {
@@ -322,6 +467,7 @@
   "symbols": {
     "empty": ".",
     "dwarf": "@",
+    "merchant": "M",
     "food_raw": "f",
     "water": "w",
     "wood": "t",

@@ -1,8 +1,8 @@
 {
-  "bestReward": 2725.975003242279,
-  "bestEpisode": 2000,
+  "bestReward": 2733.007471515823,
+  "bestEpisode": 5000,
   "avgSteps": 900.0,
-  "avgBirths": 184.8,
-  "avgDeaths": 12.2,
-  "savedAt": 1769433241
+  "avgBirths": 168.8,
+  "avgDeaths": 13.4,
+  "savedAt": 1769447372
 }

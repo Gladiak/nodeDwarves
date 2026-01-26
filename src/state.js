@@ -7,12 +7,16 @@ function createInitialState(config, runtime) {
   const structures = createStructures(config, runtime, occupied);
   const nodes = createResourceNodes(config, runtime, occupied);
   const dwarves = createDwarves(config, runtime, occupied);
+  const merchant = createMerchantState(config);
+  const merchantStats = createMerchantStats();
 
   return {
     tick: 0,
     dwarves,
     nodes,
     structures,
+    merchant,
+    merchantStats,
     stockpile: { ...config.resources.stockpile },
     jobs: [],
     jobCounter: 1,
@@ -62,19 +66,31 @@ function createStructures(config, runtime, occupied) {
     }
 
     const positions = createPositions(count, runtime.gridWidth, runtime.gridHeight, occupied);
-    const symbol = symbols[type] || (type === 'workshop' ? 'W' : (symbols.structure || '#'));
-    const capacity = Math.max(1, Number(definition && definition.capacity !== undefined ? definition.capacity : 1));
+    const isHouse = type === 'house';
+    const baseCapacity = definition && definition.capacity !== undefined ? definition.capacity : 1;
+    const hasLevels = Boolean(isHouse && definition && typeof definition === 'object' && definition.levels);
+    const level = hasLevels ? 1 : null;
+    const capacity = isHouse
+      ? getHouseCapacity(config, level, baseCapacity)
+      : Math.max(1, Number(baseCapacity));
+    const symbol = level
+      ? String(level)
+      : (symbols[type] || (type === 'workshop' ? 'W' : (symbols.structure || '#')));
 
     for (let index = 0; index < positions.length; index += 1) {
       const pos = positions[index];
-      structures.push({
+      const structure = {
         id: `${type}_${index + 1}`,
         type,
         symbol,
         capacity,
         x: pos.x,
         y: pos.y,
-      });
+      };
+      if (level) {
+        structure.level = level;
+      }
+      structures.push(structure);
       occupied.add(positionKey(pos.x, pos.y));
     }
   }
@@ -205,6 +221,10 @@ function fitStateToGrid(state, runtime) {
   for (const dwarf of state.dwarves) {
     placeEntity(dwarf, occupied, runtime);
   }
+
+  if (state.merchant && state.merchant.phase && state.merchant.phase !== 'idle') {
+    clampMerchantState(state.merchant, runtime);
+  }
 }
 
 function placeEntity(entity, occupied, runtime) {
@@ -230,6 +250,24 @@ function placeEntity(entity, occupied, runtime) {
   entity.y = y;
 }
 
+function clampMerchantState(merchant, runtime) {
+  merchant.x = clamp(Number(merchant.x || 0), 0, runtime.gridWidth - 1);
+  merchant.y = clamp(Number(merchant.y || 0), 0, runtime.gridHeight - 1);
+  if (merchant.target) {
+    merchant.target = clampPoint(merchant.target, runtime);
+  }
+  if (merchant.exitTarget) {
+    merchant.exitTarget = clampPoint(merchant.exitTarget, runtime);
+  }
+}
+
+function clampPoint(point, runtime) {
+  return {
+    x: clamp(Number(point.x || 0), 0, runtime.gridWidth - 1),
+    y: clamp(Number(point.y || 0), 0, runtime.gridHeight - 1),
+  };
+}
+
 function randomBetween(min, max) {
   const low = Number.isFinite(min) ? Number(min) : 0;
   const high = Number.isFinite(max) ? Number(max) : low;
@@ -237,6 +275,49 @@ function randomBetween(min, max) {
     return low;
   }
   return Math.floor(Math.random() * (high - low + 1)) + low;
+}
+
+function getHouseCapacity(config, level, fallback) {
+  const houseConfig = (config.structures && config.structures.house) || {};
+  const levels = houseConfig.levels || {};
+  const levelConfig = levels[String(level)] || {};
+  const raw = levelConfig.capacity !== undefined ? levelConfig.capacity : fallback;
+  const capacity = Number(raw || houseConfig.capacity || fallback || 1);
+  return Math.max(1, capacity);
+}
+
+function createMerchantState(config) {
+  const merchantConfig = config.merchant || {};
+  const enabled = merchantConfig.enabled !== false;
+  const spawnRange = merchantConfig.spawnRangeTicks || {};
+  const minSpawn = Number(spawnRange.min ?? 200);
+  const maxSpawn = Number(spawnRange.max ?? minSpawn);
+  const nextSpawnTick = enabled ? randomBetween(minSpawn, maxSpawn) : Number.POSITIVE_INFINITY;
+
+  return {
+    phase: 'idle',
+    x: 0,
+    y: 0,
+    target: null,
+    exitTarget: null,
+    entrySide: null,
+    exitSide: null,
+    stayTicks: 0,
+    tradesRemaining: 0,
+    tradesMax: 0,
+    tradeCount: 0,
+    tradeLog: null,
+    nextSpawnTick,
+  };
+}
+
+function createMerchantStats() {
+  return {
+    ticks: 0,
+    trades: 0,
+    given: {},
+    received: {},
+  };
 }
 
 function getLifeStage(ageTicks, aging) {

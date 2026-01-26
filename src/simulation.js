@@ -29,6 +29,7 @@ function stepState(state, config, runtime, action) {
     processDwarfAction(dwarf, state, config, runtime);
   }
 
+  updateMerchant(state, config, runtime);
   regenerateNodes(state, config);
 }
 
@@ -873,7 +874,7 @@ function assignBuildJobIfNeeded(state, config, runtime, idleDwarves) {
   if (!runtime || runtime.gridWidth <= 0 || runtime.gridHeight <= 0) {
     return;
   }
-  if (state.jobs.some((job) => job.type === 'build')) {
+  if (state.jobs.some((job) => job.type === 'build' || job.type === 'upgrade')) {
     return;
   }
   if (idleDwarves.length === 0) {
@@ -882,7 +883,8 @@ function assignBuildJobIfNeeded(state, config, runtime, idleDwarves) {
 
   const buildJob = createWellBuildJob(state, config, runtime)
     || createFieldBuildJob(state, config, runtime)
-    || createHouseBuildJob(state, config, runtime);
+    || createHouseBuildJob(state, config, runtime)
+    || createHouseUpgradeJob(state, config, runtime);
   if (!buildJob) {
     return;
   }
@@ -1157,6 +1159,174 @@ function createHouseBuildJob(state, config, runtime) {
   };
 }
 
+function createHouseUpgradeJob(state, config, runtime) {
+  const houseConfig = (config.structures && config.structures.house) || {};
+  const housingConfig = (config.population && config.population.housing) || {};
+  const maxLevel = getHouseMaxLevel(houseConfig);
+  if (maxLevel <= 1) {
+    return null;
+  }
+
+  const houses = (state.structures || []).filter((structure) => structure.type === 'house');
+  if (houses.length === 0) {
+    return null;
+  }
+
+  const minHouses = Math.max(0, Number(houseConfig.upgradeMinHouses ?? 0));
+  if (houses.length < minHouses) {
+    return null;
+  }
+
+  const minHousingRatio = Number(
+    houseConfig.upgradeMinHousingRatio ?? housingConfig.buildTargetRatio ?? 1,
+  );
+  if (minHousingRatio > 0) {
+    const housing = getHousingStats(state, config);
+    if (housing.ratio < minHousingRatio) {
+      return null;
+    }
+  }
+
+  const minResources = housingConfig.buildMinResources;
+  if (minResources && typeof minResources === 'object') {
+    for (const [resource, minRatioRaw] of Object.entries(minResources)) {
+      const minRatio = Number(minRatioRaw);
+      if (!Number.isFinite(minRatio) || minRatio <= 0) {
+        continue;
+      }
+      const ratio = getStockpileRatio(state, config, resource);
+      if (ratio < minRatio) {
+        return null;
+      }
+    }
+  }
+
+  const minAdjacency = Math.max(0, Number(houseConfig.upgradeMinAdjacency ?? 0));
+  const houseSet = buildHousePositionSet(houses);
+  let best = null;
+
+  for (const house of houses) {
+    const level = Math.max(1, Number(house.level || 1));
+    if (level >= maxLevel) {
+      continue;
+    }
+    const adjacency = countAdjacentHouses(house, houseSet);
+    if (adjacency < minAdjacency) {
+      continue;
+    }
+    if (!best) {
+      best = { house, level, adjacency };
+      continue;
+    }
+    if (adjacency > best.adjacency) {
+      best = { house, level, adjacency };
+      continue;
+    }
+    if (adjacency === best.adjacency && level < best.level) {
+      best = { house, level, adjacency };
+      continue;
+    }
+    if (adjacency === best.adjacency && level === best.level) {
+      if (String(house.id || '') < String(best.house.id || '')) {
+        best = { house, level, adjacency };
+      }
+    }
+  }
+
+  if (!best) {
+    return null;
+  }
+
+  const nextLevel = Math.min(maxLevel, best.level + 1);
+  const levelConfig = getHouseLevelConfig(houseConfig, nextLevel);
+  if (!levelConfig) {
+    return null;
+  }
+  const upgradeCost = getHouseUpgradeCost(houseConfig, levelConfig);
+  if (Object.keys(upgradeCost).length > 0 && !hasInputs(state.stockpile, upgradeCost)) {
+    return null;
+  }
+
+  const upgradeTicks = getHouseUpgradeTicks(houseConfig, levelConfig);
+  if (Object.keys(upgradeCost).length > 0) {
+    consumeInputs(state.stockpile, upgradeCost);
+  }
+
+  return {
+    id: `job_${state.jobCounter++}`,
+    type: 'upgrade',
+    structureId: best.house.id,
+    targetLevel: nextLevel,
+    target: { x: best.house.x, y: best.house.y },
+    workRemaining: upgradeTicks,
+    dwarfId: null,
+  };
+}
+
+function getHouseLevelConfig(houseConfig, level) {
+  const levels = (houseConfig && houseConfig.levels) || {};
+  const entry = levels[String(level)];
+  return entry && typeof entry === 'object' ? entry : null;
+}
+
+function getHouseMaxLevel(houseConfig) {
+  const levels = (houseConfig && houseConfig.levels) || {};
+  let maxLevel = 1;
+  for (const key of Object.keys(levels)) {
+    const value = Number(key);
+    if (Number.isFinite(value) && value > maxLevel) {
+      maxLevel = value;
+    }
+  }
+  return maxLevel;
+}
+
+function getHouseCapacity(houseConfig, level, fallback) {
+  const levelConfig = getHouseLevelConfig(houseConfig, level);
+  const raw = levelConfig && levelConfig.capacity !== undefined
+    ? levelConfig.capacity
+    : (fallback !== undefined ? fallback : houseConfig.capacity);
+  const capacity = Number(raw || 1);
+  return Math.max(1, capacity);
+}
+
+function getHouseUpgradeCost(houseConfig, levelConfig) {
+  if (levelConfig && levelConfig.upgradeCost) {
+    return levelConfig.upgradeCost;
+  }
+  return houseConfig.buildCost || {};
+}
+
+function getHouseUpgradeTicks(houseConfig, levelConfig) {
+  const raw = levelConfig && levelConfig.upgradeTicks !== undefined
+    ? levelConfig.upgradeTicks
+    : houseConfig.buildTicks;
+  return Math.max(1, Number(raw || 1));
+}
+
+function buildHousePositionSet(houses) {
+  const set = new Set();
+  for (const house of houses) {
+    set.add(`${house.x},${house.y}`);
+  }
+  return set;
+}
+
+function countAdjacentHouses(house, houseSet) {
+  let count = 0;
+  for (let dx = -1; dx <= 1; dx += 1) {
+    for (let dy = -1; dy <= 1; dy += 1) {
+      if (dx === 0 && dy === 0) {
+        continue;
+      }
+      if (houseSet.has(`${house.x + dx},${house.y + dy}`)) {
+        count += 1;
+      }
+    }
+  }
+  return count;
+}
+
 function createWellBuildJob(state, config, runtime) {
   const wellConfig = (config.structures && config.structures.well) || {};
   const maxCount = Number(wellConfig.maxCount ?? 0);
@@ -1362,18 +1532,28 @@ function getFieldIrrigationMultiplier(state, config) {
 
 function createStructure(state, config, type, x, y) {
   const structureConfig = (config.structures && config.structures[type]) || {};
+  const houseConfig = (config.structures && config.structures.house) || {};
   const symbols = config.symbols || {};
-  const symbol = symbols[type] || symbols.structure || '#';
-  const capacity = Math.max(1, Number(structureConfig.capacity || 1));
+  const isHouse = type === 'house';
+  const hasLevels = Boolean(isHouse && houseConfig && houseConfig.levels);
+  let symbol = symbols[type] || symbols.structure || '#';
+  let capacity = Math.max(1, Number(structureConfig.capacity || 1));
   const id = `${type}_${++state.structureCounter}`;
-  return {
+  const structure = {
     id,
     type,
-    symbol,
-    capacity,
     x,
     y,
   };
+  if (isHouse && hasLevels) {
+    const level = 1;
+    capacity = getHouseCapacity(houseConfig, level, capacity);
+    symbol = String(level);
+    structure.level = level;
+  }
+  structure.symbol = symbol;
+  structure.capacity = capacity;
+  return structure;
 }
 
 function createResourceNode(state, config, resourceId, x, y, capacityOverride, source) {
@@ -1451,6 +1631,7 @@ function processDwarfJob(dwarf, state, config, runtime) {
   let targetY = clamp(job.target.y, 0, runtime.gridHeight - 1);
   let targetNode = null;
   let targetWorkshop = null;
+  let targetStructure = null;
 
   if (job.type === 'build') {
     if (!isBuildableCell(state, runtime, targetX, targetY)) {
@@ -1481,6 +1662,18 @@ function processDwarfJob(dwarf, state, config, runtime) {
 
     targetX = clamp(targetWorkshop.x, 0, runtime.gridWidth - 1);
     targetY = clamp(targetWorkshop.y, 0, runtime.gridHeight - 1);
+    job.target = { x: targetX, y: targetY };
+  }
+  if (job.type === 'upgrade') {
+    targetStructure = findStructureById(state.structures, job.structureId);
+    if (!targetStructure || targetStructure.type !== 'house') {
+      removeJob(state, job.id);
+      dwarf.job = null;
+      return;
+    }
+
+    targetX = clamp(targetStructure.x, 0, runtime.gridWidth - 1);
+    targetY = clamp(targetStructure.y, 0, runtime.gridHeight - 1);
     job.target = { x: targetX, y: targetY };
   }
 
@@ -1520,6 +1713,30 @@ function processDwarfJob(dwarf, state, config, runtime) {
       state.nodes.push(node);
     }
     pushEvent(state, config, `Build: ${structure.id}`);
+    removeJob(state, job.id);
+    dwarf.job = null;
+    return;
+  }
+  if (job.type === 'upgrade') {
+    const house = targetStructure || findStructureById(state.structures, job.structureId);
+    if (!house) {
+      removeJob(state, job.id);
+      dwarf.job = null;
+      return;
+    }
+    const houseConfig = (config.structures && config.structures.house) || {};
+    const maxLevel = getHouseMaxLevel(houseConfig);
+    const currentLevel = Math.max(1, Number(house.level || 1));
+    if (currentLevel >= maxLevel) {
+      removeJob(state, job.id);
+      dwarf.job = null;
+      return;
+    }
+    const nextLevel = Math.min(maxLevel, Number(job.targetLevel || currentLevel + 1));
+    house.level = nextLevel;
+    house.capacity = getHouseCapacity(houseConfig, nextLevel, house.capacity);
+    house.symbol = String(nextLevel);
+    pushEvent(state, config, `Upgrade: ${house.id} L${nextLevel}`);
     removeJob(state, job.id);
     dwarf.job = null;
     return;
@@ -1607,6 +1824,431 @@ function getGatherYield(config, resourceId, node, state) {
   }
   const remaining = Math.max(0, Number(node.remaining || 0));
   return Math.min(scaledYield, remaining);
+}
+
+const MERCHANT_SIDES = ['north', 'south', 'west', 'east'];
+
+function updateMerchant(state, config, runtime) {
+  const merchantConfig = config.merchant || {};
+  if (merchantConfig.enabled === false) {
+    return;
+  }
+  if (!runtime || runtime.gridWidth <= 0 || runtime.gridHeight <= 0) {
+    return;
+  }
+
+  const merchantStats = ensureMerchantStats(state);
+  merchantStats.ticks = Number(merchantStats.ticks || 0) + 1;
+
+  const merchant = ensureMerchantState(state, merchantConfig);
+  if (merchant.phase === 'idle') {
+    if (state.tick < merchant.nextSpawnTick) {
+      return;
+    }
+    spawnMerchant(state, config, runtime, merchant);
+    return;
+  }
+
+  if (merchant.phase === 'entering') {
+    if (!merchant.target) {
+      merchant.target = findMerchantStopSpot(state, runtime) || { x: merchant.x, y: merchant.y };
+    }
+    if (merchant.x === merchant.target.x && merchant.y === merchant.target.y) {
+      merchant.phase = 'trading';
+    } else {
+      moveTowards(merchant, merchant.target, runtime);
+      if (merchant.x === merchant.target.x && merchant.y === merchant.target.y) {
+        merchant.phase = 'trading';
+      }
+    }
+    return;
+  }
+
+  if (merchant.phase === 'trading') {
+    if (Number(merchant.tradesRemaining || 0) > 0) {
+      attemptMerchantTrade(state, config, merchant);
+    }
+    merchant.stayTicks = Math.max(0, Number(merchant.stayTicks || 0) - 1);
+    if (merchant.stayTicks <= 0 || Number(merchant.tradesRemaining || 0) <= 0) {
+      startMerchantExit(state, runtime, merchant);
+    }
+    return;
+  }
+
+  if (merchant.phase === 'exiting') {
+    if (!merchant.exitTarget) {
+      const fallbackSide = merchant.exitSide || pickMerchantSide();
+      merchant.exitTarget = findEdgeSpawnPosition(state, runtime, fallbackSide);
+    }
+    if (merchant.x === merchant.exitTarget.x && merchant.y === merchant.exitTarget.y) {
+      finalizeMerchantVisit(state, config, merchant);
+      return;
+    }
+    moveTowards(merchant, merchant.exitTarget, runtime);
+  }
+}
+
+function ensureMerchantState(state, merchantConfig) {
+  if (!state.merchant || typeof state.merchant !== 'object') {
+    state.merchant = buildMerchantState(merchantConfig, state.tick);
+  }
+
+  const merchant = state.merchant;
+  if (!merchant.phase) {
+    merchant.phase = 'idle';
+  }
+  if (!Number.isFinite(merchant.nextSpawnTick)) {
+    merchant.nextSpawnTick = scheduleNextMerchantSpawnTick(state.tick, merchantConfig);
+  }
+  return merchant;
+}
+
+function ensureMerchantStats(state) {
+  if (!state.merchantStats || typeof state.merchantStats !== 'object') {
+    state.merchantStats = buildMerchantStats();
+  }
+  const stats = state.merchantStats;
+  if (!Number.isFinite(stats.ticks)) {
+    stats.ticks = 0;
+  }
+  if (!Number.isFinite(stats.trades)) {
+    stats.trades = 0;
+  }
+  if (!stats.given || typeof stats.given !== 'object') {
+    stats.given = {};
+  }
+  if (!stats.received || typeof stats.received !== 'object') {
+    stats.received = {};
+  }
+  return stats;
+}
+
+function buildMerchantState(merchantConfig, currentTick) {
+  const spawnRange = getMerchantSpawnRange(merchantConfig);
+  const baseTick = Number.isFinite(currentTick) ? currentTick : 0;
+  return {
+    phase: 'idle',
+    x: 0,
+    y: 0,
+    target: null,
+    exitTarget: null,
+    entrySide: null,
+    exitSide: null,
+    stayTicks: 0,
+    tradesRemaining: 0,
+    tradesMax: 0,
+    tradeCount: 0,
+    tradeLog: null,
+    nextSpawnTick: baseTick + randomBetween(spawnRange.min, spawnRange.max),
+  };
+}
+
+function buildMerchantStats() {
+  return {
+    ticks: 0,
+    trades: 0,
+    given: {},
+    received: {},
+  };
+}
+
+function scheduleNextMerchantSpawnTick(currentTick, merchantConfig) {
+  const spawnRange = getMerchantSpawnRange(merchantConfig);
+  return currentTick + randomBetween(spawnRange.min, spawnRange.max);
+}
+
+function getMerchantSpawnRange(merchantConfig) {
+  const spawnRange = merchantConfig.spawnRangeTicks || {};
+  const min = Math.max(0, Number(spawnRange.min ?? 0));
+  const max = Math.max(min, Number(spawnRange.max ?? min));
+  return { min, max };
+}
+
+function spawnMerchant(state, config, runtime, merchant) {
+  const merchantConfig = config.merchant || {};
+  const entrySide = pickMerchantSide();
+  const exitSide = pickExitSide(entrySide);
+  const entryPosition = findEdgeSpawnPosition(state, runtime, entrySide);
+  const stopTarget = findMerchantStopSpot(state, runtime) || entryPosition;
+  const exitTarget = findEdgeSpawnPosition(state, runtime, exitSide);
+
+  merchant.phase = 'entering';
+  merchant.entrySide = entrySide;
+  merchant.exitSide = exitSide;
+  merchant.x = entryPosition.x;
+  merchant.y = entryPosition.y;
+  merchant.target = stopTarget;
+  merchant.exitTarget = exitTarget;
+
+  merchant.stayTicks = Math.max(0, Number(merchantConfig.stayTicks ?? 10));
+  const maxTrades = Math.max(0, Number(merchantConfig.maxTradesPerVisit ?? 0));
+  merchant.tradesRemaining = maxTrades;
+  merchant.tradesMax = maxTrades;
+  merchant.tradeCount = 0;
+  merchant.tradeLog = {};
+
+  merchant.nextSpawnTick = scheduleNextMerchantSpawnTick(state.tick, merchantConfig);
+
+  pushEvent(state, config, 'Merchant arrived');
+}
+
+function startMerchantExit(state, runtime, merchant) {
+  if (merchant.phase === 'exiting') {
+    return;
+  }
+  merchant.phase = 'exiting';
+  if (!merchant.exitTarget) {
+    const exitSide = merchant.exitSide || pickMerchantSide();
+    merchant.exitTarget = findEdgeSpawnPosition(state, runtime, exitSide);
+  }
+}
+
+function finalizeMerchantVisit(state, config, merchant) {
+  const summary = buildMerchantTradeSummary(merchant.tradeLog, 2);
+  pushEvent(state, config, 'Merchant departed');
+  if (summary) {
+    pushEvent(state, config, summary);
+  }
+
+  merchant.phase = 'idle';
+  merchant.x = 0;
+  merchant.y = 0;
+  merchant.target = null;
+  merchant.exitTarget = null;
+  merchant.entrySide = null;
+  merchant.exitSide = null;
+  merchant.stayTicks = 0;
+  merchant.tradesRemaining = 0;
+  merchant.tradesMax = 0;
+  merchant.tradeCount = 0;
+  merchant.tradeLog = null;
+}
+
+function pickMerchantSide() {
+  return MERCHANT_SIDES[Math.floor(Math.random() * MERCHANT_SIDES.length)];
+}
+
+function pickExitSide(entrySide) {
+  const options = MERCHANT_SIDES.filter((side) => side !== entrySide);
+  if (options.length === 0) {
+    return entrySide;
+  }
+  return options[Math.floor(Math.random() * options.length)];
+}
+
+function findEdgeSpawnPosition(state, runtime, side) {
+  const positions = getEdgePositions(runtime, side);
+  if (positions.length === 0) {
+    return { x: 0, y: 0 };
+  }
+
+  const candidates = positions.filter((pos) => isBuildableCell(state, runtime, pos.x, pos.y));
+  const pool = candidates.length > 0 ? candidates : positions;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+function getEdgePositions(runtime, side) {
+  const positions = [];
+  if (runtime.gridWidth <= 0 || runtime.gridHeight <= 0) {
+    return positions;
+  }
+  if (side === 'north' || side === 'south') {
+    const y = side === 'north' ? 0 : runtime.gridHeight - 1;
+    for (let x = 0; x < runtime.gridWidth; x += 1) {
+      positions.push({ x, y });
+    }
+    return positions;
+  }
+  const x = side === 'west' ? 0 : runtime.gridWidth - 1;
+  for (let y = 0; y < runtime.gridHeight; y += 1) {
+    positions.push({ x, y });
+  }
+  return positions;
+}
+
+function findMerchantStopSpot(state, runtime) {
+  const houses = (state.structures || []).filter((structure) => structure.type === 'house');
+  if (houses.length > 0) {
+    const house = houses[Math.floor(Math.random() * houses.length)];
+    const adjacent = getAdjacentPositions(house.x, house.y);
+    const available = adjacent.filter((pos) => isBuildableCell(state, runtime, pos.x, pos.y));
+    if (available.length > 0) {
+      return available[Math.floor(Math.random() * available.length)];
+    }
+  }
+
+  return findVillageBuildSpot(state, runtime);
+}
+
+function getAdjacentPositions(x, y) {
+  return [
+    { x: x + 1, y },
+    { x: x - 1, y },
+    { x, y: y + 1 },
+    { x, y: y - 1 },
+    { x: x + 1, y: y + 1 },
+    { x: x + 1, y: y - 1 },
+    { x: x - 1, y: y + 1 },
+    { x: x - 1, y: y - 1 },
+  ];
+}
+
+function attemptMerchantTrade(state, config, merchant) {
+  const trade = findMerchantTradeOption(state, config);
+  if (!trade) {
+    return false;
+  }
+  applyMerchantTrade(state, merchant, trade);
+  return true;
+}
+
+function findMerchantTradeOption(state, config) {
+  const merchantConfig = config.merchant || {};
+  const reserveRatio = clamp(Number(merchantConfig.reserveRatio ?? 0.8), 0, 1);
+  const tradeRate = merchantConfig.tradeRate || {};
+  const giveAmount = Math.max(0, Number(tradeRate.give ?? 2));
+  const receiveAmount = Math.max(0, Number(tradeRate.receive ?? 1));
+  if (giveAmount <= 0 || receiveAmount <= 0) {
+    return null;
+  }
+
+  const targets = getMerchantTargets(config);
+  const missing = [];
+  const surplus = [];
+
+  for (const [resource, targetValue] of Object.entries(targets)) {
+    const target = Number(targetValue || 0);
+    if (target <= 0) {
+      continue;
+    }
+    const current = Number(state.stockpile[resource] || 0);
+    const ratio = target > 0 ? current / target : 0;
+    const missingAmount = target - current;
+    if (missingAmount >= receiveAmount) {
+      missing.push({
+        resource,
+        missingAmount,
+        missingRatio: 1 - ratio,
+      });
+    }
+
+    const reserveTarget = target * reserveRatio;
+    const surplusAmount = current - reserveTarget;
+    if (surplusAmount >= giveAmount) {
+      surplus.push({
+        resource,
+        surplusAmount,
+        surplusRatio: target > 0 ? surplusAmount / target : 0,
+        reserveTarget,
+      });
+    }
+  }
+
+  if (missing.length === 0 || surplus.length === 0) {
+    return null;
+  }
+
+  missing.sort((a, b) => {
+    if (b.missingRatio !== a.missingRatio) {
+      return b.missingRatio - a.missingRatio;
+    }
+    return b.missingAmount - a.missingAmount;
+  });
+
+  surplus.sort((a, b) => {
+    if (b.surplusRatio !== a.surplusRatio) {
+      return b.surplusRatio - a.surplusRatio;
+    }
+    return b.surplusAmount - a.surplusAmount;
+  });
+
+  const epsilon = 1e-9;
+
+  for (const need of missing) {
+    for (const extra of surplus) {
+      if (need.resource === extra.resource) {
+        continue;
+      }
+      const current = Number(state.stockpile[extra.resource] || 0);
+      if (current - giveAmount < extra.reserveTarget - epsilon) {
+        continue;
+      }
+      return {
+        giveResource: extra.resource,
+        receiveResource: need.resource,
+        giveAmount,
+        receiveAmount,
+      };
+    }
+  }
+
+  return null;
+}
+
+function getMerchantTargets(config) {
+  const resources = config.resources || {};
+  return resources.targets || resources.stockpile || {};
+}
+
+function applyMerchantTrade(state, merchant, trade) {
+  state.stockpile[trade.giveResource] = Number(state.stockpile[trade.giveResource] || 0) - trade.giveAmount;
+  state.stockpile[trade.receiveResource] = Number(state.stockpile[trade.receiveResource] || 0)
+    + trade.receiveAmount;
+  merchant.tradesRemaining = Math.max(0, Number(merchant.tradesRemaining || 0) - 1);
+  merchant.tradeCount = Number(merchant.tradeCount || 0) + 1;
+  recordMerchantTrade(merchant, trade);
+  recordMerchantTradeStats(state, trade);
+}
+
+function recordMerchantTrade(merchant, trade) {
+  if (!merchant.tradeLog || typeof merchant.tradeLog !== 'object') {
+    merchant.tradeLog = {};
+  }
+  const key = `${trade.giveResource}->${trade.receiveResource}`;
+  merchant.tradeLog[key] = Number(merchant.tradeLog[key] || 0) + 1;
+}
+
+function recordMerchantTradeStats(state, trade) {
+  const stats = ensureMerchantStats(state);
+  stats.trades = Number(stats.trades || 0) + 1;
+  const giveResource = trade.giveResource;
+  const receiveResource = trade.receiveResource;
+  const giveAmount = Number(trade.giveAmount || 0);
+  const receiveAmount = Number(trade.receiveAmount || 0);
+
+  if (giveResource) {
+    stats.given[giveResource] = Number(stats.given[giveResource] || 0) + giveAmount;
+  }
+  if (receiveResource) {
+    stats.received[receiveResource] = Number(stats.received[receiveResource] || 0) + receiveAmount;
+  }
+}
+
+function buildMerchantTradeSummary(tradeLog, maxEntries) {
+  if (!tradeLog || typeof tradeLog !== 'object') {
+    return '';
+  }
+  const entries = Object.entries(tradeLog);
+  if (entries.length === 0) {
+    return '';
+  }
+  entries.sort((a, b) => b[1] - a[1]);
+  const limit = Math.max(1, Number(maxEntries || 1));
+  const parts = entries.slice(0, limit).map(([key, count]) => `${key} x${count}`);
+  const remaining = entries.length - limit;
+  if (remaining > 0) {
+    parts.push(`+${remaining}`);
+  }
+  return `Merchant traded: ${parts.join(', ')}`;
+}
+
+function randomBetween(min, max) {
+  const low = Number.isFinite(min) ? Number(min) : 0;
+  const high = Number.isFinite(max) ? Number(max) : low;
+  if (high <= low) {
+    return low;
+  }
+  return Math.floor(Math.random() * (high - low + 1)) + low;
 }
 
 function moveDwarf(dwarf, runtime) {

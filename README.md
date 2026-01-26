@@ -12,6 +12,10 @@ alive while you watch the chaos unfold in ASCII.
 - Seasons + housing effects (bonding, winter penalties).
 - PPO training in Python with JS-only inference.
 
+## Screenshot - How it looks
+
+![NodeDwarves simulation](assets/NodeDwarves.gif)
+
 ## Simulation overview
 
 - The world is a fixed-size ASCII grid with resource nodes, structures, and dwarves.
@@ -83,8 +87,8 @@ snapshot is saved to `ai.training.trainer.bestModelPath` (default
 `models/policy_best.json`) and its score is tracked in
 `ai.training.trainer.bestModelMetaPath` (default `models/policy_best.meta.json`).
 Training is incremental by default when `ai.training.trainer.resumeFromBest` is
-enabled. Training logs include a `diag` line with reproduction, housing, and
-field irrigation metrics.
+enabled. Console logs stay compact, while a structured debug log is written to
+`debug/train_*.log` every 500 episodes with a full legend and scenario mix.
 
 ## Configuration
 
@@ -111,6 +115,9 @@ Display and layout:
 - `display.hud.columns`: number of HUD columns.
 - `display.hud.columnGap`: gap between HUD columns.
 - `display.hud.stockBarMax`: stockpile bar scale (0 = use targets).
+- `display.colors.enabled`: enable ANSI colors in the render.
+- `display.colors.reset`: ANSI reset sequence (defaults to `\u001b[0m`).
+- `display.colors.map.<key>`: ANSI color for an entity key (e.g. `dwarf`, `merchant`, `house`, `food_raw`).
 
 Events:
 
@@ -149,6 +156,11 @@ AI and training:
 - `ai.training.randomization.needDecayScale`: scale range for need decay rates.
 - `ai.training.randomization.seasonStartRandom`: randomize starting season.
 - `ai.training.randomization.seasonTickRandom`: randomize tick in season.
+- `ai.training.scenarios`: weighted scenario presets applied before randomization.
+- `ai.training.scenarios[].name`: unique scenario name used by the trainer.
+- `ai.training.scenarios[].weight`: sampling weight (0 disables sampling).
+- `ai.training.scenarios[].overrides`: config overrides merged into the base config.
+- `ai.training.evalScenarios`: list of scenario names evaluated at eval checkpoints.
 - `ai.training.trainer.algorithm`: training algorithm (PPO only right now).
 - `ai.training.trainer.episodes`: training episodes per run.
 - `ai.training.trainer.maxSteps`: max steps per episode.
@@ -180,6 +192,30 @@ AI and training:
 Simulation:
 
 - `simulation.maxTicks`: hard stop for visible simulation (0 = no limit).
+
+### Scenario presets (training)
+
+Scenario presets let training sample hard situations on purpose (e.g. water
+scarcity, low stockpiles). Each preset is a config override merged into the
+base config before the usual curriculum randomization scales are applied.
+
+- Training picks a scenario each episode using the weights in
+  `ai.training.scenarios`.
+- If `ai.training.evalScenarios` is set, evaluation splits the eval episodes
+  across those scenarios for a balanced score.
+- The debug log includes a "Scenario mix" section that shows how often each
+  preset appeared in the window.
+
+Merchant:
+
+- `merchant.enabled`: enable merchant visits.
+- `merchant.spawnRangeTicks.min`: minimum ticks between spawns.
+- `merchant.spawnRangeTicks.max`: maximum ticks between spawns.
+- `merchant.stayTicks`: ticks the merchant waits near houses.
+- `merchant.maxTradesPerVisit`: max trades per visit.
+- `merchant.reserveRatio`: minimum stockpile ratio kept when trading away resources.
+- `merchant.tradeRate.give`: units given per trade.
+- `merchant.tradeRate.receive`: units received per trade.
 
 Population:
 
@@ -238,6 +274,12 @@ Structures:
 - `structures.<type>.capacity`: capacity for the structure (beds for houses).
 - `structures.<type>.buildCost.<resource>`: resources consumed to build.
 - `structures.<type>.buildTicks`: time in ticks to build.
+- `structures.house.levels.<level>.capacity`: house bed capacity by level (1..5).
+- `structures.house.levels.<level>.upgradeCost.<resource>`: resources consumed to upgrade to that level.
+- `structures.house.levels.<level>.upgradeTicks`: time in ticks to upgrade to that level.
+- `structures.house.upgradeMinHousingRatio`: minimum beds/pop ratio before upgrades begin.
+- `structures.house.upgradeMinHouses`: minimum number of houses before upgrades begin.
+- `structures.house.upgradeMinAdjacency`: minimum adjacent houses required to upgrade.
 - `structures.well.nodeCapacity`: capacity for water wells (artificial water nodes).
 - `structures.well.maxCount`: limit for how many wells can be built.
 - `structures.well.buildWhenNodeRatioBelow`: build well if water node ratio falls below this.
@@ -297,6 +339,7 @@ Symbols:
 
 The legend is printed below the map in the footer. Symbols are configurable in
 `config.json` under `symbols`.
+When house levels are enabled, houses render as digits `1` to `5` instead of `symbols.house`.
 
 ## Project layout
 
@@ -344,7 +387,6 @@ Open a PR or start a discussion with your ideas.
 - Housing maintenance and decay (wood/stone upkeep over time).
 - Storage caps and stockpile prioritization rules.
 - Specialized roles (gatherer, builder, caretaker) with distinct bonuses.
-- Trade visits or caravans to exchange surplus for deficits.
 - Simple disease system tied to crowding and hygiene.
 - Colony morale events that influence productivity and bonding.
 - Terrain types (fertile, arid, rocky) that affect yields.
