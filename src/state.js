@@ -19,6 +19,8 @@ function createInitialState(config, runtime) {
     lastPriorities: [],
     dwarfCounter: dwarves.length,
     events: [],
+    birthsCount: 0,
+    deathsCount: 0,
   };
 }
 

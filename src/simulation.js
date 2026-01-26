@@ -2,7 +2,7 @@
 
 const { clamp } = require('./utils');
 
-function stepState(state, config, runtime) {
+function stepState(state, config, runtime, action) {
   state.tick += 1;
   updateSeason(state, config);
 
@@ -17,7 +17,7 @@ function stepState(state, config, runtime) {
   updateRelationships(state, config);
   handleReproduction(state, config);
 
-  assignJobs(state, config);
+  assignJobs(state, config, action);
 
   for (const dwarf of state.dwarves) {
     processDwarfAction(dwarf, state, config, runtime);
@@ -153,6 +153,7 @@ function handleDeaths(state, config) {
     return;
   }
 
+  state.deathsCount = Number(state.deathsCount || 0) + deadIds.size;
   state.dwarves = state.dwarves.filter((dwarf) => !deadIds.has(dwarf.id));
   state.jobs = state.jobs.filter((job) => !deadIds.has(job.dwarfId));
 
@@ -174,16 +175,22 @@ function handleDeaths(state, config) {
 
 function updateRelationships(state, config) {
   const relationships = (config.population && config.population.relationships) || {};
-  const interactions = Math.max(0, Number(relationships.interactionsPerTick ?? 2));
+  const baseInteractions = Math.max(0, Number(relationships.interactionsPerTick ?? 2));
+  const idleMultiplier = Number(relationships.idleInteractionMultiplier ?? 1);
   const maxDistance = Math.max(0, Number(relationships.maxDistance ?? 6));
   const bondGain = Number(relationships.bondGain ?? 1);
   const bondDecay = Number(relationships.bondDecay ?? 0.2);
   const bondThreshold = Number(relationships.bondThreshold ?? 20);
 
   const adults = state.dwarves.filter((dwarf) => isAdult(dwarf, config));
-  if (adults.length < 2 || interactions === 0) {
+  if (adults.length < 2 || baseInteractions === 0) {
     return;
   }
+
+  const idleAdults = adults.filter((dwarf) => !dwarf.job).length;
+  const idleFraction = adults.length > 0 ? idleAdults / adults.length : 0;
+  const bonusInteractions = Math.round(baseInteractions * idleFraction * idleMultiplier);
+  const interactions = baseInteractions + bonusInteractions;
 
   for (let i = 0; i < interactions; i += 1) {
     const a = adults[Math.floor(Math.random() * adults.length)];
@@ -425,6 +432,7 @@ function spawnNewborn(state, config, parentA, parentB) {
 
   newborn.lifeStage = newborn.ageTicks < Number(aging.adultAge || 0) ? 'child' : 'adult';
   state.dwarves.push(newborn);
+  state.birthsCount = Number(state.birthsCount || 0) + 1;
   pushEvent(state, config, `Birth: ${newborn.id}`);
 }
 
@@ -480,32 +488,51 @@ function consumeResources(dwarf, stockpile, consumption) {
     return;
   }
 
-  const hunger = Number(dwarf.needs.hunger || 0);
-  const thirst = Number(dwarf.needs.thirst || 0);
   const hungerThreshold = Number(consumption.hungerThreshold ?? 0.6);
   const thirstThreshold = Number(consumption.thirstThreshold ?? 0.6);
+  const hungerTarget = Number(consumption.hungerTarget ?? hungerThreshold);
+  const thirstTarget = Number(consumption.thirstTarget ?? thirstThreshold);
+  const maxUnitsPerTick = Math.max(1, Number(consumption.maxUnitsPerTick ?? 1));
   const mealRelief = Number(consumption.mealRelief ?? 0.5);
   const rawFoodRelief = Number(consumption.rawFoodRelief ?? 0.35);
   const boozeRelief = Number(consumption.boozeRelief ?? 0.5);
   const waterRelief = Number(consumption.waterRelief ?? 0.35);
 
+  let hunger = Number(dwarf.needs.hunger || 0);
   if (hunger >= hungerThreshold) {
-    if (Number(stockpile.meal || 0) > 0) {
-      stockpile.meal -= 1;
-      dwarf.needs.hunger = clamp(hunger - mealRelief, 0, 1);
-    } else if (Number(stockpile.food_raw || 0) > 0) {
-      stockpile.food_raw -= 1;
-      dwarf.needs.hunger = clamp(hunger - rawFoodRelief, 0, 1);
+    let units = 0;
+    while (units < maxUnitsPerTick && hunger > hungerTarget) {
+      if (Number(stockpile.meal || 0) > 0) {
+        stockpile.meal -= 1;
+        hunger = clamp(hunger - mealRelief, 0, 1);
+        dwarf.needs.hunger = hunger;
+      } else if (Number(stockpile.food_raw || 0) > 0) {
+        stockpile.food_raw -= 1;
+        hunger = clamp(hunger - rawFoodRelief, 0, 1);
+        dwarf.needs.hunger = hunger;
+      } else {
+        break;
+      }
+      units += 1;
     }
   }
 
+  let thirst = Number(dwarf.needs.thirst || 0);
   if (thirst >= thirstThreshold) {
-    if (Number(stockpile.booze || 0) > 0) {
-      stockpile.booze -= 1;
-      dwarf.needs.thirst = clamp(thirst - boozeRelief, 0, 1);
-    } else if (Number(stockpile.water || 0) > 0) {
-      stockpile.water -= 1;
-      dwarf.needs.thirst = clamp(thirst - waterRelief, 0, 1);
+    let units = 0;
+    while (units < maxUnitsPerTick && thirst > thirstTarget) {
+      if (Number(stockpile.booze || 0) > 0) {
+        stockpile.booze -= 1;
+        thirst = clamp(thirst - boozeRelief, 0, 1);
+        dwarf.needs.thirst = thirst;
+      } else if (Number(stockpile.water || 0) > 0) {
+        stockpile.water -= 1;
+        thirst = clamp(thirst - waterRelief, 0, 1);
+        dwarf.needs.thirst = thirst;
+      } else {
+        break;
+      }
+      units += 1;
     }
   }
 }
@@ -516,14 +543,15 @@ function updateDerivedState(dwarf) {
 
   dwarf.state.morale = clamp(1 - avgNeed, 0, 1);
   dwarf.state.stress = clamp(avgNeed, 0, 1);
-  dwarf.state.fatigue = clamp(Number(dwarf.needs.sleep || 0), 0, 1);
+  dwarf.state.fatigue = clamp(avgNeed, 0, 1);
 }
 
-function assignJobs(state, config) {
+function assignJobs(state, config, action) {
   const idleDwarves = state.dwarves.filter((dwarf) => !dwarf.job && canWork(dwarf, config));
   const resourceConfig = config.resources || {};
   const targets = resourceConfig.targets || resourceConfig.stockpile || {};
-  const shortages = computeShortages(state.stockpile, targets);
+  const weights = getActionWeights(action, config);
+  const shortages = computeShortages(state.stockpile, targets, weights);
   const workshops = (state.structures || []).filter((structure) => structure.type === 'workshop');
   const workshopCapacity = getWorkshopCapacity(config, workshops);
   const workshopUsage = getWorkshopUsage(state.jobs);
@@ -578,7 +606,26 @@ function canWork(dwarf, config) {
   return isAdult(dwarf, config);
 }
 
-function computeShortages(stockpile, targets) {
+function getActionWeights(action, config) {
+  const aiConfig = config.ai || {};
+  const minWeight = Number(aiConfig.minWeight ?? 0);
+  const maxWeight = Number(aiConfig.maxWeight ?? 2);
+  const defaults = aiConfig.defaultWeights || {};
+  const rawWeights = (action && action.weights) || defaults;
+  const weights = {};
+
+  for (const [resource, value] of Object.entries(rawWeights)) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) {
+      continue;
+    }
+    weights[resource] = clamp(numeric, minWeight, maxWeight);
+  }
+
+  return weights;
+}
+
+function computeShortages(stockpile, targets, weights) {
   const shortages = [];
 
   for (const [resource, targetValue] of Object.entries(targets)) {
@@ -591,15 +638,24 @@ function computeShortages(stockpile, targets) {
     const missing = target - current;
 
     if (missing > 0) {
+      const ratio = missing / target;
+      const weightRaw = weights && weights[resource] !== undefined ? weights[resource] : 1;
+      const weight = clamp(Number(weightRaw || 1), 0, Number.POSITIVE_INFINITY);
+      const score = ratio * weight;
       shortages.push({
         resource,
         missing,
-        ratio: missing / target,
+        ratio,
+        weight,
+        score,
       });
     }
   }
 
   shortages.sort((a, b) => {
+    if (b.score !== a.score) {
+      return b.score - a.score;
+    }
     if (b.ratio !== a.ratio) {
       return b.ratio - a.ratio;
     }

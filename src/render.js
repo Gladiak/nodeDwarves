@@ -1,6 +1,6 @@
 'use strict';
 
-const { padRight } = require('./utils');
+const { padRight, clamp } = require('./utils');
 
 function renderFrame(state, config, runtime) {
   const symbols = config.symbols || {};
@@ -82,16 +82,23 @@ function buildFooterLines(config, runtime) {
 
   const width = Number(runtime.totalWidth || runtime.gridWidth || 0);
   const symbols = config.symbols || {};
-  const legendParts = [
-    `${symbols.dwarf || '@'} dwarf`,
-    `${symbols.food_raw || 'f'} food_raw`,
-    `${symbols.water || 'w'} water`,
-    `${symbols.wood || 't'} wood`,
-    `${symbols.stone || 's'} stone`,
-    `${symbols.ore || 'o'} ore`,
-    `${symbols.structure || '#'} structure`,
-    `${symbols.workshop || 'W'} workshop`,
-  ];
+  const legendParts = [];
+  const nodeConfig = (config.resources && config.resources.nodes) || {};
+  const structureConfig = config.structures || {};
+
+  legendParts.push(`${symbols.dwarf || '@'} dwarf`);
+  for (const resource of Object.keys(nodeConfig)) {
+    const symbol = symbols[resource] || resource[0] || '?';
+    legendParts.push(`${symbol} ${resource}`);
+  }
+  for (const [type, definition] of Object.entries(structureConfig)) {
+    const count = Number(definition && definition.count !== undefined ? definition.count : definition);
+    if (!Number.isFinite(count) || count <= 0) {
+      continue;
+    }
+    const symbol = symbols[type] || symbols.structure || '#';
+    legendParts.push(`${symbol} ${type}`);
+  }
 
   const legendLine = `Legend: ${legendParts.join('  ')}`;
   const wrapped = wrapLine(legendLine, width);
@@ -139,21 +146,22 @@ function wrapLine(value, width) {
 function buildHudLines(state, config, runtime) {
   const columns = Math.max(1, Number(runtime.hudColumns || 1));
   const gap = Math.max(0, Number(runtime.hudColumnGap || 2));
+  const columnWidth = getHudColumnWidth(runtime.hudWidth, columns, gap);
 
   if (columns <= 1) {
-    return buildSingleHud(state, config);
+    return buildSingleHud(state, config, columnWidth);
   }
 
-  const { left, right } = buildHudColumns(state, config);
+  const { left, right } = buildHudColumns(state, config, columnWidth);
   return formatColumns([left, right], runtime.hudWidth, columns, gap);
 }
 
-function buildSingleHud(state, config) {
-  const { left, right } = buildHudColumns(state, config);
+function buildSingleHud(state, config, columnWidth) {
+  const { left, right } = buildHudColumns(state, config, columnWidth);
   return left.concat([''], right);
 }
 
-function buildHudColumns(state, config) {
+function buildHudColumns(state, config, columnWidth) {
   const dwarves = state.dwarves;
   const avgNeeds = averageNeeds(dwarves);
   const avgMorale = averageValue(dwarves, (d) => d.state.morale);
@@ -165,6 +173,9 @@ function buildHudColumns(state, config) {
   const seasonLabel = formatSeasonLabel(state.season);
   const lastEvent = formatLastEvent(state.events);
   const stageCounts = countLifeStages(dwarves);
+  const targets = (config.resources && config.resources.targets) || {};
+  const hudConfig = (config.display && config.display.hud) || {};
+  const stockBarMax = Number(hudConfig.stockBarMax || 0);
 
   const left = [];
   left.push(`Tick: ${state.tick}`);
@@ -178,11 +189,13 @@ function buildHudColumns(state, config) {
   left.push(`Jobs: ${state.jobs.length}`);
   left.push(`Priority: ${topPriority}`);
   left.push('');
-  left.push('Avg needs');
+  left.push('Avg hunger/thirst');
 
-  for (const [id, value] of Object.entries(avgNeeds)) {
-    left.push(`${id}: ${value.toFixed(2)}`);
-  }
+  const hungerValue = Number(avgNeeds.hunger ?? 0);
+  const thirstValue = Number(avgNeeds.thirst ?? 0);
+
+  left.push(formatBarLine('Hunger', hungerValue, formatNeedValue(hungerValue), columnWidth));
+  left.push(formatBarLine('Thirst', thirstValue, formatNeedValue(thirstValue), columnWidth));
 
   left.push('');
   left.push(`Morale: ${avgMorale.toFixed(2)}`);
@@ -192,7 +205,11 @@ function buildHudColumns(state, config) {
   right.push('Stockpile');
 
   for (const [id, count] of Object.entries(state.stockpile)) {
-    right.push(`${id}: ${count}`);
+    const target = Number(targets[id] || 0);
+    const maxValue = stockBarMax > 0 ? stockBarMax : target;
+    const ratio = maxValue > 0 ? clamp(Number(count || 0) / maxValue, 0, 1) : 1;
+    const detail = maxValue > 0 ? `${count}/${maxValue}` : String(count);
+    right.push(formatBarLine(id, ratio, detail, columnWidth));
   }
 
   right.push('');
@@ -234,6 +251,54 @@ function formatColumns(columns, totalWidth, columnCount, gap) {
   }
 
   return lines;
+}
+
+function getHudColumnWidth(totalWidth, columnCount, gap) {
+  const usableWidth = Math.max(0, Number(totalWidth || 0));
+  const gapWidth = Math.max(0, Number(gap || 0));
+  const totalGap = gapWidth * (columnCount - 1);
+  const columnWidth = Math.floor((usableWidth - totalGap) / columnCount);
+  return Math.max(0, columnWidth);
+}
+
+function formatNeedValue(value) {
+  const numeric = Number(value || 0);
+  return numeric.toFixed(2);
+}
+
+function formatBarLine(label, ratio, details, columnWidth) {
+  const safeWidth = Math.max(0, Number(columnWidth || 0));
+  if (safeWidth <= 0) {
+    return '';
+  }
+
+  const prefix = `${label}: `;
+  let suffix = details ? ` ${details}` : '';
+  let barWidth = safeWidth - prefix.length - suffix.length - 2;
+
+  if (barWidth < 4 && suffix) {
+    suffix = '';
+    barWidth = safeWidth - prefix.length - 2;
+  }
+
+  if (barWidth < 4) {
+    const fallback = details ? `${label}: ${details}` : `${label}: ${Number(ratio || 0).toFixed(2)}`;
+    return fitLine(fallback, safeWidth);
+  }
+
+  const bar = makeBar(ratio, barWidth);
+  return `${prefix}[${bar}]${suffix}`;
+}
+
+function makeBar(ratio, width) {
+  const safeWidth = Math.max(0, Number(width || 0));
+  if (safeWidth === 0) {
+    return '';
+  }
+  const clamped = clamp(Number(ratio || 0), 0, 1);
+  const filled = Math.round(clamped * safeWidth);
+  const empty = Math.max(0, safeWidth - filled);
+  return `${'#'.repeat(filled)}${'-'.repeat(empty)}`;
 }
 
 function formatSeasonLabel(season) {
