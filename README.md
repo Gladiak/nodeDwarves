@@ -340,12 +340,15 @@ Open a PR or start a discussion with your ideas.
 
 ## Roadmap ideas
 
-- Field labor jobs and irrigation upgrades (maintenance, drought mechanics).
-- Perimeter defenses and safety events.
-- Storage buildings and household stockpiles.
-- Visitor migration, trade, or caravans.
-- Biomes and rare world events (storms, blight, cave-ins).
-- Better village layout (paths, districts, zoning).
+- Climate events (droughts, long winters, heavy rains) with survival impact.
+- Housing maintenance and decay (wood/stone upkeep over time).
+- Storage caps and stockpile prioritization rules.
+- Specialized roles (gatherer, builder, caretaker) with distinct bonuses.
+- Trade visits or caravans to exchange surplus for deficits.
+- Simple disease system tied to crowding and hygiene.
+- Colony morale events that influence productivity and bonding.
+- Terrain types (fertile, arid, rocky) that affect yields.
+- Village security upgrades (perimeters, watchtowers, winter shelters).
 
 ## License
 
