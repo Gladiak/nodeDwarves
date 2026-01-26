@@ -150,7 +150,7 @@
     "house": {
       "count": 0,
       "capacity": 2,
-      "buildTicks": 30,
+      "buildTicks": 25,
       "buildCost": {
         "wood": 6,
         "stone": 4
