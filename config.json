@@ -56,14 +56,15 @@
       "stone": 0.4
     },
     "reward": {
-      "stockpileAvg": 0.6,
-      "stockpileMin": 0.5,
+      "stockpileAvg": 0.3,
+      "stockpileMin": 1.6,
+      "waterStockpile": 2.0,
       "stockpilePopGate": true,
       "survival": 1.2,
-      "populationDelta": 1.6,
-      "populationBalance": 3.2,
+      "populationDelta": 0.5,
+      "populationBalance": 2.0,
       "criticalNeeds": 3.3,
-      "idleAdults": 0.1,
+      "idleAdults": 0.6,
       "death": 7.0,
       "extinction": 320.0
     },
@@ -91,15 +92,15 @@
       "scenarios": [
         {
           "name": "baseline",
-          "weight": 0.3
+          "weight": 0.15
         },
         {
           "name": "water_scarce",
-          "weight": 0.2,
+          "weight": 0.25,
           "overrides": {
             "resources": {
               "nodes": {
-                "water": 10
+                "water": 9
               },
               "nodeCapacity": {
                 "water": 14
@@ -113,22 +114,22 @@
           "overrides": {
             "resources": {
               "nodes": {
-                "food_raw": 16
+                "food_raw": 18
               },
               "nodeCapacity": {
-                "food_raw": 10
+                "food_raw": 12
               }
             }
           }
         },
         {
           "name": "low_stockpile",
-          "weight": 0.15,
+          "weight": 0.2,
           "overrides": {
             "resources": {
               "stockpile": {
-                "food_raw": 20,
-                "water": 20,
+                "food_raw": 18,
+                "water": 18,
                 "wood": 4,
                 "stone": 3
               }
@@ -137,7 +138,7 @@
         },
         {
           "name": "housing_pressure",
-          "weight": 0.15,
+          "weight": 0.2,
           "overrides": {
             "dwarves": {
               "count": 16
@@ -188,7 +189,7 @@
         "workers": 8,
         "logEvery": 1000,
         "evalEvery": 1000,
-        "evalEpisodes": 5,
+        "evalEpisodes": 8,
         "modelPath": "models/policy.json",
         "bestModelPath": "models/policy_best.json",
         "bestModelMetaPath": "models/policy_best.meta.json",

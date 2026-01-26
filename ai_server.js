@@ -348,6 +348,7 @@ function computeReward(prevMetrics, metrics, config) {
   const rewardConfig = (config.ai && config.ai.reward) || {};
   const stockpileAvgWeight = Number(rewardConfig.stockpileAvg ?? 1);
   const stockpileMinWeight = Number(rewardConfig.stockpileMin ?? 0.5);
+  const waterStockpileWeight = Number(rewardConfig.waterStockpile ?? 0);
   const stockpilePopGate = rewardConfig.stockpilePopGate === true;
   const survivalWeight = Number(rewardConfig.survival ?? 0);
   const populationDeltaWeight = Number(rewardConfig.populationDelta ?? 0);
@@ -364,8 +365,10 @@ function computeReward(prevMetrics, metrics, config) {
   const populationFactor = getPopulationFactor(metrics.population.total, config);
   const stockpileFactor = stockpilePopGate ? populationFactor : 1;
 
+  const waterRatio = Number(metrics.stockpileRatio && metrics.stockpileRatio.water || 0);
   const reward = ((metrics.stockpileAvg * stockpileAvgWeight)
-    + (metrics.stockpileMin * stockpileMinWeight)) * stockpileFactor
+    + (metrics.stockpileMin * stockpileMinWeight)
+    + (waterRatio * waterStockpileWeight)) * stockpileFactor
     + (populationFactor * survivalWeight)
     + (populationDelta * populationDeltaWeight)
     + (metrics.populationBalance * populationWeight)

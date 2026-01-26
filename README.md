@@ -135,6 +135,7 @@ AI and training:
 - `ai.defaultWeights.<resource>`: fallback priority weights per resource.
 - `ai.reward.stockpileAvg`: reward contribution for average stockpile ratio.
 - `ai.reward.stockpileMin`: reward contribution for minimum stockpile ratio.
+- `ai.reward.waterStockpile`: extra reward contribution for the water stockpile ratio.
 - `ai.reward.stockpilePopGate`: gate stockpile reward by population factor.
 - `ai.reward.survival`: survival bonus scaled by population factor.
 - `ai.reward.populationDelta`: reward per net population change.
