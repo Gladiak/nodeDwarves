@@ -9,6 +9,8 @@ function createInitialState(config, runtime) {
   const dwarves = createDwarves(config, runtime, occupied);
   const merchant = createMerchantState(config);
   const merchantStats = createMerchantStats();
+  const weather = createWeatherState(config);
+  const houseStorage = createHouseStorageState(config);
 
   return {
     tick: 0,
@@ -17,6 +19,8 @@ function createInitialState(config, runtime) {
     structures,
     merchant,
     merchantStats,
+    weather,
+    houseStorage,
     stockpile: { ...config.resources.stockpile },
     jobs: [],
     jobCounter: 1,
@@ -52,6 +56,36 @@ function createInitialState(config, runtime) {
       blockedChance: 0,
     },
   };
+}
+
+function createWeatherState(config) {
+  const weatherConfig = (config && config.weather) || {};
+  if (weatherConfig.enabled === false) {
+    return null;
+  }
+  const defaultType = weatherConfig.default || 'clear';
+  return {
+    type: String(defaultType),
+    ticksRemaining: 0,
+    duration: 0,
+  };
+}
+
+function createHouseStorageState(config) {
+  const storageConfig = config.structures && config.structures.house
+    ? config.structures.house.storage
+    : null;
+  if (!storageConfig || storageConfig.enabled === false) {
+    return null;
+  }
+  const resources = Array.isArray(storageConfig.resources) ? storageConfig.resources : [];
+  const stored = {};
+  const capacity = {};
+  for (const resource of resources) {
+    stored[resource] = 0;
+    capacity[resource] = 0;
+  }
+  return { stored, capacity };
 }
 
 function createStructures(config, runtime, occupied) {

@@ -25,11 +25,16 @@ FEATURE_NAMES = [
     "populationBalance",
     "seasonIndex",
     "seasonProgress",
+    "weatherSeverity",
+    "weatherTimeLeft",
 ]
 
 DEBUG_LOG_DIRNAME = "debug"
 DEBUG_LOG_EVERY = 500
 DEBUG_LOG_KEEP = 5
+DETAIL_EVAL_REGRESSION_ABS = 25.0
+DETAIL_EVAL_REGRESSION_REL = 0.01
+DETAIL_SCENARIO_SHIFT = 0.2
 
 
 def send(proc, payload):
@@ -150,7 +155,7 @@ def format_debug_file_entry(
     info,
     debug,
     resources,
-    diag_line,
+    events,
 ):
     def fmt(value, digits=2):
         try:
@@ -184,6 +189,7 @@ def format_debug_file_entry(
     crit = debug.get("criticalNeedsFraction", 0.0)
     idle = debug.get("idleAdultsFraction", 0.0)
     scenario_counts = debug.get("scenarioCounts") or {}
+    weather_counts = debug.get("weatherCounts") or {}
 
     def fmt_scenario_lines(counts, total, indent="  "):
         if not counts:
@@ -197,8 +203,10 @@ def format_debug_file_entry(
             lines.append(f"{indent}{str(name).ljust(width)}: {count} ({pct:.1f}%)")
         return lines
 
+    event_label = ", ".join(events) if events else "n/a"
     lines = [
         f"=== episode={episode} window={window_start}-{episode} count={window_count} ===",
+        f"Events: {event_label}",
         "Summary:",
         f"  avg_reward: {fmt(avg_reward)}",
         f"  avg_steps: {fmt(avg_steps, 1)}",
@@ -208,8 +216,12 @@ def format_debug_file_entry(
         f"  difficulty: {fmt(difficulty, 2)}",
         f"  tick: {info.get('tick')}",
         f"  pop: {info.get('population')}",
-        "Scenario mix:",
+        "Weather mix:",
     ]
+    lines.extend(fmt_scenario_lines(weather_counts, window_count, indent="  "))
+    lines.extend([
+        "Scenario mix:",
+    ])
     lines.extend(fmt_scenario_lines(scenario_counts, window_count, indent="  "))
     lines.extend([
         "Stockpile ratios:",
@@ -271,26 +283,86 @@ def format_debug_file_entry(
     return "\n" + "\n".join(lines) + "\n"
 
 
+def format_summary_line(
+    episode,
+    window_start,
+    window_count,
+    avg_reward,
+    avg_steps,
+    avg_births,
+    avg_deaths,
+    lr,
+    difficulty,
+    info,
+    debug,
+    events,
+):
+    def fmt(value, digits=2):
+        try:
+            return f"{float(value):.{digits}f}"
+        except (TypeError, ValueError):
+            return f"{0.0:.{digits}f}"
+
+    stockpile = debug.get("stockpile") or {}
+    weather_counts = debug.get("weatherCounts") or {}
+    scenario_counts = debug.get("scenarioCounts") or {}
+    crit = debug.get("criticalNeedsFraction", 0.0)
+    idle = debug.get("idleAdultsFraction", 0.0)
+    weather_label = format_mix_label(weather_counts, window_count)
+    scenario_label = format_mix_label(scenario_counts, window_count)
+    event_label = ",".join(events) if events else "-"
+
+    return (
+        f"ep={episode} win={window_start}-{episode} count={window_count} "
+        f"avg_reward={fmt(avg_reward)} avg_steps={fmt(avg_steps, 1)} "
+        f"avg_births={fmt(avg_births)} avg_deaths={fmt(avg_deaths)} "
+        f"lr={fmt(lr, 6)} diff={fmt(difficulty, 2)} "
+        f"tick={info.get('tick')} pop={info.get('population')} "
+        f"stock[min={fmt(stockpile.get('minRatio', 0))} avg={fmt(stockpile.get('avgRatio', 0))}] "
+        f"crit={fmt(crit)} idle={fmt(idle)} "
+        f"weather={weather_label} scenario={scenario_label} events={event_label}"
+    )
+
+
+def format_mix_label(counts, total):
+    if not counts or total <= 0:
+        return "n/a"
+    name, count = max(counts.items(), key=lambda item: item[1])
+    pct = count / total * 100.0
+    return f"{name}:{pct:.0f}%"
+
+
+def mix_distance(prev_mix, next_mix):
+    if not prev_mix:
+        return 0.0
+    keys = set(prev_mix.keys()) | set(next_mix.keys())
+    distance = 0.0
+    for key in keys:
+        distance += abs(prev_mix.get(key, 0.0) - next_mix.get(key, 0.0))
+    return 0.5 * distance
+
+
 def get_project_root():
     return os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
 
-def init_debug_log(keep=DEBUG_LOG_KEEP):
+def init_debug_run(keep=DEBUG_LOG_KEEP):
     debug_dir = os.path.join(get_project_root(), DEBUG_LOG_DIRNAME)
     os.makedirs(debug_dir, exist_ok=True)
     timestamp = time.strftime("%Y%m%d_%H%M%S")
-    filename = f"train_{timestamp}_{os.getpid()}.log"
-    path = os.path.join(debug_dir, filename)
-    prune_debug_logs(debug_dir, max(0, keep - 1))
-    return path
+    run_dir = os.path.join(debug_dir, f"run_{timestamp}_{os.getpid()}")
+    prune_debug_runs(debug_dir, max(0, keep - 1))
+    os.makedirs(run_dir, exist_ok=True)
+    summary_path = os.path.join(run_dir, "summary.log")
+    return run_dir, summary_path
 
 
-def prune_debug_logs(debug_dir, keep):
+def prune_debug_runs(debug_dir, keep):
     try:
         entries = []
         for name in os.listdir(debug_dir):
             path = os.path.join(debug_dir, name)
-            if os.path.isfile(path):
+            if os.path.isdir(path) or os.path.isfile(path):
                 try:
                     entries.append((os.path.getmtime(path), path))
                 except OSError:
@@ -299,15 +371,29 @@ def prune_debug_logs(debug_dir, keep):
         while len(entries) > keep:
             _, path = entries.pop(0)
             try:
-                os.remove(path)
+                if os.path.isdir(path):
+                    for root, dirs, files in os.walk(path, topdown=False):
+                        for filename in files:
+                            try:
+                                os.remove(os.path.join(root, filename))
+                            except OSError:
+                                pass
+                        for dirname in dirs:
+                            try:
+                                os.rmdir(os.path.join(root, dirname))
+                            except OSError:
+                                pass
+                    os.rmdir(path)
+                else:
+                    os.remove(path)
             except OSError:
                 pass
     except OSError:
         pass
 
 
-def write_debug_header(handle, args, resources, min_weight, max_weight, scenario_defs, eval_scenarios):
-    handle.write("# NodeDwarves training debug log\n")
+def write_summary_header(handle, args, resources, min_weight, max_weight, scenario_defs, eval_scenarios):
+    handle.write("# NodeDwarves training summary log\n")
     handle.write(f"start_time={time.strftime('%Y-%m-%d %H:%M:%S')}\n")
     handle.write(f"config={args.config}\n")
     handle.write(
@@ -323,8 +409,39 @@ def write_debug_header(handle, args, resources, min_weight, max_weight, scenario
     handle.write(f"resources={' '.join(resources)}\n")
     handle.write(f"scenarios={format_scenario_weights(scenario_defs)}\n")
     handle.write(f"eval_scenarios={' '.join(eval_scenarios) if eval_scenarios else 'n/a'}\n")
-    handle.write(f"log_every_console={args.log_every} log_every_file={DEBUG_LOG_EVERY}\n")
-    handle.write("\n# Legend (all values are averaged over each file window)\n")
+    handle.write(f"log_every_console={args.log_every} log_every_summary={DEBUG_LOG_EVERY}\n")
+    handle.write("\n# Legend (values are averaged over each summary window)\n")
+    handle.write("# ep: end episode of the window.\n")
+    handle.write("# win: window start-end episodes.\n")
+    handle.write("# count: episodes in the window.\n")
+    handle.write("# avg_reward/avg_steps/avg_births/avg_deaths: mean episode metrics.\n")
+    handle.write("# lr: optimizer learning rate at log time.\n")
+    handle.write("# diff: curriculum difficulty factor (0..1).\n")
+    handle.write("# tick/pop: last tick and population seen in the window.\n")
+    handle.write("# stock[min|avg]: min/mean stockpile ratio across resources.\n")
+    handle.write("# crit/idle: critical needs fraction and idle adults fraction.\n")
+    handle.write("# weather/scenario: top label and share in the window.\n")
+    handle.write("# events: notable triggers (best_eval, eval_regression, scenario_shift).\n")
+
+
+def write_detail_header(handle, args, resources, min_weight, max_weight, scenario_defs, eval_scenarios):
+    handle.write("# NodeDwarves training detail log\n")
+    handle.write(f"start_time={time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+    handle.write(f"config={args.config}\n")
+    handle.write(
+        "settings "
+        f"episodes={args.episodes} max_steps={args.max_steps} step_ticks={args.step_ticks} "
+        f"batch_episodes={args.batch_episodes} workers={args.workers} "
+        f"gamma={args.gamma} gae_lambda={args.gae_lambda} clip_range={args.clip_range} "
+        f"entropy_coef={args.entropy_coef} value_coef={args.value_coef} "
+        f"lr={args.lr} lr_final={args.lr_final} "
+        f"difficulty_start={args.difficulty_start} difficulty_end={args.difficulty_end} "
+        f"difficulty_ramp={args.difficulty_ramp} min_weight={min_weight} max_weight={max_weight}\n"
+    )
+    handle.write(f"resources={' '.join(resources)}\n")
+    handle.write(f"scenarios={format_scenario_weights(scenario_defs)}\n")
+    handle.write(f"eval_scenarios={' '.join(eval_scenarios) if eval_scenarios else 'n/a'}\n")
+    handle.write("\n# Legend (all values are averaged over each detail window)\n")
     handle.write("# Summary.avg_reward: mean episode reward in the window.\n")
     handle.write("# Summary.avg_steps: mean episode steps in the window.\n")
     handle.write("# Summary.avg_births: mean births per episode in the window.\n")
@@ -333,6 +450,7 @@ def write_debug_header(handle, args, resources, min_weight, max_weight, scenario
     handle.write("# Summary.difficulty: curriculum difficulty factor (0..1).\n")
     handle.write("# Summary.tick: last tick observed in the window.\n")
     handle.write("# Summary.pop: population at the last tick in the window.\n")
+    handle.write("# Weather mix.<name>: weather counts and share within the window.\n")
     handle.write("# Scenario mix.<name>: scenario counts and share within the window.\n")
     handle.write("# Stockpile.avg: mean of stockpile ratios across resources.\n")
     handle.write("# Stockpile.min: minimum stockpile ratio across resources.\n")
@@ -385,6 +503,7 @@ def init_debug_accumulator():
         "nodes": {},
         "needsAvg": {},
         "scenarios": {},
+        "weather": {},
         "criticalNeedsFraction": 0.0,
         "idleAdultsFraction": 0.0,
     }
@@ -422,6 +541,12 @@ def accumulate_debug(accumulator, info):
         scenario_name = scenario_meta
     if scenario_name:
         accumulator["scenarios"][scenario_name] = accumulator["scenarios"].get(scenario_name, 0) + 1
+    weather = debug.get("weather") or {}
+    weather_type = None
+    if isinstance(weather, dict):
+        weather_type = weather.get("type")
+    if weather_type:
+        accumulator["weather"][weather_type] = accumulator["weather"].get(weather_type, 0) + 1
 
     deaths = debug.get("deaths") or {}
     add_numeric(accumulator["deaths"], "starvation", deaths.get("starvation"))
@@ -507,6 +632,7 @@ def average_debug(accumulator):
         "nodes": avg_map(accumulator["nodes"]),
         "needsAvg": avg_map(accumulator["needsAvg"]),
         "scenarioCounts": dict(accumulator["scenarios"]),
+        "weatherCounts": dict(accumulator["weather"]),
         "criticalNeedsFraction": accumulator.get("criticalNeedsFraction", 0.0) / count,
         "idleAdultsFraction": accumulator.get("idleAdultsFraction", 0.0) / count,
     }
@@ -725,6 +851,9 @@ def build_features(obs, resource, feature_names):
     idle = clamp(float(obs.get("idleAdultsFraction", 0.0)), 0.0, 1.0)
     population_balance = clamp(float(obs.get("populationBalance", 0.0)), 0.0, 1.0)
     season_index, season_progress = season_features(obs.get("season"))
+    weather = obs.get("weather") or {}
+    weather_severity = clamp(float(weather.get("severity", 0.0)), 0.0, 1.0)
+    weather_time_left = clamp(float(weather.get("timeLeft", 0.0)), 0.0, 1.0)
 
     feature_map = {
         "shortage": shortage,
@@ -734,6 +863,8 @@ def build_features(obs, resource, feature_names):
         "populationBalance": population_balance,
         "seasonIndex": season_index,
         "seasonProgress": season_progress,
+        "weatherSeverity": weather_severity,
+        "weatherTimeLeft": weather_time_left,
     }
 
     return [float(feature_map.get(name, 0.0)) for name in feature_names]
@@ -1384,13 +1515,13 @@ def main():
     file_debug_window = init_debug_accumulator()
     file_window_start = 1
     eval_seed_base = (args.seed + 100000) if args.seed else None
-    debug_log_path = init_debug_log()
-    debug_log_handle = None
-    if debug_log_path:
+    debug_run_dir, summary_log_path = init_debug_run()
+    summary_log_handle = None
+    if summary_log_path:
         try:
-            debug_log_handle = open(debug_log_path, "a", encoding="utf-8")
-            write_debug_header(
-                debug_log_handle,
+            summary_log_handle = open(summary_log_path, "a", encoding="utf-8")
+            write_summary_header(
+                summary_log_handle,
                 args,
                 resources,
                 min_weight,
@@ -1398,9 +1529,14 @@ def main():
                 scenario_defs,
                 eval_scenarios,
             )
-            debug_log_handle.flush()
+            summary_log_handle.flush()
         except OSError:
-            debug_log_handle = None
+            summary_log_handle = None
+            debug_run_dir = None
+
+    pending_detail_events = []
+    last_eval_reward = None
+    prev_scenario_mix = None
 
     batch_obs = []
     batch_actions = []
@@ -1589,7 +1725,7 @@ def main():
                     window_start = next_expected + 1
 
                 if (
-                    debug_log_handle
+                    summary_log_handle
                     and (next_expected % DEBUG_LOG_EVERY == 0 or next_expected == args.episodes)
                 ):
                     file_window_count = next_expected - file_window_start + 1
@@ -1598,7 +1734,22 @@ def main():
                     file_avg_births = file_births_window / file_window_count
                     file_avg_deaths = file_deaths_window / file_window_count
                     file_debug = average_debug(file_debug_window) or {}
-                    entry = format_debug_file_entry(
+
+                    events = list(pending_detail_events)
+                    pending_detail_events.clear()
+
+                    scenario_counts = file_debug.get("scenarioCounts") or {}
+                    if scenario_counts and file_window_count > 0:
+                        scenario_mix = {
+                            name: count / file_window_count
+                            for name, count in scenario_counts.items()
+                        }
+                        shift = mix_distance(prev_scenario_mix or {}, scenario_mix)
+                        if shift >= DETAIL_SCENARIO_SHIFT:
+                            events.append(f"scenario_shift={shift:.2f}")
+                        prev_scenario_mix = scenario_mix
+
+                    summary_line = format_summary_line(
                         next_expected,
                         file_window_start,
                         file_window_count,
@@ -1610,11 +1761,46 @@ def main():
                         difficulty,
                         info,
                         file_debug,
-                        resources,
-                        "",
+                        events,
                     )
-                    debug_log_handle.write(entry)
-                    debug_log_handle.flush()
+                    summary_log_handle.write(summary_line + "\n")
+                    summary_log_handle.flush()
+
+                    if events and debug_run_dir:
+                        detail_path = os.path.join(
+                            debug_run_dir,
+                            f"detail_ep{next_expected:05d}.log",
+                        )
+                        try:
+                            with open(detail_path, "w", encoding="utf-8") as detail_handle:
+                                write_detail_header(
+                                    detail_handle,
+                                    args,
+                                    resources,
+                                    min_weight,
+                                    max_weight,
+                                    scenario_defs,
+                                    eval_scenarios,
+                                )
+                                detail_entry = format_debug_file_entry(
+                                    next_expected,
+                                    file_window_start,
+                                    file_window_count,
+                                    file_avg_reward,
+                                    file_avg_steps,
+                                    file_avg_births,
+                                    file_avg_deaths,
+                                    optimizer.param_groups[0]["lr"],
+                                    difficulty,
+                                    info,
+                                    file_debug,
+                                    resources,
+                                    events,
+                                )
+                                detail_handle.write(detail_entry)
+                        except OSError:
+                            pass
+
                     file_reward_window = 0.0
                     file_steps_window = 0
                     file_births_window = 0
@@ -1642,6 +1828,15 @@ def main():
                         f"avg_steps={stats['avg_steps']:.1f} avg_births={stats['avg_births']:.2f} "
                         f"avg_deaths={stats['avg_deaths']:.2f}"
                     )
+                    if last_eval_reward is not None:
+                        drop = last_eval_reward - stats["avg_reward"]
+                        threshold = max(
+                            DETAIL_EVAL_REGRESSION_ABS,
+                            abs(last_eval_reward) * DETAIL_EVAL_REGRESSION_REL,
+                        )
+                        if drop >= threshold:
+                            pending_detail_events.append(f"eval_regression={drop:.2f}")
+                    last_eval_reward = stats["avg_reward"]
                     if args.best_model_path:
                         if best_eval is None or stats["avg_reward"] > best_eval:
                             best_eval = stats["avg_reward"]
@@ -1660,6 +1855,7 @@ def main():
                                 f"best eval episode={next_expected} avg_reward={best_eval:.2f} "
                                 f"saved={args.best_model_path}"
                             )
+                            pending_detail_events.append(f"best_eval={best_eval:.2f}")
 
                 next_expected += 1
     finally:
@@ -1689,9 +1885,9 @@ def main():
             except Exception:
                 pass
             eval_proc.terminate()
-        if debug_log_handle:
+        if summary_log_handle:
             try:
-                debug_log_handle.close()
+                summary_log_handle.close()
             except OSError:
                 pass
 

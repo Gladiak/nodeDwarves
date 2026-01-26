@@ -12,6 +12,8 @@ const DEFAULT_FEATURES = [
   'populationBalance',
   'seasonIndex',
   'seasonProgress',
+  'weatherSeverity',
+  'weatherTimeLeft',
 ];
 
 function loadPolicy(policyPath) {
@@ -169,6 +171,7 @@ function buildObservation(state, config) {
 
   return {
     season: state.season || null,
+    weather: buildWeatherObservation(state, config),
     stockpileRatio,
     nodeRatio: getNodeRatio(state.nodes || []),
     criticalNeedsFraction: getCriticalNeedsFraction(state.dwarves || [], config),
@@ -187,6 +190,9 @@ function buildFeatures(obs, resource, config, featureNames) {
   const populationBalance = clamp(Number(obs.populationBalance || 0), 0, 1);
   const seasonIndex = getSeasonIndex(obs.season, config);
   const seasonProgress = getSeasonProgress(obs.season);
+  const weather = obs.weather || {};
+  const weatherSeverity = clamp(Number(weather.severity || 0), 0, 1);
+  const weatherTimeLeft = clamp(Number(weather.timeLeft || 0), 0, 1);
 
   const featureMap = {
     shortage,
@@ -196,9 +202,40 @@ function buildFeatures(obs, resource, config, featureNames) {
     populationBalance,
     seasonIndex,
     seasonProgress,
+    weatherSeverity,
+    weatherTimeLeft,
   };
 
   return featureNames.map((name) => Number(featureMap[name] ?? 0));
+}
+
+function buildWeatherObservation(state, config) {
+  if (!state || !state.weather || !state.weather.type) {
+    return { type: null, severity: 0, timeLeft: 0 };
+  }
+  const weatherConfig = (config && config.weather) || {};
+  const states = weatherConfig.states || {};
+  const type = state.weather.type;
+  const def = states[type] || {};
+  const configured = Number(def.severity);
+  const severity = Number.isFinite(configured)
+    ? clamp(configured, 0, 1)
+    : getFallbackWeatherSeverity(type);
+  const duration = Number(state.weather.duration || 0);
+  const remaining = Number(state.weather.ticksRemaining || 0);
+  const timeLeft = duration > 0 ? clamp(remaining / duration, 0, 1) : 0;
+  return { type, severity, timeLeft };
+}
+
+function getFallbackWeatherSeverity(type) {
+  const fallback = {
+    clear: 0,
+    rain: 0.35,
+    storm: 0.75,
+    drought: 1,
+    cold: 0.6,
+  };
+  return clamp(Number(fallback[type] || 0), 0, 1);
 }
 
 function getSeasonIndex(season, config) {

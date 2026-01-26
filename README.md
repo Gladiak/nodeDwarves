@@ -10,6 +10,7 @@ alive while you watch the chaos unfold in ASCII.
 - 🧺 Resource economy with food, water, wood, and stone.
 - 🏘️ Village growth: houses (beds), wells (water nodes), fields (food nodes).
 - ❄️ Seasons + housing effects (bonding, winter penalties).
+- 🌦️ Dynamic weather cycle that reshapes needs, gathering, and regeneration.
 - 🎓 PPO training in Python with JS-only inference.
 
 ## Screenshot - How it looks 📸
@@ -28,9 +29,11 @@ alive while you watch the chaos unfold in ASCII.
 - ♻️ Resource nodes have finite capacity and regenerate slowly.
 - 🌾 Fields regenerate based on water availability and seasonal limits.
 - 🌤️ Seasons apply modifiers to needs, gather speed, regen, and reproduction.
+- 🌧️ Weather cycles (clear, rain, storm, drought, cold) add extra modifiers.
 - 👪 Population is dynamic: dwarves age, form bonds, reproduce with gestation, and can die.
 - 🪵🪨 Wood and stone build clustered villages (center-out placement).
 - 🛏️ Housing provides beds; insufficient shelter slows bonding and makes winter harsher.
+- 🧳 A roaming merchant visits periodically, trades surplus for scarce resources, then leaves.
 - 📊 HUD shows averages, bars, priorities, and counts for wells/fields.
 
 ## Job system and priorities ⚙️
@@ -87,8 +90,12 @@ snapshot is saved to `ai.training.trainer.bestModelPath` (default
 `models/policy_best.json`) and its score is tracked in
 `ai.training.trainer.bestModelMetaPath` (default `models/policy_best.meta.json`).
 Training is incremental by default when `ai.training.trainer.resumeFromBest` is
-enabled. Console logs stay compact, while a structured debug log is written to
-`debug/train_*.log` every 500 episodes with a full legend and scenario mix.
+enabled. Console logs stay compact, while a summary log is written to
+`debug/run_*/summary.log` every 500 episodes (one line per window) with a legend.
+Detailed snapshots are written to `debug/run_*/detail_ep*.log` only on notable
+events (best eval, eval regression, scenario shift).
+If you change observation features (e.g. add weather features), training must
+restart with `--fresh`.
 
 ## Configuration 🧰
 
@@ -118,6 +125,7 @@ Display and layout:
 - `display.colors.enabled`: enable ANSI colors in the render.
 - `display.colors.reset`: ANSI reset sequence (defaults to `\u001b[0m`).
 - `display.colors.map.<key>`: ANSI color for an entity key (e.g. `dwarf`, `merchant`, `house`, `food_raw`).
+- `display.colors.map.weather_<type>`: ANSI color for HUD weather labels (e.g. `weather_rain`).
 
 Events:
 
@@ -288,6 +296,13 @@ Structures:
 - `structures.house.upgradeMinHousingRatio`: minimum beds/pop ratio before upgrades begin.
 - `structures.house.upgradeMinHouses`: minimum number of houses before upgrades begin.
 - `structures.house.upgradeMinAdjacency`: minimum adjacent houses required to upgrade.
+- `structures.house.storage.enabled`: enable house storage buffer.
+- `structures.house.storage.resources`: resources buffered in houses.
+- `structures.house.storage.capacityPerLevel.<level>`: storage capacity per house level (per resource).
+- `structures.house.storage.surplusRatio`: move stockpile into storage above this ratio.
+- `structures.house.storage.releaseRatio`: release storage back below this ratio.
+- `structures.house.storage.transferPerTick`: units moved per tick (per resource).
+- `structures.house.storage.decayPerTick.<resource>`: decay rate per tick for stored resources.
 - `structures.well.nodeCapacity`: capacity for water wells (artificial water nodes).
 - `structures.well.maxCount`: limit for how many wells can be built.
 - `structures.well.buildWhenNodeRatioBelow`: build well if water node ratio falls below this.
@@ -311,6 +326,23 @@ Seasons:
 - `seasons.modifiers.<season>.nodeRegen`: node regen multiplier.
 - `seasons.modifiers.<season>.reproductionChance`: reproduction chance multiplier.
 - `seasons.modifiers.<season>.fieldRegen`: extra regen multiplier for fields (food).
+
+Weather:
+
+- `weather.enabled`: enable dynamic weather.
+- `weather.default`: starting weather state.
+- `weather.durationTicks.min`: minimum ticks per weather state.
+- `weather.durationTicks.max`: maximum ticks per weather state.
+- `weather.states.<type>.weight`: base weight when picking the next weather.
+- `weather.states.<type>.severity`: 0..1 severity signal for AI observations.
+- `weather.states.<type>.needDecay`: global need decay multiplier.
+- `weather.states.<type>.needDecayByNeed.<need>`: per-need decay multiplier.
+- `weather.states.<type>.gatherTicks`: gather time multiplier.
+- `weather.states.<type>.gatherYield`: gather yield multiplier.
+- `weather.states.<type>.nodeRegen`: node regeneration multiplier.
+- `weather.states.<type>.fieldRegen`: field regeneration multiplier.
+- `weather.states.<type>.irrigation`: irrigation multiplier.
+- `weather.seasonBias.<season>.<type>`: seasonal weight bias for a weather type.
 
 Needs and consumption:
 

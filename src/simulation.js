@@ -5,14 +5,18 @@ const { clamp } = require('./utils');
 function stepState(state, config, runtime, action) {
   state.tick += 1;
   updateSeason(state, config);
+  updateWeather(state, config);
   const housingPenalty = getWinterHousingPenalty(state, config);
+  const weatherNeedMultiplier = getWeatherModifier(state, config, 'needDecay', 1);
+  const weatherNeedByNeed = getWeatherNeedMultipliers(state, config);
 
   for (const dwarf of state.dwarves) {
     advanceAge(dwarf, config);
     applyNeedDecay(
       dwarf,
       config.needs.decayPerTick || {},
-      getSeasonModifier(state, 'needDecay', 1) * housingPenalty.needDecay,
+      getSeasonModifier(state, 'needDecay', 1) * housingPenalty.needDecay * weatherNeedMultiplier,
+      weatherNeedByNeed,
     );
     consumeResources(dwarf, state.stockpile, config.consumption || {});
     updateDerivedState(dwarf);
@@ -30,6 +34,7 @@ function stepState(state, config, runtime, action) {
   }
 
   updateMerchant(state, config, runtime);
+  updateHouseStorage(state, config);
   regenerateNodes(state, config);
 }
 
@@ -98,6 +103,133 @@ function getSeasonModifier(state, key, fallback) {
   }
   const value = state.season.modifiers[key];
   return Number.isFinite(value) ? Number(value) : safeFallback;
+}
+
+function updateWeather(state, config) {
+  const weatherConfig = (config && config.weather) || {};
+  if (weatherConfig.enabled === false) {
+    state.weather = null;
+    return;
+  }
+
+  if (!state.weather || !state.weather.type) {
+    state.weather = {
+      type: String(weatherConfig.default || 'clear'),
+      ticksRemaining: 0,
+      duration: 0,
+    };
+  }
+
+  const remaining = Number(state.weather.ticksRemaining || 0);
+  if (remaining > 0) {
+    state.weather.ticksRemaining = Math.max(0, remaining - 1);
+    return;
+  }
+
+  const nextType = pickWeatherType(state, config);
+  const duration = getWeatherDuration(weatherConfig, nextType);
+  state.weather = {
+    type: String(nextType || weatherConfig.default || 'clear'),
+    ticksRemaining: duration,
+    duration,
+  };
+  pushEvent(state, config, `Weather: ${formatWeatherName(state.weather.type)}`);
+}
+
+function formatWeatherName(type) {
+  const value = String(type || '');
+  if (!value) {
+    return '-';
+  }
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function getWeatherDefinition(state, config) {
+  const weatherConfig = (config && config.weather) || {};
+  const states = weatherConfig.states || {};
+  if (!state || !state.weather || !state.weather.type) {
+    return null;
+  }
+  return states[state.weather.type] || null;
+}
+
+function getWeatherModifier(state, config, key, fallback) {
+  const safeFallback = Number(fallback || 1);
+  const def = getWeatherDefinition(state, config);
+  if (!def || def[key] === undefined) {
+    return safeFallback;
+  }
+  const value = Number(def[key]);
+  return Number.isFinite(value) ? value : safeFallback;
+}
+
+function getWeatherNeedMultipliers(state, config) {
+  const def = getWeatherDefinition(state, config);
+  const map = def && def.needDecayByNeed;
+  if (!map || typeof map !== 'object') {
+    return null;
+  }
+  const result = {};
+  for (const [need, value] of Object.entries(map)) {
+    const numeric = Number(value);
+    if (Number.isFinite(numeric) && numeric > 0) {
+      result[need] = numeric;
+    }
+  }
+  return Object.keys(result).length > 0 ? result : null;
+}
+
+function pickWeatherType(state, config) {
+  const weatherConfig = (config && config.weather) || {};
+  const states = weatherConfig.states || {};
+  const seasonName = state && state.season ? state.season.name : null;
+  const seasonBias = seasonName && weatherConfig.seasonBias
+    ? (weatherConfig.seasonBias[seasonName] || {})
+    : {};
+  const entries = [];
+  let total = 0;
+
+  for (const [type, def] of Object.entries(states)) {
+    const baseWeight = Number(def && def.weight !== undefined ? def.weight : 1);
+    if (!Number.isFinite(baseWeight) || baseWeight <= 0) {
+      continue;
+    }
+    const bias = Number(seasonBias[type] !== undefined ? seasonBias[type] : 1);
+    const weight = baseWeight * (Number.isFinite(bias) ? bias : 1);
+    if (weight <= 0) {
+      continue;
+    }
+    total += weight;
+    entries.push({ type, weight });
+  }
+
+  if (entries.length === 0 || total <= 0) {
+    return weatherConfig.default || 'clear';
+  }
+
+  const roll = Math.random() * total;
+  let cursor = 0;
+  for (const entry of entries) {
+    cursor += entry.weight;
+    if (roll <= cursor) {
+      return entry.type;
+    }
+  }
+  return entries[entries.length - 1].type;
+}
+
+function getWeatherDuration(weatherConfig, weatherType) {
+  const states = (weatherConfig && weatherConfig.states) || {};
+  const def = states[weatherType] || {};
+  const range = def.durationTicks !== undefined ? def.durationTicks : weatherConfig.durationTicks;
+  const min = Number(range && range.min !== undefined ? range.min : range);
+  const max = Number(range && range.max !== undefined ? range.max : min);
+  if (!Number.isFinite(min) || !Number.isFinite(max)) {
+    return 200;
+  }
+  const low = Math.max(1, Math.min(min, max));
+  const high = Math.max(low, Math.max(min, max));
+  return Math.floor(low + Math.random() * (high - low + 1));
 }
 
 function getHousingStats(state, config) {
@@ -224,11 +356,15 @@ function assignHousing(state, config) {
   }
 }
 
-function applyNeedDecay(dwarf, decay, multiplier) {
-  const scale = Number(multiplier || 1);
+function applyNeedDecay(dwarf, decay, multiplier, perNeedMultiplier) {
+  const baseScale = Number(multiplier || 1);
   // Need values are 0..1 where 0 is satisfied and 1 is critical.
   for (const [need, delta] of Object.entries(decay)) {
     const current = Number(dwarf.needs[need] || 0);
+    const localScale = perNeedMultiplier && perNeedMultiplier[need] !== undefined
+      ? Number(perNeedMultiplier[need] || 1)
+      : 1;
+    const scale = baseScale * localScale;
     dwarf.needs[need] = clamp(current + Number(delta || 0) * scale, 0, 1);
   }
 }
@@ -704,7 +840,8 @@ function regenerateNodes(state, config) {
   }
 
   const multiplier = getSeasonModifier(state, 'nodeRegen', 1);
-  const baseDelta = amount * multiplier;
+  const weatherRegen = getWeatherModifier(state, config, 'nodeRegen', 1);
+  const baseDelta = amount * multiplier * weatherRegen;
   if (baseDelta <= 0) {
     return;
   }
@@ -712,6 +849,7 @@ function regenerateNodes(state, config) {
   const onlyDepleted = regenConfig.onlyDepleted === true;
 
   const fieldSeason = getSeasonModifier(state, 'fieldRegen', 1);
+  const fieldWeather = getWeatherModifier(state, config, 'fieldRegen', 1);
   const fieldIrrigation = getFieldIrrigationMultiplier(state, config);
 
   for (const node of state.nodes) {
@@ -725,7 +863,7 @@ function regenerateNodes(state, config) {
     }
     let nodeDelta = Math.floor(baseDelta);
     if (node.source === 'field') {
-      nodeDelta = Math.round(baseDelta * fieldSeason * fieldIrrigation);
+      nodeDelta = Math.round(baseDelta * fieldSeason * fieldIrrigation * fieldWeather);
     }
     if (nodeDelta <= 0) {
       continue;
@@ -1542,7 +1680,119 @@ function getFieldIrrigationMultiplier(state, config) {
   const high = Math.max(minMultiplier, maxMultiplier);
   const waterRatio = getStockpileRatio(state, config, 'water');
   const ratio = clamp(waterRatio, 0, 1);
-  return low + (high - low) * ratio;
+  const base = low + (high - low) * ratio;
+  const weatherMultiplier = getWeatherModifier(state, config, 'irrigation', 1);
+  return base * weatherMultiplier;
+}
+
+function updateHouseStorage(state, config) {
+  const storageConfig = config.structures && config.structures.house
+    ? config.structures.house.storage
+    : null;
+  if (!storageConfig || storageConfig.enabled === false) {
+    return;
+  }
+  const resources = Array.isArray(storageConfig.resources) ? storageConfig.resources : [];
+  if (resources.length === 0) {
+    return;
+  }
+  const houses = (state.structures || []).filter((structure) => structure.type === 'house');
+  if (!state.houseStorage) {
+    state.houseStorage = { stored: {}, capacity: {} };
+  }
+  const stored = state.houseStorage.stored || {};
+  const capacity = {};
+
+  for (const resource of resources) {
+    capacity[resource] = 0;
+  }
+
+  for (const house of houses) {
+    const level = Math.max(1, Number(house.level || 1));
+    const capPerHouse = getHouseStorageCapacity(storageConfig, level);
+    if (capPerHouse <= 0) {
+      continue;
+    }
+    for (const resource of resources) {
+      capacity[resource] += capPerHouse;
+    }
+  }
+
+  const targets = (config.resources && config.resources.targets) || {};
+  const surplusRatio = Number(storageConfig.surplusRatio ?? 1.05);
+  const releaseRatio = Number(storageConfig.releaseRatio ?? 0.95);
+  const transferPerTick = Math.max(0, Number(storageConfig.transferPerTick ?? 2));
+  const decayRates = storageConfig.decayPerTick || {};
+
+  for (const resource of resources) {
+    const target = Number(targets[resource] || 0);
+    if (target <= 0) {
+      continue;
+    }
+    const maxCap = Math.max(0, Number(capacity[resource] || 0));
+    let storedAmount = Math.max(0, Number(stored[resource] || 0));
+    const stock = Math.max(0, Number(state.stockpile[resource] || 0));
+
+    if (maxCap <= 0) {
+      if (storedAmount > 0) {
+        state.stockpile[resource] = stock + storedAmount;
+      }
+      storedAmount = 0;
+      stored[resource] = storedAmount;
+      continue;
+    }
+
+    if (storedAmount > maxCap) {
+      const overflow = storedAmount - maxCap;
+      state.stockpile[resource] = stock + overflow;
+      storedAmount = maxCap;
+    }
+
+    const ratioRaw = stock / target;
+    if (ratioRaw < releaseRatio) {
+      const deficit = target * releaseRatio - stock;
+      if (deficit > 0 && storedAmount > 0 && transferPerTick > 0) {
+        const releaseAmount = Math.min(deficit, storedAmount, transferPerTick);
+        storedAmount -= releaseAmount;
+        state.stockpile[resource] = stock + releaseAmount;
+      }
+    } else if (ratioRaw > surplusRatio) {
+      const surplus = stock - target * surplusRatio;
+      const availableCap = maxCap - storedAmount;
+      if (surplus > 0 && availableCap > 0 && transferPerTick > 0) {
+        const storeAmount = Math.min(surplus, availableCap, transferPerTick);
+        storedAmount += storeAmount;
+        state.stockpile[resource] = stock - storeAmount;
+      }
+    }
+
+    const decayRate = Number(decayRates[resource] || 0);
+    if (decayRate > 0 && storedAmount > 0) {
+      storedAmount = Math.max(0, storedAmount - storedAmount * decayRate);
+    }
+
+    stored[resource] = storedAmount;
+  }
+
+  state.houseStorage = { stored, capacity };
+}
+
+function getHouseStorageCapacity(storageConfig, level) {
+  if (!storageConfig || typeof storageConfig !== 'object') {
+    return 0;
+  }
+  const capacityPerLevel = storageConfig.capacityPerLevel;
+  if (!capacityPerLevel || typeof capacityPerLevel !== 'object') {
+    return 0;
+  }
+  const key = String(level);
+  if (capacityPerLevel[key] !== undefined) {
+    return Math.max(0, Number(capacityPerLevel[key] || 0));
+  }
+  if (capacityPerLevel.default !== undefined) {
+    return Math.max(0, Number(capacityPerLevel.default || 0));
+  }
+  return 0;
 }
 
 function createStructure(state, config, type, x, y) {
@@ -1823,7 +2073,8 @@ function getGatherTicks(config, resourceId, state) {
   const specific = jobs.gatherTicks && jobs.gatherTicks[resourceId];
   const value = specific !== undefined ? specific : jobs.defaultGatherTicks;
   const base = Math.max(1, Number(value || 6));
-  const multiplier = getSeasonModifier(state, 'gatherTicks', 1);
+  const multiplier = getSeasonModifier(state, 'gatherTicks', 1)
+    * getWeatherModifier(state, config, 'gatherTicks', 1);
   return Math.max(1, Math.round(base * multiplier));
 }
 
@@ -1832,7 +2083,8 @@ function getGatherYield(config, resourceId, node, state) {
   const specific = jobs.gatherYield && jobs.gatherYield[resourceId];
   const value = specific !== undefined ? specific : jobs.defaultGatherYield;
   const baseYield = Math.max(1, Number(value || 1));
-  const multiplier = getSeasonModifier(state, 'gatherYield', 1);
+  const multiplier = getSeasonModifier(state, 'gatherYield', 1)
+    * getWeatherModifier(state, config, 'gatherYield', 1);
   const scaledYield = Math.max(1, Math.round(baseYield * multiplier));
   if (!node) {
     return scaledYield;

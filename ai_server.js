@@ -163,7 +163,18 @@ function buildDebugInfo(state, config, metrics) {
   const irrigationLow = Math.min(minIrrigation, maxIrrigation);
   const irrigationHigh = Math.max(minIrrigation, maxIrrigation);
   const waterRatio = getStockpileRatio(state, config, 'water');
-  const irrigationMultiplier = irrigationLow + (irrigationHigh - irrigationLow) * clamp(waterRatio, 0, 1);
+  const weatherConfig = config.weather || {};
+  const weatherStates = weatherConfig.states || {};
+  const weatherType = state.weather && state.weather.type ? state.weather.type : null;
+  const weatherDef = weatherType ? (weatherStates[weatherType] || {}) : {};
+  const weatherIrrigationRaw = Number(weatherDef.irrigation ?? 1);
+  const weatherFieldRegenRaw = Number(weatherDef.fieldRegen ?? 1);
+  const weatherNodeRegenRaw = Number(weatherDef.nodeRegen ?? 1);
+  const weatherIrrigation = Number.isFinite(weatherIrrigationRaw) ? weatherIrrigationRaw : 1;
+  const weatherFieldRegen = Number.isFinite(weatherFieldRegenRaw) ? weatherFieldRegenRaw : 1;
+  const weatherNodeRegen = Number.isFinite(weatherNodeRegenRaw) ? weatherNodeRegenRaw : 1;
+  const irrigationBase = irrigationLow + (irrigationHigh - irrigationLow) * clamp(waterRatio, 0, 1);
+  const irrigationMultiplier = irrigationBase * weatherIrrigation;
   const fieldSeasonMultiplier = getSeasonValue(state, 'fieldRegen', 1);
   const fieldNodes = (state.nodes || []).filter((node) => node.source === 'field' && node.id === 'food_raw');
   const fieldNodeRatio = getNodeRatioForNodes(fieldNodes);
@@ -222,8 +233,15 @@ function buildDebugInfo(state, config, metrics) {
       waterRatio: Number(waterRatio || 0),
       irrigationMultiplier: Number(irrigationMultiplier || 0),
       seasonMultiplier: Number(fieldSeasonMultiplier || 0),
-      regenMultiplier: Number(irrigationMultiplier * fieldSeasonMultiplier || 0),
+      regenMultiplier: Number(irrigationMultiplier * fieldSeasonMultiplier * weatherFieldRegen * weatherNodeRegen || 0),
     },
+    weather: state.weather
+      ? {
+        type: state.weather.type,
+        remaining: Number(state.weather.ticksRemaining || 0),
+        duration: Number(state.weather.duration || 0),
+      }
+      : null,
     merchant: {
       tradesPerTick: Number(merchantTradesPerTick || 0),
       givenPerTick: merchantGivenPerTick,
@@ -285,10 +303,51 @@ function getNodeRatioForNodes(nodes) {
   return clamp(totalRemaining / totalCapacity, 0, 1);
 }
 
+function getWeatherSeverity(state, config) {
+  if (!state || !state.weather || !state.weather.type) {
+    return 0;
+  }
+  const weatherConfig = (config && config.weather) || {};
+  const states = weatherConfig.states || {};
+  const type = state.weather.type;
+  const def = states[type] || {};
+  const configured = Number(def.severity);
+  if (Number.isFinite(configured)) {
+    return clamp(configured, 0, 1);
+  }
+  const fallback = {
+    clear: 0,
+    rain: 0.35,
+    storm: 0.75,
+    drought: 1,
+    cold: 0.6,
+  };
+  return clamp(Number(fallback[type] || 0), 0, 1);
+}
+
+function getWeatherTimeLeft(state) {
+  if (!state || !state.weather) {
+    return 0;
+  }
+  const duration = Number(state.weather.duration || 0);
+  if (duration <= 0) {
+    return 0;
+  }
+  const remaining = Number(state.weather.ticksRemaining || 0);
+  return clamp(remaining / duration, 0, 1);
+}
+
 function buildObservation(state, config, metrics) {
+  const weatherSeverity = getWeatherSeverity(state, config);
+  const weatherTimeLeft = getWeatherTimeLeft(state);
   return {
     tick: state.tick,
     season: state.season || null,
+    weather: {
+      type: state.weather ? state.weather.type : null,
+      severity: weatherSeverity,
+      timeLeft: weatherTimeLeft,
+    },
     population: metrics.population,
     stockpile: { ...state.stockpile },
     targets: { ...((config.resources && config.resources.targets) || {}) },

@@ -222,10 +222,12 @@ function buildHudColumns(state, config, columnWidth) {
   const targets = (config.resources && config.resources.targets) || {};
   const hudConfig = (config.display && config.display.hud) || {};
   const stockBarMax = Number(hudConfig.stockBarMax || 0);
+  const colors = getColorConfig(config);
 
   const left = [];
   left.push(`Tick: ${state.tick}`);
   left.push(`Year ${yearLabel}, Season ${seasonLabel}`);
+  left.push(`Weather: ${formatWeatherStatus(state.weather, colors)}`);
   left.push(`Event: ${lastEvent}`);
   left.push(`Merchant: ${formatMerchantStatus(state.merchant)}`);
   left.push(`Pop: ${dwarves.length} (C:${stageCounts.child}/A:${stageCounts.adult}/E:${stageCounts.elder})`);
@@ -257,6 +259,26 @@ function buildHudColumns(state, config, columnWidth) {
     const ratio = maxValue > 0 ? clamp(Number(count || 0) / maxValue, 0, 1) : 1;
     const detail = maxValue > 0 ? `${count}/${maxValue}` : String(count);
     right.push(formatBarLine(id, ratio, detail, columnWidth));
+  }
+
+  const storage = state.houseStorage;
+  if (storage && storage.stored) {
+    right.push('');
+    right.push('House storage');
+
+    const entries = Object.entries(storage.stored);
+    if (entries.length === 0) {
+      right.push('-');
+    } else {
+      for (const [id, count] of entries) {
+        const capacity = Number(storage.capacity && storage.capacity[id] !== undefined
+          ? storage.capacity[id]
+          : 0);
+        const ratio = capacity > 0 ? clamp(Number(count || 0) / capacity, 0, 1) : 0;
+        const detail = capacity > 0 ? `${count}/${capacity}` : String(count || 0);
+        right.push(formatBarLine(id, ratio, detail, columnWidth));
+      }
+    }
   }
 
   right.push('');
@@ -417,6 +439,37 @@ function formatMerchantStatus(merchant) {
     return 'trading';
   }
   return String(merchant.phase);
+}
+
+function formatWeatherStatus(weather, colors) {
+  if (!weather || !weather.type) {
+    return '-';
+  }
+  const type = String(weather.type);
+  const label = formatWeatherLabel(type);
+  const colored = applyColor(label, `weather_${type}`, colors);
+  const remaining = Number(weather.ticksRemaining || 0);
+  if (remaining > 0) {
+    return `${colored} (${remaining}t)`;
+  }
+  return colored;
+}
+
+function formatWeatherLabel(type) {
+  const labels = {
+    clear: 'Clear',
+    rain: 'Rain',
+    storm: 'Storm',
+    drought: 'Drought',
+    cold: 'Cold',
+  };
+  if (labels[type]) {
+    return labels[type];
+  }
+  if (!type) {
+    return '-';
+  }
+  return type.charAt(0).toUpperCase() + type.slice(1);
 }
 
 function getColorConfig(config) {
