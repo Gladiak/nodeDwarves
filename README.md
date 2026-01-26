@@ -4,45 +4,45 @@ An autonomous, gamey dwarf colony simulation that lives entirely in your termina
 No player input after launch: the colony gathers, adapts, and tries to keep itself
 alive while you watch the chaos unfold in ASCII.
 
-## Highlights
+## Highlights ✨
 
-- Fully autonomous simulation with a real-time ASCII renderer.
-- Resource economy with food, water, wood, and stone.
-- Village growth: houses (beds), wells (water nodes), fields (food nodes).
-- Seasons + housing effects (bonding, winter penalties).
-- PPO training in Python with JS-only inference.
+- 🧠 Fully autonomous simulation with a real-time ASCII renderer.
+- 🧺 Resource economy with food, water, wood, and stone.
+- 🏘️ Village growth: houses (beds), wells (water nodes), fields (food nodes).
+- ❄️ Seasons + housing effects (bonding, winter penalties).
+- 🎓 PPO training in Python with JS-only inference.
 
-## Screenshot - How it looks
+## Screenshot - How it looks 📸
 
 ![NodeDwarves simulation](assets/NodeDwarves.gif)
 
-## Simulation overview
+## Simulation overview 🗺️
 
-- The world is a fixed-size ASCII grid with resource nodes, structures, and dwarves.
-- Each tick:
+- 🗺️ The world is a fixed-size ASCII grid with resource nodes, structures, and dwarves.
+- ⏱️ Each tick:
   1. Dwarves accumulate needs (hunger, thirst).
   2. Resources are consumed when needs cross thresholds.
   3. Shortages are computed vs target stockpile levels.
   4. Jobs are assigned based on the largest shortages.
   5. Dwarves move to targets, work, and update stockpiles.
-- Resource nodes have finite capacity and regenerate slowly.
-- Fields regenerate based on water availability and seasonal limits.
-- Seasons apply modifiers to needs, gather speed, regen, and reproduction.
-- Population is dynamic: dwarves age, form bonds, reproduce with gestation, and can die.
-- Wood and stone build clustered villages (center-out placement).
-- Housing provides beds; insufficient shelter slows bonding and makes winter harsher.
-- HUD shows averages, bars, priorities, and counts for wells/fields.
+- ♻️ Resource nodes have finite capacity and regenerate slowly.
+- 🌾 Fields regenerate based on water availability and seasonal limits.
+- 🌤️ Seasons apply modifiers to needs, gather speed, regen, and reproduction.
+- 👪 Population is dynamic: dwarves age, form bonds, reproduce with gestation, and can die.
+- 🪵🪨 Wood and stone build clustered villages (center-out placement).
+- 🛏️ Housing provides beds; insufficient shelter slows bonding and makes winter harsher.
+- 📊 HUD shows averages, bars, priorities, and counts for wells/fields.
 
-## Job system and priorities
+## Job system and priorities ⚙️
 
-- Shortages are sorted by severity (missing/target ratio).
-- If a resource has nodes on the map, a gather job is created.
-- Crafting is disabled for now; gathering covers food, water, wood, and stone.
-- House construction jobs spawn when housing is below the target ratio and vital stockpiles are healthy.
-- Wells are built when water stocks or water node reserves dip below thresholds.
-- Fields are built when food stocks or food node reserves dip below thresholds and baseline stockpiles are safe.
+- 🧭 Shortages are sorted by severity (missing/target ratio).
+- ⛏️ If a resource has nodes on the map, a gather job is created.
+- 🚫 Crafting is disabled for now; gathering covers food, water, wood, and stone.
+- 🏠 House construction jobs spawn when housing is below the target ratio and vital stockpiles are healthy.
+- 💧 Wells are built when water stocks or water node reserves dip below thresholds.
+- 🌱 Fields are built when food stocks or food node reserves dip below thresholds and baseline stockpiles are safe.
 
-## Quick start
+## Quick start 🚀
 
 Make sure you have Node.js and Python 3 installed.
 
@@ -51,31 +51,31 @@ npm install
 npm start
 ```
 
-## AI mode (Python)
+## AI mode (Python) 🤖
 
 The AI lives in Python (PyTorch PPO) and talks to the simulation over
 stdin/stdout JSON lines. Training uses a 2x128 MLP and exports JSON weights
 so inference stays in JS.
 
-Bootstrap the Python venv + deps (recommended once):
+Bootstrap the Python venv + deps (recommended once) 🧪:
 
 ```bash
 npm run ai:bootstrap
 ```
 
-Run training:
+Run training 🧑‍🏫:
 
 ```bash
 npm run ai:train
 ```
 
-If you change resources or action space, reset the policy files:
+If you change resources or action space, reset the policy files ♻️:
 
 ```bash
 npm run ai:train:fresh
 ```
 
-Run the visual simulation with the trained policy:
+Run the visual simulation with the trained policy 🕹️:
 
 ```bash
 npm run ai:play
@@ -90,12 +90,12 @@ Training is incremental by default when `ai.training.trainer.resumeFromBest` is
 enabled. Console logs stay compact, while a structured debug log is written to
 `debug/train_*.log` every 500 episodes with a full legend and scenario mix.
 
-## Configuration
+## Configuration 🧰
 
 All core knobs live in `config.json`. The training loop reads defaults from
 `ai.training.trainer` and CLI flags can override any of them.
 
-### Parameter reference
+### Parameter reference 🧾
 
 Display and layout:
 
@@ -193,7 +193,7 @@ Simulation:
 
 - `simulation.maxTicks`: hard stop for visible simulation (0 = no limit).
 
-### Scenario presets (training)
+### Scenario presets (training) 🎯
 
 Scenario presets let training sample hard situations on purpose (e.g. water
 scarcity, low stockpiles). Each preset is a config override merged into the
@@ -335,13 +335,13 @@ Symbols:
 - `symbols.well`: well symbol.
 - `symbols.field`: field symbol.
 
-## ASCII legend
+## ASCII legend 🧷
 
 The legend is printed below the map in the footer. Symbols are configurable in
 `config.json` under `symbols`.
 When house levels are enabled, houses render as digits `1` to `5` instead of `symbols.house`.
 
-## Project layout
+## Project layout 🧱
 
 ```text
 .
@@ -368,7 +368,7 @@ When house levels are enabled, houses render as digits `1` to `5` instead of `sy
     └── utils.js                  # Shared helpers
 ```
 
-## Collaborate with us
+## Collaborate with us 🤝
 
 Want to help push this experiment forward? We would love contributors who are
 into simulation design, AI training loops, and terminal UX.
@@ -381,7 +381,7 @@ Ways to jump in:
 
 Open a PR or start a discussion with your ideas.
 
-## Roadmap ideas
+## Roadmap ideas 🧭
 
 - Climate events (droughts, long winters, heavy rains) with survival impact.
 - Housing maintenance and decay (wood/stone upkeep over time).
@@ -392,6 +392,6 @@ Open a PR or start a discussion with your ideas.
 - Terrain types (fertile, arid, rocky) that affect yields.
 - Village security upgrades (perimeters, watchtowers, winter shelters).
 
-## License
+## License 📄
 
 MIT
