@@ -21,6 +21,29 @@ function createInitialState(config, runtime) {
     events: [],
     birthsCount: 0,
     deathsCount: 0,
+    deathsByCause: {
+      starvation: 0,
+      oldAge: 0,
+    },
+    reproductionStats: {
+      ticks: 0,
+      couples: 0,
+      fertileAdults: 0,
+      pregnancies: 0,
+      cooldowns: 0,
+      resourceFactorSum: 0,
+      crowdingFactorSum: 0,
+      moraleFactorSum: 0,
+      seasonFactorSum: 0,
+      chanceSum: 0,
+      attempts: 0,
+      successes: 0,
+      blockedInfertile: 0,
+      blockedPregnant: 0,
+      blockedCooldown: 0,
+      blockedNoResources: 0,
+      blockedChance: 0,
+    },
   };
 }
 

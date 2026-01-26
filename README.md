@@ -99,7 +99,8 @@ python python/train.py --fresh
 
 `--fresh` deletes the existing policy files (`modelPath`, `bestModelPath`,
 `bestModelMetaPath`) before training.
-Training runs on CPU for stability.
+Training runs on CPU for stability. You can enable parallel rollouts with
+`ai.training.trainer.workers`.
 
 Curriculum training (strong scarcity + randomization) is enabled by default.
 You can tune it with CLI flags like `--difficulty-start`, `--difficulty-end`,
@@ -209,6 +210,7 @@ AI and training:
 - `ai.training.trainer.activation`: hidden-layer activation (`tanh` or `relu`).
 - `ai.training.trainer.logStdInit`: initial log-std for action sampling.
 - `ai.training.trainer.maxGradNorm`: gradient norm clip.
+- `ai.training.trainer.workers`: number of parallel rollout workers.
 - `ai.training.trainer.logEvery`: episodes between training logs.
 - `ai.training.trainer.evalEvery`: episodes between evaluation runs.
 - `ai.training.trainer.evalEpisodes`: evaluation episode count.

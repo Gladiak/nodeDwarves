@@ -3,11 +3,11 @@
   "version": "1.0.0",
   "main": "app.js",
   "scripts": {
-    "ai:bootstrap": "python3 -m venv .venv && ./.venv/bin/python -m pip install -U pip setuptools wheel && ./.venv/bin/python -m pip install -U torch",
+    "ai:bootstrap": "python3 -m venv .venv && ./.venv/bin/python -m pip install -U pip setuptools wheel && ./.venv/bin/python -m pip install -U torch numpy",
     "ai:agent": "npm run ai:bootstrap --silent && ./.venv/bin/python python/agent.py",
     "ai:play": "node app.js --ai models/policy_best.json",
     "ai:server": "node ai_server.js",
-    "ai:train": "npm run ai:bootstrap --silent && ./.venv/bin/python python/train.py",
+    "ai:train": "npm run ai:bootstrap --silent && ./.venv/bin/python python/train.py --workers 8",
     "start": "node app.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },

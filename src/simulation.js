@@ -127,6 +127,7 @@ function handleDeaths(state, config) {
 
     if (dwarf.starvationTicks >= starvationTicks) {
       deadIds.add(dwarf.id);
+      state.deathsByCause.starvation = Number(state.deathsByCause.starvation || 0) + 1;
       deathMessages.push(`Death: ${dwarf.id} (starvation)`);
       continue;
     }
@@ -134,6 +135,7 @@ function handleDeaths(state, config) {
     const ageTicks = Number(dwarf.ageTicks || 0);
     if (Number.isFinite(maxAge) && ageTicks >= maxAge) {
       deadIds.add(dwarf.id);
+      state.deathsByCause.oldAge = Number(state.deathsByCause.oldAge || 0) + 1;
       deathMessages.push(`Death: ${dwarf.id} (old age)`);
       continue;
     }
@@ -144,6 +146,7 @@ function handleDeaths(state, config) {
       const chance = clamp(chanceMin + progress * (chanceMax - chanceMin), 0, 1);
       if (Math.random() < chance) {
         deadIds.add(dwarf.id);
+        state.deathsByCause.oldAge = Number(state.deathsByCause.oldAge || 0) + 1;
         deathMessages.push(`Death: ${dwarf.id} (old age)`);
       }
     }
@@ -273,11 +276,17 @@ function processBirths(state, config, reproduction) {
 
 function attemptConceptions(state, config, reproduction) {
   const baseChance = Number(reproduction.baseChance ?? 0.001);
+  const stats = state.reproductionStats || {};
   if (baseChance <= 0) {
     return;
   }
 
   const couples = collectCouples(state);
+  stats.ticks = Number(stats.ticks || 0) + 1;
+  stats.couples = Number(stats.couples || 0) + couples.length;
+  stats.fertileAdults = Number(stats.fertileAdults || 0) + countFertileAdults(state, config);
+  stats.pregnancies = Number(stats.pregnancies || 0) + countPregnancies(state.dwarves);
+  stats.cooldowns = Number(stats.cooldowns || 0) + countCooldowns(state.dwarves);
   if (couples.length === 0) {
     return;
   }
@@ -287,6 +296,11 @@ function attemptConceptions(state, config, reproduction) {
   const moraleFactor = getMoraleFactor(state, reproduction);
   const seasonFactor = getSeasonModifier(state, 'reproductionChance', 1);
   const chance = clamp(baseChance * resourceFactor * crowdingFactor * moraleFactor * seasonFactor, 0, 1);
+  stats.resourceFactorSum = Number(stats.resourceFactorSum || 0) + resourceFactor;
+  stats.crowdingFactorSum = Number(stats.crowdingFactorSum || 0) + crowdingFactor;
+  stats.moraleFactorSum = Number(stats.moraleFactorSum || 0) + moraleFactor;
+  stats.seasonFactorSum = Number(stats.seasonFactorSum || 0) + seasonFactor;
+  stats.chanceSum = Number(stats.chanceSum || 0) + chance;
 
   if (chance <= 0) {
     return;
@@ -294,29 +308,66 @@ function attemptConceptions(state, config, reproduction) {
 
   for (const [a, b] of couples) {
     if (!isFertileAdult(a, config) || !isFertileAdult(b, config)) {
+      stats.blockedInfertile = Number(stats.blockedInfertile || 0) + 1;
       continue;
     }
     if (a.pregnancy || b.pregnancy) {
+      stats.blockedPregnant = Number(stats.blockedPregnant || 0) + 1;
       continue;
     }
     if (Number(a.fertilityCooldown || 0) > 0 || Number(b.fertilityCooldown || 0) > 0) {
+      stats.blockedCooldown = Number(stats.blockedCooldown || 0) + 1;
       continue;
     }
 
     const birthCost = reproduction.birthCost || {};
     if (!hasInputs(state.stockpile, birthCost)) {
+      stats.blockedNoResources = Number(stats.blockedNoResources || 0) + 1;
       continue;
     }
 
+    stats.attempts = Number(stats.attempts || 0) + 1;
     if (Math.random() >= chance) {
+      stats.blockedChance = Number(stats.blockedChance || 0) + 1;
       continue;
     }
 
+    stats.successes = Number(stats.successes || 0) + 1;
     consumeInputs(state.stockpile, birthCost);
     const carrier = Math.random() < 0.5 ? a : b;
     const dueTick = state.tick + Math.max(1, Number(reproduction.gestationTicks ?? 80));
     carrier.pregnancy = { dueTick, partnerId: carrier === a ? b.id : a.id };
   }
+}
+
+function countFertileAdults(state, config) {
+  let count = 0;
+  for (const dwarf of state.dwarves) {
+    if (isFertileAdult(dwarf, config)) {
+      count += 1;
+    }
+  }
+  return count;
+}
+
+function countPregnancies(dwarves) {
+  let count = 0;
+  for (const dwarf of dwarves) {
+    if (dwarf.pregnancy) {
+      count += 1;
+    }
+  }
+  return count;
+}
+
+function countCooldowns(dwarves) {
+  let count = 0;
+  for (const dwarf of dwarves) {
+    if (Number(dwarf.fertilityCooldown || 0) > 0) {
+      count += 1;
+    }
+  }
+  return count;
 }
 
 function collectCouples(state) {

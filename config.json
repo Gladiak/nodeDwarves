@@ -45,7 +45,7 @@
       "stockpileMin": 0.2,
       "stockpilePopGate": true,
       "survival": 1.0,
-      "populationDelta": 2.0,
+      "populationDelta": 2.5,
       "populationBalance": 3.2,
       "criticalNeeds": 3.3,
       "idleAdults": 0.1,
@@ -90,6 +90,7 @@
         "activation": "tanh",
         "logStdInit": -0.5,
         "maxGradNorm": 0.5,
+        "workers": 8,
         "logEvery": 500,
         "evalEvery": 500,
         "evalEpisodes": 5,
@@ -118,14 +119,14 @@
     },
     "defaultNodeCapacity": 12,
     "nodeCapacity": {
-      "food_raw": 10,
-      "water": 16
+      "food_raw": 11,
+      "water": 18
     },
     "removeDepletedNodes": false,
     "nodeRegen": {
       "enabled": true,
       "intervalTicks": 40,
-      "amount": 1,
+      "amount": 2,
       "onlyDepleted": false
     },
     "nodes": {
@@ -140,10 +141,10 @@
     },
     "aging": {
       "adultAge": 150,
-      "fertileStart": 170,
-      "fertileEnd": 2200,
-      "oldAgeStart": 2600,
-      "maxAge": 3400
+      "fertileStart": 150,
+      "fertileEnd": 3200,
+      "oldAgeStart": 3200,
+      "maxAge": 4600
     },
     "relationships": {
       "interactionsPerTick": 4,
@@ -151,18 +152,18 @@
       "maxDistance": 8,
       "bondGain": 1.3,
       "bondDecay": 0.12,
-      "bondThreshold": 14
+      "bondThreshold": 12
     },
     "reproduction": {
       "enabled": true,
       "gestationTicks": 50,
-      "baseChance": 0.004,
+      "baseChance": 0.005,
       "cooldownTicks": 90,
       "resourcePerCapita": {
         "food_raw": 1.2,
         "water": 1.2
       },
-      "softCap": 26,
+      "softCap": 38,
       "crowdingMinFactor": 0.4,
       "moraleInfluence": 0.35,
       "birthCost": {
@@ -174,7 +175,7 @@
       "starvationThreshold": 0.9,
       "starvationTicks": 60,
       "oldAgeChanceMin": 0.0001,
-      "oldAgeChanceMax": 0.003
+      "oldAgeChanceMax": 0.0018
     }
   },
   "seasons": {
