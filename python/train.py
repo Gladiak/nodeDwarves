@@ -57,6 +57,21 @@ def inference_mode():
     return torch.no_grad()
 
 
+def configure_torch_threads(default_threads=2, default_interop=1):
+    threads_env = os.getenv("TORCH_NUM_THREADS")
+    interop_env = os.getenv("TORCH_NUM_INTEROP_THREADS")
+    try:
+        threads = int(threads_env) if threads_env is not None else default_threads
+        torch.set_num_threads(max(1, threads))
+    except (TypeError, ValueError, RuntimeError):
+        pass
+    try:
+        interop = int(interop_env) if interop_env is not None else default_interop
+        torch.set_num_interop_threads(max(1, interop))
+    except (TypeError, ValueError, RuntimeError):
+        pass
+
+
 def format_debug(info, resources):
     debug = info.get("debug") or {}
     if not debug:
@@ -952,24 +967,50 @@ def load_model_payload(model, payload):
         model.log_std.data.copy_(torch.tensor(log_std, dtype=torch.float32, device=model.log_std.device))
 
 
+def queue_get_nowait(queue_obj):
+    if hasattr(queue_obj, "get_nowait"):
+        return queue_obj.get_nowait()
+    reader = getattr(queue_obj, "_reader", None)
+    if reader and hasattr(reader, "poll"):
+        if not reader.poll(0):
+            raise queue.Empty
+        return queue_obj.get()
+    raise queue.Empty
+
+
+def queue_put_nowait(queue_obj, payload):
+    if hasattr(queue_obj, "put_nowait"):
+        return queue_obj.put_nowait(payload)
+    return queue_obj.put(payload)
+
+
 def drain_queue(queue_obj):
     latest = None
     try:
         while True:
-            latest = queue_obj.get_nowait()
+            latest = queue_get_nowait(queue_obj)
     except queue.Empty:
         pass
     return latest
 
 
-def broadcast_weights(queues, payload):
-    for queue_obj in queues:
+def broadcast_weights(queues, payload, processes=None):
+    for idx, queue_obj in enumerate(queues):
+        if processes and idx < len(processes):
+            try:
+                if not processes[idx].is_alive():
+                    continue
+            except Exception:
+                pass
         try:
             while True:
-                queue_obj.get_nowait()
+                queue_get_nowait(queue_obj)
         except queue.Empty:
             pass
-        queue_obj.put(payload)
+        try:
+            queue_put_nowait(queue_obj, payload)
+        except (BrokenPipeError, EOFError, OSError, queue.Full):
+            pass
 
 
 def worker_loop(worker_id, task_queue, result_queue, update_queue, resources, settings):
@@ -1660,6 +1701,7 @@ def load_policy(path, model):
 
 def main():
     args = parse_args()
+    configure_torch_threads()
     if args.seed:
         random.seed(args.seed)
         torch.manual_seed(args.seed)
@@ -1776,9 +1818,14 @@ def main():
 
     worker_count = max(1, int(args.workers))
     ctx = mp.get_context("spawn")
-    task_queue = ctx.Queue()
-    result_queue = ctx.Queue()
-    update_queues = [ctx.Queue() for _ in range(worker_count)]
+    task_queue = ctx.SimpleQueue()
+    result_queue = ctx.SimpleQueue()
+    update_queues = [ctx.Queue(maxsize=1) for _ in range(worker_count)]
+    for queue_obj in update_queues:
+        try:
+            queue_obj._ignore_epipe = True
+        except Exception:
+            pass
 
     worker_settings = {
         "max_steps": args.max_steps,
@@ -1806,7 +1853,7 @@ def main():
         process.start()
         processes.append(process)
 
-    broadcast_weights(update_queues, get_model_payload(model))
+    broadcast_weights(update_queues, get_model_payload(model), processes)
 
     eval_proc = None
     if args.eval_every > 0:
@@ -1927,7 +1974,7 @@ def main():
                     batch_rewards.clear()
                     batch_values.clear()
                     batch_episode_count = 0
-                    broadcast_weights(update_queues, get_model_payload(model))
+                    broadcast_weights(update_queues, get_model_payload(model), processes)
 
                 if args.lr_final is not None:
                     lr_progress = next_expected / max(1, args.episodes)

@@ -70,6 +70,9 @@ Run training 🧑‍🏫:
 
 ```bash
 npm run ai:train
+
+npm run ai:train -- --episodes 5000
+
 ```
 
 You can stop training with Ctrl+C to terminate the run.
