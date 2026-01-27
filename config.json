@@ -88,7 +88,16 @@
       "enabled": true,
       "difficultyStart": 0.08,
       "difficultyEnd": 1.0,
-      "difficultyRampEpisodes": 50000,
+      "difficultyRampEpisodes": 60000,
+      "scenarioSampling": {
+        "mode": "adaptive",
+        "updateEvery": 1500,
+        "emaAlpha": 0.15,
+        "boost": 1.05,
+        "exponent": 1.1,
+        "minWeightRatio": 0.6,
+        "maxWeightRatio": 1.6
+      },
       "randomization": {
         "stockpileScale": [0.92, 1.05],
         "stockpileFloor": {
@@ -192,6 +201,8 @@
         "gaeLambda": 0.95,
         "clipRange": 0.2,
         "entropyCoef": 0.005,
+        "entropyCoefFinal": 0.002,
+        "entropyRampEpisodes": 20000,
         "valueCoef": 0.5,
         "lr": 0.0003,
         "lrFinal": 0.0001,

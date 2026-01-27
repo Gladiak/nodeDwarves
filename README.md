@@ -72,6 +72,8 @@ Run training 🧑‍🏫:
 npm run ai:train
 ```
 
+You can stop training with Ctrl+C to terminate the run.
+
 If you change resources or action space, reset the policy files ♻️:
 
 ```bash
@@ -173,6 +175,13 @@ AI and training:
 - `ai.training.scenarios[].weight`: sampling weight (0 disables sampling).
 - `ai.training.scenarios[].overrides`: config overrides merged into the base config.
 - `ai.training.evalScenarios`: list of scenario names evaluated at eval checkpoints.
+- `ai.training.scenarioSampling.mode`: `static` or `adaptive` scenario reweighting.
+- `ai.training.scenarioSampling.updateEvery`: episodes between adaptive weight updates.
+- `ai.training.scenarioSampling.emaAlpha`: EMA smoothing for per-scenario reward.
+- `ai.training.scenarioSampling.boost`: extra weight multiplier applied to weak scenarios.
+- `ai.training.scenarioSampling.exponent`: curve exponent for adaptive weighting.
+- `ai.training.scenarioSampling.minWeightRatio`: minimum weight ratio vs base weight.
+- `ai.training.scenarioSampling.maxWeightRatio`: maximum weight ratio vs base weight.
 - `ai.training.trainer.algorithm`: training algorithm (PPO only right now).
 - `ai.training.trainer.episodes`: training episodes per run.
 - `ai.training.trainer.maxSteps`: max steps per episode.
@@ -181,6 +190,8 @@ AI and training:
 - `ai.training.trainer.gaeLambda`: GAE lambda for advantage estimation.
 - `ai.training.trainer.clipRange`: PPO clip range.
 - `ai.training.trainer.entropyCoef`: entropy bonus coefficient.
+- `ai.training.trainer.entropyCoefFinal`: final entropy coefficient after decay.
+- `ai.training.trainer.entropyRampEpisodes`: episodes to reach the final entropy coefficient.
 - `ai.training.trainer.valueCoef`: value loss coefficient.
 - `ai.training.trainer.lr`: learning rate.
 - `ai.training.trainer.lrFinal`: final learning rate after linear decay.
@@ -217,6 +228,8 @@ base config before the usual curriculum randomization scales are applied.
 
 - Training picks a scenario each episode using the weights in
   `ai.training.scenarios`.
+- If `ai.training.scenarioSampling.mode` is `adaptive`, weights are rebalanced
+  during training to focus on the weakest-performing scenarios.
 - If `ai.training.evalScenarios` is set, evaluation splits the eval episodes
   across those scenarios for a balanced score.
 - The debug log includes a "Scenario mix" section that shows how often each

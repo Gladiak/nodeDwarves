@@ -5,6 +5,7 @@ import os
 import queue
 import random
 import subprocess
+import sys
 import time
 
 try:
@@ -296,6 +297,7 @@ def format_summary_line(
     info,
     debug,
     events,
+    scenario_target_mix,
 ):
     def fmt(value, digits=2):
         try:
@@ -310,6 +312,11 @@ def format_summary_line(
     idle = debug.get("idleAdultsFraction", 0.0)
     weather_label = format_mix_label(weather_counts, window_count)
     scenario_label = format_mix_label(scenario_counts, window_count)
+    scenario_target_label = format_ratio_label(scenario_target_mix)
+    scenario_delta = 0.0
+    if window_count > 0 and scenario_counts:
+        scenario_mix = {name: count / window_count for name, count in scenario_counts.items()}
+        scenario_delta = mix_distance(scenario_target_mix, scenario_mix)
     event_label = ",".join(events) if events else "-"
 
     return (
@@ -320,7 +327,9 @@ def format_summary_line(
         f"tick={info.get('tick')} pop={info.get('population')} "
         f"stock[min={fmt(stockpile.get('minRatio', 0))} avg={fmt(stockpile.get('avgRatio', 0))}] "
         f"crit={fmt(crit)} idle={fmt(idle)} "
-        f"weather={weather_label} scenario={scenario_label} events={event_label}"
+        f"weather={weather_label} scenario={scenario_label} "
+        f"scenario_target={scenario_target_label} scenario_delta={scenario_delta:.2f} "
+        f"events={event_label}"
     )
 
 
@@ -329,6 +338,17 @@ def format_mix_label(counts, total):
         return "n/a"
     name, count = max(counts.items(), key=lambda item: item[1])
     pct = count / total * 100.0
+    return f"{name}:{pct:.0f}%"
+
+
+def format_ratio_label(ratios):
+    if not ratios:
+        return "n/a"
+    name, value = max(ratios.items(), key=lambda item: item[1])
+    try:
+        pct = float(value) * 100.0
+    except (TypeError, ValueError):
+        pct = 0.0
     return f"{name}:{pct:.0f}%"
 
 
@@ -392,7 +412,16 @@ def prune_debug_runs(debug_dir, keep):
         pass
 
 
-def write_summary_header(handle, args, resources, min_weight, max_weight, scenario_defs, eval_scenarios):
+def write_summary_header(
+    handle,
+    args,
+    resources,
+    min_weight,
+    max_weight,
+    scenario_defs,
+    eval_scenarios,
+    scenario_sampling,
+):
     handle.write("# NodeDwarves training summary log\n")
     handle.write(f"start_time={time.strftime('%Y-%m-%d %H:%M:%S')}\n")
     handle.write(f"config={args.config}\n")
@@ -401,13 +430,26 @@ def write_summary_header(handle, args, resources, min_weight, max_weight, scenar
         f"episodes={args.episodes} max_steps={args.max_steps} step_ticks={args.step_ticks} "
         f"batch_episodes={args.batch_episodes} workers={args.workers} "
         f"gamma={args.gamma} gae_lambda={args.gae_lambda} clip_range={args.clip_range} "
-        f"entropy_coef={args.entropy_coef} value_coef={args.value_coef} "
+        f"entropy_coef={args.entropy_coef} entropy_coef_final={args.entropy_coef_final} "
+        f"entropy_ramp={args.entropy_ramp} value_coef={args.value_coef} "
         f"lr={args.lr} lr_final={args.lr_final} "
         f"difficulty_start={args.difficulty_start} difficulty_end={args.difficulty_end} "
         f"difficulty_ramp={args.difficulty_ramp} min_weight={min_weight} max_weight={max_weight}\n"
     )
     handle.write(f"resources={' '.join(resources)}\n")
     handle.write(f"scenarios={format_scenario_weights(scenario_defs)}\n")
+    handle.write(f"scenario_target_mix={format_ratio_map(get_scenario_target_mix(scenario_defs))}\n")
+    if scenario_sampling:
+        sampling_label = (
+            f"{scenario_sampling.get('mode', 'static')}"
+            f" update_every={scenario_sampling.get('update_every')}"
+            f" ema_alpha={scenario_sampling.get('ema_alpha')}"
+            f" boost={scenario_sampling.get('boost')}"
+            f" exponent={scenario_sampling.get('exponent')}"
+            f" min_ratio={scenario_sampling.get('min_ratio')}"
+            f" max_ratio={scenario_sampling.get('max_ratio')}"
+        )
+        handle.write(f"scenario_sampling={sampling_label}\n")
     handle.write(f"eval_scenarios={' '.join(eval_scenarios) if eval_scenarios else 'n/a'}\n")
     handle.write(f"log_every_console={args.log_every} log_every_summary={DEBUG_LOG_EVERY}\n")
     handle.write("\n# Legend (values are averaged over each summary window)\n")
@@ -420,11 +462,22 @@ def write_summary_header(handle, args, resources, min_weight, max_weight, scenar
     handle.write("# tick/pop: last tick and population seen in the window.\n")
     handle.write("# stock[min|avg]: min/mean stockpile ratio across resources.\n")
     handle.write("# crit/idle: critical needs fraction and idle adults fraction.\n")
+    handle.write("# scenario_target_mix: target distribution based on base weights.\n")
     handle.write("# weather/scenario: top label and share in the window.\n")
+    handle.write("# scenario_delta: L1/2 distance between target mix and window mix.\n")
     handle.write("# events: notable triggers (best_eval, eval_regression, scenario_shift).\n")
 
 
-def write_detail_header(handle, args, resources, min_weight, max_weight, scenario_defs, eval_scenarios):
+def write_detail_header(
+    handle,
+    args,
+    resources,
+    min_weight,
+    max_weight,
+    scenario_defs,
+    eval_scenarios,
+    scenario_sampling,
+):
     handle.write("# NodeDwarves training detail log\n")
     handle.write(f"start_time={time.strftime('%Y-%m-%d %H:%M:%S')}\n")
     handle.write(f"config={args.config}\n")
@@ -433,13 +486,26 @@ def write_detail_header(handle, args, resources, min_weight, max_weight, scenari
         f"episodes={args.episodes} max_steps={args.max_steps} step_ticks={args.step_ticks} "
         f"batch_episodes={args.batch_episodes} workers={args.workers} "
         f"gamma={args.gamma} gae_lambda={args.gae_lambda} clip_range={args.clip_range} "
-        f"entropy_coef={args.entropy_coef} value_coef={args.value_coef} "
+        f"entropy_coef={args.entropy_coef} entropy_coef_final={args.entropy_coef_final} "
+        f"entropy_ramp={args.entropy_ramp} value_coef={args.value_coef} "
         f"lr={args.lr} lr_final={args.lr_final} "
         f"difficulty_start={args.difficulty_start} difficulty_end={args.difficulty_end} "
         f"difficulty_ramp={args.difficulty_ramp} min_weight={min_weight} max_weight={max_weight}\n"
     )
     handle.write(f"resources={' '.join(resources)}\n")
     handle.write(f"scenarios={format_scenario_weights(scenario_defs)}\n")
+    handle.write(f"scenario_target_mix={format_ratio_map(get_scenario_target_mix(scenario_defs))}\n")
+    if scenario_sampling:
+        sampling_label = (
+            f"{scenario_sampling.get('mode', 'static')}"
+            f" update_every={scenario_sampling.get('update_every')}"
+            f" ema_alpha={scenario_sampling.get('ema_alpha')}"
+            f" boost={scenario_sampling.get('boost')}"
+            f" exponent={scenario_sampling.get('exponent')}"
+            f" min_ratio={scenario_sampling.get('min_ratio')}"
+            f" max_ratio={scenario_sampling.get('max_ratio')}"
+        )
+        handle.write(f"scenario_sampling={sampling_label}\n")
     handle.write(f"eval_scenarios={' '.join(eval_scenarios) if eval_scenarios else 'n/a'}\n")
     handle.write("\n# Legend (all values are averaged over each detail window)\n")
     handle.write("# Summary.avg_reward: mean episode reward in the window.\n")
@@ -603,6 +669,17 @@ def accumulate_debug(accumulator, info):
     add_numeric(accumulator, "idleAdultsFraction", debug.get("idleAdultsFraction"))
 
 
+def extract_scenario_name(info):
+    if not isinstance(info, dict):
+        return None
+    scenario_meta = info.get("scenario")
+    if isinstance(scenario_meta, dict):
+        return scenario_meta.get("name") or scenario_meta.get("scenario")
+    if isinstance(scenario_meta, str):
+        return scenario_meta
+    return None
+
+
 def average_debug(accumulator):
     count = int(accumulator.get("count") or 0)
     if count <= 0:
@@ -680,6 +757,7 @@ def get_scenario_definitions(config):
         definitions.append({
             "name": str(name),
             "weight": weight,
+            "base_weight": weight,
         })
     return definitions
 
@@ -731,6 +809,127 @@ def format_scenario_weights(scenario_defs):
     return " ".join(parts) if parts else "n/a"
 
 
+def get_scenario_target_mix(scenario_defs):
+    if not scenario_defs:
+        return {}
+    weights = {}
+    total = 0.0
+    for entry in scenario_defs:
+        name = entry.get("name")
+        if not name:
+            continue
+        base = entry.get("base_weight", entry.get("weight", 0.0))
+        try:
+            weight = float(base)
+        except (TypeError, ValueError):
+            weight = 0.0
+        if weight <= 0:
+            continue
+        weights[name] = weight
+        total += weight
+    if total <= 0:
+        return {}
+    return {name: weight / total for name, weight in weights.items()}
+
+
+def format_ratio_map(ratios):
+    if not ratios:
+        return "n/a"
+    parts = []
+    for name in sorted(ratios.keys()):
+        try:
+            pct = float(ratios[name]) * 100.0
+        except (TypeError, ValueError):
+            pct = 0.0
+        parts.append(f"{name}:{pct:.0f}%")
+    return " ".join(parts) if parts else "n/a"
+
+
+def get_scenario_sampling(config):
+    training = (config.get("ai") or {}).get("training") or {}
+    sampling = training.get("scenarioSampling") or {}
+    mode = str(sampling.get("mode") or "static").lower()
+    return {
+        "mode": mode,
+        "update_every": max(1, to_int(sampling.get("updateEvery"), DEBUG_LOG_EVERY)),
+        "ema_alpha": clamp(to_float(sampling.get("emaAlpha"), 0.2), 0.0, 1.0),
+        "boost": max(0.0, to_float(sampling.get("boost"), 1.0)),
+        "exponent": max(0.1, to_float(sampling.get("exponent"), 1.0)),
+        "min_ratio": max(0.0, to_float(sampling.get("minWeightRatio"), 0.4)),
+        "max_ratio": max(0.0, to_float(sampling.get("maxWeightRatio"), 2.5)),
+    }
+
+
+def init_scenario_sampler(config, scenario_defs):
+    sampling = get_scenario_sampling(config)
+    if sampling["mode"] != "adaptive" or not scenario_defs:
+        return None
+    base_weights = {}
+    for entry in scenario_defs:
+        name = entry.get("name")
+        if not name:
+            continue
+        base = entry.get("base_weight", entry.get("weight", 0.0))
+        base_weights[name] = float(base)
+    return {
+        "mode": sampling["mode"],
+        "update_every": sampling["update_every"],
+        "ema_alpha": sampling["ema_alpha"],
+        "boost": sampling["boost"],
+        "exponent": sampling["exponent"],
+        "min_ratio": sampling["min_ratio"],
+        "max_ratio": sampling["max_ratio"],
+        "base_weights": base_weights,
+        "ema": {},
+        "counts": {},
+        "last_update": 0,
+    }
+
+
+def record_scenario_reward(sampler, scenario_name, reward):
+    if not sampler or not scenario_name:
+        return
+    if scenario_name not in sampler["base_weights"]:
+        return
+    prev = sampler["ema"].get(scenario_name)
+    alpha = sampler["ema_alpha"]
+    if prev is None:
+        sampler["ema"][scenario_name] = float(reward)
+    else:
+        sampler["ema"][scenario_name] = (1 - alpha) * prev + alpha * float(reward)
+    sampler["counts"][scenario_name] = sampler["counts"].get(scenario_name, 0) + 1
+
+
+def update_scenario_weights(sampler, scenario_defs):
+    if not sampler:
+        return False
+    ema = sampler["ema"]
+    if len(ema) < 2:
+        return False
+    values = list(ema.values())
+    min_value = min(values)
+    max_value = max(values)
+    span = max(1e-6, max_value - min_value)
+    updated = False
+
+    for entry in scenario_defs:
+        name = entry.get("name")
+        if not name or name not in ema:
+            continue
+        base = sampler["base_weights"].get(name, entry.get("weight", 0.0))
+        if base <= 0:
+            continue
+        hardness = (max_value - ema[name]) / span
+        scale = 1.0 + sampler["boost"] * (hardness ** sampler["exponent"])
+        min_weight = base * sampler["min_ratio"]
+        max_weight = base * sampler["max_ratio"]
+        new_weight = clamp(base * scale, min_weight, max_weight)
+        if abs(float(entry.get("weight", 0.0)) - new_weight) > 1e-6:
+            entry["weight"] = new_weight
+            updated = True
+    return updated
+
+
 def get_model_payload(model):
     return {
         "policy": model.policy.export_layers(),
@@ -774,6 +973,12 @@ def broadcast_weights(queues, payload):
 
 
 def worker_loop(worker_id, task_queue, result_queue, update_queue, resources, settings):
+    try:
+        devnull = open(os.devnull, "w")
+        sys.stdout = devnull
+        sys.stderr = devnull
+    except OSError:
+        pass
     torch.set_num_threads(1)
     proc = subprocess.Popen(
         ["node", "ai_server.js"],
@@ -784,44 +989,56 @@ def worker_loop(worker_id, task_queue, result_queue, update_queue, resources, se
     )
 
     try:
-        input_size = len(resources) * len(FEATURE_NAMES)
-        action_size = len(resources)
-        model = ActorCritic(
-            input_size,
-            action_size,
-            settings["hidden_sizes"],
-            settings["activation"],
-            settings["log_std_init"],
-        )
-
-        latest_payload = drain_queue(update_queue)
-        if latest_payload:
-            load_model_payload(model, latest_payload)
-
-        while True:
-            task = task_queue.get()
-            if task is None:
-                break
+        try:
+            input_size = len(resources) * len(FEATURE_NAMES)
+            action_size = len(resources)
+            model = ActorCritic(
+                input_size,
+                action_size,
+                settings["hidden_sizes"],
+                settings["activation"],
+                settings["log_std_init"],
+            )
 
             latest_payload = drain_queue(update_queue)
             if latest_payload:
                 load_model_payload(model, latest_payload)
 
-            episode_number, seed, difficulty, scenario = task
-            transitions, reward, steps, info, bootstrap_value = run_episode(
-                proc,
-                model,
-                resources,
-                FEATURE_NAMES,
-                settings["max_steps"],
-                settings["step_ticks"],
-                seed,
-                difficulty,
-                settings["min_weight"],
-                settings["max_weight"],
-                scenario,
-            )
-            result_queue.put((episode_number, transitions, reward, steps, info, bootstrap_value))
+            while True:
+                try:
+                    task = task_queue.get()
+                except (EOFError, OSError):
+                    break
+                if task is None:
+                    break
+
+                latest_payload = drain_queue(update_queue)
+                if latest_payload:
+                    load_model_payload(model, latest_payload)
+
+                episode_number, seed, difficulty, scenario = task
+                try:
+                    transitions, reward, steps, info, bootstrap_value = run_episode(
+                        proc,
+                        model,
+                        resources,
+                        FEATURE_NAMES,
+                        settings["max_steps"],
+                        settings["step_ticks"],
+                        seed,
+                        difficulty,
+                        settings["min_weight"],
+                        settings["max_weight"],
+                        scenario,
+                    )
+                except (BrokenPipeError, EOFError, OSError, RuntimeError):
+                    break
+                try:
+                    result_queue.put((episode_number, transitions, reward, steps, info, bootstrap_value))
+                except (BrokenPipeError, EOFError, OSError):
+                    break
+        except (BrokenPipeError, EOFError, OSError, RuntimeError):
+            pass
     finally:
         try:
             send(proc, {"cmd": "close"})
@@ -1271,6 +1488,8 @@ def build_training_defaults(config):
         "gae_lambda": to_float(trainer.get("gaeLambda"), 0.95),
         "clip_range": to_float(trainer.get("clipRange"), 0.2),
         "entropy_coef": to_float(trainer.get("entropyCoef"), 0.01),
+        "entropy_coef_final": to_float(trainer.get("entropyCoefFinal"), None),
+        "entropy_ramp": to_int(trainer.get("entropyRampEpisodes"), None),
         "value_coef": to_float(trainer.get("valueCoef"), 0.5),
         "lr": to_float(trainer.get("lr"), 0.0003),
         "lr_final": to_float(trainer.get("lrFinal"), 0.0001),
@@ -1307,6 +1526,11 @@ def build_training_defaults(config):
         "eval_episodes": to_int(trainer.get("evalEpisodes"), 5),
     }
 
+    if defaults["entropy_coef_final"] is None:
+        defaults["entropy_coef_final"] = defaults["entropy_coef"]
+    if defaults["entropy_ramp"] is None:
+        defaults["entropy_ramp"] = defaults["episodes"]
+
     return defaults
 
 
@@ -1327,6 +1551,8 @@ def parse_args():
     parser.add_argument("--gae-lambda", type=float, default=defaults["gae_lambda"])
     parser.add_argument("--clip-range", type=float, default=defaults["clip_range"])
     parser.add_argument("--entropy-coef", type=float, default=defaults["entropy_coef"])
+    parser.add_argument("--entropy-coef-final", type=float, default=defaults["entropy_coef_final"])
+    parser.add_argument("--entropy-ramp", type=int, default=defaults["entropy_ramp"])
     parser.add_argument("--value-coef", type=float, default=defaults["value_coef"])
     parser.add_argument("--lr", type=float, default=defaults["lr"])
     parser.add_argument("--lr-final", type=float, default=defaults["lr_final"])
@@ -1517,6 +1743,9 @@ def main():
     eval_seed_base = (args.seed + 100000) if args.seed else None
     debug_run_dir, summary_log_path = init_debug_run()
     summary_log_handle = None
+    scenario_sampling = get_scenario_sampling(config)
+    scenario_sampler = init_scenario_sampler(config, scenario_defs)
+
     if summary_log_path:
         try:
             summary_log_handle = open(summary_log_path, "a", encoding="utf-8")
@@ -1528,12 +1757,12 @@ def main():
                 max_weight,
                 scenario_defs,
                 eval_scenarios,
+                scenario_sampling,
             )
             summary_log_handle.flush()
         except OSError:
             summary_log_handle = None
             debug_run_dir = None
-
     pending_detail_events = []
     last_eval_reward = None
     prev_scenario_mix = None
@@ -1611,7 +1840,8 @@ def main():
         schedule_tasks()
 
         while completed < args.episodes:
-            episode_number, transitions, reward, steps, info, bootstrap_value = result_queue.get()
+            result = result_queue.get()
+            episode_number, transitions, reward, steps, info, bootstrap_value = result
             in_flight -= 1
             results_buffer[episode_number] = (transitions, reward, steps, info, bootstrap_value)
             schedule_tasks()
@@ -1656,7 +1886,21 @@ def main():
                 file_deaths_window += int(info.get("deaths", 0))
                 accumulate_debug(file_debug_window, info)
 
+                scenario_name = extract_scenario_name(info)
+                record_scenario_reward(scenario_sampler, scenario_name, reward)
+                if (
+                    scenario_sampler
+                    and next_expected - scenario_sampler["last_update"] >= scenario_sampler["update_every"]
+                ):
+                    scenario_sampler["last_update"] = next_expected
+                    if update_scenario_weights(scenario_sampler, scenario_defs):
+                        pending_detail_events.append("scenario_weights")
+
                 if batch_episode_count >= args.batch_episodes:
+                    entropy_progress = min(1.0, next_expected / max(1, args.entropy_ramp))
+                    entropy_coef = args.entropy_coef + (
+                        args.entropy_coef_final - args.entropy_coef
+                    ) * entropy_progress
                     batch = {
                         "obs": batch_obs,
                         "actions": batch_actions,
@@ -1672,7 +1916,7 @@ def main():
                         max_weight,
                         args.clip_range,
                         args.value_coef,
-                        args.entropy_coef,
+                        entropy_coef,
                         args.epochs,
                         args.mini_batch_size,
                         args.max_grad_norm,
@@ -1762,6 +2006,7 @@ def main():
                         info,
                         file_debug,
                         events,
+                        get_scenario_target_mix(scenario_defs),
                     )
                     summary_log_handle.write(summary_line + "\n")
                     summary_log_handle.flush()
@@ -1781,6 +2026,7 @@ def main():
                                     max_weight,
                                     scenario_defs,
                                     eval_scenarios,
+                                    scenario_sampling,
                                 )
                                 detail_entry = format_debug_file_entry(
                                     next_expected,
@@ -1858,6 +2104,7 @@ def main():
                             pending_detail_events.append(f"best_eval={best_eval:.2f}")
 
                 next_expected += 1
+
     finally:
         try:
             for _ in processes:
