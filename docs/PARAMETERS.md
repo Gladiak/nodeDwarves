@@ -28,6 +28,24 @@ Events:
 
 - `events.maxEntries`: number of recent events to show in the HUD.
 
+Raids:
+
+- `raids.enabled`: enable wildlife raids.
+- `raids.symbol`: map symbol for beasts (defaults to `\u00f6`).
+- `raids.seasonNames`: seasons eligible for raids.
+- `raids.durationTicks`: raid duration in ticks.
+- `raids.chance.min/max`: per-season trigger probability range (0..1).
+- `raids.minPopulation`: minimum population to allow raids.
+- `raids.minTick`: minimum tick before raids can trigger.
+- `raids.minSeasonsBetween`: minimum seasons between raid starts.
+- `raids.defenseAdults`: adults needed for full defense scaling.
+- `raids.defenseMax`: max defense reduction (0..1).
+- `raids.deathRate.min/max`: fraction of exposed dwarves killed.
+- `raids.resourceLoss.min/max`: base loss ratio (scaled by exposed fraction).
+- `raids.resourceLoss.weights.<resource>`: per-resource loss weights.
+- `raids.beasts.min/max`: min/max beast count for visuals.
+- `raids.beasts.perPop`: population per beast (visual scaling).
+
 AI and training:
 
 - `ai.stepTicks`: ticks simulated per AI decision.
@@ -135,4 +153,3 @@ AI and training:
 Simulation:
 
 - `simulation.maxTicks`: hard stop for visible simulation (0 = no limit).
-

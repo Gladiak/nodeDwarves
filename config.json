@@ -25,24 +25,59 @@
     "colors": {
       "enabled": true,
       "reset": "\u001b[0m",
-    "map": {
-      "dwarf": "\u001b[93m",
-      "merchant": "\u001b[96m",
-      "house": "\u001b[91m",
-      "food_raw": "\u001b[32m",
-      "water": "\u001b[34m",
-      "wood": "\u001b[33m",
-      "stone": "\u001b[90m",
-      "weather_clear": "\u001b[37m",
-      "weather_rain": "\u001b[34m",
-      "weather_storm": "\u001b[33m",
-      "weather_drought": "\u001b[31m",
-      "weather_cold": "\u001b[36m"
-    }
+      "map": {
+        "dwarf": "\u001b[93m",
+        "merchant": "\u001b[96m",
+        "house": "\u001b[91m",
+        "beast": "\u001b[91m",
+        "food_raw": "\u001b[32m",
+        "water": "\u001b[34m",
+        "wood": "\u001b[33m",
+        "stone": "\u001b[90m",
+        "weather_clear": "\u001b[37m",
+        "weather_rain": "\u001b[34m",
+        "weather_storm": "\u001b[33m",
+        "weather_drought": "\u001b[31m",
+        "weather_cold": "\u001b[36m"
+      }
     }
   },
   "events": {
     "maxEntries": 5
+  },
+  "raids": {
+    "enabled": true,
+    "symbol": "\u00f6",
+    "seasonNames": ["spring", "autumn"],
+    "durationTicks": 100,
+    "chance": {
+      "min": 0.15,
+      "max": 0.35
+    },
+    "minPopulation": 10,
+    "minTick": 400,
+    "minSeasonsBetween": 1,
+    "defenseAdults": 30,
+    "defenseMax": 0.75,
+    "deathRate": {
+      "min": 0.25,
+      "max": 0.5
+    },
+    "resourceLoss": {
+      "min": 0.04,
+      "max": 0.1,
+      "weights": {
+        "food_raw": 1,
+        "water": 1,
+        "wood": 0.5,
+        "stone": 0.25
+      }
+    },
+    "beasts": {
+      "min": 1,
+      "max": 4,
+      "perPop": 15
+    }
   },
   "ai": {
     "stepTicks": 5,
@@ -395,6 +430,101 @@
           }
         },
         {
+          "name": "mid_sim",
+          "weight": 0.1,
+          "difficultyMin": 0.2,
+          "difficultyMax": 0.8,
+          "difficultyMinMultiplier": 0.0,
+          "difficultyMaxMultiplier": 1.0,
+          "overrides": {
+            "events": {
+              "maxEntries": 4
+            },
+            "dwarves": {
+              "count": 10
+            },
+            "merchant": {
+              "enabled": true
+            },
+            "needs": {
+              "decayPerTick": {
+                "hunger": 0.0021,
+                "thirst": 0.0031
+              }
+            },
+            "consumption": {
+              "hungerThreshold": 0.32,
+              "thirstThreshold": 0.32,
+              "hungerTarget": 0.32,
+              "thirstTarget": 0.32,
+              "rawFoodRelief": 0.34,
+              "waterRelief": 0.34
+            },
+            "resources": {
+              "stockpile": {
+                "food_raw": 35,
+                "water": 35,
+                "wood": 7,
+                "stone": 6
+              },
+              "targets": {
+                "food_raw": 50,
+                "water": 50,
+                "wood": 8,
+                "stone": 6
+              },
+              "nodeCapacity": {
+                "food_raw": 13,
+                "water": 19,
+                "wood": 9,
+                "stone": 9
+              },
+              "nodes": {
+                "food_raw": 23,
+                "water": 17,
+                "wood": 11,
+                "stone": 9
+              },
+              "nodeRegen": {
+                "intervalTicks": 38,
+                "amount": 3
+              }
+            },
+            "population": {
+              "relationships": {
+                "interactionsPerTick": 2,
+                "idleInteractionMultiplier": 1.3
+              },
+              "reproduction": {
+                "softCap": 30,
+                "baseChance": 0.0067,
+                "cooldownTicks": 75
+              }
+            },
+            "structures": {
+              "well": {
+                "maxCount": 4
+              },
+              "field": {
+                "maxCount": 6
+              }
+            }
+          }
+        },
+        {
+          "name": "wildlife_raid",
+          "weight": 0.12,
+          "difficultyMin": 0.25,
+          "difficultyMax": 1.0,
+          "difficultyMinMultiplier": 0.0,
+          "difficultyMaxMultiplier": 1.0,
+          "overrides": {
+            "raids": {
+              "enabled": true
+            }
+          }
+        },
+        {
           "name": "water_scarce",
           "weight": 0.25,
           "overrides": {
@@ -463,6 +593,7 @@
       "evalScenarios": [
         "baseline",
         "full_sim",
+        "wildlife_raid",
         "water_scarce",
         "food_scarce",
         "low_stockpile",
@@ -874,6 +1005,7 @@
     "empty": ".",
     "dwarf": "@",
     "merchant": "M",
+    "beast": "\u00f6",
     "food_raw": "f",
     "water": "w",
     "wood": "t",

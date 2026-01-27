@@ -86,6 +86,8 @@ npm run ai:train -- --episodes 5000
 
 npm run ai:train:combo
 
+npm run ai:train:finetune
+
 ```
 
 You can stop training with Ctrl+C to terminate the run.
@@ -93,6 +95,9 @@ You can stop training with Ctrl+C to terminate the run.
 `ai:train:combo` runs the fast training loop and then a longer full-sim pass
 (`--full-sim`) that uses `ai.training.evalOverrides` and now runs long enough
 to reach difficulty 1 with the current ramp settings.
+
+`ai:train:finetune` runs a short full-sim fine-tuning pass with a lower learning
+rate and entropy to close the gap with eval/full_sim.
 
 Use `ai:train:combo:fresh` to force a fresh start for the fast phase:
 
@@ -131,6 +136,26 @@ All core knobs live in `config.json`. The training loop reads defaults from
 `ai.training.trainer` and CLI flags can override any of them.
 
 See [Parameter reference](docs/PARAMETERS.md).
+
+### Wildlife raids 🐺
+
+Seasonal wildlife raids are optional chaos events. When active, dwarves
+panic and run home; only exposed dwarves (not inside their house tile) can be
+killed, and raids steal stockpile resources scaled by exposed fraction.
+
+- `raids.enabled`: master switch (default false).
+- `raids.seasonNames`: seasons eligible for raids (default spring/autumn).
+- `raids.durationTicks`: raid duration in ticks (default 100).
+- `raids.chance.min/max`: per-season trigger probability range (0..1).
+- `raids.minPopulation`, `raids.minTick`: guardrails to avoid early wipes.
+- `raids.deathRate.min/max`: fraction of exposed dwarves killed.
+- `raids.resourceLoss.min/max`: base loss ratio (scaled by exposed fraction).
+- `raids.resourceLoss.weights`: per-resource loss weights.
+- `raids.beasts.*`: visual beast count rules.
+- `symbols.beast`: map symbol for beasts (default `\u00f6`).
+
+Training includes a `wildlife_raid` scenario that enables raids with the base
+raid parameters and ramps with difficulty.
 
 ### Scenario presets (training) 🎯
 

@@ -187,11 +187,14 @@ function buildDebugInfo(state, config, metrics) {
     : 0;
   const merchantGivenPerTick = scaleMerchantMap(merchantStats.given, merchantTicks);
   const merchantReceivedPerTick = scaleMerchantMap(merchantStats.received, merchantTicks);
+  const raidState = state.raid || {};
+  const raidStats = state.raidStats || {};
 
   return {
     deaths: {
       starvation: Number(deaths.starvation || 0),
       oldAge: Number(deaths.oldAge || 0),
+      raid: Number(deaths.raid || 0),
     },
     reproduction: {
       ticks,
@@ -248,6 +251,14 @@ function buildDebugInfo(state, config, metrics) {
       tradesPerTick: Number(merchantTradesPerTick || 0),
       givenPerTick: merchantGivenPerTick,
       receivedPerTick: merchantReceivedPerTick,
+    },
+    raid: {
+      active: Boolean(raidState.active),
+      ticksRemaining: Number(raidState.ticksRemaining || 0),
+      season: raidState.seasonName || null,
+      count: Number(raidStats.count || 0),
+      deaths: Number(raidStats.deaths || 0),
+      loot: { ...(raidStats.loot || {}) },
     },
     nodes: { ...metrics.nodeRatio },
     needsAvg: { ...metrics.needsAvg },
@@ -665,6 +676,11 @@ function buildScenarioConfig(base, options) {
   );
   const shouldClone = enabled || requestedScenario || hasScenarioOverrides || hasTrainingOverrides || hasEvalOverrides;
   const config = shouldClone ? cloneConfig(base) : base;
+
+  if (!config.ai) {
+    config.ai = {};
+  }
+  config.ai.difficulty = difficulty;
 
   if (hasTrainingOverrides) {
     mergeDeep(config, trainingOverrides);

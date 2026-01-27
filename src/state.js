@@ -11,6 +11,8 @@ function createInitialState(config, runtime) {
   const merchantStats = createMerchantStats();
   const weather = createWeatherState(config);
   const houseStorage = createHouseStorageState(config);
+  const raid = createRaidState(config);
+  const raidStats = createRaidStats();
 
   return {
     tick: 0,
@@ -21,6 +23,8 @@ function createInitialState(config, runtime) {
     merchantStats,
     weather,
     houseStorage,
+    raid,
+    raidStats,
     stockpile: { ...config.resources.stockpile },
     jobs: [],
     jobCounter: 1,
@@ -34,6 +38,7 @@ function createInitialState(config, runtime) {
     deathsByCause: {
       starvation: 0,
       oldAge: 0,
+      raid: 0,
     },
     reproductionStats: {
       ticks: 0,
@@ -86,6 +91,25 @@ function createHouseStorageState(config) {
     capacity[resource] = 0;
   }
   return { stored, capacity };
+}
+
+function createRaidState(config) {
+  const raidConfig = (config && config.raids) || {};
+  return {
+    active: false,
+    ticksRemaining: 0,
+    duration: Math.max(0, Number(raidConfig.durationTicks || 0)),
+    lastSeasonIndex: null,
+    beasts: [],
+  };
+}
+
+function createRaidStats() {
+  return {
+    count: 0,
+    deaths: 0,
+    loot: {},
+  };
 }
 
 function createStructures(config, runtime, occupied) {
@@ -250,6 +274,12 @@ function fitStateToGrid(state, runtime) {
 
   for (const node of state.nodes) {
     placeEntity(node, occupied, runtime);
+  }
+
+  if (state.raid && Array.isArray(state.raid.beasts)) {
+    for (const beast of state.raid.beasts) {
+      placeEntity(beast, occupied, runtime);
+    }
   }
 
   for (const dwarf of state.dwarves) {

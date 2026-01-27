@@ -48,6 +48,16 @@ function renderFrame(state, config, runtime) {
     }
   }
 
+  const raidState = state.raid;
+  const beastSymbol = getBeastSymbol(config);
+  if (raidState && raidState.active && beastSymbol && Array.isArray(raidState.beasts)) {
+    for (const beast of raidState.beasts) {
+      if (grid[beast.y] && grid[beast.y][beast.x] !== undefined) {
+        grid[beast.y][beast.x] = applyColor(beastSymbol, 'beast', colors);
+      }
+    }
+  }
+
   const merchant = state.merchant;
   if (merchant && merchant.phase && merchant.phase !== 'idle') {
     if (grid[merchant.y] && grid[merchant.y][merchant.x] !== undefined) {
@@ -137,6 +147,12 @@ function buildFooterLines(config, runtime) {
   const merchantConfig = config.merchant || {};
   if (merchantConfig.enabled !== false) {
     legendParts.push(colorizeLegend(`${symbols.merchant || 'M'} merchant`, 'merchant', colors));
+  }
+
+  const raidConfig = config.raids || {};
+  const beastSymbol = getBeastSymbol(config);
+  if (raidConfig.enabled === true && beastSymbol) {
+    legendParts.push(colorizeLegend(`${beastSymbol} beasts`, 'beast', colors));
   }
 
   const legendLine = `Legend: ${legendParts.join('  ')}`;
@@ -257,7 +273,9 @@ function buildHudColumns(state, config, columnWidth) {
     const target = Number(targets[id] || 0);
     const maxValue = stockBarMax > 0 ? stockBarMax : target;
     const ratio = maxValue > 0 ? clamp(Number(count || 0) / maxValue, 0, 1) : 1;
-    const detail = maxValue > 0 ? `${count}/${maxValue}` : String(count);
+    const detail = maxValue > 0
+      ? formatCountDetail(count, maxValue)
+      : formatCompactNumber(count);
     right.push(formatBarLine(id, ratio, detail, columnWidth));
   }
 
@@ -275,7 +293,9 @@ function buildHudColumns(state, config, columnWidth) {
           ? storage.capacity[id]
           : 0);
         const ratio = capacity > 0 ? clamp(Number(count || 0) / capacity, 0, 1) : 0;
-        const detail = capacity > 0 ? `${count}/${capacity}` : String(count || 0);
+        const detail = capacity > 0
+          ? formatCountDetail(count, capacity)
+          : formatCompactNumber(count || 0);
         right.push(formatBarLine(id, ratio, detail, columnWidth));
       }
     }
@@ -335,6 +355,27 @@ function formatNeedValue(value) {
   return numeric.toFixed(2);
 }
 
+function formatCompactNumber(value) {
+  const numeric = Number(value || 0);
+  if (!Number.isFinite(numeric)) {
+    return '0';
+  }
+  const abs = Math.abs(numeric);
+  if (abs >= 1000000) {
+    const digits = abs >= 10000000 ? 0 : 1;
+    return `${(numeric / 1000000).toFixed(digits)}m`;
+  }
+  if (abs >= 1000) {
+    const digits = abs >= 10000 ? 0 : 1;
+    return `${(numeric / 1000).toFixed(digits)}k`;
+  }
+  return String(Math.round(numeric));
+}
+
+function formatCountDetail(count, maxValue) {
+  return `${formatCompactNumber(count)}/${formatCompactNumber(maxValue)}`;
+}
+
 function formatBarLine(label, ratio, details, columnWidth) {
   const safeWidth = Math.max(0, Number(columnWidth || 0));
   if (safeWidth <= 0) {
@@ -344,6 +385,15 @@ function formatBarLine(label, ratio, details, columnWidth) {
   const prefix = `${label}: `;
   let suffix = details ? ` ${details}` : '';
   let barWidth = safeWidth - prefix.length - suffix.length - 2;
+
+  if (barWidth < 4 && suffix) {
+    const maxDetails = Math.max(0, safeWidth - prefix.length - 2 - 4);
+    if (maxDetails > 0 && details) {
+      const trimmed = fitLine(String(details), maxDetails);
+      suffix = trimmed ? ` ${trimmed}` : '';
+      barWidth = safeWidth - prefix.length - suffix.length - 2;
+    }
+  }
 
   if (barWidth < 4 && suffix) {
     suffix = '';
@@ -424,6 +474,18 @@ function getHouseLegendLabel(houseConfig) {
     return String(min);
   }
   return `${min}-${max}`;
+}
+
+function getBeastSymbol(config) {
+  const symbols = config.symbols || {};
+  if (symbols.beast) {
+    return String(symbols.beast);
+  }
+  const raidConfig = config.raids || {};
+  if (raidConfig.symbol) {
+    return String(raidConfig.symbol);
+  }
+  return '';
 }
 
 function formatMerchantStatus(merchant) {

@@ -95,8 +95,11 @@ def format_debug(info, resources):
 
     reproduction = debug.get("reproduction") or {}
     deaths = debug.get("deaths") or {}
+    raid = debug.get("raid") or {}
     stockpile = debug.get("stockpile") or {}
     ratios = stockpile.get("ratios") or {}
+    raid = debug.get("raid") or {}
+    raid_loot = raid.get("loot") or {}
     nodes = debug.get("nodes") or {}
     needs_avg = debug.get("needsAvg") or {}
     housing = debug.get("housing") or {}
@@ -124,7 +127,10 @@ def format_debug(info, resources):
     return (
         "diag "
         f"deaths[starv={int(deaths.get('starvation', 0) or 0)} "
-        f"old={int(deaths.get('oldAge', 0) or 0)}] "
+        f"old={int(deaths.get('oldAge', 0) or 0)} "
+        f"raid={int(deaths.get('raid', 0) or 0)}] "
+        f"raid[cnt={fmt(raid.get('count', 0), 2)} "
+        f"deaths={fmt(raid.get('deaths', 0), 2)}] "
         f"repro[ticks={int(reproduction.get('ticks', 0) or 0)} "
         f"couples/t={fmt(reproduction.get('couplesPerTick', 0))} "
         f"fertile/t={fmt(reproduction.get('fertileAdultsPerTick', 0))} "
@@ -191,6 +197,8 @@ def format_debug_file_entry(
             lines.append(f"{indent}{str(key).ljust(width)}: {fmt(values.get(key))}")
         return lines
 
+    raid = debug.get("raid") or {}
+    raid_loot = raid.get("loot") or {}
     reproduction = debug.get("reproduction") or {}
     blocked = reproduction.get("blocked") or {}
     stockpile = debug.get("stockpile") or {}
@@ -255,6 +263,13 @@ def format_debug_file_entry(
         f"  beds: {int(housing.get('beds', 0) or 0)}",
         f"  ratio: {fmt(housing.get('ratio', 0))}",
         f"  unsheltered: {fmt(housing.get('unshelteredFraction', 0))}",
+        "Raid:",
+        f"  count: {fmt(raid.get('count', 0))}",
+        f"  deaths: {fmt(raid.get('deaths', 0))}",
+        "  loot:",
+    ])
+    lines.extend(fmt_map_lines(raid_loot, resources, indent="  "))
+    lines.extend([
         "Reproduction:",
         f"  ticks: {int(reproduction.get('ticks', 0) or 0)}",
         f"  couples_per_tick: {fmt(reproduction.get('couplesPerTick', 0))}",
@@ -320,6 +335,8 @@ def format_summary_line(
         except (TypeError, ValueError):
             return f"{0.0:.{digits}f}"
 
+    raid = debug.get("raid") or {}
+    raid_loot = raid.get("loot") or {}
     stockpile = debug.get("stockpile") or {}
     weather_counts = debug.get("weatherCounts") or {}
     scenario_counts = debug.get("scenarioCounts") or {}
@@ -340,6 +357,7 @@ def format_summary_line(
         scenario_mix = {name: count / window_count for name, count in scenario_counts.items()}
         scenario_delta = mix_distance(scenario_target_mix, scenario_mix)
     event_label = ",".join(events) if events else "-"
+    raid_loot_label = format_map_label(raid_loot, digits=1)
 
     return (
         f"ep={episode} win={window_start}-{episode} count={window_count} "
@@ -351,6 +369,7 @@ def format_summary_line(
         f"stock[min={fmt(stockpile.get('minRatio', 0))} avg={fmt(stockpile.get('avgRatio', 0))}] "
         f"crit={fmt(crit)} idle={fmt(idle)} "
         f"pop_bal={fmt(pop_balance) if pop_balance is not None else fmt(0.0)} "
+        f"raid[count={fmt(raid.get('count', 0))} deaths={fmt(raid.get('deaths', 0))} loot={raid_loot_label}] "
         f"short={shortage_label} term={termination_label} "
         f"weather={weather_label} scenario={scenario_label} "
         f"scenario_target={scenario_target_label} scenario_delta={scenario_delta:.2f} "
@@ -527,6 +546,7 @@ def write_summary_header(
     handle.write("# tick/pop: last tick and population seen in the window.\n")
     handle.write("# stock[min|avg]: min/mean stockpile ratio across resources.\n")
     handle.write("# crit/idle/pop_bal: avg critical needs, idle adults, and population balance.\n")
+    handle.write("# raid: avg raid count/deaths/loot in the window.\n")
     handle.write("# short: average shortage per resource (1 - stockpile ratio).\n")
     handle.write("# term: termination reason mix within the window.\n")
     handle.write("# scenario_target_mix: target distribution based on base weights.\n")
@@ -594,6 +614,9 @@ def write_detail_header(
     handle.write("# Housing.beds: total bed capacity.\n")
     handle.write("# Housing.ratio: beds/population ratio.\n")
     handle.write("# Housing.unsheltered: fraction of population without beds.\n")
+    handle.write("# Raid.count: average raids per episode in the window.\n")
+    handle.write("# Raid.deaths: average raid deaths per episode in the window.\n")
+    handle.write("# Raid.loot.<resource>: average loot per episode in the window.\n")
     handle.write("# Reproduction.ticks: ticks accumulated in the window.\n")
     handle.write("# Reproduction.couples_per_tick: average couples per tick.\n")
     handle.write("# Reproduction.fertile_per_tick: average fertile adults per tick.\n")
@@ -624,6 +647,8 @@ def init_debug_accumulator():
     return {
         "count": 0,
         "deaths": {},
+        "raids": {},
+        "raid_loot": {},
         "reproduction": {},
         "reproduction_blocked": {},
         "stockpile": {},
@@ -697,6 +722,12 @@ def accumulate_debug(accumulator, info):
     deaths = debug.get("deaths") or {}
     add_numeric(accumulator["deaths"], "starvation", deaths.get("starvation"))
     add_numeric(accumulator["deaths"], "oldAge", deaths.get("oldAge"))
+    add_numeric(accumulator["deaths"], "raid", deaths.get("raid"))
+
+    raid = debug.get("raid") or {}
+    add_numeric(accumulator["raids"], "count", raid.get("count"))
+    add_numeric(accumulator["raids"], "deaths", raid.get("deaths"))
+    add_map(accumulator["raid_loot"], raid.get("loot") or {})
 
     reproduction = debug.get("reproduction") or {}
     for key in (
@@ -774,6 +805,11 @@ def average_debug(accumulator):
 
     return {
         "deaths": avg_map(accumulator["deaths"]),
+        "raid": {
+            "count": accumulator["raids"].get("count", 0.0) / count,
+            "deaths": accumulator["raids"].get("deaths", 0.0) / count,
+            "loot": avg_map(accumulator["raid_loot"]),
+        },
         "reproduction": reproduction,
         "stockpile": {
             "avgRatio": accumulator["stockpile"].get("avgRatio", 0.0) / count,
