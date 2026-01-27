@@ -90,8 +90,9 @@ npm run ai:train:combo
 
 You can stop training with Ctrl+C to terminate the run.
 
-`ai:train:combo` runs the fast training loop and then a short full-sim pass
-(`--full-sim`) that uses `ai.training.evalOverrides` for a more realistic finish.
+`ai:train:combo` runs the fast training loop and then a longer full-sim pass
+(`--full-sim`) that uses `ai.training.evalOverrides` and now runs long enough
+to reach difficulty 1 with the current ramp settings.
 
 Use `ai:train:combo:fresh` to force a fresh start for the fast phase:
 
@@ -201,7 +202,6 @@ Open a PR or start a discussion with your ideas.
 
 ## Roadmap ideas 🧭
 
-- Climate events (droughts, long winters, heavy rains) with survival impact.
 - Housing maintenance and decay (wood/stone upkeep over time).
 - Storage caps and stockpile prioritization rules.
 - Specialized roles (gatherer, builder, caretaker) with distinct bonuses.
