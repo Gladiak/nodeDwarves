@@ -323,8 +323,15 @@ def format_summary_line(
     stockpile = debug.get("stockpile") or {}
     weather_counts = debug.get("weatherCounts") or {}
     scenario_counts = debug.get("scenarioCounts") or {}
-    crit = debug.get("criticalNeedsFraction", 0.0)
-    idle = debug.get("idleAdultsFraction", 0.0)
+    signals = debug.get("signals") or {}
+    crit = signals.get("criticalAvg", debug.get("criticalNeedsFraction", 0.0))
+    idle = signals.get("idleAvg", debug.get("idleAdultsFraction", 0.0))
+    pop_balance = signals.get("populationBalanceAvg", None)
+    ticks_avg = debug.get("ticksAvg", 0.0)
+    reward_per_step = avg_reward / avg_steps if avg_steps > 0 else 0.0
+    reward_per_tick = avg_reward / ticks_avg if ticks_avg else 0.0
+    shortage_label = format_map_label(debug.get("shortageAvg") or {}, digits=2)
+    termination_label = format_termination_label(debug.get("terminationCounts") or {}, window_count)
     weather_label = format_mix_label(weather_counts, window_count)
     scenario_label = format_mix_label(scenario_counts, window_count)
     scenario_target_label = format_ratio_label(scenario_target_mix)
@@ -336,12 +343,15 @@ def format_summary_line(
 
     return (
         f"ep={episode} win={window_start}-{episode} count={window_count} "
-        f"avg_reward={fmt(avg_reward)} avg_steps={fmt(avg_steps, 1)} "
+        f"avg_reward={fmt(avg_reward)} avg_steps={fmt(avg_steps, 1)} avg_ticks={fmt(ticks_avg, 1)} "
+        f"rps={fmt(reward_per_step, 3)} rpt={fmt(reward_per_tick, 3)} "
         f"avg_births={fmt(avg_births)} avg_deaths={fmt(avg_deaths)} "
         f"lr={fmt(lr, 6)} diff={fmt(difficulty, 2)} "
         f"tick={info.get('tick')} pop={info.get('population')} "
         f"stock[min={fmt(stockpile.get('minRatio', 0))} avg={fmt(stockpile.get('avgRatio', 0))}] "
         f"crit={fmt(crit)} idle={fmt(idle)} "
+        f"pop_bal={fmt(pop_balance) if pop_balance is not None else fmt(0.0)} "
+        f"short={shortage_label} term={termination_label} "
         f"weather={weather_label} scenario={scenario_label} "
         f"scenario_target={scenario_target_label} scenario_delta={scenario_delta:.2f} "
         f"events={event_label}"
@@ -354,6 +364,32 @@ def format_mix_label(counts, total):
     name, count = max(counts.items(), key=lambda item: item[1])
     pct = count / total * 100.0
     return f"{name}:{pct:.0f}%"
+
+
+def format_map_label(values, digits=2, keys=None):
+    if not values:
+        return "n/a"
+
+    def fmt(value):
+        try:
+            return f"{float(value):.{digits}f}"
+        except (TypeError, ValueError):
+            return f"{0.0:.{digits}f}"
+
+    use_keys = keys if keys else sorted(values.keys())
+    parts = [f"{key}={fmt(values.get(key))}" for key in use_keys]
+    return " ".join(parts)
+
+
+def format_termination_label(counts, total):
+    if not counts or total <= 0:
+        return "n/a"
+    items = sorted(counts.items(), key=lambda item: item[1], reverse=True)
+    parts = []
+    for name, count in items[:3]:
+        pct = count / total * 100.0
+        parts.append(f"{name}:{pct:.0f}%")
+    return " ".join(parts)
 
 
 def format_ratio_label(ratios):
@@ -381,14 +417,24 @@ def get_project_root():
     return os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
 
-def init_debug_run(keep=DEBUG_LOG_KEEP):
+def init_debug_run(keep=DEBUG_LOG_KEEP, run_dir=None, summary_name=None):
+    if run_dir:
+        run_dir = os.path.expanduser(run_dir)
+        if not os.path.isabs(run_dir):
+            run_dir = os.path.join(get_project_root(), run_dir)
+        os.makedirs(run_dir, exist_ok=True)
+        summary_name = summary_name or "summary.log"
+        summary_path = os.path.join(run_dir, summary_name)
+        return run_dir, summary_path
+
     debug_dir = os.path.join(get_project_root(), DEBUG_LOG_DIRNAME)
     os.makedirs(debug_dir, exist_ok=True)
     timestamp = time.strftime("%Y%m%d_%H%M%S")
     run_dir = os.path.join(debug_dir, f"run_{timestamp}_{os.getpid()}")
     prune_debug_runs(debug_dir, max(0, keep - 1))
     os.makedirs(run_dir, exist_ok=True)
-    summary_path = os.path.join(run_dir, "summary.log")
+    summary_name = summary_name or "summary.log"
+    summary_path = os.path.join(run_dir, summary_name)
     return run_dir, summary_path
 
 
@@ -449,7 +495,10 @@ def write_summary_header(
         f"entropy_ramp={args.entropy_ramp} value_coef={args.value_coef} "
         f"lr={args.lr} lr_final={args.lr_final} "
         f"difficulty_start={args.difficulty_start} difficulty_end={args.difficulty_end} "
-        f"difficulty_ramp={args.difficulty_ramp} min_weight={min_weight} max_weight={max_weight}\n"
+        f"difficulty_ramp={args.difficulty_ramp} min_weight={min_weight} max_weight={max_weight} "
+        f"eval_max_steps={args.eval_max_steps} eval_difficulty={args.eval_difficulty} "
+        f"eval_score={args.eval_score} sample_score={args.sample_score} "
+        f"full_sim={args.full_sim}\n"
     )
     handle.write(f"resources={' '.join(resources)}\n")
     handle.write(f"scenarios={format_scenario_weights(scenario_defs)}\n")
@@ -471,12 +520,15 @@ def write_summary_header(
     handle.write("# ep: end episode of the window.\n")
     handle.write("# win: window start-end episodes.\n")
     handle.write("# count: episodes in the window.\n")
-    handle.write("# avg_reward/avg_steps/avg_births/avg_deaths: mean episode metrics.\n")
+    handle.write("# avg_reward/avg_steps/avg_ticks/avg_births/avg_deaths: mean episode metrics.\n")
+    handle.write("# rps/rpt: reward per step / reward per tick.\n")
     handle.write("# lr: optimizer learning rate at log time.\n")
     handle.write("# diff: curriculum difficulty factor (0..1).\n")
     handle.write("# tick/pop: last tick and population seen in the window.\n")
     handle.write("# stock[min|avg]: min/mean stockpile ratio across resources.\n")
-    handle.write("# crit/idle: critical needs fraction and idle adults fraction.\n")
+    handle.write("# crit/idle/pop_bal: avg critical needs, idle adults, and population balance.\n")
+    handle.write("# short: average shortage per resource (1 - stockpile ratio).\n")
+    handle.write("# term: termination reason mix within the window.\n")
     handle.write("# scenario_target_mix: target distribution based on base weights.\n")
     handle.write("# weather/scenario: top label and share in the window.\n")
     handle.write("# scenario_delta: L1/2 distance between target mix and window mix.\n")
@@ -587,6 +639,10 @@ def init_debug_accumulator():
         "weather": {},
         "criticalNeedsFraction": 0.0,
         "idleAdultsFraction": 0.0,
+        "termination": {},
+        "shortage": {},
+        "signals": {},
+        "ticks": 0.0,
     }
 
 
@@ -614,6 +670,15 @@ def accumulate_debug(accumulator, info):
     if not debug:
         return
     accumulator["count"] += 1
+    done_reason = info.get("doneReason")
+    if done_reason:
+        accumulator["termination"][done_reason] = accumulator["termination"].get(done_reason, 0) + 1
+    episode_metrics = info.get("episodeMetrics") or {}
+    add_numeric(accumulator, "ticks", episode_metrics.get("ticks"))
+    add_map(accumulator["shortage"], episode_metrics.get("shortageAvg") or {})
+    add_numeric(accumulator["signals"], "criticalAvg", episode_metrics.get("criticalAvg"))
+    add_numeric(accumulator["signals"], "idleAvg", episode_metrics.get("idleAvg"))
+    add_numeric(accumulator["signals"], "populationBalanceAvg", episode_metrics.get("populationBalanceAvg"))
     scenario_meta = info.get("scenario")
     scenario_name = None
     if isinstance(scenario_meta, dict):
@@ -705,6 +770,7 @@ def average_debug(accumulator):
 
     reproduction = avg_map(accumulator["reproduction"])
     reproduction["blocked"] = avg_map(accumulator["reproduction_blocked"])
+    signals = accumulator.get("signals") or {}
 
     return {
         "deaths": avg_map(accumulator["deaths"]),
@@ -727,6 +793,14 @@ def average_debug(accumulator):
         "weatherCounts": dict(accumulator["weather"]),
         "criticalNeedsFraction": accumulator.get("criticalNeedsFraction", 0.0) / count,
         "idleAdultsFraction": accumulator.get("idleAdultsFraction", 0.0) / count,
+        "terminationCounts": dict(accumulator.get("termination") or {}),
+        "shortageAvg": avg_map(accumulator.get("shortage") or {}),
+        "signals": {
+            "criticalAvg": signals.get("criticalAvg", 0.0) / count,
+            "idleAvg": signals.get("idleAvg", 0.0) / count,
+            "populationBalanceAvg": signals.get("populationBalanceAvg", 0.0) / count,
+        },
+        "ticksAvg": accumulator.get("ticks", 0.0) / count,
     }
 
 
@@ -773,6 +847,10 @@ def get_scenario_definitions(config):
             "name": str(name),
             "weight": weight,
             "base_weight": weight,
+            "difficulty_min": to_float(entry.get("difficultyMin"), None),
+            "difficulty_max": to_float(entry.get("difficultyMax"), None),
+            "difficulty_min_multiplier": to_float(entry.get("difficultyMinMultiplier"), 0.0),
+            "difficulty_max_multiplier": to_float(entry.get("difficultyMaxMultiplier"), 1.0),
         })
     return definitions
 
@@ -795,16 +873,43 @@ def get_eval_scenarios(config, scenario_defs):
     return [name for name in names if name in scenario_names]
 
 
-def select_scenario(scenarios, rng):
+def scenario_weight_for_difficulty(entry, difficulty):
+    try:
+        weight = float(entry.get("weight", 0.0))
+    except (TypeError, ValueError):
+        weight = 0.0
+    weight = max(0.0, weight)
+    if difficulty is None:
+        return weight
+    dmin = entry.get("difficulty_min")
+    dmax = entry.get("difficulty_max")
+    if dmin is None or dmax is None:
+        return weight
+    if dmax <= dmin:
+        return weight
+    t = clamp((float(difficulty) - dmin) / (dmax - dmin), 0.0, 1.0)
+    min_mult = entry.get("difficulty_min_multiplier", 0.0)
+    max_mult = entry.get("difficulty_max_multiplier", 1.0)
+    try:
+        min_mult = float(min_mult)
+        max_mult = float(max_mult)
+    except (TypeError, ValueError):
+        min_mult = 0.0
+        max_mult = 1.0
+    multiplier = min_mult + (max_mult - min_mult) * t
+    return weight * max(0.0, multiplier)
+
+
+def select_scenario(scenarios, rng, difficulty=None):
     if not scenarios:
         return None
-    total_weight = sum(entry.get("weight", 0.0) for entry in scenarios)
+    weights = [scenario_weight_for_difficulty(entry, difficulty) for entry in scenarios]
+    total_weight = sum(weights)
     if total_weight <= 0:
         return None
     pick = rng.random() * total_weight
     cumulative = 0.0
-    for entry in scenarios:
-        weight = entry.get("weight", 0.0)
+    for entry, weight in zip(scenarios, weights):
         cumulative += weight
         if pick <= cumulative:
             return entry.get("name")
@@ -1071,6 +1176,7 @@ def worker_loop(worker_id, task_queue, result_queue, update_queue, resources, se
                         settings["min_weight"],
                         settings["max_weight"],
                         scenario,
+                        settings.get("full_sim", False),
                     )
                 except (BrokenPipeError, EOFError, OSError, RuntimeError):
                     break
@@ -1259,6 +1365,15 @@ def compute_gae(rewards, values, dones, gamma, lam, last_value):
     return advantages, returns
 
 
+def compute_score(total_reward, steps, ticks, mode):
+    mode = str(mode or "reward").lower()
+    if mode == "rps":
+        return total_reward / steps if steps and steps > 0 else 0.0
+    if mode == "rpt":
+        return total_reward / ticks if ticks and ticks > 0 else 0.0
+    return total_reward
+
+
 def run_episode(
     proc,
     model,
@@ -1271,18 +1386,30 @@ def run_episode(
     min_weight,
     max_weight,
     scenario,
+    full_sim,
 ):
     reset_payload = {"cmd": "reset", "seed": seed, "training": True}
+    if full_sim:
+        reset_payload["eval"] = True
     if difficulty is not None:
         reset_payload["difficulty"] = difficulty
     if scenario:
         reset_payload["scenario"] = scenario
     response = send(proc, reset_payload)
+    start_tick = 0
+    try:
+        start_tick = int((response.get("info") or {}).get("tick", 0) or 0)
+    except (TypeError, ValueError):
+        start_tick = 0
 
     transitions = []
     total_reward = 0.0
     steps = 0
     done = False
+    shortage_sum = {resource: 0.0 for resource in resources}
+    critical_sum = 0.0
+    idle_sum = 0.0
+    population_balance_sum = 0.0
 
     with inference_mode():
         for step in range(max_steps):
@@ -1300,6 +1427,14 @@ def run_episode(
             response = send(proc, {"cmd": "step", "action": {"weights": weights, "ticks": step_ticks}})
             reward = float(response.get("reward", 0.0))
             done = bool(response.get("done"))
+            obs = response.get("obs", {}) or {}
+            critical_sum += float(obs.get("criticalNeedsFraction", 0.0) or 0.0)
+            idle_sum += float(obs.get("idleAdultsFraction", 0.0) or 0.0)
+            population_balance_sum += float(obs.get("populationBalance", 0.0) or 0.0)
+            ratios = obs.get("stockpileRatio", {}) or {}
+            for resource in resources:
+                ratio = float(ratios.get(resource, 1.0) or 0.0)
+                shortage_sum[resource] += clamp(1.0 - ratio, 0.0, 1.0)
 
             transitions.append({
                 "obs": vector,
@@ -1322,6 +1457,37 @@ def run_episode(
             bootstrap_value = float(model.value(obs_tensor).squeeze(-1).item())
 
     info = response.get("info", {})
+    done_reason = info.get("doneReason")
+    if not done_reason and done:
+        pop = info.get("population")
+        done_reason = "extinction" if int(pop or 0) <= 0 else "done"
+    if not done_reason and not done and steps >= max_steps:
+        done_reason = "max_steps"
+    info["doneReason"] = done_reason
+    end_tick = 0
+    try:
+        end_tick = int(info.get("tick", 0) or 0)
+    except (TypeError, ValueError):
+        end_tick = 0
+    ticks_elapsed = max(0, end_tick - start_tick) if end_tick >= start_tick else steps * step_ticks
+    if steps > 0:
+        shortage_avg = {key: value / steps for key, value in shortage_sum.items()}
+        critical_avg = critical_sum / steps
+        idle_avg = idle_sum / steps
+        population_balance_avg = population_balance_sum / steps
+    else:
+        shortage_avg = {key: 0.0 for key in shortage_sum}
+        critical_avg = 0.0
+        idle_avg = 0.0
+        population_balance_avg = 0.0
+    info["episodeMetrics"] = {
+        "steps": steps,
+        "ticks": ticks_elapsed,
+        "shortageAvg": shortage_avg,
+        "criticalAvg": critical_avg,
+        "idleAvg": idle_avg,
+        "populationBalanceAvg": population_balance_avg,
+    }
     return transitions, total_reward, steps, info, bootstrap_value
 
 
@@ -1341,6 +1507,7 @@ def evaluate(
 ):
     total_reward = 0.0
     total_steps = 0.0
+    total_ticks = 0.0
     total_births = 0.0
     total_deaths = 0.0
     scenario_plan = []
@@ -1360,7 +1527,13 @@ def evaluate(
             for _ in range(scenario_episodes):
                 seed = seed_base + episode_idx if seed_base is not None else None
                 episode_idx += 1
-                reset_payload = {"cmd": "reset", "seed": seed, "training": True}
+                reset_payload = {
+                    "cmd": "reset",
+                    "seed": seed,
+                    "training": True,
+                    "eval": True,
+                    "randomize": False,
+                }
                 if difficulty is not None:
                     reset_payload["difficulty"] = difficulty
                 if scenario_name:
@@ -1383,6 +1556,7 @@ def evaluate(
                     reward = float(response.get("reward", 0.0))
                     total_reward += reward
                     total_steps += 1
+                    total_ticks += float(step_ticks)
                     if response.get("done"):
                         break
 
@@ -1393,6 +1567,7 @@ def evaluate(
     return {
         "avg_reward": total_reward / max(1, episodes),
         "avg_steps": total_steps / max(1, episodes),
+        "avg_ticks": total_ticks / max(1, episodes),
         "avg_births": total_births / max(1, episodes),
         "avg_deaths": total_deaths / max(1, episodes),
     }
@@ -1565,6 +1740,10 @@ def build_training_defaults(config):
         "log_every": to_int(trainer.get("logEvery"), 500),
         "eval_every": to_int(trainer.get("evalEvery"), 500),
         "eval_episodes": to_int(trainer.get("evalEpisodes"), 5),
+        "eval_max_steps": to_int(trainer.get("evalMaxSteps"), 0),
+        "eval_difficulty": to_float(trainer.get("evalDifficulty"), None),
+        "eval_score": to_str(trainer.get("evalScore"), "rpt"),
+        "sample_score": to_str(trainer.get("sampleScore"), "rpt"),
     }
 
     if defaults["entropy_coef_final"] is None:
@@ -1616,7 +1795,15 @@ def parse_args():
     parser.add_argument("--log-every", type=int, default=defaults["log_every"])
     parser.add_argument("--eval-every", type=int, default=defaults["eval_every"])
     parser.add_argument("--eval-episodes", type=int, default=defaults["eval_episodes"])
+    parser.add_argument("--eval-max-steps", type=int, default=defaults["eval_max_steps"])
+    parser.add_argument("--eval-difficulty", type=float, default=defaults["eval_difficulty"])
+    parser.add_argument("--eval-score", type=str, default=defaults["eval_score"])
+    parser.add_argument("--sample-score", type=str, default=defaults["sample_score"])
+    parser.add_argument("--full-sim", action="store_true", default=False)
     parser.add_argument("--fresh", action="store_true", default=False)
+    parser.add_argument("--debug-run-dir", type=str, default=None)
+    parser.add_argument("--debug-summary-name", type=str, default=None)
+    parser.add_argument("--debug-prefix", type=str, default=None)
     args = parser.parse_args()
     args.hidden_sizes = (
         to_int_list(args.hidden_sizes, defaults["hidden_sizes"])
@@ -1624,6 +1811,10 @@ def parse_args():
         else defaults["hidden_sizes"]
     )
     args.activation = to_str(args.activation, defaults["activation"]).lower()
+    if args.eval_difficulty is not None:
+        args.eval_difficulty = clamp(float(args.eval_difficulty), 0.0, 1.0)
+    args.eval_score = to_str(args.eval_score, defaults["eval_score"]).lower()
+    args.sample_score = to_str(args.sample_score, defaults["sample_score"]).lower()
     return args
 
 
@@ -1639,14 +1830,14 @@ def load_best_meta(path, model_path):
             payload = json.load(handle)
     except (OSError, json.JSONDecodeError):
         return None
-    value = payload.get("bestReward")
+    value = payload.get("bestScore", payload.get("bestReward"))
     try:
         return float(value)
     except (TypeError, ValueError):
         return None
 
 
-def save_best_meta(path, stats, episode):
+def save_best_meta(path, stats, episode, score=None, score_mode=None):
     if not path:
         return
     directory = os.path.dirname(path)
@@ -1654,8 +1845,11 @@ def save_best_meta(path, stats, episode):
         os.makedirs(directory, exist_ok=True)
     payload = {
         "bestReward": float(stats["avg_reward"]),
+        "bestScore": float(score) if score is not None else None,
+        "scoreMode": score_mode,
         "bestEpisode": int(episode),
         "avgSteps": float(stats["avg_steps"]),
+        "avgTicks": float(stats.get("avg_ticks", 0.0)),
         "avgBirths": float(stats["avg_births"]),
         "avgDeaths": float(stats["avg_deaths"]),
         "savedAt": int(time.time()),
@@ -1783,7 +1977,13 @@ def main():
     file_debug_window = init_debug_accumulator()
     file_window_start = 1
     eval_seed_base = (args.seed + 100000) if args.seed else None
-    debug_run_dir, summary_log_path = init_debug_run()
+    detail_prefix = (args.debug_prefix or "").strip()
+    if detail_prefix:
+        detail_prefix = detail_prefix.replace(os.sep, "_")
+    debug_run_dir, summary_log_path = init_debug_run(
+        run_dir=args.debug_run_dir,
+        summary_name=args.debug_summary_name,
+    )
     summary_log_handle = None
     scenario_sampling = get_scenario_sampling(config)
     scenario_sampler = init_scenario_sampler(config, scenario_defs)
@@ -1806,7 +2006,7 @@ def main():
             summary_log_handle = None
             debug_run_dir = None
     pending_detail_events = []
-    last_eval_reward = None
+    last_eval_score = None
     prev_scenario_mix = None
 
     batch_obs = []
@@ -1835,6 +2035,7 @@ def main():
         "hidden_sizes": args.hidden_sizes,
         "activation": args.activation,
         "log_std_init": args.log_std_init,
+        "full_sim": args.full_sim,
     }
 
     processes = []
@@ -1879,7 +2080,7 @@ def main():
                 difficulty = args.difficulty_start + (args.difficulty_end - args.difficulty_start) * progress
                 difficulty = clamp(difficulty, 0.0, 1.0)
                 seed = (args.seed + next_episode) if args.seed else None
-                scenario = select_scenario(training_scenarios, scenario_rng)
+                scenario = select_scenario(training_scenarios, scenario_rng, difficulty)
                 task_queue.put((next_episode, seed, difficulty, scenario))
                 in_flight += 1
                 next_episode += 1
@@ -1934,7 +2135,10 @@ def main():
                 accumulate_debug(file_debug_window, info)
 
                 scenario_name = extract_scenario_name(info)
-                record_scenario_reward(scenario_sampler, scenario_name, reward)
+                episode_metrics = info.get("episodeMetrics") or {}
+                ticks = float(episode_metrics.get("ticks", steps * args.step_ticks) or 0.0)
+                scenario_score = compute_score(reward, steps, ticks, args.sample_score)
+                record_scenario_reward(scenario_sampler, scenario_name, scenario_score)
                 if (
                     scenario_sampler
                     and next_expected - scenario_sampler["last_update"] >= scenario_sampler["update_every"]
@@ -2059,10 +2263,12 @@ def main():
                     summary_log_handle.flush()
 
                     if events and debug_run_dir:
-                        detail_path = os.path.join(
-                            debug_run_dir,
-                            f"detail_ep{next_expected:05d}.log",
+                        detail_name = (
+                            f"detail_{detail_prefix}_ep{next_expected:05d}.log"
+                            if detail_prefix
+                            else f"detail_ep{next_expected:05d}.log"
                         )
+                        detail_path = os.path.join(debug_run_dir, detail_name)
                         try:
                             with open(detail_path, "w", encoding="utf-8") as detail_handle:
                                 write_detail_header(
@@ -2102,37 +2308,53 @@ def main():
                     file_window_start = next_expected + 1
 
                 if eval_proc and args.eval_every > 0 and next_expected % args.eval_every == 0:
+                    eval_max_steps = (
+                        args.eval_max_steps
+                        if args.eval_max_steps and args.eval_max_steps > 0
+                        else args.max_steps
+                    )
+                    eval_difficulty = (
+                        args.eval_difficulty
+                        if args.eval_difficulty is not None
+                        else args.difficulty_end
+                    )
                     stats = evaluate(
                         eval_proc,
                         model,
                         resources,
                         FEATURE_NAMES,
-                        args.max_steps,
+                        eval_max_steps,
                         args.step_ticks,
                         args.eval_episodes,
                         eval_seed_base,
-                        args.difficulty_end,
+                        eval_difficulty,
                         min_weight,
                         max_weight,
                         eval_scenarios,
                     )
+                    eval_score = compute_score(
+                        stats["avg_reward"],
+                        stats["avg_steps"],
+                        stats.get("avg_ticks", 0.0),
+                        args.eval_score,
+                    )
                     print(
                         f"eval episode={next_expected} avg_reward={stats['avg_reward']:.2f} "
                         f"avg_steps={stats['avg_steps']:.1f} avg_births={stats['avg_births']:.2f} "
-                        f"avg_deaths={stats['avg_deaths']:.2f}"
+                        f"avg_deaths={stats['avg_deaths']:.2f} score={eval_score:.3f}"
                     )
-                    if last_eval_reward is not None:
-                        drop = last_eval_reward - stats["avg_reward"]
+                    if last_eval_score is not None:
+                        drop = last_eval_score - eval_score
                         threshold = max(
                             DETAIL_EVAL_REGRESSION_ABS,
-                            abs(last_eval_reward) * DETAIL_EVAL_REGRESSION_REL,
+                            abs(last_eval_score) * DETAIL_EVAL_REGRESSION_REL,
                         )
                         if drop >= threshold:
                             pending_detail_events.append(f"eval_regression={drop:.2f}")
-                    last_eval_reward = stats["avg_reward"]
+                    last_eval_score = eval_score
                     if args.best_model_path:
-                        if best_eval is None or stats["avg_reward"] > best_eval:
-                            best_eval = stats["avg_reward"]
+                        if best_eval is None or eval_score > best_eval:
+                            best_eval = eval_score
                             save_policy(
                                 args.best_model_path,
                                 model,
@@ -2143,10 +2365,16 @@ def main():
                                 args.activation,
                                 model.log_std,
                             )
-                            save_best_meta(args.best_model_meta_path, stats, next_expected)
+                            save_best_meta(
+                                args.best_model_meta_path,
+                                stats,
+                                next_expected,
+                                eval_score,
+                                args.eval_score,
+                            )
                             print(
-                                f"best eval episode={next_expected} avg_reward={best_eval:.2f} "
-                                f"saved={args.best_model_path}"
+                                f"best eval episode={next_expected} score={best_eval:.3f} "
+                                f"avg_reward={stats['avg_reward']:.2f} saved={args.best_model_path}"
                             )
                             pending_detail_events.append(f"best_eval={best_eval:.2f}")
 

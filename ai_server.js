@@ -46,6 +46,7 @@ rl.on('line', (line) => {
     applySeed(payload.seed);
     resetState({
       training: payload.training,
+      eval: payload.eval,
       difficulty: payload.difficulty,
       randomize: payload.randomize,
       scenario: payload.scenario,
@@ -63,8 +64,8 @@ rl.on('line', (line) => {
     const metrics = computeMetrics(state, activeConfig);
     const reward = computeReward(prevMetrics, metrics, activeConfig);
     prevMetrics = metrics;
-    const done = isDone(state, activeConfig);
-    writeResponse(buildResponse(reward, done));
+    const doneStatus = getDoneStatus(state, activeConfig, metrics);
+    writeResponse(buildResponse(reward, doneStatus.done, doneStatus.reason));
     return;
   }
 
@@ -116,7 +117,7 @@ function getStepTicks(action, config) {
   return Math.max(1, Number(aiConfig.stepTicks || 10));
 }
 
-function buildResponse(reward, done) {
+function buildResponse(reward, done, doneReason) {
   const metrics = computeMetrics(state, activeConfig);
   const obs = buildObservation(state, activeConfig, metrics);
   return {
@@ -128,6 +129,7 @@ function buildResponse(reward, done) {
       population: metrics.population.total,
       births: Number(state.birthsCount || 0),
       deaths: Number(state.deathsCount || 0),
+      doneReason: doneReason || null,
       scenario: scenarioMeta,
       debug: buildDebugInfo(state, activeConfig, metrics),
     },
@@ -455,15 +457,95 @@ function getPopulationFactor(population, config) {
   return population > 0 ? 1 : 0;
 }
 
-function isDone(state, config) {
+function getDoneStatus(state, config, metrics) {
   const aiConfig = config.ai || {};
   const maxTicks = Number(aiConfig.maxTicks || 0);
   const simMaxTicks = Number(config.simulation && config.simulation.maxTicks || 0);
   const limit = maxTicks > 0 ? maxTicks : simMaxTicks;
-  if (limit > 0 && state.tick >= limit) {
-    return true;
+  if (state.dwarves.length === 0) {
+    return { done: true, reason: 'extinction' };
   }
-  return state.dwarves.length === 0;
+  if (limit > 0 && state.tick >= limit) {
+    return { done: true, reason: 'maxTicks' };
+  }
+
+  const termination = aiConfig.termination || {};
+  if (termination.enabled === true) {
+    const safeMetrics = metrics || computeMetrics(state, config);
+    if (shouldTerminateStable(state, safeMetrics, termination)) {
+      return { done: true, reason: 'stable' };
+    }
+  }
+
+  return { done: false, reason: null };
+}
+
+function shouldTerminateStable(state, metrics, termination) {
+  if (!metrics) {
+    return false;
+  }
+  const minTicks = Math.max(0, Number(termination.minTicks ?? 0));
+  const stableTicksTarget = Math.max(1, Number(termination.stableTicks ?? 0));
+  const minStockpileAvg = clamp(Number(termination.minStockpileAvg ?? 0), 0, 1);
+  const minStockpileMin = clamp(Number(termination.minStockpileMin ?? 0), 0, 1);
+  const maxCriticalNeeds = clamp(Number(termination.maxCriticalNeeds ?? 1), 0, 1);
+  const maxIdleAdults = clamp(Number(termination.maxIdleAdults ?? 1), 0, 1);
+  const minPopulationBalance = clamp(Number(termination.minPopulationBalance ?? 0), 0, 1);
+  const stockpileEps = Math.max(0, Number(termination.stockpileEps ?? 0.01));
+  const resourceEps = Math.max(0, Number(termination.resourceEps ?? stockpileEps));
+
+  const populationTotal = metrics.population && Number(metrics.population.total || 0);
+  const healthy = populationTotal > 0
+    && Number(metrics.stockpileAvg || 0) >= minStockpileAvg
+    && Number(metrics.stockpileMin || 0) >= minStockpileMin
+    && Number(metrics.criticalNeedsFraction || 0) <= maxCriticalNeeds
+    && Number(metrics.idleAdultsFraction || 0) <= maxIdleAdults
+    && Number(metrics.populationBalance || 0) >= minPopulationBalance;
+
+  const tracker = state.termination || {};
+  const lastTick = Number.isFinite(tracker.lastTick) ? tracker.lastTick : state.tick;
+  const deltaTicks = Math.max(0, state.tick - lastTick);
+  const prevAvg = Number(tracker.stockpileAvg);
+  const avg = Number(metrics.stockpileAvg || 0);
+  const avgDelta = Number.isFinite(prevAvg) ? Math.abs(avg - prevAvg) : 0;
+  const scaledEps = stockpileEps <= 0 ? Infinity : stockpileEps * Math.max(1, deltaTicks);
+  const stableDelta = avgDelta <= scaledEps;
+  const ratios = metrics.stockpileRatio || {};
+  const prevRatios = tracker.stockpileRatios || {};
+  const resourceList = Array.isArray(termination.resources) && termination.resources.length > 0
+    ? termination.resources
+    : Object.keys(ratios);
+  let maxResourceDelta = 0;
+  const nextRatios = {};
+  for (const resource of resourceList) {
+    const current = Number(ratios[resource] ?? 0);
+    const prev = Number(prevRatios[resource]);
+    const delta = Number.isFinite(prev) ? Math.abs(current - prev) : 0;
+    if (delta > maxResourceDelta) {
+      maxResourceDelta = delta;
+    }
+    nextRatios[resource] = current;
+  }
+  const scaledResourceEps = resourceEps <= 0 ? Infinity : resourceEps * Math.max(1, deltaTicks);
+  const stableResources = maxResourceDelta <= scaledResourceEps;
+
+  let stableTicks = Number(tracker.stableTicks || 0);
+  if (state.tick < minTicks) {
+    stableTicks = 0;
+  } else if (healthy && stableDelta && stableResources) {
+    stableTicks += deltaTicks > 0 ? deltaTicks : 1;
+  } else {
+    stableTicks = 0;
+  }
+
+  state.termination = {
+    lastTick: state.tick,
+    stockpileAvg: avg,
+    stockpileRatios: nextRatios,
+    stableTicks,
+  };
+
+  return state.tick >= minTicks && stableTicksTarget > 0 && stableTicks >= stableTicksTarget;
 }
 
 function countLifeStages(dwarves) {
@@ -558,8 +640,15 @@ function buildScenarioConfig(base, options) {
   const aiConfig = base.ai || {};
   const training = aiConfig.training || {};
   const randomization = training.randomization || {};
+  const trainingOverrides = isPlainObject(training.configOverrides)
+    ? training.configOverrides
+    : null;
+  const evalOverrides = isPlainObject(training.evalOverrides)
+    ? training.evalOverrides
+    : null;
   const scenarios = Array.isArray(training.scenarios) ? training.scenarios : [];
   const trainingFlag = options.training !== undefined ? options.training : true;
+  const evalFlag = options.eval === true;
   const enabled = training.enabled !== false && trainingFlag !== false;
   const requestedDifficulty = options.difficulty !== undefined ? options.difficulty : training.difficultyStart;
   const difficulty = clamp(Number(requestedDifficulty ?? 0), 0, 1);
@@ -568,8 +657,22 @@ function buildScenarioConfig(base, options) {
     ? scenarios.find((entry) => entry && entry.name === requestedScenario) || null
     : null;
   const hasScenarioOverrides = Boolean(scenarioDef && scenarioDef.overrides);
-  const shouldClone = enabled || requestedScenario || hasScenarioOverrides;
+  const hasTrainingOverrides = Boolean(
+    enabled && trainingOverrides && Object.keys(trainingOverrides).length > 0,
+  );
+  const hasEvalOverrides = Boolean(
+    evalFlag && evalOverrides && Object.keys(evalOverrides).length > 0,
+  );
+  const shouldClone = enabled || requestedScenario || hasScenarioOverrides || hasTrainingOverrides || hasEvalOverrides;
   const config = shouldClone ? cloneConfig(base) : base;
+
+  if (hasTrainingOverrides) {
+    mergeDeep(config, trainingOverrides);
+  }
+
+  if (hasEvalOverrides) {
+    mergeDeep(config, evalOverrides);
+  }
 
   if (hasScenarioOverrides) {
     mergeDeep(config, scenarioDef.overrides);
@@ -583,6 +686,8 @@ function buildScenarioConfig(base, options) {
         difficulty,
         name: requestedScenario,
         overridesApplied: hasScenarioOverrides,
+        trainingOverridesApplied: hasTrainingOverrides,
+        evalOverridesApplied: hasEvalOverrides,
         missing: Boolean(requestedScenario && !scenarioDef),
       },
       initialTick: null,
@@ -612,6 +717,8 @@ function buildScenarioConfig(base, options) {
       difficulty,
       name: requestedScenario,
       overridesApplied: hasScenarioOverrides,
+      trainingOverridesApplied: hasTrainingOverrides,
+      evalOverridesApplied: hasEvalOverrides,
       missing: Boolean(requestedScenario && !scenarioDef),
       stockpileScale,
       nodeCountScale,

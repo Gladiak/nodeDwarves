@@ -84,6 +84,19 @@
         "exponent": 1.5
       }
     },
+    "termination": {
+      "enabled": false,
+      "minTicks": 0,
+      "stableTicks": 0,
+      "minStockpileAvg": 0.7,
+      "minStockpileMin": 0.55,
+      "maxCriticalNeeds": 0.05,
+      "maxIdleAdults": 0.2,
+      "minPopulationBalance": 0.6,
+      "stockpileEps": 0.01,
+      "resourceEps": 0.01,
+      "resources": []
+    },
     "training": {
       "enabled": true,
       "difficultyStart": 0.08,
@@ -114,10 +127,272 @@
         "seasonStartRandom": true,
         "seasonTickRandom": true
       },
+      "configOverrides": {
+        "events": {
+          "maxEntries": 3
+        },
+        "dwarves": {
+          "count": 8
+        },
+        "ai": {
+          "termination": {
+            "enabled": true,
+            "minTicks": 700,
+            "stableTicks": 160,
+            "minStockpileAvg": 0.68,
+            "minStockpileMin": 0.5,
+            "maxCriticalNeeds": 0.05,
+            "maxIdleAdults": 0.25,
+            "minPopulationBalance": 0.6,
+            "stockpileEps": 0.02,
+            "resourceEps": 0.02,
+            "resources": ["water", "food_raw"]
+          }
+        },
+        "merchant": {
+          "enabled": false
+        },
+        "needs": {
+          "decayPerTick": {
+            "hunger": 0.0022,
+            "thirst": 0.0033
+          }
+        },
+        "consumption": {
+          "hungerThreshold": 0.33,
+          "thirstThreshold": 0.33,
+          "hungerTarget": 0.33,
+          "thirstTarget": 0.33,
+          "rawFoodRelief": 0.33,
+          "waterRelief": 0.33
+        },
+        "jobs": {
+          "gatherYield": {
+            "food_raw": 2,
+            "water": 2,
+            "wood": 1,
+            "stone": 1
+          }
+        },
+        "resources": {
+          "stockpile": {
+            "food_raw": 30,
+            "water": 30,
+            "wood": 6,
+            "stone": 5
+          },
+          "targets": {
+            "food_raw": 40,
+            "water": 40,
+            "wood": 7,
+            "stone": 6
+          },
+          "nodeCapacity": {
+            "food_raw": 12,
+            "water": 16,
+            "wood": 8,
+            "stone": 8
+          },
+          "nodes": {
+            "food_raw": 18,
+            "water": 14,
+            "wood": 8,
+            "stone": 6
+          },
+          "nodeRegen": {
+            "intervalTicks": 40,
+            "amount": 3
+          }
+        },
+        "population": {
+          "relationships": {
+            "interactionsPerTick": 1
+          },
+          "reproduction": {
+            "softCap": 24,
+            "baseChance": 0.006,
+            "cooldownTicks": 80
+          }
+        },
+        "structures": {
+          "well": {
+            "maxCount": 3
+          },
+          "field": {
+            "maxCount": 4
+          }
+        }
+      },
+      "evalOverrides": {
+        "events": {
+          "maxEntries": 5
+        },
+        "dwarves": {
+          "count": 12
+        },
+        "ai": {
+          "termination": {
+            "enabled": false
+          }
+        },
+        "merchant": {
+          "enabled": true
+        },
+        "needs": {
+          "decayPerTick": {
+            "hunger": 0.002,
+            "thirst": 0.003
+          }
+        },
+        "consumption": {
+          "hungerThreshold": 0.3,
+          "thirstThreshold": 0.3,
+          "hungerTarget": 0.3,
+          "thirstTarget": 0.3,
+          "rawFoodRelief": 0.35,
+          "waterRelief": 0.35
+        },
+        "resources": {
+          "stockpile": {
+            "food_raw": 40,
+            "water": 40,
+            "wood": 8,
+            "stone": 6
+          },
+          "targets": {
+            "food_raw": 60,
+            "water": 60,
+            "wood": 8,
+            "stone": 6
+          },
+          "nodeCapacity": {
+            "food_raw": 14,
+            "water": 22,
+            "wood": 10,
+            "stone": 10
+          },
+          "nodes": {
+            "food_raw": 28,
+            "water": 20,
+            "wood": 14,
+            "stone": 12
+          },
+          "nodeRegen": {
+            "intervalTicks": 35,
+            "amount": 3
+          }
+        },
+        "population": {
+          "relationships": {
+            "interactionsPerTick": 4,
+            "idleInteractionMultiplier": 1.5
+          },
+          "reproduction": {
+            "softCap": 38,
+            "baseChance": 0.0075,
+            "cooldownTicks": 70
+          }
+        },
+        "structures": {
+          "well": {
+            "maxCount": 6
+          },
+          "field": {
+            "maxCount": 8
+          }
+        }
+      },
       "scenarios": [
         {
           "name": "baseline",
           "weight": 0.15
+        },
+        {
+          "name": "full_sim",
+          "weight": 0.1,
+          "difficultyMin": 0.6,
+          "difficultyMax": 1.0,
+          "difficultyMinMultiplier": 0.0,
+          "difficultyMaxMultiplier": 1.0,
+          "overrides": {
+            "events": {
+              "maxEntries": 5
+            },
+            "dwarves": {
+              "count": 12
+            },
+            "ai": {
+              "termination": {
+                "enabled": false
+              }
+            },
+            "merchant": {
+              "enabled": true
+            },
+            "needs": {
+              "decayPerTick": {
+                "hunger": 0.002,
+                "thirst": 0.003
+              }
+            },
+            "consumption": {
+              "hungerThreshold": 0.3,
+              "thirstThreshold": 0.3,
+              "hungerTarget": 0.3,
+              "thirstTarget": 0.3,
+              "rawFoodRelief": 0.35,
+              "waterRelief": 0.35
+            },
+            "resources": {
+              "stockpile": {
+                "food_raw": 40,
+                "water": 40,
+                "wood": 8,
+                "stone": 6
+              },
+              "targets": {
+                "food_raw": 60,
+                "water": 60,
+                "wood": 8,
+                "stone": 6
+              },
+              "nodeCapacity": {
+                "food_raw": 14,
+                "water": 22,
+                "wood": 10,
+                "stone": 10
+              },
+              "nodes": {
+                "food_raw": 28,
+                "water": 20,
+                "wood": 14,
+                "stone": 12
+              },
+              "nodeRegen": {
+                "intervalTicks": 35,
+                "amount": 3
+              }
+            },
+            "population": {
+              "relationships": {
+                "interactionsPerTick": 4,
+                "idleInteractionMultiplier": 1.5
+              },
+              "reproduction": {
+                "softCap": 38,
+                "baseChance": 0.0075,
+                "cooldownTicks": 70
+              }
+            },
+            "structures": {
+              "well": {
+                "maxCount": 6
+              },
+              "field": {
+                "maxCount": 8
+              }
+            }
+          }
         },
         {
           "name": "water_scarce",
@@ -125,10 +400,10 @@
           "overrides": {
             "resources": {
               "nodes": {
-                "water": 9
+                "water": 8
               },
               "nodeCapacity": {
-                "water": 14
+                "water": 10
               }
             }
           }
@@ -139,10 +414,10 @@
           "overrides": {
             "resources": {
               "nodes": {
-                "food_raw": 18
+                "food_raw": 10
               },
               "nodeCapacity": {
-                "food_raw": 12
+                "food_raw": 8
               }
             }
           }
@@ -153,10 +428,10 @@
           "overrides": {
             "resources": {
               "stockpile": {
-                "food_raw": 18,
-                "water": 18,
+                "food_raw": 14,
+                "water": 14,
                 "wood": 4,
-                "stone": 3
+                "stone": 4
               }
             }
           }
@@ -166,7 +441,7 @@
           "weight": 0.2,
           "overrides": {
             "dwarves": {
-              "count": 16
+              "count": 12
             },
             "population": {
               "housing": {
@@ -187,6 +462,7 @@
       ],
       "evalScenarios": [
         "baseline",
+        "full_sim",
         "water_scarce",
         "food_scarce",
         "low_stockpile",
@@ -195,8 +471,8 @@
       "trainer": {
         "algorithm": "ppo",
         "episodes": 20000,
-        "maxSteps": 900,
-        "stepTicks": 5,
+        "maxSteps": 520,
+        "stepTicks": 4,
         "gamma": 0.99,
         "gaeLambda": 0.95,
         "clipRange": 0.2,
@@ -217,6 +493,10 @@
         "logEvery": 2000,
         "evalEvery": 2000,
         "evalEpisodes": 4,
+        "evalMaxSteps": 1200,
+        "evalDifficulty": 1.0,
+        "evalScore": "rpt",
+        "sampleScore": "rpt",
         "modelPath": "models/policy.json",
         "bestModelPath": "models/policy_best.json",
         "bestModelMetaPath": "models/policy_best.meta.json",
