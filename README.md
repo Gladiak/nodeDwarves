@@ -8,6 +8,7 @@ alive while you watch the chaos unfold in ASCII.
 
 - [Highlights](#highlights-)
 - [Simulation overview](#simulation-overview-)
+- [Job system and priorities](#job-system-and-priorities-)
 - [Quick start](#quick-start-)
 - [AI mode (Python)](#ai-mode-python-)
 - [Configuration](#configuration-)
@@ -23,6 +24,7 @@ alive while you watch the chaos unfold in ASCII.
 - ❄️ Seasons + housing effects (bonding, winter penalties).
 - 🌦️ Dynamic weather cycle that reshapes needs, gathering, and regeneration.
 - 🎓 PPO training in Python with JS-only inference.
+- 🧱 Modular architecture (simulation, state, render, AI) for easier iteration.
 
 ## Screenshot - How it looks 📸
 
@@ -31,6 +33,7 @@ alive while you watch the chaos unfold in ASCII.
 ## Simulation overview 🗺️
 
 - 🗺️ The world is a fixed-size ASCII grid with resource nodes, structures, and dwarves.
+- 🌍 The map renders a randomized terrain backdrop (coast/valley modes) for visual texture.
 - ⏱️ Each tick:
   1. Dwarves accumulate needs (hunger, thirst).
   2. Resources are consumed when needs cross thresholds.
@@ -45,16 +48,21 @@ alive while you watch the chaos unfold in ASCII.
 - 🪵🪨 Wood and stone build clustered villages (center-out placement).
 - 🛏️ Housing provides beds; insufficient shelter slows bonding and makes winter harsher.
 - 🧳 A roaming merchant visits periodically, trades surplus for scarce resources, then leaves.
+- 🚰 Wells and 🌾 fields are placed outside the village perimeter to keep housing and walls clear.
 - 📊 HUD shows averages, bars, priorities, and counts for wells/fields.
+- 🖼️ The map renders with a framed border for clearer navigation.
+- 🧭 Terrain adds visual texture (coast, lakes, rivers); walkability and movement delay are configurable per terrain.
+- 🧩 Resources can come from nodes or from terrain tiles (configurable).
 
 ## Job system and priorities ⚙️
 
 - 🧭 Shortages are sorted by severity (missing/target ratio).
 - ⛏️ If a resource has nodes on the map, a gather job is created.
-- 🚫 Crafting is disabled for now; gathering covers food, water, wood, and stone.
-- 🏠 House construction jobs spawn when housing is below the target ratio and vital stockpiles are healthy.
+- 🧪 Crafting is optional: it activates when recipes/workshops exist and roles are disabled.
+- 🏠 House build/upgrade jobs spawn when housing is below target ratio and stockpiles meet guardrails.
 - 💧 Wells are built when water stocks or water node reserves dip below thresholds.
 - 🌱 Fields are built when food stocks or food node reserves dip below thresholds and baseline stockpiles are safe.
+- 🧑‍🏭 Roles (builder/gatherer) can be enabled to keep building stable during shortages.
 
 ## Quick start 🚀
 
@@ -129,6 +137,8 @@ Detailed snapshots are written to `debug/run_*/detail_ep*.log` only on notable
 events (best eval, eval regression, scenario shift).
 If you change observation features (e.g. add weather features), training must
 restart with `--fresh`.
+Observation features live in `src/ai/observation.js`, and policy inference lives
+in `src/ai/policy.js`.
 
 ## Configuration 🧰
 
@@ -154,8 +164,20 @@ killed, and raids steal stockpile resources scaled by exposed fraction.
 - `raids.beasts.*`: visual beast count rules.
 - `symbols.beast`: map symbol for beasts (default `\u00f6`).
 
+Walls can mitigate raids by reducing the effective raid damage. Wall segments are
+built when raid seasons are eligible (configurable) and scale a defense bonus
+applied to raid deaths and loot loss.
+
+Wall placement keeps a buffer from existing buildings. When beds are needed,
+housing upgrades are preferred to increase capacity without forcing new houses
+beyond the walls.
+
 Training includes a `wildlife_raid` scenario that enables raids with the base
 raid parameters and ramps with difficulty.
+
+Training observations expose raid risk (season eligibility), exposure, and defense
+so policies can prepare ahead of raids. Reward shaping can further penalize raid
+exposure, deaths, and loot loss via `ai.reward.*`.
 
 ### Scenario presets (training) 🎯
 
@@ -202,12 +224,42 @@ When house levels are enabled, houses render as digits `1` to `5` instead of `sy
 │   ├── policy_best.meta.json     # Best-eval metadata
 │   └── policy.json               # Optional latest policy (configurable)
 └── src
-    ├── ai_policy.js              # Runtime policy loader/inference
+    ├── ai                         # AI observation + policy inference
+    │   ├── observation.js
+    │   └── policy.js
+    ├── ai_policy.js              # Runtime policy loader/inference (wrapper)
     ├── config.js                 # Config loader
-    ├── render.js                 # ASCII renderer + HUD
+    ├── render                    # Renderer modules
+    │   ├── colors.js
+    │   ├── format.js
+    │   ├── grid.js
+    │   ├── header.js
+    │   ├── hud.js
+    │   ├── index.js
+    │   └── legend.js
+    ├── render.js                 # ASCII renderer + HUD (wrapper)
     ├── runtime.js                # Terminal sizing and layout
-    ├── simulation.js             # Needs, jobs, movement, survival loops
-    ├── state.js                  # World state + spawning
+    ├── simulation                # Simulation modules
+    │   ├── dwarf_actions.js
+    │   ├── events.js
+    │   ├── index.js
+    │   ├── jobs.js
+    │   ├── merchant.js
+    │   ├── movement.js
+    │   ├── population.js
+    │   ├── raids.js
+    │   ├── random.js
+    │   ├── resources.js
+    │   ├── roles.js
+    │   ├── season.js
+    │   ├── structures.js
+    │   ├── terrain.js
+    │   └── weather.js
+    ├── simulation.js             # Needs, jobs, movement, survival loops (wrapper)
+    ├── state                     # World state + terrain generation
+    │   ├── index.js
+    │   └── terrain.js
+    ├── state.js                  # World state + spawning (wrapper)
     ├── terminal.js               # Terminal helpers
     └── utils.js                  # Shared helpers
 ```

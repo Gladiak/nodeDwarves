@@ -9,6 +9,7 @@ This file defines how to implement new features in a consistent, stable way.
 - Use config-driven tuning for all gameplay parameters.
 - Favor gather-first economy; build structures only when shortages justify them.
 - Keep the simulation deterministic enough for training comparison.
+- Continuously improve model intelligence and learning capability in measured, stable steps.
 
 ## Project structure
 
@@ -17,12 +18,19 @@ This file defines how to implement new features in a consistent, stable way.
 - `docs/PARAMETERS.md`: config parameter reference.
 - `docs/TRAINING_OVERRIDES.md`: training overrides guide.
 - `src/config.js`: config loader.
-- `src/simulation.js`: core simulation loop and rules.
-- `src/state.js`: initial state and entity defaults.
-- `src/render.js`: ASCII renderer + HUD + legend.
+- `src/simulation/`: simulation systems split by theme.
+- `src/simulation/index.js`: simulation orchestrator.
+- `src/simulation.js`: thin wrapper for `src/simulation/index.js`.
+- `src/state/`: state creation and terrain generation.
+- `src/state/index.js`: state orchestrator.
+- `src/state.js`: thin wrapper for `src/state/index.js`.
+- `src/render/`: render helpers (grid, header, HUD, legend, colors, format).
+- `src/render/index.js`: render orchestrator.
+- `src/render.js`: thin wrapper for `src/render/index.js`.
 - `src/runtime.js`: terminal sizing and layout.
 - `src/terminal.js`: terminal helpers.
-- `src/ai_policy.js`: runtime policy loader/inference.
+- `src/ai/`: AI modules (policy and observation).
+- `src/ai_policy.js`: thin wrapper for `src/ai/policy.js`.
 - `src/utils.js`: shared helpers.
 - `ai_server.js`: JS inference bridge for training.
 - `python/bootstrap.py`: venv bootstrap.
@@ -52,12 +60,20 @@ This file defines how to implement new features in a consistent, stable way.
   - `docs/PARAMETERS.md` (parameters) + `README.md` (gameplay notes)
 - Guardrails should use stockpile ratios, not absolute counts.
 
+## Modularization and refactoring
+
+- Split large files into small, thematic modules (resources, structures, movement, population, raids, rendering, AI).
+- Keep wrappers as stable public APIs to avoid import churn and reduce regression risk.
+- Prefer explicit data flow between modules over implicit shared state.
+- Avoid circular dependencies; use small, single-purpose helpers.
+
 ## AI training
 
 - PPO only (2x128 MLP). Keep JSON weights for JS inference.
 - Training must be resumable from the best-eval snapshot (default `models/policy_best.json`).
 - If observation/action shapes change, require `--fresh` training.
 - Keep logs low-noise: `diag` should be averaged per log window.
+- Track model quality over time and prefer steady, incremental improvements over sudden unstable jumps.
 
 ## Logging and diagnostics
 
@@ -85,3 +101,4 @@ This file defines how to implement new features in a consistent, stable way.
 - Use consistent naming: `snake_case` only for config keys, `camelCase` in code.
 - Use ASCII only unless a file already uses Unicode.
 - Prefer early returns and guard clauses.
+- Add short English comments above top-level functions to aid onboarding.

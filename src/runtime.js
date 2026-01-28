@@ -1,10 +1,14 @@
 'use strict';
 
+// Function: buildRuntime.
 function buildRuntime(display, terminal) {
   let hudEnabled = Boolean(display.hud && display.hud.enabled);
   const hudWidth = hudEnabled ? Number(display.hud.width || 0) : 0;
   const hudColumns = hudEnabled ? Number(display.hud.columns || 1) : 1;
   const hudColumnGap = hudEnabled ? Number(display.hud.columnGap || 2) : 2;
+  let frameEnabled = Boolean(display.frame && display.frame.enabled);
+  let frameWidth = frameEnabled ? 2 : 0;
+  let frameHeight = frameEnabled ? 2 : 0;
   const headerHeight = display.header && display.header.enabled
     ? Math.max(0, Number(display.header.height || 2))
     : 0;
@@ -27,12 +31,29 @@ function buildRuntime(display, terminal) {
   }
 
   let gridWidth = totalWidth;
-  const gridHeight = Math.max(0, totalHeight - headerHeight - footerHeight);
+  let gridHeight = Math.max(0, totalHeight - headerHeight - footerHeight - frameHeight);
 
-  if (hudEnabled && gridWidth > hudWidth + 3) {
-    gridWidth = gridWidth - (hudWidth + 3);
+  if (hudEnabled && gridWidth > hudWidth + 3 + frameWidth) {
+    gridWidth = gridWidth - (hudWidth + 3 + frameWidth);
   } else {
     hudEnabled = false;
+  }
+
+  if (!hudEnabled) {
+    gridWidth = gridWidth - frameWidth;
+  }
+
+  if (frameEnabled && (gridWidth <= 0 || gridHeight <= 0)) {
+    frameEnabled = false;
+    frameWidth = 0;
+    frameHeight = 0;
+    gridWidth = totalWidth;
+    gridHeight = Math.max(0, totalHeight - headerHeight - footerHeight);
+    if (hudEnabled && gridWidth > hudWidth + 3) {
+      gridWidth = gridWidth - (hudWidth + 3);
+    } else {
+      hudEnabled = false;
+    }
   }
 
   return {
@@ -44,11 +65,15 @@ function buildRuntime(display, terminal) {
     hudWidth,
     hudColumns,
     hudColumnGap,
+    frameEnabled,
+    frameWidth,
+    frameHeight,
     totalWidth,
     totalHeight,
   };
 }
 
+// Function: getTerminalSize.
 function getTerminalSize(display) {
   const fallback = {
     columns: Number(display.width || 80),
@@ -67,6 +92,7 @@ function getTerminalSize(display) {
   return { columns, rows };
 }
 
+// Function: setupResizeHandler.
 function setupResizeHandler(display, onResize) {
   if (!process.stdout || !process.stdout.isTTY) {
     return;

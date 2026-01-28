@@ -19,14 +19,72 @@ Display and layout:
 - `display.hud.columns`: number of HUD columns.
 - `display.hud.columnGap`: gap between HUD columns.
 - `display.hud.stockBarMax`: stockpile bar scale (0 = use targets).
+- `display.frame.enabled`: render a frame around the map.
+- `display.frame.horizontal`: frame horizontal character.
+- `display.frame.vertical`: frame vertical character.
+- `display.frame.topLeft`: frame top-left corner character.
+- `display.frame.topRight`: frame top-right corner character.
+- `display.frame.bottomLeft`: frame bottom-left corner character.
+- `display.frame.bottomRight`: frame bottom-right corner character.
+- `display.terrain.enabled`: enable randomized terrain background for the map.
+- `display.terrain.mode`: terrain generator mode (`valley` or `coast`).
+- `display.terrain.seed`: seed for terrain generation (`0` = random each run).
+- `display.terrain.scale`: noise scale (lower = larger blobs).
+- `display.terrain.octaves`: noise layers for terrain variation.
+- `display.terrain.persistence`: amplitude decay per octave (0..1).
+- `display.terrain.lacunarity`: frequency multiplier per octave.
+- `display.terrain.valley.bowlStrength`: valley bowl intensity (0..1).
+- `display.terrain.valley.smoothingPasses`: number of smoothing passes for the heightmap.
+- `display.terrain.valley.mountainHeight`: height threshold for mountains (0..1).
+- `display.terrain.valley.hillHeight`: height threshold for hills (0..1).
+- `display.terrain.valley.fertileHeight`: height threshold for fertile ground (0..1).
+- `display.terrain.valley.fertileDistance`: max distance from water for fertile ground (tiles).
+- `display.terrain.valley.humidityDecay`: humidity falloff distance (higher = wider humidity).
+- `display.terrain.valley.riverBias.<dir>`: river bias per direction (`east`, `south`, `west`, `north`).
+- `display.terrain.valley.riverValleyDrop`: height drop on the river path.
+- `display.terrain.valley.riverValleyDropAdjacent`: height drop around the river path.
+- `display.terrain.valley.lakeDepth`: depth drop for lake depressions.
+- `display.terrain.valley.lakeThreshold`: height threshold for lake filling.
+- `display.terrain.valley.forest.humidityMin`: minimum humidity to spawn forests.
+- `display.terrain.valley.forest.heightMax`: max height for forests.
+- `display.terrain.valley.forest.waterDistanceMax`: maximum distance from water to spawn forests (tiles).
+- `display.terrain.valley.forest.noiseScale`: forest noise scale.
+- `display.terrain.valley.forest.noiseThreshold`: forest noise threshold.
+- `display.terrain.valley.forest.clusterPasses`: forest clustering passes.
+- `display.terrain.valley.food.humidityMin`: minimum humidity to spawn food patches.
+- `display.terrain.valley.food.waterDistanceMax`: maximum distance from water to spawn food patches (tiles).
+- `display.terrain.valley.food.noiseScale`: food noise scale.
+- `display.terrain.valley.food.noiseThreshold`: food noise threshold.
+- `display.terrain.valley.food.clusterPasses`: food clustering passes.
+- `display.terrain.valley.stone.heightMin`: minimum height for stone clusters.
+- `display.terrain.valley.stone.noiseScale`: stone noise scale.
+- `display.terrain.valley.stone.noiseThreshold`: stone noise threshold.
+- `display.terrain.valley.stone.clusterPasses`: stone clustering passes.
+- `display.terrain.walkable.<type>`: whether a terrain tile is walkable (`river`, `lake`, `mountain`, `hill`, `plain`, `fertile`, `food`, `forest`, `stone`).
+- `display.terrain.movementDelay.<type>`: extra movement cooldown ticks when entering a terrain type (defaults to `0`).
+- `display.terrain.symbols.river`: map symbol for river tiles.
+- `display.terrain.symbols.lake`: map symbol for lake tiles.
+- `display.terrain.symbols.mountain`: map symbol for mountain tiles.
+- `display.terrain.symbols.hill`: map symbol for hill tiles.
+- `display.terrain.symbols.plain`: map symbol for plain tiles.
+- `display.terrain.symbols.fertile`: map symbol for fertile tiles.
+- `display.terrain.symbols.food`: map symbol for food tiles.
+- `display.terrain.symbols.forest`: map symbol for forest tiles.
+- `display.terrain.symbols.stone`: map symbol for stone tiles.
 - `display.colors.enabled`: enable ANSI colors in the render.
 - `display.colors.reset`: ANSI reset sequence (defaults to `\u001b[0m`).
 - `display.colors.map.<key>`: ANSI color for an entity key (e.g. `dwarf`, `merchant`, `house`, `food_raw`).
 - `display.colors.map.weather_<type>`: ANSI color for HUD weather labels (e.g. `weather_rain`).
+- `display.colors.map.terrain_<type>`: ANSI color for terrain tiles (`terrain_river`, `terrain_lake`, `terrain_mountain`, `terrain_hill`, `terrain_plain`, `terrain_fertile`, `terrain_food`, `terrain_forest`, `terrain_stone`).
 
 Events:
 
 - `events.maxEntries`: number of recent events to show in the HUD.
+
+Resources:
+
+- `resources.useTerrainTiles`: gather resources directly from terrain tiles when available.
+- `resources.terrainAllowed.<resource>`: allowed terrain tile types for resource placement and terrain gathering.
 
 Raids:
 
@@ -45,6 +103,49 @@ Raids:
 - `raids.resourceLoss.weights.<resource>`: per-resource loss weights.
 - `raids.beasts.min/max`: min/max beast count for visuals.
 - `raids.beasts.perPop`: population per beast (visual scaling).
+
+Population roles:
+
+- `population.roles.enabled`: enable builder/gatherer role preferences.
+- `population.roles.builderRatio`: target share of builders among adults (0..1).
+- `population.roles.switchCooldownTicks`: ticks before a role can be reassigned.
+- `population.roles.emergencyMinRatio`: stockpile ratio threshold to trigger emergency gathering.
+- `population.roles.emergencyResources`: resources checked for emergency gathering.
+- `population.idleWanderChance`: chance for idle dwarves to move randomly each tick (0..1).
+- `population.settlement.enabled`: enable smarter settlement center selection.
+- `population.settlement.scanStep`: grid sampling step when evaluating settlement centers.
+- `population.settlement.clearRadius`: radius around a candidate center to evaluate open space (tiles).
+- `population.settlement.minOpenRatio`: minimum open-space ratio required for a candidate (0..1).
+- `population.settlement.resourceDistanceCap`: distance cap for resource proximity scoring (tiles).
+- `population.settlement.resourceWeights.<resource>`: weights for proximity to key resources (0..1).
+- `population.settlement.blockedTerrain`: terrain types treated as obstacles when scoring settlement centers.
+- `population.pathing.stallThreshold`: ticks without progress before pathing detour kicks in.
+- `population.pathing.detourTicks`: number of ticks to keep using detour pathing once stalled.
+- `population.pathing.bfsRadius`: local BFS radius for detour pathing (tiles).
+
+Structures (walls):
+
+- `structures.wall.count`: initial wall count.
+- `structures.wall.maxCount`: maximum wall segments allowed.
+- `structures.wall.buildTargetRatio`: build until wall count reaches this ratio of `maxCount`.
+- `structures.wall.buildWhenRaidEligible`: require raid-eligible seasons to build.
+- `structures.wall.buildMinHousingRatio`: minimum housing ratio before building walls.
+- `structures.wall.buildMinResources.<resource>`: minimum stockpile ratios before building.
+- `structures.wall.buildInnerBuffer`: extra space between the outermost building and wall ring.
+- `structures.wall.buildRadius`: preferred ring radius around the village center (0 = default placement).
+- `structures.wall.buildTicks`: ticks to build one wall segment.
+- `structures.wall.buildCost.<resource>`: resource costs to build a segment.
+- `structures.wall.defensePerWall`: defense gained per wall segment (0..1).
+- `structures.wall.defenseMax`: maximum defense contribution from walls (0..1).
+
+Structures (wells, fields):
+
+- `structures.well.buildMinRadius`: minimum Manhattan radius from village center.
+- `structures.well.buildOuterBuffer`: extra distance beyond the current village perimeter (houses/walls).
+- `structures.well.skipWhenTerrainWaterWithin`: skip well building if terrain water is within this Manhattan distance of the village center.
+- `structures.well.criticalStockpileRatio`: allow well building despite nearby terrain water when water stockpile ratio is below this threshold.
+- `structures.field.buildMinRadius`: minimum Manhattan radius from village center.
+- `structures.field.buildOuterBuffer`: extra distance beyond the current village perimeter (houses/walls).
 
 AI and training:
 
@@ -68,6 +169,12 @@ AI and training:
 - `ai.reward.populationBalance`: reward for staying near soft cap.
 - `ai.reward.criticalNeeds`: penalty for critical needs fraction.
 - `ai.reward.idleAdults`: penalty for idle adults fraction.
+- `ai.reward.raidExposure`: penalty for exposed ratio while a raid is active.
+- `ai.reward.raidExposureEligible`: penalty for exposed ratio when the season is raid-eligible.
+- `ai.reward.raidDeaths`: extra penalty per raid death (delta).
+- `ai.reward.raidLoot`: penalty for normalized raid loot loss (delta vs targets).
+- `ai.reward.raidPrepShelter`: bonus for shelter readiness (beds/pop) during raid-eligible seasons.
+- `ai.reward.raidPrepDefense`: bonus for defense readiness (adults + walls) during raid-eligible seasons.
 - `ai.reward.death`: penalty per death.
 - `ai.reward.extinction`: penalty when population hits zero.
 - `ai.termination.enabled`: enable early termination when the sim is stable.

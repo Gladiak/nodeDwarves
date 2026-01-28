@@ -13,7 +13,7 @@
     },
     "footer": {
       "enabled": true,
-      "height": 2
+      "height": 3
     },
     "hud": {
       "enabled": true,
@@ -22,13 +22,107 @@
       "columnGap": 2,
       "stockBarMax": 100
     },
+    "frame": {
+      "enabled": true,
+      "horizontal": "-",
+      "vertical": "|",
+      "topLeft": "+",
+      "topRight": "+",
+      "bottomLeft": "+",
+      "bottomRight": "+"
+    },
+    "terrain": {
+      "enabled": true,
+      "mode": "valley",
+      "seed": 0,
+      "scale": 0.06,
+      "octaves": 4,
+      "persistence": 0.5,
+      "lacunarity": 2.0,
+      "valley": {
+        "bowlStrength": 0.3,
+        "smoothingPasses": 3,
+        "mountainHeight": 0.8,
+        "hillHeight": 0.66,
+        "fertileHeight": 0.46,
+        "fertileDistance": 3,
+        "humidityDecay": 6,
+        "riverBias": {
+          "east": -0.02,
+          "south": -0.01,
+          "west": 0.02,
+          "north": 0.03
+        },
+        "riverValleyDrop": 0.22,
+        "riverValleyDropAdjacent": 0.1,
+        "lakeDepth": 0.02,
+        "lakeThreshold": 0.03,
+        "forest": {
+          "humidityMin": 0.43,
+          "heightMax": 0.72,
+          "waterDistanceMax": 4,
+          "noiseScale": 0.11,
+          "noiseThreshold": 0.6,
+          "clusterPasses": 2
+        },
+        "food": {
+          "humidityMin": 0.4,
+          "waterDistanceMax": 5,
+          "noiseScale": 0.12,
+          "noiseThreshold": 0.7,
+          "clusterPasses": 1
+        },
+        "stone": {
+          "heightMin": 0.58,
+          "noiseScale": 0.13,
+          "noiseThreshold": 0.64,
+          "clusterPasses": 1
+        }
+      },
+  "walkable": {
+    "river": true,
+    "lake": true,
+    "mountain": true,
+    "hill": true,
+    "plain": true,
+    "fertile": true,
+    "food": true,
+    "forest": true,
+    "stone": true
+  },
+      "movementDelay": {
+        "mountain": 1
+      },
+      "symbols": {
+    "river": "=",
+    "lake": "~",
+    "mountain": "^",
+    "hill": "n",
+    "plain": ".",
+    "fertile": ":",
+    "food": "f",
+    "forest": "T",
+    "stone": "*"
+  }
+    },
     "colors": {
       "enabled": true,
       "reset": "\u001b[0m",
       "map": {
+        "frame": "\u001b[90m",
+        "terrain_river": "\u001b[34m",
+        "terrain_lake": "\u001b[36m",
+        "terrain_mountain": "\u001b[90m",
+    "terrain_hill": "\u001b[33m",
+    "terrain_plain": "\u001b[32m",
+    "terrain_fertile": "\u001b[92m",
+    "terrain_food": "\u001b[93m",
+    "terrain_forest": "\u001b[32m",
+    "terrain_stone": "\u001b[37m",
         "dwarf": "\u001b[93m",
         "merchant": "\u001b[96m",
         "house": "\u001b[91m",
+        "wall": "\u001b[37m",
         "beast": "\u001b[91m",
         "food_raw": "\u001b[32m",
         "water": "\u001b[34m",
@@ -60,8 +154,8 @@
     "defenseAdults": 30,
     "defenseMax": 0.75,
     "deathRate": {
-      "min": 0.25,
-      "max": 0.5
+      "min": 0.35,
+      "max": 0.65
     },
     "resourceLoss": {
       "min": 0.04,
@@ -108,6 +202,12 @@
       "populationBalance": 2.0,
       "criticalNeeds": 3.3,
       "idleAdults": 0.6,
+      "raidExposure": 1.0,
+      "raidExposureEligible": 0.7,
+      "raidDeaths": 2.0,
+      "raidLoot": 1.8,
+      "raidPrepShelter": 0.5,
+      "raidPrepDefense": 0.35,
       "death": 7.0,
       "extinction": 320.0
     },
@@ -513,10 +613,10 @@
         },
         {
           "name": "wildlife_raid",
-          "weight": 0.12,
-          "difficultyMin": 0.25,
+          "weight": 0.18,
+          "difficultyMin": 0.0,
           "difficultyMax": 1.0,
-          "difficultyMinMultiplier": 0.0,
+          "difficultyMinMultiplier": 0.5,
           "difficultyMaxMultiplier": 1.0,
           "overrides": {
             "raids": {
@@ -526,7 +626,7 @@
         },
         {
           "name": "water_scarce",
-          "weight": 0.25,
+          "weight": 0.22,
           "overrides": {
             "resources": {
               "nodes": {
@@ -554,7 +654,7 @@
         },
         {
           "name": "low_stockpile",
-          "weight": 0.2,
+          "weight": 0.18,
           "overrides": {
             "resources": {
               "stockpile": {
@@ -655,6 +755,13 @@
       "wood": 8,
       "stone": 6
     },
+    "terrainAllowed": {
+      "food_raw": ["food"],
+      "water": ["river", "lake"],
+      "wood": ["forest"],
+      "stone": ["mountain"]
+    },
+    "useTerrainTiles": true,
     "defaultNodeCapacity": 12,
     "nodeCapacity": {
       "food_raw": 14,
@@ -670,10 +777,10 @@
       "onlyDepleted": false
     },
     "nodes": {
-      "food_raw": 28,
-      "water": 20,
-      "wood": 14,
-      "stone": 12
+      "food_raw": 0,
+      "water": 0,
+      "wood": 0,
+      "stone": 0
     }
   },
   "structures": {
@@ -693,7 +800,11 @@
           "2": 3,
           "3": 4,
           "4": 5,
-          "5": 6
+          "5": 6,
+          "6": 7,
+          "7": 8,
+          "8": 9,
+          "9": 10
         },
         "surplusRatio": 1.05,
         "releaseRatio": 0.95,
@@ -738,11 +849,43 @@
             "wood": 10,
             "stone": 8
           }
+        },
+        "6": {
+          "capacity": 7,
+          "upgradeTicks": 42,
+          "upgradeCost": {
+            "wood": 10,
+            "stone": 8
+          }
+        },
+        "7": {
+          "capacity": 8,
+          "upgradeTicks": 46,
+          "upgradeCost": {
+            "wood": 12,
+            "stone": 10
+          }
+        },
+        "8": {
+          "capacity": 9,
+          "upgradeTicks": 50,
+          "upgradeCost": {
+            "wood": 14,
+            "stone": 12
+          }
+        },
+        "9": {
+          "capacity": 10,
+          "upgradeTicks": 54,
+          "upgradeCost": {
+            "wood": 16,
+            "stone": 14
+          }
         }
       },
       "upgradeMinHousingRatio": 1.2,
       "upgradeMinHouses": 6,
-      "upgradeMinAdjacency": 2
+      "upgradeMinAdjacency": 1
     },
     "well": {
       "count": 0,
@@ -751,6 +894,10 @@
       "maxCount": 6,
       "buildWhenNodeRatioBelow": 0.4,
       "buildWhenStockpileRatioBelow": 0.55,
+      "skipWhenTerrainWaterWithin": 10,
+      "criticalStockpileRatio": 0.2,
+      "buildMinRadius": 4,
+      "buildOuterBuffer": 2,
       "buildTicks": 45,
       "buildCost": {
         "wood": 12,
@@ -764,6 +911,8 @@
       "maxCount": 8,
       "buildWhenNodeRatioBelow": 0.3,
       "buildWhenStockpileRatioBelow": 0.35,
+      "buildMinRadius": 4,
+      "buildOuterBuffer": 2,
       "buildMinResources": {
         "food_raw": 0.8,
         "water": 0.8
@@ -775,6 +924,27 @@
         "wood": 10,
         "stone": 6
       }
+    },
+    "wall": {
+      "count": 0,
+      "capacity": 1,
+      "maxCount": 16,
+      "buildTargetRatio": 0.6,
+      "buildWhenRaidEligible": true,
+      "buildMinHousingRatio": 1.0,
+      "buildMinResources": {
+        "wood": 0.6,
+        "stone": 0.6
+      },
+      "buildInnerBuffer": 3,
+      "buildRadius": 4,
+      "buildTicks": 18,
+      "buildCost": {
+        "wood": 6,
+        "stone": 4
+      },
+      "defensePerWall": 0.03,
+      "defenseMax": 0.3
     }
   },
   "merchant": {
@@ -811,17 +981,44 @@
       "bondDecay": 0.12,
       "bondThreshold": 12
     },
+    "idleWanderChance": 0.02,
+    "settlement": {
+      "enabled": true,
+      "scanStep": 3,
+      "clearRadius": 6,
+      "minOpenRatio": 0.65,
+      "resourceDistanceCap": 40,
+      "resourceWeights": {
+        "food_raw": 1,
+        "water": 1,
+        "wood": 0.8,
+        "stone": 0.6
+      },
+      "blockedTerrain": ["river", "lake", "mountain", "forest", "stone"]
+    },
+    "pathing": {
+      "stallThreshold": 10,
+      "detourTicks": 4,
+      "bfsRadius": 14
+    },
     "housing": {
       "enabled": true,
       "bondingMinMultiplier": 0.7,
       "bondingMaxMultiplier": 1.1,
       "buildTargetRatio": 1.2,
       "buildMinResources": {
-        "food_raw": 0.75,
-        "water": 0.75
+        "food_raw": 0.65,
+        "water": 0.65
       },
       "winterNeedPenalty": 0.25,
       "winterOldAgePenalty": 0.25
+    },
+    "roles": {
+      "enabled": true,
+      "builderRatio": 0.2,
+      "switchCooldownTicks": 200,
+      "emergencyMinRatio": 0.4,
+      "emergencyResources": ["food_raw", "water"]
     },
     "reproduction": {
       "enabled": true,
@@ -1012,6 +1209,7 @@
     "stone": "s",
     "house": "h",
     "well": "O",
-    "field": "c"
+    "field": "c",
+    "wall": "#"
   }
 }

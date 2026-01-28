@@ -78,6 +78,7 @@ rl.on('line', (line) => {
   writeResponse({ error: 'unknown_command' });
 });
 
+// Function: resetState.
 function resetState(options = {}) {
   const scenario = buildScenarioConfig(baseConfig, options);
   activeConfig = scenario.config;
@@ -89,6 +90,7 @@ function resetState(options = {}) {
   prevMetrics = computeMetrics(state, activeConfig);
 }
 
+// Function: applySeed.
 function applySeed(seed) {
   if (seed === undefined || seed === null) {
     Math.random = nativeRandom;
@@ -98,6 +100,7 @@ function applySeed(seed) {
   Math.random = mulberry32(intSeed);
 }
 
+// Function: mulberry32.
 function mulberry32(seed) {
   let t = seed >>> 0;
   return function random() {
@@ -108,6 +111,7 @@ function mulberry32(seed) {
   };
 }
 
+// Function: getStepTicks.
 function getStepTicks(action, config) {
   const aiConfig = config.ai || {};
   const actionTicks = Number(action.ticks);
@@ -117,6 +121,7 @@ function getStepTicks(action, config) {
   return Math.max(1, Number(aiConfig.stepTicks || 10));
 }
 
+// Function: buildResponse.
 function buildResponse(reward, done, doneReason) {
   const metrics = computeMetrics(state, activeConfig);
   const obs = buildObservation(state, activeConfig, metrics);
@@ -136,6 +141,7 @@ function buildResponse(reward, done, doneReason) {
   };
 }
 
+// Function: buildDebugInfo.
 function buildDebugInfo(state, config, metrics) {
   const deaths = state.deathsByCause || {};
   const reproduction = state.reproductionStats || {};
@@ -189,6 +195,7 @@ function buildDebugInfo(state, config, metrics) {
   const merchantReceivedPerTick = scaleMerchantMap(merchantStats.received, merchantTicks);
   const raidState = state.raid || {};
   const raidStats = state.raidStats || {};
+  const raidObservation = metrics.raid || {};
 
   return {
     deaths: {
@@ -259,6 +266,9 @@ function buildDebugInfo(state, config, metrics) {
       count: Number(raidStats.count || 0),
       deaths: Number(raidStats.deaths || 0),
       loot: { ...(raidStats.loot || {}) },
+      exposedRatio: Number(raidObservation.exposedRatio || 0),
+      defenseRatio: Number(raidObservation.defenseRatio || 0),
+      seasonEligible: Number(raidObservation.seasonEligible || 0),
     },
     nodes: { ...metrics.nodeRatio },
     needsAvg: { ...metrics.needsAvg },
@@ -267,6 +277,7 @@ function buildDebugInfo(state, config, metrics) {
   };
 }
 
+// Function: scaleMerchantMap.
 function scaleMerchantMap(values, ticks) {
   const result = {};
   if (!values || typeof values !== 'object') {
@@ -280,6 +291,7 @@ function scaleMerchantMap(values, ticks) {
   return result;
 }
 
+// Function: getSeasonValue.
 function getSeasonValue(state, key, fallback) {
   if (!state || !state.season || !state.season.modifiers) {
     return fallback;
@@ -288,6 +300,7 @@ function getSeasonValue(state, key, fallback) {
   return Number.isFinite(value) ? Number(value) : fallback;
 }
 
+// Function: getStockpileRatio.
 function getStockpileRatio(state, config, resourceId) {
   const targets = (config.resources && config.resources.targets) || {};
   const target = Number(targets[resourceId] || 0);
@@ -298,6 +311,7 @@ function getStockpileRatio(state, config, resourceId) {
   return clamp(current / target, 0, 1);
 }
 
+// Function: getNodeRatioForNodes.
 function getNodeRatioForNodes(nodes) {
   if (!Array.isArray(nodes) || nodes.length === 0) {
     return 1;
@@ -316,6 +330,7 @@ function getNodeRatioForNodes(nodes) {
   return clamp(totalRemaining / totalCapacity, 0, 1);
 }
 
+// Function: getWeatherSeverity.
 function getWeatherSeverity(state, config) {
   if (!state || !state.weather || !state.weather.type) {
     return 0;
@@ -338,6 +353,7 @@ function getWeatherSeverity(state, config) {
   return clamp(Number(fallback[type] || 0), 0, 1);
 }
 
+// Function: getWeatherTimeLeft.
 function getWeatherTimeLeft(state) {
   if (!state || !state.weather) {
     return 0;
@@ -350,6 +366,129 @@ function getWeatherTimeLeft(state) {
   return clamp(remaining / duration, 0, 1);
 }
 
+// Function: getHousingStats.
+function getHousingStats(state, config) {
+  const housingConfig = (config.population && config.population.housing) || {};
+  const housingEnabled = housingConfig.enabled !== false;
+  const houses = housingEnabled
+    ? (state.structures || []).filter((structure) => structure.type === 'house')
+    : [];
+  const bedsTotal = houses.reduce((sum, house) => {
+    return sum + Math.max(0, Number(house.capacity || 0));
+  }, 0);
+  const population = Math.max(1, state.dwarves.length);
+  const housingRatio = housingEnabled
+    ? (bedsTotal > 0 ? bedsTotal / population : 0)
+    : 1;
+  return {
+    housingEnabled,
+    houses,
+    bedsTotal,
+    population,
+    housingRatio,
+  };
+}
+
+// Function: getRaidObservation.
+function getRaidObservation(state, config, housingStats) {
+  const raidConfig = (config && config.raids) || {};
+  const raidState = state.raid || {};
+  const houses = housingStats ? housingStats.houses : (state.structures || []).filter((structure) => {
+    return structure.type === 'house';
+  });
+  const population = housingStats ? housingStats.population : Math.max(1, state.dwarves.length);
+  const houseMap = new Map(houses.map((house) => [house.id, house]));
+  let exposedCount = 0;
+
+  for (const dwarf of state.dwarves) {
+    const home = dwarf.homeId ? houseMap.get(dwarf.homeId) : null;
+    const sheltered = Boolean(home && dwarf.x === home.x && dwarf.y === home.y);
+    if (!sheltered) {
+      exposedCount += 1;
+    }
+  }
+
+  const exposedRatio = population > 0 ? clamp(exposedCount / population, 0, 1) : 0;
+  const adults = state.dwarves.filter((dwarf) => dwarf.lifeStage === 'adult').length;
+  const defenseAdults = Math.max(1, Number(raidConfig.defenseAdults || population));
+  const defenseMax = clamp(Number(raidConfig.defenseMax ?? 0), 0, 1);
+  const defenseRaw = clamp(adults / defenseAdults, 0, defenseMax);
+  const wallConfig = (config.structures && config.structures.wall) || {};
+  const wallCount = (state.structures || []).filter((structure) => structure.type === 'wall').length;
+  const wallDefensePer = Math.max(0, Number(wallConfig.defensePerWall ?? 0));
+  const wallDefenseMax = clamp(Number(wallConfig.defenseMax ?? 0), 0, 1);
+  const wallDefense = clamp(wallCount * wallDefensePer, 0, wallDefenseMax);
+  const totalDefense = clamp(defenseRaw + wallDefense, 0, 1);
+  const defenseRatio = clamp(totalDefense, 0, 1);
+
+  const duration = Math.max(1, Number(raidState.duration || raidConfig.durationTicks || 0));
+  const ticksRemaining = Math.max(0, Number(raidState.ticksRemaining || 0));
+  const timeLeftRatio = duration > 0 ? clamp(ticksRemaining / duration, 0, 1) : 0;
+
+  const seasonNames = Array.isArray(raidConfig.seasonNames) && raidConfig.seasonNames.length > 0
+    ? raidConfig.seasonNames
+    : ['spring', 'autumn'];
+  const seasonName = state.season ? state.season.name : null;
+  let seasonEligible = raidConfig.enabled === true
+    && seasonName
+    && seasonNames.includes(seasonName)
+    ? 1
+    : 0;
+  const minTick = Math.max(0, Number(raidConfig.minTick || 0));
+  const minPopulation = Math.max(0, Number(raidConfig.minPopulation || 0));
+  if (state.tick < minTick || population < minPopulation) {
+    seasonEligible = 0;
+  }
+
+  return {
+    active: Boolean(raidState.active),
+    timeLeftRatio,
+    exposedRatio,
+    defenseRatio,
+    seasonEligible,
+  };
+}
+
+// Function: cloneLootMap.
+function cloneLootMap(loot) {
+  const clone = {};
+  for (const [resource, value] of Object.entries(loot || {})) {
+    clone[resource] = Number(value || 0);
+  }
+  return clone;
+}
+
+// Function: getRaidLootDelta.
+function getRaidLootDelta(prevLoot, nextLoot) {
+  const delta = {};
+  const prev = prevLoot || {};
+  const next = nextLoot || {};
+  for (const [resource, value] of Object.entries(next)) {
+    const diff = Number(value || 0) - Number(prev[resource] || 0);
+    if (diff > 0) {
+      delta[resource] = diff;
+    }
+  }
+  return delta;
+}
+
+// Function: getRaidLootRatio.
+function getRaidLootRatio(deltaLoot, config) {
+  const targets = (config.resources && config.resources.targets) || {};
+  let sum = 0;
+  let count = 0;
+  for (const [resource, amount] of Object.entries(deltaLoot)) {
+    const target = Number(targets[resource] || 0);
+    if (target <= 0) {
+      continue;
+    }
+    sum += clamp(Number(amount || 0) / target, 0, 1);
+    count += 1;
+  }
+  return count > 0 ? sum / count : 0;
+}
+
+// Function: buildObservation.
 function buildObservation(state, config, metrics) {
   const weatherSeverity = getWeatherSeverity(state, config);
   const weatherTimeLeft = getWeatherTimeLeft(state);
@@ -370,9 +509,12 @@ function buildObservation(state, config, metrics) {
     criticalNeedsFraction: metrics.criticalNeedsFraction,
     idleAdultsFraction: metrics.idleAdultsFraction,
     populationBalance: metrics.populationBalance,
+    housingRatio: metrics.housingRatio,
+    raid: metrics.raid,
   };
 }
 
+// Function: computeMetrics.
 function computeMetrics(state, config) {
   const targets = (config.resources && config.resources.targets) || {};
   const ratios = {};
@@ -402,6 +544,8 @@ function computeMetrics(state, config) {
   const idleAdultsFraction = getIdleAdultsFraction(state.dwarves, config);
   const populationBalance = getPopulationBalance(state, config);
   const nodeRatio = getNodeRatio(state.nodes);
+  const housingStats = getHousingStats(state, config);
+  const raidObservation = getRaidObservation(state, config, housingStats);
 
   return {
     stockpileAvg,
@@ -413,9 +557,14 @@ function computeMetrics(state, config) {
     idleAdultsFraction,
     populationBalance,
     nodeRatio,
+    housingRatio: housingStats.housingRatio,
+    raid: raidObservation,
+    raidDeaths: Number(state.deathsByCause && state.deathsByCause.raid || 0),
+    raidLoot: cloneLootMap(state.raidStats && state.raidStats.loot),
   };
 }
 
+// Function: computeReward.
 function computeReward(prevMetrics, metrics, config) {
   const rewardConfig = (config.ai && config.ai.reward) || {};
   const stockpileAvgWeight = Number(rewardConfig.stockpileAvg ?? 1);
@@ -430,6 +579,12 @@ function computeReward(prevMetrics, metrics, config) {
   const populationWeight = Number(rewardConfig.populationBalance ?? 1);
   const criticalNeedsWeight = Number(rewardConfig.criticalNeeds ?? 2);
   const idleWeight = Number(rewardConfig.idleAdults ?? 0.2);
+  const raidExposureWeight = Number(rewardConfig.raidExposure ?? 0);
+  const raidExposureEligibleWeight = Number(rewardConfig.raidExposureEligible ?? 0);
+  const raidDeathsWeight = Number(rewardConfig.raidDeaths ?? 0);
+  const raidLootWeight = Number(rewardConfig.raidLoot ?? 0);
+  const raidPrepShelterWeight = Number(rewardConfig.raidPrepShelter ?? 0);
+  const raidPrepDefenseWeight = Number(rewardConfig.raidPrepDefense ?? 0);
   const deathWeight = Number(rewardConfig.death ?? 2);
   const extinctionPenalty = Number(rewardConfig.extinction ?? 0);
 
@@ -444,6 +599,24 @@ function computeReward(prevMetrics, metrics, config) {
   const waterDeficit = waterLowThreshold > 0 && waterRatio < waterLowThreshold
     ? Math.pow((waterLowThreshold - waterRatio) / waterLowThreshold, waterLowExponent)
     : 0;
+  const raid = metrics.raid || {};
+  const raidExposureBase = clamp(Number(raid.exposedRatio || 0), 0, 1);
+  const raidExposurePenalty = raid.active
+    ? raidExposureBase * raidExposureWeight
+    : (raid.seasonEligible ? raidExposureBase * raidExposureEligibleWeight : 0);
+  const housingRatio = clamp(Number(metrics.housingRatio || 0), 0, 1);
+  const raidPrepGate = raid.active || raid.seasonEligible;
+  const raidPrepShelter = raidPrepGate ? housingRatio * raidPrepShelterWeight : 0;
+  const raidPrepDefense = raidPrepGate
+    ? clamp(Number(raid.defenseRatio || 0), 0, 1) * raidPrepDefenseWeight
+    : 0;
+  const raidDeaths = Math.max(
+    0,
+    Number(metrics.raidDeaths || 0) - Number(prevMetrics ? prevMetrics.raidDeaths || 0 : 0),
+  );
+  const raidDeathsPenalty = raidDeaths * raidDeathsWeight;
+  const raidLootDelta = getRaidLootDelta(prevMetrics ? prevMetrics.raidLoot : null, metrics.raidLoot);
+  const raidLootPenalty = getRaidLootRatio(raidLootDelta, config) * raidLootWeight;
   const reward = ((metrics.stockpileAvg * stockpileAvgWeight)
     + (metrics.stockpileMin * stockpileMinWeight)
     + (waterRatio * waterStockpileWeight)) * stockpileFactor
@@ -453,12 +626,18 @@ function computeReward(prevMetrics, metrics, config) {
     - (metrics.criticalNeedsFraction * criticalNeedsWeight)
     - (metrics.idleAdultsFraction * idleWeight)
     - (waterDeficit * waterLowPenalty * stockpileFactor)
+    + raidPrepShelter
+    + raidPrepDefense
+    - raidExposurePenalty
+    - raidDeathsPenalty
+    - raidLootPenalty
     - (deaths * deathWeight)
     - (extinct * extinctionPenalty);
 
   return reward;
 }
 
+// Function: getPopulationFactor.
 function getPopulationFactor(population, config) {
   const reproduction = config.population && config.population.reproduction;
   const softCap = Number(reproduction && reproduction.softCap || 0);
@@ -468,6 +647,7 @@ function getPopulationFactor(population, config) {
   return population > 0 ? 1 : 0;
 }
 
+// Function: getDoneStatus.
 function getDoneStatus(state, config, metrics) {
   const aiConfig = config.ai || {};
   const maxTicks = Number(aiConfig.maxTicks || 0);
@@ -491,6 +671,7 @@ function getDoneStatus(state, config, metrics) {
   return { done: false, reason: null };
 }
 
+// Function: shouldTerminateStable.
 function shouldTerminateStable(state, metrics, termination) {
   if (!metrics) {
     return false;
@@ -559,6 +740,7 @@ function shouldTerminateStable(state, metrics, termination) {
   return state.tick >= minTicks && stableTicksTarget > 0 && stableTicks >= stableTicksTarget;
 }
 
+// Function: countLifeStages.
 function countLifeStages(dwarves) {
   const counts = { total: dwarves.length, child: 0, adult: 0, elder: 0 };
   for (const dwarf of dwarves) {
@@ -572,6 +754,7 @@ function countLifeStages(dwarves) {
   return counts;
 }
 
+// Function: averageNeeds.
 function averageNeeds(dwarves) {
   const totals = {};
   const count = dwarves.length || 1;
@@ -589,6 +772,7 @@ function averageNeeds(dwarves) {
   return totals;
 }
 
+// Function: getCriticalNeedsFraction.
 function getCriticalNeedsFraction(dwarves, config) {
   if (dwarves.length === 0) {
     return 0;
@@ -608,6 +792,7 @@ function getCriticalNeedsFraction(dwarves, config) {
   return critical / dwarves.length;
 }
 
+// Function: getIdleAdultsFraction.
 function getIdleAdultsFraction(dwarves, config) {
   const adults = dwarves.filter((dwarf) => dwarf.lifeStage === 'adult');
   if (adults.length === 0) {
@@ -617,6 +802,7 @@ function getIdleAdultsFraction(dwarves, config) {
   return idleAdults / adults.length;
 }
 
+// Function: getPopulationBalance.
 function getPopulationBalance(state, config) {
   const reproduction = config.population && config.population.reproduction;
   const softCap = Number(reproduction && reproduction.softCap || 0);
@@ -627,6 +813,7 @@ function getPopulationBalance(state, config) {
   return clamp(ratio, 0, 1);
 }
 
+// Function: getNodeRatio.
 function getNodeRatio(nodes) {
   const totals = {};
   const counts = {};
@@ -647,6 +834,7 @@ function getNodeRatio(nodes) {
   return ratios;
 }
 
+// Function: buildScenarioConfig.
 function buildScenarioConfig(base, options) {
   const aiConfig = base.ai || {};
   const training = aiConfig.training || {};
@@ -746,10 +934,12 @@ function buildScenarioConfig(base, options) {
   };
 }
 
+// Function: cloneConfig.
 function cloneConfig(config) {
   return JSON.parse(JSON.stringify(config));
 }
 
+// Function: mergeDeep.
 function mergeDeep(target, source) {
   if (!isPlainObject(source)) {
     return target;
@@ -770,10 +960,12 @@ function mergeDeep(target, source) {
   return output;
 }
 
+// Function: isPlainObject.
 function isPlainObject(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
+// Function: scaleWithDifficulty.
 function scaleWithDifficulty(range, difficulty, fallback) {
   if (!range) {
     return fallback;
@@ -786,6 +978,7 @@ function scaleWithDifficulty(range, difficulty, fallback) {
   return lerp(1, target, difficulty);
 }
 
+// Function: parseRange.
 function parseRange(range, fallback) {
   const min = Number(range.min ?? range[0] ?? fallback);
   const max = Number(range.max ?? range[1] ?? min);
@@ -798,10 +991,12 @@ function parseRange(range, fallback) {
   };
 }
 
+// Function: lerp.
 function lerp(a, b, t) {
   return a + (b - a) * t;
 }
 
+// Function: randomBetween.
 function randomBetween(min, max) {
   const low = Number(min);
   const high = Number(max);
@@ -814,6 +1009,7 @@ function randomBetween(min, max) {
   return low + (high - low) * Math.random();
 }
 
+// Function: applyStockpileScale.
 function applyStockpileScale(config, scale, floorMap = {}) {
   const resources = config.resources || {};
   const stockpile = resources.stockpile || {};
@@ -825,6 +1021,7 @@ function applyStockpileScale(config, scale, floorMap = {}) {
   }
 }
 
+// Function: applyNodeCountScale.
 function applyNodeCountScale(config, scale, minCount) {
   const resources = config.resources || {};
   const nodes = resources.nodes || {};
@@ -839,6 +1036,7 @@ function applyNodeCountScale(config, scale, minCount) {
   }
 }
 
+// Function: applyNodeCapacityScale.
 function applyNodeCapacityScale(config, scale) {
   const resources = config.resources || {};
   if (resources.defaultNodeCapacity !== undefined) {
@@ -852,6 +1050,7 @@ function applyNodeCapacityScale(config, scale) {
   }
 }
 
+// Function: applyNodeRegenScale.
 function applyNodeRegenScale(config, scale) {
   const resources = config.resources || {};
   const regen = resources.nodeRegen || {};
@@ -866,6 +1065,7 @@ function applyNodeRegenScale(config, scale) {
   }
 }
 
+// Function: applyNeedDecayScale.
 function applyNeedDecayScale(config, scale) {
   const needs = config.needs || {};
   const decay = needs.decayPerTick || {};
@@ -874,6 +1074,7 @@ function applyNeedDecayScale(config, scale) {
   }
 }
 
+// Function: getRandomSeasonStart.
 function getRandomSeasonStart(config, randomization) {
   const seasons = config.seasons || {};
   if (seasons.enabled === false) {
@@ -903,6 +1104,7 @@ function getRandomSeasonStart(config, randomization) {
   };
 }
 
+// Function: writeResponse.
 function writeResponse(payload) {
   process.stdout.write(`${JSON.stringify(payload)}\n`);
 }

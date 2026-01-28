@@ -28,6 +28,12 @@ FEATURE_NAMES = [
     "seasonProgress",
     "weatherSeverity",
     "weatherTimeLeft",
+    "raidActive",
+    "raidTimeLeft",
+    "raidExposed",
+    "raidDefense",
+    "housingShortage",
+    "seasonEligible",
 ]
 
 DEBUG_LOG_DIRNAME = "debug"
@@ -36,6 +42,13 @@ DEBUG_LOG_KEEP = 5
 DETAIL_EVAL_REGRESSION_ABS = 25.0
 DETAIL_EVAL_REGRESSION_REL = 0.01
 DETAIL_SCENARIO_SHIFT = 0.2
+BEST_EVAL_COLOR = "\033[96m"
+COLOR_RESET = "\033[0m"
+USE_COLOR = sys.stdout.isatty()
+
+
+def tint(text, color, enabled=USE_COLOR):
+    return f"{color}{text}{COLOR_RESET}" if enabled else text
 
 
 def send(proc, payload):
@@ -130,7 +143,9 @@ def format_debug(info, resources):
         f"old={int(deaths.get('oldAge', 0) or 0)} "
         f"raid={int(deaths.get('raid', 0) or 0)}] "
         f"raid[cnt={fmt(raid.get('count', 0), 2)} "
-        f"deaths={fmt(raid.get('deaths', 0), 2)}] "
+        f"deaths={fmt(raid.get('deaths', 0), 2)} "
+        f"exp={fmt(raid.get('exposedRatio', 0), 2)} "
+        f"def={fmt(raid.get('defenseRatio', 0), 2)}] "
         f"repro[ticks={int(reproduction.get('ticks', 0) or 0)} "
         f"couples/t={fmt(reproduction.get('couplesPerTick', 0))} "
         f"fertile/t={fmt(reproduction.get('fertileAdultsPerTick', 0))} "
@@ -266,6 +281,10 @@ def format_debug_file_entry(
         "Raid:",
         f"  count: {fmt(raid.get('count', 0))}",
         f"  deaths: {fmt(raid.get('deaths', 0))}",
+        f"  active_ratio: {fmt(raid.get('active', 0))}",
+        f"  season_eligible: {fmt(raid.get('seasonEligible', 0))}",
+        f"  exposed_ratio: {fmt(raid.get('exposedRatio', 0))}",
+        f"  defense_ratio: {fmt(raid.get('defenseRatio', 0))}",
         "  loot:",
     ])
     lines.extend(fmt_map_lines(raid_loot, resources, indent="  "))
@@ -369,7 +388,11 @@ def format_summary_line(
         f"stock[min={fmt(stockpile.get('minRatio', 0))} avg={fmt(stockpile.get('avgRatio', 0))}] "
         f"crit={fmt(crit)} idle={fmt(idle)} "
         f"pop_bal={fmt(pop_balance) if pop_balance is not None else fmt(0.0)} "
-        f"raid[count={fmt(raid.get('count', 0))} deaths={fmt(raid.get('deaths', 0))} loot={raid_loot_label}] "
+        f"raid[count={fmt(raid.get('count', 0))} "
+        f"deaths={fmt(raid.get('deaths', 0))} "
+        f"exp={fmt(raid.get('exposedRatio', 0))} "
+        f"def={fmt(raid.get('defenseRatio', 0))} "
+        f"loot={raid_loot_label}] "
         f"short={shortage_label} term={termination_label} "
         f"weather={weather_label} scenario={scenario_label} "
         f"scenario_target={scenario_target_label} scenario_delta={scenario_delta:.2f} "
@@ -546,7 +569,7 @@ def write_summary_header(
     handle.write("# tick/pop: last tick and population seen in the window.\n")
     handle.write("# stock[min|avg]: min/mean stockpile ratio across resources.\n")
     handle.write("# crit/idle/pop_bal: avg critical needs, idle adults, and population balance.\n")
-    handle.write("# raid: avg raid count/deaths/loot in the window.\n")
+    handle.write("# raid: avg raid count/deaths/loot/exposure/defense in the window.\n")
     handle.write("# short: average shortage per resource (1 - stockpile ratio).\n")
     handle.write("# term: termination reason mix within the window.\n")
     handle.write("# scenario_target_mix: target distribution based on base weights.\n")
@@ -616,6 +639,10 @@ def write_detail_header(
     handle.write("# Housing.unsheltered: fraction of population without beds.\n")
     handle.write("# Raid.count: average raids per episode in the window.\n")
     handle.write("# Raid.deaths: average raid deaths per episode in the window.\n")
+    handle.write("# Raid.active_ratio: fraction of ticks with an active raid.\n")
+    handle.write("# Raid.season_eligible: fraction of ticks in raid-eligible seasons.\n")
+    handle.write("# Raid.exposed_ratio: average exposed population ratio.\n")
+    handle.write("# Raid.defense_ratio: average defense ratio (adults + walls).\n")
     handle.write("# Raid.loot.<resource>: average loot per episode in the window.\n")
     handle.write("# Reproduction.ticks: ticks accumulated in the window.\n")
     handle.write("# Reproduction.couples_per_tick: average couples per tick.\n")
@@ -727,6 +754,10 @@ def accumulate_debug(accumulator, info):
     raid = debug.get("raid") or {}
     add_numeric(accumulator["raids"], "count", raid.get("count"))
     add_numeric(accumulator["raids"], "deaths", raid.get("deaths"))
+    add_numeric(accumulator["raids"], "exposedRatio", raid.get("exposedRatio"))
+    add_numeric(accumulator["raids"], "defenseRatio", raid.get("defenseRatio"))
+    add_numeric(accumulator["raids"], "seasonEligible", raid.get("seasonEligible"))
+    add_numeric(accumulator["raids"], "active", 1.0 if raid.get("active") else 0.0)
     add_map(accumulator["raid_loot"], raid.get("loot") or {})
 
     reproduction = debug.get("reproduction") or {}
@@ -809,6 +840,10 @@ def average_debug(accumulator):
             "count": accumulator["raids"].get("count", 0.0) / count,
             "deaths": accumulator["raids"].get("deaths", 0.0) / count,
             "loot": avg_map(accumulator["raid_loot"]),
+            "exposedRatio": accumulator["raids"].get("exposedRatio", 0.0) / count,
+            "defenseRatio": accumulator["raids"].get("defenseRatio", 0.0) / count,
+            "seasonEligible": accumulator["raids"].get("seasonEligible", 0.0) / count,
+            "active": accumulator["raids"].get("active", 0.0) / count,
         },
         "reproduction": reproduction,
         "stockpile": {
@@ -1254,6 +1289,14 @@ def build_features(obs, resource, feature_names):
     weather = obs.get("weather") or {}
     weather_severity = clamp(float(weather.get("severity", 0.0)), 0.0, 1.0)
     weather_time_left = clamp(float(weather.get("timeLeft", 0.0)), 0.0, 1.0)
+    raid = obs.get("raid") or {}
+    raid_active = 1.0 if raid.get("active") else 0.0
+    raid_time_left = clamp(float(raid.get("timeLeftRatio", 0.0)), 0.0, 1.0)
+    raid_exposed = clamp(float(raid.get("exposedRatio", 0.0)), 0.0, 1.0)
+    raid_defense = clamp(float(raid.get("defenseRatio", 0.0)), 0.0, 1.0)
+    season_eligible = clamp(float(raid.get("seasonEligible", 0.0)), 0.0, 1.0)
+    housing_ratio = float(obs.get("housingRatio", 0.0))
+    housing_shortage = clamp(1.0 - housing_ratio, 0.0, 1.0)
 
     feature_map = {
         "shortage": shortage,
@@ -1265,6 +1308,12 @@ def build_features(obs, resource, feature_names):
         "seasonProgress": season_progress,
         "weatherSeverity": weather_severity,
         "weatherTimeLeft": weather_time_left,
+        "raidActive": raid_active,
+        "raidTimeLeft": raid_time_left,
+        "raidExposed": raid_exposed,
+        "raidDefense": raid_defense,
+        "housingShortage": housing_shortage,
+        "seasonEligible": season_eligible,
     }
 
     return [float(feature_map.get(name, 0.0)) for name in feature_names]
@@ -2408,10 +2457,11 @@ def main():
                                 eval_score,
                                 args.eval_score,
                             )
-                            print(
+                            line = (
                                 f"best eval episode={next_expected} score={best_eval:.3f} "
                                 f"avg_reward={stats['avg_reward']:.2f} saved={args.best_model_path}"
                             )
+                            print(tint(line, BEST_EVAL_COLOR))
                             pending_detail_events.append(f"best_eval={best_eval:.2f}")
 
                 next_expected += 1

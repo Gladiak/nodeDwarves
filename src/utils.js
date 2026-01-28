@@ -1,19 +1,23 @@
 'use strict';
 
+// Function: clamp.
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
 
 const ANSI_REGEX = /\x1b\[[0-9;]*m/g;
 
+// Function: stripAnsi.
 function stripAnsi(value) {
   return String(value).replace(ANSI_REGEX, '');
 }
 
+// Function: visibleLength.
 function visibleLength(value) {
   return stripAnsi(value).length;
 }
 
+// Function: sliceVisible.
 function sliceVisible(value, width) {
   const str = String(value);
   if (width <= 0) {
@@ -41,6 +45,7 @@ function sliceVisible(value, width) {
   return result;
 }
 
+// Function: padRight.
 function padRight(value, width) {
   const str = String(value);
   if (width <= 0) {

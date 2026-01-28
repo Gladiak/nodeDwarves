@@ -28,7 +28,7 @@ process.on('SIGINT', () => {
 
 setupResizeHandler(config.display, () => {
   runtime = buildRuntime(config.display, getTerminalSize(config.display));
-  fitStateToGrid(state, runtime);
+  fitStateToGrid(state, runtime, config);
   clearScreen();
 });
 
@@ -36,6 +36,7 @@ hideCursor();
 clearScreen();
 loop();
 
+// Function: loop.
 function loop() {
   if (!running) {
     return;
@@ -60,12 +61,14 @@ function loop() {
   setTimeout(loop, tickMs);
 }
 
+// Function: shutdown.
 function shutdown() {
   showCursor();
   process.stdout.write('\n');
   process.exit(0);
 }
 
+// Function: resolvePolicyPath.
 function resolvePolicyPath(config) {
   const args = process.argv.slice(2);
   for (let i = 0; i < args.length; i += 1) {
@@ -83,6 +86,7 @@ function resolvePolicyPath(config) {
   return null;
 }
 
+// Function: getActionTicks.
 function getActionTicks(config) {
   const aiConfig = config.ai || {};
   const ticks = Number(aiConfig.stepTicks || 1);
