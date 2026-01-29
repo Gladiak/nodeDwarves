@@ -13,8 +13,7 @@ const {
   hasInputs,
   consumeInputs,
 } = require('./resources');
-const { getHousingNeed, getHousingStats } = require('./population');
-const { isRaidSeasonEligible } = require('./raids');
+const { getHousingNeed } = require('./population');
 
 // Create a structure instance using config defaults and symbols.
 function createStructure(state, config, type, x, y) {
@@ -114,14 +113,14 @@ function createHouseUpgradeJob(state, config, runtime, preferUpgrade = false) {
     return null;
   }
 
-  const minHousingRatio = Number(
-    houseConfig.upgradeMinHousingRatio ?? housingConfig.buildTargetRatio ?? 1,
-  );
-  if (minHousingRatio > 0 && !preferUpgrade) {
-    const housing = getHousingStats(state, config);
-    if (housing.ratio < minHousingRatio) {
-      return null;
-    }
+  const upgradeCoverage = clamp(Number(houseConfig.upgradeMinHousingRatio ?? 0), 0, 1);
+  if (upgradeCoverage > 0 && housingNeed.ratio < upgradeCoverage) {
+    return null;
+  }
+
+  const minHouses = Math.max(0, Number(houseConfig.upgradeMinHouses ?? 0));
+  if (minHouses > 0 && houses.length < minHouses) {
+    return null;
   }
 
   const minResources = housingConfig.buildMinResources;
@@ -144,16 +143,21 @@ function createHouseUpgradeJob(state, config, runtime, preferUpgrade = false) {
   }
 
   const houseSet = buildHousePositionSet(houses);
+  const minAdjacency = Math.max(0, Number(houseConfig.upgradeMinAdjacency ?? 0));
   const candidates = houses
     .map((house) => {
       const level = Math.max(1, Number(house.level || 1));
       if (level >= maxLevel) {
         return null;
       }
+      const neighbors = countAdjacentHouses(house, houseSet);
+      if (minAdjacency > 0 && neighbors < minAdjacency) {
+        return null;
+      }
       return {
         house,
         level,
-        neighbors: countAdjacentHouses(house, houseSet),
+        neighbors,
       };
     })
     .filter(Boolean);
@@ -501,73 +505,6 @@ function createMineBuildJob(state, config, runtime) {
   };
 }
 
-// Create a wall build job when raid eligibility conditions are met.
-function createWallBuildJob(state, config, runtime, reservedPositions) {
-  const wallConfig = (config.structures && config.structures.wall) || {};
-  const maxCount = Number(wallConfig.maxCount ?? 0);
-  if (maxCount <= 0) {
-    return null;
-  }
-  const targetRatio = Number(wallConfig.buildTargetRatio ?? 0);
-  if (targetRatio <= 0) {
-    return null;
-  }
-  const existingWalls = (state.structures || []).filter((structure) => structure.type === 'wall').length;
-  if (existingWalls >= maxCount) {
-    return null;
-  }
-
-  if (wallConfig.buildWhenRaidEligible === true && !isRaidSeasonEligible(state, config)) {
-    return null;
-  }
-
-  const minHousingRatio = Number(wallConfig.buildMinHousingRatio ?? 0);
-  if (minHousingRatio > 0) {
-    const housing = getHousingStats(state, config);
-    if (housing.ratio < minHousingRatio) {
-      return null;
-    }
-  }
-
-  const minResources = wallConfig.buildMinResources;
-  if (minResources && typeof minResources === 'object') {
-    for (const [resource, minRatioRaw] of Object.entries(minResources)) {
-      const minRatio = Number(minRatioRaw);
-      if (!Number.isFinite(minRatio) || minRatio <= 0) {
-        continue;
-      }
-      const ratioValue = getStockpileRatio(state, config, resource);
-      if (ratioValue < minRatio) {
-        return null;
-      }
-    }
-  }
-
-  const buildCost = wallConfig.buildCost || {};
-  if (Object.keys(buildCost).length > 0 && !hasInputs(state.stockpile, buildCost)) {
-    return null;
-  }
-
-  const target = findWallBuildSpot(state, runtime, wallConfig, reservedPositions);
-  if (!target) {
-    return null;
-  }
-
-  if (Object.keys(buildCost).length > 0) {
-    consumeInputs(state.stockpile, buildCost);
-  }
-
-  const buildTicks = Math.max(1, Number(wallConfig.buildTicks || 50));
-  return {
-    id: `job_${state.jobCounter++}`,
-    type: 'build',
-    structureType: 'wall',
-    target,
-    workRemaining: buildTicks,
-    dwarfId: null,
-  };
-}
-
 // Resolve cluster configuration for managed structures.
 function getClusterConfig(structureConfig) {
   const cluster = (structureConfig && structureConfig.cluster) || {};
@@ -617,25 +554,6 @@ function getPlacementConfig(structureConfig) {
     maxAttempts,
     avoidTerrain,
   };
-}
-
-// Compute the intended wall radius without requiring a fully clear ring.
-function getWallIntentRadius(state, runtime, wallConfig) {
-  const maxCount = Math.max(0, Number(wallConfig && wallConfig.maxCount || 0));
-  const targetRatio = Math.max(0, Number(wallConfig && wallConfig.buildTargetRatio || 0));
-  if (maxCount <= 0 || targetRatio <= 0) {
-    return 0;
-  }
-  const baseRadius = Math.max(0, Number(wallConfig && wallConfig.buildRadius || 0));
-  const buffer = Math.max(0, Number(wallConfig && wallConfig.buildInnerBuffer || 0));
-  const perimeter = getVillageOuterRadius(state, runtime, new Set(['wall', 'well', 'field']));
-  const required = perimeter.radius + buffer;
-  const desired = Math.max(baseRadius, required);
-  const maxRadius = getMaxWallRingRadius(perimeter.center, runtime);
-  if (maxRadius <= 0) {
-    return 0;
-  }
-  return Math.max(1, Math.min(desired, maxRadius));
 }
 
 // Build a map of structure positions keyed by "x,y".
@@ -1045,11 +963,10 @@ function ensureStructureClusters(state, runtime, config) {
     state.structureClusters = {};
   }
   const clusters = state.structureClusters;
-  const wallConfig = (config.structures && config.structures.wall) || {};
   const wellConfig = (config.structures && config.structures.well) || {};
   const fieldConfig = (config.structures && config.structures.field) || {};
   const center = getVillageCenter(state, runtime);
-  const wallRadius = getWallIntentRadius(state, runtime, wallConfig);
+  const wallRadius = 0;
 
   const wellClusterConfig = getClusterConfig(wellConfig);
   const fieldClusterConfig = getClusterConfig(fieldConfig);
@@ -1405,88 +1322,6 @@ function createManagedWatchtowerBuildJob(state, config, runtime, reservedPositio
   };
 }
 
-// Find a buildable spot on a wall ring without requiring a full clear ring.
-function findWallBuildSpotLoose(state, runtime, wallConfig, reservedPositions) {
-  const radius = getWallIntentRadius(state, runtime, wallConfig);
-  if (radius <= 0) {
-    return null;
-  }
-  const center = getVillageCenter(state, runtime);
-  for (let dx = -radius; dx <= radius; dx += 1) {
-    const dy = radius - Math.abs(dx);
-    const x1 = center.x + dx;
-    const y1 = center.y + dy;
-    if (isBuildableCell(state, runtime, x1, y1) && !isReservedPosition(reservedPositions, x1, y1)) {
-      return { x: x1, y: y1 };
-    }
-    if (dy !== 0) {
-      const x2 = center.x + dx;
-      const y2 = center.y - dy;
-      if (isBuildableCell(state, runtime, x2, y2) && !isReservedPosition(reservedPositions, x2, y2)) {
-        return { x: x2, y: y2 };
-      }
-    }
-  }
-  return null;
-}
-
-// Create a wall build job for manager-controlled placement.
-function createManagedWallBuildJob(state, config, runtime, reservedPositions) {
-  const wallConfig = (config.structures && config.structures.wall) || {};
-  const manager = (wallConfig && wallConfig.manager) || {};
-  if (manager.enabled === false) {
-    return null;
-  }
-  const maxCount = Number(wallConfig.maxCount ?? 0);
-  if (maxCount <= 0) {
-    return null;
-  }
-  const targetRatio = Number(wallConfig.buildTargetRatio ?? 1);
-  const targetCount = targetRatio > 0 ? Math.max(1, Math.floor(maxCount * targetRatio)) : maxCount;
-  const existingWalls = (state.structures || []).filter((structure) => structure.type === 'wall').length;
-  if (existingWalls >= targetCount) {
-    return null;
-  }
-
-  const minResources = manager.buildMinResources || wallConfig.buildMinResources;
-  if (minResources && typeof minResources === 'object') {
-    for (const [resource, minRatioRaw] of Object.entries(minResources)) {
-      const minRatio = Number(minRatioRaw);
-      if (!Number.isFinite(minRatio) || minRatio <= 0) {
-        continue;
-      }
-      const ratioValue = getStockpileRatio(state, config, resource);
-      if (ratioValue < minRatio) {
-        return null;
-      }
-    }
-  }
-
-  const buildCost = wallConfig.buildCost || {};
-  if (Object.keys(buildCost).length > 0 && !hasInputs(state.stockpile, buildCost)) {
-    return null;
-  }
-
-  const target = findWallBuildSpotLoose(state, runtime, wallConfig, reservedPositions);
-  if (!target) {
-    return null;
-  }
-
-  if (Object.keys(buildCost).length > 0) {
-    consumeInputs(state.stockpile, buildCost);
-  }
-
-  const buildTicks = Math.max(1, Number(wallConfig.buildTicks || 50));
-  return {
-    id: `job_${state.jobCounter++}`,
-    type: 'build',
-    structureType: 'wall',
-    target,
-    workRemaining: buildTicks,
-    dwarfId: null,
-  };
-}
-
 // Find the first available build spot near the village center.
 function findVillageBuildSpot(state, runtime) {
   return findVillageBuildSpotFromRadius(state, runtime, 0);
@@ -1516,51 +1351,6 @@ function findVillageBuildSpotFromRadius(state, runtime, minRadius, extraCheck) {
     }
   }
 
-  return null;
-}
-
-// Compute the radius to place a defensive wall ring.
-function getWallBuildRadius(state, runtime, wallConfig) {
-  const baseRadius = Math.max(0, Number(wallConfig && wallConfig.buildRadius || 0));
-  const buffer = Math.max(0, Number(wallConfig && wallConfig.buildInnerBuffer || 0));
-  const perimeter = getVillageOuterRadius(state, runtime, new Set(['wall', 'well', 'field']));
-  const required = perimeter.radius + buffer;
-  const startRadius = Math.max(baseRadius, required);
-  const maxRadius = getMaxWallRingRadius(perimeter.center, runtime);
-  if (startRadius <= 0 || maxRadius <= 0 || startRadius > maxRadius) {
-    return 0;
-  }
-  const obstacles = getWallRingObstacles(state);
-  for (let radius = startRadius; radius <= maxRadius; radius += 1) {
-    if (isWallRingClear(perimeter.center, radius, runtime, obstacles)) {
-      return radius;
-    }
-  }
-  return 0;
-}
-
-// Find a buildable spot on the wall ring.
-function findWallBuildSpot(state, runtime, wallConfig, reservedPositions) {
-  const radius = getWallBuildRadius(state, runtime, wallConfig);
-  if (radius <= 0) {
-    return null;
-  }
-  const center = getVillageCenter(state, runtime);
-  for (let dx = -radius; dx <= radius; dx += 1) {
-    const dy = radius - Math.abs(dx);
-    const x1 = center.x + dx;
-    const y1 = center.y + dy;
-    if (isBuildableCell(state, runtime, x1, y1) && !isReservedPosition(reservedPositions, x1, y1)) {
-      return { x: x1, y: y1 };
-    }
-    if (dy !== 0) {
-      const x2 = center.x + dx;
-      const y2 = center.y - dy;
-      if (isBuildableCell(state, runtime, x2, y2) && !isReservedPosition(reservedPositions, x2, y2)) {
-        return { x: x2, y: y2 };
-      }
-    }
-  }
   return null;
 }
 
@@ -1717,61 +1507,6 @@ function findMineBuildSpot(state, runtime, structureConfig) {
     const type = getTerrainTypeAt(state, x, y);
     return type ? allowed.includes(type) : false;
   });
-}
-
-// Collect obstacles that prevent wall placement.
-function getWallRingObstacles(state) {
-  const obstacles = new Set();
-  const nodeObstacles = new Set(['wood', 'water']);
-  const structureObstacles = new Set(['well', 'field']);
-
-  for (const node of state.nodes || []) {
-    if (nodeObstacles.has(node.id)) {
-      obstacles.add(`${node.x},${node.y}`);
-    }
-  }
-
-  for (const structure of state.structures || []) {
-    if (structure.type === 'wall') {
-      continue;
-    }
-    if (structureObstacles.has(structure.type)) {
-      obstacles.add(`${structure.x},${structure.y}`);
-    }
-  }
-
-  return obstacles;
-}
-
-// Validate that a wall ring is clear of obstacles.
-function isWallRingClear(center, radius, runtime, obstacles) {
-  if (radius <= 0) {
-    return false;
-  }
-  if (
-    center.x - radius < 0
-    || center.y - radius < 0
-    || center.x + radius >= runtime.gridWidth
-    || center.y + radius >= runtime.gridHeight
-  ) {
-    return false;
-  }
-  for (let dx = -radius; dx <= radius; dx += 1) {
-    const dy = radius - Math.abs(dx);
-    const x1 = center.x + dx;
-    const y1 = center.y + dy;
-    if (obstacles.has(`${x1},${y1}`)) {
-      return false;
-    }
-    if (dy !== 0) {
-      const x2 = center.x + dx;
-      const y2 = center.y - dy;
-      if (obstacles.has(`${x2},${y2}`)) {
-        return false;
-      }
-    }
-  }
-  return true;
 }
 
 // Determine the village center from existing structures or terrain.
@@ -2082,23 +1817,17 @@ module.exports = {
   createSawmillBuildJob,
   createWorkshopBuildJob,
   createMineBuildJob,
-  createWallBuildJob,
   createManagedWellBuildJob,
   createManagedFieldBuildJob,
   createManagedWatchtowerBuildJob,
-  createManagedWallBuildJob,
   findVillageBuildSpot,
   findVillageBuildSpotFromRadius,
-  getWallBuildRadius,
-  findWallBuildSpot,
   getMaxWallRingRadius,
   getVillageOuterRadius,
   getPeripheralBuildRadius,
   findPeripheralBuildSpot,
   findFertileBuildSpot,
   findMineBuildSpot,
-  getWallRingObstacles,
-  isWallRingClear,
   getVillageCenter,
   selectVillageCenter,
   getSettlementConfig,

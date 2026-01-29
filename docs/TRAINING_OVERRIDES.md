@@ -27,6 +27,9 @@ Merchant:
 
 Population:
 
+Training presets may tune reproduction (base chance, cooldown, soft cap) to keep
+episodes from collapsing into extinction during long runs.
+
 - `dwarves.count`: initial dwarf count.
 - `population.initialAgeRange.min`: minimum starting age (ticks).
 - `population.initialAgeRange.max`: maximum starting age (ticks).
@@ -85,7 +88,7 @@ Structures:
 - `structures.house.levels.<level>.capacity`: house bed capacity by level (1..5).
 - `structures.house.levels.<level>.upgradeCost.<resource>`: resources consumed to upgrade to that level.
 - `structures.house.levels.<level>.upgradeTicks`: time in ticks to upgrade to that level.
-- `structures.house.upgradeMinHousingRatio`: minimum beds/pop ratio before upgrades begin.
+- `structures.house.upgradeMinHousingRatio`: minimum coverage of required beds (beds/requiredBeds) before upgrades begin.
 - `structures.house.upgradeMinHouses`: minimum number of houses before upgrades begin.
 - `structures.house.upgradeMinAdjacency`: minimum adjacent houses required to upgrade.
 - `structures.house.storage.enabled`: enable house storage buffer.
@@ -166,4 +169,3 @@ Symbols:
 - `symbols.house`: house symbol.
 - `symbols.well`: well symbol.
 - `symbols.field`: field symbol.
-

@@ -209,7 +209,7 @@ function assignBuildJobIfNeeded(state, config, runtime, idleDwarves, roleConfig,
     return;
   }
   const hasBlockingBuild = state.jobs.some((job) => {
-    if (job.type === 'build' && job.structureType !== 'wall' && job.structureType !== 'watchtower') {
+    if (job.type === 'build' && job.structureType !== 'watchtower') {
       return true;
     }
     return false;
@@ -225,7 +225,9 @@ function assignBuildJobIfNeeded(state, config, runtime, idleDwarves, roleConfig,
   }
 
   const housingNeed = getHousingNeed(state, config);
-  const preferUpgrade = false;
+  const houseConfig = (config.structures && config.structures.house) || {};
+  const upgradeCoverage = clamp(Number(houseConfig.upgradeMinHousingRatio ?? 0), 0, 1);
+  const preferUpgrade = upgradeCoverage > 0 ? housingNeed.ratio >= upgradeCoverage : false;
   const managerMode = Boolean(managerActive);
   let buildJob = null;
   if (!managerMode) {

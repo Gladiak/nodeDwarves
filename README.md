@@ -141,8 +141,8 @@ enabled. Console logs stay compact, while a summary log is written to
 `debug/run_*/summary.log` every 500 episodes (one line per window) with a legend.
 Detailed snapshots are written to `debug/run_*/detail_ep*.log` only on notable
 events (best eval, eval regression, scenario shift).
-If you change observation features (e.g. add weather features), training must
-restart with `--fresh`.
+If you change observation features (via `ai.training.trainer.featureNames`),
+training must restart with `--fresh`.
 Observation features live in `src/ai/observation.js`, and policy inference lives
 in `src/ai/policy.js`.
 
@@ -180,6 +180,8 @@ raid parameters and ramps with difficulty.
 Training observations expose raid risk (season eligibility), exposure, and defense
 so policies can prepare ahead of raids. Reward shaping can further penalize raid
 exposure, deaths, and loot loss via `ai.reward.*`.
+Recent tuning increases `ai.reward.survival`, `ai.reward.populationDelta`, and
+`ai.reward.populationBalance` to keep policies focused on population stability.
 
 ### Scenario presets (training) 🎯
 

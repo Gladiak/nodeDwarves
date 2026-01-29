@@ -180,7 +180,7 @@ Structures (wells, fields):
 - `structures.well.placement.avoidTerrain`: terrain types where wells cannot be placed.
 - `structures.well.cluster.enabled`: enable fixed cluster placement for wells.
 - `structures.well.cluster.radius`: cluster radius in tiles (Manhattan).
-- `structures.well.cluster.minWallDistance`: minimum distance from the wall ring to the cluster edge (tiles).
+- `structures.well.cluster.minWallDistance`: minimum distance from the village center to the cluster edge (tiles).
 - `structures.well.cluster.minSeparation`: minimum distance between well/field cluster centers (tiles).
 - `structures.well.cluster.minStructureDistance`: minimum distance from other structures to the cluster edge (tiles).
 - `structures.well.cluster.shape`: cluster shape (`diamond` or `rect`).
@@ -200,7 +200,7 @@ Structures (wells, fields):
 - `structures.field.placement.avoidTerrain`: terrain types where fields cannot be placed.
 - `structures.field.cluster.enabled`: enable fixed cluster placement for fields.
 - `structures.field.cluster.radius`: cluster radius in tiles (Manhattan).
-- `structures.field.cluster.minWallDistance`: minimum distance from the wall ring to the cluster edge (tiles).
+- `structures.field.cluster.minWallDistance`: minimum distance from the village center to the cluster edge (tiles).
 - `structures.field.cluster.minSeparation`: minimum distance between well/field cluster centers (tiles).
 - `structures.field.cluster.minStructureDistance`: minimum distance from other structures to the cluster edge (tiles).
 - `structures.field.cluster.shape`: cluster shape (`diamond` or `rect`).
@@ -357,6 +357,7 @@ AI and training:
 - `ai.training.trainer.miniBatchSize`: minibatch size for PPO updates.
 - `ai.training.trainer.batchEpisodes`: episodes per update batch.
 - `ai.training.trainer.hiddenSizes`: MLP hidden layer sizes (e.g. `[128, 128]`).
+- `ai.training.trainer.featureNames`: ordered list of observation features per resource (e.g. `shortage`, `nodeScarcity`, `criticalNeeds`, `idleAdults`, `populationBalance`, `seasonIndex`, `seasonProgress`, `weatherSeverity`, `weatherTimeLeft`, `raidActive`, `raidTimeLeft`, `raidExposed`, `raidDefense`, `housingShortage`, `seasonEligible`).
 - `ai.training.trainer.activation`: hidden-layer activation (`tanh` or `relu`).
 - `ai.training.trainer.logStdInit`: initial log-std for action sampling.
 - `ai.training.trainer.maxGradNorm`: gradient norm clip.

@@ -157,4 +157,4 @@ function getBeastSymbol(config) {
   return '';
 }
 
-module.exports = { buildFooterLines, isTerrainMappedResource, getHouseLegendLabel, getBeastSymbol };
+module.exports = { buildFooterLines, getBeastSymbol };
