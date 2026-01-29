@@ -249,16 +249,16 @@
       "randomization": {
         "stockpileScale": [0.92, 1.05],
         "stockpileFloor": {
-          "food_raw": 8,
-          "water": 8,
+          "food_raw": 10,
+          "water": 10,
           "wood": 4,
           "stone": 4
         },
         "nodeCountScale": [0.92, 1.05],
         "nodeCountMin": 8,
         "nodeCapacityScale": [0.95, 1.1],
-        "nodeRegenScale": [0.95, 1.15],
-        "needDecayScale": [0.92, 1.02],
+        "nodeRegenScale": [1.0, 1.2],
+        "needDecayScale": [0.9, 1.0],
         "seasonStartRandom": true,
         "seasonTickRandom": true
       },

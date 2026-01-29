@@ -19,12 +19,31 @@ function regenerateNodes(state, config) {
   const fieldSeason = getSeasonModifier(state, 'fieldRegen', 1);
   const fieldWeather = getWeatherModifier(state, config, 'fieldRegen', 1);
   const fieldIrrigation = getFieldIrrigationMultiplier(state, config);
-  const baseRegen = Math.max(0, Number(regenConfig.perTick || 0));
+  const perTick = Number(regenConfig.perTick ?? 0);
+  const intervalTicks = Math.max(1, Number(regenConfig.intervalTicks ?? 0));
+  const amount = Math.max(0, Number(regenConfig.amount ?? 0));
+  const onlyDepleted = regenConfig.onlyDepleted === true;
+  let baseRegen = 0;
+
+  if (Number.isFinite(perTick) && perTick > 0) {
+    baseRegen = perTick;
+  } else if (Number.isFinite(amount) && amount > 0 && Number.isFinite(intervalTicks) && intervalTicks > 0) {
+    const tick = Math.max(0, Number(state.tick || 0));
+    if (tick % intervalTicks !== 0) {
+      return;
+    }
+    baseRegen = amount;
+  } else {
+    return;
+  }
 
   for (const node of state.nodes) {
     const capacity = Math.max(0, Number(node.capacity || 0));
     const remaining = Math.max(0, Number(node.remaining || 0));
     if (remaining >= capacity) {
+      continue;
+    }
+    if (onlyDepleted && remaining > 0) {
       continue;
     }
 
@@ -158,7 +177,7 @@ function updateHouseStorage(state, config) {
       state.stockpile[resource] = stock - storeAmount;
     }
 
-    const decayRates = storageConfig.decayRate || {};
+    const decayRates = storageConfig.decayPerTick || storageConfig.decayRate || {};
     const decayRate = Number(decayRates[resource] || 0);
     if (decayRate > 0 && storedAmount > 0) {
       storedAmount = Math.max(0, storedAmount - Math.max(0, Math.floor(storedAmount * decayRate)));
@@ -174,6 +193,33 @@ function updateHouseStorage(state, config) {
 function getHouseStorageCapacity(storageConfig, level) {
   if (!storageConfig) {
     return 0;
+  }
+  const levelMap = storageConfig.capacityPerLevel;
+  if (levelMap && typeof levelMap === 'object' && !Array.isArray(levelMap)) {
+    const requested = Number.isFinite(level) ? String(level) : '1';
+    if (levelMap[requested] !== undefined) {
+      return Math.max(0, Number(levelMap[requested] || 0));
+    }
+    const numericKeys = Object.keys(levelMap)
+      .map((key) => Number(key))
+      .filter((value) => Number.isFinite(value))
+      .sort((a, b) => a - b);
+    if (numericKeys.length > 0) {
+      let chosen = null;
+      if (Number.isFinite(level)) {
+        for (const key of numericKeys) {
+          if (key <= level) {
+            chosen = key;
+          } else {
+            break;
+          }
+        }
+      }
+      if (chosen === null) {
+        chosen = numericKeys[0];
+      }
+      return Math.max(0, Number(levelMap[String(chosen)] || 0));
+    }
   }
   const base = Number(storageConfig.capacityPerHouse || 0);
   if (!Number.isFinite(level) || level <= 1) {

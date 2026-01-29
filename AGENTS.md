@@ -91,6 +91,7 @@ This file defines how to implement new features in a consistent, stable way.
 ## Validation checklist
 
 - Run `npm start` and confirm the HUD/legend renders.
+- Run `npm run ai:regression` after structural changes (use `node scripts/regression.js --record --profile <name>` when behavior changes are intentional).
 - Run `npm run ai:train:fresh` after structural changes.
 - Confirm no crashes on resize and no negative stockpile values.
 - Check that shortages drive gathering priorities as expected.

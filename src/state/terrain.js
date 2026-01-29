@@ -680,8 +680,8 @@ function resolveTerrainSeed(rawSeed, previousTerrain, runtime) {
   if (previous) {
     return previous >>> 0;
   }
-  const stamp = Date.now() >>> 0;
-  const mixed = (stamp ^ (runtime.gridWidth << 16) ^ runtime.gridHeight) >>> 0;
+  const rand = Math.floor(Math.random() * 4294967295) >>> 0;
+  const mixed = (rand ^ (runtime.gridWidth << 16) ^ runtime.gridHeight) >>> 0;
   return mixed || 1;
 }
 

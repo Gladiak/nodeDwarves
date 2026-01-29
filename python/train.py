@@ -367,6 +367,7 @@ def format_summary_line(
     reward_per_step = avg_reward / avg_steps if avg_steps > 0 else 0.0
     reward_per_tick = avg_reward / ticks_avg if ticks_avg else 0.0
     shortage_label = format_map_label(debug.get("shortageAvg") or {}, digits=2)
+    nodes_label = format_map_label(debug.get("nodes") or {}, digits=2)
     termination_label = format_termination_label(debug.get("terminationCounts") or {}, window_count)
     weather_label = format_mix_label(weather_counts, window_count)
     scenario_label = format_mix_label(scenario_counts, window_count)
@@ -393,7 +394,7 @@ def format_summary_line(
         f"exp={fmt(raid.get('exposedRatio', 0))} "
         f"def={fmt(raid.get('defenseRatio', 0))} "
         f"loot={raid_loot_label}] "
-        f"short={shortage_label} term={termination_label} "
+        f"short={shortage_label} nodes={nodes_label} term={termination_label} "
         f"weather={weather_label} scenario={scenario_label} "
         f"scenario_target={scenario_target_label} scenario_delta={scenario_delta:.2f} "
         f"events={event_label}"
@@ -1981,7 +1982,7 @@ def load_policy(path, model):
 def main():
     args = parse_args()
     configure_torch_threads()
-    if args.seed:
+    if args.seed is not None:
         random.seed(args.seed)
         torch.manual_seed(args.seed)
 
@@ -2061,7 +2062,7 @@ def main():
     file_deaths_window = 0
     file_debug_window = init_debug_accumulator()
     file_window_start = 1
-    eval_seed_base = (args.seed + 100000) if args.seed else None
+    eval_seed_base = (args.seed + 100000) if args.seed is not None else None
     detail_prefix = (args.debug_prefix or "").strip()
     if detail_prefix:
         detail_prefix = detail_prefix.replace(os.sep, "_")
@@ -2164,7 +2165,7 @@ def main():
                 progress = min(1.0, (next_episode - 1) / max(1, args.difficulty_ramp))
                 difficulty = args.difficulty_start + (args.difficulty_end - args.difficulty_start) * progress
                 difficulty = clamp(difficulty, 0.0, 1.0)
-                seed = (args.seed + next_episode) if args.seed else None
+                seed = (args.seed + next_episode) if args.seed is not None else None
                 scenario = select_scenario(training_scenarios, scenario_rng, difficulty)
                 task_queue.put((next_episode, seed, difficulty, scenario))
                 in_flight += 1

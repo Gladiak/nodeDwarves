@@ -13,6 +13,7 @@
     "ai:train:combo:fresh": "npm run ai:bootstrap --silent && RUN_DIR=$(node -e \"const fs=require('fs'); const path=require('path'); const dir=path.join(process.cwd(),'debug','run_' + Date.now()); fs.mkdirSync(dir,{recursive:true}); process.stdout.write(dir);\") && ./.venv/bin/python python/train.py --fresh --workers 8 --debug-run-dir \"$RUN_DIR\" --debug-summary-name summary_train.log --debug-prefix train && ./.venv/bin/python python/train.py --workers 8 --full-sim --episodes 20000 --debug-run-dir \"$RUN_DIR\" --debug-summary-name summary_full.log --debug-prefix full",
     "ai:train:full:hard": "npm run ai:bootstrap --silent && RUN_DIR=$(node -e \"const fs=require('fs'); const path=require('path'); const dir=path.join(process.cwd(),'debug','run_' + Date.now()); fs.mkdirSync(dir,{recursive:true}); process.stdout.write(dir);\") && ./.venv/bin/python python/train.py --workers 8 --full-sim --episodes 20000 --difficulty-start 1.0 --difficulty-end 1.0 --difficulty-ramp 1 --eval-difficulty 1.0 --debug-run-dir \"$RUN_DIR\" --debug-summary-name summary_full_hard.log --debug-prefix full_hard",
     "ai:train:finetune": "npm run ai:bootstrap --silent && ./.venv/bin/python python/train.py --workers 8 --full-sim --episodes 3000 --lr 0.00012 --lr-final 0.00006 --entropy-coef 0.002 --entropy-coef-final 0.001 --entropy-ramp 3000",
+    "ai:regression": "node scripts/regression.js --all",
     "start": "node app.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },

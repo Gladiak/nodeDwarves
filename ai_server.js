@@ -5,6 +5,7 @@ const { loadConfig } = require('./src/config');
 const { buildRuntime } = require('./src/runtime');
 const { createInitialState } = require('./src/state');
 const { stepState } = require('./src/simulation');
+const { getTerrainResourceRatio } = require('./src/simulation/terrain');
 const { clamp } = require('./src/utils');
 
 const baseConfig = loadConfig();
@@ -544,6 +545,15 @@ function computeMetrics(state, config) {
   const idleAdultsFraction = getIdleAdultsFraction(state.dwarves, config);
   const populationBalance = getPopulationBalance(state, config);
   const nodeRatio = getNodeRatio(state.nodes);
+  const resources = config.resources || {};
+  if (resources.useTerrainTiles === true) {
+    const terrainAllowed = resources.terrainAllowed || {};
+    for (const resourceId of Object.keys(terrainAllowed)) {
+      const terrainRatio = getTerrainResourceRatio(state, config, resourceId);
+      const current = nodeRatio[resourceId] !== undefined ? nodeRatio[resourceId] : 0;
+      nodeRatio[resourceId] = Math.max(current, terrainRatio);
+    }
+  }
   const housingStats = getHousingStats(state, config);
   const raidObservation = getRaidObservation(state, config, housingStats);
 
