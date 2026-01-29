@@ -20,6 +20,7 @@ function createInitialState(config, runtime) {
   const houseStorage = createHouseStorageState(config);
   const raid = createRaidState(config);
   const raidStats = createRaidStats();
+  const tools = createToolsState(config);
 
   return {
     tick: 0,
@@ -32,6 +33,7 @@ function createInitialState(config, runtime) {
     houseStorage,
     raid,
     raidStats,
+    tools,
     terrain,
     stockpile: { ...config.resources.stockpile },
     jobs: [],
@@ -124,6 +126,17 @@ function createRaidStats() {
   };
 }
 
+// Create the initial tool level state.
+function createToolsState(config) {
+  const toolsConfig = config.tools || {};
+  const initialLevel = Math.max(1, Math.floor(Number(toolsConfig.initialLevel || 1)));
+  const maxLevel = Math.max(1, Math.floor(Number(toolsConfig.maxLevel || 1)));
+  return {
+    level: Math.min(initialLevel, maxLevel),
+    maxLevel,
+  };
+}
+
 // Create initial structures according to config.
 function createStructures(config, runtime, occupied, terrain) {
   const structures = [];
@@ -137,7 +150,19 @@ function createStructures(config, runtime, occupied, terrain) {
       continue;
     }
 
-    const positions = createPositions(count, runtime.gridWidth, runtime.gridHeight, occupied, isAllowed);
+    let allowFn = isAllowed;
+    if (type === 'mine') {
+      const mineConfig = definition && typeof definition === 'object' ? definition : {};
+      const terrainTypes = Array.isArray(mineConfig.spawnTerrain || mineConfig.buildTerrain)
+        ? (mineConfig.spawnTerrain || mineConfig.buildTerrain)
+        : null;
+      const terrainPredicate = buildTerrainTypePredicate(terrain, terrainTypes);
+      if (terrainPredicate) {
+        allowFn = terrainPredicate;
+      }
+    }
+
+    const positions = createPositions(count, runtime.gridWidth, runtime.gridHeight, occupied, allowFn);
     const isHouse = type === 'house';
     const baseCapacity = definition && definition.capacity !== undefined ? definition.capacity : 1;
     const hasLevels = Boolean(isHouse && definition && typeof definition === 'object' && definition.levels);
@@ -148,6 +173,7 @@ function createStructures(config, runtime, occupied, terrain) {
     const symbol = level
       ? String(level)
       : (symbols[type] || (type === 'workshop' ? 'W' : (symbols.structure || '#')));
+    const levelMax = isHouse ? null : Math.max(1, Number(definition.levelMax || 1));
 
     for (let index = 0; index < positions.length; index += 1) {
       const pos = positions[index];
@@ -161,6 +187,9 @@ function createStructures(config, runtime, occupied, terrain) {
       };
       if (level) {
         structure.level = level;
+      }
+      if ((type === 'mine' || type === 'sawmill') && levelMax) {
+        structure.level = 1;
       }
       structures.push(structure);
       occupied.add(positionKey(pos.x, pos.y));
@@ -293,6 +322,22 @@ function createDwarves(config, runtime, occupied, terrain) {
       starvationTicks: 0,
     };
   });
+}
+
+// Build a predicate for allowed terrain types.
+function buildTerrainTypePredicate(terrain, allowedTypes) {
+  if (!terrain || !terrain.types || !Array.isArray(allowedTypes) || allowedTypes.length === 0) {
+    return null;
+  }
+  const allowedSet = new Set(allowedTypes.map((entry) => String(entry)));
+  const spawnable = terrain.spawnable;
+  return (x, y) => {
+    if (spawnable && (!spawnable[y] || !spawnable[y][x])) {
+      return false;
+    }
+    const type = terrain.types[y] ? terrain.types[y][x] : null;
+    return type ? allowedSet.has(type) : false;
+  };
 }
 
 // Create random positions while respecting occupancy and predicates.

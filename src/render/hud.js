@@ -38,7 +38,10 @@ function buildHudColumns(state, config, columnWidth) {
   const houseCount = structures.filter((structure) => structure.type === 'house').length;
   const wellCount = structures.filter((structure) => structure.type === 'well').length;
   const fieldCount = structures.filter((structure) => structure.type === 'field').length;
-  const wallCount = structures.filter((structure) => structure.type === 'wall').length;
+  const workshopCount = structures.filter((structure) => structure.type === 'workshop').length;
+  const sawmillCount = structures.filter((structure) => structure.type === 'sawmill').length;
+  const mineCount = structures.filter((structure) => structure.type === 'mine').length;
+  const watchtowerCount = structures.filter((structure) => structure.type === 'watchtower').length;
   const housingConfig = (config.population && config.population.housing) || {};
   const housingEnabled = housingConfig.enabled !== false;
   const bedsTotal = housingEnabled
@@ -49,10 +52,11 @@ function buildHudColumns(state, config, columnWidth) {
   const housingRatio = housingEnabled
     ? (bedsTotal > 0 ? bedsTotal / Math.max(1, dwarves.length) : 0)
     : 1;
-  const wallConfig = (config.structures && config.structures.wall) || {};
-  const wallDefensePer = Math.max(0, Number(wallConfig.defensePerWall ?? 0));
-  const wallDefenseMax = clamp(Number(wallConfig.defenseMax ?? 0), 0, 1);
-  const wallDefense = clamp(wallCount * wallDefensePer, 0, wallDefenseMax);
+  const towerConfig = (config.structures && config.structures.watchtower) || {};
+  const towerRaid = towerConfig.raid || {};
+  const towerDefensePer = Math.max(0, Number(towerRaid.defensePerTower ?? 0));
+  const towerDefenseMax = clamp(Number(towerRaid.defenseMax ?? 0), 0, 1);
+  const towerDefense = clamp(watchtowerCount * towerDefensePer, 0, towerDefenseMax);
   const seasonLabel = formatSeasonLabel(state.season);
   const yearLabel = formatYearLabel(state, config);
   const lastEvent = formatLastEvent(state.events);
@@ -74,10 +78,22 @@ function buildHudColumns(state, config, columnWidth) {
   left.push(`Houses: ${houseCount}`);
   left.push(`Wells: ${wellCount}`);
   left.push(`Fields: ${fieldCount}`);
-  left.push(`Walls: ${wallCount}`);
+  left.push(`Workshop: ${workshopCount}`);
+  left.push(`Sawmills: ${sawmillCount}`);
+  left.push(`Mines: ${mineCount}`);
+  if (state.tools) {
+    const maxLevel = Math.max(1, Number(state.tools.maxLevel || 1));
+    const level = Math.min(maxLevel, Math.max(1, Number(state.tools.level || 1)));
+    left.push(`Tools: L${level}/${maxLevel}`);
+  }
+  const structureLevels = getStructureLevelSummary(structures);
+  if (structureLevels) {
+    left.push(structureLevels);
+  }
+  left.push(`Towers: ${watchtowerCount}`);
   left.push(`Beds: ${bedsTotal}`);
   left.push(`Housing ratio: ${housingRatio.toFixed(2)}`);
-  left.push(`Wall def: ${Math.round(wallDefense * 100)}%`);
+  left.push(`Tower def: ${Math.round(towerDefense * 100)}%`);
   left.push(`Priority: ${topPriority}`);
   left.push('');
   left.push('Avg hunger/thirst');
@@ -135,7 +151,7 @@ function buildHudColumns(state, config, columnWidth) {
     right.push('-');
   } else {
     for (const entry of queue) {
-      right.push(`${entry.resource}: ${entry.missing}`);
+      right.push(`${entry.resource}: ${formatCompactNumber(entry.missing)}`);
     }
   }
 
@@ -181,7 +197,10 @@ function getHudColumnWidth(totalWidth, columnCount, gap) {
 // Format a need value for display.
 function formatNeedValue(value) {
   const numeric = Number(value || 0);
-  return numeric.toFixed(2);
+  if (!Number.isFinite(numeric)) {
+    return '0';
+  }
+  return String(Math.round(numeric));
 }
 
 // Format a number compactly (k/m).
@@ -192,12 +211,12 @@ function formatCompactNumber(value) {
   }
   const abs = Math.abs(numeric);
   if (abs >= 1000000) {
-    const digits = abs >= 10000000 ? 0 : 1;
-    return `${(numeric / 1000000).toFixed(digits)}m`;
+    const scaled = Math.round(numeric / 1000000);
+    return `${scaled}m`;
   }
   if (abs >= 1000) {
-    const digits = abs >= 10000 ? 0 : 1;
-    return `${(numeric / 1000).toFixed(digits)}k`;
+    const scaled = Math.round(numeric / 1000);
+    return `${scaled}k`;
   }
   return String(Math.round(numeric));
 }
@@ -384,6 +403,28 @@ function averageValue(dwarves, selector) {
 
   const total = dwarves.reduce((sum, dwarf) => sum + Number(selector(dwarf) || 0), 0);
   return total / dwarves.length;
+}
+
+// Summarize mine/sawmill levels for the HUD.
+function getStructureLevelSummary(structures) {
+  if (!Array.isArray(structures)) {
+    return '';
+  }
+  const summary = [];
+  const mineLevels = structures.filter((s) => s.type === 'mine' && Number.isFinite(Number(s.level)));
+  if (mineLevels.length > 0) {
+    const level = Math.round(Number(mineLevels[0].level || 1));
+    summary.push(`Mine L${level}`);
+  }
+  const sawmillLevels = structures.filter((s) => s.type === 'sawmill' && Number.isFinite(Number(s.level)));
+  if (sawmillLevels.length > 0) {
+    const level = Math.round(Number(sawmillLevels[0].level || 1));
+    summary.push(`Sawmill L${level}`);
+  }
+  if (summary.length === 0) {
+    return '';
+  }
+  return summary.join(' | ');
 }
 
 module.exports = {

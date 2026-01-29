@@ -1198,12 +1198,17 @@ def worker_loop(worker_id, task_queue, result_queue, update_queue, resources, se
     except OSError:
         pass
     torch.set_num_threads(1)
+    env = os.environ.copy()
+    debug_mode = settings.get("debug_mode")
+    if debug_mode:
+        env["NODEDWARVES_DEBUG_MODE"] = str(debug_mode)
     proc = subprocess.Popen(
         ["node", "ai_server.js"],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         text=True,
         bufsize=1,
+        env=env,
     )
 
     try:
@@ -1824,6 +1829,10 @@ def build_training_defaults(config):
         "resume_from_best": to_bool(trainer.get("resumeFromBest"), False),
         "seed": to_int(trainer.get("seed"), 0),
         "log_every": to_int(trainer.get("logEvery"), 500),
+        "debug_mode": to_str(
+            trainer.get("debugMode", trainer.get("debug_mode")),
+            "full",
+        ),
         "eval_every": to_int(trainer.get("evalEvery"), 500),
         "eval_episodes": to_int(trainer.get("evalEpisodes"), 5),
         "eval_max_steps": to_int(trainer.get("evalMaxSteps"), 0),
@@ -1879,6 +1888,7 @@ def parse_args():
     parser.add_argument("--resume-from-best", action="store_true", default=defaults["resume_from_best"])
     parser.add_argument("--seed", type=int, default=defaults["seed"])
     parser.add_argument("--log-every", type=int, default=defaults["log_every"])
+    parser.add_argument("--debug-mode", type=str, default=defaults["debug_mode"])
     parser.add_argument("--eval-every", type=int, default=defaults["eval_every"])
     parser.add_argument("--eval-episodes", type=int, default=defaults["eval_episodes"])
     parser.add_argument("--eval-max-steps", type=int, default=defaults["eval_max_steps"])
@@ -1897,6 +1907,7 @@ def parse_args():
         else defaults["hidden_sizes"]
     )
     args.activation = to_str(args.activation, defaults["activation"]).lower()
+    args.debug_mode = to_str(args.debug_mode, defaults["debug_mode"]).lower()
     if args.eval_difficulty is not None:
         args.eval_difficulty = clamp(float(args.eval_difficulty), 0.0, 1.0)
     args.eval_score = to_str(args.eval_score, defaults["eval_score"]).lower()
@@ -2122,6 +2133,7 @@ def main():
         "activation": args.activation,
         "log_std_init": args.log_std_init,
         "full_sim": args.full_sim,
+        "debug_mode": args.debug_mode,
     }
 
     processes = []
@@ -2144,12 +2156,16 @@ def main():
 
     eval_proc = None
     if args.eval_every > 0:
+        eval_env = os.environ.copy()
+        if args.debug_mode:
+            eval_env["NODEDWARVES_DEBUG_MODE"] = str(args.debug_mode)
         eval_proc = subprocess.Popen(
             ["node", "ai_server.js"],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             text=True,
             bufsize=1,
+            env=eval_env,
         )
 
     try:

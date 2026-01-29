@@ -121,6 +121,7 @@ function updateRaidTick(state, config, runtime) {
     return;
   }
   moveRaidBeasts(raidState.beasts || [], runtime, state, config);
+  applyWatchtowerAttacks(state, config, raidState);
   raidState.ticksRemaining = Math.max(0, Number(raidState.ticksRemaining || 0) - 1);
   if (raidState.ticksRemaining > 0) {
     return;
@@ -150,12 +151,13 @@ function finishRaid(state, config, raidState) {
   const defenseAdults = Math.max(1, Number(raidConfig.defenseAdults || population));
   const defenseMax = clamp(Number(raidConfig.defenseMax ?? 0), 0, 1);
   const defense = clamp(adults / defenseAdults, 0, defenseMax);
-  const wallConfig = (config.structures && config.structures.wall) || {};
-  const wallCount = (state.structures || []).filter((structure) => structure.type === 'wall').length;
-  const wallDefensePer = Math.max(0, Number(wallConfig.defensePerWall ?? 0));
-  const wallDefenseMax = clamp(Number(wallConfig.defenseMax ?? 0), 0, 1);
-  const wallDefense = clamp(wallCount * wallDefensePer, 0, wallDefenseMax);
-  const totalDefense = clamp(defense + wallDefense, 0, 1);
+  const towerConfig = (config.structures && config.structures.watchtower) || {};
+  const towerRaid = towerConfig.raid || {};
+  const towerCount = (state.structures || []).filter((structure) => structure.type === 'watchtower').length;
+  const towerDefensePer = Math.max(0, Number(towerRaid.defensePerTower ?? 0));
+  const towerDefenseMax = clamp(Number(towerRaid.defenseMax ?? 0), 0, 1);
+  const towerDefense = clamp(towerCount * towerDefensePer, 0, towerDefenseMax);
+  const totalDefense = clamp(defense + towerDefense, 0, 1);
 
   const difficulty = getRaidDifficulty(config);
   const deathConfig = raidConfig.deathRate || {};
@@ -318,6 +320,59 @@ function moveRaidBeasts(beasts, runtime, state, config) {
   for (const beast of beasts) {
     moveDwarf(beast, runtime, state, config);
   }
+}
+
+// Resolve watchtower attacks against beasts during raids.
+function applyWatchtowerAttacks(state, config, raidState) {
+  if (!raidState || !raidState.active) {
+    return;
+  }
+  const towerConfig = (config.structures && config.structures.watchtower) || {};
+  const raidConfig = towerConfig.raid || {};
+  const range = Math.max(0, Number(raidConfig.range ?? 0));
+  const hitChance = clamp(Number(raidConfig.hitChance ?? 0), 0, 1);
+  const maxKillsPerTick = Math.max(0, Number(raidConfig.maxKillsPerTick ?? 0));
+  if (range <= 0 || hitChance <= 0 || maxKillsPerTick <= 0) {
+    return;
+  }
+
+  const towers = (state.structures || []).filter((structure) => structure.type === 'watchtower');
+  if (towers.length === 0) {
+    return;
+  }
+  const beasts = Array.isArray(raidState.beasts) ? raidState.beasts : [];
+  if (beasts.length === 0) {
+    return;
+  }
+
+  let kills = 0;
+  for (const tower of towers) {
+    if (kills >= maxKillsPerTick || beasts.length === 0) {
+      break;
+    }
+    let targetIndex = -1;
+    let bestDistance = Infinity;
+    for (let i = 0; i < beasts.length; i += 1) {
+      const beast = beasts[i];
+      const distance = Math.abs(beast.x - tower.x) + Math.abs(beast.y - tower.y);
+      if (distance <= range && distance < bestDistance) {
+        bestDistance = distance;
+        targetIndex = i;
+        if (distance === 0) {
+          break;
+        }
+      }
+    }
+    if (targetIndex < 0) {
+      continue;
+    }
+    if (Math.random() <= hitChance) {
+      beasts.splice(targetIndex, 1);
+      kills += 1;
+    }
+  }
+
+  raidState.beasts = beasts;
 }
 
 // Resolve raid difficulty value from config.

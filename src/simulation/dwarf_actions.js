@@ -2,10 +2,16 @@
 
 const { clamp } = require('../utils');
 const { pushEvent } = require('./events');
-const { moveTowards, moveWithDetour, moveDwarf } = require('./movement');
+const {
+  moveTowards,
+  moveWithDetour,
+  moveDwarf,
+  findNearbyWalkablePosition,
+} = require('./movement');
+const { randomBetween } = require('./random');
 const { isWalkableTile, isTerrainResourceTile, pickTerrainResourceTarget } = require('./terrain');
 const { createStructure, getHouseMaxLevel, getHouseCapacity, isBuildableCell } = require('./structures');
-const { createResourceNode, getGatherYield, applyOutputs } = require('./resources');
+const { createResourceNode, getGatherYield, getToolMultiplier, applyOutputs } = require('./resources');
 
 // Process the dwarf's per-tick action (panic, job, or idle).
 function processDwarfAction(dwarf, state, config, runtime) {
@@ -48,6 +54,7 @@ function handleIdleDwarf(dwarf, state, config, runtime) {
   }
   const home = getDwarfHomePosition(dwarf, state);
   if (home && (dwarf.x !== home.x || dwarf.y !== home.y)) {
+    resetIdleWanderState(dwarf);
     moveWithDetour(
       dwarf,
       home.x,
@@ -60,11 +67,114 @@ function handleIdleDwarf(dwarf, state, config, runtime) {
     return;
   }
 
-  const population = config.population || {};
-  const wanderChance = clamp(Number(population.idleWanderChance ?? 0), 0, 1);
-  if (wanderChance > 0 && Math.random() < wanderChance) {
-    moveDwarf(dwarf, runtime, state, config);
+  const wander = getIdleWanderConfig(config);
+  if (!wander.enabled || wander.chance <= 0 || wander.radius <= 0) {
+    return;
   }
+
+  const pauseTicks = Math.max(0, Math.floor(Number(dwarf.idlePauseTicks || 0)));
+  if (pauseTicks > 0) {
+    dwarf.idlePauseTicks = pauseTicks - 1;
+    return;
+  }
+
+  const anchor = home || dwarf;
+  let targetX = Number(dwarf.idleTargetX);
+  let targetY = Number(dwarf.idleTargetY);
+  let hasTarget = Number.isFinite(targetX) && Number.isFinite(targetY);
+  if (hasTarget) {
+    const targetAge = Math.max(0, Math.floor(Number(dwarf.idleTargetAge || 0)));
+    if (!isWalkableTile(state, targetX, targetY)) {
+      clearIdleWanderTarget(dwarf);
+      hasTarget = false;
+    } else if (wander.maxTargetAge > 0 && targetAge >= wander.maxTargetAge) {
+      clearIdleWanderTarget(dwarf);
+      hasTarget = false;
+    }
+  }
+
+  if (hasTarget) {
+    if (dwarf.x === targetX && dwarf.y === targetY) {
+      clearIdleWanderTarget(dwarf);
+      dwarf.idlePauseTicks = randomBetween(wander.minPauseTicks, wander.maxPauseTicks);
+      return;
+    }
+    moveWithDetour(
+      dwarf,
+      targetX,
+      targetY,
+      runtime,
+      state,
+      config,
+      `idle:${targetX},${targetY}`,
+    );
+    dwarf.idleTargetAge = Math.max(0, Math.floor(Number(dwarf.idleTargetAge || 0))) + 1;
+    return;
+  }
+
+  if (Math.random() >= wander.chance) {
+    return;
+  }
+
+  const target = findNearbyWalkablePosition(
+    state,
+    runtime,
+    anchor.x,
+    anchor.y,
+    wander.radius,
+    wander.maxAttempts,
+  );
+  if (!target || (target.x === dwarf.x && target.y === dwarf.y)) {
+    return;
+  }
+  dwarf.idleTargetX = target.x;
+  dwarf.idleTargetY = target.y;
+  dwarf.idleTargetAge = 0;
+  moveWithDetour(
+    dwarf,
+    target.x,
+    target.y,
+    runtime,
+    state,
+    config,
+    `idle:${target.x},${target.y}`,
+  );
+}
+
+// Resolve idle wander tuning from config.
+function getIdleWanderConfig(config) {
+  const population = (config && config.population) ? config.population : {};
+  const idle = population.idleWander || {};
+  const fallbackChance = population.idleWanderChance ?? 0;
+  const enabled = idle.enabled !== false;
+  const chance = clamp(Number(idle.chance ?? fallbackChance ?? 0), 0, 1);
+  const radius = Math.max(0, Math.floor(Number(idle.radius ?? 6)));
+  const minPauseTicks = Math.max(0, Math.floor(Number(idle.minPauseTicks ?? 6)));
+  const maxPauseTicks = Math.max(minPauseTicks, Math.floor(Number(idle.maxPauseTicks ?? 18)));
+  const maxTargetAge = Math.max(0, Math.floor(Number(idle.maxTargetAge ?? 120)));
+  const maxAttempts = Math.max(1, Math.floor(Number(idle.maxAttempts ?? 18)));
+  return {
+    enabled,
+    chance,
+    radius,
+    minPauseTicks,
+    maxPauseTicks,
+    maxTargetAge,
+    maxAttempts,
+  };
+}
+
+// Clear idle wander target data stored on the dwarf.
+function clearIdleWanderTarget(dwarf) {
+  delete dwarf.idleTargetX;
+  delete dwarf.idleTargetY;
+  delete dwarf.idleTargetAge;
+}
+
+// Reset idle wander state on a dwarf.
+function resetIdleWanderState(dwarf) {
+  clearIdleWanderTarget(dwarf);
+  delete dwarf.idlePauseTicks;
 }
 
 // Process the dwarf's current job, including movement and completion.
@@ -151,6 +261,54 @@ function processDwarfJob(dwarf, state, config, runtime) {
     targetY = clamp(targetStructure.y, 0, runtime.gridHeight - 1);
     job.target = { x: targetX, y: targetY };
   }
+  if (job.type === 'upgrade_tools') {
+    targetWorkshop = findStructureById(state.structures, job.workshopId);
+    if (!targetWorkshop || targetWorkshop.type !== 'workshop') {
+      removeJob(state, job.id);
+      dwarf.job = null;
+      return;
+    }
+
+    targetX = clamp(targetWorkshop.x, 0, runtime.gridWidth - 1);
+    targetY = clamp(targetWorkshop.y, 0, runtime.gridHeight - 1);
+    job.target = { x: targetX, y: targetY };
+  }
+  if (job.type === 'upgrade_structure') {
+    targetStructure = findStructureById(state.structures, job.structureId);
+    if (!targetStructure || targetStructure.type !== job.structureType) {
+      removeJob(state, job.id);
+      dwarf.job = null;
+      return;
+    }
+
+    targetX = clamp(targetStructure.x, 0, runtime.gridWidth - 1);
+    targetY = clamp(targetStructure.y, 0, runtime.gridHeight - 1);
+    job.target = { x: targetX, y: targetY };
+  }
+  if (job.type === 'mine') {
+    targetStructure = findStructureById(state.structures, job.structureId);
+    if (!targetStructure || targetStructure.type !== 'mine') {
+      removeJob(state, job.id);
+      dwarf.job = null;
+      return;
+    }
+
+    targetX = clamp(targetStructure.x, 0, runtime.gridWidth - 1);
+    targetY = clamp(targetStructure.y, 0, runtime.gridHeight - 1);
+    job.target = { x: targetX, y: targetY };
+  }
+  if (job.type === 'sawmill') {
+    targetStructure = findStructureById(state.structures, job.structureId);
+    if (!targetStructure || targetStructure.type !== 'sawmill') {
+      removeJob(state, job.id);
+      dwarf.job = null;
+      return;
+    }
+
+    targetX = clamp(targetStructure.x, 0, runtime.gridWidth - 1);
+    targetY = clamp(targetStructure.y, 0, runtime.gridHeight - 1);
+    job.target = { x: targetX, y: targetY };
+  }
 
   if (!isWalkableTile(state, targetX, targetY)) {
     removeJob(state, job.id);
@@ -171,6 +329,21 @@ function processDwarfJob(dwarf, state, config, runtime) {
     return;
   }
 
+  if (job.type === 'mine') {
+    const output = getMineOutput(state, config, targetStructure);
+    if (output) {
+      applyOutputs(state.stockpile, output);
+    }
+    return;
+  }
+  if (job.type === 'sawmill') {
+    const output = getSawmillOutput(state, config, targetStructure);
+    if (output) {
+      applyOutputs(state.stockpile, output);
+    }
+    return;
+  }
+
   job.workRemaining -= 1;
   if (job.workRemaining > 0) {
     return;
@@ -188,7 +361,7 @@ function processDwarfJob(dwarf, state, config, runtime) {
     state.structures.push(structure);
     if (type === 'well' || type === 'field') {
       const structureConfig = (config.structures && config.structures[type]) || {};
-      const resourceId = type === 'well' ? 'water' : 'food_raw';
+      const resourceId = type === 'well' ? 'water' : 'food';
       const nodeCapacity = structureConfig.nodeCapacity;
       const node = createResourceNode(
         state,
@@ -226,6 +399,37 @@ function processDwarfJob(dwarf, state, config, runtime) {
     house.capacity = getHouseCapacity(houseConfig, nextLevel, house.capacity);
     house.symbol = String(nextLevel);
     pushEvent(state, config, `Upgrade: ${house.id} L${nextLevel}`);
+    removeJob(state, job.id);
+    dwarf.job = null;
+    return;
+  }
+  if (job.type === 'upgrade_tools') {
+    const tools = state.tools || {};
+    const toolsConfig = config.tools || {};
+    const maxLevel = Math.max(1, Number(toolsConfig.maxLevel || tools.maxLevel || 1));
+    const current = Math.max(1, Number(tools.level || 1));
+    const nextLevel = Math.min(maxLevel, Number(job.nextLevel || current + 1));
+    tools.level = nextLevel;
+    tools.maxLevel = maxLevel;
+    state.tools = tools;
+    pushEvent(state, config, `Tools: L${nextLevel}`);
+    removeJob(state, job.id);
+    dwarf.job = null;
+    return;
+  }
+  if (job.type === 'upgrade_structure') {
+    const structure = targetStructure || findStructureById(state.structures, job.structureId);
+    if (!structure) {
+      removeJob(state, job.id);
+      dwarf.job = null;
+      return;
+    }
+    const structConfig = config.structures && config.structures[structure.type];
+    const maxLevel = Math.max(1, Number(structConfig && structConfig.levelMax || 1));
+    const current = Math.max(1, Number(structure.level || 1));
+    const nextLevel = Math.min(maxLevel, Number(job.nextLevel || current + 1));
+    structure.level = nextLevel;
+    pushEvent(state, config, `Upgrade: ${structure.id} L${nextLevel}`);
     removeJob(state, job.id);
     dwarf.job = null;
     return;
@@ -287,6 +491,53 @@ function removeNode(state, nodeId) {
   if (index >= 0) {
     state.nodes.splice(index, 1);
   }
+}
+
+// Resolve mine outputs per tick from config.
+function getMineOutput(state, config, structure) {
+  const mineConfig = config.structures && config.structures.mine;
+  if (!mineConfig || !mineConfig.outputPerTick) {
+    return null;
+  }
+  const structureMultiplier = getStructureLevelMultiplier(structure, mineConfig);
+  const output = {};
+  for (const [resource, amount] of Object.entries(mineConfig.outputPerTick)) {
+    const multiplier = getToolMultiplier(state, config, resource);
+    output[resource] = Number(amount || 0) * multiplier * structureMultiplier;
+  }
+  return output;
+}
+
+// Resolve sawmill outputs per tick from config.
+function getSawmillOutput(state, config, structure) {
+  const sawmillConfig = config.structures && config.structures.sawmill;
+  if (!sawmillConfig || !sawmillConfig.outputPerTick) {
+    return null;
+  }
+  const multiplier = getStructureLevelMultiplier(structure, sawmillConfig);
+  const output = {};
+  for (const [resource, amount] of Object.entries(sawmillConfig.outputPerTick)) {
+    output[resource] = Number(amount || 0) * multiplier;
+  }
+  return output;
+}
+
+// Compute level-based output multiplier for a structure.
+function getStructureLevelMultiplier(structure, structConfig) {
+  if (!structure || !structConfig) {
+    return 1;
+  }
+  const level = Math.max(1, Number(structure.level || 1));
+  const maxLevel = Math.max(1, Number(structConfig.levelMax || 1));
+  const minBonus = Math.max(0, Number(structConfig.levelBonusMin || 0));
+  const maxBonus = Math.max(minBonus, Number(structConfig.levelBonusMax || minBonus));
+  if (maxLevel <= 1) {
+    return 1 + minBonus;
+  }
+  const exponent = Math.max(0.1, Number(structConfig.levelBonusExponent || 1));
+  const progress = clamp((level - 1) / (maxLevel - 1), 0, 1);
+  const bonus = minBonus + (maxBonus - minBonus) * Math.pow(progress, exponent);
+  return 1 + bonus;
 }
 
 module.exports = { processDwarfAction };

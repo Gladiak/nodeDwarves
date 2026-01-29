@@ -9,11 +9,11 @@ const args = parseArgs(process.argv.slice(2));
 const seeds = Math.max(1, Number(args.seeds || 24));
 const steps = Math.max(50, Number(args.steps || 400));
 const defaultDwarves = Math.max(1, Number(args.dwarves || 12));
-const defaultResource = String(args.resource || 'food_raw');
+const defaultResource = String(args.resource || 'food');
 const defaultMode = String(args.mode || 'cycle');
 const matrixMode = args.matrix === true || args.matrix === 'true';
 
-const resourceList = parseList(args.resources) || (matrixMode ? ['food_raw', 'wood', 'stone', 'water'] : [defaultResource]);
+const resourceList = parseList(args.resources) || (matrixMode ? ['food', 'wood', 'stone', 'water'] : [defaultResource]);
 const dwarvesList = parseNumberList(args.dwarvesList) || (matrixMode ? [4, 12, 24] : [defaultDwarves]);
 const modeList = parseList(args.modes) || (matrixMode ? ['cycle', 'oneway'] : [defaultMode]);
 
@@ -324,7 +324,7 @@ function getSettlementConfig(cfg) {
   const blockedTerrain = Array.isArray(raw.blockedTerrain) && raw.blockedTerrain.length > 0
     ? raw.blockedTerrain.map((value) => String(value))
     : defaultBlocked;
-  const defaultWeights = { food_raw: 1, water: 1, wood: 0.8, stone: 0.6 };
+  const defaultWeights = { food: 1, water: 1, wood: 0.8, stone: 0.6 };
   const resourceWeights = { ...defaultWeights };
   if (raw.resourceWeights && typeof raw.resourceWeights === 'object') {
     for (const [key, value] of Object.entries(raw.resourceWeights)) {

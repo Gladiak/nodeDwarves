@@ -10,7 +10,7 @@ const steps = Number(args.steps || 400);
 const renderEvery = Number(args.renderEvery || 20);
 const delayMs = Number(args.delay || 0);
 const dwarfCount = Number(args.dwarves || 12);
-const targetResource = String(args.resource || 'food_raw');
+const targetResource = String(args.resource || 'food');
 const cycleMode = String(args.mode || 'cycle');
 const seedOverride = args.seed !== undefined ? Number(args.seed) : null;
 const colorsEnabled = args.color === 'false' ? false : true;
@@ -298,7 +298,7 @@ function getSettlementConfig(cfg) {
   const blockedTerrain = Array.isArray(raw.blockedTerrain) && raw.blockedTerrain.length > 0
     ? raw.blockedTerrain.map((value) => String(value))
     : defaultBlocked;
-  const defaultWeights = { food_raw: 1, water: 1, wood: 0.8, stone: 0.6 };
+  const defaultWeights = { food: 1, water: 1, wood: 0.8, stone: 0.6 };
   const resourceWeights = { ...defaultWeights };
   if (raw.resourceWeights && typeof raw.resourceWeights === 'object') {
     for (const [key, value] of Object.entries(raw.resourceWeights)) {

@@ -279,8 +279,10 @@ function handleDeaths(state, config) {
 function updateRelationships(state, config) {
   const relationships = (config.population && config.population.relationships) || {};
   const baseInteractions = Math.max(0, Number(relationships.interactionsPerTick ?? 2));
+  const minInteractions = Math.max(0, Number(relationships.minInteractionsPerTick ?? 0));
   const idleMultiplier = Number(relationships.idleInteractionMultiplier ?? 1);
   const maxDistance = Math.max(0, Number(relationships.maxDistance ?? 6));
+  const proximityShare = clamp(Number(relationships.proximityShare ?? 0), 0, 1);
   const bondGain = Number(relationships.bondGain ?? 1);
   const bondDecay = Number(relationships.bondDecay ?? 0.2);
   const bondThreshold = Number(relationships.bondThreshold ?? 20);
@@ -288,15 +290,21 @@ function updateRelationships(state, config) {
   const housing = getHousingStats(state, config);
 
   const adults = state.dwarves.filter((dwarf) => isAdult(dwarf, config));
-  if (adults.length < 2 || baseInteractions === 0) {
+  if (adults.length < 2 || (baseInteractions === 0 && minInteractions === 0)) {
     return;
   }
 
   const idleAdults = adults.filter((dwarf) => !dwarf.job).length;
   const idleFraction = adults.length > 0 ? idleAdults / adults.length : 0;
   const bonusInteractions = Math.round(baseInteractions * idleFraction * idleMultiplier);
-  const interactions = Math.max(0, Math.round((baseInteractions + bonusInteractions) * bondingMultiplier));
+  const interactions = Math.max(
+    minInteractions,
+    Math.round((baseInteractions + bonusInteractions) * bondingMultiplier),
+  );
   const adjustedBondGain = bondGain * bondingMultiplier;
+  if (interactions <= 0) {
+    return;
+  }
 
   if (housing.enabled) {
     if (housing.houses === 0) {
@@ -315,15 +323,40 @@ function updateRelationships(state, config) {
     }
 
     const eligibleHouses = Array.from(byHouse.values()).filter((group) => group.length >= 2);
+    const allowProximity = maxDistance > 0 && interactions > 0;
+    let proximityInteractions = allowProximity ? Math.round(interactions * proximityShare) : 0;
+    let houseInteractions = interactions - proximityInteractions;
+
     if (eligibleHouses.length === 0) {
-      return;
+      proximityInteractions = interactions;
+      houseInteractions = 0;
     }
 
-    for (let i = 0; i < interactions; i += 1) {
+    for (let i = 0; i < houseInteractions; i += 1) {
       const group = eligibleHouses[Math.floor(Math.random() * eligibleHouses.length)];
       const a = group[Math.floor(Math.random() * group.length)];
       let b = group[Math.floor(Math.random() * group.length)];
       if (a === b) {
+        continue;
+      }
+      if (a.partnerId && a.partnerId !== b.id) {
+        continue;
+      }
+      if (b.partnerId && b.partnerId !== a.id) {
+        continue;
+      }
+      progressBond(a, b, adjustedBondGain, bondDecay, bondThreshold);
+      progressBond(b, a, adjustedBondGain, bondDecay, bondThreshold);
+    }
+
+    for (let i = 0; i < proximityInteractions; i += 1) {
+      const a = adults[Math.floor(Math.random() * adults.length)];
+      let b = adults[Math.floor(Math.random() * adults.length)];
+      if (a === b) {
+        continue;
+      }
+      const dist = Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+      if (dist > maxDistance) {
         continue;
       }
       if (a.partnerId && a.partnerId !== b.id) {
@@ -682,8 +715,8 @@ function consumeResources(dwarf, stockpile, consumption) {
         stockpile.meal -= 1;
         hunger = clamp(hunger - mealRelief, 0, 1);
         dwarf.needs.hunger = hunger;
-      } else if (Number(stockpile.food_raw || 0) > 0) {
-        stockpile.food_raw -= 1;
+      } else if (Number(stockpile.food || 0) > 0) {
+        stockpile.food -= 1;
         hunger = clamp(hunger - rawFoodRelief, 0, 1);
         dwarf.needs.hunger = hunger;
       } else {

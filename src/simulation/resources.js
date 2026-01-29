@@ -332,12 +332,37 @@ function getGatherYield(config, resourceId, node, state) {
   const baseYield = Math.max(1, Number(value || 1));
   const multiplier = getSeasonModifier(state, 'gatherYield', 1)
     * getWeatherModifier(state, config, 'gatherYield', 1);
-  const scaledYield = Math.max(1, Math.round(baseYield * multiplier));
+  const toolMultiplier = getToolMultiplier(state, config, resourceId);
+  const scaledYield = Math.max(1, Math.round(baseYield * multiplier * toolMultiplier));
   if (!node) {
     return scaledYield;
   }
   const remaining = Math.max(0, Number(node.remaining || 0));
   return Math.min(scaledYield, remaining);
+}
+
+// Compute tool multiplier for gathering outputs.
+function getToolMultiplier(state, config, resourceId) {
+  const toolsConfig = config.tools || {};
+  const applyTo = Array.isArray(toolsConfig.applyTo) ? toolsConfig.applyTo : null;
+  if (applyTo && resourceId && !applyTo.includes(resourceId)) {
+    return 1;
+  }
+  const tools = state && state.tools ? state.tools : null;
+  if (!tools) {
+    return 1;
+  }
+  const level = Math.max(1, Number(tools.level || 1));
+  const maxLevel = Math.max(1, Number(toolsConfig.maxLevel || tools.maxLevel || 1));
+  const minBonus = Math.max(0, Number(toolsConfig.bonusMin || 0));
+  const maxBonus = Math.max(minBonus, Number(toolsConfig.bonusMax || minBonus));
+  if (maxLevel <= 1) {
+    return 1 + minBonus;
+  }
+  const exponent = Math.max(0.1, Number(toolsConfig.bonusExponent || 1));
+  const progress = clamp((level - 1) / (maxLevel - 1), 0, 1);
+  const bonus = minBonus + (maxBonus - minBonus) * Math.pow(progress, exponent);
+  return 1 + bonus;
 }
 
 // Check that stockpile has all input costs available.
@@ -376,6 +401,7 @@ module.exports = {
   createGatherJob,
   getGatherTicks,
   getGatherYield,
+  getToolMultiplier,
   hasInputs,
   consumeInputs,
   applyOutputs,

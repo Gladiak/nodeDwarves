@@ -71,9 +71,10 @@ Display and layout:
 - `display.terrain.symbols.food`: map symbol for food tiles.
 - `display.terrain.symbols.forest`: map symbol for forest tiles.
 - `display.terrain.symbols.stone`: map symbol for stone tiles.
+- `display.dwarves.maxVisible`: max dwarves to render on the map (0 = show all).
 - `display.colors.enabled`: enable ANSI colors in the render.
 - `display.colors.reset`: ANSI reset sequence (defaults to `\u001b[0m`).
-- `display.colors.map.<key>`: ANSI color for an entity key (e.g. `dwarf`, `merchant`, `house`, `food_raw`).
+- `display.colors.map.<key>`: ANSI color for an entity key (e.g. `dwarf`, `merchant`, `house`, `food`).
 - `display.colors.map.weather_<type>`: ANSI color for HUD weather labels (e.g. `weather_rain`).
 - `display.colors.map.terrain_<type>`: ANSI color for terrain tiles (`terrain_river`, `terrain_lake`, `terrain_mountain`, `terrain_hill`, `terrain_plain`, `terrain_fertile`, `terrain_food`, `terrain_forest`, `terrain_stone`).
 
@@ -83,6 +84,8 @@ Events:
 
 Resources:
 
+- `resources.stockpile.<resource>`: initial stockpile amounts (e.g. `food`, `water`, `wood`, `stone`, `iron`).
+- `resources.targets.<resource>`: target stockpile amounts used for shortages and stockpile ratios.
 - `resources.useTerrainTiles`: gather resources directly from terrain tiles when available.
 - `resources.terrainAllowed.<resource>`: allowed terrain tile types for resource placement and terrain gathering.
 
@@ -108,10 +111,29 @@ Population roles:
 
 - `population.roles.enabled`: enable builder/gatherer role preferences.
 - `population.roles.builderRatio`: target share of builders among adults (0..1).
+- `population.roles.managerRatio`: share of builders assigned to structure management (0..1).
 - `population.roles.switchCooldownTicks`: ticks before a role can be reassigned.
 - `population.roles.emergencyMinRatio`: stockpile ratio threshold to trigger emergency gathering.
 - `population.roles.emergencyResources`: resources checked for emergency gathering.
-- `population.idleWanderChance`: chance for idle dwarves to move randomly each tick (0..1).
+
+Population relationships:
+
+- `population.relationships.interactionsPerTick`: baseline relationship interactions per tick.
+- `population.relationships.minInteractionsPerTick`: minimum interactions guaranteed each tick.
+- `population.relationships.idleInteractionMultiplier`: extra interactions gained from idle adults.
+- `population.relationships.proximityShare`: share of interactions that use proximity checks when housing is enabled (0..1).
+- `population.relationships.maxDistance`: max distance (Manhattan) for proximity bonding.
+- `population.relationships.bondGain`: bond score gained per interaction.
+- `population.relationships.bondDecay`: bond score decay per interaction.
+- `population.relationships.bondThreshold`: bond score required for stable bonding.
+- `population.idleWanderChance`: legacy per-tick wander chance (0..1), used as fallback for `population.idleWander.chance`.
+- `population.idleWander.enabled`: enable waypoint-style idle wandering.
+- `population.idleWander.chance`: chance per tick to start an idle stroll (0..1).
+- `population.idleWander.radius`: max Manhattan distance from anchor (tiles).
+- `population.idleWander.minPauseTicks`: minimum pause ticks after reaching a target.
+- `population.idleWander.maxPauseTicks`: maximum pause ticks after reaching a target.
+- `population.idleWander.maxTargetAge`: max ticks to keep the same idle target (0 disables).
+- `population.idleWander.maxAttempts`: random samples to find a walkable idle target.
 - `population.settlement.enabled`: enable smarter settlement center selection.
 - `population.settlement.scanStep`: grid sampling step when evaluating settlement centers.
 - `population.settlement.clearRadius`: radius around a candidate center to evaluate open space (tiles).
@@ -123,29 +145,128 @@ Population roles:
 - `population.pathing.detourTicks`: number of ticks to keep using detour pathing once stalled.
 - `population.pathing.bfsRadius`: local BFS radius for detour pathing (tiles).
 
-Structures (walls):
+Structures (watchtowers):
 
-- `structures.wall.count`: initial wall count.
-- `structures.wall.maxCount`: maximum wall segments allowed.
-- `structures.wall.buildTargetRatio`: build until wall count reaches this ratio of `maxCount`.
-- `structures.wall.buildWhenRaidEligible`: require raid-eligible seasons to build.
-- `structures.wall.buildMinHousingRatio`: minimum housing ratio before building walls.
-- `structures.wall.buildMinResources.<resource>`: minimum stockpile ratios before building.
-- `structures.wall.buildInnerBuffer`: extra space between the outermost building and wall ring.
-- `structures.wall.buildRadius`: preferred ring radius around the village center (0 = default placement).
-- `structures.wall.buildTicks`: ticks to build one wall segment.
-- `structures.wall.buildCost.<resource>`: resource costs to build a segment.
-- `structures.wall.defensePerWall`: defense gained per wall segment (0..1).
-- `structures.wall.defenseMax`: maximum defense contribution from walls (0..1).
+- `structures.watchtower.count`: initial watchtower count.
+- `structures.watchtower.maxCount`: maximum watchtowers allowed.
+- `structures.watchtower.buildTicks`: ticks to build one watchtower.
+- `structures.watchtower.buildCost.<resource>`: resource costs to build a watchtower.
+- `structures.watchtower.buildMinResources.<resource>`: minimum stockpile ratios before building.
+- `structures.watchtower.manager.enabled`: enable manager-driven watchtower builds.
+- `structures.watchtower.placement.minDistanceBetween`: minimum Manhattan distance between watchtowers.
+- `structures.watchtower.placement.maxAttempts`: random samples per build attempt.
+- `structures.watchtower.placement.avoidTerrain`: terrain types where watchtowers cannot be placed.
+- `structures.watchtower.raid.range`: Manhattan range for watchtower attacks.
+- `structures.watchtower.raid.hitChance`: chance per tick to hit a beast within range (0..1).
+- `structures.watchtower.raid.damagePerTick`: reserved for future per-hit damage tuning.
+- `structures.watchtower.raid.maxKillsPerTick`: cap on beasts killed per tick.
+- `structures.watchtower.raid.defensePerTower`: defense gained per watchtower (0..1).
+- `structures.watchtower.raid.defenseMax`: maximum defense contribution from watchtowers (0..1).
 
 Structures (wells, fields):
 
 - `structures.well.buildMinRadius`: minimum Manhattan radius from village center.
-- `structures.well.buildOuterBuffer`: extra distance beyond the current village perimeter (houses/walls).
+- `structures.well.buildOuterBuffer`: extra distance beyond the current village perimeter (houses).
 - `structures.well.skipWhenTerrainWaterWithin`: skip well building if terrain water is within this Manhattan distance of the village center.
 - `structures.well.criticalStockpileRatio`: allow well building despite nearby terrain water when water stockpile ratio is below this threshold.
+- `structures.well.manager.enabled`: enable manager-driven well builds.
+- `structures.well.manager.buildBelowRatio`: start building when water stockpile ratio is below this (0..1).
+- `structures.well.manager.stopAboveRatio`: stop building when water stockpile ratio is above this (0..1).
+- `structures.well.placement.mode`: placement mode (`poisson` uses map sampling; omit for legacy).
+- `structures.well.placement.minDistanceFromCenter`: minimum Manhattan distance from village center (0 uses build radius).
+- `structures.well.placement.minDistanceBetween`: minimum Manhattan distance between wells.
+- `structures.well.placement.minStructureDistance`: minimum Manhattan distance from any structure.
+- `structures.well.placement.maxAttempts`: random samples per build attempt.
+- `structures.well.placement.avoidTerrain`: terrain types where wells cannot be placed.
+- `structures.well.cluster.enabled`: enable fixed cluster placement for wells.
+- `structures.well.cluster.radius`: cluster radius in tiles (Manhattan).
+- `structures.well.cluster.minWallDistance`: minimum distance from the wall ring to the cluster edge (tiles).
+- `structures.well.cluster.minSeparation`: minimum distance between well/field cluster centers (tiles).
+- `structures.well.cluster.minStructureDistance`: minimum distance from other structures to the cluster edge (tiles).
+- `structures.well.cluster.shape`: cluster shape (`diamond` or `rect`).
+- `structures.well.cluster.width`: cluster width in tiles (rect only).
+- `structures.well.cluster.height`: cluster height in tiles (rect only).
+- `structures.well.cluster.side`: placement side for rect clusters (`left` or `right`).
 - `structures.field.buildMinRadius`: minimum Manhattan radius from village center.
-- `structures.field.buildOuterBuffer`: extra distance beyond the current village perimeter (houses/walls).
+- `structures.field.buildOuterBuffer`: extra distance beyond the current village perimeter (houses).
+- `structures.field.manager.enabled`: enable manager-driven field builds.
+- `structures.field.manager.buildBelowRatio`: start building when food stockpile ratio is below this (0..1).
+- `structures.field.manager.stopAboveRatio`: stop building when food stockpile ratio is above this (0..1).
+- `structures.field.placement.mode`: placement mode (`poisson` uses map sampling; omit for legacy).
+- `structures.field.placement.minDistanceFromCenter`: minimum Manhattan distance from village center (0 uses build radius).
+- `structures.field.placement.minDistanceBetween`: minimum Manhattan distance between fields.
+- `structures.field.placement.minStructureDistance`: minimum Manhattan distance from any structure.
+- `structures.field.placement.maxAttempts`: random samples per build attempt.
+- `structures.field.placement.avoidTerrain`: terrain types where fields cannot be placed.
+- `structures.field.cluster.enabled`: enable fixed cluster placement for fields.
+- `structures.field.cluster.radius`: cluster radius in tiles (Manhattan).
+- `structures.field.cluster.minWallDistance`: minimum distance from the wall ring to the cluster edge (tiles).
+- `structures.field.cluster.minSeparation`: minimum distance between well/field cluster centers (tiles).
+- `structures.field.cluster.minStructureDistance`: minimum distance from other structures to the cluster edge (tiles).
+- `structures.field.cluster.shape`: cluster shape (`diamond` or `rect`).
+- `structures.field.cluster.width`: cluster width in tiles (rect only).
+- `structures.field.cluster.height`: cluster height in tiles (rect only).
+- `structures.field.cluster.side`: placement side for rect clusters (`left` or `right`).
+
+Structures (workshop):
+
+- `structures.workshop.count`: initial workshop count.
+- `structures.workshop.maxCount`: maximum workshops allowed.
+- `structures.workshop.buildMinRadius`: minimum Manhattan radius from village center.
+- `structures.workshop.buildOuterBuffer`: extra distance beyond the current village perimeter (houses).
+- `structures.workshop.buildTicks`: ticks required to build a workshop.
+- `structures.workshop.buildCost.<resource>`: resource costs to build a workshop.
+
+Structures (sawmill):
+
+- `structures.sawmill.count`: initial sawmill count.
+- `structures.sawmill.maxCount`: maximum sawmills allowed.
+- `structures.sawmill.workersPerSawmill`: workers assigned per sawmill.
+- `structures.sawmill.buildMinRadius`: minimum Manhattan radius from village center.
+- `structures.sawmill.buildOuterBuffer`: extra distance beyond the current village perimeter (houses).
+- `structures.sawmill.buildTicks`: ticks required to build a sawmill.
+- `structures.sawmill.buildCost.<resource>`: resource costs to build a sawmill.
+- `structures.sawmill.outputPerTick.<resource>`: per-worker output applied each tick while operating.
+- `structures.sawmill.levelMax`: maximum sawmill level.
+- `structures.sawmill.levelBonusMin`: bonus at level 1 (fraction).
+- `structures.sawmill.levelBonusMax`: bonus at max level (fraction).
+- `structures.sawmill.levelBonusExponent`: curve exponent for level bonuses.
+- `structures.sawmill.upgradeTicks`: ticks required per level upgrade.
+- `structures.sawmill.upgradeCostScale`: exponential multiplier per level.
+- `structures.sawmill.upgradeBaseCost.<resource>`: base upgrade costs.
+
+Structures (mines):
+
+- `structures.mine.count`: initial mine count (spawned on allowed terrain when possible).
+- `structures.mine.maxCount`: maximum number of mines allowed.
+- `structures.mine.minersPerMine`: number of miners assigned per mine.
+- `structures.mine.buildMinRadius`: minimum Manhattan radius from village center.
+- `structures.mine.buildOuterBuffer`: extra distance beyond the current village perimeter (houses).
+- `structures.mine.buildTerrain`: allowed terrain types for mine placement.
+- `structures.mine.buildTicks`: ticks required to build a mine.
+- `structures.mine.buildCost.<resource>`: resource costs to build a mine.
+- `structures.mine.outputPerTick.<resource>`: per-miner output applied each tick while mining.
+- `structures.mine.levelMax`: maximum mine level.
+- `structures.mine.levelBonusMin`: bonus at level 1 (fraction).
+- `structures.mine.levelBonusMax`: bonus at max level (fraction).
+- `structures.mine.levelBonusExponent`: curve exponent for level bonuses.
+- `structures.mine.upgradeTicks`: ticks required per level upgrade.
+- `structures.mine.upgradeCostScale`: exponential multiplier per level.
+- `structures.mine.upgradeBaseCost.<resource>`: base upgrade costs.
+- `structures.mine.preciousChanceMin`: placeholder chance at level 1 for future precious drops.
+- `structures.mine.preciousChanceMax`: placeholder chance at max level for future precious drops.
+
+Tools:
+
+- `tools.initialLevel`: starting tool level.
+- `tools.maxLevel`: maximum tool level.
+- `tools.bonusMin`: minimum gathering bonus at level 1 (fraction).
+- `tools.bonusMax`: maximum gathering bonus at max level (fraction).
+- `tools.bonusExponent`: curve exponent for bonus progression.
+- `tools.upgradeTicks`: ticks required per tool upgrade.
+- `tools.upgradeBaseCost.<resource>`: base resource costs for tool upgrades.
+- `tools.upgradeCostScale`: exponential multiplier per level.
+- `tools.applyTo`: resource ids affected by tool bonuses.
 
 AI and training:
 
@@ -174,7 +295,7 @@ AI and training:
 - `ai.reward.raidDeaths`: extra penalty per raid death (delta).
 - `ai.reward.raidLoot`: penalty for normalized raid loot loss (delta vs targets).
 - `ai.reward.raidPrepShelter`: bonus for shelter readiness (beds/pop) during raid-eligible seasons.
-- `ai.reward.raidPrepDefense`: bonus for defense readiness (adults + walls) during raid-eligible seasons.
+- `ai.reward.raidPrepDefense`: bonus for defense readiness (adults + watchtowers) during raid-eligible seasons.
 - `ai.reward.death`: penalty per death.
 - `ai.reward.extinction`: penalty when population hits zero.
 - `ai.termination.enabled`: enable early termination when the sim is stable.
@@ -241,6 +362,7 @@ AI and training:
 - `ai.training.trainer.maxGradNorm`: gradient norm clip.
 - `ai.training.trainer.workers`: number of parallel rollout workers.
 - `ai.training.trainer.logEvery`: episodes between training logs.
+- `ai.training.trainer.debugMode`: debug payload mode for ai_server (`full`, `summary`, `final`, `off`).
 - `ai.training.trainer.evalEvery`: episodes between evaluation runs.
 - `ai.training.trainer.evalEpisodes`: evaluation episode count.
 - `ai.training.trainer.evalMaxSteps`: max steps per eval episode (0 = use maxSteps).

@@ -22,6 +22,8 @@ function renderFrame(state, config, runtime) {
   const headerLines = buildHeaderLines(config, runtime);
   const footerLines = buildFooterLines(config, runtime);
   const grid = buildGridBase(state, config, runtime, colors, emptySymbol);
+  const structurePositions = new Set();
+  const dwarfPositions = new Set();
 
   for (const node of state.nodes) {
     if (grid[node.y] && grid[node.y][node.x] !== undefined) {
@@ -44,12 +46,16 @@ function renderFrame(state, config, runtime) {
         colorKey = 'house';
       }
       grid[structure.y][structure.x] = applyColor(symbol, colorKey, colors);
+      structurePositions.add(`${structure.x},${structure.y}`);
     }
   }
 
-  for (const dwarf of state.dwarves) {
-    if (grid[dwarf.y] && grid[dwarf.y][dwarf.x] !== undefined) {
-      grid[dwarf.y][dwarf.x] = applyColor(symbols.dwarf || '@', 'dwarf', colors);
+  const visibleDwarves = selectVisibleDwarves(state, config, runtime);
+  for (const dwarf of visibleDwarves) {
+    const draw = resolveDwarfRenderPosition(dwarf, state.structures, runtime, structurePositions, dwarfPositions);
+    if (draw && grid[draw.y] && grid[draw.y][draw.x] !== undefined) {
+      grid[draw.y][draw.x] = applyColor(symbols.dwarf || '@', 'dwarf', colors);
+      dwarfPositions.add(`${draw.x},${draw.y}`);
     }
   }
 
@@ -116,6 +122,83 @@ function renderFrame(state, config, runtime) {
   }
 
   return `${lines.join('\n')}\n`;
+}
+
+// Select a stable subset of dwarves to render for readability.
+function selectVisibleDwarves(state, config, runtime) {
+  const dwarves = state.dwarves || [];
+  const display = (config.display && config.display.dwarves) || {};
+  const maxVisible = Math.max(0, Number(display.maxVisible ?? 0));
+  if (!maxVisible || dwarves.length <= maxVisible) {
+    return dwarves;
+  }
+  const center = getRenderCenter(state, runtime);
+  const sorted = dwarves.slice().sort((a, b) => {
+    const distA = Math.abs(a.x - center.x) + Math.abs(a.y - center.y);
+    const distB = Math.abs(b.x - center.x) + Math.abs(b.y - center.y);
+    if (distA !== distB) {
+      return distA - distB;
+    }
+    return String(a.id || '').localeCompare(String(b.id || ''));
+  });
+  return sorted.slice(0, maxVisible);
+}
+
+// Resolve a stable render center based on housing or the grid.
+function getRenderCenter(state, runtime) {
+  const houses = (state.structures || []).filter((structure) => structure.type === 'house');
+  if (houses.length > 0) {
+    const sum = houses.reduce((acc, house) => {
+      acc.x += Number(house.x || 0);
+      acc.y += Number(house.y || 0);
+      return acc;
+    }, { x: 0, y: 0 });
+    return {
+      x: clamp(Math.round(sum.x / houses.length), 0, runtime.gridWidth - 1),
+      y: clamp(Math.round(sum.y / houses.length), 0, runtime.gridHeight - 1),
+    };
+  }
+  return {
+    x: Math.floor(runtime.gridWidth / 2),
+    y: Math.floor(runtime.gridHeight / 2),
+  };
+}
+
+// Resolve render position for a dwarf, offsetting miners next to their mine.
+function resolveDwarfRenderPosition(dwarf, structures, runtime, structurePositions, dwarfPositions) {
+  if (!dwarf || !runtime) {
+    return null;
+  }
+  const base = { x: dwarf.x, y: dwarf.y };
+  const job = dwarf.job;
+  if (!job || job.type !== 'mine') {
+    return base;
+  }
+  const mine = Array.isArray(structures)
+    ? structures.find((structure) => structure.id === job.structureId && structure.type === 'mine')
+    : null;
+  if (!mine) {
+    return base;
+  }
+  const offsets = [
+    { x: 1, y: 0 },
+    { x: -1, y: 0 },
+    { x: 0, y: 1 },
+    { x: 0, y: -1 },
+  ];
+  for (const offset of offsets) {
+    const x = mine.x + offset.x;
+    const y = mine.y + offset.y;
+    if (x < 0 || y < 0 || x >= runtime.gridWidth || y >= runtime.gridHeight) {
+      continue;
+    }
+    const key = `${x},${y}`;
+    if (structurePositions.has(key) || dwarfPositions.has(key)) {
+      continue;
+    }
+    return { x, y };
+  }
+  return base;
 }
 
 // Normalize frame symbol characters.

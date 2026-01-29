@@ -6,6 +6,7 @@ const {
   hasTerrainResourceWithin,
   isSpawnableTile,
 } = require('./terrain');
+const { randomBetween } = require('./random');
 const {
   getResourceNodeRatio,
   getStockpileRatio,
@@ -41,6 +42,11 @@ function createStructure(state, config, type, x, y) {
     capacity = getHouseCapacity(houseConfig, level, capacity);
     structure.symbol = symbol;
     structure.capacity = capacity;
+  }
+
+  if (type === 'mine' || type === 'sawmill') {
+    const levelMax = Math.max(1, Number(structureConfig.levelMax || 1));
+    structure.level = Math.min(1, levelMax);
   }
 
   return structure;
@@ -271,6 +277,7 @@ function countAdjacentHouses(house, houseSet) {
 // Create a well build job if water supply is critical.
 function createWellBuildJob(state, config, runtime) {
   const wellConfig = (config.structures && config.structures.well) || {};
+  const placement = getPlacementConfig(wellConfig);
   const maxCount = Number(wellConfig.maxCount ?? 0);
   const existingWells = (state.structures || []).filter((structure) => structure.type === 'well').length;
   if (maxCount > 0 && existingWells >= maxCount) {
@@ -300,7 +307,9 @@ function createWellBuildJob(state, config, runtime) {
     return null;
   }
 
-  const target = findPeripheralBuildSpot(state, runtime, wellConfig);
+  const target = placement.mode === 'poisson'
+    ? findPoissonBuildSpot(state, runtime, wellConfig, null, { structureType: 'well' })
+    : findPeripheralBuildSpot(state, runtime, wellConfig);
   if (!target) {
     return null;
   }
@@ -323,6 +332,7 @@ function createWellBuildJob(state, config, runtime) {
 // Create a field build job when food nodes are scarce.
 function createFieldBuildJob(state, config, runtime) {
   const fieldConfig = (config.structures && config.structures.field) || {};
+  const placement = getPlacementConfig(fieldConfig);
   const maxCount = Number(fieldConfig.maxCount ?? 0);
   const existingFields = (state.structures || []).filter((structure) => structure.type === 'field').length;
   if (maxCount > 0 && existingFields >= maxCount) {
@@ -331,8 +341,8 @@ function createFieldBuildJob(state, config, runtime) {
 
   const nodeThreshold = Number(fieldConfig.buildWhenNodeRatioBelow ?? 0.4);
   const stockThreshold = Number(fieldConfig.buildWhenStockpileRatioBelow ?? 0.6);
-  const nodeRatio = getResourceNodeRatio(state, 'food_raw');
-  const stockRatio = getStockpileRatio(state, config, 'food_raw');
+  const nodeRatio = getResourceNodeRatio(state, 'food');
+  const stockRatio = getStockpileRatio(state, config, 'food');
   if (nodeRatio >= nodeThreshold && stockRatio >= stockThreshold) {
     return null;
   }
@@ -356,7 +366,12 @@ function createFieldBuildJob(state, config, runtime) {
     return null;
   }
 
-  const target = findFertileBuildSpot(state, runtime, fieldConfig);
+  const target = placement.mode === 'poisson'
+    ? findPoissonBuildSpot(state, runtime, fieldConfig, null, {
+      structureType: 'field',
+      allowTerrain: isFieldClusterTerrain,
+    })
+    : findFertileBuildSpot(state, runtime, fieldConfig);
   if (!target) {
     return null;
   }
@@ -376,8 +391,118 @@ function createFieldBuildJob(state, config, runtime) {
   };
 }
 
+// Create a workshop build job when no workshop exists.
+function createWorkshopBuildJob(state, config, runtime) {
+  const workshopConfig = (config.structures && config.structures.workshop) || {};
+  const maxCount = Number(workshopConfig.maxCount ?? 0);
+  const existing = (state.structures || []).filter((structure) => structure.type === 'workshop').length;
+  if (maxCount > 0 && existing >= maxCount) {
+    return null;
+  }
+  if (existing > 0) {
+    return null;
+  }
+
+  const buildCost = workshopConfig.buildCost || {};
+  if (Object.keys(buildCost).length > 0 && !hasInputs(state.stockpile, buildCost)) {
+    return null;
+  }
+
+  const target = findPeripheralBuildSpot(state, runtime, workshopConfig);
+  if (!target) {
+    return null;
+  }
+
+  if (Object.keys(buildCost).length > 0) {
+    consumeInputs(state.stockpile, buildCost);
+  }
+
+  const buildTicks = Math.max(1, Number(workshopConfig.buildTicks || 50));
+  return {
+    id: `job_${state.jobCounter++}`,
+    type: 'build',
+    structureType: 'workshop',
+    target,
+    workRemaining: buildTicks,
+    dwarfId: null,
+  };
+}
+
+// Create a sawmill build job when wood is scarce.
+function createSawmillBuildJob(state, config, runtime) {
+  const sawmillConfig = (config.structures && config.structures.sawmill) || {};
+  const maxCount = Number(sawmillConfig.maxCount ?? 0);
+  const existing = (state.structures || []).filter((structure) => structure.type === 'sawmill').length;
+  if (maxCount > 0 && existing >= maxCount) {
+    return null;
+  }
+
+  const buildCost = sawmillConfig.buildCost || {};
+  if (Object.keys(buildCost).length > 0 && !hasInputs(state.stockpile, buildCost)) {
+    return null;
+  }
+
+  const target = findPeripheralBuildSpot(state, runtime, sawmillConfig);
+  if (!target) {
+    return null;
+  }
+
+  if (Object.keys(buildCost).length > 0) {
+    consumeInputs(state.stockpile, buildCost);
+  }
+
+  const buildTicks = Math.max(1, Number(sawmillConfig.buildTicks || 50));
+  return {
+    id: `job_${state.jobCounter++}`,
+    type: 'build',
+    structureType: 'sawmill',
+    target,
+    workRemaining: buildTicks,
+    dwarfId: null,
+  };
+}
+
+// Create a mine build job when no mines are available.
+function createMineBuildJob(state, config, runtime) {
+  const mineConfig = (config.structures && config.structures.mine) || {};
+  const maxCount = Number(mineConfig.maxCount ?? 0);
+  const existingMines = (state.structures || []).filter((structure) => structure.type === 'mine').length;
+  if (maxCount > 0 && existingMines >= maxCount) {
+    return null;
+  }
+
+  const buildWhenNoMine = mineConfig.buildWhenNoMine !== false;
+  if (buildWhenNoMine && existingMines > 0) {
+    return null;
+  }
+
+  const buildCost = mineConfig.buildCost || {};
+  if (Object.keys(buildCost).length > 0 && !hasInputs(state.stockpile, buildCost)) {
+    return null;
+  }
+
+  const target = findMineBuildSpot(state, runtime, mineConfig);
+  if (!target) {
+    return null;
+  }
+
+  if (Object.keys(buildCost).length > 0) {
+    consumeInputs(state.stockpile, buildCost);
+  }
+
+  const buildTicks = Math.max(1, Number(mineConfig.buildTicks || 55));
+  return {
+    id: `job_${state.jobCounter++}`,
+    type: 'build',
+    structureType: 'mine',
+    target,
+    workRemaining: buildTicks,
+    dwarfId: null,
+  };
+}
+
 // Create a wall build job when raid eligibility conditions are met.
-function createWallBuildJob(state, config, runtime) {
+function createWallBuildJob(state, config, runtime, reservedPositions) {
   const wallConfig = (config.structures && config.structures.wall) || {};
   const maxCount = Number(wallConfig.maxCount ?? 0);
   if (maxCount <= 0) {
@@ -423,7 +548,926 @@ function createWallBuildJob(state, config, runtime) {
     return null;
   }
 
-  const target = findWallBuildSpot(state, runtime, wallConfig);
+  const target = findWallBuildSpot(state, runtime, wallConfig, reservedPositions);
+  if (!target) {
+    return null;
+  }
+
+  if (Object.keys(buildCost).length > 0) {
+    consumeInputs(state.stockpile, buildCost);
+  }
+
+  const buildTicks = Math.max(1, Number(wallConfig.buildTicks || 50));
+  return {
+    id: `job_${state.jobCounter++}`,
+    type: 'build',
+    structureType: 'wall',
+    target,
+    workRemaining: buildTicks,
+    dwarfId: null,
+  };
+}
+
+// Resolve cluster configuration for managed structures.
+function getClusterConfig(structureConfig) {
+  const cluster = (structureConfig && structureConfig.cluster) || {};
+  const radius = Math.max(1, Math.floor(Number(cluster.radius ?? 5)));
+  const minWallDistance = Math.max(0, Math.floor(Number(cluster.minWallDistance ?? 4)));
+  const minSeparation = Math.max(
+    0,
+    Math.floor(Number(cluster.minSeparation ?? (radius * 2 + 2))),
+  );
+  const minStructureDistance = Math.max(
+    0,
+    Math.floor(Number(cluster.minStructureDistance ?? 6)),
+  );
+  const shape = String(cluster.shape || 'diamond').toLowerCase();
+  const width = Math.max(1, Math.floor(Number(cluster.width ?? (radius * 2 + 1))));
+  const height = Math.max(1, Math.floor(Number(cluster.height ?? (radius * 2 + 1))));
+  const side = String(cluster.side || '').toLowerCase();
+  return {
+    enabled: cluster.enabled !== false,
+    radius,
+    minWallDistance,
+    minSeparation,
+    minStructureDistance,
+    shape,
+    width,
+    height,
+    side,
+  };
+}
+
+// Resolve placement configuration for Poisson sampling.
+function getPlacementConfig(structureConfig) {
+  const placement = (structureConfig && structureConfig.placement) || {};
+  const mode = String(placement.mode || '').toLowerCase();
+  const minDistanceFromCenter = Math.max(0, Math.floor(Number(placement.minDistanceFromCenter ?? 0)));
+  const minDistanceBetween = Math.max(0, Math.floor(Number(placement.minDistanceBetween ?? 0)));
+  const minStructureDistance = Math.max(0, Math.floor(Number(placement.minStructureDistance ?? 0)));
+  const maxAttempts = Math.max(1, Math.floor(Number(placement.maxAttempts ?? 0)));
+  const avoidTerrain = Array.isArray(placement.avoidTerrain)
+    ? placement.avoidTerrain.map((entry) => String(entry))
+    : [];
+  return {
+    mode,
+    minDistanceFromCenter,
+    minDistanceBetween,
+    minStructureDistance,
+    maxAttempts,
+    avoidTerrain,
+  };
+}
+
+// Compute the intended wall radius without requiring a fully clear ring.
+function getWallIntentRadius(state, runtime, wallConfig) {
+  const maxCount = Math.max(0, Number(wallConfig && wallConfig.maxCount || 0));
+  const targetRatio = Math.max(0, Number(wallConfig && wallConfig.buildTargetRatio || 0));
+  if (maxCount <= 0 || targetRatio <= 0) {
+    return 0;
+  }
+  const baseRadius = Math.max(0, Number(wallConfig && wallConfig.buildRadius || 0));
+  const buffer = Math.max(0, Number(wallConfig && wallConfig.buildInnerBuffer || 0));
+  const perimeter = getVillageOuterRadius(state, runtime, new Set(['wall', 'well', 'field']));
+  const required = perimeter.radius + buffer;
+  const desired = Math.max(baseRadius, required);
+  const maxRadius = getMaxWallRingRadius(perimeter.center, runtime);
+  if (maxRadius <= 0) {
+    return 0;
+  }
+  return Math.max(1, Math.min(desired, maxRadius));
+}
+
+// Build a map of structure positions keyed by "x,y".
+function buildStructurePositionMap(structures) {
+  const map = new Map();
+  for (const structure of structures || []) {
+    map.set(`${structure.x},${structure.y}`, structure.type);
+  }
+  return map;
+}
+
+// Build a list of structure positions for distance checks.
+function buildStructurePositions(structures) {
+  const list = [];
+  for (const structure of structures || []) {
+    if (!structure) {
+      continue;
+    }
+    list.push({
+      x: Number(structure.x || 0),
+      y: Number(structure.y || 0),
+      type: structure.type,
+    });
+  }
+  return list;
+}
+
+// Find the minimum Manhattan distance from a position to any structure.
+function minDistanceToStructures(position, structures, ignoreTypes) {
+  if (!structures || structures.length === 0) {
+    return Infinity;
+  }
+  let minDistance = Infinity;
+  for (const structure of structures) {
+    if (ignoreTypes && ignoreTypes.has(structure.type)) {
+      continue;
+    }
+    const dist = Math.abs(position.x - structure.x) + Math.abs(position.y - structure.y);
+    if (dist < minDistance) {
+      minDistance = dist;
+      if (minDistance === 0) {
+        break;
+      }
+    }
+  }
+  return minDistance;
+}
+
+// Check whether a terrain tile is allowed for a field cluster.
+function isFieldClusterTerrain(state, x, y) {
+  const type = getTerrainTypeAt(state, x, y);
+  return type === 'fertile' || type === 'plain';
+}
+
+// Check whether a terrain tile is allowed for Poisson placement.
+function isPlacementTerrainAllowed(state, x, y, placement, allowTerrain) {
+  const type = getTerrainTypeAt(state, x, y);
+  if (placement && placement.avoidTerrain.length > 0 && type && placement.avoidTerrain.includes(type)) {
+    return false;
+  }
+  if (allowTerrain && !allowTerrain(state, x, y)) {
+    return false;
+  }
+  return true;
+}
+
+// Resolve rectangle bounds from a center.
+function getRectBounds(center, width, height, runtime) {
+  const halfW = Math.floor(width / 2);
+  const halfH = Math.floor(height / 2);
+  const minX = clamp(center.x - halfW, 0, runtime.gridWidth - 1);
+  const maxX = clamp(center.x + halfW, 0, runtime.gridWidth - 1);
+  const minY = clamp(center.y - halfH, 0, runtime.gridHeight - 1);
+  const maxY = clamp(center.y + halfH, 0, runtime.gridHeight - 1);
+  return { minX, maxX, minY, maxY };
+}
+
+// Count available build slots inside a cluster radius.
+function countClusterSlots(state, runtime, center, radius, type, allowTerrain, structureMap, nodeSet, shape, width, height) {
+  if (shape === 'rect') {
+    const bounds = getRectBounds(center, width, height, runtime);
+    let count = 0;
+    for (let y = bounds.minY; y <= bounds.maxY; y += 1) {
+      for (let x = bounds.minX; x <= bounds.maxX; x += 1) {
+        if (allowTerrain && !allowTerrain(state, x, y)) {
+          continue;
+        }
+        const key = `${x},${y}`;
+        const existingType = structureMap.get(key);
+        if (existingType) {
+          if (existingType === type) {
+            count += 1;
+          }
+          continue;
+        }
+        if (nodeSet.has(key)) {
+          continue;
+        }
+        if (!isSpawnableTile(state, x, y)) {
+          continue;
+        }
+        count += 1;
+      }
+    }
+    return count;
+  }
+  let count = 0;
+  for (let dy = -radius; dy <= radius; dy += 1) {
+    for (let dx = -radius; dx <= radius; dx += 1) {
+      if (Math.abs(dx) + Math.abs(dy) > radius) {
+        continue;
+      }
+      const x = center.x + dx;
+      const y = center.y + dy;
+      if (x < 0 || y < 0 || x >= runtime.gridWidth || y >= runtime.gridHeight) {
+        continue;
+      }
+      if (allowTerrain && !allowTerrain(state, x, y)) {
+        continue;
+      }
+      const key = `${x},${y}`;
+      const existingType = structureMap.get(key);
+      if (existingType) {
+        if (existingType === type) {
+          count += 1;
+        }
+        continue;
+      }
+      if (nodeSet.has(key)) {
+        continue;
+      }
+      if (!isSpawnableTile(state, x, y)) {
+        continue;
+      }
+      count += 1;
+    }
+  }
+  return count;
+}
+
+// Find a buildable spot within a cluster radius.
+function findClusterBuildSpot(state, runtime, center, radius, allowTerrain, reservedPositions, shape, width, height) {
+  if (shape === 'rect') {
+    const bounds = getRectBounds(center, width, height, runtime);
+    for (let y = bounds.minY; y <= bounds.maxY; y += 1) {
+      for (let x = bounds.minX; x <= bounds.maxX; x += 1) {
+        if (
+          isBuildableCell(state, runtime, x, y)
+          && (!allowTerrain || allowTerrain(state, x, y))
+          && !isReservedPosition(reservedPositions, x, y)
+        ) {
+          return { x, y };
+        }
+      }
+    }
+    return null;
+  }
+  for (let ring = 0; ring <= radius; ring += 1) {
+    for (let dx = -ring; dx <= ring; dx += 1) {
+      const dy = ring - Math.abs(dx);
+      const x1 = center.x + dx;
+      const y1 = center.y + dy;
+      if (
+        isBuildableCell(state, runtime, x1, y1)
+        && (!allowTerrain || allowTerrain(state, x1, y1))
+        && !isReservedPosition(reservedPositions, x1, y1)
+      ) {
+        return { x: x1, y: y1 };
+      }
+      if (dy !== 0) {
+        const x2 = center.x + dx;
+        const y2 = center.y - dy;
+        if (
+          isBuildableCell(state, runtime, x2, y2)
+          && (!allowTerrain || allowTerrain(state, x2, y2))
+          && !isReservedPosition(reservedPositions, x2, y2)
+        ) {
+          return { x: x2, y: y2 };
+        }
+      }
+    }
+  }
+  return null;
+}
+
+// Distance from a point to a rectangle (Manhattan).
+function distanceToRect(position, bounds) {
+  const dx = position.x < bounds.minX
+    ? bounds.minX - position.x
+    : position.x > bounds.maxX
+      ? position.x - bounds.maxX
+      : 0;
+  const dy = position.y < bounds.minY
+    ? bounds.minY - position.y
+    : position.y > bounds.maxY
+      ? position.y - bounds.maxY
+      : 0;
+  return dx + dy;
+}
+
+// Pick a fixed cluster center for wells or fields.
+function pickClusterCenter(state, runtime, center, type, wallRadius, clusterConfig, otherCenter) {
+  const radius = clusterConfig.radius;
+  const minDistance = wallRadius + clusterConfig.minWallDistance + radius;
+  const structureList = buildStructurePositions(state.structures || []);
+  const structureMap = buildStructurePositionMap(state.structures || []);
+  const nodeSet = buildNodePositionSet(state.nodes || []);
+  const allowTerrain = type === 'field' ? isFieldClusterTerrain : null;
+  const ignoreTypes = new Set([type]);
+  let best = null;
+  let bestScore = -1;
+  let bestDistance = -1;
+  let bestCenterDist = -1;
+
+  if (clusterConfig.shape === 'rect') {
+    const width = clusterConfig.width;
+    const height = clusterConfig.height;
+    const halfW = Math.floor(width / 2);
+    const halfH = Math.floor(height / 2);
+    const side = clusterConfig.side || (type === 'well' ? 'right' : 'left');
+    const offset = wallRadius + clusterConfig.minWallDistance + halfW + 1;
+    let baseX = center.x + (side === 'right' ? offset : -offset);
+    baseX = clamp(baseX, halfW, runtime.gridWidth - 1 - halfW);
+    const maxOffset = Math.max(runtime.gridHeight, runtime.gridWidth);
+    for (let dy = 0; dy <= maxOffset; dy += 1) {
+      for (const sign of [0, 1, -1]) {
+        if (sign === 0 && dy > 0) {
+          continue;
+        }
+        const candidateY = clamp(center.y + dy * sign, halfH, runtime.gridHeight - 1 - halfH);
+        const pos = { x: baseX, y: candidateY };
+        if (!isSpawnableTile(state, pos.x, pos.y)) {
+          continue;
+        }
+        if (allowTerrain && !allowTerrain(state, pos.x, pos.y)) {
+          continue;
+        }
+        if (otherCenter) {
+          const dist = Math.abs(pos.x - otherCenter.x) + Math.abs(pos.y - otherCenter.y);
+          if (dist < clusterConfig.minSeparation) {
+            continue;
+          }
+        }
+        const bounds = getRectBounds(pos, width, height, runtime);
+        const distToStructures = minDistanceToStructures(pos, structureList, ignoreTypes);
+        if (distToStructures < clusterConfig.minStructureDistance + Math.max(halfW, halfH)) {
+          continue;
+        }
+        const slots = countClusterSlots(
+          state,
+          runtime,
+          pos,
+          radius,
+          type,
+          allowTerrain,
+          structureMap,
+          nodeSet,
+          'rect',
+          width,
+          height,
+        );
+        if (slots <= 0) {
+          continue;
+        }
+        const rectDist = Math.min(
+          distanceToRect(center, bounds),
+          Math.abs(pos.x - center.x) + Math.abs(pos.y - center.y),
+        );
+        const score = slots * 10000 + distToStructures * 10 + rectDist;
+        if (
+          score > bestScore
+          || (score == bestScore && distToStructures > bestDistance)
+        ) {
+          bestScore = score;
+          bestDistance = distToStructures;
+          bestCenterDist = rectDist;
+          best = pos;
+        }
+      }
+      if (best) {
+        break;
+      }
+    }
+    return best;
+  }
+
+  for (let y = radius; y < runtime.gridHeight - radius; y += 1) {
+    for (let x = radius; x < runtime.gridWidth - radius; x += 1) {
+      const pos = { x, y };
+      if (!isSpawnableTile(state, x, y)) {
+        continue;
+      }
+      if (allowTerrain && !allowTerrain(state, x, y)) {
+        continue;
+      }
+      const centerDist = Math.abs(x - center.x) + Math.abs(y - center.y);
+      if (centerDist < minDistance) {
+        continue;
+      }
+      if (otherCenter) {
+        const dist = Math.abs(x - otherCenter.x) + Math.abs(y - otherCenter.y);
+        if (dist < clusterConfig.minSeparation) {
+          continue;
+        }
+      }
+      const distToStructures = minDistanceToStructures(pos, structureList, ignoreTypes);
+      if (distToStructures < radius + clusterConfig.minStructureDistance) {
+        continue;
+      }
+      const slots = countClusterSlots(
+        state,
+        runtime,
+        pos,
+        radius,
+        type,
+        allowTerrain,
+        structureMap,
+        nodeSet,
+        'diamond',
+        clusterConfig.width,
+        clusterConfig.height,
+      );
+      if (slots <= 0) {
+        continue;
+      }
+      const score = slots * 10000 + Math.floor(distToStructures) * 10 + centerDist;
+      if (
+        score > bestScore
+        || (score === bestScore && distToStructures > bestDistance)
+        || (score === bestScore && distToStructures === bestDistance && centerDist > bestCenterDist)
+      ) {
+        bestScore = score;
+        bestDistance = distToStructures;
+        bestCenterDist = centerDist;
+        best = pos;
+      }
+    }
+  }
+
+  return best;
+}
+
+// Validate whether an existing cluster center is still acceptable.
+function isClusterCenterValid(state, runtime, center, type, wallRadius, clusterConfig, otherCenter) {
+  if (!center) {
+    return false;
+  }
+  if (center.x < 0 || center.y < 0 || center.x >= runtime.gridWidth || center.y >= runtime.gridHeight) {
+    return false;
+  }
+  if (!isSpawnableTile(state, center.x, center.y)) {
+    return false;
+  }
+  if (type === 'field' && !isFieldClusterTerrain(state, center.x, center.y)) {
+    return false;
+  }
+  const villageCenter = getVillageCenter(state, runtime);
+  const halfW = Math.floor(clusterConfig.width / 2);
+  const halfH = Math.floor(clusterConfig.height / 2);
+  const minDistance = wallRadius + clusterConfig.minWallDistance + clusterConfig.radius;
+  const centerDist = Math.abs(center.x - villageCenter.x)
+    + Math.abs(center.y - villageCenter.y);
+  if (centerDist < minDistance) {
+    return false;
+  }
+  if (otherCenter) {
+    const sep = Math.abs(center.x - otherCenter.x) + Math.abs(center.y - otherCenter.y);
+    if (sep < clusterConfig.minSeparation) {
+      return false;
+    }
+  }
+  const structureList = buildStructurePositions(state.structures || []);
+  const ignoreTypes = new Set([type]);
+  if (clusterConfig.shape === 'rect') {
+    const bounds = getRectBounds(center, clusterConfig.width, clusterConfig.height, runtime);
+    for (const structure of structureList) {
+      if (ignoreTypes.has(structure.type)) {
+        continue;
+      }
+      const dist = distanceToRect(structure, bounds);
+      if (dist < clusterConfig.minStructureDistance) {
+        return false;
+      }
+    }
+    const side = clusterConfig.side || (type === 'well' ? 'right' : 'left');
+    const offset = wallRadius + clusterConfig.minWallDistance + halfW + 1;
+    const expectedX = clamp(
+      villageCenter.x + (side === 'right' ? offset : -offset),
+      halfW,
+      runtime.gridWidth - 1 - halfW,
+    );
+    if (Math.abs(center.x - expectedX) > 1) {
+      return false;
+    }
+  } else {
+    const distToStructures = minDistanceToStructures(center, structureList, ignoreTypes);
+    if (distToStructures < clusterConfig.radius + clusterConfig.minStructureDistance) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// Resolve fixed cluster centers for wells and fields.
+function ensureStructureClusters(state, runtime, config) {
+  if (!state.structureClusters) {
+    state.structureClusters = {};
+  }
+  const clusters = state.structureClusters;
+  const wallConfig = (config.structures && config.structures.wall) || {};
+  const wellConfig = (config.structures && config.structures.well) || {};
+  const fieldConfig = (config.structures && config.structures.field) || {};
+  const center = getVillageCenter(state, runtime);
+  const wallRadius = getWallIntentRadius(state, runtime, wallConfig);
+
+  const wellClusterConfig = getClusterConfig(wellConfig);
+  const fieldClusterConfig = getClusterConfig(fieldConfig);
+  if (clusters.well && !isClusterCenterValid(state, runtime, clusters.well, 'well', wallRadius, wellClusterConfig, clusters.field)) {
+    clusters.well = null;
+  }
+  if (clusters.field && !isClusterCenterValid(state, runtime, clusters.field, 'field', wallRadius, fieldClusterConfig, clusters.well)) {
+    clusters.field = null;
+  }
+
+  if (!clusters.well) {
+    if (wellClusterConfig.enabled) {
+      clusters.well = pickClusterCenter(
+        state,
+        runtime,
+        center,
+        'well',
+        wallRadius,
+        wellClusterConfig,
+        clusters.field,
+      );
+    }
+  }
+  if (!clusters.field) {
+    if (fieldClusterConfig.enabled) {
+      clusters.field = pickClusterCenter(
+        state,
+        runtime,
+        center,
+        'field',
+        wallRadius,
+        fieldClusterConfig,
+        clusters.well,
+      );
+    }
+  }
+  return clusters;
+}
+
+// Resolve hysteresis for manager-driven stockpile thresholds.
+function shouldManagerBuild(state, key, ratio, low, high) {
+  if (!state.managerBuildFlags) {
+    state.managerBuildFlags = {};
+  }
+  const flags = state.managerBuildFlags;
+  const lowClamp = clamp(Number.isFinite(low) ? low : 0, 0, 1);
+  const highClamp = clamp(Number.isFinite(high) ? high : lowClamp, 0, 1);
+  const min = Math.min(lowClamp, highClamp);
+  const max = Math.max(lowClamp, highClamp);
+  const current = Boolean(flags[key]);
+  if (!current && ratio <= min) {
+    flags[key] = true;
+  } else if (current && ratio >= max) {
+    flags[key] = false;
+  }
+  return Boolean(flags[key]);
+}
+
+// Create a well build job for manager-controlled placement.
+function createManagedWellBuildJob(state, config, runtime, reservedPositions) {
+  const wellConfig = (config.structures && config.structures.well) || {};
+  const placement = getPlacementConfig(wellConfig);
+  const manager = (wellConfig && wellConfig.manager) || {};
+  if (manager.enabled === false) {
+    return null;
+  }
+  const maxCount = Number(wellConfig.maxCount ?? 0);
+  const existingWells = (state.structures || []).filter((structure) => structure.type === 'well').length;
+  if (maxCount > 0 && existingWells >= maxCount) {
+    return null;
+  }
+
+  const stockRatio = getStockpileRatio(state, config, 'water');
+  const buildBelow = clamp(Number(manager.buildBelowRatio ?? 0.6), 0, 1);
+  const stopAbove = clamp(Number(manager.stopAboveRatio ?? 0.8), 0, 1);
+  if (!shouldManagerBuild(state, 'well', stockRatio, buildBelow, stopAbove)) {
+    return null;
+  }
+
+  const criticalThreshold = clamp(Number(wellConfig.criticalStockpileRatio ?? 0), 0, 1);
+  const isCritical = stockRatio <= criticalThreshold;
+  const terrainWaterDistance = Math.max(0, Number(wellConfig.skipWhenTerrainWaterWithin ?? 0));
+  if (terrainWaterDistance > 0 && !isCritical) {
+    const villageCenter = getVillageCenter(state, runtime);
+    if (hasTerrainResourceWithin(state, config, 'water', villageCenter, terrainWaterDistance)) {
+      return null;
+    }
+  }
+
+  const buildCost = wellConfig.buildCost || {};
+  if (Object.keys(buildCost).length > 0 && !hasInputs(state.stockpile, buildCost)) {
+    return null;
+  }
+
+  let target = null;
+  if (placement.mode === 'poisson') {
+    target = findPoissonBuildSpot(state, runtime, wellConfig, reservedPositions, { structureType: 'well' });
+  } else {
+    const clusters = ensureStructureClusters(state, runtime, config);
+    const center = clusters && clusters.well;
+    if (!center) {
+      return null;
+    }
+    const clusterConfig = getClusterConfig(wellConfig);
+    const structureMap = buildStructurePositionMap(state.structures || []);
+    const nodeSet = buildNodePositionSet(state.nodes || []);
+    const clusterSlots = countClusterSlots(
+      state,
+      runtime,
+      center,
+      clusterConfig.radius,
+      'well',
+      null,
+      structureMap,
+      nodeSet,
+      clusterConfig.shape,
+      clusterConfig.width,
+      clusterConfig.height,
+    );
+    const maxAllowed = maxCount > 0 ? Math.min(maxCount, clusterSlots) : clusterSlots;
+    if (maxAllowed <= 0 || existingWells >= maxAllowed) {
+      return null;
+    }
+    target = findClusterBuildSpot(
+      state,
+      runtime,
+      center,
+      clusterConfig.radius,
+      null,
+      reservedPositions,
+      clusterConfig.shape,
+      clusterConfig.width,
+      clusterConfig.height,
+    );
+  }
+  if (!target) {
+    return null;
+  }
+
+  if (Object.keys(buildCost).length > 0) {
+    consumeInputs(state.stockpile, buildCost);
+  }
+
+  const buildTicks = Math.max(1, Number(wellConfig.buildTicks || 35));
+  return {
+    id: `job_${state.jobCounter++}`,
+    type: 'build',
+    structureType: 'well',
+    target,
+    workRemaining: buildTicks,
+    dwarfId: null,
+  };
+}
+
+// Create a field build job for manager-controlled placement.
+function createManagedFieldBuildJob(state, config, runtime, reservedPositions) {
+  const fieldConfig = (config.structures && config.structures.field) || {};
+  const placement = getPlacementConfig(fieldConfig);
+  const manager = (fieldConfig && fieldConfig.manager) || {};
+  if (manager.enabled === false) {
+    return null;
+  }
+  const maxCount = Number(fieldConfig.maxCount ?? 0);
+  const existingFields = (state.structures || []).filter((structure) => structure.type === 'field').length;
+  if (maxCount > 0 && existingFields >= maxCount) {
+    return null;
+  }
+
+  const stockRatio = getStockpileRatio(state, config, 'food');
+  const buildBelow = clamp(Number(manager.buildBelowRatio ?? 0.45), 0, 1);
+  const stopAbove = clamp(Number(manager.stopAboveRatio ?? 0.65), 0, 1);
+  if (!shouldManagerBuild(state, 'field', stockRatio, buildBelow, stopAbove)) {
+    return null;
+  }
+
+  const buildCost = fieldConfig.buildCost || {};
+  if (Object.keys(buildCost).length > 0 && !hasInputs(state.stockpile, buildCost)) {
+    return null;
+  }
+
+  let target = null;
+  if (placement.mode === 'poisson') {
+    target = findPoissonBuildSpot(state, runtime, fieldConfig, reservedPositions, {
+      structureType: 'field',
+      allowTerrain: isFieldClusterTerrain,
+    });
+  } else {
+    const clusters = ensureStructureClusters(state, runtime, config);
+    const center = clusters && clusters.field;
+    if (!center) {
+      return null;
+    }
+    const clusterConfig = getClusterConfig(fieldConfig);
+    const structureMap = buildStructurePositionMap(state.structures || []);
+    const nodeSet = buildNodePositionSet(state.nodes || []);
+    const clusterSlots = countClusterSlots(
+      state,
+      runtime,
+      center,
+      clusterConfig.radius,
+      'field',
+      isFieldClusterTerrain,
+      structureMap,
+      nodeSet,
+      clusterConfig.shape,
+      clusterConfig.width,
+      clusterConfig.height,
+    );
+    const maxAllowed = maxCount > 0 ? Math.min(maxCount, clusterSlots) : clusterSlots;
+    if (maxAllowed <= 0 || existingFields >= maxAllowed) {
+      return null;
+    }
+    target = findClusterBuildSpot(
+      state,
+      runtime,
+      center,
+      clusterConfig.radius,
+      isFieldClusterTerrain,
+      reservedPositions,
+      clusterConfig.shape,
+      clusterConfig.width,
+      clusterConfig.height,
+    );
+  }
+  if (!target) {
+    return null;
+  }
+
+  if (Object.keys(buildCost).length > 0) {
+    consumeInputs(state.stockpile, buildCost);
+  }
+
+  const buildTicks = Math.max(1, Number(fieldConfig.buildTicks || 35));
+  return {
+    id: `job_${state.jobCounter++}`,
+    type: 'build',
+    structureType: 'field',
+    target,
+    workRemaining: buildTicks,
+    dwarfId: null,
+  };
+}
+
+// Check whether a watchtower can be placed on the given terrain type.
+function isWatchtowerTerrainAllowed(state, x, y, placement) {
+  const type = getTerrainTypeAt(state, x, y);
+  if (!type) {
+    return true;
+  }
+  const avoid = placement && Array.isArray(placement.avoidTerrain)
+    ? placement.avoidTerrain.map((entry) => String(entry))
+    : [];
+  return avoid.length === 0 || !avoid.includes(type);
+}
+
+// Find a watchtower build spot by sampling the map.
+function findWatchtowerBuildSpot(state, runtime, placement, reservedPositions) {
+  const width = runtime.gridWidth;
+  const height = runtime.gridHeight;
+  if (width <= 0 || height <= 0) {
+    return null;
+  }
+  const minDistance = Math.max(0, Math.floor(Number(placement.minDistanceBetween ?? 0)));
+  const maxAttempts = Math.max(1, Math.floor(Number(placement.maxAttempts ?? (width * height))));
+  const towers = (state.structures || []).filter((structure) => structure.type === 'watchtower');
+  let best = null;
+  let bestDistance = -1;
+
+  for (let i = 0; i < maxAttempts; i += 1) {
+    const x = randomBetween(0, width - 1);
+    const y = randomBetween(0, height - 1);
+    if (!isBuildableCell(state, runtime, x, y)) {
+      continue;
+    }
+    if (!isWatchtowerTerrainAllowed(state, x, y, placement)) {
+      continue;
+    }
+    if (isReservedPosition(reservedPositions, x, y)) {
+      continue;
+    }
+    let nearest = Infinity;
+    for (const tower of towers) {
+      const dist = Math.abs(tower.x - x) + Math.abs(tower.y - y);
+      if (dist < nearest) {
+        nearest = dist;
+      }
+      if (nearest < minDistance) {
+        break;
+      }
+    }
+    if (nearest < minDistance) {
+      continue;
+    }
+    if (nearest > bestDistance) {
+      bestDistance = nearest;
+      best = { x, y };
+    }
+  }
+
+  return best;
+}
+
+// Create a watchtower build job for manager-controlled placement.
+function createManagedWatchtowerBuildJob(state, config, runtime, reservedPositions) {
+  const towerConfig = (config.structures && config.structures.watchtower) || {};
+  const manager = (towerConfig && towerConfig.manager) || {};
+  if (manager.enabled === false) {
+    return null;
+  }
+  const maxCount = Number(towerConfig.maxCount ?? 0);
+  const existingTowers = (state.structures || []).filter((structure) => structure.type === 'watchtower').length;
+  if (maxCount > 0 && existingTowers >= maxCount) {
+    return null;
+  }
+
+  const minResources = towerConfig.buildMinResources;
+  if (minResources && typeof minResources === 'object') {
+    for (const [resource, minRatioRaw] of Object.entries(minResources)) {
+      const minRatio = Number(minRatioRaw);
+      if (!Number.isFinite(minRatio) || minRatio <= 0) {
+        continue;
+      }
+      const ratio = getStockpileRatio(state, config, resource);
+      if (ratio < minRatio) {
+        return null;
+      }
+    }
+  }
+
+  const buildCost = towerConfig.buildCost || {};
+  if (Object.keys(buildCost).length > 0 && !hasInputs(state.stockpile, buildCost)) {
+    return null;
+  }
+
+  const placement = towerConfig.placement || {};
+  const target = findWatchtowerBuildSpot(state, runtime, placement, reservedPositions);
+  if (!target) {
+    return null;
+  }
+
+  if (Object.keys(buildCost).length > 0) {
+    consumeInputs(state.stockpile, buildCost);
+  }
+
+  const buildTicks = Math.max(1, Number(towerConfig.buildTicks || 40));
+  return {
+    id: `job_${state.jobCounter++}`,
+    type: 'build',
+    structureType: 'watchtower',
+    target,
+    workRemaining: buildTicks,
+    dwarfId: null,
+  };
+}
+
+// Find a buildable spot on a wall ring without requiring a full clear ring.
+function findWallBuildSpotLoose(state, runtime, wallConfig, reservedPositions) {
+  const radius = getWallIntentRadius(state, runtime, wallConfig);
+  if (radius <= 0) {
+    return null;
+  }
+  const center = getVillageCenter(state, runtime);
+  for (let dx = -radius; dx <= radius; dx += 1) {
+    const dy = radius - Math.abs(dx);
+    const x1 = center.x + dx;
+    const y1 = center.y + dy;
+    if (isBuildableCell(state, runtime, x1, y1) && !isReservedPosition(reservedPositions, x1, y1)) {
+      return { x: x1, y: y1 };
+    }
+    if (dy !== 0) {
+      const x2 = center.x + dx;
+      const y2 = center.y - dy;
+      if (isBuildableCell(state, runtime, x2, y2) && !isReservedPosition(reservedPositions, x2, y2)) {
+        return { x: x2, y: y2 };
+      }
+    }
+  }
+  return null;
+}
+
+// Create a wall build job for manager-controlled placement.
+function createManagedWallBuildJob(state, config, runtime, reservedPositions) {
+  const wallConfig = (config.structures && config.structures.wall) || {};
+  const manager = (wallConfig && wallConfig.manager) || {};
+  if (manager.enabled === false) {
+    return null;
+  }
+  const maxCount = Number(wallConfig.maxCount ?? 0);
+  if (maxCount <= 0) {
+    return null;
+  }
+  const targetRatio = Number(wallConfig.buildTargetRatio ?? 1);
+  const targetCount = targetRatio > 0 ? Math.max(1, Math.floor(maxCount * targetRatio)) : maxCount;
+  const existingWalls = (state.structures || []).filter((structure) => structure.type === 'wall').length;
+  if (existingWalls >= targetCount) {
+    return null;
+  }
+
+  const minResources = manager.buildMinResources || wallConfig.buildMinResources;
+  if (minResources && typeof minResources === 'object') {
+    for (const [resource, minRatioRaw] of Object.entries(minResources)) {
+      const minRatio = Number(minRatioRaw);
+      if (!Number.isFinite(minRatio) || minRatio <= 0) {
+        continue;
+      }
+      const ratioValue = getStockpileRatio(state, config, resource);
+      if (ratioValue < minRatio) {
+        return null;
+      }
+    }
+  }
+
+  const buildCost = wallConfig.buildCost || {};
+  if (Object.keys(buildCost).length > 0 && !hasInputs(state.stockpile, buildCost)) {
+    return null;
+  }
+
+  const target = findWallBuildSpotLoose(state, runtime, wallConfig, reservedPositions);
   if (!target) {
     return null;
   }
@@ -496,7 +1540,7 @@ function getWallBuildRadius(state, runtime, wallConfig) {
 }
 
 // Find a buildable spot on the wall ring.
-function findWallBuildSpot(state, runtime, wallConfig) {
+function findWallBuildSpot(state, runtime, wallConfig, reservedPositions) {
   const radius = getWallBuildRadius(state, runtime, wallConfig);
   if (radius <= 0) {
     return null;
@@ -506,18 +1550,26 @@ function findWallBuildSpot(state, runtime, wallConfig) {
     const dy = radius - Math.abs(dx);
     const x1 = center.x + dx;
     const y1 = center.y + dy;
-    if (isBuildableCell(state, runtime, x1, y1)) {
+    if (isBuildableCell(state, runtime, x1, y1) && !isReservedPosition(reservedPositions, x1, y1)) {
       return { x: x1, y: y1 };
     }
     if (dy !== 0) {
       const x2 = center.x + dx;
       const y2 = center.y - dy;
-      if (isBuildableCell(state, runtime, x2, y2)) {
+      if (isBuildableCell(state, runtime, x2, y2) && !isReservedPosition(reservedPositions, x2, y2)) {
         return { x: x2, y: y2 };
       }
     }
   }
   return null;
+}
+
+// Check if a build position is already reserved by another job.
+function isReservedPosition(reservedPositions, x, y) {
+  if (!reservedPositions || reservedPositions.size === 0) {
+    return false;
+  }
+  return reservedPositions.has(`${x},${y}`);
 }
 
 // Compute the maximum ring radius that fits in the grid.
@@ -556,6 +1608,90 @@ function getPeripheralBuildRadius(state, runtime, structureConfig) {
   return Math.min(desired, maxRadius);
 }
 
+// Resolve the terrain types allowed for mine placement.
+function getMineTerrainTypes(structureConfig) {
+  if (!structureConfig) {
+    return null;
+  }
+  const list = structureConfig.buildTerrain || structureConfig.spawnTerrain || null;
+  if (!Array.isArray(list) || list.length === 0) {
+    return null;
+  }
+  return list.map((entry) => String(entry));
+}
+
+// Find a build spot using Poisson-style sampling with terrain and spacing checks.
+function findPoissonBuildSpot(state, runtime, structureConfig, reservedPositions, options) {
+  const placement = getPlacementConfig(structureConfig);
+  if (placement.mode !== 'poisson') {
+    return null;
+  }
+  const width = runtime.gridWidth;
+  const height = runtime.gridHeight;
+  if (width <= 0 || height <= 0) {
+    return null;
+  }
+
+  const center = getVillageCenter(state, runtime);
+  const fallbackMin = getPeripheralBuildRadius(state, runtime, structureConfig);
+  const minDistanceFromCenter = placement.minDistanceFromCenter > 0
+    ? placement.minDistanceFromCenter
+    : fallbackMin;
+  const minDistanceBetween = placement.minDistanceBetween;
+  const minStructureDistance = placement.minStructureDistance;
+  const maxAttempts = placement.maxAttempts > 0 ? placement.maxAttempts : width * height;
+  const allowTerrain = options && options.allowTerrain ? options.allowTerrain : null;
+  const structureType = options && options.structureType ? options.structureType : null;
+
+  const structurePositions = buildStructurePositions(state.structures || []);
+  const sameTypeStructures = structureType
+    ? structurePositions.filter((structure) => structure.type === structureType)
+    : [];
+
+  let best = null;
+  let bestScore = -1;
+
+  for (let i = 0; i < maxAttempts; i += 1) {
+    const x = randomBetween(0, width - 1);
+    const y = randomBetween(0, height - 1);
+    const key = `${x},${y}`;
+    if (reservedPositions && reservedPositions.has(key)) {
+      continue;
+    }
+    if (!isBuildableCell(state, runtime, x, y)) {
+      continue;
+    }
+    const distFromCenter = Math.abs(center.x - x) + Math.abs(center.y - y);
+    if (minDistanceFromCenter > 0 && distFromCenter < minDistanceFromCenter) {
+      continue;
+    }
+    if (!isPlacementTerrainAllowed(state, x, y, placement, allowTerrain)) {
+      continue;
+    }
+
+    const position = { x, y };
+    if (minStructureDistance > 0
+      && minDistanceToStructures(position, structurePositions) < minStructureDistance) {
+      continue;
+    }
+    if (minDistanceBetween > 0
+      && minDistanceToStructures(position, sameTypeStructures) < minDistanceBetween) {
+      continue;
+    }
+
+    const distanceToSame = minDistanceToStructures(position, sameTypeStructures);
+    const distanceToAll = minDistanceToStructures(position, structurePositions);
+    const score = Math.min(distanceToSame, distanceToAll);
+    const normalized = Number.isFinite(score) ? score : width + height;
+    if (normalized > bestScore) {
+      bestScore = normalized;
+      best = position;
+    }
+  }
+
+  return best;
+}
+
 // Find a build spot outside the core village radius.
 function findPeripheralBuildSpot(state, runtime, structureConfig) {
   const minRadius = getPeripheralBuildRadius(state, runtime, structureConfig);
@@ -567,6 +1703,19 @@ function findFertileBuildSpot(state, runtime, structureConfig) {
   const minRadius = getPeripheralBuildRadius(state, runtime, structureConfig);
   return findVillageBuildSpotFromRadius(state, runtime, minRadius, (x, y) => {
     return getTerrainTypeAt(state, x, y) === 'fertile';
+  });
+}
+
+// Find a build spot on mining terrain.
+function findMineBuildSpot(state, runtime, structureConfig) {
+  const minRadius = getPeripheralBuildRadius(state, runtime, structureConfig);
+  const allowed = getMineTerrainTypes(structureConfig);
+  return findVillageBuildSpotFromRadius(state, runtime, minRadius, (x, y) => {
+    if (!allowed || allowed.length === 0) {
+      return true;
+    }
+    const type = getTerrainTypeAt(state, x, y);
+    return type ? allowed.includes(type) : false;
   });
 }
 
@@ -760,7 +1909,7 @@ function getSettlementConfig(config) {
     ? raw.blockedTerrain.map((value) => String(value))
     : defaultBlocked;
   const defaultWeights = {
-    food_raw: 1,
+    food: 1,
     water: 1,
     wood: 0.8,
     stone: 0.6,
@@ -930,7 +2079,14 @@ module.exports = {
   countAdjacentHouses,
   createWellBuildJob,
   createFieldBuildJob,
+  createSawmillBuildJob,
+  createWorkshopBuildJob,
+  createMineBuildJob,
   createWallBuildJob,
+  createManagedWellBuildJob,
+  createManagedFieldBuildJob,
+  createManagedWatchtowerBuildJob,
+  createManagedWallBuildJob,
   findVillageBuildSpot,
   findVillageBuildSpotFromRadius,
   getWallBuildRadius,
@@ -940,6 +2096,7 @@ module.exports = {
   getPeripheralBuildRadius,
   findPeripheralBuildSpot,
   findFertileBuildSpot,
+  findMineBuildSpot,
   getWallRingObstacles,
   isWallRingClear,
   getVillageCenter,

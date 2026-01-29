@@ -10,6 +10,7 @@ This file defines how to implement new features in a consistent, stable way.
 - Favor gather-first economy; build structures only when shortages justify them.
 - Keep the simulation deterministic enough for training comparison.
 - Continuously improve model intelligence and learning capability in measured, stable steps.
+- When implementation details are unclear, ask for clarifications before coding changes.
 
 ## Project structure
 

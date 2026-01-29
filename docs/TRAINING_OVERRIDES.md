@@ -74,7 +74,7 @@ Resources and economy:
 - `resources.nodeRegen.amount`: amount regenerated per pulse.
 - `resources.nodeRegen.onlyDepleted`: only regenerate fully depleted nodes.
 - `resources.nodes.<resource>`: number of nodes placed on the map.
-- Resources in this phase: `food_raw`, `water`, `wood`, `stone`.
+- Resources in this phase: `food`, `water`, `wood`, `stone`.
 
 Structures:
 
@@ -159,7 +159,7 @@ Symbols:
 
 - `symbols.empty`: empty cell symbol.
 - `symbols.dwarf`: dwarf symbol.
-- `symbols.food_raw`: raw food node symbol.
+- `symbols.food`: raw food node symbol.
 - `symbols.water`: water node symbol.
 - `symbols.wood`: wood node symbol.
 - `symbols.stone`: stone node symbol.

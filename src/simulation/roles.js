@@ -11,11 +11,12 @@ function getRoleConfig(config) {
   return {
     enabled,
     builderRatio: clamp(Number(roles?.builderRatio ?? 0), 0, 1),
+    managerRatio: clamp(Number(roles?.managerRatio ?? 0), 0, 1),
     switchCooldownTicks: Math.max(0, Number(roles?.switchCooldownTicks ?? 0)),
     emergencyMinRatio: clamp(Number(roles?.emergencyMinRatio ?? 0), 0, 1),
     emergencyResources: Array.isArray(roles?.emergencyResources) && roles.emergencyResources.length > 0
       ? roles.emergencyResources
-      : ['food_raw', 'water'],
+      : ['food', 'water'],
   };
 }
 
@@ -26,11 +27,16 @@ function updateRoles(state, config) {
     return;
   }
   const adults = state.dwarves.filter((dwarf) => isAdult(dwarf, config));
-  let builderCount = adults.filter((dwarf) => dwarf.role === 'builder').length;
-  let totalCount = adults.filter((dwarf) => dwarf.role === 'builder' || dwarf.role === 'gatherer').length;
+  let builderCount = adults.filter((dwarf) => dwarf.role === 'builder' || dwarf.role === 'manager').length;
+  let managerCount = adults.filter((dwarf) => dwarf.role === 'manager').length;
+  let totalCount = adults.filter((dwarf) => (
+    dwarf.role === 'builder'
+    || dwarf.role === 'gatherer'
+    || dwarf.role === 'manager'
+  )).length;
 
   for (const dwarf of adults) {
-    if (dwarf.role === 'builder' || dwarf.role === 'gatherer') {
+    if (dwarf.role === 'builder' || dwarf.role === 'gatherer' || dwarf.role === 'manager') {
       continue;
     }
     if (Number(dwarf.roleCooldown || 0) > 0) {
@@ -43,6 +49,41 @@ function updateRoles(state, config) {
     totalCount += 1;
     if (role === 'builder') {
       builderCount += 1;
+    }
+  }
+
+  if (builderCount > 0 && roleConfig.managerRatio > 0) {
+    const targetManagers = Math.max(0, Math.floor(builderCount * roleConfig.managerRatio));
+    if (managerCount < targetManagers) {
+      for (const dwarf of adults) {
+        if (managerCount >= targetManagers) {
+          break;
+        }
+        if (dwarf.role !== 'builder') {
+          continue;
+        }
+        if (Number(dwarf.roleCooldown || 0) > 0) {
+          continue;
+        }
+        dwarf.role = 'manager';
+        dwarf.roleCooldown = roleConfig.switchCooldownTicks;
+        managerCount += 1;
+      }
+    } else if (managerCount > targetManagers) {
+      for (const dwarf of adults) {
+        if (managerCount <= targetManagers) {
+          break;
+        }
+        if (dwarf.role !== 'manager') {
+          continue;
+        }
+        if (Number(dwarf.roleCooldown || 0) > 0) {
+          continue;
+        }
+        dwarf.role = 'builder';
+        dwarf.roleCooldown = roleConfig.switchCooldownTicks;
+        managerCount -= 1;
+      }
     }
   }
 }

@@ -250,6 +250,13 @@ function getRaidObservation(state, config, housingStats) {
   const adults = state.dwarves.filter((dwarf) => dwarf.lifeStage === 'adult').length;
   const defenseMax = clamp(Number(raidConfig.defenseMax ?? 0), 0, 1);
   const defense = clamp(adults / defenseAdults, 0, defenseMax);
+  const towerConfig = (config.structures && config.structures.watchtower) || {};
+  const towerRaid = towerConfig.raid || {};
+  const towerCount = (state.structures || []).filter((structure) => structure.type === 'watchtower').length;
+  const towerDefensePer = Math.max(0, Number(towerRaid.defensePerTower ?? 0));
+  const towerDefenseMax = clamp(Number(towerRaid.defenseMax ?? 0), 0, 1);
+  const towerDefense = clamp(towerCount * towerDefensePer, 0, towerDefenseMax);
+  const totalDefense = clamp(defense + towerDefense, 0, 1);
 
   const seasonEligible = raidConfig.enabled === true && state.season && state.season.name
     && Array.isArray(raidConfig.seasonNames)
@@ -259,7 +266,7 @@ function getRaidObservation(state, config, housingStats) {
     active: raidActive,
     timeLeft,
     exposed,
-    defense,
+    defense: totalDefense,
     seasonEligible,
   };
 }

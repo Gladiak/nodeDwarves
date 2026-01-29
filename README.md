@@ -19,8 +19,8 @@ alive while you watch the chaos unfold in ASCII.
 ## Highlights ✨
 
 - 🧠 Fully autonomous simulation with a real-time ASCII renderer.
-- 🧺 Resource economy with food, water, wood, and stone.
-- 🏘️ Village growth: houses (beds), wells (water nodes), fields (food nodes).
+- 🧺 Resource economy with food, water, wood, stone, and iron.
+- 🏘️ Village growth: houses (beds), wells (water nodes), fields (food nodes), sawmills (wood), workshops (tools), mines (iron/stone).
 - ❄️ Seasons + housing effects (bonding, winter penalties).
 - 🌦️ Dynamic weather cycle that reshapes needs, gathering, and regeneration.
 - 🎓 PPO training in Python with JS-only inference.
@@ -48,7 +48,7 @@ alive while you watch the chaos unfold in ASCII.
 - 🪵🪨 Wood and stone build clustered villages (center-out placement).
 - 🛏️ Housing provides beds; insufficient shelter slows bonding and makes winter harsher.
 - 🧳 A roaming merchant visits periodically, trades surplus for scarce resources, then leaves.
-- 🚰 Wells and 🌾 fields are placed outside the village perimeter to keep housing and walls clear.
+- 🚰 Wells and 🌾 fields use Poisson-style spacing across the map, respecting terrain and distance from the core.
 - 📊 HUD shows averages, bars, priorities, and counts for wells/fields.
 - 🖼️ The map renders with a framed border for clearer navigation.
 - 🧭 Terrain adds visual texture (coast, lakes, rivers); walkability and movement delay are configurable per terrain.
@@ -62,7 +62,13 @@ alive while you watch the chaos unfold in ASCII.
 - 🏠 House build/upgrade jobs spawn when housing is below target ratio and stockpiles meet guardrails.
 - 💧 Wells are built when water stocks or water node reserves dip below thresholds.
 - 🌱 Fields are built when food stocks or food node reserves dip below thresholds and baseline stockpiles are safe.
+- 🪚 Sawmills convert stone + iron investment into steady wood output.
+- 🛠️ Workshops unlock tool upgrades that boost all gathering yields, including mines.
+- ⛏️ Mines and 🪚 sawmills can be upgraded to level 10 for higher output (exponential cost/bonus).
+- ⛏️ Mines are built on mountain terrain when none exist, and miners output iron + stone per tick.
 - 🧑‍🏭 Roles (builder/gatherer) can be enabled to keep building stable during shortages.
+- 🧱 Manager builders handle watchtowers, wells, and fields using stockpile-based thresholds.
+- Idle dwarves take short waypoint strolls around home (or their current spot) with brief pauses.
 
 ## Quick start 🚀
 
@@ -164,13 +170,9 @@ killed, and raids steal stockpile resources scaled by exposed fraction.
 - `raids.beasts.*`: visual beast count rules.
 - `symbols.beast`: map symbol for beasts (default `\u00f6`).
 
-Walls can mitigate raids by reducing the effective raid damage. Wall segments are
-built when raid seasons are eligible (configurable) and scale a defense bonus
-applied to raid deaths and loot loss.
-
-Wall placement keeps a buffer from existing buildings. When beds are needed,
-housing upgrades are preferred to increase capacity without forcing new houses
-beyond the walls.
+Watchtowers mitigate raids by reducing effective raid damage. Towers are built
+across non-water tiles and scale a defense bonus applied to raid deaths and loot
+loss while also shooting beasts during raids.
 
 Training includes a `wildlife_raid` scenario that enables raids with the base
 raid parameters and ramps with difficulty.
@@ -285,7 +287,7 @@ Open a PR or start a discussion with your ideas.
 - Simple disease system tied to crowding and hygiene.
 - Colony morale events that influence productivity and bonding.
 - Terrain types (fertile, arid, rocky) that affect yields.
-- Village security upgrades (perimeters, watchtowers, winter shelters).
+- Village security upgrades (watchtowers, winter shelters).
 
 ## License 📄
 

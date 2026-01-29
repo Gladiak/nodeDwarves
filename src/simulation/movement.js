@@ -317,6 +317,42 @@ function shouldPauseForMoveCooldown(entity) {
   return true;
 }
 
+// Find a walkable tile near an anchor within a Manhattan radius.
+function findNearbyWalkablePosition(state, runtime, anchorX, anchorY, radius, attempts) {
+  const width = runtime.gridWidth;
+  const height = runtime.gridHeight;
+  if (width <= 0 || height <= 0) {
+    return null;
+  }
+  const maxRadius = Math.max(0, Math.floor(Number(radius || 0)));
+  if (maxRadius <= 0) {
+    return null;
+  }
+  const maxAttempts = Math.max(1, Math.floor(Number(attempts || 0)));
+  const originX = clamp(Math.floor(Number(anchorX || 0)), 0, width - 1);
+  const originY = clamp(Math.floor(Number(anchorY || 0)), 0, height - 1);
+  for (let i = 0; i < maxAttempts; i += 1) {
+    const dx = randomBetween(-maxRadius, maxRadius);
+    const dy = randomBetween(-maxRadius, maxRadius);
+    if (dx === 0 && dy === 0) {
+      continue;
+    }
+    if (Math.abs(dx) + Math.abs(dy) > maxRadius) {
+      continue;
+    }
+    const x = originX + dx;
+    const y = originY + dy;
+    if (x < 0 || y < 0 || x >= width || y >= height) {
+      continue;
+    }
+    if (!isWalkableTile(state, x, y)) {
+      continue;
+    }
+    return { x, y };
+  }
+  return null;
+}
+
 // Find any walkable tile by random sampling.
 function findAnyWalkablePosition(state, runtime) {
   const width = runtime.gridWidth;
@@ -402,6 +438,7 @@ module.exports = {
   findLocalPathStep,
   moveDwarf,
   shouldPauseForMoveCooldown,
+  findNearbyWalkablePosition,
   findAnyWalkablePosition,
   findEdgeWalkablePosition,
   findEdgeSpawnPosition,

@@ -10,6 +10,7 @@ const { clamp } = require('./src/utils');
 
 const baseConfig = loadConfig();
 const nativeRandom = Math.random;
+const DEBUG_MODE = resolveDebugMode(process.env.NODEDWARVES_DEBUG_MODE);
 const runtime = buildRuntime(baseConfig.display, {
   columns: Number(baseConfig.display.width || 80),
   rows: Number(baseConfig.display.height || 24),
@@ -101,6 +102,24 @@ function applySeed(seed) {
   Math.random = mulberry32(intSeed);
 }
 
+// Normalize the debug mode passed via environment variables.
+function resolveDebugMode(raw) {
+  const value = String(raw || 'full').trim().toLowerCase();
+  if (!value) {
+    return 'full';
+  }
+  if (['0', 'off', 'none', 'false', 'disable', 'disabled'].includes(value)) {
+    return 'off';
+  }
+  if (['final', 'end', 'done'].includes(value)) {
+    return 'final';
+  }
+  if (['summary', 'minimal', 'min'].includes(value)) {
+    return 'summary';
+  }
+  return 'full';
+}
+
 // Function: mulberry32.
 function mulberry32(seed) {
   let t = seed >>> 0;
@@ -126,6 +145,7 @@ function getStepTicks(action, config) {
 function buildResponse(reward, done, doneReason) {
   const metrics = computeMetrics(state, activeConfig);
   const obs = buildObservation(state, activeConfig, metrics);
+  const debugPayload = getDebugPayload(state, activeConfig, metrics, done);
   return {
     obs,
     reward: Number(reward || 0),
@@ -137,8 +157,58 @@ function buildResponse(reward, done, doneReason) {
       deaths: Number(state.deathsCount || 0),
       doneReason: doneReason || null,
       scenario: scenarioMeta,
-      debug: buildDebugInfo(state, activeConfig, metrics),
+      ...(debugPayload ? { debug: debugPayload } : {}),
     },
+  };
+}
+
+// Decide whether debug info should be included in a response.
+function shouldIncludeDebug(done) {
+  if (DEBUG_MODE === 'off') {
+    return false;
+  }
+  if (DEBUG_MODE === 'final' || DEBUG_MODE === 'summary') {
+    return Boolean(done);
+  }
+  return true;
+}
+
+// Build the debug payload based on the selected debug mode.
+function getDebugPayload(state, config, metrics, done) {
+  if (!shouldIncludeDebug(done)) {
+    return null;
+  }
+  if (DEBUG_MODE === 'summary') {
+    return buildDebugInfoMinimal(state, config, metrics);
+  }
+  return buildDebugInfo(state, config, metrics);
+}
+
+// Function: buildDebugInfo.
+function buildDebugInfoMinimal(state, config, metrics) {
+  const raidState = state.raid || {};
+  const raidStats = state.raidStats || {};
+  const raidObservation = metrics.raid || {};
+  return {
+    stockpile: {
+      avgRatio: Number(metrics.stockpileAvg || 0),
+      minRatio: Number(metrics.stockpileMin || 0),
+    },
+    raid: {
+      active: Boolean(raidState.active),
+      ticksRemaining: Number(raidState.ticksRemaining || 0),
+      season: raidState.seasonName || null,
+      count: Number(raidStats.count || 0),
+      deaths: Number(raidStats.deaths || 0),
+      loot: { ...(raidStats.loot || {}) },
+      exposedRatio: Number(raidObservation.exposedRatio || 0),
+      defenseRatio: Number(raidObservation.defenseRatio || 0),
+      seasonEligible: Number(raidObservation.seasonEligible || 0),
+    },
+    nodes: { ...(metrics.nodeRatio || {}) },
+    weather: state.weather && state.weather.type ? { type: state.weather.type } : null,
+    criticalNeedsFraction: Number(metrics.criticalNeedsFraction || 0),
+    idleAdultsFraction: Number(metrics.idleAdultsFraction || 0),
   };
 }
 
@@ -185,7 +255,7 @@ function buildDebugInfo(state, config, metrics) {
   const irrigationBase = irrigationLow + (irrigationHigh - irrigationLow) * clamp(waterRatio, 0, 1);
   const irrigationMultiplier = irrigationBase * weatherIrrigation;
   const fieldSeasonMultiplier = getSeasonValue(state, 'fieldRegen', 1);
-  const fieldNodes = (state.nodes || []).filter((node) => node.source === 'field' && node.id === 'food_raw');
+  const fieldNodes = (state.nodes || []).filter((node) => node.source === 'field' && node.id === 'food');
   const fieldNodeRatio = getNodeRatioForNodes(fieldNodes);
   const merchantStats = state.merchantStats || {};
   const merchantTicks = Number(merchantStats.ticks || 0);
@@ -414,12 +484,13 @@ function getRaidObservation(state, config, housingStats) {
   const defenseAdults = Math.max(1, Number(raidConfig.defenseAdults || population));
   const defenseMax = clamp(Number(raidConfig.defenseMax ?? 0), 0, 1);
   const defenseRaw = clamp(adults / defenseAdults, 0, defenseMax);
-  const wallConfig = (config.structures && config.structures.wall) || {};
-  const wallCount = (state.structures || []).filter((structure) => structure.type === 'wall').length;
-  const wallDefensePer = Math.max(0, Number(wallConfig.defensePerWall ?? 0));
-  const wallDefenseMax = clamp(Number(wallConfig.defenseMax ?? 0), 0, 1);
-  const wallDefense = clamp(wallCount * wallDefensePer, 0, wallDefenseMax);
-  const totalDefense = clamp(defenseRaw + wallDefense, 0, 1);
+  const towerConfig = (config.structures && config.structures.watchtower) || {};
+  const towerRaid = towerConfig.raid || {};
+  const towerCount = (state.structures || []).filter((structure) => structure.type === 'watchtower').length;
+  const towerDefensePer = Math.max(0, Number(towerRaid.defensePerTower ?? 0));
+  const towerDefenseMax = clamp(Number(towerRaid.defenseMax ?? 0), 0, 1);
+  const towerDefense = clamp(towerCount * towerDefensePer, 0, towerDefenseMax);
+  const totalDefense = clamp(defenseRaw + towerDefense, 0, 1);
   const defenseRatio = clamp(totalDefense, 0, 1);
 
   const duration = Math.max(1, Number(raidState.duration || raidConfig.durationTicks || 0));

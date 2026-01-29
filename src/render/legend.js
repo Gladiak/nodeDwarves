@@ -34,7 +34,7 @@ function buildFooterLines(config, runtime) {
   if (houseLegend) {
     legendParts.push(colorizeLegend(`${houseLegend} house`, 'house', colors));
   }
-  const structureWhitelist = new Set(['house', 'well', 'field', 'wall']);
+  const structureWhitelist = new Set(['house', 'well', 'field', 'workshop', 'sawmill', 'mine', 'watchtower']);
   for (const [type, definition] of Object.entries(structureConfig)) {
     if (type === 'house' && houseLegend) {
       continue;

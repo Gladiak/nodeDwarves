@@ -38,7 +38,7 @@
       "scale": 0.06,
       "octaves": 4,
       "persistence": 0.5,
-      "lacunarity": 2.0,
+      "lacunarity": 2,
       "valley": {
         "bowlStrength": 0.3,
         "smoothingPasses": 3,
@@ -79,31 +79,34 @@
           "clusterPasses": 1
         }
       },
-  "walkable": {
-    "river": true,
-    "lake": true,
-    "mountain": true,
-    "hill": true,
-    "plain": true,
-    "fertile": true,
-    "food": true,
-    "forest": true,
-    "stone": true
-  },
+      "walkable": {
+        "river": true,
+        "lake": true,
+        "mountain": true,
+        "hill": true,
+        "plain": true,
+        "fertile": true,
+        "food": true,
+        "forest": true,
+        "stone": true
+      },
       "movementDelay": {
         "mountain": 1
       },
       "symbols": {
-    "river": "=",
-    "lake": "~",
-    "mountain": "^",
-    "hill": "n",
-    "plain": ".",
-    "fertile": ":",
-    "food": "f",
-    "forest": "T",
-    "stone": "*"
-  }
+        "river": "=",
+        "lake": "~",
+        "mountain": "^",
+        "hill": "n",
+        "plain": ".",
+        "fertile": ":",
+        "food": "f",
+        "forest": "T",
+        "stone": "*"
+      }
+    },
+    "dwarves": {
+      "maxVisible": 15
     },
     "colors": {
       "enabled": true,
@@ -113,21 +116,26 @@
         "terrain_river": "\u001b[34m",
         "terrain_lake": "\u001b[36m",
         "terrain_mountain": "\u001b[90m",
-    "terrain_hill": "\u001b[33m",
-    "terrain_plain": "\u001b[32m",
-    "terrain_fertile": "\u001b[92m",
-    "terrain_food": "\u001b[93m",
-    "terrain_forest": "\u001b[32m",
-    "terrain_stone": "\u001b[37m",
+        "terrain_hill": "\u001b[33m",
+        "terrain_plain": "\u001b[32m",
+        "terrain_fertile": "\u001b[92m",
+        "terrain_food": "\u001b[93m",
+        "terrain_forest": "\u001b[32m",
+        "terrain_stone": "\u001b[37m",
         "dwarf": "\u001b[93m",
         "merchant": "\u001b[96m",
         "house": "\u001b[91m",
+        "mine": "\u001b[37m",
+        "workshop": "\u001b[36m",
+        "sawmill": "\u001b[33m",
         "wall": "\u001b[37m",
+        "watchtower": "\u001b[37m",
         "beast": "\u001b[91m",
-        "food_raw": "\u001b[32m",
+        "food": "\u001b[32m",
         "water": "\u001b[34m",
         "wood": "\u001b[33m",
         "stone": "\u001b[90m",
+        "iron": "\u001b[37m",
         "weather_clear": "\u001b[37m",
         "weather_rain": "\u001b[34m",
         "weather_storm": "\u001b[33m",
@@ -141,7 +149,7 @@
   },
   "raids": {
     "enabled": true,
-    "symbol": "\u00f6",
+    "symbol": "ö",
     "seasonNames": ["spring", "autumn"],
     "durationTicks": 100,
     "chance": {
@@ -161,7 +169,7 @@
       "min": 0.04,
       "max": 0.1,
       "weights": {
-        "food_raw": 1,
+        "food": 1,
         "water": 1,
         "wood": 0.5,
         "stone": 0.25
@@ -184,38 +192,38 @@
       "policyPath": "models/policy.json"
     },
     "defaultWeights": {
-      "food_raw": 2.0,
-      "water": 2.0,
+      "food": 2,
+      "water": 2,
       "wood": 0.4,
       "stone": 0.4
     },
     "reward": {
       "stockpileAvg": 0.3,
       "stockpileMin": 1.6,
-      "waterStockpile": 2.0,
+      "waterStockpile": 2,
       "waterLowThreshold": 0.8,
       "waterLowPenalty": 1.5,
-      "waterLowExponent": 2.0,
+      "waterLowExponent": 2,
       "stockpilePopGate": true,
       "survival": 1.2,
       "populationDelta": 0.5,
-      "populationBalance": 2.0,
+      "populationBalance": 2,
       "criticalNeeds": 3.3,
       "idleAdults": 0.6,
-      "raidExposure": 1.0,
+      "raidExposure": 1,
       "raidExposureEligible": 0.7,
-      "raidDeaths": 2.0,
+      "raidDeaths": 2,
       "raidLoot": 1.8,
       "raidPrepShelter": 0.5,
       "raidPrepDefense": 0.35,
-      "death": 7.0,
-      "extinction": 320.0
+      "death": 7,
+      "extinction": 320
     },
     "priorityBoosts": {
       "water": {
         "threshold": 0.85,
-        "multiplier": 3.0,
-        "minWeight": 1.0,
+        "multiplier": 3,
+        "minWeight": 1,
         "exponent": 1.5
       }
     },
@@ -235,7 +243,7 @@
     "training": {
       "enabled": true,
       "difficultyStart": 0.08,
-      "difficultyEnd": 1.0,
+      "difficultyEnd": 1,
       "difficultyRampEpisodes": 20000,
       "scenarioSampling": {
         "mode": "adaptive",
@@ -249,7 +257,7 @@
       "randomization": {
         "stockpileScale": [0.92, 1.05],
         "stockpileFloor": {
-          "food_raw": 10,
+          "food": 10,
           "water": 10,
           "wood": 4,
           "stone": 4
@@ -257,8 +265,8 @@
         "nodeCountScale": [0.92, 1.05],
         "nodeCountMin": 8,
         "nodeCapacityScale": [0.95, 1.1],
-        "nodeRegenScale": [1.0, 1.2],
-        "needDecayScale": [0.9, 1.0],
+        "nodeRegenScale": [1, 1.2],
+        "needDecayScale": [0.9, 1],
         "seasonStartRandom": true,
         "seasonTickRandom": true
       },
@@ -281,7 +289,7 @@
             "minPopulationBalance": 0.6,
             "stockpileEps": 0.02,
             "resourceEps": 0.02,
-            "resources": ["water", "food_raw"]
+            "resources": ["water", "food"]
           }
         },
         "merchant": {
@@ -303,7 +311,7 @@
         },
         "jobs": {
           "gatherYield": {
-            "food_raw": 2,
+            "food": 2,
             "water": 2,
             "wood": 1,
             "stone": 1
@@ -311,25 +319,25 @@
         },
         "resources": {
           "stockpile": {
-            "food_raw": 30,
+            "food": 30,
             "water": 30,
             "wood": 6,
             "stone": 5
           },
           "targets": {
-            "food_raw": 40,
+            "food": 40,
             "water": 40,
             "wood": 7,
             "stone": 6
           },
           "nodeCapacity": {
-            "food_raw": 12,
+            "food": 12,
             "water": 16,
             "wood": 8,
             "stone": 8
           },
           "nodes": {
-            "food_raw": 18,
+            "food": 18,
             "water": 14,
             "wood": 8,
             "stone": 6
@@ -389,25 +397,25 @@
         },
         "resources": {
           "stockpile": {
-            "food_raw": 40,
+            "food": 40,
             "water": 40,
             "wood": 8,
             "stone": 6
           },
           "targets": {
-            "food_raw": 60,
+            "food": 60,
             "water": 60,
             "wood": 8,
             "stone": 6
           },
           "nodeCapacity": {
-            "food_raw": 14,
+            "food": 14,
             "water": 22,
             "wood": 10,
             "stone": 10
           },
           "nodes": {
-            "food_raw": 28,
+            "food": 28,
             "water": 20,
             "wood": 14,
             "stone": 12
@@ -446,9 +454,9 @@
           "name": "full_sim",
           "weight": 0.1,
           "difficultyMin": 0.6,
-          "difficultyMax": 1.0,
-          "difficultyMinMultiplier": 0.0,
-          "difficultyMaxMultiplier": 1.0,
+          "difficultyMax": 1,
+          "difficultyMinMultiplier": 0,
+          "difficultyMaxMultiplier": 1,
           "overrides": {
             "events": {
               "maxEntries": 5
@@ -480,25 +488,25 @@
             },
             "resources": {
               "stockpile": {
-                "food_raw": 40,
+                "food": 40,
                 "water": 40,
                 "wood": 8,
                 "stone": 6
               },
               "targets": {
-                "food_raw": 60,
+                "food": 60,
                 "water": 60,
                 "wood": 8,
                 "stone": 6
               },
               "nodeCapacity": {
-                "food_raw": 14,
+                "food": 14,
                 "water": 22,
                 "wood": 10,
                 "stone": 10
               },
               "nodes": {
-                "food_raw": 28,
+                "food": 28,
                 "water": 20,
                 "wood": 14,
                 "stone": 12
@@ -534,8 +542,8 @@
           "weight": 0.1,
           "difficultyMin": 0.2,
           "difficultyMax": 0.8,
-          "difficultyMinMultiplier": 0.0,
-          "difficultyMaxMultiplier": 1.0,
+          "difficultyMinMultiplier": 0,
+          "difficultyMaxMultiplier": 1,
           "overrides": {
             "events": {
               "maxEntries": 4
@@ -562,25 +570,25 @@
             },
             "resources": {
               "stockpile": {
-                "food_raw": 35,
+                "food": 35,
                 "water": 35,
                 "wood": 7,
                 "stone": 6
               },
               "targets": {
-                "food_raw": 50,
+                "food": 50,
                 "water": 50,
                 "wood": 8,
                 "stone": 6
               },
               "nodeCapacity": {
-                "food_raw": 13,
+                "food": 13,
                 "water": 19,
                 "wood": 9,
                 "stone": 9
               },
               "nodes": {
-                "food_raw": 23,
+                "food": 23,
                 "water": 17,
                 "wood": 11,
                 "stone": 9
@@ -614,10 +622,10 @@
         {
           "name": "wildlife_raid",
           "weight": 0.18,
-          "difficultyMin": 0.0,
-          "difficultyMax": 1.0,
+          "difficultyMin": 0,
+          "difficultyMax": 1,
           "difficultyMinMultiplier": 0.5,
-          "difficultyMaxMultiplier": 1.0,
+          "difficultyMaxMultiplier": 1,
           "overrides": {
             "raids": {
               "enabled": true
@@ -644,10 +652,10 @@
           "overrides": {
             "resources": {
               "nodes": {
-                "food_raw": 10
+                "food": 10
               },
               "nodeCapacity": {
-                "food_raw": 8
+                "food": 8
               }
             }
           }
@@ -658,7 +666,7 @@
           "overrides": {
             "resources": {
               "stockpile": {
-                "food_raw": 14,
+                "food": 14,
                 "water": 14,
                 "wood": 4,
                 "stone": 4
@@ -722,10 +730,11 @@
         "maxGradNorm": 0.5,
         "workers": 6,
         "logEvery": 2000,
+        "debugMode": "summary",
         "evalEvery": 2000,
         "evalEpisodes": 4,
         "evalMaxSteps": 1200,
-        "evalDifficulty": 1.0,
+        "evalDifficulty": 1,
         "evalScore": "rpt",
         "sampleScore": "rpt",
         "modelPath": "models/policy.json",
@@ -744,19 +753,20 @@
   },
   "resources": {
     "stockpile": {
-      "food_raw": 40,
+      "food": 40,
       "water": 40,
       "wood": 8,
-      "stone": 6
+      "stone": 6,
+      "iron": 0
     },
     "targets": {
-      "food_raw": 60,
+      "food": 60,
       "water": 60,
       "wood": 8,
       "stone": 6
     },
     "terrainAllowed": {
-      "food_raw": ["food"],
+      "food": ["food"],
       "water": ["river", "lake"],
       "wood": ["forest"],
       "stone": ["mountain"]
@@ -764,7 +774,7 @@
     "useTerrainTiles": true,
     "defaultNodeCapacity": 12,
     "nodeCapacity": {
-      "food_raw": 14,
+      "food": 14,
       "water": 22,
       "wood": 10,
       "stone": 10
@@ -777,7 +787,7 @@
       "onlyDepleted": false
     },
     "nodes": {
-      "food_raw": 0,
+      "food": 0,
       "water": 0,
       "wood": 0,
       "stone": 0
@@ -794,7 +804,7 @@
       },
       "storage": {
         "enabled": true,
-        "resources": ["food_raw", "water"],
+        "resources": ["food", "water"],
         "capacityPerLevel": {
           "1": 2,
           "2": 3,
@@ -810,7 +820,7 @@
         "releaseRatio": 0.95,
         "transferPerTick": 2,
         "decayPerTick": {
-          "food_raw": 0.001,
+          "food": 0.001,
           "water": 0.0005
         }
       },
@@ -896,12 +906,36 @@
       "buildWhenStockpileRatioBelow": 0.55,
       "skipWhenTerrainWaterWithin": 10,
       "criticalStockpileRatio": 0.2,
-      "buildMinRadius": 4,
-      "buildOuterBuffer": 2,
+      "buildMinRadius": 6,
+      "buildOuterBuffer": 4,
       "buildTicks": 45,
       "buildCost": {
         "wood": 12,
         "stone": 10
+      },
+      "manager": {
+        "enabled": true,
+        "buildBelowRatio": 0.6,
+        "stopAboveRatio": 0.8
+      },
+      "placement": {
+        "mode": "poisson",
+        "minDistanceFromCenter": 0,
+        "minDistanceBetween": 1,
+        "minStructureDistance": 6,
+        "maxAttempts": 800,
+        "avoidTerrain": ["river", "lake"]
+      },
+      "cluster": {
+        "enabled": false,
+        "radius": 5,
+        "minWallDistance": 6,
+        "minSeparation": 12,
+        "minStructureDistance": 8,
+        "shape": "rect",
+        "width": 5,
+        "height": 2,
+        "side": "right"
       }
     },
     "field": {
@@ -914,38 +948,175 @@
       "buildMinRadius": 4,
       "buildOuterBuffer": 2,
       "buildMinResources": {
-        "food_raw": 0.8,
+        "food": 0.8,
         "water": 0.8
       },
       "irrigationMinMultiplier": 0.45,
-      "irrigationMaxMultiplier": 1.0,
+      "irrigationMaxMultiplier": 1,
       "buildTicks": 40,
       "buildCost": {
         "wood": 10,
         "stone": 6
+      },
+      "manager": {
+        "enabled": true,
+        "buildBelowRatio": 0.45,
+        "stopAboveRatio": 0.65
+      },
+      "placement": {
+        "mode": "poisson",
+        "minDistanceFromCenter": 0,
+        "minDistanceBetween": 1,
+        "minStructureDistance": 6,
+        "maxAttempts": 800,
+        "avoidTerrain": ["river", "lake"]
+      },
+      "cluster": {
+        "enabled": false,
+        "radius": 5,
+        "minWallDistance": 6,
+        "minSeparation": 12,
+        "minStructureDistance": 8,
+        "shape": "rect",
+        "width": 5,
+        "height": 2,
+        "side": "left"
+      }
+    },
+    "sawmill": {
+      "count": 0,
+      "capacity": 1,
+      "workersPerSawmill": 1,
+      "maxCount": 2,
+      "buildMinRadius": 3,
+      "buildOuterBuffer": 1,
+      "buildTicks": 55,
+      "buildCost": {
+        "stone": 10,
+        "iron": 6
+      },
+      "outputPerTick": {
+        "wood": 0.25
+      },
+      "levelMax": 10,
+      "levelBonusMin": 0.02,
+      "levelBonusMax": 0.2,
+      "levelBonusExponent": 2,
+      "upgradeTicks": 40,
+      "upgradeCostScale": 1.25,
+      "upgradeBaseCost": {
+        "stone": 6,
+        "iron": 3
+      }
+    },
+    "workshop": {
+      "count": 0,
+      "capacity": 1,
+      "maxCount": 1,
+      "buildMinRadius": 2,
+      "buildOuterBuffer": 1,
+      "buildTicks": 60,
+      "buildCost": {
+        "wood": 12,
+        "stone": 10,
+        "iron": 6
+      }
+    },
+    "mine": {
+      "count": 1,
+      "capacity": 1,
+      "minersPerMine": 2,
+      "buildMinRadius": 4,
+      "buildOuterBuffer": 2,
+      "buildTerrain": ["mountain", "stone"],
+      "buildTicks": 55,
+      "buildCost": {
+        "wood": 10,
+        "stone": 10
+      },
+      "outputPerTick": {
+        "iron": 0.08,
+        "stone": 0.165
+      },
+      "levelMax": 10,
+      "levelBonusMin": 0.02,
+      "levelBonusMax": 0.2,
+      "levelBonusExponent": 2,
+      "upgradeTicks": 50,
+      "upgradeCostScale": 1.25,
+      "upgradeBaseCost": {
+        "stone": 8,
+        "iron": 4
+      },
+      "preciousChanceMin": 0.01,
+      "preciousChanceMax": 0.1
+    },
+    "watchtower": {
+      "count": 0,
+      "capacity": 1,
+      "maxCount": 12,
+      "buildTicks": 35,
+      "buildCost": {
+        "wood": 6,
+        "stone": 8,
+        "iron": 4
+      },
+      "buildMinResources": {
+        "food": 0.6,
+        "water": 0.6,
+        "wood": 0.5,
+        "stone": 0.5
+      },
+      "manager": {
+        "enabled": true
+      },
+      "placement": {
+        "minDistanceBetween": 6,
+        "maxAttempts": 200,
+        "avoidTerrain": ["river", "lake"]
+      },
+      "raid": {
+        "range": 6,
+        "hitChance": 0.35,
+        "damagePerTick": 1,
+        "maxKillsPerTick": 1,
+        "defensePerTower": 0.02,
+        "defenseMax": 0.2
       }
     },
     "wall": {
       "count": 0,
       "capacity": 1,
-      "maxCount": 16,
-      "buildTargetRatio": 0.6,
-      "buildWhenRaidEligible": true,
-      "buildMinHousingRatio": 1.0,
-      "buildMinResources": {
-        "wood": 0.6,
-        "stone": 0.6
+      "maxCount": 0,
+      "buildTargetRatio": 0,
+      "buildWhenRaidEligible": false,
+      "buildMinHousingRatio": 0,
+      "buildMinResources": {},
+      "buildInnerBuffer": 0,
+      "buildRadius": 0,
+      "buildTicks": 0,
+      "buildCost": {},
+      "manager": {
+        "enabled": false
       },
-      "buildInnerBuffer": 3,
-      "buildRadius": 4,
-      "buildTicks": 18,
-      "buildCost": {
-        "wood": 6,
-        "stone": 4
-      },
-      "defensePerWall": 0.03,
-      "defenseMax": 0.3
+      "defensePerWall": 0,
+      "defenseMax": 0
     }
+  },
+  "tools": {
+    "initialLevel": 1,
+    "maxLevel": 10,
+    "bonusMin": 0.003,
+    "bonusMax": 0.1,
+    "bonusExponent": 2,
+    "upgradeTicks": 45,
+    "upgradeBaseCost": {
+      "wood": 6,
+      "stone": 6,
+      "iron": 4
+    },
+    "upgradeCostScale": 1.25,
+    "applyTo": ["food", "water", "wood", "stone", "iron"]
   },
   "merchant": {
     "enabled": true,
@@ -974,14 +1145,25 @@
       "maxAge": 4600
     },
     "relationships": {
-      "interactionsPerTick": 4,
+      "interactionsPerTick": 5,
+      "minInteractionsPerTick": 2,
       "idleInteractionMultiplier": 1.5,
+      "proximityShare": 0.35,
       "maxDistance": 8,
       "bondGain": 1.3,
       "bondDecay": 0.12,
       "bondThreshold": 12
     },
     "idleWanderChance": 0.02,
+    "idleWander": {
+      "enabled": true,
+      "chance": 0.02,
+      "radius": 6,
+      "minPauseTicks": 8,
+      "maxPauseTicks": 20,
+      "maxTargetAge": 120,
+      "maxAttempts": 24
+    },
     "settlement": {
       "enabled": true,
       "scanStep": 3,
@@ -989,7 +1171,7 @@
       "minOpenRatio": 0.65,
       "resourceDistanceCap": 40,
       "resourceWeights": {
-        "food_raw": 1,
+        "food": 1,
         "water": 1,
         "wood": 0.8,
         "stone": 0.6
@@ -1007,7 +1189,7 @@
       "bondingMaxMultiplier": 1.1,
       "buildTargetRatio": 1.2,
       "buildMinResources": {
-        "food_raw": 0.65,
+        "food": 0.65,
         "water": 0.65
       },
       "winterNeedPenalty": 0.25,
@@ -1016,9 +1198,10 @@
     "roles": {
       "enabled": true,
       "builderRatio": 0.2,
+      "managerRatio": 0.2,
       "switchCooldownTicks": 200,
       "emergencyMinRatio": 0.4,
-      "emergencyResources": ["food_raw", "water"]
+      "emergencyResources": ["food", "water"]
     },
     "reproduction": {
       "enabled": true,
@@ -1026,14 +1209,14 @@
       "baseChance": 0.0075,
       "cooldownTicks": 70,
       "resourcePerCapita": {
-        "food_raw": 0.8,
+        "food": 0.8,
         "water": 0.8
       },
       "softCap": 38,
       "crowdingMinFactor": 0.4,
       "moraleInfluence": 0.35,
       "birthCost": {
-        "food_raw": 0.5,
+        "food": 0.5,
         "water": 0.5
       }
     },
@@ -1058,17 +1241,17 @@
         "fieldRegen": 1.1
       },
       "summer": {
-        "needDecay": 1.0,
-        "gatherYield": 1.0,
-        "gatherTicks": 1.0,
-        "nodeRegen": 1.0,
-        "reproductionChance": 1.0,
-        "fieldRegen": 1.0
+        "needDecay": 1,
+        "gatherYield": 1,
+        "gatherTicks": 1,
+        "nodeRegen": 1,
+        "reproductionChance": 1,
+        "fieldRegen": 1
       },
       "autumn": {
         "needDecay": 1.02,
         "gatherYield": 1.05,
-        "gatherTicks": 1.0,
+        "gatherTicks": 1,
         "nodeRegen": 0.9,
         "reproductionChance": 0.95,
         "fieldRegen": 0.9
@@ -1093,20 +1276,20 @@
     "states": {
       "clear": {
         "weight": 2.2,
-        "severity": 0.0,
-        "needDecay": 1.0,
-        "gatherTicks": 1.0,
-        "gatherYield": 1.0,
-        "nodeRegen": 1.0,
-        "fieldRegen": 1.0,
-        "irrigation": 1.0
+        "severity": 0,
+        "needDecay": 1,
+        "gatherTicks": 1,
+        "gatherYield": 1,
+        "nodeRegen": 1,
+        "fieldRegen": 1,
+        "irrigation": 1
       },
       "rain": {
         "weight": 0.8,
         "severity": 0.3,
-        "needDecay": 1.0,
+        "needDecay": 1,
         "gatherTicks": 1.05,
-        "gatherYield": 1.0,
+        "gatherYield": 1,
         "nodeRegen": 1.25,
         "fieldRegen": 1.2,
         "irrigation": 1.15
@@ -1116,20 +1299,20 @@
         "severity": 0.8,
         "needDecay": 1.07,
         "gatherTicks": 1.3,
-        "gatherYield": 1.0,
-        "nodeRegen": 1.0,
+        "gatherYield": 1,
+        "nodeRegen": 1,
         "fieldRegen": 0.9,
-        "irrigation": 1.0
+        "irrigation": 1
       },
       "drought": {
         "weight": 0.45,
-        "severity": 1.0,
+        "severity": 1,
         "needDecay": 1.12,
         "needDecayByNeed": {
           "thirst": 1.3
         },
         "gatherTicks": 1.15,
-        "gatherYield": 1.0,
+        "gatherYield": 1,
         "nodeRegen": 0.6,
         "fieldRegen": 0.7,
         "irrigation": 0.65
@@ -1142,7 +1325,7 @@
           "hunger": 1.25
         },
         "gatherTicks": 1.25,
-        "gatherYield": 1.0,
+        "gatherYield": 1,
         "nodeRegen": 0.85,
         "fieldRegen": 0.85,
         "irrigation": 0.9
@@ -1186,13 +1369,13 @@
     "defaultGatherTicks": 6,
     "defaultGatherYield": 1,
     "gatherTicks": {
-      "food_raw": 5,
+      "food": 5,
       "water": 3,
       "wood": 6,
       "stone": 7
     },
     "gatherYield": {
-      "food_raw": 2,
+      "food": 2,
       "water": 2,
       "wood": 1,
       "stone": 1
@@ -1202,14 +1385,19 @@
     "empty": ".",
     "dwarf": "@",
     "merchant": "M",
-    "beast": "\u00f6",
-    "food_raw": "f",
+    "beast": "ö",
+    "food": "f",
     "water": "w",
     "wood": "t",
     "stone": "s",
+    "iron": "i",
     "house": "h",
     "well": "O",
     "field": "c",
+    "mine": "M",
+    "workshop": "W",
+    "sawmill": "S",
+    "watchtower": "#",
     "wall": "#"
   }
 }
