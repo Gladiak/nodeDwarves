@@ -319,9 +319,51 @@ function getGatherTicks(config, resourceId, state) {
   const specific = jobs.gatherTicks && jobs.gatherTicks[resourceId];
   const value = specific !== undefined ? specific : jobs.defaultGatherTicks;
   const base = Math.max(1, Number(value || 6));
+  const moraleMultiplier = getMoraleGatherTickMultiplier(state, config, resourceId);
   const multiplier = getSeasonModifier(state, 'gatherTicks', 1)
-    * getWeatherModifier(state, config, 'gatherTicks', 1);
+    * getWeatherModifier(state, config, 'gatherTicks', 1)
+    * moraleMultiplier;
   return Math.max(1, Math.round(base * multiplier));
+}
+
+// Compute morale-based gather tick multiplier.
+function getMoraleGatherTickMultiplier(state, config, resourceId) {
+  const moraleConfig = config.morale && config.morale.gatherTicks;
+  if (!moraleConfig || moraleConfig.enabled === false) {
+    return 1;
+  }
+  const resources = Array.isArray(moraleConfig.resources) ? moraleConfig.resources : null;
+  if (resources && resourceId && !resources.includes(resourceId)) {
+    return 1;
+  }
+  const moraleMin = clamp(Number(moraleConfig.moraleMin ?? 0), 0, 1);
+  const moraleMax = clamp(Number(moraleConfig.moraleMax ?? 1), 0, 1);
+  if (moraleMax <= moraleMin) {
+    return 1;
+  }
+  const bonusMax = clamp(Number(moraleConfig.bonusMax ?? 0), 0, 0.9);
+  if (bonusMax <= 0) {
+    return 1;
+  }
+  const exponent = Math.max(0.1, Number(moraleConfig.exponent ?? 1));
+  const avgMorale = getAverageMorale(state);
+  const ratio = clamp((avgMorale - moraleMin) / (moraleMax - moraleMin), 0, 1);
+  const bonus = Math.pow(ratio, exponent) * bonusMax;
+  return Math.max(0.1, 1 - bonus);
+}
+
+// Compute average morale across the population.
+function getAverageMorale(state) {
+  const dwarves = state && Array.isArray(state.dwarves) ? state.dwarves : [];
+  if (dwarves.length === 0) {
+    return 0;
+  }
+  let total = 0;
+  for (const dwarf of dwarves) {
+    const value = Number(dwarf.state && dwarf.state.morale);
+    total += Number.isFinite(value) ? value : 0;
+  }
+  return total / dwarves.length;
 }
 
 // Compute gather yield for a resource node.

@@ -11,6 +11,7 @@ const {
   createFieldBuildJob,
   createSawmillBuildJob,
   createWorkshopBuildJob,
+  createBreweryBuildJob,
   createMineBuildJob,
   createHouseBuildJob,
   createHouseUpgradeJob,
@@ -25,6 +26,15 @@ function assignJobs(state, config, runtime, action) {
   let idleDwarves = state.dwarves.filter(
     (dwarf) => !dwarf.job && canWork(dwarf, config),
   );
+  if (idleDwarves.length === 0) {
+    return;
+  }
+
+  const brewers = idleDwarves.filter((dwarf) => dwarf.role === "brewmaster");
+  idleDwarves = idleDwarves.filter((dwarf) => dwarf.role !== "brewmaster");
+  if (brewers.length > 0) {
+    assignBreweryJobs(state, config, runtime, brewers);
+  }
   if (idleDwarves.length === 0) {
     return;
   }
@@ -326,6 +336,79 @@ function assignBuildJobIfNeeded(
   state.jobs.push(buildJob);
 }
 
+// Assign brewery jobs to keep brewmasters stationed at breweries.
+function assignBreweryJobs(state, config, runtime, brewers) {
+  const breweryConfig = (config.structures && config.structures.brewery) || {};
+  const workersPer = Math.max(
+    0,
+    Number(breweryConfig.workersPerBrewery ?? breweryConfig.capacity ?? 0),
+  );
+  if (workersPer <= 0) {
+    return;
+  }
+  const breweries = (state.structures || []).filter(
+    (structure) => structure.type === "brewery",
+  );
+  if (breweries.length === 0) {
+    const hasBlockingBuild = state.jobs.some((job) => {
+      if (job.type === "build" && job.structureType !== "watchtower") {
+        return true;
+      }
+      return false;
+    });
+    if (hasBlockingBuild) {
+      return;
+    }
+    if (!state.jobs.some((job) => job.type === "build" && job.structureType === "brewery")) {
+      const buildJob = createBreweryBuildJob(state, config, runtime);
+      if (buildJob && brewers.length > 0) {
+        const dwarf = brewers.shift();
+        if (!dwarf) {
+          return;
+        }
+        buildJob.dwarfId = dwarf.id;
+        dwarf.job = buildJob;
+        state.jobs.push(buildJob);
+      }
+    }
+    return;
+  }
+
+  const workersByBrewery = {};
+  for (const job of state.jobs) {
+    if (job.type !== "brewery" || !job.structureId) {
+      continue;
+    }
+    workersByBrewery[job.structureId] =
+      Number(workersByBrewery[job.structureId] || 0) + 1;
+  }
+
+  for (const brewery of breweries) {
+    const active = Number(workersByBrewery[brewery.id] || 0);
+    let openSlots = workersPer - active;
+    while (openSlots > 0 && brewers.length > 0) {
+      const dwarf = brewers.shift();
+      if (!dwarf) {
+        return;
+      }
+      const job = {
+        id: `job_${state.jobCounter++}`,
+        type: "brewery",
+        structureId: brewery.id,
+        target: { x: brewery.x, y: brewery.y },
+        workRemaining: 1,
+        dwarfId: dwarf.id,
+      };
+      dwarf.job = job;
+      state.jobs.push(job);
+      openSlots -= 1;
+    }
+    if (brewers.length === 0) {
+      return;
+    }
+  }
+}
+
 // Assign mining jobs to keep miners stationed at mines.
 function assignMineJobs(state, config, idleDwarves, roleConfig, emergency) {
   const mineConfig = (config.structures && config.structures.mine) || {};
@@ -535,7 +618,11 @@ function assignStructureUpgradeJob(
     return;
   }
   const candidates = (state.structures || []).filter(
-    (structure) => structure.type === "mine" || structure.type === "sawmill",
+    (structure) => (
+      structure.type === "mine"
+      || structure.type === "sawmill"
+      || structure.type === "brewery"
+    ),
   );
   if (candidates.length === 0) {
     return;

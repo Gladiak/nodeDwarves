@@ -36,6 +36,9 @@ function updateRoles(state, config) {
   )).length;
 
   for (const dwarf of adults) {
+    if (dwarf.roleLocked) {
+      continue;
+    }
     if (dwarf.role === 'builder' || dwarf.role === 'gatherer' || dwarf.role === 'manager') {
       continue;
     }
@@ -59,6 +62,9 @@ function updateRoles(state, config) {
         if (managerCount >= targetManagers) {
           break;
         }
+        if (dwarf.roleLocked) {
+          continue;
+        }
         if (dwarf.role !== 'builder') {
           continue;
         }
@@ -73,6 +79,9 @@ function updateRoles(state, config) {
       for (const dwarf of adults) {
         if (managerCount <= targetManagers) {
           break;
+        }
+        if (dwarf.roleLocked) {
+          continue;
         }
         if (dwarf.role !== 'manager') {
           continue;

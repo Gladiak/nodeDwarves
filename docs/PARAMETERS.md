@@ -74,7 +74,7 @@ Display and layout:
 - `display.dwarves.maxVisible`: max dwarves to render on the map (0 = show all).
 - `display.colors.enabled`: enable ANSI colors in the render.
 - `display.colors.reset`: ANSI reset sequence (defaults to `\u001b[0m`).
-- `display.colors.map.<key>`: ANSI color for an entity key (e.g. `dwarf`, `merchant`, `house`, `food`).
+- `display.colors.map.<key>`: ANSI color for an entity key (e.g. `dwarf`, `merchant`, `house`, `food`, `hud_header`).
 - `display.colors.map.weather_<type>`: ANSI color for HUD weather labels (e.g. `weather_rain`).
 - `display.colors.map.terrain_<type>`: ANSI color for terrain tiles (`terrain_river`, `terrain_lake`, `terrain_mountain`, `terrain_hill`, `terrain_plain`, `terrain_fertile`, `terrain_food`, `terrain_forest`, `terrain_stone`).
 
@@ -84,11 +84,27 @@ Events:
 
 Resources:
 
-- `resources.stockpile.<resource>`: initial stockpile amounts (e.g. `food`, `water`, `wood`, `stone`, `iron`, `mithril`, `adamantio`, `mana_crystal`).
+- `resources.stockpile.<resource>`: initial stockpile amounts (e.g. `food`, `water`, `beer`, `wood`, `stone`, `iron`, `mithril`, `adamantio`, `mana_crystal`).
 - `resources.targets.<resource>`: target stockpile amounts used for shortages and stockpile ratios.
 - `resources.labels.<resource>`: HUD label overrides for stockpile resources (falls back to the resource id).
 - `resources.useTerrainTiles`: gather resources directly from terrain tiles when available.
 - `resources.terrainAllowed.<resource>`: allowed terrain tile types for resource placement and terrain gathering.
+
+Needs and consumption:
+
+- `consumption.beerRelief`: thirst relief per beer consumed.
+- `consumption.beerMoraleGain`: morale boost gained per beer consumed.
+- `consumption.beerMoraleDecayPerTick`: per-tick decay applied to the beer morale boost.
+- `consumption.beerMoraleMax`: maximum beer morale boost (0..1).
+
+Morale:
+
+- `morale.gatherTicks.enabled`: enable morale-based gather tick adjustments.
+- `morale.gatherTicks.moraleMin`: morale where the gather tick bonus starts (0..1).
+- `morale.gatherTicks.moraleMax`: morale where the gather tick bonus reaches max (0..1).
+- `morale.gatherTicks.bonusMax`: maximum gather tick reduction ratio (0..1).
+- `morale.gatherTicks.exponent`: curve exponent for morale scaling.
+- `morale.gatherTicks.resources`: resource ids affected by morale-based gather ticks.
 
 Raids:
 
@@ -236,6 +252,29 @@ Structures (workshop):
 - `structures.workshop.buildOuterBuffer`: extra distance beyond the current village perimeter (houses).
 - `structures.workshop.buildTicks`: ticks required to build a workshop.
 - `structures.workshop.buildCost.<resource>`: resource costs to build a workshop.
+
+Structures (brewery):
+
+- `structures.brewery.count`: initial brewery count.
+- `structures.brewery.maxCount`: maximum breweries allowed.
+- `structures.brewery.workersPerBrewery`: workers assigned per brewery.
+- `structures.brewery.buildMinRadius`: minimum Manhattan radius from village center.
+- `structures.brewery.buildOuterBuffer`: extra distance beyond the current village perimeter (houses).
+- `structures.brewery.buildTicks`: ticks required to build a brewery.
+- `structures.brewery.buildCost.<resource>`: resource costs to build a brewery.
+- `structures.brewery.outputPerTick.<resource>`: per-worker output applied each tick while brewing.
+- `structures.brewery.foodCostPerTick`: base food consumed per tick while brewing.
+- `structures.brewery.levelMax`: maximum brewery level.
+- `structures.brewery.levelBonusMin`: bonus at level 1 (fraction).
+- `structures.brewery.levelBonusMax`: bonus at max level (fraction).
+- `structures.brewery.levelBonusExponent`: curve exponent for level bonuses.
+- `structures.brewery.foodCostReductionMin`: food cost reduction at level 1 (fraction).
+- `structures.brewery.foodCostReductionMax`: food cost reduction at max level (fraction).
+- `structures.brewery.foodCostReductionExponent`: curve exponent for cost reductions.
+- `structures.brewery.upgradeTicks`: ticks required per level upgrade.
+- `structures.brewery.upgradeCostScale`: exponential multiplier per level.
+- `structures.brewery.upgradeBaseCost.<resource>`: base upgrade costs.
+- `structures.brewery.brewmasterInitial`: number of initial dwarves locked as brewmasters.
 
 Structures (sawmill):
 

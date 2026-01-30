@@ -124,17 +124,20 @@
         "terrain_stone": "\u001b[37m",
         "dwarf": "\u001b[93m",
         "merchant": "\u001b[96m",
+        "hud_header": "\u001b[96m",
         "house": "\u001b[91m",
         "mine": "\u001b[37m",
         "workshop": "\u001b[36m",
         "sawmill": "\u001b[33m",
         "watchtower": "\u001b[37m",
+        "brewery": "\u001b[35m",
         "beast": "\u001b[91m",
         "food": "\u001b[32m",
         "water": "\u001b[34m",
         "wood": "\u001b[33m",
         "stone": "\u001b[90m",
         "iron": "\u001b[37m",
+        "beer": "\u001b[33m",
         "weather_clear": "\u001b[37m",
         "weather_rain": "\u001b[34m",
         "weather_storm": "\u001b[33m",
@@ -308,9 +311,9 @@
         },
         "consumption": {
           "hungerThreshold": 0.33,
-          "thirstThreshold": 0.33,
+          "thirstThreshold": 0.28,
           "hungerTarget": 0.33,
-          "thirstTarget": 0.33,
+          "thirstTarget": 0.23,
           "rawFoodRelief": 0.33,
           "waterRelief": 0.33
         },
@@ -394,9 +397,9 @@
         },
         "consumption": {
           "hungerThreshold": 0.3,
-          "thirstThreshold": 0.3,
+          "thirstThreshold": 0.25,
           "hungerTarget": 0.3,
-          "thirstTarget": 0.3,
+          "thirstTarget": 0.2,
           "rawFoodRelief": 0.35,
           "waterRelief": 0.35
         },
@@ -485,9 +488,9 @@
             },
             "consumption": {
               "hungerThreshold": 0.3,
-              "thirstThreshold": 0.3,
+              "thirstThreshold": 0.25,
               "hungerTarget": 0.3,
-              "thirstTarget": 0.3,
+              "thirstTarget": 0.2,
               "rawFoodRelief": 0.35,
               "waterRelief": 0.35
             },
@@ -567,9 +570,9 @@
             },
             "consumption": {
               "hungerThreshold": 0.32,
-              "thirstThreshold": 0.32,
+              "thirstThreshold": 0.27,
               "hungerTarget": 0.32,
-              "thirstTarget": 0.32,
+              "thirstTarget": 0.22,
               "rawFoodRelief": 0.34,
               "waterRelief": 0.34
             },
@@ -762,6 +765,7 @@
     "stockpile": {
       "food": 40,
       "water": 40,
+      "beer": 0,
       "wood": 8,
       "stone": 6,
       "iron": 0,
@@ -778,6 +782,7 @@
     "labels": {
       "food": "Food",
       "water": "Water",
+      "beer": "Beer",
       "wood": "Wood",
       "stone": "Stone",
       "iron": "Iron",
@@ -849,7 +854,7 @@
           "capacity": 2
         },
         "2": {
-          "capacity": 4,
+          "capacity": 46,
           "upgradeTicks": 14,
           "upgradeCost": {
             "wood": 3,
@@ -857,7 +862,7 @@
           }
         },
         "3": {
-          "capacity": 5,
+          "capacity": 8,
           "upgradeTicks": 19,
           "upgradeCost": {
             "wood": 5,
@@ -865,7 +870,7 @@
           }
         },
         "4": {
-          "capacity": 6,
+          "capacity": 10,
           "upgradeTicks": 24,
           "upgradeCost": {
             "wood": 6,
@@ -873,7 +878,7 @@
           }
         },
         "5": {
-          "capacity": 7,
+          "capacity": 15,
           "upgradeTicks": 28,
           "upgradeCost": {
             "wood": 8,
@@ -881,7 +886,7 @@
           }
         },
         "6": {
-          "capacity": 8,
+          "capacity": 20,
           "upgradeTicks": 32,
           "upgradeCost": {
             "wood": 8,
@@ -889,7 +894,7 @@
           }
         },
         "7": {
-          "capacity": 9,
+          "capacity": 25,
           "upgradeTicks": 38,
           "upgradeCost": {
             "wood": 10,
@@ -897,7 +902,7 @@
           }
         },
         "8": {
-          "capacity": 10,
+          "capacity": 35,
           "upgradeTicks": 42,
           "upgradeCost": {
             "wood": 11,
@@ -905,7 +910,7 @@
           }
         },
         "9": {
-          "capacity": 11,
+          "capacity": 50,
           "upgradeTicks": 46,
           "upgradeCost": {
             "wood": 13,
@@ -1041,6 +1046,37 @@
         "stone": 10,
         "iron": 6
       }
+    },
+    "brewery": {
+      "count": 0,
+      "capacity": 1,
+      "workersPerBrewery": 1,
+      "maxCount": 1,
+      "buildMinRadius": 2,
+      "buildOuterBuffer": 1,
+      "buildTicks": 60,
+      "buildCost": {
+        "wood": 12,
+        "stone": 10
+      },
+      "outputPerTick": {
+        "beer": 0.25
+      },
+      "foodCostPerTick": 0.15,
+      "levelMax": 10,
+      "levelBonusMin": 0.05,
+      "levelBonusMax": 0.5,
+      "levelBonusExponent": 2,
+      "foodCostReductionMin": 0,
+      "foodCostReductionMax": 0.25,
+      "foodCostReductionExponent": 2,
+      "upgradeTicks": 45,
+      "upgradeCostScale": 1.25,
+      "upgradeBaseCost": {
+        "wood": 6,
+        "stone": 4
+      },
+      "brewmasterInitial": 1
     },
     "mine": {
       "count": 1,
@@ -1396,12 +1432,26 @@
   },
   "consumption": {
     "hungerThreshold": 0.3,
-    "thirstThreshold": 0.3,
+    "thirstThreshold": 0.25,
     "hungerTarget": 0.3,
-    "thirstTarget": 0.3,
-    "maxUnitsPerTick": 2,
+    "thirstTarget": 0.2,
+    "maxUnitsPerTick": 1,
     "rawFoodRelief": 0.35,
-    "waterRelief": 0.35
+    "waterRelief": 0.35,
+    "beerRelief": 0.5,
+    "beerMoraleGain": 0.08,
+    "beerMoraleDecayPerTick": 0.002,
+    "beerMoraleMax": 0.18
+  },
+  "morale": {
+    "gatherTicks": {
+      "enabled": true,
+      "moraleMin": 0.7,
+      "moraleMax": 0.95,
+      "bonusMax": 0.15,
+      "exponent": 1.6,
+      "resources": ["food", "water", "wood", "stone"]
+    }
   },
   "jobs": {
     "defaultGatherTicks": 6,
@@ -1432,11 +1482,13 @@
     "mithril": "m",
     "adamantio": "a",
     "mana_crystal": "c",
+    "beer": "b",
     "house": "h",
     "well": "O",
     "field": "c",
     "mine": "M",
     "workshop": "W",
+    "brewery": "B",
     "sawmill": "S",
     "watchtower": "#"
   }

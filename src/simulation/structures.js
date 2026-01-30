@@ -43,7 +43,7 @@ function createStructure(state, config, type, x, y) {
     structure.capacity = capacity;
   }
 
-  if (type === 'mine' || type === 'sawmill') {
+  if (type === 'mine' || type === 'sawmill' || type === 'brewery') {
     const levelMax = Math.max(1, Number(structureConfig.levelMax || 1));
     structure.level = Math.min(1, levelMax);
   }
@@ -430,6 +430,43 @@ function createWorkshopBuildJob(state, config, runtime) {
     id: `job_${state.jobCounter++}`,
     type: 'build',
     structureType: 'workshop',
+    target,
+    workRemaining: buildTicks,
+    dwarfId: null,
+  };
+}
+
+// Create a brewery build job when no brewery exists.
+function createBreweryBuildJob(state, config, runtime) {
+  const breweryConfig = (config.structures && config.structures.brewery) || {};
+  const maxCount = Number(breweryConfig.maxCount ?? 0);
+  const existing = (state.structures || []).filter((structure) => structure.type === 'brewery').length;
+  if (maxCount > 0 && existing >= maxCount) {
+    return null;
+  }
+  if (existing > 0) {
+    return null;
+  }
+
+  const buildCost = breweryConfig.buildCost || {};
+  if (Object.keys(buildCost).length > 0 && !hasInputs(state.stockpile, buildCost)) {
+    return null;
+  }
+
+  const target = findPeripheralBuildSpot(state, runtime, breweryConfig);
+  if (!target) {
+    return null;
+  }
+
+  if (Object.keys(buildCost).length > 0) {
+    consumeInputs(state.stockpile, buildCost);
+  }
+
+  const buildTicks = Math.max(1, Number(breweryConfig.buildTicks || 55));
+  return {
+    id: `job_${state.jobCounter++}`,
+    type: 'build',
+    structureType: 'brewery',
     target,
     workRemaining: buildTicks,
     dwarfId: null,
@@ -1820,6 +1857,7 @@ module.exports = {
   createFieldBuildJob,
   createSawmillBuildJob,
   createWorkshopBuildJob,
+  createBreweryBuildJob,
   createMineBuildJob,
   createManagedWellBuildJob,
   createManagedFieldBuildJob,

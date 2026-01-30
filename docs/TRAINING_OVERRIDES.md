@@ -116,6 +116,20 @@ Structures:
 - `structures.field.buildMinResources.<resource>`: minimum stockpile ratio required before building fields.
 - `structures.field.irrigationMinMultiplier`: minimum field regen multiplier when water is scarce.
 - `structures.field.irrigationMaxMultiplier`: maximum field regen multiplier when water is abundant.
+- `structures.brewery.workersPerBrewery`: workers assigned per brewery.
+- `structures.brewery.outputPerTick.<resource>`: per-worker output applied each tick while brewing.
+- `structures.brewery.foodCostPerTick`: base food consumed per tick while brewing.
+- `structures.brewery.levelMax`: maximum brewery level.
+- `structures.brewery.levelBonusMin`: bonus at level 1 (fraction).
+- `structures.brewery.levelBonusMax`: bonus at max level (fraction).
+- `structures.brewery.levelBonusExponent`: curve exponent for level bonuses.
+- `structures.brewery.foodCostReductionMin`: food cost reduction at level 1 (fraction).
+- `structures.brewery.foodCostReductionMax`: food cost reduction at max level (fraction).
+- `structures.brewery.foodCostReductionExponent`: curve exponent for cost reductions.
+- `structures.brewery.upgradeTicks`: ticks required per level upgrade.
+- `structures.brewery.upgradeCostScale`: exponential multiplier per level.
+- `structures.brewery.upgradeBaseCost.<resource>`: base upgrade costs.
+- `structures.brewery.brewmasterInitial`: number of initial dwarves locked as brewmasters.
 
 Seasons:
 

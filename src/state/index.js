@@ -188,9 +188,9 @@ function createStructures(config, runtime, occupied, terrain) {
       if (level) {
         structure.level = level;
       }
-      if ((type === 'mine' || type === 'sawmill') && levelMax) {
-        structure.level = 1;
-      }
+    if ((type === 'mine' || type === 'sawmill' || type === 'brewery') && levelMax) {
+      structure.level = 1;
+    }
       structures.push(structure);
       occupied.add(positionKey(pos.x, pos.y));
     }
@@ -291,7 +291,7 @@ function createDwarves(config, runtime, occupied, terrain) {
   const minAge = Number(initialAgeRange.min ?? aging.adultAge ?? 0);
   const maxAge = Number(initialAgeRange.max ?? aging.fertileEnd ?? minAge);
 
-  return positions.map((pos, index) => {
+  const dwarves = positions.map((pos, index) => {
     const ageTicks = clamp(randomBetween(minAge, maxAge), 0, Number(aging.maxAge || maxAge || 0));
     const isAdult = ageTicks >= Number(aging.adultAge || 0);
     const role = roles.enabled && isAdult
@@ -309,6 +309,7 @@ function createDwarves(config, runtime, occupied, terrain) {
       state: {
         health: 1,
         morale: 1,
+        moraleBoostBeer: 0,
         stress: 0,
         fatigue: 0,
       },
@@ -322,6 +323,26 @@ function createDwarves(config, runtime, occupied, terrain) {
       starvationTicks: 0,
     };
   });
+
+  const breweryConfig = config.structures && config.structures.brewery;
+  const brewmasterCount = Math.max(0, Number(breweryConfig && breweryConfig.brewmasterInitial || 0));
+  if (brewmasterCount > 0) {
+    let assigned = 0;
+    const adultAge = Number(aging.adultAge || 0);
+    for (const dwarf of dwarves) {
+      if (assigned >= brewmasterCount) {
+        break;
+      }
+      if (Number(dwarf.ageTicks || 0) < adultAge) {
+        continue;
+      }
+      dwarf.role = 'brewmaster';
+      dwarf.roleLocked = true;
+      assigned += 1;
+    }
+  }
+
+  return dwarves;
 }
 
 // Build a predicate for allowed terrain types.

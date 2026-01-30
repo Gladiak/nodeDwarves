@@ -811,6 +811,7 @@ function spawnNewborn(state, config, parentA, parentB) {
     state: {
       health: 1,
       morale: 1,
+      moraleBoostBeer: 0,
       stress: 0,
       fatigue: 0,
     },
@@ -862,8 +863,16 @@ function consumeResources(dwarf, stockpile, consumption) {
   const maxUnitsPerTick = Math.max(1, Number(consumption.maxUnitsPerTick ?? 1));
   const mealRelief = Number(consumption.mealRelief ?? 0.5);
   const rawFoodRelief = Number(consumption.rawFoodRelief ?? 0.35);
-  const boozeRelief = Number(consumption.boozeRelief ?? 0.5);
+  const beerRelief = Number(consumption.beerRelief ?? 0.5);
   const waterRelief = Number(consumption.waterRelief ?? 0.35);
+  const beerMoraleGain = Math.max(0, Number(consumption.beerMoraleGain ?? 0));
+  const beerMoraleDecay = Math.max(0, Number(consumption.beerMoraleDecayPerTick ?? 0));
+  const beerMoraleMax = clamp(Number(consumption.beerMoraleMax ?? 0), 0, 1);
+  let moraleBoost = Number(dwarf.state.moraleBoostBeer);
+  if (!Number.isFinite(moraleBoost)) {
+    moraleBoost = 0;
+  }
+  moraleBoost = Math.max(0, moraleBoost - beerMoraleDecay);
 
   let hunger = Number(dwarf.needs.hunger || 0);
   if (hunger >= hungerThreshold) {
@@ -888,10 +897,13 @@ function consumeResources(dwarf, stockpile, consumption) {
   if (thirst >= thirstThreshold) {
     let units = 0;
     while (units < maxUnitsPerTick && thirst > thirstTarget) {
-      if (Number(stockpile.booze || 0) > 0) {
-        stockpile.booze -= 1;
-        thirst = clamp(thirst - boozeRelief, 0, 1);
+      if (Number(stockpile.beer || 0) > 0) {
+        stockpile.beer -= 1;
+        thirst = clamp(thirst - beerRelief, 0, 1);
         dwarf.needs.thirst = thirst;
+        if (beerMoraleGain > 0 && beerMoraleMax > 0) {
+          moraleBoost = Math.min(beerMoraleMax, moraleBoost + beerMoraleGain);
+        }
       } else if (Number(stockpile.water || 0) > 0) {
         stockpile.water -= 1;
         thirst = clamp(thirst - waterRelief, 0, 1);
@@ -902,14 +914,17 @@ function consumeResources(dwarf, stockpile, consumption) {
       units += 1;
     }
   }
+
+  dwarf.state.moraleBoostBeer = moraleBoost;
 }
 
 // Update derived mood metrics from current needs.
 function updateDerivedState(dwarf) {
   const values = Object.values(dwarf.needs);
   const avgNeed = values.length > 0 ? values.reduce((sum, v) => sum + v, 0) / values.length : 0;
+  const moraleBoost = clamp(Number(dwarf.state.moraleBoostBeer || 0), 0, 1);
 
-  dwarf.state.morale = clamp(1 - avgNeed, 0, 1);
+  dwarf.state.morale = clamp(1 - avgNeed + moraleBoost, 0, 1);
   dwarf.state.stress = clamp(avgNeed, 0, 1);
   dwarf.state.fatigue = clamp(avgNeed, 0, 1);
 }

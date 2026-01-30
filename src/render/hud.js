@@ -29,6 +29,7 @@ function buildHudColumns(state, config, columnWidth) {
   const dwarves = state.dwarves;
   const avgNeeds = averageNeeds(dwarves);
   const avgMorale = averageValue(dwarves, (d) => d.state.morale);
+  const avgMoraleBoost = averageValue(dwarves, (d) => d.state.moraleBoostBeer);
   const avgStress = averageValue(dwarves, (d) => d.state.stress);
   const idleCount = dwarves.filter((dwarf) => !dwarf.job).length;
   const topPriority =
@@ -47,6 +48,9 @@ function buildHudColumns(state, config, columnWidth) {
   ).length;
   const workshopCount = structures.filter(
     (structure) => structure.type === "workshop",
+  ).length;
+  const breweryCount = structures.filter(
+    (structure) => structure.type === "brewery",
   ).length;
   const sawmillCount = structures.filter(
     (structure) => structure.type === "sawmill",
@@ -90,55 +94,39 @@ function buildHudColumns(state, config, columnWidth) {
   const hudConfig = (config.display && config.display.hud) || {};
   const stockBarMax = Number(hudConfig.stockBarMax || 0);
   const colors = getColorConfig(config);
+  const header = (label) => applyColor(label, "hud_header", colors);
 
   const left = [];
-  left.push("World");
+  left.push(header("World"));
   left.push(`Tick: ${state.tick}`);
   left.push(`Year ${yearLabel}, Season ${seasonLabel}`);
   left.push(`Weather: ${formatWeatherStatus(state.weather, colors)}`);
   left.push(`Event: ${lastEvent}`);
   left.push(`Merchant: ${formatMerchantStatus(state.merchant)}`);
-  left.push("");
-  left.push(
-    `Pop: ${dwarves.length} (C:${stageCounts.child}/A:${stageCounts.adult}/E:${stageCounts.elder})`,
-  );
+  left.push(header("Population"));
+  left.push(`Pop: ${dwarves.length} (C:${stageCounts.child}/A:${stageCounts.adult}/E:${stageCounts.elder})`);
   left.push(`Idle: ${idleCount}`);
   left.push(`Jobs: ${state.jobs.length}`);
+  left.push(`Morale: ${avgMorale.toFixed(2)} (+${avgMoraleBoost.toFixed(2)})`);
+  left.push(`Stress: ${avgStress.toFixed(2)}`);
   left.push(formatBondingLine(state, config));
   left.push(formatReproBlocksLine(state));
-  left.push("");
+  left.push(header("Housing"));
   left.push(`Houses: ${houseCount}`);
   left.push(`Beds: ${bedsTotal}`);
   left.push(`Housing ratio: ${housingRatio.toFixed(2)}`);
-  left.push("");
-  left.push(`Wells: ${wellCount}`);
-  left.push(`Fields: ${fieldCount}`);
-  left.push(`Workshop: ${workshopCount}`);
-  left.push(`Sawmills: ${sawmillCount}`);
-  left.push(`Mines: ${mineCount}`);
-  if (state.tools) {
-    const maxLevel = Math.max(1, Number(state.tools.maxLevel || 1));
-    const level = Math.min(
-      maxLevel,
-      Math.max(1, Number(state.tools.level || 1)),
-    );
-    left.push(`Tools: L${level}/${maxLevel}`);
-  }
-  const structureLevels = getStructureLevelSummary(structures);
-  if (structureLevels) {
-    left.push(structureLevels);
-  }
-  left.push("");
+  left.push(header("Defense"));
   left.push(`Towers: ${watchtowerCount}`);
   left.push(`Tower def: ${Math.round(towerDefense * 100)}%`);
   left.push(`Priority: ${topPriority}`);
-  left.push("");
-  left.push("Welfare");
+
+  const right = [];
+  right.push(header("Welfare"));
 
   const hungerValue = Number(avgNeeds.hunger ?? 0);
   const thirstValue = Number(avgNeeds.thirst ?? 0);
 
-  left.push(
+  right.push(
     formatBarLine(
       "Hunger",
       hungerValue,
@@ -146,7 +134,7 @@ function buildHudColumns(state, config, columnWidth) {
       columnWidth,
     ),
   );
-  left.push(
+  right.push(
     formatBarLine(
       "Thirst",
       thirstValue,
@@ -155,11 +143,28 @@ function buildHudColumns(state, config, columnWidth) {
     ),
   );
 
-  left.push(`Morale: ${avgMorale.toFixed(2)}`);
-  left.push(`Stress: ${avgStress.toFixed(2)}`);
+  right.push(header("Structures"));
+  right.push(fitLine(`Wells: ${wellCount}  Fields: ${fieldCount}`, columnWidth));
+  right.push(
+    fitLine(`Workshop: ${workshopCount}  Brewery: ${breweryCount}`, columnWidth),
+  );
+  right.push(
+    fitLine(`Sawmills: ${sawmillCount}  Mines: ${mineCount}`, columnWidth),
+  );
+  if (state.tools) {
+    const maxLevel = Math.max(1, Number(state.tools.maxLevel || 1));
+    const level = Math.min(
+      maxLevel,
+      Math.max(1, Number(state.tools.level || 1)),
+    );
+    right.push(`Tools: L${level}/${maxLevel}`);
+  }
+  const structureLevels = getStructureLevelSummary(structures, columnWidth);
+  if (structureLevels) {
+    right.push(fitLine(structureLevels, columnWidth));
+  }
 
-  const right = [];
-  right.push("Stockpile");
+  right.push(header("Stockpile"));
 
   for (const [id, count] of Object.entries(state.stockpile)) {
     const target = Number(targets[id] || 0);
@@ -171,20 +176,6 @@ function buildHudColumns(state, config, columnWidth) {
         : formatCompactNumber(count);
     const label = resourceLabels[id] || id;
     right.push(formatBarLine(label, ratio, detail, columnWidth));
-  }
-
-  const storage = state.houseStorage;
-  right.push("");
-  right.push("Queue");
-  right.push(`Priority: ${topPriority}`);
-
-  const queue = (state.lastPriorities || []).slice(0, 3);
-  if (queue.length === 0) {
-    right.push("-");
-  } else {
-    for (const entry of queue) {
-      right.push(`${entry.resource}: ${formatCompactNumber(entry.missing)}`);
-    }
   }
 
   return { left, right };
@@ -510,29 +501,58 @@ function averageValue(dwarves, selector) {
 }
 
 // Summarize mine/sawmill levels for the HUD.
-function getStructureLevelSummary(structures) {
+function getStructureLevelSummary(structures, maxWidth) {
   if (!Array.isArray(structures)) {
     return "";
   }
-  const summary = [];
-  const mineLevels = structures.filter(
-    (s) => s.type === "mine" && Number.isFinite(Number(s.level)),
-  );
-  if (mineLevels.length > 0) {
-    const level = Math.round(Number(mineLevels[0].level || 1));
-    summary.push(`Mine L${level}`);
-  }
-  const sawmillLevels = structures.filter(
-    (s) => s.type === "sawmill" && Number.isFinite(Number(s.level)),
-  );
-  if (sawmillLevels.length > 0) {
-    const level = Math.round(Number(sawmillLevels[0].level || 1));
-    summary.push(`Sawmill L${level}`);
-  }
-  if (summary.length === 0) {
+  const entries = [];
+  const collectLevel = (type, label, shortLabel) => {
+    const match = structures.find(
+      (structure) => structure.type === type && Number.isFinite(Number(structure.level)),
+    );
+    if (!match) {
+      return;
+    }
+    const level = Math.round(Number(match.level || 1));
+    entries.push({ label, shortLabel, level });
+  };
+
+  collectLevel("mine", "Mine", "Mi");
+  collectLevel("sawmill", "Sawmill", "Sm");
+  collectLevel("brewery", "Brewery", "Br");
+
+  if (entries.length === 0) {
     return "";
   }
-  return summary.join(" | ");
+
+  const formatEntry = (entry, label, includeL, compactLevel) => {
+    if (includeL) {
+      return `${label} L${entry.level}`;
+    }
+    if (compactLevel) {
+      return `${label}${entry.level}`;
+    }
+    return `${label} ${entry.level}`;
+  };
+
+  const summaries = [
+    entries.map((entry) => formatEntry(entry, entry.label, true, false)).join(" | "),
+    entries.map((entry) => formatEntry(entry, entry.shortLabel, true, false)).join(" | "),
+    entries.map((entry) => formatEntry(entry, entry.shortLabel, false, true)).join(" "),
+  ];
+
+  const width = Math.max(0, Number(maxWidth || 0));
+  if (width <= 0) {
+    return summaries[0];
+  }
+
+  for (const summary of summaries) {
+    if (fitLine(summary, width) === summary) {
+      return summary;
+    }
+  }
+
+  return fitLine(summaries[summaries.length - 1], width);
 }
 
 module.exports = {

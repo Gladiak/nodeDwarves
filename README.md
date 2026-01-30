@@ -20,8 +20,8 @@ alive while you watch the chaos unfold in ASCII.
 ## Highlights ✨
 
 - 🧠 Fully autonomous simulation with a real-time ASCII renderer.
-- 🧺 Resource economy with food, water, wood, stone, iron, mithril, adamantium, and mana crystal.
-- 🏘️ Village growth: houses (beds), wells (water nodes), fields (food nodes), sawmills (wood), workshops (tools), mines (iron/stone + rare drops).
+- 🧺 Resource economy with food, water, beer, wood, stone, iron, mithril, adamantium, and mana crystal.
+- 🏘️ Village growth: houses (beds), wells (water nodes), fields (food nodes), breweries (beer), sawmills (wood), workshops (tools), mines (iron/stone + rare drops).
 - ❄️ Seasons + housing effects (bonding, winter penalties).
 - 🌦️ Dynamic weather cycle that reshapes needs, gathering, and regeneration.
 - 🎓 PPO training in Python with JS-only inference.
@@ -65,6 +65,7 @@ alive while you watch the chaos unfold in ASCII.
 - 💧 Wells are built when water stocks or water node reserves dip below thresholds.
 - 🌱 Fields are built when food stocks or food node reserves dip below thresholds and baseline stockpiles are safe.
 - 🪚 Sawmills convert stone + iron investment into steady wood output.
+- 🍺 Breweries convert food into beer with a dedicated brewmaster; upgrades boost output while reducing food cost. Beer boosts morale, and high morale speeds up gathering.
 - 🛠️ Workshops unlock tool upgrades that boost all gathering yields, including mines.
 - ⛏️ Mines and 🪚 sawmills can be upgraded to level 10 for higher output (exponential cost/bonus).
 - ⛏️ Mines are built on mountain terrain when none exist, and miners output iron + stone per tick plus rare minerals from level 5+.
@@ -295,10 +296,8 @@ Open a PR or start a discussion with your ideas.
 
 ## Roadmap ideas 🧭
 
-- Brewery + "Brewmaster": one of the initial dwarves is dedicated to the brewery and converts food into beer throughout the simulation. The brewery has 10 levels: each level increases production while reducing the food consumed.
 - Simple disease system tied to crowding and hygiene.
-- Colony morale events that influence productivity and bonding.
-- Village security upgrades (watchtowers, winter shelters).
+- Village security upgrades (winter shelters).
 
 ## License 📄
 

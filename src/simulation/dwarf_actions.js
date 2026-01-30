@@ -11,7 +11,14 @@ const {
 const { randomBetween } = require('./random');
 const { isWalkableTile, isTerrainResourceTile, pickTerrainResourceTarget } = require('./terrain');
 const { createStructure, getHouseMaxLevel, getHouseCapacity, isBuildableCell } = require('./structures');
-const { createResourceNode, getGatherYield, getToolMultiplier, applyOutputs } = require('./resources');
+const {
+  createResourceNode,
+  getGatherYield,
+  getToolMultiplier,
+  hasInputs,
+  consumeInputs,
+  applyOutputs,
+} = require('./resources');
 
 // Process the dwarf's per-tick action (panic, job, or idle).
 function processDwarfAction(dwarf, state, config, runtime) {
@@ -309,6 +316,18 @@ function processDwarfJob(dwarf, state, config, runtime) {
     targetY = clamp(targetStructure.y, 0, runtime.gridHeight - 1);
     job.target = { x: targetX, y: targetY };
   }
+  if (job.type === 'brewery') {
+    targetStructure = findStructureById(state.structures, job.structureId);
+    if (!targetStructure || targetStructure.type !== 'brewery') {
+      removeJob(state, job.id);
+      dwarf.job = null;
+      return;
+    }
+
+    targetX = clamp(targetStructure.x, 0, runtime.gridWidth - 1);
+    targetY = clamp(targetStructure.y, 0, runtime.gridHeight - 1);
+    job.target = { x: targetX, y: targetY };
+  }
 
   if (!isWalkableTile(state, targetX, targetY)) {
     removeJob(state, job.id);
@@ -341,6 +360,22 @@ function processDwarfJob(dwarf, state, config, runtime) {
     if (output) {
       applyOutputs(state.stockpile, output);
     }
+    return;
+  }
+  if (job.type === 'brewery') {
+    const output = getBreweryOutput(state, config, targetStructure);
+    if (!output || Object.keys(output).length === 0) {
+      return;
+    }
+    const cost = getBreweryFoodCost(state, config, targetStructure);
+    if (cost > 0) {
+      const inputs = { food: cost };
+      if (!hasInputs(state.stockpile, inputs)) {
+        return;
+      }
+      consumeInputs(state.stockpile, inputs);
+    }
+    applyOutputs(state.stockpile, output);
     return;
   }
 
@@ -561,6 +596,56 @@ function getSawmillOutput(state, config, structure) {
     output[resource] = Number(amount || 0) * multiplier;
   }
   return output;
+}
+
+// Resolve brewery outputs per tick from config.
+function getBreweryOutput(state, config, structure) {
+  const breweryConfig = config.structures && config.structures.brewery;
+  if (!breweryConfig || !breweryConfig.outputPerTick) {
+    return null;
+  }
+  const multiplier = getStructureLevelMultiplier(structure, breweryConfig);
+  const output = {};
+  for (const [resource, amount] of Object.entries(breweryConfig.outputPerTick)) {
+    output[resource] = Number(amount || 0) * multiplier;
+  }
+  return output;
+}
+
+// Resolve brewery food costs per tick from config.
+function getBreweryFoodCost(state, config, structure) {
+  const breweryConfig = config.structures && config.structures.brewery;
+  if (!breweryConfig) {
+    return 0;
+  }
+  const base = Number(breweryConfig.foodCostPerTick ?? 0);
+  if (base <= 0) {
+    return 0;
+  }
+  const multiplier = getStructureCostMultiplier(structure, breweryConfig);
+  return Math.max(0, base * multiplier);
+}
+
+// Compute level-based input cost multiplier for a structure.
+function getStructureCostMultiplier(structure, structConfig) {
+  if (!structure || !structConfig) {
+    return 1;
+  }
+  const level = Math.max(1, Number(structure.level || 1));
+  const maxLevel = Math.max(1, Number(structConfig.levelMax || 1));
+  const minReduction = clamp(Number(structConfig.foodCostReductionMin ?? 0), 0, 1);
+  const maxReduction = clamp(
+    Number(structConfig.foodCostReductionMax ?? minReduction),
+    0,
+    1,
+  );
+  if (maxLevel <= 1) {
+    return Math.max(0, 1 - minReduction);
+  }
+  const exponent = Math.max(0.1, Number(structConfig.foodCostReductionExponent || 1));
+  const progress = clamp((level - 1) / (maxLevel - 1), 0, 1);
+  const reduction = minReduction + (maxReduction - minReduction) * Math.pow(progress, exponent);
+  return Math.max(0, 1 - reduction);
 }
 
 // Compute level-based output multiplier for a structure.
