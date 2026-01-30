@@ -13,14 +13,15 @@ alive while you watch the chaos unfold in ASCII.
 - [AI mode (Python)](#ai-mode-python-)
 - [Configuration](#configuration-)
 - [Scenario presets (training)](#scenario-presets-training-)
+- [Roadmap](#roadmap-)
 - [ASCII legend](#ascii-legend-)
 - [Project layout](#project-layout-)
 
 ## Highlights ✨
 
 - 🧠 Fully autonomous simulation with a real-time ASCII renderer.
-- 🧺 Resource economy with food, water, wood, stone, and iron.
-- 🏘️ Village growth: houses (beds), wells (water nodes), fields (food nodes), sawmills (wood), workshops (tools), mines (iron/stone).
+- 🧺 Resource economy with food, water, wood, stone, iron, mithril, adamantium, and mana crystal.
+- 🏘️ Village growth: houses (beds), wells (water nodes), fields (food nodes), sawmills (wood), workshops (tools), mines (iron/stone + rare drops).
 - ❄️ Seasons + housing effects (bonding, winter penalties).
 - 🌦️ Dynamic weather cycle that reshapes needs, gathering, and regeneration.
 - 🎓 PPO training in Python with JS-only inference.
@@ -66,7 +67,7 @@ alive while you watch the chaos unfold in ASCII.
 - 🪚 Sawmills convert stone + iron investment into steady wood output.
 - 🛠️ Workshops unlock tool upgrades that boost all gathering yields, including mines.
 - ⛏️ Mines and 🪚 sawmills can be upgraded to level 10 for higher output (exponential cost/bonus).
-- ⛏️ Mines are built on mountain terrain when none exist, and miners output iron + stone per tick.
+- ⛏️ Mines are built on mountain terrain when none exist, and miners output iron + stone per tick plus rare minerals from level 5+.
 - 🧑‍🏭 Roles (builder/gatherer) can be enabled to keep building stable during shortages.
 - 🧱 Manager builders handle watchtowers, wells, and fields using stockpile-based thresholds.
 - 🧭 Idle dwarves take short waypoint strolls around home (or their current spot) with brief pauses.
@@ -198,6 +199,7 @@ Recent tuning increases `ai.reward.survival`, `ai.reward.populationDelta`, and
 Scenario presets let training sample hard situations on purpose (e.g. water
 scarcity, low stockpiles). Each preset is a config override merged into the
 base config before the usual curriculum randomization scales are applied.
+
 You can optionally ramp a scenario's weight with difficulty using
 `difficultyMin/Max` and the corresponding multipliers.
 
@@ -293,12 +295,9 @@ Open a PR or start a discussion with your ideas.
 
 ## Roadmap ideas 🧭
 
-- Housing maintenance and decay (wood/stone upkeep over time).
-- Storage caps and stockpile prioritization rules.
-- Specialized roles (gatherer, builder, caretaker) with distinct bonuses.
+- Brewery + "Brewmaster": one of the initial dwarves is dedicated to the brewery and converts food into beer throughout the simulation. The brewery has 10 levels: each level increases production while reducing the food consumed.
 - Simple disease system tied to crowding and hygiene.
 - Colony morale events that influence productivity and bonding.
-- Terrain types (fertile, arid, rocky) that affect yields.
 - Village security upgrades (watchtowers, winter shelters).
 
 ## License 📄

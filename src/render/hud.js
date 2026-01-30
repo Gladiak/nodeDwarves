@@ -86,6 +86,7 @@ function buildHudColumns(state, config, columnWidth) {
   const lastEvent = formatLastEvent(state.events);
   const stageCounts = countLifeStages(dwarves);
   const targets = (config.resources && config.resources.targets) || {};
+  const resourceLabels = (config.resources && config.resources.labels) || {};
   const hudConfig = (config.display && config.display.hud) || {};
   const stockBarMax = Number(hudConfig.stockBarMax || 0);
   const colors = getColorConfig(config);
@@ -168,7 +169,8 @@ function buildHudColumns(state, config, columnWidth) {
       maxValue > 0
         ? formatCountDetail(count, maxValue)
         : formatCompactNumber(count);
-    right.push(formatBarLine(id, ratio, detail, columnWidth));
+    const label = resourceLabels[id] || id;
+    right.push(formatBarLine(label, ratio, detail, columnWidth));
   }
 
   const storage = state.houseStorage;

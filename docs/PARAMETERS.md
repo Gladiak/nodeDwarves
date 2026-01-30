@@ -84,8 +84,9 @@ Events:
 
 Resources:
 
-- `resources.stockpile.<resource>`: initial stockpile amounts (e.g. `food`, `water`, `wood`, `stone`, `iron`).
+- `resources.stockpile.<resource>`: initial stockpile amounts (e.g. `food`, `water`, `wood`, `stone`, `iron`, `mithril`, `adamantio`, `mana_crystal`).
 - `resources.targets.<resource>`: target stockpile amounts used for shortages and stockpile ratios.
+- `resources.labels.<resource>`: HUD label overrides for stockpile resources (falls back to the resource id).
 - `resources.useTerrainTiles`: gather resources directly from terrain tiles when available.
 - `resources.terrainAllowed.<resource>`: allowed terrain tile types for resource placement and terrain gathering.
 
@@ -272,6 +273,9 @@ Structures (mines):
 - `structures.mine.upgradeTicks`: ticks required per level upgrade.
 - `structures.mine.upgradeCostScale`: exponential multiplier per level.
 - `structures.mine.upgradeBaseCost.<resource>`: base upgrade costs.
+- `structures.mine.rareDrops.<resource>.minLevel`: minimum mine level required to unlock a rare drop.
+- `structures.mine.rareDrops.<resource>.chance`: per-tick chance per miner to add the rare resource (0..1).
+- `structures.mine.rareDrops.<resource>.amount`: amount added on a successful roll.
 - `structures.mine.preciousChanceMin`: placeholder chance at level 1 for future precious drops.
 - `structures.mine.preciousChanceMax`: placeholder chance at max level for future precious drops.
 

@@ -17,6 +17,7 @@ const {
   createManagedWellBuildJob,
   createManagedFieldBuildJob,
   createManagedWatchtowerBuildJob,
+  findMineBuildSpot,
 } = require("./structures");
 
 // Assign jobs to idle dwarves based on shortages and build needs.
@@ -34,7 +35,8 @@ function assignJobs(state, config, runtime, action) {
     roleConfig.enabled &&
     roleConfig.managerRatio > 0 &&
     state.dwarves.some((dwarf) => dwarf.role === "manager");
-  if (managerActive) {
+  const prioritizeMine = shouldPrioritizeMine(state, config, runtime);
+  if (managerActive && !prioritizeMine) {
     const managers = idleDwarves.filter((dwarf) => dwarf.role === "manager");
     if (managers.length > 0) {
       assignManagedStructureJobs(state, config, runtime, managers);
@@ -53,6 +55,7 @@ function assignJobs(state, config, runtime, action) {
     roleConfig,
     emergency,
     managerActive,
+    prioritizeMine,
   );
   if (idleDwarves.length === 0) {
     return;
@@ -183,6 +186,27 @@ function orderIdleDwarves(idleDwarves) {
   return gatherers.concat(unknown, builders, managers);
 }
 
+// Decide whether the first mine should be prioritized over other builds.
+function shouldPrioritizeMine(state, config, runtime) {
+  if (!runtime || runtime.gridWidth <= 0 || runtime.gridHeight <= 0) {
+    return false;
+  }
+  const mineConfig = (config.structures && config.structures.mine) || {};
+  if (mineConfig.buildWhenNoMine === false) {
+    return false;
+  }
+  const structures = state.structures || [];
+  if (structures.some((structure) => structure.type === "mine")) {
+    return false;
+  }
+  const buildCost = mineConfig.buildCost || {};
+  if (Object.keys(buildCost).length > 0 && !hasInputs(state.stockpile, buildCost)) {
+    return false;
+  }
+  const target = findMineBuildSpot(state, runtime, mineConfig);
+  return Boolean(target);
+}
+
 // Assign build jobs for managed structures (wells, fields, watchtowers).
 function assignManagedStructureJobs(state, config, runtime, idleDwarves) {
   if (idleDwarves.length === 0) {
@@ -225,6 +249,7 @@ function assignBuildJobIfNeeded(
   roleConfig,
   emergency,
   managerActive,
+  prioritizeMine,
 ) {
   const housingConfig = (config.population && config.population.housing) || {};
   if (housingConfig.enabled === false) {
@@ -263,7 +288,9 @@ function assignBuildJobIfNeeded(
     (upgradeMinHouses <= 0 || houses.length >= upgradeMinHouses);
   const managerMode = Boolean(managerActive);
   let buildJob = null;
-  if (!managerMode) {
+  if (prioritizeMine) {
+    buildJob = createMineBuildJob(state, config, runtime);
+  } else if (!managerMode) {
     buildJob =
       createWellBuildJob(state, config, runtime) ||
       createFieldBuildJob(state, config, runtime);

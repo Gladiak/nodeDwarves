@@ -241,9 +241,9 @@
     },
     "training": {
       "enabled": true,
-      "difficultyStart": 0.08,
+      "difficultyStart": 0.12,
       "difficultyEnd": 1,
-      "difficultyRampEpisodes": 20000,
+      "difficultyRampEpisodes": 4000,
       "scenarioSampling": {
         "mode": "adaptive",
         "updateEvery": 1500,
@@ -714,7 +714,7 @@
         "clipRange": 0.2,
         "entropyCoef": 0.005,
         "entropyCoefFinal": 0.002,
-        "entropyRampEpisodes": 20000,
+        "entropyRampEpisodes": 4000,
         "valueCoef": 0.5,
         "lr": 0.0003,
         "lrFinal": 0.0001,
@@ -727,7 +727,10 @@
           "nodeScarcity",
           "criticalNeeds",
           "idleAdults",
-          "populationBalance"
+          "populationBalance",
+          "seasonIndex",
+          "weatherSeverity",
+          "raidActive"
         ],
         "activation": "tanh",
         "logStdInit": -0.8,
@@ -761,13 +764,26 @@
       "water": 40,
       "wood": 8,
       "stone": 6,
-      "iron": 0
+      "iron": 0,
+      "mithril": 0,
+      "adamantio": 0,
+      "mana_crystal": 0
     },
     "targets": {
       "food": 60,
       "water": 60,
       "wood": 8,
       "stone": 6
+    },
+    "labels": {
+      "food": "Food",
+      "water": "Water",
+      "wood": "Wood",
+      "stone": "Stone",
+      "iron": "Iron",
+      "mithril": "Mithril",
+      "adamantio": "Adamantium",
+      "mana_crystal": "ManaCrystal"
     },
     "terrainAllowed": {
       "food": ["food"],
@@ -897,7 +913,7 @@
           }
         }
       },
-      "upgradeMinHousingRatio": 1.05,
+      "upgradeMinHousingRatio": 0.6,
       "upgradeMinHouses": 6,
       "upgradeMinAdjacency": 1
     },
@@ -1052,6 +1068,23 @@
         "stone": 8,
         "iron": 4
       },
+      "rareDrops": {
+        "mithril": {
+          "minLevel": 5,
+          "chance": 0.005,
+          "amount": 1
+        },
+        "adamantio": {
+          "minLevel": 7,
+          "chance": 0.003,
+          "amount": 1
+        },
+        "mana_crystal": {
+          "minLevel": 9,
+          "chance": 0.002,
+          "amount": 1
+        }
+      },
       "preciousChanceMin": 0.01,
       "preciousChanceMax": 0.1
     },
@@ -1102,7 +1135,16 @@
       "iron": 4
     },
     "upgradeCostScale": 1.25,
-    "applyTo": ["food", "water", "wood", "stone", "iron"]
+    "applyTo": [
+      "food",
+      "water",
+      "wood",
+      "stone",
+      "iron",
+      "mithril",
+      "adamantio",
+      "mana_crystal"
+    ]
   },
   "merchant": {
     "enabled": true,
@@ -1185,8 +1227,8 @@
       "bondingMaxMultiplier": 1.1,
       "buildTargetRatio": 1.3,
       "buildMinResources": {
-        "food": 0.65,
-        "water": 0.65
+        "food": 0.55,
+        "water": 0.55
       },
       "winterNeedPenalty": 0.25,
       "winterOldAgePenalty": 0.25
@@ -1387,6 +1429,9 @@
     "wood": "t",
     "stone": "s",
     "iron": "i",
+    "mithril": "m",
+    "adamantio": "a",
+    "mana_crystal": "c",
     "house": "h",
     "well": "O",
     "field": "c",

@@ -505,7 +505,48 @@ function getMineOutput(state, config, structure) {
     const multiplier = getToolMultiplier(state, config, resource);
     output[resource] = Number(amount || 0) * multiplier * structureMultiplier;
   }
+  const rareOutput = getMineRareOutputs(state, config, structure, structureMultiplier);
+  if (rareOutput) {
+    for (const [resource, amount] of Object.entries(rareOutput)) {
+      output[resource] = Number(output[resource] || 0) + Number(amount || 0);
+    }
+  }
   return output;
+}
+
+// Resolve rare mine drops based on mine level and configured chances.
+function getMineRareOutputs(state, config, structure, structureMultiplier) {
+  const mineConfig = config.structures && config.structures.mine;
+  const rareDrops = mineConfig && mineConfig.rareDrops;
+  if (!rareDrops || typeof rareDrops !== 'object') {
+    return null;
+  }
+
+  const level = Math.max(1, Number(structure && structure.level || 1));
+  const output = {};
+
+  for (const [resource, definition] of Object.entries(rareDrops)) {
+    if (!definition || typeof definition !== 'object') {
+      continue;
+    }
+    const minLevel = Math.max(1, Number(definition.minLevel || 1));
+    if (level < minLevel) {
+      continue;
+    }
+    const chance = clamp(Number(definition.chance || 0), 0, 1);
+    if (chance <= 0 || Math.random() >= chance) {
+      continue;
+    }
+    const amount = Math.max(0, Number(definition.amount ?? 1));
+    if (amount <= 0) {
+      continue;
+    }
+    const multiplier = getToolMultiplier(state, config, resource);
+    output[resource] = Number(output[resource] || 0)
+      + amount * multiplier * structureMultiplier;
+  }
+
+  return Object.keys(output).length > 0 ? output : null;
 }
 
 // Resolve sawmill outputs per tick from config.
