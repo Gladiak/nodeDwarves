@@ -12,6 +12,14 @@ termination to measure long-horizon quality without changing the fast training
 loop.
 Evaluation resets also disable randomization (`randomize=false`) for stable,
 repeatable eval passes unless you explicitly re-enable it in code.
+If you omit display overrides, training uses the base `display` settings.
+
+Display:
+
+- `display.width`: fixed render width used by the training runtime.
+- `display.height`: fixed render height used by the training runtime.
+- `display.maxWidth`: cap width when `display.autoSize` is enabled.
+- `display.maxHeight`: cap height when `display.autoSize` is enabled.
 
 Merchant:
 

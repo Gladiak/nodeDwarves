@@ -276,14 +276,8 @@
         "events": {
           "maxEntries": 3
         },
-        "display": {
-          "width": 120,
-          "height": 22,
-          "maxWidth": 120,
-          "maxHeight": 22
-        },
         "dwarves": {
-          "count": 6
+          "count": 20
         },
         "ai": {
           "termination": {
@@ -327,16 +321,16 @@
         },
         "resources": {
           "stockpile": {
-            "food": 30,
-            "water": 30,
-            "wood": 6,
-            "stone": 5
+            "food": 100,
+            "water": 100,
+            "wood": 20,
+            "stone": 17
           },
           "targets": {
-            "food": 40,
-            "water": 40,
-            "wood": 7,
-            "stone": 6
+            "food": 140,
+            "water": 140,
+            "wood": 24,
+            "stone": 20
           },
           "nodeCapacity": {
             "food": 12,
@@ -345,10 +339,10 @@
             "stone": 8
           },
           "nodes": {
-            "food": 18,
-            "water": 14,
-            "wood": 8,
-            "stone": 6
+            "food": 60,
+            "water": 48,
+            "wood": 28,
+            "stone": 20
           },
           "nodeRegen": {
             "intervalTicks": 40,
@@ -379,7 +373,7 @@
           "maxEntries": 5
         },
         "dwarves": {
-          "count": 12
+          "count": 20
         },
         "ai": {
           "termination": {
@@ -405,31 +399,31 @@
         },
         "resources": {
           "stockpile": {
-            "food": 40,
-            "water": 40,
-            "wood": 8,
-            "stone": 6
+            "food": 100,
+            "water": 100,
+            "wood": 20,
+            "stone": 17
           },
           "targets": {
-            "food": 60,
-            "water": 60,
-            "wood": 8,
-            "stone": 6
+            "food": 140,
+            "water": 140,
+            "wood": 24,
+            "stone": 20
           },
           "nodeCapacity": {
-            "food": 14,
-            "water": 22,
-            "wood": 10,
-            "stone": 10
+            "food": 12,
+            "water": 16,
+            "wood": 8,
+            "stone": 8
           },
           "nodes": {
-            "food": 28,
-            "water": 20,
-            "wood": 14,
-            "stone": 12
+            "food": 60,
+            "water": 48,
+            "wood": 28,
+            "stone": 20
           },
           "nodeRegen": {
-            "intervalTicks": 35,
+            "intervalTicks": 40,
             "amount": 3
           }
         },
@@ -470,7 +464,7 @@
               "maxEntries": 5
             },
             "dwarves": {
-              "count": 12
+              "count": 20
             },
             "ai": {
               "termination": {
@@ -496,31 +490,31 @@
             },
             "resources": {
               "stockpile": {
-                "food": 40,
-                "water": 40,
-                "wood": 8,
-                "stone": 6
+                "food": 100,
+                "water": 100,
+                "wood": 20,
+                "stone": 17
               },
               "targets": {
-                "food": 60,
-                "water": 60,
-                "wood": 8,
-                "stone": 6
+                "food": 140,
+                "water": 140,
+                "wood": 24,
+                "stone": 20
               },
               "nodeCapacity": {
-                "food": 14,
-                "water": 22,
-                "wood": 10,
-                "stone": 10
+                "food": 12,
+                "water": 16,
+                "wood": 8,
+                "stone": 8
               },
               "nodes": {
-                "food": 28,
-                "water": 20,
-                "wood": 14,
-                "stone": 12
+                "food": 60,
+                "water": 48,
+                "wood": 28,
+                "stone": 20
               },
               "nodeRegen": {
-                "intervalTicks": 35,
+                "intervalTicks": 40,
                 "amount": 3
               }
             },
@@ -557,7 +551,7 @@
               "maxEntries": 4
             },
             "dwarves": {
-              "count": 10
+              "count": 20
             },
             "merchant": {
               "enabled": true
@@ -578,31 +572,31 @@
             },
             "resources": {
               "stockpile": {
-                "food": 35,
-                "water": 35,
-                "wood": 7,
-                "stone": 6
+                "food": 100,
+                "water": 100,
+                "wood": 20,
+                "stone": 17
               },
               "targets": {
-                "food": 50,
-                "water": 50,
-                "wood": 8,
-                "stone": 6
+                "food": 140,
+                "water": 140,
+                "wood": 24,
+                "stone": 20
               },
               "nodeCapacity": {
-                "food": 13,
-                "water": 19,
-                "wood": 9,
-                "stone": 9
+                "food": 12,
+                "water": 16,
+                "wood": 8,
+                "stone": 8
               },
               "nodes": {
-                "food": 23,
-                "water": 17,
-                "wood": 11,
-                "stone": 9
+                "food": 60,
+                "water": 48,
+                "wood": 28,
+                "stone": 20
               },
               "nodeRegen": {
-                "intervalTicks": 38,
+                "intervalTicks": 40,
                 "amount": 3
               }
             },
@@ -646,7 +640,7 @@
           "overrides": {
             "resources": {
               "nodes": {
-                "water": 8
+                "water": 27
               },
               "nodeCapacity": {
                 "water": 10
@@ -660,7 +654,7 @@
           "overrides": {
             "resources": {
               "nodes": {
-                "food": 10
+                "food": 33
               },
               "nodeCapacity": {
                 "food": 8
@@ -674,10 +668,10 @@
           "overrides": {
             "resources": {
               "stockpile": {
-                "food": 14,
-                "water": 14,
-                "wood": 4,
-                "stone": 4
+                "food": 47,
+                "water": 47,
+                "wood": 13,
+                "stone": 14
               }
             }
           }
@@ -687,7 +681,7 @@
           "weight": 0.2,
           "overrides": {
             "dwarves": {
-              "count": 12
+              "count": 20
             },
             "population": {
               "housing": {
@@ -851,10 +845,10 @@
       },
       "levels": {
         "1": {
-          "capacity": 2
+          "capacity": 4
         },
         "2": {
-          "capacity": 46,
+          "capacity": 8,
           "upgradeTicks": 14,
           "upgradeCost": {
             "wood": 3,
@@ -862,7 +856,7 @@
           }
         },
         "3": {
-          "capacity": 8,
+          "capacity": 12,
           "upgradeTicks": 19,
           "upgradeCost": {
             "wood": 5,
@@ -870,7 +864,7 @@
           }
         },
         "4": {
-          "capacity": 10,
+          "capacity": 20,
           "upgradeTicks": 24,
           "upgradeCost": {
             "wood": 6,
@@ -878,7 +872,7 @@
           }
         },
         "5": {
-          "capacity": 15,
+          "capacity": 25,
           "upgradeTicks": 28,
           "upgradeCost": {
             "wood": 8,
@@ -886,7 +880,7 @@
           }
         },
         "6": {
-          "capacity": 20,
+          "capacity": 35,
           "upgradeTicks": 32,
           "upgradeCost": {
             "wood": 8,
@@ -894,7 +888,7 @@
           }
         },
         "7": {
-          "capacity": 25,
+          "capacity": 45,
           "upgradeTicks": 38,
           "upgradeCost": {
             "wood": 10,
@@ -902,7 +896,7 @@
           }
         },
         "8": {
-          "capacity": 35,
+          "capacity": 55,
           "upgradeTicks": 42,
           "upgradeCost": {
             "wood": 11,
@@ -910,7 +904,7 @@
           }
         },
         "9": {
-          "capacity": 50,
+          "capacity": 70,
           "upgradeTicks": 46,
           "upgradeCost": {
             "wood": 13,
@@ -1060,7 +1054,7 @@
         "stone": 10
       },
       "outputPerTick": {
-        "beer": 0.5
+        "beer": 0.75
       },
       "foodCostPerTick": 0.15,
       "levelMax": 10,
