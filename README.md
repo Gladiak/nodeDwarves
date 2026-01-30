@@ -52,6 +52,7 @@ alive while you watch the chaos unfold in ASCII.
 - 📊 HUD shows averages, bars, priorities, and counts for wells/fields.
 - 🖼️ The map renders with a framed border for clearer navigation.
 - 🧭 Terrain adds visual texture (coast, lakes, rivers); walkability and movement delay are configurable per terrain.
+- 🧭 Dwarves use configurable pathing with potential-field variation for more organic routes.
 - 🧩 Resources can come from nodes or from terrain tiles (configurable).
 
 ## Job system and priorities ⚙️
@@ -68,7 +69,7 @@ alive while you watch the chaos unfold in ASCII.
 - ⛏️ Mines are built on mountain terrain when none exist, and miners output iron + stone per tick.
 - 🧑‍🏭 Roles (builder/gatherer) can be enabled to keep building stable during shortages.
 - 🧱 Manager builders handle watchtowers, wells, and fields using stockpile-based thresholds.
-- Idle dwarves take short waypoint strolls around home (or their current spot) with brief pauses.
+- 🧭 Idle dwarves take short waypoint strolls around home (or their current spot) with brief pauses.
 
 ## Quick start 🚀
 
@@ -106,9 +107,10 @@ npm run ai:train:finetune
 
 You can stop training with Ctrl+C to terminate the run.
 
-`ai:train:combo` runs the fast training loop and then a longer full-sim pass
-(`--full-sim`) that uses `ai.training.evalOverrides` and now runs long enough
-to reach difficulty 1 with the current ramp settings.
+`ai:train:combo` runs a speed-first training loop and then a short fine-tuning pass
+(`--full-sim`) with lower learning rate/entropy settings. The combo script trades
+off quality for wall-clock speed (fewer episodes/steps, debug off). Eval runs only
+in the finetune phase to refresh the best snapshot.
 
 `ai:train:finetune` runs a short full-sim fine-tuning pass with a lower learning
 rate and entropy to close the gap with eval/full_sim.
@@ -130,6 +132,14 @@ Run the visual simulation with the trained policy 🕹️:
 ```bash
 npm run ai:play
 ```
+
+Record a regression baseline snapshot 🧪:
+
+```bash
+npm run ai:regression:record
+```
+
+Use a custom profile name with `-- --profile <name>` if you want multiple baselines.
 
 The training loop saves a PPO policy to the path in
 `ai.training.trainer.modelPath` (default `models/policy.json`). The best-eval

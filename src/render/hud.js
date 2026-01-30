@@ -72,10 +72,17 @@ function buildHudColumns(state, config, columnWidth) {
   left.push(`Weather: ${formatWeatherStatus(state.weather, colors)}`);
   left.push(`Event: ${lastEvent}`);
   left.push(`Merchant: ${formatMerchantStatus(state.merchant)}`);
+  left.push('');
   left.push(`Pop: ${dwarves.length} (C:${stageCounts.child}/A:${stageCounts.adult}/E:${stageCounts.elder})`);
   left.push(`Idle: ${idleCount}`);
   left.push(`Jobs: ${state.jobs.length}`);
+  left.push(formatBondingLine(state, config));
+  left.push(formatReproBlocksLine(state));
+  left.push('');
   left.push(`Houses: ${houseCount}`);
+  left.push(`Beds: ${bedsTotal}`);
+  left.push(`Housing ratio: ${housingRatio.toFixed(2)}`);
+  left.push('');
   left.push(`Wells: ${wellCount}`);
   left.push(`Fields: ${fieldCount}`);
   left.push(`Workshop: ${workshopCount}`);
@@ -90,9 +97,8 @@ function buildHudColumns(state, config, columnWidth) {
   if (structureLevels) {
     left.push(structureLevels);
   }
+  left.push('');
   left.push(`Towers: ${watchtowerCount}`);
-  left.push(`Beds: ${bedsTotal}`);
-  left.push(`Housing ratio: ${housingRatio.toFixed(2)}`);
   left.push(`Tower def: ${Math.round(towerDefense * 100)}%`);
   left.push(`Priority: ${topPriority}`);
   left.push('');
@@ -122,27 +128,6 @@ function buildHudColumns(state, config, columnWidth) {
   }
 
   const storage = state.houseStorage;
-  if (storage && storage.stored) {
-    right.push('');
-    right.push('House storage');
-
-    const entries = Object.entries(storage.stored);
-    if (entries.length === 0) {
-      right.push('-');
-    } else {
-      for (const [id, count] of entries) {
-        const capacity = Number(storage.capacity && storage.capacity[id] !== undefined
-          ? storage.capacity[id]
-          : 0);
-        const ratio = capacity > 0 ? clamp(Number(count || 0) / capacity, 0, 1) : 0;
-        const detail = capacity > 0
-          ? formatCountDetail(count, capacity)
-          : formatCompactNumber(count || 0);
-        right.push(formatBarLine(id, ratio, detail, columnWidth));
-      }
-    }
-  }
-
   right.push('');
   right.push('Queue');
 
@@ -201,6 +186,65 @@ function formatNeedValue(value) {
     return '0';
   }
   return String(Math.round(numeric));
+}
+
+// Build a compact bonding summary for the HUD.
+function formatBondingLine(state, config) {
+  const dwarves = state.dwarves || [];
+  const housingConfig = (config.population && config.population.housing) || {};
+  const housingEnabled = housingConfig.enabled !== false;
+  const visited = new Set();
+  let couples = 0;
+  let noHomeCouples = 0;
+
+  for (const dwarf of dwarves) {
+    if (!dwarf.partnerId || visited.has(dwarf.id) || visited.has(dwarf.partnerId)) {
+      continue;
+    }
+    const partner = dwarves.find((candidate) => candidate.id === dwarf.partnerId);
+    if (!partner) {
+      continue;
+    }
+    visited.add(dwarf.id);
+    visited.add(partner.id);
+    couples += 1;
+    if (housingEnabled && (!dwarf.homeId || dwarf.homeId !== partner.homeId)) {
+      noHomeCouples += 1;
+    }
+  }
+
+  let pregnancies = 0;
+  for (const dwarf of dwarves) {
+    if (dwarf.pregnancy) {
+      pregnancies += 1;
+    }
+  }
+
+  return `Bond: couples ${couples} preg ${pregnancies} noHome ${noHomeCouples}`;
+}
+
+// Build a compact reproduction block summary for the HUD.
+function formatReproBlocksLine(state) {
+  const stats = state.reproductionStats || {};
+  const ticks = Number(stats.ticks || 0);
+  const perTick = (value) => formatCompactFloat(ticks > 0 ? Number(value || 0) / ticks : 0);
+  const infertile = perTick(stats.blockedInfertile);
+  const pregnant = perTick(stats.blockedPregnant);
+  const cooldown = perTick(stats.blockedCooldown);
+  const noResources = perTick(stats.blockedNoResources);
+  const noHousing = perTick(stats.blockedNoHousing);
+  const chance = perTick(stats.blockedChance);
+  return `Block/t i${infertile} p${pregnant} c${cooldown} r${noResources} h${noHousing} ch${chance}`;
+}
+
+// Format a small float with at most 2 decimal places.
+function formatCompactFloat(value) {
+  const numeric = Number(value || 0);
+  if (!Number.isFinite(numeric)) {
+    return '0';
+  }
+  const rounded = Math.round(numeric * 100) / 100;
+  return String(rounded);
 }
 
 // Format a number compactly (k/m).

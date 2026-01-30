@@ -184,6 +184,164 @@ function assignHousing(state, config) {
   }
 }
 
+// Align couple housing assignments to reduce no-housing blocks.
+function cohouseCouples(state, config) {
+  const housingConfig = (config.population && config.population.housing) || {};
+  if (housingConfig.enabled === false) {
+    return;
+  }
+  const houses = (state.structures || []).filter((structure) => structure.type === 'house');
+  if (houses.length === 0) {
+    return;
+  }
+  const dwarves = state.dwarves || [];
+  if (dwarves.length === 0) {
+    return;
+  }
+
+  const houseMap = new Map();
+  for (const house of houses) {
+    const capacity = Math.max(0, Number(house.capacity || 0));
+    houseMap.set(house.id, {
+      house,
+      capacity,
+      occupants: [],
+      remaining: capacity,
+    });
+  }
+
+  for (const dwarf of dwarves) {
+    if (!dwarf.homeId) {
+      continue;
+    }
+    const entry = houseMap.get(dwarf.homeId);
+    if (!entry) {
+      continue;
+    }
+    entry.occupants.push(dwarf);
+  }
+
+  for (const entry of houseMap.values()) {
+    entry.remaining = Math.max(0, entry.capacity - entry.occupants.length);
+  }
+
+  const byId = new Map(dwarves.map((dwarf) => [dwarf.id, dwarf]));
+  const cohoused = new Set();
+  for (const dwarf of dwarves) {
+    if (!dwarf.partnerId || cohoused.has(dwarf.id)) {
+      continue;
+    }
+    const partner = byId.get(dwarf.partnerId);
+    if (!partner) {
+      continue;
+    }
+    if (dwarf.homeId && partner.homeId && dwarf.homeId === partner.homeId) {
+      cohoused.add(dwarf.id);
+      cohoused.add(partner.id);
+    }
+  }
+
+  const couples = collectCouples(state);
+  if (couples.length === 0) {
+    return;
+  }
+
+  const houseEntries = Array.from(houseMap.values());
+
+  const findHouseWithRemaining = (slotsNeeded, excludeId) => {
+    for (const entry of houseEntries) {
+      if (excludeId && entry.house.id === excludeId) {
+        continue;
+      }
+      if (entry.remaining >= slotsNeeded) {
+        return entry;
+      }
+    }
+    return null;
+  };
+
+  const moveDwarfToHouse = (dwarf, entry) => {
+    if (!entry || entry.remaining <= 0) {
+      return false;
+    }
+    if (dwarf.homeId === entry.house.id) {
+      return true;
+    }
+    if (dwarf.homeId) {
+      const oldEntry = houseMap.get(dwarf.homeId);
+      if (oldEntry) {
+        const index = oldEntry.occupants.indexOf(dwarf);
+        if (index >= 0) {
+          oldEntry.occupants.splice(index, 1);
+          oldEntry.remaining = Math.max(0, oldEntry.capacity - oldEntry.occupants.length);
+        }
+      }
+    }
+    entry.occupants.push(dwarf);
+    entry.remaining = Math.max(0, entry.capacity - entry.occupants.length);
+    dwarf.homeId = entry.house.id;
+    return true;
+  };
+
+  const tryFreeSlot = (entry, protectedIds) => {
+    if (!entry) {
+      return false;
+    }
+    for (const occupant of entry.occupants) {
+      if (protectedIds.has(occupant.id)) {
+        continue;
+      }
+      if (cohoused.has(occupant.id)) {
+        continue;
+      }
+      const dest = findHouseWithRemaining(1, entry.house.id);
+      if (!dest) {
+        return false;
+      }
+      moveDwarfToHouse(occupant, dest);
+      return true;
+    }
+    return false;
+  };
+
+  for (const [a, b] of couples) {
+    if (!a || !b) {
+      continue;
+    }
+    if (a.homeId && b.homeId && a.homeId === b.homeId) {
+      continue;
+    }
+
+    const protectedIds = new Set([a.id, b.id]);
+    const homeA = a.homeId ? houseMap.get(a.homeId) : null;
+    const homeB = b.homeId ? houseMap.get(b.homeId) : null;
+
+    if (homeA && homeA.remaining >= 1) {
+      moveDwarfToHouse(b, homeA);
+      continue;
+    }
+    if (homeB && homeB.remaining >= 1) {
+      moveDwarfToHouse(a, homeB);
+      continue;
+    }
+
+    const target = findHouseWithRemaining(2, null);
+    if (target) {
+      moveDwarfToHouse(a, target);
+      moveDwarfToHouse(b, target);
+      continue;
+    }
+
+    if (homeA && tryFreeSlot(homeA, protectedIds)) {
+      moveDwarfToHouse(b, homeA);
+      continue;
+    }
+    if (homeB && tryFreeSlot(homeB, protectedIds)) {
+      moveDwarfToHouse(a, homeB);
+    }
+  }
+}
+
 // Apply per-tick need decay to a dwarf.
 function applyNeedDecay(dwarf, decay, multiplier, perNeedMultiplier) {
   const baseScale = Number(multiplier || 1);
@@ -771,4 +929,5 @@ module.exports = {
   getBondingHousingMultiplier,
   getWinterHousingPenalty,
   assignHousing,
+  cohouseCouples,
 };

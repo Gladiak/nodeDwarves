@@ -225,7 +225,11 @@ function assignBuildJobIfNeeded(state, config, runtime, idleDwarves, roleConfig,
   }
 
   const housingNeed = getHousingNeed(state, config);
-  const preferUpgrade = false;
+  const houseConfig = (config.structures && config.structures.house) || {};
+  const upgradeMinHouses = Math.max(0, Number(houseConfig.upgradeMinHouses ?? 0));
+  const houses = (state.structures || []).filter((structure) => structure.type === 'house');
+  const preferUpgrade = housingNeed.needed
+    && (upgradeMinHouses <= 0 || houses.length >= upgradeMinHouses);
   const managerMode = Boolean(managerActive);
   let buildJob = null;
   if (!managerMode) {

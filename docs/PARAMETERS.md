@@ -144,6 +144,25 @@ Population relationships:
 - `population.pathing.stallThreshold`: ticks without progress before pathing detour kicks in.
 - `population.pathing.detourTicks`: number of ticks to keep using detour pathing once stalled.
 - `population.pathing.bfsRadius`: local BFS radius for detour pathing (tiles).
+- `population.pathing.mode`: pathing strategy (`detour` or `field`).
+- `population.pathing.field.radius`: Manhattan radius for the cached potential field (tiles).
+- `population.pathing.field.ttlTicks`: ticks to reuse a cached field before rebuilding.
+- `population.pathing.field.temperature`: randomness for weighted step selection (0..1).
+- `population.pathing.field.terrainWeight`: weight for terrain movement delay (0..1).
+- `population.pathing.field.crowdWeight`: weight for avoiding occupied tiles (0..1).
+- `population.pathing.field.inertiaWeight`: bias to continue the previous direction (0..1).
+- `population.pathing.field.stayPenalty`: penalty for staying in place when pathing (0..1).
+
+Structures (houses):
+
+- `structures.house.buildTicks`: ticks required to build a house.
+- `structures.house.buildCost.<resource>`: resource costs to build a house.
+- `structures.house.levels.<level>.capacity`: beds provided by a house level.
+- `structures.house.levels.<level>.upgradeTicks`: ticks required to upgrade to that level.
+- `structures.house.levels.<level>.upgradeCost.<resource>`: resource costs for that level.
+- `structures.house.upgradeMinHousingRatio`: minimum beds/pop ratio before upgrades are attempted when not forced.
+- `structures.house.upgradeMinHouses`: minimum house count before upgrades are preferred when housing is short.
+- `structures.house.upgradeMinAdjacency`: minimum adjacent houses required for an upgrade candidate.
 
 Structures (watchtowers):
 

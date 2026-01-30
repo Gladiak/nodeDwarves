@@ -12,6 +12,7 @@ const {
   updateRelationships,
   handleReproduction,
   assignHousing,
+  cohouseCouples,
   getWinterHousingPenalty,
 } = require('./population');
 const { updateRoles } = require('./roles');
@@ -47,6 +48,7 @@ function stepState(state, config, runtime, action) {
   updateRoles(state, config);
   assignHousing(state, config);
   updateRelationships(state, config);
+  cohouseCouples(state, config);
   handleReproduction(state, config);
 
   assignJobs(state, config, runtime, action);

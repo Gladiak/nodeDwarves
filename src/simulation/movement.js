@@ -64,8 +64,18 @@ function moveTowardsStep(entity, target, runtime, state, config) {
   applyMoveWithCooldown(entity, pick.x, pick.y, state, config);
 }
 
-// Move toward a target using a detour when stalled.
+// Move toward a target using the configured pathing strategy.
 function moveWithDetour(entity, targetX, targetY, runtime, state, config, pathKey) {
+  const pathing = (config.population && config.population.pathing) || {};
+  const mode = String(pathing.mode || 'detour');
+  if (mode === 'field') {
+    return moveWithField(entity, targetX, targetY, runtime, state, config, pathKey, pathing);
+  }
+  return moveWithDetourLegacy(entity, targetX, targetY, runtime, state, config, pathKey);
+}
+
+// Move toward a target using a detour when stalled.
+function moveWithDetourLegacy(entity, targetX, targetY, runtime, state, config, pathKey) {
   if (runtime.gridWidth <= 0 || runtime.gridHeight <= 0) {
     return false;
   }
@@ -125,13 +135,78 @@ function moveWithDetour(entity, targetX, targetY, runtime, state, config, pathKe
   return moved;
 }
 
+// Move toward a target using a potential-field step with detour fallback.
+function moveWithField(entity, targetX, targetY, runtime, state, config, pathKey, pathing) {
+  if (runtime.gridWidth <= 0 || runtime.gridHeight <= 0) {
+    return false;
+  }
+
+  if (shouldPauseForMoveCooldown(entity)) {
+    return false;
+  }
+
+  const key = pathKey || `${targetX},${targetY}`;
+  if (entity.pathTargetKey !== key) {
+    entity.pathTargetKey = key;
+    entity.pathStallTicks = 0;
+    entity.pathDetourTicks = 0;
+  }
+
+  const fieldConfig = getFieldConfig(pathing);
+  const field = fieldConfig.radius > 0
+    ? getPathField(state, runtime, targetX, targetY, key, fieldConfig)
+    : null;
+
+  const beforeDistance = getTargetDistance(field, targetX, targetY, entity.x, entity.y);
+  const stallThreshold = Math.max(1, Number(pathing.stallThreshold || 6));
+  const detourTicks = Math.max(0, Number(pathing.detourTicks || 4));
+  const bfsRadius = Math.max(3, Number(pathing.bfsRadius || 10));
+
+  const useDetour = Number(entity.pathDetourTicks || 0) > 0
+    || Number(entity.pathStallTicks || 0) >= stallThreshold;
+
+  if (useDetour && Number(entity.pathDetourTicks || 0) === 0 && detourTicks > 0) {
+    entity.pathDetourTicks = detourTicks;
+  }
+
+  let moved = false;
+  if (useDetour) {
+    const step = findLocalPathStep(state, runtime, entity.x, entity.y, targetX, targetY, bfsRadius);
+    if (step) {
+      moved = applyMoveWithCooldown(entity, step.x, step.y, state, config);
+    }
+  }
+
+  if (!moved) {
+    moved = moveWithFieldStep(entity, targetX, targetY, runtime, state, config, field, fieldConfig);
+  }
+
+  const afterDistance = getTargetDistance(field, targetX, targetY, entity.x, entity.y);
+  if (moved && afterDistance < beforeDistance) {
+    entity.pathStallTicks = 0;
+  } else if (!moved && Number(entity.moveCooldown || 0) > 0) {
+    // Cooling down from slow terrain; do not count as a stall.
+  } else {
+    entity.pathStallTicks = Number(entity.pathStallTicks || 0) + 1;
+  }
+
+  if (Number(entity.pathDetourTicks || 0) > 0 && useDetour) {
+    entity.pathDetourTicks = Math.max(0, Number(entity.pathDetourTicks || 0) - 1);
+  }
+
+  return moved;
+}
+
 // Apply a move and record terrain cooldown data.
 function applyMoveWithCooldown(entity, x, y, state, config) {
-  const dx = x - entity.x;
-  const dy = y - entity.y;
+  const fromX = entity.x;
+  const fromY = entity.y;
+  const dx = x - fromX;
+  const dy = y - fromY;
   if (dx === 0 && dy === 0) {
     return false;
   }
+  updateOccupancyOnMove(state, fromX, fromY, x, y);
   entity.lastMoveDx = dx;
   entity.lastMoveDy = dy;
   entity.x = x;
@@ -141,6 +216,100 @@ function applyMoveWithCooldown(entity, x, y, state, config) {
     entity.moveCooldown = delay;
   }
   return true;
+}
+
+// Choose a potential-field step toward the target.
+function moveWithFieldStep(entity, targetX, targetY, runtime, state, config, field, fieldConfig) {
+  const candidates = [
+    { x: entity.x, y: entity.y },
+    { x: entity.x + 1, y: entity.y },
+    { x: entity.x - 1, y: entity.y },
+    { x: entity.x, y: entity.y + 1 },
+    { x: entity.x, y: entity.y - 1 },
+  ].filter((pos) => {
+    if (pos.x < 0 || pos.y < 0 || pos.x >= runtime.gridWidth || pos.y >= runtime.gridHeight) {
+      return false;
+    }
+    return isWalkableTile(state, pos.x, pos.y);
+  });
+
+  if (candidates.length === 0) {
+    return false;
+  }
+
+  const occupancy = fieldConfig.crowdWeight > 0 ? ensureOccupancyMap(state, runtime) : null;
+  const scored = [];
+  let bestCost = Infinity;
+
+  for (const pos of candidates) {
+    const dist = getTargetDistance(field, targetX, targetY, pos.x, pos.y);
+    let cost = dist;
+
+    if (fieldConfig.terrainWeight > 0) {
+      const delay = getTerrainMoveDelay(state, config, pos.x, pos.y);
+      cost += fieldConfig.terrainWeight * delay;
+    }
+
+    if (occupancy && fieldConfig.crowdWeight > 0) {
+      const crowd = getOccupancyCount(occupancy, pos.x, pos.y, entity);
+      if (crowd > 0) {
+        cost += fieldConfig.crowdWeight * crowd;
+      }
+    }
+
+    if (pos.x === entity.x && pos.y === entity.y) {
+      cost += fieldConfig.stayPenalty;
+    }
+
+    const lastDx = Number(entity.lastMoveDx);
+    const lastDy = Number(entity.lastMoveDy);
+    const dx = pos.x - entity.x;
+    const dy = pos.y - entity.y;
+    if (fieldConfig.inertiaWeight > 0 && dx === lastDx && dy === lastDy && (dx !== 0 || dy !== 0)) {
+      cost -= fieldConfig.inertiaWeight;
+    }
+
+    if (cost < bestCost) {
+      bestCost = cost;
+    }
+    scored.push({ x: pos.x, y: pos.y, cost });
+  }
+
+  if (scored.length === 0) {
+    return false;
+  }
+
+  let pick = null;
+  if (fieldConfig.temperature <= 0) {
+    const best = scored.filter((pos) => pos.cost === bestCost);
+    pick = best[Math.floor(Math.random() * best.length)];
+  } else {
+    const scale = Math.max(0.05, fieldConfig.temperature);
+    let total = 0;
+    for (const pos of scored) {
+      const weight = Math.exp(-(pos.cost - bestCost) / scale);
+      pos.weight = weight;
+      total += weight;
+    }
+    if (total > 0) {
+      let roll = Math.random() * total;
+      for (const pos of scored) {
+        roll -= pos.weight || 0;
+        if (roll <= 0) {
+          pick = pos;
+          break;
+        }
+      }
+    }
+    if (!pick) {
+      pick = scored[Math.floor(Math.random() * scored.length)];
+    }
+  }
+
+  if (!pick) {
+    return false;
+  }
+  return applyMoveWithCooldown(entity, pick.x, pick.y, state, config);
 }
 
 // Pick a candidate move while preserving movement inertia when useful.
@@ -172,6 +341,297 @@ function pickMoveWithInertia(entity, candidates, targetX, targetY, currentDistan
     }
   }
   return available[Math.floor(Math.random() * available.length)];
+}
+
+// Resolve field pathing parameters with safe defaults.
+function getFieldConfig(pathing) {
+  const field = pathing && pathing.field ? pathing.field : {};
+  const radius = Math.max(0, Math.floor(Number(field.radius ?? 0)));
+  const ttlTicks = Math.max(0, Math.floor(Number(field.ttlTicks ?? 6)));
+  const temperature = clamp(Number(field.temperature ?? 0.25), 0, 1);
+  const terrainWeight = clamp(Number(field.terrainWeight ?? 0.25), 0, 1);
+  const crowdWeight = clamp(Number(field.crowdWeight ?? 0.2), 0, 1);
+  const inertiaWeight = clamp(Number(field.inertiaWeight ?? 0.2), 0, 1);
+  const stayPenalty = clamp(Number(field.stayPenalty ?? 0.3), 0, 1);
+  return {
+    radius,
+    ttlTicks,
+    temperature,
+    terrainWeight,
+    crowdWeight,
+    inertiaWeight,
+    stayPenalty,
+  };
+}
+
+// Find cached path field for a target, rebuilding when stale.
+function getPathField(state, runtime, targetX, targetY, key, fieldConfig) {
+  if (!state || !runtime || fieldConfig.radius <= 0) {
+    return null;
+  }
+  const ttlTicks = Math.max(0, Number(fieldConfig.ttlTicks || 0));
+  if (ttlTicks <= 0) {
+    return buildPathField(state, runtime, targetX, targetY, fieldConfig.radius);
+  }
+  const tick = Number(state.tick || 0);
+  const pathing = ensurePathingState(state);
+  const fields = pathing.fields;
+  const existing = fields[key];
+  const sameTarget = existing
+    && existing.targetX === targetX
+    && existing.targetY === targetY
+    && existing.radius === fieldConfig.radius
+    && existing.width === runtime.gridWidth
+    && existing.height === runtime.gridHeight;
+  if (sameTarget && tick - existing.builtTick <= ttlTicks) {
+    existing.lastUsed = tick;
+    return existing;
+  }
+  const built = buildPathField(state, runtime, targetX, targetY, fieldConfig.radius);
+  if (!built) {
+    if (fields[key]) {
+      delete fields[key];
+    }
+    return null;
+  }
+  built.targetX = targetX;
+  built.targetY = targetY;
+  built.radius = fieldConfig.radius;
+  built.builtTick = tick;
+  built.lastUsed = tick;
+  fields[key] = built;
+  prunePathFields(fields, tick, ttlTicks);
+  return built;
+}
+
+// Remove stale path fields from cache.
+function prunePathFields(fields, tick, ttlTicks) {
+  if (!fields || ttlTicks <= 0) {
+    return;
+  }
+  const expiry = ttlTicks * 2;
+  for (const [key, entry] of Object.entries(fields)) {
+    if (!entry || Number.isFinite(entry.lastUsed) === false) {
+      delete fields[key];
+      continue;
+    }
+    if (tick - entry.lastUsed > expiry) {
+      delete fields[key];
+    }
+  }
+}
+
+// Build a BFS distance field centered on the target.
+function buildPathField(state, runtime, targetX, targetY, radius) {
+  const width = runtime.gridWidth;
+  const height = runtime.gridHeight;
+  const safeRadius = Math.max(1, Math.floor(Number(radius || 0)));
+  if (safeRadius <= 0 || width <= 0 || height <= 0) {
+    return null;
+  }
+
+  const anchorX = clamp(Math.floor(Number(targetX || 0)), 0, width - 1);
+  const anchorY = clamp(Math.floor(Number(targetY || 0)), 0, height - 1);
+  if (!isWalkableTile(state, anchorX, anchorY)) {
+    return null;
+  }
+
+  const minX = Math.max(0, anchorX - safeRadius);
+  const maxX = Math.min(width - 1, anchorX + safeRadius);
+  const minY = Math.max(0, anchorY - safeRadius);
+  const maxY = Math.min(height - 1, anchorY + safeRadius);
+  const localWidth = maxX - minX + 1;
+  const localHeight = maxY - minY + 1;
+  const total = localWidth * localHeight;
+  if (total <= 0) {
+    return null;
+  }
+
+  const distances = new Array(total).fill(-1);
+  const queue = new Array(total);
+  let head = 0;
+  let tail = 0;
+
+  const toIndex = (x, y) => (y - minY) * localWidth + (x - minX);
+  const targetIndex = toIndex(anchorX, anchorY);
+  distances[targetIndex] = 0;
+  queue[tail++] = targetIndex;
+
+  while (head < tail) {
+    const index = queue[head++];
+    const x = (index % localWidth) + minX;
+    const y = Math.floor(index / localWidth) + minY;
+    const dist = distances[index];
+    const nextDist = dist + 1;
+
+    const neighbors = [
+      { x: x + 1, y },
+      { x: x - 1, y },
+      { x, y: y + 1 },
+      { x, y: y - 1 },
+    ];
+    for (const next of neighbors) {
+      if (next.x < minX || next.x > maxX || next.y < minY || next.y > maxY) {
+        continue;
+      }
+      if (!isWalkableTile(state, next.x, next.y)) {
+        continue;
+      }
+      const nextIndex = toIndex(next.x, next.y);
+      if (distances[nextIndex] !== -1) {
+        continue;
+      }
+      distances[nextIndex] = nextDist;
+      queue[tail++] = nextIndex;
+    }
+  }
+
+  return {
+    minX,
+    minY,
+    width: localWidth,
+    height: localHeight,
+    distances,
+  };
+}
+
+// Resolve distance to target using field data when available.
+function getTargetDistance(field, targetX, targetY, x, y) {
+  const fieldDistance = getFieldDistance(field, x, y);
+  if (fieldDistance !== null) {
+    return fieldDistance;
+  }
+  return Math.abs(targetX - x) + Math.abs(targetY - y);
+}
+
+// Read a cached distance from a field.
+function getFieldDistance(field, x, y) {
+  if (!field) {
+    return null;
+  }
+  if (x < field.minX || y < field.minY || x >= field.minX + field.width || y >= field.minY + field.height) {
+    return null;
+  }
+  const index = (y - field.minY) * field.width + (x - field.minX);
+  const value = field.distances[index];
+  if (value === -1 || value === undefined) {
+    return null;
+  }
+  return value;
+}
+
+// Ensure pathing state container exists.
+function ensurePathingState(state) {
+  if (!state) {
+    return { fields: {} };
+  }
+  if (!state.pathing) {
+    state.pathing = { fields: {}, occupancy: null };
+  } else if (!state.pathing.fields) {
+    state.pathing.fields = {};
+  }
+  return state.pathing;
+}
+
+// Build or reuse a per-tick occupancy map for dwarves.
+function ensureOccupancyMap(state, runtime) {
+  if (!state || !runtime) {
+    return null;
+  }
+  const width = runtime.gridWidth;
+  const height = runtime.gridHeight;
+  if (width <= 0 || height <= 0) {
+    return null;
+  }
+  const tick = Number(state.tick || 0);
+  const pathing = ensurePathingState(state);
+  const existing = pathing.occupancy;
+  if (existing && existing.tick === tick && existing.width === width && existing.height === height) {
+    return existing;
+  }
+
+  const total = width * height;
+  const counts = new Array(total).fill(0);
+  const dwarves = state.dwarves || [];
+  for (const dwarf of dwarves) {
+    const x = Number(dwarf.x);
+    const y = Number(dwarf.y);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      continue;
+    }
+    if (x < 0 || y < 0 || x >= width || y >= height) {
+      continue;
+    }
+    counts[y * width + x] += 1;
+  }
+
+  const merchant = state.merchant;
+  if (merchant && merchant.phase && merchant.phase !== 'idle') {
+    const x = Number(merchant.x);
+    const y = Number(merchant.y);
+    if (Number.isFinite(x) && Number.isFinite(y) && x >= 0 && y >= 0 && x < width && y < height) {
+      counts[y * width + x] += 1;
+    }
+  }
+
+  const raid = state.raid;
+  if (raid && raid.active && Array.isArray(raid.beasts)) {
+    for (const beast of raid.beasts) {
+      const x = Number(beast.x);
+      const y = Number(beast.y);
+      if (Number.isFinite(x) && Number.isFinite(y) && x >= 0 && y >= 0 && x < width && y < height) {
+        counts[y * width + x] += 1;
+      }
+    }
+  }
+
+  const occupancy = {
+    tick,
+    width,
+    height,
+    counts,
+  };
+  pathing.occupancy = occupancy;
+  return occupancy;
+}
+
+// Read the number of dwarves occupying a tile, excluding the mover.
+function getOccupancyCount(occupancy, x, y, entity) {
+  if (!occupancy) {
+    return 0;
+  }
+  const width = occupancy.width;
+  const height = occupancy.height;
+  if (x < 0 || y < 0 || x >= width || y >= height) {
+    return 0;
+  }
+  let count = Number(occupancy.counts[y * width + x] || 0);
+  if (entity && entity.x === x && entity.y === y) {
+    count = Math.max(0, count - 1);
+  }
+  return count;
+}
+
+// Update occupancy map when an entity moves.
+function updateOccupancyOnMove(state, fromX, fromY, toX, toY) {
+  if (!state || !state.pathing || !state.pathing.occupancy) {
+    return;
+  }
+  const occupancy = state.pathing.occupancy;
+  const tick = Number(state.tick || 0);
+  if (occupancy.tick !== tick) {
+    return;
+  }
+  const width = occupancy.width;
+  const height = occupancy.height;
+  if (fromX >= 0 && fromY >= 0 && fromX < width && fromY < height) {
+    const fromIndex = fromY * width + fromX;
+    occupancy.counts[fromIndex] = Math.max(0, Number(occupancy.counts[fromIndex] || 0) - 1);
+  }
+  if (toX >= 0 && toY >= 0 && toX < width && toY < height) {
+    const toIndex = toY * width + toX;
+    occupancy.counts[toIndex] = Number(occupancy.counts[toIndex] || 0) + 1;
+  }
 }
 
 // Run a local BFS to find a nearby path step.

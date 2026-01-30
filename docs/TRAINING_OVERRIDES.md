@@ -41,6 +41,14 @@ Population:
 - `population.relationships.bondGain`: bond increase per interaction.
 - `population.relationships.bondDecay`: bond decay when not interacting.
 - `population.relationships.bondThreshold`: bond score to form a pair.
+- `population.pathing.mode`: pathing strategy (`detour` or `field`).
+- `population.pathing.field.radius`: potential-field radius (tiles).
+- `population.pathing.field.ttlTicks`: ticks to reuse a cached field.
+- `population.pathing.field.temperature`: randomness for weighted step selection.
+- `population.pathing.field.terrainWeight`: terrain delay weight.
+- `population.pathing.field.crowdWeight`: crowd avoidance weight.
+- `population.pathing.field.inertiaWeight`: directional inertia weight.
+- `population.pathing.field.stayPenalty`: penalty for staying in place.
 - `population.housing.enabled`: enable housing effects.
 - `population.housing.bondingMinMultiplier`: bonding multiplier when housing is scarce.
 - `population.housing.bondingMaxMultiplier`: bonding multiplier when housing is sufficient.
@@ -85,9 +93,9 @@ Structures:
 - `structures.house.levels.<level>.capacity`: house bed capacity by level (1..5).
 - `structures.house.levels.<level>.upgradeCost.<resource>`: resources consumed to upgrade to that level.
 - `structures.house.levels.<level>.upgradeTicks`: time in ticks to upgrade to that level.
-- `structures.house.upgradeMinHousingRatio`: minimum beds/pop ratio before upgrades begin.
-- `structures.house.upgradeMinHouses`: minimum number of houses before upgrades begin.
-- `structures.house.upgradeMinAdjacency`: minimum adjacent houses required to upgrade.
+- `structures.house.upgradeMinHousingRatio`: minimum beds/pop ratio before upgrades are attempted when not forced.
+- `structures.house.upgradeMinHouses`: minimum number of houses before upgrades are preferred when housing is short.
+- `structures.house.upgradeMinAdjacency`: minimum adjacent houses required for an upgrade candidate.
 - `structures.house.storage.enabled`: enable house storage buffer.
 - `structures.house.storage.resources`: resources buffered in houses.
 - `structures.house.storage.capacityPerLevel.<level>`: storage capacity per house level (per resource).
@@ -166,4 +174,3 @@ Symbols:
 - `symbols.house`: house symbol.
 - `symbols.well`: well symbol.
 - `symbols.field`: field symbol.
-

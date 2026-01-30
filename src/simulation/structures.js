@@ -113,6 +113,10 @@ function createHouseUpgradeJob(state, config, runtime, preferUpgrade = false) {
   if (houses.length === 0) {
     return null;
   }
+  const upgradeMinHouses = Math.max(0, Number(houseConfig.upgradeMinHouses ?? 0));
+  if (upgradeMinHouses > 0 && houses.length < upgradeMinHouses) {
+    return null;
+  }
 
   const minHousingRatio = Number(
     houseConfig.upgradeMinHousingRatio ?? housingConfig.buildTargetRatio ?? 1,
@@ -144,16 +148,21 @@ function createHouseUpgradeJob(state, config, runtime, preferUpgrade = false) {
   }
 
   const houseSet = buildHousePositionSet(houses);
+  const minAdjacency = Math.max(0, Number(houseConfig.upgradeMinAdjacency ?? 0));
   const candidates = houses
     .map((house) => {
       const level = Math.max(1, Number(house.level || 1));
       if (level >= maxLevel) {
         return null;
       }
+      const neighbors = countAdjacentHouses(house, houseSet);
+      if (minAdjacency > 0 && neighbors < minAdjacency) {
+        return null;
+      }
       return {
         house,
         level,
-        neighbors: countAdjacentHouses(house, houseSet),
+        neighbors,
       };
     })
     .filter(Boolean);
