@@ -43,6 +43,10 @@ episodes from collapsing into extinction during long runs.
 - `population.relationships.bondGain`: bond increase per interaction.
 - `population.relationships.bondDecay`: bond decay when not interacting.
 - `population.relationships.bondThreshold`: bond score to form a pair.
+- `population.relationships.moraleMin`: morale where bonding bonus starts (0..1).
+- `population.relationships.moraleMax`: morale where bonding bonus caps (0..1).
+- `population.relationships.moraleBonusMax`: max bonding bonus added at peak morale (0..1).
+- `population.relationships.moraleExponent`: curve exponent for morale-based bonding bonus.
 - `population.pathing.mode`: pathing strategy (`detour` or `field`).
 - `population.pathing.field.radius`: potential-field radius (tiles).
 - `population.pathing.field.ttlTicks`: ticks to reuse a cached field.

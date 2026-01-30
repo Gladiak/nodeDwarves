@@ -143,6 +143,10 @@ Population relationships:
 - `population.relationships.bondGain`: bond score gained per interaction.
 - `population.relationships.bondDecay`: bond score decay per interaction.
 - `population.relationships.bondThreshold`: bond score required for stable bonding.
+- `population.relationships.moraleMin`: morale where bonding bonus starts (0..1).
+- `population.relationships.moraleMax`: morale where bonding bonus caps (0..1).
+- `population.relationships.moraleBonusMax`: max bonding bonus added at peak morale (0..1).
+- `population.relationships.moraleExponent`: curve exponent for morale-based bonding bonus.
 - `population.idleWanderChance`: legacy per-tick wander chance (0..1), used as fallback for `population.idleWander.chance`.
 - `population.idleWander.enabled`: enable waypoint-style idle wandering.
 - `population.idleWander.chance`: chance per tick to start an idle stroll (0..1).

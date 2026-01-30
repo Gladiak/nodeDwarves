@@ -95,15 +95,21 @@ function buildHudColumns(state, config, columnWidth) {
   const stockBarMax = Number(hudConfig.stockBarMax || 0);
   const colors = getColorConfig(config);
   const header = (label) => applyColor(label, "hud_header", colors);
+  const pushSection = (lines, label) => {
+    if (lines.length > 0 && lines[lines.length - 1] !== "") {
+      lines.push("");
+    }
+    lines.push(header(label));
+  };
 
   const left = [];
-  left.push(header("World"));
+  pushSection(left, "World");
   left.push(`Tick: ${state.tick}`);
   left.push(`Year ${yearLabel}, Season ${seasonLabel}`);
   left.push(`Weather: ${formatWeatherStatus(state.weather, colors)}`);
   left.push(`Event: ${lastEvent}`);
   left.push(`Merchant: ${formatMerchantStatus(state.merchant)}`);
-  left.push(header("Population"));
+  pushSection(left, "Population");
   left.push(`Pop: ${dwarves.length} (C:${stageCounts.child}/A:${stageCounts.adult}/E:${stageCounts.elder})`);
   left.push(`Idle: ${idleCount}`);
   left.push(`Jobs: ${state.jobs.length}`);
@@ -111,17 +117,17 @@ function buildHudColumns(state, config, columnWidth) {
   left.push(`Stress: ${avgStress.toFixed(2)}`);
   left.push(formatBondingLine(state, config));
   left.push(formatReproBlocksLine(state));
-  left.push(header("Housing"));
+  pushSection(left, "Housing");
   left.push(`Houses: ${houseCount}`);
   left.push(`Beds: ${bedsTotal}`);
   left.push(`Housing ratio: ${housingRatio.toFixed(2)}`);
-  left.push(header("Defense"));
+  pushSection(left, "Defense");
   left.push(`Towers: ${watchtowerCount}`);
   left.push(`Tower def: ${Math.round(towerDefense * 100)}%`);
   left.push(`Priority: ${topPriority}`);
 
   const right = [];
-  right.push(header("Welfare"));
+  pushSection(right, "Welfare");
 
   const hungerValue = Number(avgNeeds.hunger ?? 0);
   const thirstValue = Number(avgNeeds.thirst ?? 0);
@@ -143,7 +149,7 @@ function buildHudColumns(state, config, columnWidth) {
     ),
   );
 
-  right.push(header("Structures"));
+  pushSection(right, "Structures");
   right.push(fitLine(`Wells: ${wellCount}  Fields: ${fieldCount}`, columnWidth));
   right.push(
     fitLine(`Workshop: ${workshopCount}  Brewery: ${breweryCount}`, columnWidth),
@@ -164,7 +170,7 @@ function buildHudColumns(state, config, columnWidth) {
     right.push(fitLine(structureLevels, columnWidth));
   }
 
-  right.push(header("Stockpile"));
+  pushSection(right, "Stockpile");
 
   for (const [id, count] of Object.entries(state.stockpile)) {
     const target = Number(targets[id] || 0);

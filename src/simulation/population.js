@@ -444,6 +444,10 @@ function updateRelationships(state, config) {
   const bondGain = Number(relationships.bondGain ?? 1);
   const bondDecay = Number(relationships.bondDecay ?? 0.2);
   const bondThreshold = Number(relationships.bondThreshold ?? 20);
+  const moraleMin = clamp(Number(relationships.moraleMin ?? 0), 0, 1);
+  const moraleMax = clamp(Number(relationships.moraleMax ?? 1), 0, 1);
+  const moraleBonusMax = clamp(Number(relationships.moraleBonusMax ?? 0), 0, 1);
+  const moraleExponent = Math.max(0.1, Number(relationships.moraleExponent ?? 1));
   const bondingMultiplier = getBondingHousingMultiplier(state, config);
   const housing = getHousingStats(state, config);
 
@@ -455,11 +459,16 @@ function updateRelationships(state, config) {
   const idleAdults = adults.filter((dwarf) => !dwarf.job).length;
   const idleFraction = adults.length > 0 ? idleAdults / adults.length : 0;
   const bonusInteractions = Math.round(baseInteractions * idleFraction * idleMultiplier);
+  const avgMorale = averageValue(adults, (dwarf) => dwarf.state.morale);
+  const moraleRatio = moraleMax > moraleMin
+    ? clamp((avgMorale - moraleMin) / (moraleMax - moraleMin), 0, 1)
+    : 0;
+  const moraleBonus = 1 + moraleBonusMax * Math.pow(moraleRatio, moraleExponent);
   const interactions = Math.max(
     minInteractions,
-    Math.round((baseInteractions + bonusInteractions) * bondingMultiplier),
+    Math.round((baseInteractions + bonusInteractions) * bondingMultiplier * moraleBonus),
   );
-  const adjustedBondGain = bondGain * bondingMultiplier;
+  const adjustedBondGain = bondGain * bondingMultiplier * moraleBonus;
   if (interactions <= 0) {
     return;
   }

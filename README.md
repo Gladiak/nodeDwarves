@@ -65,7 +65,7 @@ alive while you watch the chaos unfold in ASCII.
 - 💧 Wells are built when water stocks or water node reserves dip below thresholds.
 - 🌱 Fields are built when food stocks or food node reserves dip below thresholds and baseline stockpiles are safe.
 - 🪚 Sawmills convert stone + iron investment into steady wood output.
-- 🍺 Breweries convert food into beer with a dedicated brewmaster; upgrades boost output while reducing food cost. Beer boosts morale, and high morale speeds up gathering.
+- 🍺 Breweries convert food into beer with a dedicated brewmaster; upgrades boost output while reducing food cost. Beer boosts morale, and high morale speeds up gathering and bonding.
 - 🛠️ Workshops unlock tool upgrades that boost all gathering yields, including mines.
 - ⛏️ Mines and 🪚 sawmills can be upgraded to level 10 for higher output (exponential cost/bonus).
 - ⛏️ Mines are built on mountain terrain when none exist, and miners output iron + stone per tick plus rare minerals from level 5+.
