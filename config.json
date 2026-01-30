@@ -213,11 +213,11 @@
       "criticalNeeds": 3.3,
       "idleAdults": 0.6,
       "raidExposure": 1,
-      "raidExposureEligible": 0.7,
+      "raidExposureEligible": 0.8,
       "raidDeaths": 2,
       "raidLoot": 1.8,
-      "raidPrepShelter": 0.5,
-      "raidPrepDefense": 0.35,
+      "raidPrepShelter": 0.9,
+      "raidPrepDefense": 0.45,
       "death": 7,
       "extinction": 320
     },
@@ -711,10 +711,10 @@
         "clipRange": 0.2,
         "entropyCoef": 0.005,
         "entropyCoefFinal": 0.002,
-        "entropyRampEpisodes": 4000,
+        "entropyRampEpisodes": 8000,
         "valueCoef": 0.5,
         "lr": 0.0003,
-        "lrFinal": 0.0001,
+        "lrFinal": 0.00015,
         "epochs": 4,
         "miniBatchSize": 512,
         "batchEpisodes": 12,
@@ -726,8 +726,14 @@
           "idleAdults",
           "populationBalance",
           "seasonIndex",
+          "seasonProgress",
           "weatherSeverity",
-          "raidActive"
+          "weatherTimeLeft",
+          "raidActive",
+          "raidTimeLeft",
+          "raidExposed",
+          "raidDefense",
+          "housingShortage"
         ],
         "activation": "tanh",
         "logStdInit": -0.8,
@@ -737,7 +743,7 @@
         "debugMode": "summary",
         "evalEvery": 2000,
         "evalEpisodes": 4,
-        "evalMaxSteps": 1200,
+        "evalMaxSteps": 0,
         "evalDifficulty": 1,
         "evalScore": "rpt",
         "sampleScore": "rpt",
@@ -816,10 +822,10 @@
     "house": {
       "count": 0,
       "capacity": 2,
-      "buildTicks": 25,
+      "buildTicks": 16,
       "buildCost": {
-        "wood": 6,
-        "stone": 4
+        "wood": 4,
+        "stone": 2
       },
       "storage": {
         "enabled": true,
@@ -845,10 +851,10 @@
       },
       "levels": {
         "1": {
-          "capacity": 4
+          "capacity": 6
         },
         "2": {
-          "capacity": 8,
+          "capacity": 12,
           "upgradeTicks": 14,
           "upgradeCost": {
             "wood": 3,
@@ -856,7 +862,7 @@
           }
         },
         "3": {
-          "capacity": 12,
+          "capacity": 18,
           "upgradeTicks": 19,
           "upgradeCost": {
             "wood": 5,
@@ -864,7 +870,7 @@
           }
         },
         "4": {
-          "capacity": 20,
+          "capacity": 26,
           "upgradeTicks": 24,
           "upgradeCost": {
             "wood": 6,
@@ -872,7 +878,7 @@
           }
         },
         "5": {
-          "capacity": 25,
+          "capacity": 34,
           "upgradeTicks": 28,
           "upgradeCost": {
             "wood": 8,
@@ -880,7 +886,7 @@
           }
         },
         "6": {
-          "capacity": 35,
+          "capacity": 46,
           "upgradeTicks": 32,
           "upgradeCost": {
             "wood": 8,
@@ -888,7 +894,7 @@
           }
         },
         "7": {
-          "capacity": 45,
+          "capacity": 56,
           "upgradeTicks": 38,
           "upgradeCost": {
             "wood": 10,
@@ -896,7 +902,7 @@
           }
         },
         "8": {
-          "capacity": 55,
+          "capacity": 70,
           "upgradeTicks": 42,
           "upgradeCost": {
             "wood": 11,
@@ -904,7 +910,7 @@
           }
         },
         "9": {
-          "capacity": 70,
+          "capacity": 88,
           "upgradeTicks": 46,
           "upgradeCost": {
             "wood": 13,
@@ -912,9 +918,9 @@
           }
         }
       },
-      "upgradeMinHousingRatio": 0.6,
-      "upgradeMinHouses": 6,
-      "upgradeMinAdjacency": 1
+      "upgradeMinHousingRatio": 0.45,
+      "upgradeMinHouses": 2,
+      "upgradeMinAdjacency": 0
     },
     "well": {
       "count": 0,
@@ -1015,7 +1021,7 @@
         "iron": 6
       },
       "outputPerTick": {
-        "wood": 0.25
+        "wood": 0.5
       },
       "levelMax": 10,
       "levelBonusMin": 0.02,
@@ -1045,7 +1051,7 @@
       "count": 0,
       "capacity": 1,
       "workersPerBrewery": 1,
-      "maxCount": 1,
+      "maxCount": 2,
       "buildMinRadius": 2,
       "buildOuterBuffer": 1,
       "buildTicks": 60,
@@ -1070,12 +1076,12 @@
         "wood": 6,
         "stone": 4
       },
-      "brewmasterInitial": 1
+      "brewmasterInitial": 2
     },
     "mine": {
       "count": 1,
       "capacity": 1,
-      "minersPerMine": 2,
+      "minersPerMine": 4,
       "buildMinRadius": 4,
       "buildOuterBuffer": 2,
       "buildTerrain": ["mountain", "stone"],
@@ -1259,17 +1265,17 @@
       "enabled": true,
       "bondingMinMultiplier": 0.7,
       "bondingMaxMultiplier": 1.1,
-      "buildTargetRatio": 1.3,
+      "buildTargetRatio": 1.7,
       "buildMinResources": {
-        "food": 0.55,
-        "water": 0.55
+        "food": 0.3,
+        "water": 0.3
       },
       "winterNeedPenalty": 0.25,
       "winterOldAgePenalty": 0.25
     },
     "roles": {
       "enabled": true,
-      "builderRatio": 0.2,
+      "builderRatio": 0.3,
       "managerRatio": 0.2,
       "switchCooldownTicks": 200,
       "emergencyMinRatio": 0.4,

@@ -339,6 +339,7 @@ function assignBuildJobIfNeeded(
 // Assign brewery jobs to keep brewmasters stationed at breweries.
 function assignBreweryJobs(state, config, runtime, brewers) {
   const breweryConfig = (config.structures && config.structures.brewery) || {};
+  const maxCount = Number(breweryConfig.maxCount ?? 0);
   const workersPer = Math.max(
     0,
     Number(breweryConfig.workersPerBrewery ?? breweryConfig.capacity ?? 0),
@@ -349,28 +350,33 @@ function assignBreweryJobs(state, config, runtime, brewers) {
   const breweries = (state.structures || []).filter(
     (structure) => structure.type === "brewery",
   );
-  if (breweries.length === 0) {
+  const canBuildMore = maxCount > 0 && breweries.length < maxCount;
+  if (canBuildMore) {
     const hasBlockingBuild = state.jobs.some((job) => {
       if (job.type === "build" && job.structureType !== "watchtower") {
         return true;
       }
       return false;
     });
-    if (hasBlockingBuild) {
-      return;
-    }
-    if (!state.jobs.some((job) => job.type === "build" && job.structureType === "brewery")) {
-      const buildJob = createBreweryBuildJob(state, config, runtime);
-      if (buildJob && brewers.length > 0) {
-        const dwarf = brewers.shift();
-        if (!dwarf) {
-          return;
+    if (!hasBlockingBuild) {
+      const hasBreweryBuild = state.jobs.some(
+        (job) => job.type === "build" && job.structureType === "brewery",
+      );
+      if (!hasBreweryBuild) {
+        const buildJob = createBreweryBuildJob(state, config, runtime);
+        if (buildJob && brewers.length > 0) {
+          const dwarf = brewers.shift();
+          if (!dwarf) {
+            return;
+          }
+          buildJob.dwarfId = dwarf.id;
+          dwarf.job = buildJob;
+          state.jobs.push(buildJob);
         }
-        buildJob.dwarfId = dwarf.id;
-        dwarf.job = buildJob;
-        state.jobs.push(buildJob);
       }
     }
+  }
+  if (breweries.length === 0) {
     return;
   }
 

@@ -444,9 +444,6 @@ function createBreweryBuildJob(state, config, runtime) {
   if (maxCount > 0 && existing >= maxCount) {
     return null;
   }
-  if (existing > 0) {
-    return null;
-  }
 
   const buildCost = breweryConfig.buildCost || {};
   if (Object.keys(buildCost).length > 0 && !hasInputs(state.stockpile, buildCost)) {

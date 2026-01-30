@@ -56,15 +56,18 @@ rl.on('line', (line) => {
 
   if (cmd === 'step') {
     const action = payload.action || {};
-    const ticks = getStepTicks(action, activeConfig);
+    const forceDebug = Boolean(payload.debug) || Boolean(action.debug);
+    const stepAction = { ...action };
+    delete stepAction.debug;
+    const ticks = getStepTicks(stepAction, activeConfig);
     for (let i = 0; i < ticks; i += 1) {
-      stepState(state, activeConfig, runtime, action);
+      stepState(state, activeConfig, runtime, stepAction);
     }
     const metrics = computeMetrics(state, activeConfig);
     const reward = computeReward(prevMetrics, metrics, activeConfig);
     prevMetrics = metrics;
     const doneStatus = getDoneStatus(state, activeConfig, metrics);
-    writeResponse(buildResponse(reward, doneStatus.done, doneStatus.reason));
+    writeResponse(buildResponse(reward, doneStatus.done, doneStatus.reason, forceDebug));
     return;
   }
 
@@ -149,10 +152,10 @@ function getStepTicks(action, config) {
 }
 
 // Function: buildResponse.
-function buildResponse(reward, done, doneReason) {
+function buildResponse(reward, done, doneReason, forceDebug) {
   const metrics = computeMetrics(state, activeConfig);
   const obs = buildObservation(state, activeConfig, metrics);
-  const debugPayload = getDebugPayload(state, activeConfig, metrics, done);
+  const debugPayload = getDebugPayload(state, activeConfig, metrics, done, forceDebug);
   return {
     obs,
     reward: Number(reward || 0),
@@ -170,19 +173,19 @@ function buildResponse(reward, done, doneReason) {
 }
 
 // Decide whether debug info should be included in a response.
-function shouldIncludeDebug(done) {
+function shouldIncludeDebug(done, forceDebug) {
   if (DEBUG_MODE === 'off') {
     return false;
   }
   if (DEBUG_MODE === 'final' || DEBUG_MODE === 'summary') {
-    return Boolean(done);
+    return Boolean(done || forceDebug);
   }
   return true;
 }
 
 // Build the debug payload based on the selected debug mode.
-function getDebugPayload(state, config, metrics, done) {
-  if (!shouldIncludeDebug(done)) {
+function getDebugPayload(state, config, metrics, done, forceDebug) {
+  if (!shouldIncludeDebug(done, forceDebug)) {
     return null;
   }
   if (DEBUG_MODE === 'summary') {

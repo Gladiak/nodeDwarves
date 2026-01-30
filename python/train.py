@@ -1517,7 +1517,10 @@ def run_episode(
             )
             action = action_tensor.squeeze(0).tolist()
             weights = {resource: float(action[idx]) for idx, resource in enumerate(resources)}
-            response = send(proc, {"cmd": "step", "action": {"weights": weights, "ticks": step_ticks}})
+            action_payload = {"weights": weights, "ticks": step_ticks}
+            if step == max_steps - 1:
+                action_payload["debug"] = True
+            response = send(proc, {"cmd": "step", "action": action_payload})
             reward = float(response.get("reward", 0.0))
             done = bool(response.get("done"))
             obs = response.get("obs", {}) or {}
