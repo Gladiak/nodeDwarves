@@ -132,16 +132,48 @@ function selectVisibleDwarves(state, config, runtime) {
   if (!maxVisible || dwarves.length <= maxVisible) {
     return dwarves;
   }
-  const center = getRenderCenter(state, runtime);
-  const sorted = dwarves.slice().sort((a, b) => {
-    const distA = Math.abs(a.x - center.x) + Math.abs(a.y - center.y);
-    const distB = Math.abs(b.x - center.x) + Math.abs(b.y - center.y);
-    if (distA !== distB) {
-      return distA - distB;
+  const adults = dwarves.filter((dwarf) => dwarf.lifeStage === 'adult');
+  const nonAdults = dwarves.filter((dwarf) => dwarf.lifeStage !== 'adult');
+  const useAdultsOnly = adults.length >= maxVisible;
+  const pool = useAdultsOnly ? adults : adults.concat(nonAdults);
+  if (pool.length <= maxVisible) {
+    return pool;
+  }
+  if (!state.renderState) {
+    state.renderState = {};
+  }
+  const renderState = state.renderState;
+  const prevIds = Array.isArray(renderState.visibleDwarfIds) ? renderState.visibleDwarfIds : [];
+  const dwarfById = new Map(pool.map((dwarf) => [dwarf.id, dwarf]));
+  const visible = [];
+  const used = new Set();
+
+  for (const id of prevIds) {
+    const dwarf = dwarfById.get(id);
+    if (!dwarf) {
+      continue;
     }
-    return String(a.id || '').localeCompare(String(b.id || ''));
-  });
-  return sorted.slice(0, maxVisible);
+    visible.push(dwarf);
+    used.add(id);
+    if (visible.length >= maxVisible) {
+      break;
+    }
+  }
+
+  if (visible.length < maxVisible) {
+    const remainingAdults = adults.filter((dwarf) => !used.has(dwarf.id));
+    const remainingOthers = nonAdults.filter((dwarf) => !used.has(dwarf.id));
+    shuffleInPlace(remainingAdults);
+    shuffleInPlace(remainingOthers);
+    const candidates = useAdultsOnly ? remainingAdults : remainingAdults.concat(remainingOthers);
+    const needed = maxVisible - visible.length;
+    for (let i = 0; i < needed && i < candidates.length; i += 1) {
+      visible.push(candidates[i]);
+    }
+  }
+
+  renderState.visibleDwarfIds = visible.map((dwarf) => dwarf.id);
+  return visible;
 }
 
 // Resolve a stable render center based on housing or the grid.
@@ -162,6 +194,17 @@ function getRenderCenter(state, runtime) {
     x: Math.floor(runtime.gridWidth / 2),
     y: Math.floor(runtime.gridHeight / 2),
   };
+}
+
+// Shuffle a list in place using Fisher-Yates.
+function shuffleInPlace(list) {
+  for (let i = list.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const tmp = list[i];
+    list[i] = list[j];
+    list[j] = tmp;
+  }
+  return list;
 }
 
 // Resolve render position for a dwarf, offsetting miners next to their mine.

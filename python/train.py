@@ -18,7 +18,7 @@ except ImportError as exc:
     ) from exc
 
 
-FEATURE_NAMES = [
+DEFAULT_FEATURE_NAMES = [
     "shortage",
     "nodeScarcity",
     "criticalNeeds",
@@ -35,6 +35,7 @@ FEATURE_NAMES = [
     "housingShortage",
     "seasonEligible",
 ]
+FEATURE_NAME_SET = set(DEFAULT_FEATURE_NAMES)
 
 DEBUG_LOG_DIRNAME = "debug"
 DEBUG_LOG_EVERY = 500
@@ -643,7 +644,7 @@ def write_detail_header(
     handle.write("# Raid.active_ratio: fraction of ticks with an active raid.\n")
     handle.write("# Raid.season_eligible: fraction of ticks in raid-eligible seasons.\n")
     handle.write("# Raid.exposed_ratio: average exposed population ratio.\n")
-    handle.write("# Raid.defense_ratio: average defense ratio (adults + walls).\n")
+    handle.write("# Raid.defense_ratio: average defense ratio (adults + watchtowers).\n")
     handle.write("# Raid.loot.<resource>: average loot per episode in the window.\n")
     handle.write("# Reproduction.ticks: ticks accumulated in the window.\n")
     handle.write("# Reproduction.couples_per_tick: average couples per tick.\n")
@@ -1213,7 +1214,8 @@ def worker_loop(worker_id, task_queue, result_queue, update_queue, resources, se
 
     try:
         try:
-            input_size = len(resources) * len(FEATURE_NAMES)
+            feature_names = settings.get("feature_names") or DEFAULT_FEATURE_NAMES
+            input_size = len(resources) * len(feature_names)
             action_size = len(resources)
             model = ActorCritic(
                 input_size,
@@ -1245,7 +1247,7 @@ def worker_loop(worker_id, task_queue, result_queue, update_queue, resources, se
                         proc,
                         model,
                         resources,
-                        FEATURE_NAMES,
+                        feature_names,
                         settings["max_steps"],
                         settings["step_ticks"],
                         seed,
@@ -1782,11 +1784,49 @@ def to_int_list(value, fallback):
     return fallback
 
 
+def to_str_list(value, fallback):
+    if value is None:
+        return fallback
+    if isinstance(value, list):
+        parsed = []
+        for item in value:
+            if item is None:
+                continue
+            text = str(item).strip()
+            if text:
+                parsed.append(text)
+        return parsed or fallback
+    if isinstance(value, str):
+        parts = [part.strip() for part in value.replace(" ", ",").split(",") if part.strip()]
+        return parts or fallback
+    return fallback
+
+
+def resolve_feature_names(value, fallback):
+    names = to_str_list(value, None)
+    if not names:
+        return list(fallback), []
+    seen = set()
+    invalid = []
+    filtered = []
+    for name in names:
+        if name in FEATURE_NAME_SET:
+            if name not in seen:
+                filtered.append(name)
+                seen.add(name)
+        else:
+            invalid.append(name)
+    if not filtered:
+        return list(fallback), invalid
+    return filtered, invalid
+
+
 def build_training_defaults(config):
     ai = config.get("ai", {}) if isinstance(config, dict) else {}
     training = ai.get("training", {}) if isinstance(ai, dict) else {}
     trainer = training.get("trainer", {}) if isinstance(training, dict) else {}
 
+    feature_names, _ = resolve_feature_names(trainer.get("featureNames"), DEFAULT_FEATURE_NAMES)
     defaults = {
         "episodes": to_int(trainer.get("episodes"), 20000),
         "max_steps": to_int(trainer.get("maxSteps"), 900),
@@ -1804,6 +1844,7 @@ def build_training_defaults(config):
         "mini_batch_size": to_int(trainer.get("miniBatchSize"), 512),
         "batch_episodes": to_int(trainer.get("batchEpisodes"), 8),
         "hidden_sizes": to_int_list(trainer.get("hiddenSizes"), [128, 128]),
+        "feature_names": feature_names,
         "activation": to_str(trainer.get("activation"), "tanh"),
         "log_std_init": to_float(trainer.get("logStdInit"), -0.5),
         "max_grad_norm": to_float(trainer.get("maxGradNorm"), 0.5),
@@ -1875,6 +1916,7 @@ def parse_args():
     parser.add_argument("--mini-batch-size", type=int, default=defaults["mini_batch_size"])
     parser.add_argument("--batch-episodes", type=int, default=defaults["batch_episodes"])
     parser.add_argument("--hidden-sizes", type=str, default=None)
+    parser.add_argument("--feature-names", type=str, default=None)
     parser.add_argument("--activation", type=str, default=defaults["activation"])
     parser.add_argument("--log-std-init", type=float, default=defaults["log_std_init"])
     parser.add_argument("--max-grad-norm", type=float, default=defaults["max_grad_norm"])
@@ -1907,6 +1949,13 @@ def parse_args():
         else defaults["hidden_sizes"]
     )
     args.activation = to_str(args.activation, defaults["activation"]).lower()
+    feature_source = args.feature_names if args.feature_names is not None else defaults["feature_names"]
+    args.feature_names, invalid = resolve_feature_names(feature_source, defaults["feature_names"])
+    if invalid:
+        print(
+            "Warning: ignoring unknown feature names: " + ", ".join(invalid),
+            file=sys.stderr,
+        )
     args.debug_mode = to_str(args.debug_mode, defaults["debug_mode"]).lower()
     if args.eval_difficulty is not None:
         args.eval_difficulty = clamp(float(args.eval_difficulty), 0.0, 1.0)
@@ -1990,6 +2039,25 @@ def load_policy(path, model):
         model.log_std.data.copy_(torch.tensor(log_std, dtype=torch.float32, device=model.log_std.device))
 
 
+def load_policy_feature_names(path):
+    if not path or not os.path.exists(path):
+        return None
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+    except (OSError, json.JSONDecodeError):
+        return None
+    names = payload.get("featureNames")
+    if not isinstance(names, list):
+        return None
+    parsed = []
+    for name in names:
+        text = str(name).strip()
+        if text:
+            parsed.append(text)
+    return parsed or None
+
+
 def main():
     args = parse_args()
     configure_torch_threads()
@@ -2034,7 +2102,8 @@ def main():
     if not resources:
         raise SystemExit("No resources available for training. Check config.json.")
 
-    input_size = len(resources) * len(FEATURE_NAMES)
+    feature_names = args.feature_names or list(DEFAULT_FEATURE_NAMES)
+    input_size = len(resources) * len(feature_names)
     action_size = len(resources)
     model = ActorCritic(
         input_size,
@@ -2057,6 +2126,12 @@ def main():
             resume_path = args.model_path
 
     if resume_path:
+        resume_features = load_policy_feature_names(resume_path)
+        if resume_features and resume_features != feature_names:
+            raise SystemExit(
+                "Feature names mismatch with resume policy. "
+                "Update ai.training.trainer.featureNames or run with --fresh."
+            )
         load_policy(resume_path, model)
 
     best_eval = None if args.fresh else load_best_meta(args.best_model_meta_path, args.best_model_path)
@@ -2130,6 +2205,7 @@ def main():
         "min_weight": min_weight,
         "max_weight": max_weight,
         "hidden_sizes": args.hidden_sizes,
+        "feature_names": feature_names,
         "activation": args.activation,
         "log_std_init": args.log_std_init,
         "full_sim": args.full_sim,
@@ -2308,7 +2384,7 @@ def main():
                         args.model_path,
                         model,
                         resources,
-                        FEATURE_NAMES,
+                        feature_names,
                         min_weight,
                         max_weight,
                         args.activation,
@@ -2424,7 +2500,7 @@ def main():
                         eval_proc,
                         model,
                         resources,
-                        FEATURE_NAMES,
+                        feature_names,
                         eval_max_steps,
                         args.step_ticks,
                         args.eval_episodes,
@@ -2461,7 +2537,7 @@ def main():
                                 args.best_model_path,
                                 model,
                                 resources,
-                                FEATURE_NAMES,
+                                feature_names,
                                 min_weight,
                                 max_weight,
                                 args.activation,

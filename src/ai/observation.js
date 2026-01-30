@@ -40,7 +40,7 @@ function buildFeatures(obs, resource, config, featureNames) {
   const nodeScarcity = clamp(1 - nodeRatio, 0, 1);
   const criticalNeeds = clamp(Number(obs.criticalNeedsFraction || 0), 0, 1);
   const idleAdults = clamp(Number(obs.idleAdultsFraction || 0), 0, 1);
-  const populationBalance = clamp(Number(obs.populationBalance || 0), -1, 1);
+  const populationBalance = clamp(Number(obs.populationBalance || 0), 0, 1);
   const seasonIndex = getSeasonIndex(obs.season, config);
   const seasonProgress = getSeasonProgress(obs.season);
   const weather = obs.weather || {};
@@ -48,9 +48,9 @@ function buildFeatures(obs, resource, config, featureNames) {
   const weatherTimeLeft = clamp(Number(weather.timeLeft || 0), 0, 1);
   const raid = obs.raid || {};
   const raidActive = raid.active ? 1 : 0;
-  const raidTimeLeft = clamp(Number(raid.timeLeft || 0), 0, 1);
-  const raidExposed = clamp(Number(raid.exposed || 0), 0, 1);
-  const raidDefense = clamp(Number(raid.defense || 0), 0, 1);
+  const raidTimeLeft = clamp(Number(raid.timeLeftRatio ?? raid.timeLeft ?? 0), 0, 1);
+  const raidExposed = clamp(Number(raid.exposedRatio ?? raid.exposed ?? 0), 0, 1);
+  const raidDefense = clamp(Number(raid.defenseRatio ?? raid.defense ?? 0), 0, 1);
   const housingRatio = clamp(Number(obs.housingRatio || 0), 0, 1);
   const housingShortage = clamp(1 - housingRatio, 0, 1);
   const seasonEligible = raid.seasonEligible ? 1 : 0;
@@ -185,19 +185,13 @@ function getIdleAdultsFraction(dwarves) {
 
 // Compute population balance vs. configured housing target.
 function getPopulationBalance(state, config) {
-  const housingConfig = (config.population && config.population.housing) || {};
-  if (housingConfig.enabled === false) {
-    return 0;
+  const reproduction = config.population && config.population.reproduction;
+  const softCap = Number(reproduction && reproduction.softCap || 0);
+  if (softCap <= 0) {
+    return 1;
   }
-  const buildTargetRatio = Math.max(0, Number(housingConfig.buildTargetRatio ?? 1));
-  if (buildTargetRatio <= 0) {
-    return 0;
-  }
-  const houses = (state.structures || []).filter((structure) => structure.type === 'house');
-  const bedsTotal = houses.reduce((sum, house) => sum + Math.max(0, Number(house.capacity || 0)), 0);
-  const population = Math.max(1, state.dwarves.length);
-  const ratio = bedsTotal / (population * buildTargetRatio);
-  return clamp(ratio - 1, -1, 1);
+  const ratio = 1 - Math.abs(state.dwarves.length - softCap) / softCap;
+  return clamp(ratio, 0, 1);
 }
 
 // Compute housing stats for AI observation.
@@ -224,50 +218,72 @@ function getHousingStats(state, config) {
 function getRaidObservation(state, config, housingStats) {
   const raidConfig = (config && config.raids) || {};
   const raidState = state.raid || {};
-  if (raidConfig.enabled !== true || !raidState) {
+  if (!raidState) {
     return {
       active: false,
-      timeLeft: 0,
-      exposed: 0,
-      defense: 0,
-      seasonEligible: false,
+      timeLeftRatio: 0,
+      exposedRatio: 0,
+      defenseRatio: 0,
+      seasonEligible: 0,
     };
   }
-
-  const raidActive = raidState.active === true;
-  const timeLeft = raidActive
-    ? clamp(Number(raidState.ticksRemaining || 0) / Math.max(1, Number(raidState.duration || 1)), 0, 1)
-    : 0;
 
   const houses = housingStats ? housingStats.houses : (state.structures || []).filter((structure) => {
     return structure.type === 'house';
   });
   const population = housingStats ? housingStats.population : Math.max(1, state.dwarves.length);
-  const housingRatio = housingStats ? housingStats.housingRatio : 0;
-  const exposed = housingRatio < 1 ? clamp(1 - housingRatio, 0, 1) : 0;
+  const houseMap = new Map(houses.map((house) => [house.id, house]));
+  let exposedCount = 0;
 
-  const defenseAdults = Math.max(1, Number(raidConfig.defenseAdults || population));
+  for (const dwarf of state.dwarves) {
+    const home = dwarf.homeId ? houseMap.get(dwarf.homeId) : null;
+    const sheltered = Boolean(home && dwarf.x === home.x && dwarf.y === home.y);
+    if (!sheltered) {
+      exposedCount += 1;
+    }
+  }
+
+  const exposedRatio = population > 0 ? clamp(exposedCount / population, 0, 1) : 0;
   const adults = state.dwarves.filter((dwarf) => dwarf.lifeStage === 'adult').length;
+  const defenseAdults = Math.max(1, Number(raidConfig.defenseAdults || population));
   const defenseMax = clamp(Number(raidConfig.defenseMax ?? 0), 0, 1);
-  const defense = clamp(adults / defenseAdults, 0, defenseMax);
+  const defenseRaw = clamp(adults / defenseAdults, 0, defenseMax);
   const towerConfig = (config.structures && config.structures.watchtower) || {};
   const towerRaid = towerConfig.raid || {};
   const towerCount = (state.structures || []).filter((structure) => structure.type === 'watchtower').length;
   const towerDefensePer = Math.max(0, Number(towerRaid.defensePerTower ?? 0));
   const towerDefenseMax = clamp(Number(towerRaid.defenseMax ?? 0), 0, 1);
   const towerDefense = clamp(towerCount * towerDefensePer, 0, towerDefenseMax);
-  const totalDefense = clamp(defense + towerDefense, 0, 1);
+  const defenseRatio = clamp(defenseRaw + towerDefense, 0, 1);
 
-  const seasonEligible = raidConfig.enabled === true && state.season && state.season.name
-    && Array.isArray(raidConfig.seasonNames)
-    && raidConfig.seasonNames.includes(state.season.name);
+  const duration = Math.max(1, Number(raidState.duration || raidConfig.durationTicks || 0));
+  const ticksRemaining = Math.max(0, Number(raidState.ticksRemaining || 0));
+  const timeLeftRatio = duration > 0 ? clamp(ticksRemaining / duration, 0, 1) : 0;
+
+  const seasonNames = Array.isArray(raidConfig.seasonNames) && raidConfig.seasonNames.length > 0
+    ? raidConfig.seasonNames
+    : ['spring', 'autumn'];
+  const seasonName = state.season ? state.season.name : null;
+  let seasonEligible = raidConfig.enabled === true
+    && seasonName
+    && seasonNames.includes(seasonName)
+    ? 1
+    : 0;
+  const minTick = Math.max(0, Number(raidConfig.minTick || 0));
+  const minPopulation = Math.max(0, Number(raidConfig.minPopulation || 0));
+  if (state.tick < minTick || population < minPopulation) {
+    seasonEligible = 0;
+  }
 
   return {
-    active: raidActive,
-    timeLeft,
-    exposed,
-    defense: totalDefense,
+    active: Boolean(raidState.active),
+    timeLeftRatio,
+    exposedRatio,
+    defenseRatio,
     seasonEligible,
+    timeLeft: timeLeftRatio,
+    exposed: exposedRatio,
+    defense: defenseRatio,
   };
 }
 
@@ -288,7 +304,7 @@ function getNodeRatio(nodes) {
 
   const ratios = {};
   for (const [resource, total] of Object.entries(totals)) {
-    ratios[resource] = total > 0 ? clamp(remaining[resource] / total, 0, 1) : 1;
+    ratios[resource] = total > 0 ? clamp(remaining[resource] / total, 0, 1) : 0;
   }
 
   return ratios;

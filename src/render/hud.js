@@ -1,8 +1,8 @@
-'use strict';
+"use strict";
 
-const { clamp, padRight } = require('../utils');
-const { getColorConfig, applyColor } = require('./colors');
-const { fitLine } = require('./format');
+const { clamp, padRight } = require("../utils");
+const { getColorConfig, applyColor } = require("./colors");
+const { fitLine } = require("./format");
 
 // Build HUD lines based on column layout.
 function buildHudLines(state, config, runtime) {
@@ -21,7 +21,7 @@ function buildHudLines(state, config, runtime) {
 // Build a single-column HUD layout.
 function buildSingleHud(state, config, columnWidth) {
   const { left, right } = buildHudColumns(state, config, columnWidth);
-  return left.concat([''], right);
+  return left.concat([""], right);
 }
 
 // Build the left and right HUD columns.
@@ -31,32 +31,56 @@ function buildHudColumns(state, config, columnWidth) {
   const avgMorale = averageValue(dwarves, (d) => d.state.morale);
   const avgStress = averageValue(dwarves, (d) => d.state.stress);
   const idleCount = dwarves.filter((dwarf) => !dwarf.job).length;
-  const topPriority = state.lastPriorities && state.lastPriorities[0]
-    ? state.lastPriorities[0].resource
-    : '-';
+  const topPriority =
+    state.lastPriorities && state.lastPriorities[0]
+      ? state.lastPriorities[0].resource
+      : "-";
   const structures = state.structures || [];
-  const houseCount = structures.filter((structure) => structure.type === 'house').length;
-  const wellCount = structures.filter((structure) => structure.type === 'well').length;
-  const fieldCount = structures.filter((structure) => structure.type === 'field').length;
-  const workshopCount = structures.filter((structure) => structure.type === 'workshop').length;
-  const sawmillCount = structures.filter((structure) => structure.type === 'sawmill').length;
-  const mineCount = structures.filter((structure) => structure.type === 'mine').length;
-  const watchtowerCount = structures.filter((structure) => structure.type === 'watchtower').length;
+  const houseCount = structures.filter(
+    (structure) => structure.type === "house",
+  ).length;
+  const wellCount = structures.filter(
+    (structure) => structure.type === "well",
+  ).length;
+  const fieldCount = structures.filter(
+    (structure) => structure.type === "field",
+  ).length;
+  const workshopCount = structures.filter(
+    (structure) => structure.type === "workshop",
+  ).length;
+  const sawmillCount = structures.filter(
+    (structure) => structure.type === "sawmill",
+  ).length;
+  const mineCount = structures.filter(
+    (structure) => structure.type === "mine",
+  ).length;
+  const watchtowerCount = structures.filter(
+    (structure) => structure.type === "watchtower",
+  ).length;
   const housingConfig = (config.population && config.population.housing) || {};
   const housingEnabled = housingConfig.enabled !== false;
   const bedsTotal = housingEnabled
     ? structures
-      .filter((structure) => structure.type === 'house')
-      .reduce((sum, house) => sum + Math.max(0, Number(house.capacity || 0)), 0)
+        .filter((structure) => structure.type === "house")
+        .reduce(
+          (sum, house) => sum + Math.max(0, Number(house.capacity || 0)),
+          0,
+        )
     : 0;
   const housingRatio = housingEnabled
-    ? (bedsTotal > 0 ? bedsTotal / Math.max(1, dwarves.length) : 0)
+    ? bedsTotal > 0
+      ? bedsTotal / Math.max(1, dwarves.length)
+      : 0
     : 1;
   const towerConfig = (config.structures && config.structures.watchtower) || {};
   const towerRaid = towerConfig.raid || {};
   const towerDefensePer = Math.max(0, Number(towerRaid.defensePerTower ?? 0));
   const towerDefenseMax = clamp(Number(towerRaid.defenseMax ?? 0), 0, 1);
-  const towerDefense = clamp(watchtowerCount * towerDefensePer, 0, towerDefenseMax);
+  const towerDefense = clamp(
+    watchtowerCount * towerDefensePer,
+    0,
+    towerDefenseMax,
+  );
   const seasonLabel = formatSeasonLabel(state.season);
   const yearLabel = formatYearLabel(state, config);
   const lastEvent = formatLastEvent(state.events);
@@ -67,22 +91,25 @@ function buildHudColumns(state, config, columnWidth) {
   const colors = getColorConfig(config);
 
   const left = [];
+  left.push("World");
   left.push(`Tick: ${state.tick}`);
   left.push(`Year ${yearLabel}, Season ${seasonLabel}`);
   left.push(`Weather: ${formatWeatherStatus(state.weather, colors)}`);
   left.push(`Event: ${lastEvent}`);
   left.push(`Merchant: ${formatMerchantStatus(state.merchant)}`);
-  left.push('');
-  left.push(`Pop: ${dwarves.length} (C:${stageCounts.child}/A:${stageCounts.adult}/E:${stageCounts.elder})`);
+  left.push("");
+  left.push(
+    `Pop: ${dwarves.length} (C:${stageCounts.child}/A:${stageCounts.adult}/E:${stageCounts.elder})`,
+  );
   left.push(`Idle: ${idleCount}`);
   left.push(`Jobs: ${state.jobs.length}`);
   left.push(formatBondingLine(state, config));
   left.push(formatReproBlocksLine(state));
-  left.push('');
+  left.push("");
   left.push(`Houses: ${houseCount}`);
   left.push(`Beds: ${bedsTotal}`);
   left.push(`Housing ratio: ${housingRatio.toFixed(2)}`);
-  left.push('');
+  left.push("");
   left.push(`Wells: ${wellCount}`);
   left.push(`Fields: ${fieldCount}`);
   left.push(`Workshop: ${workshopCount}`);
@@ -90,50 +117,68 @@ function buildHudColumns(state, config, columnWidth) {
   left.push(`Mines: ${mineCount}`);
   if (state.tools) {
     const maxLevel = Math.max(1, Number(state.tools.maxLevel || 1));
-    const level = Math.min(maxLevel, Math.max(1, Number(state.tools.level || 1)));
+    const level = Math.min(
+      maxLevel,
+      Math.max(1, Number(state.tools.level || 1)),
+    );
     left.push(`Tools: L${level}/${maxLevel}`);
   }
   const structureLevels = getStructureLevelSummary(structures);
   if (structureLevels) {
     left.push(structureLevels);
   }
-  left.push('');
+  left.push("");
   left.push(`Towers: ${watchtowerCount}`);
   left.push(`Tower def: ${Math.round(towerDefense * 100)}%`);
   left.push(`Priority: ${topPriority}`);
-  left.push('');
-  left.push('Avg hunger/thirst');
+  left.push("");
+  left.push("Welfare");
 
   const hungerValue = Number(avgNeeds.hunger ?? 0);
   const thirstValue = Number(avgNeeds.thirst ?? 0);
 
-  left.push(formatBarLine('Hunger', hungerValue, formatNeedValue(hungerValue), columnWidth));
-  left.push(formatBarLine('Thirst', thirstValue, formatNeedValue(thirstValue), columnWidth));
+  left.push(
+    formatBarLine(
+      "Hunger",
+      hungerValue,
+      formatNeedValue(hungerValue),
+      columnWidth,
+    ),
+  );
+  left.push(
+    formatBarLine(
+      "Thirst",
+      thirstValue,
+      formatNeedValue(thirstValue),
+      columnWidth,
+    ),
+  );
 
-  left.push('');
   left.push(`Morale: ${avgMorale.toFixed(2)}`);
   left.push(`Stress: ${avgStress.toFixed(2)}`);
 
   const right = [];
-  right.push('Stockpile');
+  right.push("Stockpile");
 
   for (const [id, count] of Object.entries(state.stockpile)) {
     const target = Number(targets[id] || 0);
     const maxValue = stockBarMax > 0 ? stockBarMax : target;
     const ratio = maxValue > 0 ? clamp(Number(count || 0) / maxValue, 0, 1) : 1;
-    const detail = maxValue > 0
-      ? formatCountDetail(count, maxValue)
-      : formatCompactNumber(count);
+    const detail =
+      maxValue > 0
+        ? formatCountDetail(count, maxValue)
+        : formatCompactNumber(count);
     right.push(formatBarLine(id, ratio, detail, columnWidth));
   }
 
   const storage = state.houseStorage;
-  right.push('');
-  right.push('Queue');
+  right.push("");
+  right.push("Queue");
+  right.push(`Priority: ${topPriority}`);
 
   const queue = (state.lastPriorities || []).slice(0, 3);
   if (queue.length === 0) {
-    right.push('-');
+    right.push("-");
   } else {
     for (const entry of queue) {
       right.push(`${entry.resource}: ${formatCompactNumber(entry.missing)}`);
@@ -161,10 +206,10 @@ function formatColumns(columns, totalWidth, columnCount, gap) {
     const parts = [];
     for (let col = 0; col < columnCount; col += 1) {
       const column = columns[col] || [];
-      const value = column[row] !== undefined ? column[row] : '';
+      const value = column[row] !== undefined ? column[row] : "";
       parts.push(padRight(value, columnWidth));
     }
-    lines.push(parts.join(' '.repeat(gapWidth)));
+    lines.push(parts.join(" ".repeat(gapWidth)));
   }
 
   return lines;
@@ -183,7 +228,7 @@ function getHudColumnWidth(totalWidth, columnCount, gap) {
 function formatNeedValue(value) {
   const numeric = Number(value || 0);
   if (!Number.isFinite(numeric)) {
-    return '0';
+    return "0";
   }
   return String(Math.round(numeric));
 }
@@ -198,10 +243,16 @@ function formatBondingLine(state, config) {
   let noHomeCouples = 0;
 
   for (const dwarf of dwarves) {
-    if (!dwarf.partnerId || visited.has(dwarf.id) || visited.has(dwarf.partnerId)) {
+    if (
+      !dwarf.partnerId ||
+      visited.has(dwarf.id) ||
+      visited.has(dwarf.partnerId)
+    ) {
       continue;
     }
-    const partner = dwarves.find((candidate) => candidate.id === dwarf.partnerId);
+    const partner = dwarves.find(
+      (candidate) => candidate.id === dwarf.partnerId,
+    );
     if (!partner) {
       continue;
     }
@@ -227,7 +278,8 @@ function formatBondingLine(state, config) {
 function formatReproBlocksLine(state) {
   const stats = state.reproductionStats || {};
   const ticks = Number(stats.ticks || 0);
-  const perTick = (value) => formatCompactFloat(ticks > 0 ? Number(value || 0) / ticks : 0);
+  const perTick = (value) =>
+    formatCompactFloat(ticks > 0 ? Number(value || 0) / ticks : 0);
   const infertile = perTick(stats.blockedInfertile);
   const pregnant = perTick(stats.blockedPregnant);
   const cooldown = perTick(stats.blockedCooldown);
@@ -241,7 +293,7 @@ function formatReproBlocksLine(state) {
 function formatCompactFloat(value) {
   const numeric = Number(value || 0);
   if (!Number.isFinite(numeric)) {
-    return '0';
+    return "0";
   }
   const rounded = Math.round(numeric * 100) / 100;
   return String(rounded);
@@ -251,7 +303,7 @@ function formatCompactFloat(value) {
 function formatCompactNumber(value) {
   const numeric = Number(value || 0);
   if (!Number.isFinite(numeric)) {
-    return '0';
+    return "0";
   }
   const abs = Math.abs(numeric);
   if (abs >= 1000000) {
@@ -274,29 +326,31 @@ function formatCountDetail(count, maxValue) {
 function formatBarLine(label, ratio, details, columnWidth) {
   const safeWidth = Math.max(0, Number(columnWidth || 0));
   if (safeWidth <= 0) {
-    return '';
+    return "";
   }
 
   const prefix = `${label}: `;
-  let suffix = details ? ` ${details}` : '';
+  let suffix = details ? ` ${details}` : "";
   let barWidth = safeWidth - prefix.length - suffix.length - 2;
 
   if (barWidth < 4 && suffix) {
     const maxDetails = Math.max(0, safeWidth - prefix.length - 2 - 4);
     if (maxDetails > 0 && details) {
       const trimmed = fitLine(String(details), maxDetails);
-      suffix = trimmed ? ` ${trimmed}` : '';
+      suffix = trimmed ? ` ${trimmed}` : "";
       barWidth = safeWidth - prefix.length - suffix.length - 2;
     }
   }
 
   if (barWidth < 4 && suffix) {
-    suffix = '';
+    suffix = "";
     barWidth = safeWidth - prefix.length - 2;
   }
 
   if (barWidth < 4) {
-    const fallback = details ? `${label}: ${details}` : `${label}: ${Number(ratio || 0).toFixed(2)}`;
+    const fallback = details
+      ? `${label}: ${details}`
+      : `${label}: ${Number(ratio || 0).toFixed(2)}`;
     return fitLine(fallback, safeWidth);
   }
 
@@ -308,18 +362,18 @@ function formatBarLine(label, ratio, details, columnWidth) {
 function makeBar(ratio, width) {
   const safeWidth = Math.max(0, Number(width || 0));
   if (safeWidth === 0) {
-    return '';
+    return "";
   }
   const clamped = clamp(Number(ratio || 0), 0, 1);
   const filled = Math.round(clamped * safeWidth);
   const empty = Math.max(0, safeWidth - filled);
-  return `${'#'.repeat(filled)}${'-'.repeat(empty)}`;
+  return `${"#".repeat(filled)}${"-".repeat(empty)}`;
 }
 
 // Format the season label with tick progress.
 function formatSeasonLabel(season) {
   if (!season || !season.name) {
-    return '-';
+    return "-";
   }
   const tick = Number(season.tickInSeason || 0);
   const duration = Number(season.duration || 0);
@@ -333,15 +387,16 @@ function formatSeasonLabel(season) {
 function formatYearLabel(state, config) {
   const seasons = config.seasons || {};
   if (seasons.enabled === false) {
-    return '-';
+    return "-";
   }
-  const order = Array.isArray(seasons.order) && seasons.order.length > 0
-    ? seasons.order
-    : ['spring', 'summer', 'autumn', 'winter'];
+  const order =
+    Array.isArray(seasons.order) && seasons.order.length > 0
+      ? seasons.order
+      : ["spring", "summer", "autumn", "winter"];
   const duration = Math.max(1, Number(seasons.durationTicks || 200));
   const cycle = duration * order.length;
   if (cycle <= 0) {
-    return '-';
+    return "-";
   }
   const tick = Number(state.tick || 0);
   const year = Math.floor(Math.max(0, tick - 1) / cycle) + 1;
@@ -351,23 +406,23 @@ function formatYearLabel(state, config) {
 // Format the latest event for the HUD.
 function formatLastEvent(events) {
   if (!Array.isArray(events) || events.length === 0) {
-    return '-';
+    return "-";
   }
   return String(events[0]);
 }
 
 // Format the merchant status string.
 function formatMerchantStatus(merchant) {
-  if (!merchant || merchant.phase === 'idle') {
-    return '-';
+  if (!merchant || merchant.phase === "idle") {
+    return "-";
   }
-  if (merchant.phase === 'trading') {
+  if (merchant.phase === "trading") {
     const tradesMax = Number(merchant.tradesMax || 0);
     const tradesDone = Number(merchant.tradeCount || 0);
     if (tradesMax > 0) {
       return `trading ${tradesDone}/${tradesMax}`;
     }
-    return 'trading';
+    return "trading";
   }
   return String(merchant.phase);
 }
@@ -375,7 +430,7 @@ function formatMerchantStatus(merchant) {
 // Format weather label with color and remaining ticks.
 function formatWeatherStatus(weather, colors) {
   if (!weather || !weather.type) {
-    return '-';
+    return "-";
   }
   const type = String(weather.type);
   const label = formatWeatherLabel(type);
@@ -390,17 +445,17 @@ function formatWeatherStatus(weather, colors) {
 // Normalize weather labels for display.
 function formatWeatherLabel(type) {
   const labels = {
-    clear: 'Clear',
-    rain: 'Rain',
-    storm: 'Storm',
-    drought: 'Drought',
-    cold: 'Cold',
+    clear: "Clear",
+    rain: "Rain",
+    storm: "Storm",
+    drought: "Drought",
+    cold: "Cold",
   };
   if (labels[type]) {
     return labels[type];
   }
   if (!type) {
-    return '-';
+    return "-";
   }
   return type.charAt(0).toUpperCase() + type.slice(1);
 }
@@ -409,7 +464,7 @@ function formatWeatherLabel(type) {
 function countLifeStages(dwarves) {
   const counts = { child: 0, adult: 0, elder: 0 };
   for (const dwarf of dwarves) {
-    const stage = dwarf.lifeStage || 'adult';
+    const stage = dwarf.lifeStage || "adult";
     if (counts[stage] !== undefined) {
       counts[stage] += 1;
     } else {
@@ -445,30 +500,37 @@ function averageValue(dwarves, selector) {
     return 0;
   }
 
-  const total = dwarves.reduce((sum, dwarf) => sum + Number(selector(dwarf) || 0), 0);
+  const total = dwarves.reduce(
+    (sum, dwarf) => sum + Number(selector(dwarf) || 0),
+    0,
+  );
   return total / dwarves.length;
 }
 
 // Summarize mine/sawmill levels for the HUD.
 function getStructureLevelSummary(structures) {
   if (!Array.isArray(structures)) {
-    return '';
+    return "";
   }
   const summary = [];
-  const mineLevels = structures.filter((s) => s.type === 'mine' && Number.isFinite(Number(s.level)));
+  const mineLevels = structures.filter(
+    (s) => s.type === "mine" && Number.isFinite(Number(s.level)),
+  );
   if (mineLevels.length > 0) {
     const level = Math.round(Number(mineLevels[0].level || 1));
     summary.push(`Mine L${level}`);
   }
-  const sawmillLevels = structures.filter((s) => s.type === 'sawmill' && Number.isFinite(Number(s.level)));
+  const sawmillLevels = structures.filter(
+    (s) => s.type === "sawmill" && Number.isFinite(Number(s.level)),
+  );
   if (sawmillLevels.length > 0) {
     const level = Math.round(Number(sawmillLevels[0].level || 1));
     summary.push(`Sawmill L${level}`);
   }
   if (summary.length === 0) {
-    return '';
+    return "";
   }
-  return summary.join(' | ');
+  return summary.join(" | ");
 }
 
 module.exports = {

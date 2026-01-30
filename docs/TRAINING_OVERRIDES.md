@@ -1,6 +1,5 @@
 # Training Overrides (Performance)
 
-
 `ai.training.configOverrides` is a single config override merged into the base
 config for training episodes. It is applied before scenario overrides and
 randomization, and is ignored when training is disabled. Use it to shrink the
@@ -26,6 +25,9 @@ Merchant:
 - `merchant.tradeRate.receive`: units received per trade.
 
 Population:
+
+Training presets may tune reproduction (base chance, cooldown, soft cap) to keep
+episodes from collapsing into extinction during long runs.
 
 - `dwarves.count`: initial dwarf count.
 - `population.initialAgeRange.min`: minimum starting age (ticks).

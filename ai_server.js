@@ -11,10 +11,7 @@ const { clamp } = require('./src/utils');
 const baseConfig = loadConfig();
 const nativeRandom = Math.random;
 const DEBUG_MODE = resolveDebugMode(process.env.NODEDWARVES_DEBUG_MODE);
-const runtime = buildRuntime(baseConfig.display, {
-  columns: Number(baseConfig.display.width || 80),
-  rows: Number(baseConfig.display.height || 24),
-});
+let runtime = buildRuntimeForConfig(baseConfig);
 
 let state = null;
 let prevMetrics = null;
@@ -80,11 +77,21 @@ rl.on('line', (line) => {
   writeResponse({ error: 'unknown_command' });
 });
 
+// Function: buildRuntimeForConfig.
+function buildRuntimeForConfig(config) {
+  const display = (config && config.display) || {};
+  return buildRuntime(display, {
+    columns: Number(display.width || 80),
+    rows: Number(display.height || 24),
+  });
+}
+
 // Function: resetState.
 function resetState(options = {}) {
   const scenario = buildScenarioConfig(baseConfig, options);
   activeConfig = scenario.config;
   scenarioMeta = scenario.meta;
+  runtime = buildRuntimeForConfig(activeConfig);
   state = createInitialState(activeConfig, runtime);
   if (scenario.initialTick !== null) {
     state.tick = scenario.initialTick;

@@ -1,11 +1,11 @@
-'use strict';
+"use strict";
 
-const { clamp } = require('../utils');
-const { getSeasonModifier } = require('./season');
-const { getRoleConfig, isEmergencyGather } = require('./roles');
-const { isAdult, getHousingNeed } = require('./population');
-const { addTerrainResourcesToSet } = require('./terrain');
-const { createGatherJob, hasInputs, consumeInputs } = require('./resources');
+const { clamp } = require("../utils");
+const { getSeasonModifier } = require("./season");
+const { getRoleConfig, isEmergencyGather } = require("./roles");
+const { isAdult, getHousingNeed } = require("./population");
+const { addTerrainResourcesToSet } = require("./terrain");
+const { createGatherJob, hasInputs, consumeInputs } = require("./resources");
 const {
   createWellBuildJob,
   createFieldBuildJob,
@@ -17,22 +17,25 @@ const {
   createManagedWellBuildJob,
   createManagedFieldBuildJob,
   createManagedWatchtowerBuildJob,
-} = require('./structures');
+} = require("./structures");
 
 // Assign jobs to idle dwarves based on shortages and build needs.
 function assignJobs(state, config, runtime, action) {
-  let idleDwarves = state.dwarves.filter((dwarf) => !dwarf.job && canWork(dwarf, config));
+  let idleDwarves = state.dwarves.filter(
+    (dwarf) => !dwarf.job && canWork(dwarf, config),
+  );
   if (idleDwarves.length === 0) {
     return;
   }
 
   const roleConfig = getRoleConfig(config);
   const emergency = isEmergencyGather(state, config, roleConfig);
-  const managerActive = roleConfig.enabled
-    && roleConfig.managerRatio > 0
-    && state.dwarves.some((dwarf) => dwarf.role === 'manager');
+  const managerActive =
+    roleConfig.enabled &&
+    roleConfig.managerRatio > 0 &&
+    state.dwarves.some((dwarf) => dwarf.role === "manager");
   if (managerActive) {
-    const managers = idleDwarves.filter((dwarf) => dwarf.role === 'manager');
+    const managers = idleDwarves.filter((dwarf) => dwarf.role === "manager");
     if (managers.length > 0) {
       assignManagedStructureJobs(state, config, runtime, managers);
       idleDwarves = idleDwarves.filter((dwarf) => !dwarf.job);
@@ -42,7 +45,15 @@ function assignJobs(state, config, runtime, action) {
     }
   }
 
-  assignBuildJobIfNeeded(state, config, runtime, idleDwarves, roleConfig, emergency, managerActive);
+  assignBuildJobIfNeeded(
+    state,
+    config,
+    runtime,
+    idleDwarves,
+    roleConfig,
+    emergency,
+    managerActive,
+  );
   if (idleDwarves.length === 0) {
     return;
   }
@@ -71,11 +82,15 @@ function assignJobs(state, config, runtime, action) {
   const targets = resourceConfig.targets || resourceConfig.stockpile || {};
   const weights = getActionWeights(action, config);
   const shortages = computeShortages(state.stockpile, targets, weights, config);
-  const workshops = (state.structures || []).filter((structure) => structure.type === 'workshop');
+  const workshops = (state.structures || []).filter(
+    (structure) => structure.type === "workshop",
+  );
   const workshopCapacity = getWorkshopCapacity(config, workshops);
   const workshopUsage = getWorkshopUsage(state.jobs);
   const nodeResources = new Set(
-    state.nodes.filter((node) => Number(node.remaining || 0) > 0).map((node) => node.id),
+    state.nodes
+      .filter((node) => Number(node.remaining || 0) > 0)
+      .map((node) => node.id),
   );
   if (resourceConfig.useTerrainTiles === true) {
     addTerrainResourcesToSet(nodeResources, state, resourceConfig);
@@ -124,8 +139,9 @@ function assignJobs(state, config, runtime, action) {
     job.dwarfId = dwarf.id;
     dwarf.job = job;
     state.jobs.push(job);
-    if (job.type === 'craft' && job.workshopId) {
-      workshopUsage[job.workshopId] = Number(workshopUsage[job.workshopId] || 0) + 1;
+    if (job.type === "craft" && job.workshopId) {
+      workshopUsage[job.workshopId] =
+        Number(workshopUsage[job.workshopId] || 0) + 1;
     }
   }
 }
@@ -154,11 +170,11 @@ function orderIdleDwarves(idleDwarves) {
   const managers = [];
   const unknown = [];
   for (const dwarf of idleDwarves) {
-    if (dwarf.role === 'gatherer') {
+    if (dwarf.role === "gatherer") {
       gatherers.push(dwarf);
-    } else if (dwarf.role === 'builder') {
+    } else if (dwarf.role === "builder") {
       builders.push(dwarf);
-    } else if (dwarf.role === 'manager') {
+    } else if (dwarf.role === "manager") {
       managers.push(dwarf);
     } else {
       unknown.push(dwarf);
@@ -174,19 +190,20 @@ function assignManagedStructureJobs(state, config, runtime, idleDwarves) {
   }
   const reserved = new Set();
   for (const job of state.jobs) {
-    if (job.type === 'build' && job.target) {
+    if (job.type === "build" && job.target) {
       reserved.add(`${job.target.x},${job.target.y}`);
     }
   }
 
   while (idleDwarves.length > 0) {
-    const buildJob = createManagedWellBuildJob(state, config, runtime, reserved)
-      || createManagedFieldBuildJob(state, config, runtime, reserved)
-      || createManagedWatchtowerBuildJob(state, config, runtime, reserved);
+    const buildJob =
+      createManagedWellBuildJob(state, config, runtime, reserved) ||
+      createManagedFieldBuildJob(state, config, runtime, reserved) ||
+      createManagedWatchtowerBuildJob(state, config, runtime, reserved);
     if (!buildJob) {
       return;
     }
-    const dwarf = takeIdleDwarf(idleDwarves, 'manager');
+    const dwarf = takeIdleDwarf(idleDwarves, "manager");
     if (!dwarf) {
       return;
     }
@@ -200,7 +217,15 @@ function assignManagedStructureJobs(state, config, runtime, idleDwarves) {
 }
 
 // Assign a build or upgrade job when housing or defenses need attention.
-function assignBuildJobIfNeeded(state, config, runtime, idleDwarves, roleConfig, emergency, managerActive) {
+function assignBuildJobIfNeeded(
+  state,
+  config,
+  runtime,
+  idleDwarves,
+  roleConfig,
+  emergency,
+  managerActive,
+) {
   const housingConfig = (config.population && config.population.housing) || {};
   if (housingConfig.enabled === false) {
     return;
@@ -209,7 +234,7 @@ function assignBuildJobIfNeeded(state, config, runtime, idleDwarves, roleConfig,
     return;
   }
   const hasBlockingBuild = state.jobs.some((job) => {
-    if (job.type === 'build' && job.structureType !== 'wall' && job.structureType !== 'watchtower') {
+    if (job.type === "build" && job.structureType !== "watchtower") {
       return true;
     }
     return false;
@@ -226,20 +251,28 @@ function assignBuildJobIfNeeded(state, config, runtime, idleDwarves, roleConfig,
 
   const housingNeed = getHousingNeed(state, config);
   const houseConfig = (config.structures && config.structures.house) || {};
-  const upgradeMinHouses = Math.max(0, Number(houseConfig.upgradeMinHouses ?? 0));
-  const houses = (state.structures || []).filter((structure) => structure.type === 'house');
-  const preferUpgrade = housingNeed.needed
-    && (upgradeMinHouses <= 0 || houses.length >= upgradeMinHouses);
+  const upgradeMinHouses = Math.max(
+    0,
+    Number(houseConfig.upgradeMinHouses ?? 0),
+  );
+  const houses = (state.structures || []).filter(
+    (structure) => structure.type === "house",
+  );
+  const preferUpgrade =
+    housingNeed.needed &&
+    (upgradeMinHouses <= 0 || houses.length >= upgradeMinHouses);
   const managerMode = Boolean(managerActive);
   let buildJob = null;
   if (!managerMode) {
-    buildJob = createWellBuildJob(state, config, runtime)
-      || createFieldBuildJob(state, config, runtime);
+    buildJob =
+      createWellBuildJob(state, config, runtime) ||
+      createFieldBuildJob(state, config, runtime);
   }
 
   if (!buildJob && housingNeed.needed) {
-    buildJob = createHouseUpgradeJob(state, config, runtime, preferUpgrade)
-      || createHouseBuildJob(state, config, runtime);
+    buildJob =
+      createHouseUpgradeJob(state, config, runtime, preferUpgrade) ||
+      createHouseBuildJob(state, config, runtime);
   }
 
   if (!buildJob) {
@@ -254,7 +287,9 @@ function assignBuildJobIfNeeded(state, config, runtime, idleDwarves, roleConfig,
   if (!buildJob) {
     return;
   }
-  const preferred = roleConfig.enabled ? takeIdleDwarf(idleDwarves, 'builder') : null;
+  const preferred = roleConfig.enabled
+    ? takeIdleDwarf(idleDwarves, "builder")
+    : null;
   const dwarf = preferred || takeIdleDwarf(idleDwarves);
   if (!dwarf) {
     return;
@@ -262,7 +297,6 @@ function assignBuildJobIfNeeded(state, config, runtime, idleDwarves, roleConfig,
   buildJob.dwarfId = dwarf.id;
   dwarf.job = buildJob;
   state.jobs.push(buildJob);
-
 }
 
 // Assign mining jobs to keep miners stationed at mines.
@@ -271,35 +305,43 @@ function assignMineJobs(state, config, idleDwarves, roleConfig, emergency) {
   if (mineConfig.pauseOnEmergency !== false && emergency) {
     return;
   }
-  const minersPerMine = Math.max(0, Number(mineConfig.minersPerMine ?? mineConfig.capacity ?? 0));
+  const minersPerMine = Math.max(
+    0,
+    Number(mineConfig.minersPerMine ?? mineConfig.capacity ?? 0),
+  );
   if (minersPerMine <= 0) {
     return;
   }
-  const mines = (state.structures || []).filter((structure) => structure.type === 'mine');
+  const mines = (state.structures || []).filter(
+    (structure) => structure.type === "mine",
+  );
   if (mines.length === 0) {
     return;
   }
 
   const minersByMine = {};
   for (const job of state.jobs) {
-    if (job.type !== 'mine' || !job.structureId) {
+    if (job.type !== "mine" || !job.structureId) {
       continue;
     }
-    minersByMine[job.structureId] = Number(minersByMine[job.structureId] || 0) + 1;
+    minersByMine[job.structureId] =
+      Number(minersByMine[job.structureId] || 0) + 1;
   }
 
   for (const mine of mines) {
     const active = Number(minersByMine[mine.id] || 0);
     let openSlots = minersPerMine - active;
     while (openSlots > 0 && idleDwarves.length > 0) {
-      const preferred = roleConfig.enabled ? takeIdleDwarf(idleDwarves, 'gatherer') : null;
+      const preferred = roleConfig.enabled
+        ? takeIdleDwarf(idleDwarves, "gatherer")
+        : null;
       const dwarf = preferred || takeIdleDwarf(idleDwarves);
       if (!dwarf) {
         return;
       }
       const job = {
         id: `job_${state.jobCounter++}`,
-        type: 'mine',
+        type: "mine",
         structureId: mine.id,
         target: { x: mine.x, y: mine.y },
         workRemaining: 1,
@@ -321,35 +363,43 @@ function assignSawmillJobs(state, config, idleDwarves, roleConfig, emergency) {
   if (sawmillConfig.pauseOnEmergency !== false && emergency) {
     return;
   }
-  const workersPer = Math.max(0, Number(sawmillConfig.workersPerSawmill ?? sawmillConfig.capacity ?? 0));
+  const workersPer = Math.max(
+    0,
+    Number(sawmillConfig.workersPerSawmill ?? sawmillConfig.capacity ?? 0),
+  );
   if (workersPer <= 0) {
     return;
   }
-  const sawmills = (state.structures || []).filter((structure) => structure.type === 'sawmill');
+  const sawmills = (state.structures || []).filter(
+    (structure) => structure.type === "sawmill",
+  );
   if (sawmills.length === 0) {
     return;
   }
 
   const workersBySawmill = {};
   for (const job of state.jobs) {
-    if (job.type !== 'sawmill' || !job.structureId) {
+    if (job.type !== "sawmill" || !job.structureId) {
       continue;
     }
-    workersBySawmill[job.structureId] = Number(workersBySawmill[job.structureId] || 0) + 1;
+    workersBySawmill[job.structureId] =
+      Number(workersBySawmill[job.structureId] || 0) + 1;
   }
 
   for (const sawmill of sawmills) {
     const active = Number(workersBySawmill[sawmill.id] || 0);
     let openSlots = workersPer - active;
     while (openSlots > 0 && idleDwarves.length > 0) {
-      const preferred = roleConfig.enabled ? takeIdleDwarf(idleDwarves, 'gatherer') : null;
+      const preferred = roleConfig.enabled
+        ? takeIdleDwarf(idleDwarves, "gatherer")
+        : null;
       const dwarf = preferred || takeIdleDwarf(idleDwarves);
       if (!dwarf) {
         return;
       }
       const job = {
         id: `job_${state.jobCounter++}`,
-        type: 'sawmill',
+        type: "sawmill",
         structureId: sawmill.id,
         target: { x: sawmill.x, y: sawmill.y },
         workRemaining: 1,
@@ -366,25 +416,37 @@ function assignSawmillJobs(state, config, idleDwarves, roleConfig, emergency) {
 }
 
 // Assign a tools upgrade job at the workshop.
-function assignToolUpgradeJob(state, config, idleDwarves, roleConfig, emergency) {
+function assignToolUpgradeJob(
+  state,
+  config,
+  idleDwarves,
+  roleConfig,
+  emergency,
+) {
   const toolsConfig = config.tools || {};
-  const workshopConfig = (config.structures && config.structures.workshop) || {};
+  const workshopConfig =
+    (config.structures && config.structures.workshop) || {};
   if (emergency && workshopConfig.pauseOnEmergency !== false) {
     return;
   }
   if (!state.tools) {
     return;
   }
-  const maxLevel = Math.max(1, Number(toolsConfig.maxLevel || state.tools.maxLevel || 1));
+  const maxLevel = Math.max(
+    1,
+    Number(toolsConfig.maxLevel || state.tools.maxLevel || 1),
+  );
   const current = Math.max(1, Number(state.tools.level || 1));
   if (current >= maxLevel) {
     return;
   }
-  if (state.jobs.some((job) => job.type === 'upgrade_tools')) {
+  if (state.jobs.some((job) => job.type === "upgrade_tools")) {
     return;
   }
 
-  const workshops = (state.structures || []).filter((structure) => structure.type === 'workshop');
+  const workshops = (state.structures || []).filter(
+    (structure) => structure.type === "workshop",
+  );
   if (workshops.length === 0) {
     return;
   }
@@ -404,7 +466,9 @@ function assignToolUpgradeJob(state, config, idleDwarves, roleConfig, emergency)
     return;
   }
 
-  const preferred = roleConfig.enabled ? takeIdleDwarf(idleDwarves, 'builder') : null;
+  const preferred = roleConfig.enabled
+    ? takeIdleDwarf(idleDwarves, "builder")
+    : null;
   const dwarf = preferred || takeIdleDwarf(idleDwarves);
   if (!dwarf) {
     return;
@@ -417,7 +481,7 @@ function assignToolUpgradeJob(state, config, idleDwarves, roleConfig, emergency)
   const buildTicks = Math.max(1, Number(toolsConfig.upgradeTicks || 45));
   const job = {
     id: `job_${state.jobCounter++}`,
-    type: 'upgrade_tools',
+    type: "upgrade_tools",
     workshopId: workshop.id,
     target: { x: workshop.x, y: workshop.y },
     workRemaining: buildTicks,
@@ -430,15 +494,22 @@ function assignToolUpgradeJob(state, config, idleDwarves, roleConfig, emergency)
 }
 
 // Assign upgrade jobs for mines and sawmills.
-function assignStructureUpgradeJob(state, config, idleDwarves, roleConfig, emergency) {
+function assignStructureUpgradeJob(
+  state,
+  config,
+  idleDwarves,
+  roleConfig,
+  emergency,
+) {
   if (roleConfig.enabled && emergency) {
     return;
   }
-  if (state.jobs.some((job) => job.type === 'upgrade_structure')) {
+  if (state.jobs.some((job) => job.type === "upgrade_structure")) {
     return;
   }
-  const candidates = (state.structures || [])
-    .filter((structure) => structure.type === 'mine' || structure.type === 'sawmill');
+  const candidates = (state.structures || []).filter(
+    (structure) => structure.type === "mine" || structure.type === "sawmill",
+  );
   if (candidates.length === 0) {
     return;
   }
@@ -468,7 +539,9 @@ function assignStructureUpgradeJob(state, config, idleDwarves, roleConfig, emerg
       continue;
     }
 
-    const preferred = roleConfig.enabled ? takeIdleDwarf(idleDwarves, 'builder') : null;
+    const preferred = roleConfig.enabled
+      ? takeIdleDwarf(idleDwarves, "builder")
+      : null;
     const dwarf = preferred || takeIdleDwarf(idleDwarves);
     if (!dwarf) {
       return;
@@ -481,7 +554,7 @@ function assignStructureUpgradeJob(state, config, idleDwarves, roleConfig, emerg
     const buildTicks = Math.max(1, Number(structConfig.upgradeTicks || 40));
     const job = {
       id: `job_${state.jobCounter++}`,
-      type: 'upgrade_structure',
+      type: "upgrade_structure",
       structureId: structure.id,
       structureType: structure.type,
       target: { x: structure.x, y: structure.y },
@@ -534,17 +607,26 @@ function computeShortages(stockpile, targets, weights, config) {
     if (missing > 0) {
       const ratio = missing / target;
       const stockpileRatio = clamp(current / target, 0, 1);
-      const weightRaw = weights && weights[resource] !== undefined ? weights[resource] : 1;
+      const weightRaw =
+        weights && weights[resource] !== undefined ? weights[resource] : 1;
       let weight = clamp(Number(weightRaw || 1), 0, Number.POSITIVE_INFINITY);
       const boostConfig = priorityBoosts && priorityBoosts[resource];
-      if (boostConfig && typeof boostConfig === 'object') {
+      if (boostConfig && typeof boostConfig === "object") {
         const threshold = clamp(Number(boostConfig.threshold ?? 0), 0, 1);
         const multiplier = Math.max(0, Number(boostConfig.multiplier ?? 0));
         const minWeight = Math.max(0, Number(boostConfig.minWeight ?? 0));
         const exponent = Math.max(0.1, Number(boostConfig.exponent ?? 1));
-        if (threshold > 0 && stockpileRatio < threshold && (multiplier > 0 || minWeight > 0)) {
-          const severity = clamp((threshold - stockpileRatio) / threshold, 0, 1);
-          const boost = 1 + (Math.pow(severity, exponent) * multiplier);
+        if (
+          threshold > 0 &&
+          stockpileRatio < threshold &&
+          (multiplier > 0 || minWeight > 0)
+        ) {
+          const severity = clamp(
+            (threshold - stockpileRatio) / threshold,
+            0,
+            1,
+          );
+          const boost = 1 + Math.pow(severity, exponent) * multiplier;
           weight = Math.max(weight, minWeight) * boost;
         }
       }
@@ -579,12 +661,14 @@ function getWorkshopCapacity(config, workshops) {
   }
 
   const workshopConfig = config.structures && config.structures.workshop;
-  const fallbackCapacity = workshops[0] && workshops[0].capacity !== undefined
-    ? workshops[0].capacity
-    : 1;
-  const capacity = workshopConfig && workshopConfig.capacity !== undefined
-    ? workshopConfig.capacity
-    : fallbackCapacity;
+  const fallbackCapacity =
+    workshops[0] && workshops[0].capacity !== undefined
+      ? workshops[0].capacity
+      : 1;
+  const capacity =
+    workshopConfig && workshopConfig.capacity !== undefined
+      ? workshopConfig.capacity
+      : fallbackCapacity;
 
   return Math.max(1, Number(capacity || 1));
 }
@@ -593,7 +677,7 @@ function getWorkshopCapacity(config, workshops) {
 function getWorkshopUsage(jobs) {
   const usage = {};
   for (const job of jobs) {
-    if (job.type === 'craft' && job.workshopId) {
+    if (job.type === "craft" && job.workshopId) {
       usage[job.workshopId] = Number(usage[job.workshopId] || 0) + 1;
     }
   }
@@ -626,7 +710,10 @@ function selectWorkshop(workshops, workshopUsage, workshopCapacity, dwarf) {
 
 // Compute Manhattan distance between two positions.
 function distance(a, b) {
-  return Math.abs(Number(a.x || 0) - Number(b.x || 0)) + Math.abs(Number(a.y || 0) - Number(b.y || 0));
+  return (
+    Math.abs(Number(a.x || 0) - Number(b.x || 0)) +
+    Math.abs(Number(a.y || 0) - Number(b.y || 0))
+  );
 }
 
 // Create a gather or craft job for a resource shortage.
@@ -654,16 +741,36 @@ function createJobForShortage(
     return null;
   }
 
-  return createCraftJob(resourceId, recipe, state, dwarf, workshops, workshopUsage, workshopCapacity);
+  return createCraftJob(
+    resourceId,
+    recipe,
+    state,
+    dwarf,
+    workshops,
+    workshopUsage,
+    workshopCapacity,
+  );
 }
 
 // Create a craft job for a recipe and reserve inputs.
-function createCraftJob(resourceId, recipe, state, dwarf, workshops, workshopUsage, workshopCapacity) {
+function createCraftJob(
+  resourceId,
+  recipe,
+  state,
+  dwarf,
+  workshops,
+  workshopUsage,
+  workshopCapacity,
+) {
   if (!dwarf) {
     return null;
   }
 
-  if (!Array.isArray(workshops) || workshops.length === 0 || workshopCapacity <= 0) {
+  if (
+    !Array.isArray(workshops) ||
+    workshops.length === 0 ||
+    workshopCapacity <= 0
+  ) {
     return null;
   }
 
@@ -672,7 +779,12 @@ function createCraftJob(resourceId, recipe, state, dwarf, workshops, workshopUsa
     return null;
   }
 
-  const workshop = selectWorkshop(workshops, workshopUsage, workshopCapacity, dwarf);
+  const workshop = selectWorkshop(
+    workshops,
+    workshopUsage,
+    workshopCapacity,
+    dwarf,
+  );
   if (!workshop) {
     return null;
   }
@@ -683,7 +795,7 @@ function createCraftJob(resourceId, recipe, state, dwarf, workshops, workshopUsa
 
   return {
     id: `job_${state.jobCounter++}`,
-    type: 'craft',
+    type: "craft",
     resource: resourceId,
     outputs,
     workshopId: workshop.id,
@@ -704,7 +816,7 @@ function getRecipe(config, resourceId) {
 function getRecipeTicks(recipe, state) {
   const ticks = recipe.ticks !== undefined ? recipe.ticks : recipe.time;
   const base = Math.max(1, Number(ticks || 6));
-  const multiplier = getSeasonModifier(state, 'craftTicks', 1);
+  const multiplier = getSeasonModifier(state, "craftTicks", 1);
   return Math.max(1, Math.round(base * multiplier));
 }
 
