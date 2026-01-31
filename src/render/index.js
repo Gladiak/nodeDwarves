@@ -36,13 +36,7 @@ function renderFrame(state, config, runtime) {
       let symbol = structure.symbol;
       let colorKey = structure.type;
       if (structure.type === 'house') {
-        const level = Number(structure.level);
-        if (Number.isFinite(level)) {
-          const safeLevel = Math.round(clamp(level, 1, 9));
-          symbol = String(safeLevel);
-        } else {
-          symbol = symbols.house || symbol;
-        }
+        symbol = symbols.house || symbol;
         colorKey = 'house';
       }
       grid[structure.y][structure.x] = applyColor(symbol, colorKey, colors);

@@ -15,7 +15,7 @@ const {
   cohouseCouples,
   getWinterHousingPenalty,
 } = require('./population');
-const { updateRoles } = require('./roles');
+const { updateBrewmasters, updateRoles } = require('./roles');
 const { assignJobs } = require('./jobs');
 const { processDwarfAction } = require('./dwarf_actions');
 const { updateMerchant } = require('./merchant');
@@ -40,11 +40,12 @@ function stepState(state, config, runtime, action) {
       getSeasonModifier(state, 'needDecay', 1) * housingPenalty.needDecay * weatherNeedMultiplier,
       weatherNeedByNeed,
     );
-    consumeResources(dwarf, state.stockpile, config.consumption || {});
+    consumeResources(dwarf, state, config);
     updateDerivedState(dwarf);
   }
 
   handleDeaths(state, config);
+  updateBrewmasters(state, config);
   updateRoles(state, config);
   assignHousing(state, config);
   updateRelationships(state, config);

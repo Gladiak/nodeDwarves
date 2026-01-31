@@ -48,7 +48,7 @@ function buildFooterLines(config, runtime) {
     const symbol = symbols[resource] || resource[0] || '?';
     legendParts.push(colorizeLegend(`${symbol} ${getResourceLabel(resourceConfig, resource)}`, resource, colors));
   }
-  const houseLegend = getHouseLegendLabel(structureConfig.house);
+  const houseLegend = symbols.house || getHouseLegendLabel(structureConfig.house);
   if (houseLegend) {
     legendParts.push(colorizeLegend(`${houseLegend} ${toPascalCase('house')}`, 'house', colors));
   }

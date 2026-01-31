@@ -37,7 +37,7 @@ function createStructure(state, config, type, x, y) {
   if (type === 'house') {
     const level = structureConfig.levels ? 1 : null;
     structure.level = level;
-    symbol = level ? String(level) : (symbols.house || symbol);
+    symbol = symbols.house || symbol;
     capacity = getHouseCapacity(houseConfig, level, capacity);
     structure.symbol = symbol;
     structure.capacity = capacity;

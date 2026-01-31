@@ -20,6 +20,95 @@ function getRoleConfig(config) {
   };
 }
 
+// Assign brewmaster roles based on brewery capacity and population scaling.
+function updateBrewmasters(state, config) {
+  const breweryConfig = config.structures && config.structures.brewery;
+  if (!breweryConfig) {
+    return;
+  }
+  const perCapita = Math.max(0, Number(breweryConfig.brewmasterPerCapita ?? 0));
+  const min = Math.max(
+    0,
+    Number(breweryConfig.brewmasterMin ?? breweryConfig.brewmasterInitial ?? 0),
+  );
+  const max = Math.max(0, Number(breweryConfig.brewmasterMax ?? 0));
+  const workersPer = Math.max(
+    0,
+    Number(breweryConfig.workersPerBrewery ?? breweryConfig.capacity ?? 0),
+  );
+  const maxCount = Math.max(0, Number(breweryConfig.maxCount ?? 0));
+  const population = Array.isArray(state && state.dwarves) ? state.dwarves.length : 0;
+  let target = Math.ceil(population * perCapita);
+  if (min > 0) {
+    target = Math.max(target, min);
+  }
+  if (max > 0) {
+    target = Math.min(target, max);
+  }
+  if (workersPer > 0 && maxCount > 0) {
+    target = Math.min(target, workersPer * maxCount);
+  }
+
+  const adults = state.dwarves.filter((dwarf) => isAdult(dwarf, config));
+  target = Math.min(target, adults.length);
+  const cooldownTicks = getRoleConfig(config).switchCooldownTicks;
+
+  let current = 0;
+  const demotePool = [];
+  const gatherers = [];
+  const builders = [];
+  const managers = [];
+  const others = [];
+
+  for (const dwarf of adults) {
+    if (dwarf.role === 'brewmaster') {
+      current += 1;
+      if (!dwarf.roleLocked && Number(dwarf.roleCooldown || 0) <= 0) {
+        demotePool.push(dwarf);
+      }
+      continue;
+    }
+    if (dwarf.roleLocked || Number(dwarf.roleCooldown || 0) > 0) {
+      continue;
+    }
+    if (dwarf.role === 'gatherer') {
+      gatherers.push(dwarf);
+    } else if (dwarf.role === 'builder') {
+      builders.push(dwarf);
+    } else if (dwarf.role === 'manager') {
+      managers.push(dwarf);
+    } else {
+      others.push(dwarf);
+    }
+  }
+
+  if (current < target) {
+    let needed = target - current;
+    const pool = gatherers.concat(builders, others, managers);
+    for (const dwarf of pool) {
+      if (needed <= 0) {
+        break;
+      }
+      dwarf.role = 'brewmaster';
+      dwarf.roleCooldown = cooldownTicks;
+      needed -= 1;
+    }
+    return;
+  }
+
+  if (current > target) {
+    let extra = current - target;
+    for (const dwarf of demotePool) {
+      if (extra <= 0) {
+        break;
+      }
+      dwarf.role = 'gatherer';
+      dwarf.roleCooldown = cooldownTicks;
+      extra -= 1;
+    }
+  }
+}
+
 // Assign missing adult roles according to configured ratios.
 function updateRoles(state, config) {
   const roleConfig = getRoleConfig(config);
@@ -111,4 +200,4 @@ function isEmergencyGather(state, config, roleConfig) {
   return false;
 }
 
-module.exports = { getRoleConfig, updateRoles, isEmergencyGather };
+module.exports = { getRoleConfig, updateBrewmasters, updateRoles, isEmergencyGather };

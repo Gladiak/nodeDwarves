@@ -5,7 +5,7 @@
     "height": 28,
     "maxWidth": 200,
     "maxHeight": 40,
-    "tickMs": 10,
+    "tickMs": 200,
     "header": {
       "enabled": true,
       "height": 1,
@@ -167,7 +167,7 @@
         "dwarf": "\u001b[93m",
         "merchant": "\u001b[96m",
         "hud_header": "\u001b[96m",
-        "house": "\u001b[91m",
+        "house": "\u001b[90m",
         "mine": "\u001b[37m",
         "workshop": "\u001b[36m",
         "mithril_forge": "\u001b[95m",
@@ -1023,7 +1023,7 @@
         "food": 0.45,
         "water": 0.7
       },
-      "allowForestWhenPlainBelow": 0.2,
+      "allowForestWhenPlainBelow": 1,
       "irrigationMinMultiplier": 0.55,
       "irrigationMaxMultiplier": 1.1,
       "buildTicks": 40,
@@ -1191,7 +1191,9 @@
         "wood": 6,
         "stone": 4
       },
-      "brewmasterInitial": 4
+      "brewmasterInitial": 4,
+      "brewmasterMin": 4,
+      "brewmasterPerCapita": 0.01
     },
     "mine": {
       "count": 1,
@@ -1558,6 +1560,9 @@
     "rawFoodRelief": 0.35,
     "waterRelief": 0.35,
     "beerRelief": 0.5,
+    "beerReserveBase": 10,
+    "beerReservePerCapita": 0.05,
+    "beerMinReserveRatio": 0.25,
     "beerMoraleGain": 0.14,
     "beerMoraleDecayPerTick": 0.0015,
     "beerMoraleMax": 0.35,
@@ -1615,7 +1620,7 @@
     "adamantio": "Θ",
     "mana_crystal": "Φ",
     "beer": "±",
-    "house": "⌂",
+    "house": "Ω",
     "well": "°",
     "field": "▒",
     "mine": "╬",

@@ -860,7 +860,9 @@ function averageValue(dwarves, selector) {
 }
 
 // Consume stockpiled resources to reduce hunger and thirst.
-function consumeResources(dwarf, stockpile, consumption) {
+function consumeResources(dwarf, state, config) {
+  const stockpile = state && state.stockpile ? state.stockpile : null;
+  const consumption = config && config.consumption ? config.consumption : {};
   if (!stockpile) {
     return;
   }
@@ -877,6 +879,11 @@ function consumeResources(dwarf, stockpile, consumption) {
   const beerMoraleGain = Math.max(0, Number(consumption.beerMoraleGain ?? 0));
   const beerMoraleDecay = Math.max(0, Number(consumption.beerMoraleDecayPerTick ?? 0));
   const beerMoraleMax = clamp(Number(consumption.beerMoraleMax ?? 0), 0, 1);
+  const beerReserveBase = Math.max(0, Number(consumption.beerReserveBase ?? 0));
+  const beerReservePerCapita = Math.max(0, Number(consumption.beerReservePerCapita ?? 0));
+  const beerMinReserveRatio = clamp(Number(consumption.beerMinReserveRatio ?? 0), 0, 1);
+  const population = Array.isArray(state && state.dwarves) ? state.dwarves.length : 0;
+  const beerReserveTarget = beerReserveBase + beerReservePerCapita * population;
   let moraleBoost = Number(dwarf.state.moraleBoostBeer);
   if (!Number.isFinite(moraleBoost)) {
     moraleBoost = 0;
@@ -906,7 +913,11 @@ function consumeResources(dwarf, stockpile, consumption) {
   if (thirst >= thirstThreshold) {
     let units = 0;
     while (units < maxUnitsPerTick && thirst > thirstTarget) {
-      if (Number(stockpile.beer || 0) > 0) {
+      const beerRatio = beerReserveTarget > 0
+        ? Number(stockpile.beer || 0) / beerReserveTarget
+        : 1;
+      const preferBeer = beerMinReserveRatio <= 0 || beerRatio >= beerMinReserveRatio;
+      if (preferBeer && Number(stockpile.beer || 0) > 0) {
         stockpile.beer -= 1;
         thirst = clamp(thirst - beerRelief, 0, 1);
         dwarf.needs.thirst = thirst;
@@ -917,6 +928,13 @@ function consumeResources(dwarf, stockpile, consumption) {
         stockpile.water -= 1;
         thirst = clamp(thirst - waterRelief, 0, 1);
         dwarf.needs.thirst = thirst;
+      } else if (Number(stockpile.beer || 0) > 0) {
+        stockpile.beer -= 1;
+        thirst = clamp(thirst - beerRelief, 0, 1);
+        dwarf.needs.thirst = thirst;
+        if (beerMoraleGain > 0 && beerMoraleMax > 0) {
+          moraleBoost = Math.min(beerMoraleMax, moraleBoost + beerMoraleGain);
+        }
       } else {
         break;
       }

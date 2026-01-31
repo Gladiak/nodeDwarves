@@ -438,7 +438,8 @@ function processDwarfJob(dwarf, state, config, runtime) {
     const nextLevel = Math.min(maxLevel, Number(job.targetLevel || currentLevel + 1));
     house.level = nextLevel;
     house.capacity = getHouseCapacity(houseConfig, nextLevel, house.capacity);
-    house.symbol = String(nextLevel);
+    const symbols = config.symbols || {};
+    house.symbol = symbols.house || house.symbol;
     pushEvent(state, config, `Upgrade: ${house.id} L${nextLevel}`);
     removeJob(state, job.id);
     dwarf.job = null;

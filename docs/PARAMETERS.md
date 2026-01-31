@@ -115,6 +115,9 @@ Resources:
 Needs and consumption:
 
 - `consumption.beerRelief`: thirst relief per beer consumed.
+- `consumption.beerReserveBase`: base beer reserve target used for rationing.
+- `consumption.beerReservePerCapita`: per-dwarf beer reserve target add-on for rationing.
+- `consumption.beerMinReserveRatio`: minimum reserve ratio required before dwarves prefer beer.
 - `consumption.beerMoraleGain`: morale boost gained per beer consumed.
 - `consumption.beerMoraleDecayPerTick`: per-tick decay applied to the beer morale boost.
 - `consumption.beerMoraleMax`: maximum beer morale boost (0..1).
@@ -321,6 +324,8 @@ Structures (brewery):
 - `structures.brewery.upgradeCostScale`: exponential multiplier per level.
 - `structures.brewery.upgradeBaseCost.<resource>`: base upgrade costs.
 - `structures.brewery.brewmasterInitial`: number of initial dwarves locked as brewmasters.
+- `structures.brewery.brewmasterMin`: minimum brewmaster count maintained over time.
+- `structures.brewery.brewmasterPerCapita`: per-dwarf brewmaster target scaling with population.
 - `structures.brewery.pauseWhenFoodRatioBelow`: pause brewery jobs when food stockpile ratio falls below this (0..1).
 
 Structures (sawmill):

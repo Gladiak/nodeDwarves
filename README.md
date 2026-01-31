@@ -54,7 +54,7 @@ alive while you watch the chaos unfold in ASCII.
 - 🛏️ Housing provides beds; insufficient shelter slows bonding and makes winter harsher.
 - 🧳 A roaming merchant visits periodically, trades surplus for scarce resources, then leaves.
 - 🚰 Wells and 🌾 fields use Poisson-style spacing across the map, respecting terrain and distance from the core.
-- 📊 HUD shows averages, bars, priorities, and counts for wells/fields.
+- 📊 HUD shows averages, bars, priorities, and counts for wells/fields plus house level breakdowns.
 - 🖼️ The map renders with a framed border for clearer navigation.
 - 🧭 Terrain adds visual texture (coast, lakes, rivers); walkability and movement delay are configurable per terrain.
 - 🧭 Dwarves use configurable pathing with potential-field variation for more organic routes.
@@ -69,7 +69,7 @@ alive while you watch the chaos unfold in ASCII.
 - 💧 Wells are built when water stocks or water node reserves dip below thresholds.
 - 🌱 Fields are built when food stocks or food node reserves dip below thresholds and baseline stockpiles are safe.
 - 🪚 Sawmills convert stone + iron investment into steady wood output.
-- 🍺 Breweries convert food into beer with a dedicated brewmaster; upgrades boost output while reducing food cost. Brewing can pause when food is critically low, and beer consumption can add a production bonus across resources.
+- 🍺 Breweries convert food into beer with brewmasters that scale with population; upgrades boost output while reducing food cost. Brewing can pause when food is critically low, beer can be rationed against reserve targets, and beer consumption can add a production bonus across resources.
 - 🛠️ Workshops unlock tool upgrades that boost all gathering yields, including mines.
 - 🔥 Mithril forges provide a global output multiplier that scales by level; late-game upgrades require rare minerals.
 - ⛏️ Mines and 🪚 sawmills can be upgraded to level 10 for higher output (exponential cost/bonus).
@@ -224,7 +224,7 @@ See [Training overrides (performance)](docs/TRAINING_OVERRIDES.md).
 
 The legend is printed below the map in the footer. Symbols are configurable in
 `config.json` under `symbols`.
-When house levels are enabled, houses render as digits `1` to `5` instead of `symbols.house`.
+Houses always render with `symbols.house`, while the HUD lists house levels with their counts.
 
 ## Project layout 🧱
 

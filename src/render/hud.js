@@ -3,7 +3,7 @@
 const { clamp, padRight } = require("../utils");
 const { getStockpileTarget } = require("../simulation/resources");
 const { getColorConfig, applyColor } = require("./colors");
-const { fitLine } = require("./format");
+const { fitLine, wrapLine } = require("./format");
 
 // Build HUD lines based on column layout.
 function buildHudLines(state, config, runtime) {
@@ -41,6 +41,18 @@ function buildHudColumns(state, config, columnWidth) {
   const houseCount = structures.filter(
     (structure) => structure.type === "house",
   ).length;
+  const houseLevels = {};
+  for (const structure of structures) {
+    if (structure.type !== "house") {
+      continue;
+    }
+    const rawLevel = Number(structure.level ?? 1);
+    if (!Number.isFinite(rawLevel)) {
+      continue;
+    }
+    const level = Math.max(1, Math.round(rawLevel));
+    houseLevels[level] = Number(houseLevels[level] || 0) + 1;
+  }
   const wellCount = structures.filter(
     (structure) => structure.type === "well",
   ).length;
@@ -123,6 +135,18 @@ function buildHudColumns(state, config, columnWidth) {
   left.push(formatReproBlocksLine(state));
   pushSection(left, "Housing");
   left.push(`Houses: ${houseCount}`);
+  const levelEntries = Object.keys(houseLevels)
+    .map((value) => Number(value))
+    .filter((value) => Number.isFinite(value))
+    .sort((a, b) => a - b);
+  if (levelEntries.length > 0) {
+    const levelLine = `Levels: ${levelEntries
+      .map((level) => `L${level}=${houseLevels[level]}`)
+      .join(" ")}`;
+    for (const line of wrapLine(levelLine, columnWidth)) {
+      left.push(line);
+    }
+  }
   left.push(`Beds: ${bedsTotal}`);
   left.push(`Housing ratio: ${housingRatio.toFixed(2)}`);
   pushSection(left, "Defense");
