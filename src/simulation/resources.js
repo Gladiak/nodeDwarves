@@ -90,10 +90,37 @@ function getResourceNodeRatio(state, resourceId) {
   return nodeRatio;
 }
 
+// Compute the target stockpile amount, optionally scaling per capita.
+function getStockpileTarget(state, config, resourceId, fallbackTargets) {
+  const resources = config.resources || {};
+  const targets = fallbackTargets || resources.targets || resources.stockpile || {};
+  const baseTarget = Math.max(0, Number(targets[resourceId] || 0));
+  const perCapitaConfig = resources.targetsPerCapita || {};
+  const perCapita = Math.max(0, Number(perCapitaConfig[resourceId] || 0));
+  if (perCapita <= 0) {
+    return baseTarget;
+  }
+  const population = Array.isArray(state && state.dwarves) ? state.dwarves.length : 0;
+  return Math.max(0, baseTarget + perCapita * population);
+}
+
+// Check whether brewery jobs should pause due to low food ratio.
+function shouldPauseBrewing(state, config) {
+  const breweryConfig = config.structures && config.structures.brewery;
+  if (!breweryConfig) {
+    return false;
+  }
+  const threshold = clamp(Number(breweryConfig.pauseWhenFoodRatioBelow ?? 0), 0, 1);
+  if (threshold <= 0) {
+    return false;
+  }
+  const ratio = getStockpileRatio(state, config, 'food');
+  return ratio < threshold;
+}
+
 // Compute the current stockpile ratio against the configured target.
 function getStockpileRatio(state, config, resourceId) {
-  const targets = (config.resources && config.resources.targets) || {};
-  const target = Number(targets[resourceId] || 0);
+  const target = getStockpileTarget(state, config, resourceId);
   if (target <= 0) {
     return 1;
   }
@@ -148,7 +175,7 @@ function updateHouseStorage(state, config) {
 
   const targets = (config.resources && config.resources.targets) || {};
   for (const resource of resources) {
-    const target = Number(targets[resource] || 0);
+    const target = getStockpileTarget(state, config, resource, targets);
     const maxCap = Math.max(0, Number(capacity[resource] || 0));
     let storedAmount = Math.max(0, Number(stored[resource] || 0));
     const stock = Math.max(0, Number(state.stockpile[resource] || 0));
@@ -366,6 +393,20 @@ function getAverageMorale(state) {
   return total / dwarves.length;
 }
 
+// Compute average beer morale boost across the population.
+function getAverageBeerMoraleBoost(state) {
+  const dwarves = state && Array.isArray(state.dwarves) ? state.dwarves : [];
+  if (dwarves.length === 0) {
+    return 0;
+  }
+  let total = 0;
+  for (const dwarf of dwarves) {
+    const value = Number(dwarf.state && dwarf.state.moraleBoostBeer);
+    total += Number.isFinite(value) ? value : 0;
+  }
+  return total / dwarves.length;
+}
+
 // Compute gather yield for a resource node.
 function getGatherYield(config, resourceId, node, state) {
   const jobs = config.jobs || {};
@@ -375,7 +416,12 @@ function getGatherYield(config, resourceId, node, state) {
   const multiplier = getSeasonModifier(state, 'gatherYield', 1)
     * getWeatherModifier(state, config, 'gatherYield', 1);
   const toolMultiplier = getToolMultiplier(state, config, resourceId);
-  const scaledYield = Math.max(1, Math.round(baseYield * multiplier * toolMultiplier));
+  const forgeMultiplier = getForgeMultiplier(state, config);
+  const beerMultiplier = getBeerProductionMultiplier(state, config, resourceId);
+  const scaledYield = Math.max(
+    1,
+    Math.round(baseYield * multiplier * toolMultiplier * forgeMultiplier * beerMultiplier),
+  );
   if (!node) {
     return scaledYield;
   }
@@ -407,6 +453,52 @@ function getToolMultiplier(state, config, resourceId) {
   return 1 + bonus;
 }
 
+// Compute beer-driven production multiplier for outputs.
+function getBeerProductionMultiplier(state, config, resourceId) {
+  const consumption = config && config.consumption ? config.consumption : {};
+  const bonusMax = Math.max(0, Number(consumption.beerProductionBonusMax ?? 0));
+  if (bonusMax <= 0) {
+    return 1;
+  }
+  const applyTo = Array.isArray(consumption.beerProductionApplyTo)
+    ? consumption.beerProductionApplyTo
+    : null;
+  if (applyTo && resourceId && !applyTo.includes(resourceId)) {
+    return 1;
+  }
+  const maxBoost = Math.max(0, Number(consumption.beerMoraleMax ?? 0));
+  const avgBoost = getAverageBeerMoraleBoost(state);
+  const ratio = maxBoost > 0 ? avgBoost / maxBoost : avgBoost;
+  const progress = clamp(ratio, 0, 1);
+  const exponent = Math.max(0.1, Number(consumption.beerProductionBonusExponent || 1));
+  const bonus = bonusMax * Math.pow(progress, exponent);
+  return 1 + bonus;
+}
+
+// Compute mithril forge multiplier for outputs.
+function getForgeMultiplier(state, config) {
+  const forgeConfig = config && config.structures && config.structures.mithril_forge;
+  if (!forgeConfig) {
+    return 1;
+  }
+  const structures = Array.isArray(state && state.structures) ? state.structures : [];
+  const forge = structures.find((structure) => structure.type === 'mithril_forge');
+  if (!forge) {
+    return 1;
+  }
+  const level = Math.max(1, Number(forge.level || 1));
+  const maxLevel = Math.max(1, Number(forgeConfig.levelMax || 1));
+  const minBonus = Math.max(0, Number(forgeConfig.levelBonusMin || 0));
+  const maxBonus = Math.max(minBonus, Number(forgeConfig.levelBonusMax ?? minBonus));
+  if (maxLevel <= 1) {
+    return 1 + minBonus;
+  }
+  const exponent = Math.max(0.1, Number(forgeConfig.levelBonusExponent || 1));
+  const progress = clamp((level - 1) / (maxLevel - 1), 0, 1);
+  const bonus = minBonus + (maxBonus - minBonus) * Math.pow(progress, exponent);
+  return 1 + bonus;
+}
+
 // Check that stockpile has all input costs available.
 function hasInputs(stockpile, inputs) {
   for (const [resource, amount] of Object.entries(inputs)) {
@@ -426,15 +518,20 @@ function consumeInputs(stockpile, inputs) {
 }
 
 // Apply output resources to the stockpile.
-function applyOutputs(stockpile, outputs) {
+function applyOutputs(stockpile, outputs, state, config) {
+  const forgeMultiplier = getForgeMultiplier(state, config);
   for (const [resource, amount] of Object.entries(outputs)) {
-    stockpile[resource] = Number(stockpile[resource] || 0) + Number(amount || 0);
+    const beerMultiplier = getBeerProductionMultiplier(state, config, resource);
+    stockpile[resource] =
+      Number(stockpile[resource] || 0) + Number(amount || 0) * forgeMultiplier * beerMultiplier;
   }
 }
 
 module.exports = {
   regenerateNodes,
   getResourceNodeRatio,
+  getStockpileTarget,
+  shouldPauseBrewing,
   getStockpileRatio,
   getFieldIrrigationMultiplier,
   updateHouseStorage,
@@ -444,6 +541,8 @@ module.exports = {
   getGatherTicks,
   getGatherYield,
   getToolMultiplier,
+  getBeerProductionMultiplier,
+  getForgeMultiplier,
   hasInputs,
   consumeInputs,
   applyOutputs,

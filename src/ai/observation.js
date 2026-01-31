@@ -1,14 +1,15 @@
 'use strict';
 
 const { clamp } = require('../utils');
+const { getStockpileTarget } = require('../simulation/resources');
 
 // Build a full observation object from the current state.
 function buildObservation(state, config) {
-  const targets = (config.resources && config.resources.targets) || {};
+  const targets = (config.resources && (config.resources.targets || config.resources.stockpile)) || {};
   const stockpileRatio = {};
 
   for (const [resource, targetValue] of Object.entries(targets)) {
-    const target = Number(targetValue || 0);
+    const target = getStockpileTarget(state, config, resource, targets);
     if (target <= 0) {
       continue;
     }

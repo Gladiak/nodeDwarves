@@ -41,6 +41,10 @@ Display and layout:
 - `display.terrain.valley.fertileDistance`: max distance from water for fertile ground (tiles).
 - `display.terrain.valley.humidityDecay`: humidity falloff distance (higher = wider humidity).
 - `display.terrain.valley.riverBias.<dir>`: river bias per direction (`east`, `south`, `west`, `north`).
+- `display.terrain.valley.riverCount`: number of valley rivers to carve (1..4).
+- `display.terrain.valley.riverSourceMinDistance`: minimum Manhattan distance between river sources.
+- `display.terrain.valley.riverSourceSides`: allowed river source sides (`north`, `south`, `east`, `west`).
+- `display.terrain.valley.riverWander`: chance per step to deviate from the steepest descent (0..1).
 - `display.terrain.valley.riverValleyDrop`: height drop on the river path.
 - `display.terrain.valley.riverValleyDropAdjacent`: height drop around the river path.
 - `display.terrain.valley.lakeDepth`: depth drop for lake depressions.
@@ -53,6 +57,8 @@ Display and layout:
 - `display.terrain.valley.forest.clusterPasses`: forest clustering passes.
 - `display.terrain.valley.food.humidityMin`: minimum humidity to spawn food patches.
 - `display.terrain.valley.food.waterDistanceMax`: maximum distance from water to spawn food patches (tiles).
+- `display.terrain.valley.food.minTiles`: minimum number of food tiles to guarantee (near water).
+- `display.terrain.valley.food.minTilesWaterDistanceMax`: max distance from water used for the minimum food tiles (tiles).
 - `display.terrain.valley.food.noiseScale`: food noise scale.
 - `display.terrain.valley.food.noiseThreshold`: food noise threshold.
 - `display.terrain.valley.food.clusterPasses`: food clustering passes.
@@ -71,6 +77,21 @@ Display and layout:
 - `display.terrain.symbols.food`: map symbol for food tiles.
 - `display.terrain.symbols.forest`: map symbol for forest tiles.
 - `display.terrain.symbols.stone`: map symbol for stone tiles.
+- `display.terrain.plainSymbols.primary`: primary symbol for plain/grass tiles when randomized.
+- `display.terrain.plainSymbols.secondary`: secondary symbol for plain/grass tiles when randomized.
+- `display.terrain.plainSymbols.primaryWeight`: chance of choosing the primary symbol (0..1).
+- `display.terrain.riverSymbols.horizontal`: symbol for horizontal river segments.
+- `display.terrain.riverSymbols.vertical`: symbol for vertical river segments.
+- `display.terrain.riverSymbols.cornerNE`: symbol for river corner connecting north + east.
+- `display.terrain.riverSymbols.cornerNW`: symbol for river corner connecting north + west.
+- `display.terrain.riverSymbols.cornerSE`: symbol for river corner connecting south + east.
+- `display.terrain.riverSymbols.cornerSW`: symbol for river corner connecting south + west.
+- `display.terrain.riverSymbols.teeNorth`: symbol for river tee connecting north + east + west.
+- `display.terrain.riverSymbols.teeSouth`: symbol for river tee connecting south + east + west.
+- `display.terrain.riverSymbols.teeEast`: symbol for river tee connecting east + north + south.
+- `display.terrain.riverSymbols.teeWest`: symbol for river tee connecting west + north + south.
+- `display.terrain.riverSymbols.cross`: symbol for river crossings connecting all four directions.
+- `display.terrain.riverConnectsTo`: list of terrain types treated as connected to rivers (defaults to `["river"]`).
 - `display.dwarves.maxVisible`: max dwarves to render on the map (0 = show all).
 - `display.colors.enabled`: enable ANSI colors in the render.
 - `display.colors.reset`: ANSI reset sequence (defaults to `\u001b[0m`).
@@ -86,6 +107,7 @@ Resources:
 
 - `resources.stockpile.<resource>`: initial stockpile amounts (e.g. `food`, `water`, `beer`, `wood`, `stone`, `iron`, `mithril`, `adamantio`, `mana_crystal`).
 - `resources.targets.<resource>`: target stockpile amounts used for shortages and stockpile ratios.
+- `resources.targetsPerCapita.<resource>`: per-dwarf target add-on (added to `resources.targets`) for scaling shortages and ratios.
 - `resources.labels.<resource>`: HUD label overrides for stockpile resources (falls back to the resource id).
 - `resources.useTerrainTiles`: gather resources directly from terrain tiles when available.
 - `resources.terrainAllowed.<resource>`: allowed terrain tile types for resource placement and terrain gathering.
@@ -96,6 +118,9 @@ Needs and consumption:
 - `consumption.beerMoraleGain`: morale boost gained per beer consumed.
 - `consumption.beerMoraleDecayPerTick`: per-tick decay applied to the beer morale boost.
 - `consumption.beerMoraleMax`: maximum beer morale boost (0..1).
+- `consumption.beerProductionBonusMax`: max production bonus from beer morale (0..1+).
+- `consumption.beerProductionBonusExponent`: curve exponent for beer production bonus.
+- `consumption.beerProductionApplyTo`: resource ids receiving the beer production bonus.
 
 Morale:
 
@@ -229,6 +254,7 @@ Structures (wells, fields):
 - `structures.well.cluster.side`: placement side for rect clusters (`left` or `right`).
 - `structures.field.buildMinRadius`: minimum Manhattan radius from village center.
 - `structures.field.buildOuterBuffer`: extra distance beyond the current village perimeter (houses).
+- `structures.field.allowForestWhenPlainBelow`: allow structures to be placed on forest tiles when plain+fertile coverage is below this ratio (0..1).
 - `structures.field.manager.enabled`: enable manager-driven field builds.
 - `structures.field.manager.buildBelowRatio`: start building when food stockpile ratio is below this (0..1).
 - `structures.field.manager.stopAboveRatio`: stop building when food stockpile ratio is above this (0..1).
@@ -257,6 +283,22 @@ Structures (workshop):
 - `structures.workshop.buildTicks`: ticks required to build a workshop.
 - `structures.workshop.buildCost.<resource>`: resource costs to build a workshop.
 
+Structures (mithril forge):
+
+- `structures.mithril_forge.count`: initial mithril forge count.
+- `structures.mithril_forge.maxCount`: maximum mithril forges allowed.
+- `structures.mithril_forge.buildMinRadius`: minimum Manhattan radius from village center.
+- `structures.mithril_forge.buildOuterBuffer`: extra distance beyond the current village perimeter (houses).
+- `structures.mithril_forge.buildMinResources.<resource>`: minimum stockpile ratios before building.
+- `structures.mithril_forge.buildTicks`: ticks required to build a mithril forge.
+- `structures.mithril_forge.buildCost.<resource>`: resource costs to build a mithril forge.
+- `structures.mithril_forge.levelMax`: maximum mithril forge level.
+- `structures.mithril_forge.levelBonusMin`: bonus at level 1 (fraction).
+- `structures.mithril_forge.levelBonusMax`: bonus at max level (fraction).
+- `structures.mithril_forge.levelBonusExponent`: curve exponent for level bonuses.
+- `structures.mithril_forge.levels.<level>.upgradeTicks`: ticks required to upgrade to this level.
+- `structures.mithril_forge.levels.<level>.upgradeCost.<resource>`: resource costs for this level.
+
 Structures (brewery):
 
 - `structures.brewery.count`: initial brewery count.
@@ -279,6 +321,7 @@ Structures (brewery):
 - `structures.brewery.upgradeCostScale`: exponential multiplier per level.
 - `structures.brewery.upgradeBaseCost.<resource>`: base upgrade costs.
 - `structures.brewery.brewmasterInitial`: number of initial dwarves locked as brewmasters.
+- `structures.brewery.pauseWhenFoodRatioBelow`: pause brewery jobs when food stockpile ratio falls below this (0..1).
 
 Structures (sawmill):
 

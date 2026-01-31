@@ -4,6 +4,24 @@ const { padRight } = require('../utils');
 const { getColorConfig, colorizeLegend } = require('./colors');
 const { wrapLine } = require('./format');
 
+function toPascalCase(value) {
+  const text = String(value || '').trim();
+  if (!text) {
+    return '';
+  }
+  return text
+    .split(/[_\s-]+/)
+    .filter((part) => part.length > 0)
+    .map((part) => part[0].toUpperCase() + part.slice(1))
+    .join('');
+}
+
+function getResourceLabel(resourceConfig, resourceId) {
+  const labels = resourceConfig && resourceConfig.labels ? resourceConfig.labels : null;
+  const label = labels && labels[resourceId] ? labels[resourceId] : resourceId;
+  return toPascalCase(label);
+}
+
 // Build footer lines containing the legend and map key.
 function buildFooterLines(config, runtime) {
   const height = Math.max(0, Number(runtime.footerHeight || 0));
@@ -22,19 +40,29 @@ function buildFooterLines(config, runtime) {
   const terrainSymbols = terrainConfig.symbols || {};
   const terrainEnabled = terrainConfig.enabled !== false && terrainSymbols && typeof terrainSymbols === 'object';
 
-  legendParts.push(colorizeLegend(`${symbols.dwarf || '@'} dwarf`, 'dwarf', colors));
+  legendParts.push(colorizeLegend(`${symbols.dwarf || '@'} ${toPascalCase('dwarf')}`, 'dwarf', colors));
   for (const resource of Object.keys(nodeConfig)) {
     if (isTerrainMappedResource(resourceConfig, terrainSymbols, resource)) {
       continue;
     }
     const symbol = symbols[resource] || resource[0] || '?';
-    legendParts.push(colorizeLegend(`${symbol} ${resource}`, resource, colors));
+    legendParts.push(colorizeLegend(`${symbol} ${getResourceLabel(resourceConfig, resource)}`, resource, colors));
   }
   const houseLegend = getHouseLegendLabel(structureConfig.house);
   if (houseLegend) {
-    legendParts.push(colorizeLegend(`${houseLegend} house`, 'house', colors));
+    legendParts.push(colorizeLegend(`${houseLegend} ${toPascalCase('house')}`, 'house', colors));
   }
-  const structureWhitelist = new Set(['house', 'well', 'field', 'workshop', 'brewery', 'sawmill', 'mine', 'watchtower']);
+  const structureWhitelist = new Set([
+    'house',
+    'well',
+    'field',
+    'workshop',
+    'mithril_forge',
+    'brewery',
+    'sawmill',
+    'mine',
+    'watchtower',
+  ]);
   for (const [type, definition] of Object.entries(structureConfig)) {
     if (type === 'house' && houseLegend) {
       continue;
@@ -48,18 +76,18 @@ function buildFooterLines(config, runtime) {
       continue;
     }
     const symbol = symbols[type] || symbols.structure || '#';
-    legendParts.push(colorizeLegend(`${symbol} ${type}`, type, colors));
+    legendParts.push(colorizeLegend(`${symbol} ${toPascalCase(type)}`, type, colors));
   }
 
   const merchantConfig = config.merchant || {};
   if (merchantConfig.enabled !== false) {
-    legendParts.push(colorizeLegend(`${symbols.merchant || 'M'} merchant`, 'merchant', colors));
+    legendParts.push(colorizeLegend(`${symbols.merchant || 'M'} ${toPascalCase('merchant')}`, 'merchant', colors));
   }
 
   const raidConfig = config.raids || {};
   const beastSymbol = getBeastSymbol(config);
   if (raidConfig.enabled === true && beastSymbol) {
-    legendParts.push(colorizeLegend(`${beastSymbol} beasts`, 'beast', colors));
+    legendParts.push(colorizeLegend(`${beastSymbol} ${toPascalCase('beasts')}`, 'beast', colors));
   }
 
   const legendLine = `Legend: ${legendParts.join('  ')}`;
@@ -83,7 +111,7 @@ function buildFooterLines(config, runtime) {
       if (!symbol) {
         continue;
       }
-      terrainParts.push(colorizeLegend(`${symbol} ${type}`, `terrain_${type}`, colors));
+      terrainParts.push(colorizeLegend(`${symbol} ${toPascalCase(type)}`, `terrain_${type}`, colors));
     }
     if (terrainParts.length > 0) {
       terrainLine = `Map: ${terrainParts.join('  ')}`;

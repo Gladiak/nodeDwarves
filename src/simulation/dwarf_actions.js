@@ -15,6 +15,7 @@ const {
   createResourceNode,
   getGatherYield,
   getToolMultiplier,
+  shouldPauseBrewing,
   hasInputs,
   consumeInputs,
   applyOutputs,
@@ -351,18 +352,23 @@ function processDwarfJob(dwarf, state, config, runtime) {
   if (job.type === 'mine') {
     const output = getMineOutput(state, config, targetStructure);
     if (output) {
-      applyOutputs(state.stockpile, output);
+      applyOutputs(state.stockpile, output, state, config);
     }
     return;
   }
   if (job.type === 'sawmill') {
     const output = getSawmillOutput(state, config, targetStructure);
     if (output) {
-      applyOutputs(state.stockpile, output);
+      applyOutputs(state.stockpile, output, state, config);
     }
     return;
   }
   if (job.type === 'brewery') {
+    if (shouldPauseBrewing(state, config)) {
+      removeJob(state, job.id);
+      dwarf.job = null;
+      return;
+    }
     const output = getBreweryOutput(state, config, targetStructure);
     if (!output || Object.keys(output).length === 0) {
       return;
@@ -375,7 +381,7 @@ function processDwarfJob(dwarf, state, config, runtime) {
       }
       consumeInputs(state.stockpile, inputs);
     }
-    applyOutputs(state.stockpile, output);
+    applyOutputs(state.stockpile, output, state, config);
     return;
   }
 
@@ -385,7 +391,7 @@ function processDwarfJob(dwarf, state, config, runtime) {
   }
 
   if (job.type === 'craft') {
-    applyOutputs(state.stockpile, job.outputs || {});
+    applyOutputs(state.stockpile, job.outputs || {}, state, config);
     removeJob(state, job.id);
     dwarf.job = null;
     return;

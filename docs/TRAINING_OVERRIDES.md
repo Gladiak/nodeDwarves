@@ -88,6 +88,7 @@ Resources and economy:
 
 - `resources.stockpile.<resource>`: initial stockpile per resource.
 - `resources.targets.<resource>`: desired stockpile per resource.
+- `resources.targetsPerCapita.<resource>`: per-dwarf target add-on for stockpile ratios.
 - `resources.defaultNodeCapacity`: fallback capacity for resource nodes.
 - `resources.nodeCapacity.<resource>`: per-resource node capacity overrides.
 - `resources.removeDepletedNodes`: remove nodes when empty (if regen off).
@@ -142,6 +143,7 @@ Structures:
 - `structures.brewery.upgradeCostScale`: exponential multiplier per level.
 - `structures.brewery.upgradeBaseCost.<resource>`: base upgrade costs.
 - `structures.brewery.brewmasterInitial`: number of initial dwarves locked as brewmasters.
+- `structures.brewery.pauseWhenFoodRatioBelow`: pause brewery jobs when food stockpile ratio falls below this.
 
 Seasons:
 
@@ -183,6 +185,13 @@ Needs and consumption:
 - `consumption.maxUnitsPerTick`: max food/water units consumed per tick.
 - `consumption.rawFoodRelief`: hunger relief per raw food unit.
 - `consumption.waterRelief`: thirst relief per water unit.
+- `consumption.beerRelief`: thirst relief per beer unit.
+- `consumption.beerMoraleGain`: morale boost gained per beer consumed.
+- `consumption.beerMoraleDecayPerTick`: per-tick decay applied to the beer morale boost.
+- `consumption.beerMoraleMax`: maximum beer morale boost.
+- `consumption.beerProductionBonusMax`: max production bonus from beer morale.
+- `consumption.beerProductionBonusExponent`: curve exponent for beer production bonus.
+- `consumption.beerProductionApplyTo`: resource ids receiving the beer production bonus.
 
 Jobs and gathering:
 

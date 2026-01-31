@@ -188,7 +188,7 @@ function createStructures(config, runtime, occupied, terrain) {
       if (level) {
         structure.level = level;
       }
-    if ((type === 'mine' || type === 'sawmill' || type === 'brewery') && levelMax) {
+    if ((type === 'mine' || type === 'sawmill' || type === 'brewery' || type === 'mithril_forge') && levelMax) {
       structure.level = 1;
     }
       structures.push(structure);

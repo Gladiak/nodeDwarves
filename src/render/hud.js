@@ -1,6 +1,7 @@
 "use strict";
 
 const { clamp, padRight } = require("../utils");
+const { getStockpileTarget } = require("../simulation/resources");
 const { getColorConfig, applyColor } = require("./colors");
 const { fitLine } = require("./format");
 
@@ -58,6 +59,9 @@ function buildHudColumns(state, config, columnWidth) {
   const mineCount = structures.filter(
     (structure) => structure.type === "mine",
   ).length;
+  const forgeCount = structures.filter(
+    (structure) => structure.type === "mithril_forge",
+  ).length;
   const watchtowerCount = structures.filter(
     (structure) => structure.type === "watchtower",
   ).length;
@@ -89,7 +93,7 @@ function buildHudColumns(state, config, columnWidth) {
   const yearLabel = formatYearLabel(state, config);
   const lastEvent = formatLastEvent(state.events);
   const stageCounts = countLifeStages(dwarves);
-  const targets = (config.resources && config.resources.targets) || {};
+  const targets = (config.resources && (config.resources.targets || config.resources.stockpile)) || {};
   const resourceLabels = (config.resources && config.resources.labels) || {};
   const hudConfig = (config.display && config.display.hud) || {};
   const stockBarMax = Number(hudConfig.stockBarMax || 0);
@@ -157,6 +161,7 @@ function buildHudColumns(state, config, columnWidth) {
   right.push(
     fitLine(`Sawmills: ${sawmillCount}  Mines: ${mineCount}`, columnWidth),
   );
+  right.push(fitLine(`Forge: ${forgeCount}`, columnWidth));
   if (state.tools) {
     const maxLevel = Math.max(1, Number(state.tools.maxLevel || 1));
     const level = Math.min(
@@ -173,7 +178,7 @@ function buildHudColumns(state, config, columnWidth) {
   pushSection(right, "Stockpile");
 
   for (const [id, count] of Object.entries(state.stockpile)) {
-    const target = Number(targets[id] || 0);
+    const target = getStockpileTarget(state, config, id, targets);
     const maxValue = stockBarMax > 0 ? stockBarMax : target;
     const ratio = maxValue > 0 ? clamp(Number(count || 0) / maxValue, 0, 1) : 1;
     const detail =
@@ -526,6 +531,7 @@ function getStructureLevelSummary(structures, maxWidth) {
   collectLevel("mine", "Mine", "Mi");
   collectLevel("sawmill", "Sawmill", "Sm");
   collectLevel("brewery", "Brewery", "Br");
+  collectLevel("mithril_forge", "Forge", "Fo");
 
   if (entries.length === 0) {
     return "";

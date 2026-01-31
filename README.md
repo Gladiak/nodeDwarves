@@ -21,7 +21,7 @@ alive while you watch the chaos unfold in ASCII.
 
 - 🧠 Fully autonomous simulation with a real-time ASCII renderer.
 - 🧺 Resource economy with food, water, beer, wood, stone, iron, mithril, adamantium, and mana crystal.
-- 🏘️ Village growth: houses (beds), wells (water nodes), fields (food nodes), breweries (beer), sawmills (wood), workshops (tools), mines (iron/stone + rare drops).
+- 🏘️ Village growth: houses (beds), wells (water nodes), fields (food nodes), breweries (beer), sawmills (wood), workshops (tools), mithril forges (global output boost), mines (iron/stone + rare drops).
 - ❄️ Seasons + housing effects (bonding, winter penalties).
 - 🌦️ Dynamic weather cycle that reshapes needs, gathering, and regeneration.
 - 🎓 PPO training in Python with JS-only inference.
@@ -34,11 +34,15 @@ alive while you watch the chaos unfold in ASCII.
 ## Simulation overview 🗺️
 
 - 🗺️ The world is a fixed-size ASCII grid with resource nodes, structures, and dwarves.
-- 🌍 The map renders a randomized terrain backdrop (coast/valley modes) for visual texture.
+- 🌍 The map renders a randomized terrain backdrop (coast/valley modes) with CP437-friendly symbols.
+- 🌊 River tiles render with curved box-drawing symbols and can originate from multiple map edges.
+- 🌲 Forest patches spread beyond water corridors via humidity diffusion for more varied biomes.
+- 🌾 Plains render as a weighted mix of CP437 glyphs for subtle texture.
+- 🧺 Food tiles are guaranteed to appear near water to avoid barren starts.
 - ⏱️ Each tick:
   1. Dwarves accumulate needs (hunger, thirst).
   2. Resources are consumed when needs cross thresholds.
-  3. Shortages are computed vs target stockpile levels.
+  3. Shortages are computed vs target stockpile levels (optionally scaled per population).
   4. Jobs are assigned based on the largest shortages.
   5. Dwarves move to targets, work, and update stockpiles.
 - ♻️ Resource nodes have finite capacity and regenerate slowly.
@@ -65,8 +69,9 @@ alive while you watch the chaos unfold in ASCII.
 - 💧 Wells are built when water stocks or water node reserves dip below thresholds.
 - 🌱 Fields are built when food stocks or food node reserves dip below thresholds and baseline stockpiles are safe.
 - 🪚 Sawmills convert stone + iron investment into steady wood output.
-- 🍺 Breweries convert food into beer with a dedicated brewmaster; upgrades boost output while reducing food cost. Beer boosts morale, and high morale speeds up gathering and bonding.
+- 🍺 Breweries convert food into beer with a dedicated brewmaster; upgrades boost output while reducing food cost. Brewing can pause when food is critically low, and beer consumption can add a production bonus across resources.
 - 🛠️ Workshops unlock tool upgrades that boost all gathering yields, including mines.
+- 🔥 Mithril forges provide a global output multiplier that scales by level; late-game upgrades require rare minerals.
 - ⛏️ Mines and 🪚 sawmills can be upgraded to level 10 for higher output (exponential cost/bonus).
 - ⛏️ Mines are built on mountain terrain when none exist, and miners output iron + stone per tick plus rare minerals from level 5+.
 - 🧑‍🏭 Roles (builder/gatherer) can be enabled to keep building stable during shortages.

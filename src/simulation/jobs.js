@@ -5,12 +5,19 @@ const { getSeasonModifier } = require("./season");
 const { getRoleConfig, isEmergencyGather } = require("./roles");
 const { isAdult, getHousingNeed } = require("./population");
 const { addTerrainResourcesToSet } = require("./terrain");
-const { createGatherJob, hasInputs, consumeInputs } = require("./resources");
+const {
+  createGatherJob,
+  getStockpileTarget,
+  shouldPauseBrewing,
+  hasInputs,
+  consumeInputs,
+} = require("./resources");
 const {
   createWellBuildJob,
   createFieldBuildJob,
   createSawmillBuildJob,
   createWorkshopBuildJob,
+  createMithrilForgeBuildJob,
   createBreweryBuildJob,
   createMineBuildJob,
   createHouseBuildJob,
@@ -30,10 +37,13 @@ function assignJobs(state, config, runtime, action) {
     return;
   }
 
-  const brewers = idleDwarves.filter((dwarf) => dwarf.role === "brewmaster");
-  idleDwarves = idleDwarves.filter((dwarf) => dwarf.role !== "brewmaster");
-  if (brewers.length > 0) {
-    assignBreweryJobs(state, config, runtime, brewers);
+  const brewingPaused = shouldPauseBrewing(state, config);
+  if (!brewingPaused) {
+    const brewers = idleDwarves.filter((dwarf) => dwarf.role === "brewmaster");
+    idleDwarves = idleDwarves.filter((dwarf) => dwarf.role !== "brewmaster");
+    if (brewers.length > 0) {
+      assignBreweryJobs(state, config, runtime, brewers);
+    }
   }
   if (idleDwarves.length === 0) {
     return;
@@ -94,7 +104,7 @@ function assignJobs(state, config, runtime, action) {
   const resourceConfig = config.resources || {};
   const targets = resourceConfig.targets || resourceConfig.stockpile || {};
   const weights = getActionWeights(action, config);
-  const shortages = computeShortages(state.stockpile, targets, weights, config);
+  const shortages = computeShortages(state, targets, weights, config);
   const workshops = (state.structures || []).filter(
     (structure) => structure.type === "workshop",
   );
@@ -320,6 +330,9 @@ function assignBuildJobIfNeeded(
   }
   if (!buildJob) {
     buildJob = createSawmillBuildJob(state, config, runtime);
+  }
+  if (!buildJob) {
+    buildJob = createMithrilForgeBuildJob(state, config, runtime);
   }
   if (!buildJob) {
     return;
@@ -609,7 +622,42 @@ function assignToolUpgradeJob(
   state.jobs.push(job);
 }
 
-// Assign upgrade jobs for mines and sawmills.
+// Resolve a structure level config entry for upgrades.
+function getStructureLevelConfig(structConfig, level) {
+  if (!structConfig || !structConfig.levels) {
+    return null;
+  }
+  const levels = structConfig.levels;
+  return levels[level] || levels[String(level)] || null;
+}
+
+// Compute upgrade costs for a structure level.
+function getStructureUpgradeCost(structConfig, levelConfig, currentLevel) {
+  if (levelConfig && levelConfig.upgradeCost) {
+    return levelConfig.upgradeCost;
+  }
+  const baseCost = structConfig.upgradeBaseCost || {};
+  const scale = Math.max(1, Number(structConfig.upgradeCostScale || 1));
+  const factor = Math.pow(scale, Math.max(0, currentLevel - 1));
+  const cost = {};
+  for (const [resource, amount] of Object.entries(baseCost)) {
+    const scaled = Math.max(0, Number(amount || 0) * factor);
+    if (scaled > 0) {
+      cost[resource] = Math.ceil(scaled);
+    }
+  }
+  return cost;
+}
+
+// Compute upgrade ticks for a structure level.
+function getStructureUpgradeTicks(structConfig, levelConfig) {
+  if (levelConfig && levelConfig.upgradeTicks !== undefined) {
+    return levelConfig.upgradeTicks;
+  }
+  return structConfig.upgradeTicks;
+}
+
+// Assign upgrade jobs for mines, sawmills, breweries, and mithril forges.
 function assignStructureUpgradeJob(
   state,
   config,
@@ -628,6 +676,7 @@ function assignStructureUpgradeJob(
       structure.type === "mine"
       || structure.type === "sawmill"
       || structure.type === "brewery"
+      || structure.type === "mithril_forge"
     ),
   );
   if (candidates.length === 0) {
@@ -645,16 +694,9 @@ function assignStructureUpgradeJob(
       continue;
     }
 
-    const baseCost = structConfig.upgradeBaseCost || {};
-    const scale = Math.max(1, Number(structConfig.upgradeCostScale || 1));
-    const factor = Math.pow(scale, Math.max(0, current - 1));
-    const cost = {};
-    for (const [resource, amount] of Object.entries(baseCost)) {
-      const scaled = Math.max(0, Number(amount || 0) * factor);
-      if (scaled > 0) {
-        cost[resource] = Math.ceil(scaled);
-      }
-    }
+    const nextLevel = current + 1;
+    const levelConfig = getStructureLevelConfig(structConfig, nextLevel);
+    const cost = getStructureUpgradeCost(structConfig, levelConfig, current);
     if (Object.keys(cost).length > 0 && !hasInputs(state.stockpile, cost)) {
       continue;
     }
@@ -671,7 +713,8 @@ function assignStructureUpgradeJob(
       consumeInputs(state.stockpile, cost);
     }
 
-    const buildTicks = Math.max(1, Number(structConfig.upgradeTicks || 40));
+    const rawTicks = getStructureUpgradeTicks(structConfig, levelConfig);
+    const buildTicks = Math.max(1, Number(rawTicks || 40));
     const job = {
       id: `job_${state.jobCounter++}`,
       type: "upgrade_structure",
@@ -680,7 +723,7 @@ function assignStructureUpgradeJob(
       target: { x: structure.x, y: structure.y },
       workRemaining: buildTicks,
       dwarfId: dwarf.id,
-      nextLevel: current + 1,
+      nextLevel,
     };
 
     dwarf.job = job;
@@ -710,13 +753,14 @@ function getActionWeights(action, config) {
 }
 
 // Compute shortage list sorted by urgency.
-function computeShortages(stockpile, targets, weights, config) {
+function computeShortages(state, targets, weights, config) {
   const shortages = [];
   const aiConfig = config && config.ai ? config.ai : {};
   const priorityBoosts = aiConfig.priorityBoosts || {};
+  const stockpile = state.stockpile || {};
 
   for (const [resource, targetValue] of Object.entries(targets)) {
-    const target = Number(targetValue || 0);
+    const target = getStockpileTarget(state, config, resource, targets);
     if (target <= 0) {
       continue;
     }

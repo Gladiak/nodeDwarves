@@ -43,7 +43,7 @@ function createStructure(state, config, type, x, y) {
     structure.capacity = capacity;
   }
 
-  if (type === 'mine' || type === 'sawmill' || type === 'brewery') {
+  if (type === 'mine' || type === 'sawmill' || type === 'brewery' || type === 'mithril_forge') {
     const levelMax = Math.max(1, Number(structureConfig.levelMax || 1));
     structure.level = Math.min(1, levelMax);
   }
@@ -316,7 +316,10 @@ function createWellBuildJob(state, config, runtime) {
   }
 
   const target = placement.mode === 'poisson'
-    ? findPoissonBuildSpot(state, runtime, wellConfig, null, { structureType: 'well' })
+    ? findPoissonBuildSpot(state, runtime, wellConfig, null, {
+      structureType: 'well',
+      allowForest: shouldAllowForestBuild(state, config),
+    })
     : findPeripheralBuildSpot(state, runtime, wellConfig);
   if (!target) {
     return null;
@@ -374,10 +377,16 @@ function createFieldBuildJob(state, config, runtime) {
     return null;
   }
 
+  const allowForest = shouldAllowForestBuild(state, config);
+  const allowTerrain = allowForest
+    ? (innerState, x, y) => isFieldBuildTerrain(innerState, x, y, true)
+    : isFieldClusterTerrain;
+
   const target = placement.mode === 'poisson'
     ? findPoissonBuildSpot(state, runtime, fieldConfig, null, {
       structureType: 'field',
-      allowTerrain: isFieldClusterTerrain,
+      allowTerrain,
+      allowForest,
     })
     : findFertileBuildSpot(state, runtime, fieldConfig);
   if (!target) {
@@ -430,6 +439,57 @@ function createWorkshopBuildJob(state, config, runtime) {
     id: `job_${state.jobCounter++}`,
     type: 'build',
     structureType: 'workshop',
+    target,
+    workRemaining: buildTicks,
+    dwarfId: null,
+  };
+}
+
+// Create a mithril forge build job when none exists.
+function createMithrilForgeBuildJob(state, config, runtime) {
+  const forgeConfig = (config.structures && config.structures.mithril_forge) || {};
+  const maxCount = Number(forgeConfig.maxCount ?? 0);
+  const existing = (state.structures || []).filter((structure) => structure.type === 'mithril_forge').length;
+  if (maxCount > 0 && existing >= maxCount) {
+    return null;
+  }
+  if (existing > 0) {
+    return null;
+  }
+
+  const minResources = forgeConfig.buildMinResources;
+  if (minResources && typeof minResources === 'object') {
+    for (const [resource, minRatioRaw] of Object.entries(minResources)) {
+      const minRatio = Number(minRatioRaw);
+      if (!Number.isFinite(minRatio) || minRatio <= 0) {
+        continue;
+      }
+      const ratio = getStockpileRatio(state, config, resource);
+      if (ratio < minRatio) {
+        return null;
+      }
+    }
+  }
+
+  const buildCost = forgeConfig.buildCost || {};
+  if (Object.keys(buildCost).length > 0 && !hasInputs(state.stockpile, buildCost)) {
+    return null;
+  }
+
+  const target = findPeripheralBuildSpot(state, runtime, forgeConfig);
+  if (!target) {
+    return null;
+  }
+
+  if (Object.keys(buildCost).length > 0) {
+    consumeInputs(state.stockpile, buildCost);
+  }
+
+  const buildTicks = Math.max(1, Number(forgeConfig.buildTicks || 120));
+  return {
+    id: `job_${state.jobCounter++}`,
+    type: 'build',
+    structureType: 'mithril_forge',
     target,
     workRemaining: buildTicks,
     dwarfId: null,
@@ -646,13 +706,66 @@ function isFieldClusterTerrain(state, x, y) {
   return type === 'fertile' || type === 'plain';
 }
 
-// Check whether a terrain tile is allowed for Poisson placement.
-function isPlacementTerrainAllowed(state, x, y, placement, allowTerrain) {
-  const type = getTerrainTypeAt(state, x, y);
-  if (placement && placement.avoidTerrain.length > 0 && type && placement.avoidTerrain.includes(type)) {
+function getTerrainCoverageRatio(state, allowedTypes) {
+  const terrain = state && state.terrain;
+  const types = terrain && terrain.types;
+  if (!types || types.length === 0) {
+    return 1;
+  }
+  const height = types.length;
+  const width = types[0].length || 0;
+  if (width <= 0 || height <= 0) {
+    return 1;
+  }
+  let total = 0;
+  let matches = 0;
+  for (let y = 0; y < height; y += 1) {
+    const row = types[y];
+    if (!row) {
+      continue;
+    }
+    for (let x = 0; x < width; x += 1) {
+      const type = row[x];
+      total += 1;
+      if (type && allowedTypes.has(type)) {
+        matches += 1;
+      }
+    }
+  }
+  if (total <= 0) {
+    return 1;
+  }
+  return matches / total;
+}
+
+function shouldAllowForestBuild(state, config) {
+  const fieldConfig = (config.structures && config.structures.field) || {};
+  const threshold = clamp(Number(fieldConfig.allowForestWhenPlainBelow ?? 0), 0, 1);
+  if (threshold <= 0) {
     return false;
   }
-  if (allowTerrain && !allowTerrain(state, x, y)) {
+  const ratio = getTerrainCoverageRatio(state, new Set(['plain', 'fertile']));
+  return ratio < threshold;
+}
+
+function isFieldBuildTerrain(state, x, y, allowForest) {
+  const type = getTerrainTypeAt(state, x, y);
+  if (type === 'fertile' || type === 'plain') {
+    return true;
+  }
+  return Boolean(allowForest && type === 'forest');
+}
+
+// Check whether a terrain tile is allowed for Poisson placement.
+function isPlacementTerrainAllowed(state, x, y, placement, allowTerrain, allowForest) {
+  const type = getTerrainTypeAt(state, x, y);
+  const forestOverride = Boolean(allowForest && type === 'forest');
+  if (placement && placement.avoidTerrain.length > 0 && type && placement.avoidTerrain.includes(type)) {
+    if (!forestOverride) {
+      return false;
+    }
+  }
+  if (allowTerrain && !allowTerrain(state, x, y) && !forestOverride) {
     return false;
   }
   return true;
@@ -793,13 +906,13 @@ function distanceToRect(position, bounds) {
 }
 
 // Pick a fixed cluster center for wells or fields.
-function pickClusterCenter(state, runtime, center, type, wallRadius, clusterConfig, otherCenter) {
+function pickClusterCenter(state, runtime, center, type, wallRadius, clusterConfig, otherCenter, allowTerrainOverride) {
   const radius = clusterConfig.radius;
   const minDistance = wallRadius + clusterConfig.minWallDistance + radius;
   const structureList = buildStructurePositions(state.structures || []);
   const structureMap = buildStructurePositionMap(state.structures || []);
   const nodeSet = buildNodePositionSet(state.nodes || []);
-  const allowTerrain = type === 'field' ? isFieldClusterTerrain : null;
+  const allowTerrain = allowTerrainOverride || (type === 'field' ? isFieldClusterTerrain : null);
   const ignoreTypes = new Set([type]);
   let best = null;
   let bestScore = -1;
@@ -935,7 +1048,7 @@ function pickClusterCenter(state, runtime, center, type, wallRadius, clusterConf
 }
 
 // Validate whether an existing cluster center is still acceptable.
-function isClusterCenterValid(state, runtime, center, type, wallRadius, clusterConfig, otherCenter) {
+function isClusterCenterValid(state, runtime, center, type, wallRadius, clusterConfig, otherCenter, allowTerrainOverride) {
   if (!center) {
     return false;
   }
@@ -945,8 +1058,11 @@ function isClusterCenterValid(state, runtime, center, type, wallRadius, clusterC
   if (!isSpawnableTile(state, center.x, center.y)) {
     return false;
   }
-  if (type === 'field' && !isFieldClusterTerrain(state, center.x, center.y)) {
-    return false;
+  if (type === 'field') {
+    const allowTerrain = allowTerrainOverride || isFieldClusterTerrain;
+    if (!allowTerrain(state, center.x, center.y)) {
+      return false;
+    }
   }
   const villageCenter = getVillageCenter(state, runtime);
   const halfW = Math.floor(clusterConfig.width / 2);
@@ -1003,6 +1119,10 @@ function ensureStructureClusters(state, runtime, config) {
   const clusters = state.structureClusters;
   const wellConfig = (config.structures && config.structures.well) || {};
   const fieldConfig = (config.structures && config.structures.field) || {};
+  const allowForest = shouldAllowForestBuild(state, config);
+  const fieldAllowTerrain = allowForest
+    ? (innerState, x, y) => isFieldBuildTerrain(innerState, x, y, true)
+    : isFieldClusterTerrain;
   const center = getVillageCenter(state, runtime);
   const wallRadius = 0;
 
@@ -1011,7 +1131,7 @@ function ensureStructureClusters(state, runtime, config) {
   if (clusters.well && !isClusterCenterValid(state, runtime, clusters.well, 'well', wallRadius, wellClusterConfig, clusters.field)) {
     clusters.well = null;
   }
-  if (clusters.field && !isClusterCenterValid(state, runtime, clusters.field, 'field', wallRadius, fieldClusterConfig, clusters.well)) {
+  if (clusters.field && !isClusterCenterValid(state, runtime, clusters.field, 'field', wallRadius, fieldClusterConfig, clusters.well, fieldAllowTerrain)) {
     clusters.field = null;
   }
 
@@ -1038,6 +1158,7 @@ function ensureStructureClusters(state, runtime, config) {
         wallRadius,
         fieldClusterConfig,
         clusters.well,
+        fieldAllowTerrain,
       );
     }
   }
@@ -1101,7 +1222,10 @@ function createManagedWellBuildJob(state, config, runtime, reservedPositions) {
 
   let target = null;
   if (placement.mode === 'poisson') {
-    target = findPoissonBuildSpot(state, runtime, wellConfig, reservedPositions, { structureType: 'well' });
+    target = findPoissonBuildSpot(state, runtime, wellConfig, reservedPositions, {
+      structureType: 'well',
+      allowForest: shouldAllowForestBuild(state, config),
+    });
   } else {
     const clusters = ensureStructureClusters(state, runtime, config);
     const center = clusters && clusters.well;
@@ -1185,11 +1309,17 @@ function createManagedFieldBuildJob(state, config, runtime, reservedPositions) {
     return null;
   }
 
+  const allowForest = shouldAllowForestBuild(state, config);
+  const allowTerrain = allowForest
+    ? (innerState, x, y) => isFieldBuildTerrain(innerState, x, y, true)
+    : isFieldClusterTerrain;
+
   let target = null;
   if (placement.mode === 'poisson') {
     target = findPoissonBuildSpot(state, runtime, fieldConfig, reservedPositions, {
       structureType: 'field',
-      allowTerrain: isFieldClusterTerrain,
+      allowTerrain,
+      allowForest,
     });
   } else {
     const clusters = ensureStructureClusters(state, runtime, config);
@@ -1470,6 +1600,7 @@ function findPoissonBuildSpot(state, runtime, structureConfig, reservedPositions
   const maxAttempts = placement.maxAttempts > 0 ? placement.maxAttempts : width * height;
   const allowTerrain = options && options.allowTerrain ? options.allowTerrain : null;
   const structureType = options && options.structureType ? options.structureType : null;
+  const allowForest = Boolean(options && options.allowForest);
 
   const structurePositions = buildStructurePositions(state.structures || []);
   const sameTypeStructures = structureType
@@ -1493,7 +1624,7 @@ function findPoissonBuildSpot(state, runtime, structureConfig, reservedPositions
     if (minDistanceFromCenter > 0 && distFromCenter < minDistanceFromCenter) {
       continue;
     }
-    if (!isPlacementTerrainAllowed(state, x, y, placement, allowTerrain)) {
+    if (!isPlacementTerrainAllowed(state, x, y, placement, allowTerrain, allowForest)) {
       continue;
     }
 
@@ -1605,11 +1736,14 @@ function selectVillageCenter(state, runtime, config) {
   const scanStep = settlement.scanStep;
   const radius = settlement.clearRadius;
   const minOpenRatio = settlement.minOpenRatio;
-  const blocked = settlement.blockedTerrain;
+  const blocked = new Set(settlement.blockedTerrain);
+  if (shouldAllowForestBuild(state, config)) {
+    blocked.delete('forest');
+  }
   const resourceWeights = settlement.resourceWeights;
   const resourceCap = settlement.resourceDistanceCap;
 
-  const nodesByResource = buildResourceLookup(state.nodes || []);
+  const nodesByResource = buildResourceLookup(state, config);
   const nodePositions = buildNodePositionSet(state.nodes || []);
   const centerFallback = {
     x: Math.floor(width / 2),
@@ -1705,10 +1839,11 @@ function getSettlementConfig(config) {
   };
 }
 
-// Build a lookup of nodes keyed by resource id.
-function buildResourceLookup(nodes) {
+// Build a lookup of resource sources (nodes + terrain tiles when enabled).
+function buildResourceLookup(state, config) {
   const lookup = {};
-  for (const node of nodes || []) {
+  const nodes = state && Array.isArray(state.nodes) ? state.nodes : [];
+  for (const node of nodes) {
     if (!node || !node.id) {
       continue;
     }
@@ -1717,7 +1852,95 @@ function buildResourceLookup(nodes) {
     }
     lookup[node.id].push(node);
   }
+
+  const resources = config && config.resources ? config.resources : {};
+  if (resources.useTerrainTiles !== true) {
+    return lookup;
+  }
+  const terrain = state && state.terrain ? state.terrain : null;
+  if (!terrain || !Array.isArray(terrain.types)) {
+    return lookup;
+  }
+
+  const terrainAllowed = resources.terrainAllowed || {};
+  const allowedTypes = new Set();
+  for (const [resourceId, types] of Object.entries(terrainAllowed)) {
+    if (!Array.isArray(types)) {
+      continue;
+    }
+    for (const type of types) {
+      allowedTypes.add(String(type));
+    }
+    if (resourceId === 'water') {
+      allowedTypes.add('water');
+    }
+  }
+  if (allowedTypes.size === 0) {
+    return lookup;
+  }
+
+  const typePositions = buildTerrainTypePositions(terrain.types, allowedTypes);
+  const maxSamples = 200;
+  for (const [resourceId, types] of Object.entries(terrainAllowed)) {
+    if (!Array.isArray(types) || types.length === 0) {
+      continue;
+    }
+    const allowed = types.map((type) => String(type));
+    if (resourceId === 'water' && !allowed.includes('water')) {
+      allowed.push('water');
+    }
+    const positions = [];
+    for (const type of allowed) {
+      const list = typePositions[type];
+      if (list && list.length > 0) {
+        positions.push(...list);
+      }
+    }
+    if (positions.length === 0) {
+      continue;
+    }
+    const sampled = samplePositions(positions, maxSamples);
+    if (!lookup[resourceId]) {
+      lookup[resourceId] = [];
+    }
+    lookup[resourceId].push(...sampled);
+  }
+
   return lookup;
+}
+
+// Build a lookup of terrain type positions, limited to allowed types.
+function buildTerrainTypePositions(types, allowedTypes) {
+  const height = types.length;
+  const width = height > 0 ? types[0].length : 0;
+  const positions = {};
+  for (let y = 0; y < height; y += 1) {
+    const row = types[y];
+    for (let x = 0; x < width; x += 1) {
+      const type = row[x];
+      if (!allowedTypes.has(type)) {
+        continue;
+      }
+      if (!positions[type]) {
+        positions[type] = [];
+      }
+      positions[type].push({ x, y });
+    }
+  }
+  return positions;
+}
+
+// Sample a list of positions deterministically.
+function samplePositions(list, maxSamples) {
+  if (list.length <= maxSamples) {
+    return list;
+  }
+  const sampled = [];
+  const step = list.length / maxSamples;
+  for (let i = 0; i < maxSamples; i += 1) {
+    sampled.push(list[Math.floor(i * step)]);
+  }
+  return sampled;
 }
 
 // Build a set of all resource node positions.
@@ -1854,6 +2077,7 @@ module.exports = {
   createFieldBuildJob,
   createSawmillBuildJob,
   createWorkshopBuildJob,
+  createMithrilForgeBuildJob,
   createBreweryBuildJob,
   createMineBuildJob,
   createManagedWellBuildJob,

@@ -5,11 +5,11 @@
     "height": 28,
     "maxWidth": 200,
     "maxHeight": 40,
-    "tickMs": 200,
+    "tickMs": 10,
     "header": {
       "enabled": true,
       "height": 1,
-      "title": "NodeDwarves Simulation"
+      "title": "~ ⚒️ 🍺 ~ NodeDwarves Simulation: Dig Deep, Drink Hard ~ 🍺 ⚒️ ~"
     },
     "footer": {
       "enabled": true,
@@ -20,63 +20,68 @@
       "width": 60,
       "columns": 2,
       "columnGap": 2,
-      "stockBarMax": 100
+      "stockBarMax": 1000
     },
     "frame": {
       "enabled": true,
-      "horizontal": "-",
-      "vertical": "|",
-      "topLeft": "+",
-      "topRight": "+",
-      "bottomLeft": "+",
-      "bottomRight": "+"
+      "horizontal": "═",
+      "vertical": "║",
+      "topLeft": "╔",
+      "topRight": "╗",
+      "bottomLeft": "╚",
+      "bottomRight": "╝"
     },
     "terrain": {
       "enabled": true,
       "mode": "valley",
       "seed": 0,
-      "scale": 0.06,
-      "octaves": 4,
-      "persistence": 0.5,
-      "lacunarity": 2,
+      "scale": 0.07,
+      "octaves": 5,
+      "persistence": 0.55,
+      "lacunarity": 2.1,
       "valley": {
-        "bowlStrength": 0.3,
-        "smoothingPasses": 3,
-        "mountainHeight": 0.8,
-        "hillHeight": 0.66,
-        "fertileHeight": 0.46,
-        "fertileDistance": 3,
-        "humidityDecay": 6,
+        "bowlStrength": 0.24,
+        "smoothingPasses": 2,
+        "mountainHeight": 0.78,
+        "hillHeight": 0.6,
+        "fertileHeight": 0.44,
+        "fertileDistance": 4,
+        "humidityDecay": 8,
         "riverBias": {
           "east": -0.02,
           "south": -0.01,
           "west": 0.02,
           "north": 0.03
         },
-        "riverValleyDrop": 0.22,
-        "riverValleyDropAdjacent": 0.1,
-        "lakeDepth": 0.02,
-        "lakeThreshold": 0.03,
+        "riverCount": 3,
+        "riverSourceMinDistance": 8,
+        "riverSourceSides": ["north", "south", "east", "west"],
+        "riverWander": 0.55,
+        "riverValleyDrop": 0.26,
+        "riverValleyDropAdjacent": 0.12,
+        "lakeDepth": 0.03,
+        "lakeThreshold": 0.035,
         "forest": {
-          "humidityMin": 0.43,
-          "heightMax": 0.72,
-          "waterDistanceMax": 4,
-          "noiseScale": 0.11,
-          "noiseThreshold": 0.6,
-          "clusterPasses": 2
+          "humidityMin": 0.28,
+          "heightMax": 0.78,
+          "waterDistanceMax": 10,
+          "noiseScale": 0.12,
+          "noiseThreshold": 0.32,
+          "clusterPasses": 4
         },
         "food": {
           "humidityMin": 0.4,
-          "waterDistanceMax": 5,
+          "waterDistanceMax": 3,
+          "minTiles": 32,
           "noiseScale": 0.12,
-          "noiseThreshold": 0.7,
-          "clusterPasses": 1
+          "noiseThreshold": 0.68,
+          "clusterPasses": 2
         },
         "stone": {
-          "heightMin": 0.58,
+          "heightMin": 0.56,
           "noiseScale": 0.13,
-          "noiseThreshold": 0.64,
-          "clusterPasses": 1
+          "noiseThreshold": 0.6,
+          "clusterPasses": 2
         }
       },
       "walkable": {
@@ -93,17 +98,54 @@
       "movementDelay": {
         "mountain": 1
       },
+      "rivers": {
+        "enabled": true,
+        "count": 4,
+        "width": 2,
+        "shoreWidth": 2,
+        "wander": 0.7
+      },
+      "lakes": {
+        "enabled": true,
+        "count": 3,
+        "radiusMin": 3,
+        "radiusMax": 7,
+        "shoreWidth": 1,
+        "buffer": 3
+      },
       "symbols": {
-        "river": "=",
-        "lake": "~",
-        "mountain": "^",
-        "hill": "n",
-        "plain": ".",
-        "fertile": ":",
-        "food": "f",
-        "forest": "T",
-        "stone": "*"
-      }
+        "river": "─",
+        "lake": "≈",
+        "water": "≈",
+        "shore": "░",
+        "grass": "\"",
+        "mountain": "█",
+        "hill": "▓",
+        "plain": "\"",
+        "fertile": "░",
+        "food": "♥",
+        "forest": "♣",
+        "stone": "♦"
+      },
+      "plainSymbols": {
+        "primary": "\"",
+        "secondary": "ⁿ",
+        "primaryWeight": 0.75
+      },
+      "riverSymbols": {
+        "horizontal": "─",
+        "vertical": "│",
+        "cornerNE": "└",
+        "cornerNW": "┘",
+        "cornerSE": "┌",
+        "cornerSW": "┐",
+        "teeNorth": "┴",
+        "teeSouth": "┬",
+        "teeEast": "├",
+        "teeWest": "┤",
+        "cross": "┼"
+      },
+      "riverConnectsTo": ["river", "lake"]
     },
     "dwarves": {
       "maxVisible": 30
@@ -128,6 +170,7 @@
         "house": "\u001b[91m",
         "mine": "\u001b[37m",
         "workshop": "\u001b[36m",
+        "mithril_forge": "\u001b[95m",
         "sawmill": "\u001b[33m",
         "watchtower": "\u001b[37m",
         "brewery": "\u001b[35m",
@@ -779,6 +822,10 @@
       "wood": 8,
       "stone": 6
     },
+    "targetsPerCapita": {
+      "food": 0.35,
+      "water": 0.3
+    },
     "labels": {
       "food": "Food",
       "water": "Water",
@@ -808,7 +855,7 @@
     "nodeRegen": {
       "enabled": true,
       "intervalTicks": 35,
-      "amount": 3,
+      "amount": 4,
       "onlyDepleted": false
     },
     "nodes": {
@@ -918,7 +965,7 @@
           }
         }
       },
-      "upgradeMinHousingRatio": 0.45,
+      "upgradeMinHousingRatio": 0.25,
       "upgradeMinHouses": 2,
       "upgradeMinAdjacency": 0
     },
@@ -966,18 +1013,19 @@
     "field": {
       "count": 0,
       "capacity": 1,
-      "nodeCapacity": 26,
-      "maxCount": 8,
-      "buildWhenNodeRatioBelow": 0.3,
-      "buildWhenStockpileRatioBelow": 0.35,
+      "nodeCapacity": 32,
+      "maxCount": 14,
+      "buildWhenNodeRatioBelow": 0.4,
+      "buildWhenStockpileRatioBelow": 0.45,
       "buildMinRadius": 4,
       "buildOuterBuffer": 2,
       "buildMinResources": {
-        "food": 0.8,
-        "water": 0.8
+        "food": 0.45,
+        "water": 0.7
       },
-      "irrigationMinMultiplier": 0.45,
-      "irrigationMaxMultiplier": 1,
+      "allowForestWhenPlainBelow": 0.2,
+      "irrigationMinMultiplier": 0.55,
+      "irrigationMaxMultiplier": 1.1,
       "buildTicks": 40,
       "buildCost": {
         "wood": 10,
@@ -985,8 +1033,8 @@
       },
       "manager": {
         "enabled": true,
-        "buildBelowRatio": 0.45,
-        "stopAboveRatio": 0.65
+        "buildBelowRatio": 0.55,
+        "stopAboveRatio": 0.75
       },
       "placement": {
         "mode": "poisson",
@@ -1047,22 +1095,89 @@
         "iron": 6
       }
     },
+    "mithril_forge": {
+      "count": 0,
+      "capacity": 1,
+      "maxCount": 1,
+      "buildMinRadius": 2,
+      "buildOuterBuffer": 1,
+      "buildMinResources": {
+        "food": 0.9,
+        "water": 0.9,
+        "wood": 0.8,
+        "stone": 0.8
+      },
+      "buildTicks": 120,
+      "buildCost": {
+        "wood": 25,
+        "stone": 20,
+        "iron": 12,
+        "mithril": 4
+      },
+      "levelMax": 5,
+      "levelBonusMin": 0.1,
+      "levelBonusMax": 1,
+      "levelBonusExponent": 2,
+      "levels": {
+        "2": {
+          "upgradeTicks": 160,
+          "upgradeCost": {
+            "wood": 40,
+            "stone": 30,
+            "iron": 18,
+            "mithril": 10
+          }
+        },
+        "3": {
+          "upgradeTicks": 220,
+          "upgradeCost": {
+            "wood": 60,
+            "stone": 45,
+            "iron": 26,
+            "mithril": 18
+          }
+        },
+        "4": {
+          "upgradeTicks": 320,
+          "upgradeCost": {
+            "wood": 90,
+            "stone": 70,
+            "iron": 36,
+            "mithril": 28,
+            "adamantio": 8,
+            "mana_crystal": 4
+          }
+        },
+        "5": {
+          "upgradeTicks": 440,
+          "upgradeCost": {
+            "wood": 130,
+            "stone": 100,
+            "iron": 50,
+            "mithril": 40,
+            "adamantio": 18,
+            "mana_crystal": 10
+          }
+        }
+      }
+    },
     "brewery": {
       "count": 0,
       "capacity": 1,
-      "workersPerBrewery": 1,
-      "maxCount": 2,
+      "workersPerBrewery": 4,
+      "maxCount": 4,
       "buildMinRadius": 2,
       "buildOuterBuffer": 1,
-      "buildTicks": 60,
+      "buildTicks": 70,
       "buildCost": {
-        "wood": 12,
-        "stone": 10
+        "wood": 16,
+        "stone": 12
       },
       "outputPerTick": {
-        "beer": 0.75
+        "beer": 1.5
       },
-      "foodCostPerTick": 0.15,
+      "foodCostPerTick": 0.05,
+      "pauseWhenFoodRatioBelow": 0.45,
       "levelMax": 10,
       "levelBonusMin": 0.05,
       "levelBonusMax": 0.5,
@@ -1076,7 +1191,7 @@
         "wood": 6,
         "stone": 4
       },
-      "brewmasterInitial": 2
+      "brewmasterInitial": 4
     },
     "mine": {
       "count": 1,
@@ -1135,8 +1250,8 @@
         "iron": 4
       },
       "buildMinResources": {
-        "food": 0.6,
-        "water": 0.6,
+        "food": 0.45,
+        "water": 0.45,
         "wood": 0.5,
         "stone": 0.5
       },
@@ -1340,7 +1455,7 @@
         "gatherTicks": 1.1,
         "nodeRegen": 0.7,
         "reproductionChance": 0.85,
-        "fieldRegen": 0.6
+        "fieldRegen": 0.7
       }
     }
   },
@@ -1405,7 +1520,7 @@
         "gatherTicks": 1.25,
         "gatherYield": 1,
         "nodeRegen": 0.85,
-        "fieldRegen": 0.85,
+        "fieldRegen": 0.95,
         "irrigation": 0.9
       }
     },
@@ -1445,7 +1560,20 @@
     "beerRelief": 0.5,
     "beerMoraleGain": 0.14,
     "beerMoraleDecayPerTick": 0.0015,
-    "beerMoraleMax": 0.35
+    "beerMoraleMax": 0.35,
+    "beerProductionBonusMax": 0.5,
+    "beerProductionBonusExponent": 1.6,
+    "beerProductionApplyTo": [
+      "food",
+      "water",
+      "beer",
+      "wood",
+      "stone",
+      "iron",
+      "mithril",
+      "adamantio",
+      "mana_crystal"
+    ]
   },
   "morale": {
     "gatherTicks": {
@@ -1474,26 +1602,27 @@
     }
   },
   "symbols": {
-    "empty": ".",
-    "dwarf": "@",
-    "merchant": "M",
-    "beast": "ö",
-    "food": "f",
-    "water": "w",
-    "wood": "t",
-    "stone": "s",
-    "iron": "i",
-    "mithril": "m",
-    "adamantio": "a",
-    "mana_crystal": "c",
-    "beer": "b",
-    "house": "h",
-    "well": "O",
-    "field": "c",
-    "mine": "M",
-    "workshop": "W",
-    "brewery": "B",
-    "sawmill": "S",
-    "watchtower": "#"
+    "empty": "·",
+    "dwarf": "☺",
+    "merchant": "$",
+    "beast": "♠",
+    "food": "♥",
+    "water": "≈",
+    "wood": "♣",
+    "stone": "♦",
+    "iron": "■",
+    "mithril": "Ω",
+    "adamantio": "Θ",
+    "mana_crystal": "Φ",
+    "beer": "±",
+    "house": "⌂",
+    "well": "°",
+    "field": "▒",
+    "mine": "╬",
+    "workshop": "╦",
+    "brewery": "ß",
+    "mithril_forge": "Σ",
+    "sawmill": "╫",
+    "watchtower": "┼"
   }
 }

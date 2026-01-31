@@ -97,7 +97,7 @@ function createValleyTerrain(runtime, settings, seed) {
 
   let smooth = smoothHeightMap(heightMap, valley.smoothingPasses);
   smooth = normalizeHeightMap(smooth);
-  const riverInfo = buildValleyRiver(smooth, valley);
+  const riverInfo = buildValleyRivers(smooth, valley, seed);
   const carved = carveRiverValley(smooth, riverInfo.river, valley);
 
   const waterSet = new Set([...riverInfo.lakes]);
@@ -355,6 +355,8 @@ function ensureValleyTerrainCoverage(types, baseTypes, heights, dist, riverInfo,
     }
   }
 
+  ensureMinimumFoodTiles(types, baseTypes, dist, valley, rng, counts);
+
   if (!counts.stone) {
     const cell = selectCellByHeight(
       heights,
@@ -369,6 +371,50 @@ function ensureValleyTerrainCoverage(types, baseTypes, heights, dist, riverInfo,
   }
 }
 
+// Function: ensureMinimumFoodTiles.
+function ensureMinimumFoodTiles(types, baseTypes, dist, valley, rng, counts) {
+  const foodConfig = valley.food || {};
+  const minTiles = Math.max(0, Math.floor(Number(foodConfig.minTiles ?? 0)));
+  if (minTiles <= 0) {
+    return;
+  }
+  const current = Number(counts.food || 0);
+  if (current >= minTiles) {
+    return;
+  }
+  const maxDist = Number.isFinite(foodConfig.minTilesWaterDistanceMax)
+    ? Math.max(0, Math.floor(foodConfig.minTilesWaterDistanceMax))
+    : Math.max(0, Math.floor(foodConfig.waterDistanceMax ?? 0));
+  const height = types.length;
+  const width = height > 0 ? types[0].length : 0;
+  const candidates = [];
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      if (baseTypes[y][x] !== 'plain' && baseTypes[y][x] !== 'fertile') {
+        continue;
+      }
+      const type = types[y][x];
+      if (type === 'river' || type === 'lake' || type === 'mountain' || type === 'forest' || type === 'stone') {
+        continue;
+      }
+      if (dist[y][x] > maxDist) {
+        continue;
+      }
+      candidates.push({ x, y });
+    }
+  }
+  if (candidates.length === 0) {
+    return;
+  }
+  shuffleInPlace(candidates, rng);
+  const needed = Math.min(minTiles - current, candidates.length);
+  for (let i = 0; i < needed; i += 1) {
+    const cell = candidates[i];
+    types[cell.y][cell.x] = 'food';
+  }
+  counts.food = current + needed;
+}
+
 // Function: countTerrainTypes.
 function countTerrainTypes(types) {
   const counts = {};
@@ -380,6 +426,17 @@ function countTerrainTypes(types) {
     }
   }
   return counts;
+}
+
+// Function: shuffleInPlace.
+function shuffleInPlace(items, rng) {
+  const random = rng || Math.random;
+  for (let i = items.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(random() * (i + 1));
+    const tmp = items[i];
+    items[i] = items[j];
+    items[j] = tmp;
+  }
 }
 
 // Function: selectCellByHeight.
@@ -569,6 +626,13 @@ function normalizeValleySettings(raw, defaults) {
   const fertileDistance = clamp(Math.floor(Number(raw.fertileDistance ?? 3)), 0, 10);
   const humidityDecay = Math.max(1, Number(raw.humidityDecay ?? 6));
   const riverBias = raw.riverBias || {};
+  const riverCount = clamp(Math.floor(Number(raw.riverCount ?? 1)), 1, 4);
+  const riverSourceMinDistance = clamp(Math.floor(Number(raw.riverSourceMinDistance ?? 6)), 0, 50);
+  const riverWander = clamp(Number(raw.riverWander ?? 0.25), 0, 1);
+  const riverSourceSides = Array.isArray(raw.riverSourceSides)
+    ? raw.riverSourceSides.map((side) => String(side || '').toLowerCase())
+      .filter((side) => ['north', 'south', 'east', 'west'].includes(side))
+    : ['north', 'south', 'east', 'west'];
   const riverValleyDrop = Math.max(0, Number(raw.riverValleyDrop ?? 0.22));
   const riverValleyDropAdjacent = Math.max(0, Number(raw.riverValleyDropAdjacent ?? 0.1));
   const lakeDepth = Math.max(0, Number(raw.lakeDepth ?? 0.02));
@@ -595,6 +659,10 @@ function normalizeValleySettings(raw, defaults) {
       west: Number(riverBias.west ?? 0.02),
       north: Number(riverBias.north ?? 0.03),
     },
+    riverCount,
+    riverSourceMinDistance,
+    riverWander,
+    riverSourceSides: riverSourceSides.length > 0 ? riverSourceSides : ['north', 'south', 'east', 'west'],
     riverValleyDrop,
     riverValleyDropAdjacent,
     lakeDepth,
@@ -613,6 +681,10 @@ function normalizeValleySettings(raw, defaults) {
       noiseScale: Math.max(0.01, Number(food.noiseScale ?? 0.12)),
       noiseThreshold: clamp(Number(food.noiseThreshold ?? 0.7), 0, 1),
       clusterPasses: clamp(Math.floor(Number(food.clusterPasses ?? 1)), 0, 5),
+      minTiles: Math.max(0, Math.floor(Number(food.minTiles ?? 0))),
+      minTilesWaterDistanceMax: Number.isFinite(food.minTilesWaterDistanceMax)
+        ? clamp(Math.floor(Number(food.minTilesWaterDistanceMax)), 0, 12)
+        : undefined,
     },
     stone: {
       heightMin: clamp(Number(stone.heightMin ?? 0.58), 0, 1),
@@ -1358,16 +1430,52 @@ function computeDistanceToWater(waterSet, width, height) {
 }
 
 // Function: buildValleyRiver.
-function buildValleyRiver(heightMap, valley) {
+function buildValleyRivers(heightMap, valley, seed) {
+  const count = clamp(Math.floor(Number(valley.riverCount ?? 1)), 1, 4);
+  const minDistance = Math.max(0, Math.floor(Number(valley.riverSourceMinDistance ?? 0)));
+  const sources = pickRiverSources(
+    heightMap,
+    count,
+    minDistance,
+    valley.riverSourceSides,
+    createTerrainRng(Number(seed || 0) + 91),
+  );
+  const river = [];
+  const riverSet = new Set();
+  const lakes = new Set();
+
+  let index = 0;
+  for (const source of sources) {
+    const rng = createTerrainRng(Number(seed || 0) + 221 + index * 29);
+    const result = traceValleyRiver(heightMap, valley, source, rng);
+    for (const cell of result.river) {
+      const key = `${cell.x},${cell.y}`;
+      if (riverSet.has(key)) {
+        continue;
+      }
+      riverSet.add(key);
+      river.push(cell);
+    }
+    for (const lake of result.lakes) {
+      lakes.add(lake);
+    }
+    index += 1;
+  }
+
+  return { river, lakes };
+}
+
+function traceValleyRiver(heightMap, valley, source, rng) {
   const height = heightMap.length;
   const width = height > 0 ? heightMap[0].length : 0;
   const river = [];
   const riverSet = new Set();
   const lakes = new Set();
-  const source = pickRiverSource(heightMap);
   let x = source.x;
   let y = source.y;
+  let previous = null;
   const maxSteps = width * height;
+  const wander = clamp(Number(valley.riverWander ?? 0.25), 0, 1);
 
   for (let step = 0; step < maxSteps; step += 1) {
     const key = `${x},${y}`;
@@ -1379,23 +1487,43 @@ function buildValleyRiver(heightMap, valley) {
       break;
     }
     const currentH = heightMap[y][x];
-    const neighbors = [
+    let neighbors = [
       { x: x + 1, y, bias: valley.riverBias.east },
       { x, y: y + 1, bias: valley.riverBias.south },
       { x: x - 1, y, bias: valley.riverBias.west },
       { x, y: y - 1, bias: valley.riverBias.north },
     ].filter((n) => n.x >= 0 && n.y >= 0 && n.x < width && n.y < height);
-    let best = null;
-    let bestScore = Infinity;
-    for (const candidate of neighbors) {
-      const score = heightMap[candidate.y][candidate.x] + candidate.bias;
-      if (score < bestScore) {
-        bestScore = score;
-        best = candidate;
+    if (previous && neighbors.length > 1) {
+      neighbors = neighbors.filter((n) => n.x !== previous.x || n.y !== previous.y);
+      if (neighbors.length === 0) {
+        neighbors = [
+          { x: x + 1, y, bias: valley.riverBias.east },
+          { x, y: y + 1, bias: valley.riverBias.south },
+          { x: x - 1, y, bias: valley.riverBias.west },
+          { x, y: y - 1, bias: valley.riverBias.north },
+        ].filter((n) => n.x >= 0 && n.y >= 0 && n.x < width && n.y < height);
       }
     }
-    if (!best) {
+    let best = null;
+    let bestScore = Infinity;
+    const scored = [];
+    for (const candidate of neighbors) {
+      const noise = (rng ? rng() : Math.random()) - 0.5;
+      const score = heightMap[candidate.y][candidate.x]
+        + candidate.bias
+        + noise * wander * 0.08;
+      scored.push({ candidate, score });
+    }
+    if (scored.length === 0) {
       break;
+    }
+    scored.sort((a, b) => a.score - b.score);
+    best = scored[0].candidate;
+    bestScore = scored[0].score;
+    if (scored.length > 1 && (rng ? rng() : Math.random()) < wander) {
+      const pickIndex = Math.min(scored.length - 1, 1 + Math.floor((rng ? rng() : Math.random()) * 2));
+      best = scored[pickIndex].candidate;
+      bestScore = scored[pickIndex].score;
     }
     if (heightMap[best.y][best.x] > currentH + 0.0001) {
       for (let dy = -1; dy <= 1; dy += 1) {
@@ -1413,11 +1541,126 @@ function buildValleyRiver(heightMap, valley) {
       }
       heightMap[best.y][best.x] = currentH - valley.lakeDepth;
     }
+    previous = { x, y };
     x = best.x;
     y = best.y;
   }
 
   return { river, lakes };
+}
+
+function pickRiverSources(heightMap, count, minDistance, sides, rng) {
+  const height = heightMap.length;
+  const width = height > 0 ? heightMap[0].length : 0;
+  const sideList = Array.isArray(sides) && sides.length > 0
+    ? sides.map((side) => String(side || '').toLowerCase())
+      .filter((side) => ['north', 'south', 'east', 'west'].includes(side))
+    : ['north', 'south', 'east', 'west'];
+  const candidates = [];
+  const candidatesBySide = {
+    north: [],
+    south: [],
+    east: [],
+    west: [],
+  };
+  const seen = new Set();
+
+  if (sideList.includes('north')) {
+    for (let x = 0; x < width; x += 1) {
+      candidatesBySide.north.push({ x, y: 0, h: heightMap[0][x] });
+    }
+  }
+  if (sideList.includes('south')) {
+    for (let x = 0; x < width; x += 1) {
+      candidatesBySide.south.push({ x, y: height - 1, h: heightMap[height - 1][x] });
+    }
+  }
+  if (sideList.includes('west')) {
+    for (let y = 0; y < height; y += 1) {
+      candidatesBySide.west.push({ x: 0, y, h: heightMap[y][0] });
+    }
+  }
+  if (sideList.includes('east')) {
+    for (let y = 0; y < height; y += 1) {
+      candidatesBySide.east.push({ x: width - 1, y, h: heightMap[y][width - 1] });
+    }
+  }
+
+  for (const list of Object.values(candidatesBySide)) {
+    for (const entry of list) {
+      candidates.push(entry);
+    }
+  }
+
+  candidates.sort((a, b) => b.h - a.h);
+  for (const key of Object.keys(candidatesBySide)) {
+    candidatesBySide[key].sort((a, b) => b.h - a.h);
+  }
+
+  const cycleSides = sideList.length > 0 ? sideList : ['north', 'south', 'east', 'west'];
+  const sources = [];
+
+  for (let i = 0; i < count; i += 1) {
+    const side = cycleSides[i % cycleSides.length];
+    let picked = null;
+    const list = candidatesBySide[side] || [];
+    for (const candidate of list) {
+      const key = `${candidate.x},${candidate.y}`;
+      if (seen.has(key)) {
+        continue;
+      }
+      if (minDistance > 0 && sources.some((source) => manhattanDistance(source, candidate) < minDistance)) {
+        continue;
+      }
+      picked = candidate;
+      break;
+    }
+    if (!picked) {
+      for (const candidate of candidates) {
+        const key = `${candidate.x},${candidate.y}`;
+        if (seen.has(key)) {
+          continue;
+        }
+        if (minDistance > 0 && sources.some((source) => manhattanDistance(source, candidate) < minDistance)) {
+          continue;
+        }
+        picked = candidate;
+        break;
+      }
+    }
+    if (!picked && candidates.length > 0) {
+      picked = candidates[Math.floor((rng ? rng() : Math.random()) * candidates.length)];
+    }
+    if (picked) {
+      sources.push({ x: picked.x, y: picked.y });
+      seen.add(`${picked.x},${picked.y}`);
+    }
+  }
+
+  if (sources.length < count) {
+    for (const candidate of candidates) {
+      if (sources.length >= count) {
+        break;
+      }
+      const key = `${candidate.x},${candidate.y}`;
+      if (seen.has(key)) {
+        continue;
+      }
+      sources.push({ x: candidate.x, y: candidate.y });
+      seen.add(key);
+    }
+  }
+
+  if (sources.length === 0) {
+    const fallback = pickRiverSource(heightMap);
+    sources.push({ x: fallback.x, y: fallback.y });
+  }
+
+  return sources;
+}
+
+function manhattanDistance(a, b) {
+  return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 }
 
 // Function: pickRiverSource.

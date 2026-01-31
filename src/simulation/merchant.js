@@ -4,6 +4,7 @@ const { clamp } = require('../utils');
 const { randomBetween } = require('./random');
 const { pushEvent } = require('./events');
 const { moveTowards, findEdgeSpawnPosition, getAdjacentPositions } = require('./movement');
+const { getStockpileTarget } = require('./resources');
 const { isBuildableCell, findVillageBuildSpot } = require('./structures');
 
 const MERCHANT_SIDES = ['north', 'south', 'west', 'east'];
@@ -258,7 +259,7 @@ function findMerchantTradeOption(state, config) {
   const merchantConfig = config.merchant || {};
   const reserveRatio = clamp(Number(merchantConfig.reserveRatio ?? 0.8), 0, 1);
   const tradeRate = merchantConfig.tradeRate || {};
-  const targets = getMerchantTargets(config);
+  const targets = getMerchantTargets(state, config);
 
   const needs = [];
   for (const [resource, targetValue] of Object.entries(targets)) {
@@ -323,9 +324,17 @@ function findMerchantTradeOption(state, config) {
 }
 
 // Resolve merchant targets from resource config.
-function getMerchantTargets(config) {
+function getMerchantTargets(state, config) {
   const resources = config.resources || {};
-  return resources.targets || resources.stockpile || {};
+  const baseTargets = resources.targets || resources.stockpile || {};
+  const targets = {};
+  for (const resource of Object.keys(baseTargets)) {
+    const target = getStockpileTarget(state, config, resource, baseTargets);
+    if (target > 0) {
+      targets[resource] = target;
+    }
+  }
+  return targets;
 }
 
 // Apply the chosen merchant trade to stockpiles and stats.
