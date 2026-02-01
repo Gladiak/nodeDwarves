@@ -79,10 +79,20 @@ episodes from collapsing into extinction during long runs.
 - `population.reproduction.crowdingMinFactor`: minimum crowding factor.
 - `population.reproduction.moraleInfluence`: morale weight on conception chance.
 - `population.reproduction.birthCost.<resource>`: resources consumed at conception.
+- `population.reproduction.minStockpileRatio.<resource>`: block conceptions if stockpile ratio is below this.
 - `population.death.starvationThreshold`: need threshold to start starvation.
 - `population.death.starvationTicks`: ticks before starvation death.
 - `population.death.oldAgeChanceMin`: min old-age death chance per tick.
 - `population.death.oldAgeChanceMax`: max old-age death chance per tick.
+
+Endgame cycles:
+
+- `endgame.enabled`: enable or disable endgame cycle resets.
+- `endgame.resetPopulation`: dwarf count for the new cycle after reset.
+- `endgame.minTicksAfterArtifacts`: ticks that must pass after all artifacts are found before triggering a cycle.
+- `endgame.difficulty.enabled`: enable difficulty scaling per completed cycle.
+- `endgame.difficulty.perCycle`: difficulty multiplier added per completed cycle.
+- `endgame.difficulty.maxMultiplier`: cap for the difficulty multiplier.
 
 Resources and economy:
 
@@ -97,6 +107,9 @@ Resources and economy:
 - `resources.nodeRegen.amount`: amount regenerated per pulse.
 - `resources.nodeRegen.onlyDepleted`: only regenerate fully depleted nodes.
 - `resources.nodes.<resource>`: number of nodes placed on the map.
+- `resources.decayPerTick.<resource>`: per-tick stockpile decay rate (fraction).
+- `resources.terrainCooldownTicks`: cooldown ticks applied to terrain tiles after gathering.
+- `resources.terrainCooldownCriticalRatio`: stockpile ratio threshold to ignore terrain cooldowns.
 - Resources in this phase: `food`, `water`, `wood`, `stone`.
 
 Structures:

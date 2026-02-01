@@ -128,6 +128,32 @@ function getStockpileRatio(state, config, resourceId) {
   return clamp(current / target, 0, 1);
 }
 
+// Check if terrain cooldowns should be ignored for a resource under critical shortages.
+function shouldIgnoreTerrainCooldown(state, config, resourceId) {
+  const resources = config && config.resources ? config.resources : {};
+  const critical = resources.terrainCooldownCriticalRatio;
+  if (critical === undefined || critical === null) {
+    return false;
+  }
+  let threshold = null;
+  if (Number.isFinite(critical)) {
+    threshold = Number(critical);
+  } else if (typeof critical === 'object') {
+    const specific = critical && resourceId ? critical[resourceId] : undefined;
+    const fallback = critical ? (critical.default ?? critical.all) : undefined;
+    if (Number.isFinite(specific)) {
+      threshold = Number(specific);
+    } else if (Number.isFinite(fallback)) {
+      threshold = Number(fallback);
+    }
+  }
+  if (!Number.isFinite(threshold) || threshold <= 0) {
+    return false;
+  }
+  const ratio = getStockpileRatio(state, config, resourceId);
+  return ratio < threshold;
+}
+
 // Compute the irrigation multiplier for fields from water stockpile and weather.
 function getFieldIrrigationMultiplier(state, config) {
   const fieldConfig = (config.structures && config.structures.field) || {};
@@ -318,7 +344,8 @@ function createGatherJob(resourceId, state, config, dwarf) {
     target = { x: node.x, y: node.y };
     nodeId = node.nodeId;
   } else if (useTerrainTiles) {
-    const terrainTarget = pickTerrainResourceTarget(state, config, resourceId, anchor);
+    const ignoreCooldown = shouldIgnoreTerrainCooldown(state, config, resourceId);
+    const terrainTarget = pickTerrainResourceTarget(state, config, resourceId, anchor, { ignoreCooldown });
     if (!terrainTarget) {
       return null;
     }
@@ -529,6 +556,32 @@ function applyOutputs(stockpile, outputs, state, config) {
   }
 }
 
+// Apply per-tick decay to stockpiled resources.
+function applyStockpileDecay(state, config) {
+  const resources = config && config.resources ? config.resources : {};
+  const decay = resources.decayPerTick;
+  if (!decay || typeof decay !== 'object') {
+    return;
+  }
+  const stockpile = state && state.stockpile ? state.stockpile : null;
+  if (!stockpile) {
+    return;
+  }
+
+  for (const [resource, rateRaw] of Object.entries(decay)) {
+    const rate = clamp(Number(rateRaw || 0), 0, 1);
+    if (rate <= 0) {
+      continue;
+    }
+    const current = Number(stockpile[resource] || 0);
+    if (current <= 0) {
+      continue;
+    }
+    const next = current - current * rate;
+    stockpile[resource] = next > 0 ? next : 0;
+  }
+}
+
 // Compute output multiplier from ruins artifact bonuses.
 function getRuinsOutputMultiplier(state, config, resource) {
   const ruinsConfig = config && config.ruins ? config.ruins : {};
@@ -555,6 +608,7 @@ module.exports = {
   getStockpileTarget,
   shouldPauseBrewing,
   getStockpileRatio,
+  shouldIgnoreTerrainCooldown,
   getFieldIrrigationMultiplier,
   updateHouseStorage,
   getHouseStorageCapacity,
@@ -568,4 +622,5 @@ module.exports = {
   hasInputs,
   consumeInputs,
   applyOutputs,
+  applyStockpileDecay,
 };

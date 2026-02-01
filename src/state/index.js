@@ -47,6 +47,13 @@ function createInitialState(config, runtime) {
     events: [],
     birthsCount: 0,
     deathsCount: 0,
+    lastDeathTick: 0,
+    endgameArtifactsTick: null,
+    cycleStats: {
+      count: 0,
+      lastTicks: 0,
+    },
+    endgameDifficulty: 1,
     deathsByCause: {
       starvation: 0,
       oldAge: 0,
@@ -71,6 +78,7 @@ function createInitialState(config, runtime) {
       blockedCooldown: 0,
       blockedNoResources: 0,
       blockedNoHousing: 0,
+      blockedLowStockpile: 0,
       blockedChance: 0,
     },
   };

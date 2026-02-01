@@ -77,6 +77,7 @@ Display and layout:
 - `display.terrain.valley.stone.noiseScale`: stone noise scale.
 - `display.terrain.valley.stone.noiseThreshold`: stone noise threshold.
 - `display.terrain.valley.stone.clusterPasses`: stone clustering passes.
+- `display.terrain.minimumTiles.<type>`: minimum number of terrain tiles to guarantee (`food`, `mountain`, `stone`).
 - `display.terrain.walkable.<type>`: whether a terrain tile is walkable (`river`, `lake`, `mountain`, `hill`, `plain`, `fertile`, `food`, `forest`, `stone`).
 - `display.terrain.movementDelay.<type>`: extra movement cooldown ticks when entering a terrain type (defaults to `0`).
 - `display.terrain.symbols.river`: map symbol for river tiles.
@@ -132,6 +133,27 @@ Events:
 
 - `events.maxEntries`: number of recent events to show in the HUD.
 
+Merchant:
+
+- `merchant.enabled`: enable the roaming merchant.
+- `merchant.spawnRangeTicks.min`: minimum ticks between merchant visits.
+- `merchant.spawnRangeTicks.max`: maximum ticks between merchant visits.
+- `merchant.stayTicks`: ticks the merchant remains for trading.
+- `merchant.maxTradesPerVisit`: max trades per merchant visit.
+- `merchant.reserveRatio`: minimum stockpile ratio to consider a resource tradable.
+- `merchant.tradeRate.default`: fallback trade rate used for exchange calculations.
+- `merchant.tradeRate.<resource>`: per-resource trade rate override.
+- `merchant.neverGive`: resource ids the colony will never give to the merchant (can still receive them).
+
+Endgame cycles:
+
+- `endgame.enabled`: enable endgame cycle resets.
+- `endgame.resetPopulation`: dwarf count for the new cycle after a reset.
+- `endgame.minTicksAfterArtifacts`: ticks that must pass after all artifacts are found before triggering a cycle.
+- `endgame.difficulty.enabled`: enable difficulty scaling per completed cycle.
+- `endgame.difficulty.perCycle`: difficulty multiplier added per completed cycle.
+- `endgame.difficulty.maxMultiplier`: cap for the difficulty multiplier.
+
 Resources:
 
 - `resources.stockpile.<resource>`: initial stockpile amounts (e.g. `food`, `water`, `beer`, `wood`, `stone`, `iron`, `expedition_kit`, `mithril`, `adamantio`, `mana_crystal`).
@@ -140,6 +162,22 @@ Resources:
 - `resources.labels.<resource>`: HUD label overrides for stockpile resources (falls back to the resource id).
 - `resources.useTerrainTiles`: gather resources directly from terrain tiles when available.
 - `resources.terrainAllowed.<resource>`: allowed terrain tile types for resource placement and terrain gathering.
+- `resources.terrainCooldownTicks`: base cooldown ticks applied to terrain tiles after gathering (number or object).
+- `resources.terrainCooldownTicks.default`: default cooldown ticks for terrain gathering.
+- `resources.terrainCooldownTicks.<resource>`: per-resource cooldown override for terrain gathering.
+- `resources.terrainCooldownCriticalRatio`: stockpile ratio threshold to ignore terrain cooldowns (number or object).
+- `resources.terrainCooldownCriticalRatio.default`: default ratio threshold to ignore terrain cooldowns.
+- `resources.terrainCooldownCriticalRatio.<resource>`: per-resource ratio threshold to ignore terrain cooldowns.
+- `resources.decayPerTick.<resource>`: per-tick fractional decay applied to stockpile resources.
+- `resources.defaultNodeCapacity`: fallback node capacity for generated resource nodes.
+- `resources.nodeCapacity.<resource>`: per-resource node capacity overrides.
+- `resources.removeDepletedNodes`: remove nodes entirely once they hit zero.
+- `resources.nodeRegen.enabled`: enable node regeneration.
+- `resources.nodeRegen.intervalTicks`: ticks between node regen pulses.
+- `resources.nodeRegen.amount`: regen amount per pulse.
+- `resources.nodeRegen.perTick`: regen amount applied every tick (optional).
+- `resources.nodeRegen.onlyDepleted`: only regenerate nodes that are fully depleted.
+- `resources.nodes.<resource>`: initial count of resource nodes to spawn.
 
 Needs and consumption:
 
@@ -167,6 +205,9 @@ Jobs:
 
 - `jobs.buildQueue.maxConcurrent`: maximum concurrent build/house-upgrade jobs.
 - `jobs.buildQueue.maxPerTick`: maximum new build/house-upgrade jobs spawned per tick.
+- `jobs.gatherTriggerRatio`: multiplier applied to stockpile targets when computing shortages (number or object).
+- `jobs.gatherTriggerRatio.default`: fallback multiplier for all resources.
+- `jobs.gatherTriggerRatio.<resource>`: per-resource multiplier (values >1 start gathering earlier).
 
 Raids:
 
@@ -235,6 +276,19 @@ Population relationships:
 - `population.pathing.field.crowdWeight`: weight for avoiding occupied tiles (0..1).
 - `population.pathing.field.inertiaWeight`: bias to continue the previous direction (0..1).
 - `population.pathing.field.stayPenalty`: penalty for staying in place when pathing (0..1).
+
+Population reproduction:
+
+- `population.reproduction.enabled`: enable reproduction.
+- `population.reproduction.gestationTicks`: ticks before a pregnancy results in birth.
+- `population.reproduction.baseChance`: base conception chance per eligible couple per tick.
+- `population.reproduction.cooldownTicks`: fertility cooldown after a birth.
+- `population.reproduction.resourcePerCapita.<resource>`: per-capita stockpile required to scale conception chance.
+- `population.reproduction.softCap`: soft population cap for crowding penalty.
+- `population.reproduction.crowdingMinFactor`: minimum crowding multiplier (0..1).
+- `population.reproduction.moraleInfluence`: morale weight on conception chance (0..1).
+- `population.reproduction.birthCost.<resource>`: stockpile cost consumed at conception.
+- `population.reproduction.minStockpileRatio.<resource>`: block conceptions if stockpile ratio is below this (0..1).
 
 Structures (houses):
 

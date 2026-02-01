@@ -3,7 +3,7 @@
 const { clamp } = require('../utils');
 const { pushEvent } = require('./events');
 const { getSeasonModifier } = require('./season');
-const { hasInputs, consumeInputs } = require('./resources');
+const { hasInputs, consumeInputs, getStockpileRatio } = require('./resources');
 
 // Advance dwarf age ticks and update life stage transitions.
 function advanceAge(dwarf, config) {
@@ -414,6 +414,7 @@ function handleDeaths(state, config) {
   }
 
   state.deathsCount = Number(state.deathsCount || 0) + deadIds.size;
+  state.lastDeathTick = Number(state.tick || 0);
   state.dwarves = state.dwarves.filter((dwarf) => !deadIds.has(dwarf.id));
   state.jobs = state.jobs.filter((job) => !deadIds.has(job.dwarfId));
 
@@ -631,6 +632,19 @@ function attemptConceptions(state, config, reproduction) {
   stats.cooldowns = Number(stats.cooldowns || 0) + countCooldowns(state.dwarves);
   if (couples.length === 0) {
     return;
+  }
+
+  const minRatios = reproduction.minStockpileRatio || {};
+  for (const [resource, ratioRaw] of Object.entries(minRatios)) {
+    const minRatio = clamp(Number(ratioRaw || 0), 0, 1);
+    if (minRatio <= 0) {
+      continue;
+    }
+    const ratio = getStockpileRatio(state, config, resource);
+    if (ratio < minRatio) {
+      stats.blockedLowStockpile = Number(stats.blockedLowStockpile || 0) + 1;
+      return;
+    }
   }
 
   const resourceFactor = getResourceFactor(state, reproduction);

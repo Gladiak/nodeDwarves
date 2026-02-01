@@ -259,6 +259,7 @@ function findMerchantTradeOption(state, config) {
   const merchantConfig = config.merchant || {};
   const reserveRatio = clamp(Number(merchantConfig.reserveRatio ?? 0.8), 0, 1);
   const tradeRate = merchantConfig.tradeRate || {};
+  const neverGive = getMerchantNeverGive(merchantConfig);
   const targets = getMerchantTargets(state, config);
 
   const needs = [];
@@ -288,6 +289,9 @@ function findMerchantTradeOption(state, config) {
       continue;
     }
     if (need.resource === resource) {
+      continue;
+    }
+    if (neverGive.has(resource)) {
       continue;
     }
     const current = Number(state.stockpile[resource] || 0);
@@ -321,6 +325,22 @@ function findMerchantTradeOption(state, config) {
     receiveResource: need.resource,
     receiveAmount,
   };
+}
+
+// Resolve resources that the merchant should never receive from the stockpile.
+function getMerchantNeverGive(merchantConfig) {
+  const list = Array.isArray(merchantConfig.neverGive) ? merchantConfig.neverGive : [];
+  const blocked = new Set();
+  for (const resource of list) {
+    if (typeof resource !== 'string') {
+      continue;
+    }
+    const trimmed = resource.trim();
+    if (trimmed.length > 0) {
+      blocked.add(trimmed);
+    }
+  }
+  return blocked;
 }
 
 // Resolve merchant targets from resource config.
