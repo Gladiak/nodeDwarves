@@ -1,13 +1,17 @@
-'use strict';
+"use strict";
 
-const { applyColor } = require('./colors');
+const { applyColor } = require("./colors");
+const {
+  buildSeasonalColorContext,
+  resolveSeasonalTerrainColorKey,
+} = require("./seasonal_colors");
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
 function pickSymbol(value, fallback) {
-  if (typeof value === 'string' && value.length > 0) {
+  if (typeof value === "string" && value.length > 0) {
     return value;
   }
   return fallback;
@@ -15,53 +19,64 @@ function pickSymbol(value, fallback) {
 
 function normalizeRiverSymbols(raw) {
   return {
-    horizontal: pickSymbol(raw && raw.horizontal, '\u2500'),
-    vertical: pickSymbol(raw && raw.vertical, '\u2502'),
-    cornerNE: pickSymbol(raw && raw.cornerNE, '\u2514'),
-    cornerNW: pickSymbol(raw && raw.cornerNW, '\u2518'),
-    cornerSE: pickSymbol(raw && raw.cornerSE, '\u250c'),
-    cornerSW: pickSymbol(raw && raw.cornerSW, '\u2510'),
-    teeNorth: pickSymbol(raw && raw.teeNorth, '\u2534'),
-    teeSouth: pickSymbol(raw && raw.teeSouth, '\u252c'),
-    teeEast: pickSymbol(raw && raw.teeEast, '\u251c'),
-    teeWest: pickSymbol(raw && raw.teeWest, '\u2524'),
-    cross: pickSymbol(raw && raw.cross, '\u253c'),
+    horizontal: pickSymbol(raw && raw.horizontal, "\u2500"),
+    vertical: pickSymbol(raw && raw.vertical, "\u2502"),
+    cornerNE: pickSymbol(raw && raw.cornerNE, "\u2514"),
+    cornerNW: pickSymbol(raw && raw.cornerNW, "\u2518"),
+    cornerSE: pickSymbol(raw && raw.cornerSE, "\u250c"),
+    cornerSW: pickSymbol(raw && raw.cornerSW, "\u2510"),
+    teeNorth: pickSymbol(raw && raw.teeNorth, "\u2534"),
+    teeSouth: pickSymbol(raw && raw.teeSouth, "\u252c"),
+    teeEast: pickSymbol(raw && raw.teeEast, "\u251c"),
+    teeWest: pickSymbol(raw && raw.teeWest, "\u2524"),
+    cross: pickSymbol(raw && raw.cross, "\u253c"),
   };
 }
 
 function buildRiverConnections(terrainConfig) {
   const raw = terrainConfig && terrainConfig.riverConnectsTo;
-  const list = Array.isArray(raw) ? raw : ['river'];
+  const list = Array.isArray(raw) ? raw : ["river"];
   const set = new Set();
   for (const item of list) {
-    if (typeof item === 'string' && item.length > 0) {
+    if (typeof item === "string" && item.length > 0) {
       set.add(item);
     }
   }
-  if (!set.has('river')) {
-    set.add('river');
+  if (!set.has("river")) {
+    set.add("river");
   }
   return set;
 }
 
 function randomFromSeed(seed, x, y) {
-  let h = (Number(seed) >>> 0) ^ Math.imul(x, 374761393) ^ Math.imul(y, 668265263);
+  let h =
+    (Number(seed) >>> 0) ^ Math.imul(x, 374761393) ^ Math.imul(y, 668265263);
   h = Math.imul(h ^ (h >>> 13), 1274126177);
   h = (h ^ (h >>> 16)) >>> 0;
   return h / 4294967295;
 }
 
 function getPlainSymbol(terrainConfig, terrain, x, y, fallback) {
-  const config = terrainConfig && terrainConfig.plainSymbols;
-  if (!config || typeof config !== 'object') {
-    return fallback;
-  }
+  const config = terrainConfig?.plainSymbols;
+  if (!config || typeof config !== "object") return fallback;
+
   const primary = pickSymbol(config.primary, fallback);
   const secondary = pickSymbol(config.secondary, fallback);
-  const weight = clamp(Number(config.primaryWeight ?? 0.7), 0, 1);
-  const seed = terrain && Number.isFinite(terrain.seed) ? Number(terrain.seed) : 0;
+  const tertiary = pickSymbol(config.tertiary, fallback);
+
+  const w1 = clamp(Number(config.primaryWeight ?? 0.7), 0, 1);
+  const w2 = clamp(Number(config.secondaryWeight ?? 0.15), 0, 1);
+
+  // opzionale: evita che w1+w2 superi 1
+  const w2c = Math.min(w2, 1 - w1);
+
+  const seed =
+    terrain && Number.isFinite(terrain.seed) ? Number(terrain.seed) : 0;
   const roll = randomFromSeed(seed, x, y);
-  return roll < weight ? primary : secondary;
+
+  if (roll < w1) return primary;
+  if (roll < w1 + w2c) return secondary;
+  return tertiary;
 }
 
 function getTerrainType(terrain, x, y) {
@@ -71,12 +86,20 @@ function getTerrainType(terrain, x, y) {
   return terrain.types[y][x] || null;
 }
 
-function getRiverSymbol(terrain, riverSymbols, riverConnections, x, y, fallback) {
+function getRiverSymbol(
+  terrain,
+  riverSymbols,
+  riverConnections,
+  x,
+  y,
+  fallback,
+) {
   const north = riverConnections.has(getTerrainType(terrain, x, y - 1));
   const south = riverConnections.has(getTerrainType(terrain, x, y + 1));
   const west = riverConnections.has(getTerrainType(terrain, x - 1, y));
   const east = riverConnections.has(getTerrainType(terrain, x + 1, y));
-  const mask = (north ? 1 : 0) | (south ? 2 : 0) | (west ? 4 : 0) | (east ? 8 : 0);
+  const mask =
+    (north ? 1 : 0) | (south ? 2 : 0) | (west ? 4 : 0) | (east ? 8 : 0);
 
   switch (mask) {
     case 0:
@@ -120,28 +143,52 @@ function buildGridBase(state, config, runtime, colors, emptySymbol) {
   const display = (config && config.display) || {};
   const terrainConfig = display.terrain || {};
   const terrain = state.terrain;
-  const terrainEnabled = terrainConfig.enabled !== false
-    && terrain
-    && terrain.types
-    && terrain.width === width
-    && terrain.height === height;
+  const terrainEnabled =
+    terrainConfig.enabled !== false &&
+    terrain &&
+    terrain.types &&
+    terrain.width === width &&
+    terrain.height === height;
   const riverSymbols = normalizeRiverSymbols(terrainConfig.riverSymbols || {});
   const riverConnections = buildRiverConnections(terrainConfig);
+  const seasonalContext = buildSeasonalColorContext(
+    state,
+    config,
+    terrain,
+    colors,
+  );
 
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
       if (terrainEnabled) {
         const type = terrain.types[y] ? terrain.types[y][x] : null;
-        const baseSymbol = type && terrain.symbols && terrain.symbols[type]
-          ? terrain.symbols[type]
-          : emptySymbol;
+        const baseSymbol =
+          type && terrain.symbols && terrain.symbols[type]
+            ? terrain.symbols[type]
+            : emptySymbol;
         let symbol = baseSymbol;
-        if (type === 'river') {
-          symbol = getRiverSymbol(terrain, riverSymbols, riverConnections, x, y, baseSymbol);
-        } else if (type === 'plain' || type === 'grass') {
+        if (type === "river") {
+          symbol = getRiverSymbol(
+            terrain,
+            riverSymbols,
+            riverConnections,
+            x,
+            y,
+            baseSymbol,
+          );
+        } else if (type === "plain" || type === "grass") {
           symbol = getPlainSymbol(terrainConfig, terrain, x, y, baseSymbol);
         }
-        const colorKey = type ? `terrain_${type}` : null;
+        const baseColorKey = type ? `terrain_${type}` : null;
+        const colorKey = baseColorKey
+          ? resolveSeasonalTerrainColorKey(
+              seasonalContext,
+              type,
+              x,
+              y,
+              baseColorKey,
+            )
+          : null;
         grid[y][x] = colorKey ? applyColor(symbol, colorKey, colors) : symbol;
       } else {
         grid[y][x] = emptySymbol;

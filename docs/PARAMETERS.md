@@ -1,6 +1,5 @@
 # Parameter Reference
 
-
 Display and layout:
 
 - `display.autoSize`: auto-size the grid to the terminal.
@@ -79,7 +78,9 @@ Display and layout:
 - `display.terrain.symbols.stone`: map symbol for stone tiles.
 - `display.terrain.plainSymbols.primary`: primary symbol for plain/grass tiles when randomized.
 - `display.terrain.plainSymbols.secondary`: secondary symbol for plain/grass tiles when randomized.
+- `display.terrain.plainSymbols.tertiary`: tertiary symbol for plain/grass tiles when randomized.
 - `display.terrain.plainSymbols.primaryWeight`: chance of choosing the primary symbol (0..1).
+- `display.terrain.plainSymbols.secondaryWeight`: chance of choosing the secondary symbol (0..1).
 - `display.terrain.riverSymbols.horizontal`: symbol for horizontal river segments.
 - `display.terrain.riverSymbols.vertical`: symbol for vertical river segments.
 - `display.terrain.riverSymbols.cornerNE`: symbol for river corner connecting north + east.
@@ -98,6 +99,22 @@ Display and layout:
 - `display.colors.map.<key>`: ANSI color for an entity key (e.g. `dwarf`, `merchant`, `house`, `food`, `hud_header`).
 - `display.colors.map.weather_<type>`: ANSI color for HUD weather labels (e.g. `weather_rain`).
 - `display.colors.map.terrain_<type>`: ANSI color for terrain tiles (`terrain_river`, `terrain_lake`, `terrain_mountain`, `terrain_hill`, `terrain_plain`, `terrain_fertile`, `terrain_food`, `terrain_forest`, `terrain_stone`).
+- `display.colors.seasonal.enabled`: enable seasonal terrain color transitions.
+- `display.colors.seasonal.types`: terrain types that should use seasonal palettes (e.g. `plain`, `fertile`, `forest`, `food`, `grass`).
+- `display.colors.seasonal.palettes.<season>.<type>`: color map key for a terrain type in a season (uses `display.colors.map` keys).
+- `display.colors.seasonal.palettes.<season>.cherry`: optional color map key for cherry blossom tiles in a season.
+- `display.colors.seasonal.patchy.enabled`: enable patchy noise transitions instead of per-tile randomness.
+- `display.colors.seasonal.patchy.scale`: noise scale for patch size (lower = larger patches).
+- `display.colors.seasonal.patchy.octaves`: noise octaves used for patch detail.
+- `display.colors.seasonal.patchy.persistence`: amplitude falloff per octave (0..1).
+- `display.colors.seasonal.patchy.lacunarity`: frequency multiplier per octave.
+- `display.colors.seasonal.patchy.seedOffset`: seed offset for seasonal patch patterns.
+- `display.colors.seasonal.cherry.enabled`: enable cherry blossom selection for eligible terrain.
+- `display.colors.seasonal.cherry.season`: season name that uses the cherry palette.
+- `display.colors.seasonal.cherry.terrain`: terrain type eligible for cherry blossoms (defaults to `forest`).
+- `display.colors.seasonal.cherry.ratio`: fraction of eligible tiles that become cherry (0..1).
+- `display.colors.seasonal.cherry.noiseScale`: noise scale for cherry clustering.
+- `display.colors.seasonal.cherry.seedOffset`: seed offset for cherry clustering.
 
 Events:
 
