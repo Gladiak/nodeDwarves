@@ -20,8 +20,9 @@ alive while you watch the chaos unfold in ASCII.
 ## Highlights ✨
 
 - 🧠 Fully autonomous simulation with a real-time ASCII renderer.
-- 🧺 Resource economy with food, water, beer, wood, stone, iron, mithril, adamantium, and mana crystal.
-- 🏘️ Village growth: houses (beds), wells (water nodes), fields (food nodes), breweries (beer), sawmills (wood), workshops (tools), mithril forges (global output boost), mines (iron/stone + rare drops).
+- 🧺 Resource economy with food, water, beer, wood, stone, iron, expedition kits, mithril, adamantium, and mana crystal.
+- 🏘️ Village growth: houses (beds), wells (water nodes), fields (food nodes), breweries (beer), sawmills (wood), workshops (tools), armories (expedition kits), mithril forges (global output boost), mines (iron/stone + rare drops).
+- 🗝️ End-game ruins expeditions with artifacts, set bonuses, and guardian threats.
 - ❄️ Seasons + housing effects (bonding, winter penalties).
 - 🌦️ Dynamic weather cycle that reshapes needs, gathering, and regeneration.
 - 🎓 PPO training in Python with JS-only inference.
@@ -55,6 +56,7 @@ alive while you watch the chaos unfold in ASCII.
 - 🛏️ Housing provides beds; insufficient shelter slows bonding and makes winter harsher.
 - 🧳 A roaming merchant visits periodically, trades surplus for scarce resources, then leaves.
 - 🚰 Wells and 🌾 fields use Poisson-style spacing across the map, respecting terrain and distance from the core.
+- 🏛️ Ruins spawn in mountainous terrain; expeditions consume kits, face guardians, and unlock artifact bonuses.
 - 📊 HUD shows averages, bars, priorities, and counts for wells/fields plus house level breakdowns.
 - 🖼️ The map renders with a framed border for clearer navigation.
 - 🧭 Terrain adds visual texture (coast, lakes, rivers); walkability and movement delay are configurable per terrain.

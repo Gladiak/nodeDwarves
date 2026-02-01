@@ -161,6 +161,14 @@ Notes:
   - Seasonal wildlife raids (optional, config-driven).
   - Spawns beasts, applies deaths and loot loss, and logs events.
 
+### Ruins and expeditions
+
+- `ruins.js`
+  - Drives the ruins expedition loop (rooms, hazards, guardians, rewards).
+  - Manages expedition cooldowns, casualties, and artifact bonuses.
+- Armory kits are crafted in the `armory` structure and consumed per expedition.
+- Mithril is only used for late-game expedition reinforcement.
+
 ### Merchant
 
 - `merchant.js`

@@ -105,3 +105,4 @@ This file defines how to implement new features in a consistent, stable way.
 - Use ASCII only unless a file already uses Unicode.
 - Prefer early returns and guard clauses.
 - Add short English comments above top-level functions to aid onboarding.
+- Use English for all player-facing in-game strings (HUD, events, labels, config names).

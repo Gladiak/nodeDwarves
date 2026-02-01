@@ -522,9 +522,31 @@ function applyOutputs(stockpile, outputs, state, config) {
   const forgeMultiplier = getForgeMultiplier(state, config);
   for (const [resource, amount] of Object.entries(outputs)) {
     const beerMultiplier = getBeerProductionMultiplier(state, config, resource);
+    const ruinsMultiplier = getRuinsOutputMultiplier(state, config, resource);
     stockpile[resource] =
-      Number(stockpile[resource] || 0) + Number(amount || 0) * forgeMultiplier * beerMultiplier;
+      Number(stockpile[resource] || 0)
+      + Number(amount || 0) * forgeMultiplier * beerMultiplier * ruinsMultiplier;
   }
+}
+
+// Compute output multiplier from ruins artifact bonuses.
+function getRuinsOutputMultiplier(state, config, resource) {
+  const ruinsConfig = config && config.ruins ? config.ruins : {};
+  if (ruinsConfig.enabled === false) {
+    return 1;
+  }
+  const ruins = state && state.ruins ? state.ruins : null;
+  if (!ruins || !ruins.bonuses) {
+    return 1;
+  }
+  const applyTo = ruinsConfig.outputBonusApplyTo;
+  if (Array.isArray(applyTo) && applyTo.length > 0) {
+    if (!applyTo.includes(resource)) {
+      return 1;
+    }
+  }
+  const bonus = Math.max(0, Number(ruins.bonuses.outputMultiplier || 0));
+  return 1 + bonus;
 }
 
 module.exports = {

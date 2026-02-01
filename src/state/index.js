@@ -21,6 +21,7 @@ function createInitialState(config, runtime) {
   const raid = createRaidState(config);
   const raidStats = createRaidStats();
   const tools = createToolsState(config);
+  const ruins = createRuinsState(config);
 
   return {
     tick: 0,
@@ -34,6 +35,7 @@ function createInitialState(config, runtime) {
     raid,
     raidStats,
     tools,
+    ruins,
     terrain,
     stockpile: { ...config.resources.stockpile },
     jobs: [],
@@ -49,6 +51,7 @@ function createInitialState(config, runtime) {
       starvation: 0,
       oldAge: 0,
       raid: 0,
+      ruins: 0,
     },
     reproductionStats: {
       ticks: 0,
@@ -137,6 +140,38 @@ function createToolsState(config) {
   };
 }
 
+// Create the initial ruins exploration state.
+function createRuinsState(config) {
+  const ruinsConfig = (config && config.ruins) || {};
+  if (ruinsConfig.enabled === false) {
+    return null;
+  }
+  const rooms = Array.isArray(ruinsConfig.rooms) ? ruinsConfig.rooms : [];
+  return {
+    enabled: true,
+    roomsCleared: 0,
+    roomCount: rooms.length,
+    expedition: null,
+    cooldown: 0,
+    artifactsFound: {},
+    setCounts: {},
+    bonuses: {
+      outputMultiplier: 0,
+      hazardReduction: 0,
+      combatBonus: 0,
+      artifactChanceBonus: 0,
+      casualtyReduction: 0,
+      activeCombos: [],
+    },
+    stats: {
+      started: 0,
+      successes: 0,
+      failures: 0,
+      artifacts: 0,
+    },
+  };
+}
+
 // Create initial structures according to config.
 function createStructures(config, runtime, occupied, terrain) {
   const structures = [];
@@ -151,15 +186,13 @@ function createStructures(config, runtime, occupied, terrain) {
     }
 
     let allowFn = isAllowed;
-    if (type === 'mine') {
-      const mineConfig = definition && typeof definition === 'object' ? definition : {};
-      const terrainTypes = Array.isArray(mineConfig.spawnTerrain || mineConfig.buildTerrain)
-        ? (mineConfig.spawnTerrain || mineConfig.buildTerrain)
-        : null;
-      const terrainPredicate = buildTerrainTypePredicate(terrain, terrainTypes);
-      if (terrainPredicate) {
-        allowFn = terrainPredicate;
-      }
+    const structDefinition = definition && typeof definition === 'object' ? definition : {};
+    const terrainTypes = Array.isArray(structDefinition.spawnTerrain || structDefinition.buildTerrain)
+      ? (structDefinition.spawnTerrain || structDefinition.buildTerrain)
+      : null;
+    const terrainPredicate = buildTerrainTypePredicate(terrain, terrainTypes);
+    if (terrainPredicate) {
+      allowFn = terrainPredicate;
     }
 
     const positions = createPositions(count, runtime.gridWidth, runtime.gridHeight, occupied, allowFn);
