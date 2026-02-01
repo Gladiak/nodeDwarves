@@ -39,6 +39,7 @@ Display and layout:
 - `display.terrain.valley.fertileHeight`: height threshold for fertile ground (0..1).
 - `display.terrain.valley.fertileDistance`: max distance from water for fertile ground (tiles).
 - `display.terrain.valley.humidityDecay`: humidity falloff distance (higher = wider humidity).
+- `display.terrain.valley.waterDistanceDiagonalWeight`: diagonal step cost for water distance (0 = Manhattan, >1 rounder).
 - `display.terrain.valley.riverBias.<dir>`: river bias per direction (`east`, `south`, `west`, `north`).
 - `display.terrain.valley.riverCount`: number of valley rivers to carve (1..4).
 - `display.terrain.valley.riverSourceMinDistance`: minimum Manhattan distance between river sources.
@@ -48,9 +49,20 @@ Display and layout:
 - `display.terrain.valley.riverValleyDropAdjacent`: height drop around the river path.
 - `display.terrain.valley.lakeDepth`: depth drop for lake depressions.
 - `display.terrain.valley.lakeThreshold`: height threshold for lake filling.
+- `display.terrain.valley.lakePatch.radiusMin`: minimum fallback lake radius when none exist (tiles).
+- `display.terrain.valley.lakePatch.radiusMax`: maximum fallback lake radius when none exist (tiles).
+- `display.terrain.valley.ponds.enabled`: enable extra valley ponds.
+- `display.terrain.valley.ponds.count`: number of ponds to place.
+- `display.terrain.valley.ponds.radiusMin`: minimum pond radius (tiles).
+- `display.terrain.valley.ponds.radiusMax`: maximum pond radius (tiles).
+- `display.terrain.valley.ponds.buffer`: minimum distance from existing water (tiles).
+- `display.terrain.valley.ponds.heightMax`: maximum height for pond centers (0..1).
 - `display.terrain.valley.forest.humidityMin`: minimum humidity to spawn forests.
 - `display.terrain.valley.forest.heightMax`: max height for forests.
+- `display.terrain.valley.forest.waterDistanceMin`: minimum distance from water to allow forests (tiles).
 - `display.terrain.valley.forest.waterDistanceMax`: maximum distance from water to spawn forests (tiles).
+- `display.terrain.valley.forest.waterDistanceJitter`: noise jitter applied to water distance (tiles).
+- `display.terrain.valley.forest.waterDistanceNoiseScale`: noise scale for water distance jitter.
 - `display.terrain.valley.forest.noiseScale`: forest noise scale.
 - `display.terrain.valley.forest.noiseThreshold`: forest noise threshold.
 - `display.terrain.valley.forest.clusterPasses`: forest clustering passes.
@@ -150,6 +162,11 @@ Morale:
 - `morale.gatherTicks.bonusMax`: maximum gather tick reduction ratio (0..1).
 - `morale.gatherTicks.exponent`: curve exponent for morale scaling.
 - `morale.gatherTicks.resources`: resource ids affected by morale-based gather ticks.
+
+Jobs:
+
+- `jobs.buildQueue.maxConcurrent`: maximum concurrent build/house-upgrade jobs.
+- `jobs.buildQueue.maxPerTick`: maximum new build/house-upgrade jobs spawned per tick.
 
 Raids:
 

@@ -34,9 +34,9 @@ alive while you watch the chaos unfold in ASCII.
 ## Simulation overview 🗺️
 
 - 🗺️ The world is a fixed-size ASCII grid with resource nodes, structures, and dwarves.
-- 🌍 The map renders a randomized terrain backdrop (coast/valley modes) with CP437-friendly symbols.
+- 🌍 The map renders a randomized terrain backdrop (coast/valley modes) with CP437-friendly symbols, plus rivers, lakes, and ponds.
 - 🌊 River tiles render with curved box-drawing symbols and can originate from multiple map edges.
-- 🌲 Forest patches spread beyond water corridors via humidity diffusion for more varied biomes.
+- 🌲 Forest patches spread beyond water corridors via humidity diffusion, with jittered edges for more organic shorelines.
 - 🌾 Plains render as a weighted mix of CP437 glyphs for subtle texture.
 - 🧺 Food tiles are guaranteed to appear near water to avoid barren starts.
 - ⏱️ Each tick:
@@ -67,10 +67,11 @@ alive while you watch the chaos unfold in ASCII.
 - ⛏️ If a resource has nodes on the map, a gather job is created.
 - 🧪 Crafting is optional: it activates when recipes/workshops exist and roles are disabled.
 - 🏠 House build/upgrade jobs spawn when housing is below target ratio and stockpiles meet guardrails.
+- 🏗️ Build jobs can run in parallel (configurable via `jobs.buildQueue`) using idle builders.
 - 💧 Wells are built when water stocks or water node reserves dip below thresholds.
 - 🌱 Fields are built when food stocks or food node reserves dip below thresholds and baseline stockpiles are safe.
 - 🪚 Sawmills convert stone + iron investment into steady wood output.
-- 🍺 Breweries convert food into beer with brewmasters that scale with population; upgrades boost output while reducing food cost. Brewing can pause when food is critically low, beer can be rationed against reserve targets, and beer consumption can add a production bonus across resources.
+- 🍺 Breweries convert food into beer with brewmasters that scale with population; upgrades boost output while reducing food cost. Brewing can pause when food is critically low, beer can be rationed against reserve targets, and beer consumption can add a production bonus across resources. Defaults now favor earlier beer consumption and a stronger high-morale bonus.
 - 🛠️ Workshops unlock tool upgrades that boost all gathering yields, including mines.
 - 🔥 Mithril forges provide a global output multiplier that scales by level; late-game upgrades require rare minerals.
 - ⛏️ Mines and 🪚 sawmills can be upgraded to level 10 for higher output (exponential cost/bonus).
@@ -294,6 +295,7 @@ into simulation design, AI training loops, and terminal UX.
 
 Ways to jump in:
 
+- New here? Start with [MANUAL.md](MANUAL.md) for a full codebase tour.
 - Propose features or balance ideas via issues.
 - Improve the job system and resource economy.
 - Prototype new AI curricula or reward shaping.

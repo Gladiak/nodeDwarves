@@ -11,6 +11,7 @@ This file defines how to implement new features in a consistent, stable way.
 - Keep the simulation deterministic enough for training comparison.
 - Continuously improve model intelligence and learning capability in measured, stable steps.
 - When implementation details are unclear, ask for clarifications before coding changes.
+- Always update README.md and MANUAL.md after new implementations or tweaks, if needed.
 
 ## Project structure
 

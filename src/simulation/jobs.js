@@ -37,12 +37,13 @@ function assignJobs(state, config, runtime, action) {
     return;
   }
 
+  const buildQueue = createBuildQueueState(state, config);
   const brewingPaused = shouldPauseBrewing(state, config);
   if (!brewingPaused) {
     const brewers = idleDwarves.filter((dwarf) => dwarf.role === "brewmaster");
     idleDwarves = idleDwarves.filter((dwarf) => dwarf.role !== "brewmaster");
     if (brewers.length > 0) {
-      assignBreweryJobs(state, config, runtime, brewers);
+      assignBreweryJobs(state, config, runtime, brewers, buildQueue);
     }
   }
   if (idleDwarves.length === 0) {
@@ -59,7 +60,7 @@ function assignJobs(state, config, runtime, action) {
   if (managerActive && !prioritizeMine) {
     const managers = idleDwarves.filter((dwarf) => dwarf.role === "manager");
     if (managers.length > 0) {
-      assignManagedStructureJobs(state, config, runtime, managers);
+      assignManagedStructureJobs(state, config, runtime, managers, buildQueue);
       idleDwarves = idleDwarves.filter((dwarf) => !dwarf.job);
       if (idleDwarves.length === 0) {
         return;
@@ -76,6 +77,7 @@ function assignJobs(state, config, runtime, action) {
     emergency,
     managerActive,
     prioritizeMine,
+    buildQueue,
   );
   if (idleDwarves.length === 0) {
     return;
@@ -206,6 +208,55 @@ function orderIdleDwarves(idleDwarves) {
   return gatherers.concat(unknown, builders, managers);
 }
 
+// Resolve build queue limits for parallel construction.
+function getBuildQueueConfig(config) {
+  const jobsConfig = (config && config.jobs) || {};
+  const queue = jobsConfig.buildQueue || {};
+  const maxConcurrentRaw = Number(queue.maxConcurrent ?? 1);
+  const maxConcurrent = Math.max(1, Math.floor(maxConcurrentRaw));
+  const maxPerTickRaw = Number(queue.maxPerTick ?? maxConcurrent);
+  const maxPerTick = Math.max(1, Math.floor(maxPerTickRaw));
+  return { maxConcurrent, maxPerTick };
+}
+
+// Initialize the build queue state for the current tick.
+function createBuildQueueState(state, config) {
+  const jobs = (state && Array.isArray(state.jobs)) ? state.jobs : [];
+  const { maxConcurrent, maxPerTick } = getBuildQueueConfig(config);
+  const active = jobs.filter((job) => job.type === "build" || job.type === "upgrade").length;
+  const remainingTotal = Math.max(0, maxConcurrent - active);
+  const remaining = Math.max(0, Math.min(maxPerTick, remainingTotal));
+  const reservedPositions = new Set();
+  const reservedStructures = new Set();
+  for (const job of jobs) {
+    if ((job.type === "build" || job.type === "upgrade") && job.target) {
+      reservedPositions.add(`${job.target.x},${job.target.y}`);
+    }
+    if (job.type === "upgrade" && job.structureId) {
+      reservedStructures.add(job.structureId);
+    }
+  }
+  return {
+    remaining,
+    reservedPositions,
+    reservedStructures,
+  };
+}
+
+// Reserve a build slot and target to avoid duplicates.
+function reserveBuildQueue(buildQueue, buildJob) {
+  if (!buildQueue) {
+    return;
+  }
+  buildQueue.remaining = Math.max(0, Number(buildQueue.remaining || 0) - 1);
+  if (buildJob && buildJob.target) {
+    buildQueue.reservedPositions.add(`${buildJob.target.x},${buildJob.target.y}`);
+  }
+  if (buildJob && buildJob.type === "upgrade" && buildJob.structureId) {
+    buildQueue.reservedStructures.add(buildJob.structureId);
+  }
+}
+
 // Decide whether the first mine should be prioritized over other builds.
 function shouldPrioritizeMine(state, config, runtime) {
   if (!runtime || runtime.gridWidth <= 0 || runtime.gridHeight <= 0) {
@@ -223,23 +274,21 @@ function shouldPrioritizeMine(state, config, runtime) {
   if (Object.keys(buildCost).length > 0 && !hasInputs(state.stockpile, buildCost)) {
     return false;
   }
-  const target = findMineBuildSpot(state, runtime, mineConfig);
+  const target = findMineBuildSpot(state, runtime, mineConfig, null);
   return Boolean(target);
 }
 
 // Assign build jobs for managed structures (wells, fields, watchtowers).
-function assignManagedStructureJobs(state, config, runtime, idleDwarves) {
+function assignManagedStructureJobs(state, config, runtime, idleDwarves, buildQueue) {
   if (idleDwarves.length === 0) {
     return;
   }
-  const reserved = new Set();
-  for (const job of state.jobs) {
-    if (job.type === "build" && job.target) {
-      reserved.add(`${job.target.x},${job.target.y}`);
-    }
+  if (!buildQueue || buildQueue.remaining <= 0) {
+    return;
   }
+  const reserved = buildQueue.reservedPositions;
 
-  while (idleDwarves.length > 0) {
+  while (idleDwarves.length > 0 && buildQueue.remaining > 0) {
     const buildJob =
       createManagedWellBuildJob(state, config, runtime, reserved) ||
       createManagedFieldBuildJob(state, config, runtime, reserved) ||
@@ -254,9 +303,7 @@ function assignManagedStructureJobs(state, config, runtime, idleDwarves) {
     buildJob.dwarfId = dwarf.id;
     dwarf.job = buildJob;
     state.jobs.push(buildJob);
-    if (buildJob.target) {
-      reserved.add(`${buildJob.target.x},${buildJob.target.y}`);
-    }
+    reserveBuildQueue(buildQueue, buildJob);
   }
 }
 
@@ -270,6 +317,7 @@ function assignBuildJobIfNeeded(
   emergency,
   managerActive,
   prioritizeMine,
+  buildQueue,
 ) {
   const housingConfig = (config.population && config.population.housing) || {};
   if (housingConfig.enabled === false) {
@@ -278,19 +326,13 @@ function assignBuildJobIfNeeded(
   if (!runtime || runtime.gridWidth <= 0 || runtime.gridHeight <= 0) {
     return;
   }
-  const hasBlockingBuild = state.jobs.some((job) => {
-    if (job.type === "build" && job.structureType !== "watchtower") {
-      return true;
-    }
-    return false;
-  });
-  if (hasBlockingBuild) {
-    return;
-  }
   if (idleDwarves.length === 0) {
     return;
   }
   if (roleConfig.enabled && emergency) {
+    return;
+  }
+  if (!buildQueue || buildQueue.remaining <= 0) {
     return;
   }
 
@@ -307,50 +349,60 @@ function assignBuildJobIfNeeded(
     housingNeed.needed &&
     (upgradeMinHouses <= 0 || houses.length >= upgradeMinHouses);
   const managerMode = Boolean(managerActive);
-  let buildJob = null;
-  if (prioritizeMine) {
-    buildJob = createMineBuildJob(state, config, runtime);
-  } else if (!managerMode) {
-    buildJob =
-      createWellBuildJob(state, config, runtime) ||
-      createFieldBuildJob(state, config, runtime);
-  }
 
-  if (!buildJob && housingNeed.needed) {
-    buildJob =
-      createHouseUpgradeJob(state, config, runtime, preferUpgrade) ||
-      createHouseBuildJob(state, config, runtime);
-  }
+  while (idleDwarves.length > 0 && buildQueue.remaining > 0) {
+    let buildJob = null;
+    if (prioritizeMine) {
+      buildJob = createMineBuildJob(state, config, runtime, buildQueue.reservedPositions);
+    } else if (!managerMode) {
+      buildJob =
+        createWellBuildJob(state, config, runtime, buildQueue.reservedPositions) ||
+        createFieldBuildJob(state, config, runtime, buildQueue.reservedPositions);
+    }
 
-  if (!buildJob) {
-    buildJob = createWorkshopBuildJob(state, config, runtime);
+    if (!buildJob && housingNeed.needed) {
+      buildJob =
+        createHouseUpgradeJob(
+          state,
+          config,
+          runtime,
+          preferUpgrade,
+          buildQueue.reservedStructures,
+        ) ||
+        createHouseBuildJob(state, config, runtime, buildQueue.reservedPositions);
+    }
+
+    if (!buildJob) {
+      buildJob = createWorkshopBuildJob(state, config, runtime, buildQueue.reservedPositions);
+    }
+    if (!buildJob) {
+      buildJob = createMineBuildJob(state, config, runtime, buildQueue.reservedPositions);
+    }
+    if (!buildJob) {
+      buildJob = createSawmillBuildJob(state, config, runtime, buildQueue.reservedPositions);
+    }
+    if (!buildJob) {
+      buildJob = createMithrilForgeBuildJob(state, config, runtime, buildQueue.reservedPositions);
+    }
+    if (!buildJob) {
+      return;
+    }
+    const preferred = roleConfig.enabled
+      ? takeIdleDwarf(idleDwarves, "builder")
+      : null;
+    const dwarf = preferred || takeIdleDwarf(idleDwarves);
+    if (!dwarf) {
+      return;
+    }
+    buildJob.dwarfId = dwarf.id;
+    dwarf.job = buildJob;
+    state.jobs.push(buildJob);
+    reserveBuildQueue(buildQueue, buildJob);
   }
-  if (!buildJob) {
-    buildJob = createMineBuildJob(state, config, runtime);
-  }
-  if (!buildJob) {
-    buildJob = createSawmillBuildJob(state, config, runtime);
-  }
-  if (!buildJob) {
-    buildJob = createMithrilForgeBuildJob(state, config, runtime);
-  }
-  if (!buildJob) {
-    return;
-  }
-  const preferred = roleConfig.enabled
-    ? takeIdleDwarf(idleDwarves, "builder")
-    : null;
-  const dwarf = preferred || takeIdleDwarf(idleDwarves);
-  if (!dwarf) {
-    return;
-  }
-  buildJob.dwarfId = dwarf.id;
-  dwarf.job = buildJob;
-  state.jobs.push(buildJob);
 }
 
 // Assign brewery jobs to keep brewmasters stationed at breweries.
-function assignBreweryJobs(state, config, runtime, brewers) {
+function assignBreweryJobs(state, config, runtime, brewers, buildQueue) {
   const breweryConfig = (config.structures && config.structures.brewery) || {};
   const maxCount = Number(breweryConfig.maxCount ?? 0);
   const workersPer = Math.max(
@@ -364,28 +416,26 @@ function assignBreweryJobs(state, config, runtime, brewers) {
     (structure) => structure.type === "brewery",
   );
   const canBuildMore = maxCount > 0 && breweries.length < maxCount;
-  if (canBuildMore) {
-    const hasBlockingBuild = state.jobs.some((job) => {
-      if (job.type === "build" && job.structureType !== "watchtower") {
-        return true;
-      }
-      return false;
-    });
-    if (!hasBlockingBuild) {
-      const hasBreweryBuild = state.jobs.some(
-        (job) => job.type === "build" && job.structureType === "brewery",
+  if (canBuildMore && buildQueue && buildQueue.remaining > 0) {
+    const hasBreweryBuild = state.jobs.some(
+      (job) => job.type === "build" && job.structureType === "brewery",
+    );
+    if (!hasBreweryBuild) {
+      const buildJob = createBreweryBuildJob(
+        state,
+        config,
+        runtime,
+        buildQueue.reservedPositions,
       );
-      if (!hasBreweryBuild) {
-        const buildJob = createBreweryBuildJob(state, config, runtime);
-        if (buildJob && brewers.length > 0) {
-          const dwarf = brewers.shift();
-          if (!dwarf) {
-            return;
-          }
-          buildJob.dwarfId = dwarf.id;
-          dwarf.job = buildJob;
-          state.jobs.push(buildJob);
+      if (buildJob && brewers.length > 0) {
+        const dwarf = brewers.shift();
+        if (!dwarf) {
+          return;
         }
+        buildJob.dwarfId = dwarf.id;
+        dwarf.job = buildJob;
+        state.jobs.push(buildJob);
+        reserveBuildQueue(buildQueue, buildJob);
       }
     }
   }

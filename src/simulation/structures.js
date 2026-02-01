@@ -51,8 +51,29 @@ function createStructure(state, config, type, x, y) {
   return structure;
 }
 
+// Count queued build jobs for a structure type.
+function countQueuedBuildJobs(state, structureType) {
+  if (!structureType) {
+    return 0;
+  }
+  const jobs = (state && Array.isArray(state.jobs)) ? state.jobs : [];
+  return jobs.filter((job) => job.type === 'build' && job.structureType === structureType).length;
+}
+
+// Build a set of reserved upgrade targets.
+function buildReservedUpgradeSet(state) {
+  const reserved = new Set();
+  const jobs = (state && Array.isArray(state.jobs)) ? state.jobs : [];
+  for (const job of jobs) {
+    if (job.type === 'upgrade' && job.structureId) {
+      reserved.add(job.structureId);
+    }
+  }
+  return reserved;
+}
+
 // Create a house build job when housing is needed.
-function createHouseBuildJob(state, config, runtime) {
+function createHouseBuildJob(state, config, runtime, reservedPositions) {
   const housingConfig = (config.population && config.population.housing) || {};
   const houseConfig = (config.structures && config.structures.house) || {};
   const housingNeed = getHousingNeed(state, config);
@@ -79,7 +100,7 @@ function createHouseBuildJob(state, config, runtime) {
     return null;
   }
 
-  const target = findVillageBuildSpot(state, runtime);
+  const target = findVillageBuildSpot(state, runtime, reservedPositions);
   if (!target) {
     return null;
   }
@@ -100,7 +121,7 @@ function createHouseBuildJob(state, config, runtime) {
 }
 
 // Create a house upgrade job when conditions allow upgrading.
-function createHouseUpgradeJob(state, config, runtime, preferUpgrade = false) {
+function createHouseUpgradeJob(state, config, runtime, preferUpgrade = false, reservedStructures) {
   const housingNeed = getHousingNeed(state, config);
   if (!housingNeed.needed) {
     return null;
@@ -112,6 +133,9 @@ function createHouseUpgradeJob(state, config, runtime, preferUpgrade = false) {
   if (houses.length === 0) {
     return null;
   }
+  const reservedSet = reservedStructures instanceof Set
+    ? reservedStructures
+    : buildReservedUpgradeSet(state);
   const upgradeMinHouses = Math.max(0, Number(houseConfig.upgradeMinHouses ?? 0));
   if (upgradeMinHouses > 0 && houses.length < upgradeMinHouses) {
     return null;
@@ -150,6 +174,9 @@ function createHouseUpgradeJob(state, config, runtime, preferUpgrade = false) {
   const minAdjacency = Math.max(0, Number(houseConfig.upgradeMinAdjacency ?? 0));
   const candidates = houses
     .map((house) => {
+      if (reservedSet.has(house.id)) {
+        return null;
+      }
       const level = Math.max(1, Number(house.level || 1));
       if (level >= maxLevel) {
         return null;
@@ -283,12 +310,13 @@ function countAdjacentHouses(house, houseSet) {
 }
 
 // Create a well build job if water supply is critical.
-function createWellBuildJob(state, config, runtime) {
+function createWellBuildJob(state, config, runtime, reservedPositions) {
   const wellConfig = (config.structures && config.structures.well) || {};
   const placement = getPlacementConfig(wellConfig);
   const maxCount = Number(wellConfig.maxCount ?? 0);
   const existingWells = (state.structures || []).filter((structure) => structure.type === 'well').length;
-  if (maxCount > 0 && existingWells >= maxCount) {
+  const queuedWells = countQueuedBuildJobs(state, 'well');
+  if (maxCount > 0 && existingWells + queuedWells >= maxCount) {
     return null;
   }
 
@@ -316,11 +344,11 @@ function createWellBuildJob(state, config, runtime) {
   }
 
   const target = placement.mode === 'poisson'
-    ? findPoissonBuildSpot(state, runtime, wellConfig, null, {
+    ? findPoissonBuildSpot(state, runtime, wellConfig, reservedPositions, {
       structureType: 'well',
       allowForest: shouldAllowForestBuild(state, config),
     })
-    : findPeripheralBuildSpot(state, runtime, wellConfig);
+    : findPeripheralBuildSpot(state, runtime, wellConfig, reservedPositions);
   if (!target) {
     return null;
   }
@@ -341,12 +369,13 @@ function createWellBuildJob(state, config, runtime) {
 }
 
 // Create a field build job when food nodes are scarce.
-function createFieldBuildJob(state, config, runtime) {
+function createFieldBuildJob(state, config, runtime, reservedPositions) {
   const fieldConfig = (config.structures && config.structures.field) || {};
   const placement = getPlacementConfig(fieldConfig);
   const maxCount = Number(fieldConfig.maxCount ?? 0);
   const existingFields = (state.structures || []).filter((structure) => structure.type === 'field').length;
-  if (maxCount > 0 && existingFields >= maxCount) {
+  const queuedFields = countQueuedBuildJobs(state, 'field');
+  if (maxCount > 0 && existingFields + queuedFields >= maxCount) {
     return null;
   }
 
@@ -383,12 +412,12 @@ function createFieldBuildJob(state, config, runtime) {
     : isFieldClusterTerrain;
 
   const target = placement.mode === 'poisson'
-    ? findPoissonBuildSpot(state, runtime, fieldConfig, null, {
+    ? findPoissonBuildSpot(state, runtime, fieldConfig, reservedPositions, {
       structureType: 'field',
       allowTerrain,
       allowForest,
     })
-    : findFertileBuildSpot(state, runtime, fieldConfig);
+    : findFertileBuildSpot(state, runtime, fieldConfig, reservedPositions);
   if (!target) {
     return null;
   }
@@ -409,14 +438,15 @@ function createFieldBuildJob(state, config, runtime) {
 }
 
 // Create a workshop build job when no workshop exists.
-function createWorkshopBuildJob(state, config, runtime) {
+function createWorkshopBuildJob(state, config, runtime, reservedPositions) {
   const workshopConfig = (config.structures && config.structures.workshop) || {};
   const maxCount = Number(workshopConfig.maxCount ?? 0);
   const existing = (state.structures || []).filter((structure) => structure.type === 'workshop').length;
-  if (maxCount > 0 && existing >= maxCount) {
+  const queued = countQueuedBuildJobs(state, 'workshop');
+  if (maxCount > 0 && existing + queued >= maxCount) {
     return null;
   }
-  if (existing > 0) {
+  if (existing + queued > 0) {
     return null;
   }
 
@@ -425,7 +455,7 @@ function createWorkshopBuildJob(state, config, runtime) {
     return null;
   }
 
-  const target = findPeripheralBuildSpot(state, runtime, workshopConfig);
+  const target = findPeripheralBuildSpot(state, runtime, workshopConfig, reservedPositions);
   if (!target) {
     return null;
   }
@@ -446,14 +476,15 @@ function createWorkshopBuildJob(state, config, runtime) {
 }
 
 // Create a mithril forge build job when none exists.
-function createMithrilForgeBuildJob(state, config, runtime) {
+function createMithrilForgeBuildJob(state, config, runtime, reservedPositions) {
   const forgeConfig = (config.structures && config.structures.mithril_forge) || {};
   const maxCount = Number(forgeConfig.maxCount ?? 0);
   const existing = (state.structures || []).filter((structure) => structure.type === 'mithril_forge').length;
-  if (maxCount > 0 && existing >= maxCount) {
+  const queued = countQueuedBuildJobs(state, 'mithril_forge');
+  if (maxCount > 0 && existing + queued >= maxCount) {
     return null;
   }
-  if (existing > 0) {
+  if (existing + queued > 0) {
     return null;
   }
 
@@ -476,7 +507,7 @@ function createMithrilForgeBuildJob(state, config, runtime) {
     return null;
   }
 
-  const target = findPeripheralBuildSpot(state, runtime, forgeConfig);
+  const target = findPeripheralBuildSpot(state, runtime, forgeConfig, reservedPositions);
   if (!target) {
     return null;
   }
@@ -497,11 +528,12 @@ function createMithrilForgeBuildJob(state, config, runtime) {
 }
 
 // Create a brewery build job when no brewery exists.
-function createBreweryBuildJob(state, config, runtime) {
+function createBreweryBuildJob(state, config, runtime, reservedPositions) {
   const breweryConfig = (config.structures && config.structures.brewery) || {};
   const maxCount = Number(breweryConfig.maxCount ?? 0);
   const existing = (state.structures || []).filter((structure) => structure.type === 'brewery').length;
-  if (maxCount > 0 && existing >= maxCount) {
+  const queued = countQueuedBuildJobs(state, 'brewery');
+  if (maxCount > 0 && existing + queued >= maxCount) {
     return null;
   }
 
@@ -510,7 +542,7 @@ function createBreweryBuildJob(state, config, runtime) {
     return null;
   }
 
-  const target = findPeripheralBuildSpot(state, runtime, breweryConfig);
+  const target = findPeripheralBuildSpot(state, runtime, breweryConfig, reservedPositions);
   if (!target) {
     return null;
   }
@@ -531,11 +563,12 @@ function createBreweryBuildJob(state, config, runtime) {
 }
 
 // Create a sawmill build job when wood is scarce.
-function createSawmillBuildJob(state, config, runtime) {
+function createSawmillBuildJob(state, config, runtime, reservedPositions) {
   const sawmillConfig = (config.structures && config.structures.sawmill) || {};
   const maxCount = Number(sawmillConfig.maxCount ?? 0);
   const existing = (state.structures || []).filter((structure) => structure.type === 'sawmill').length;
-  if (maxCount > 0 && existing >= maxCount) {
+  const queued = countQueuedBuildJobs(state, 'sawmill');
+  if (maxCount > 0 && existing + queued >= maxCount) {
     return null;
   }
 
@@ -544,7 +577,7 @@ function createSawmillBuildJob(state, config, runtime) {
     return null;
   }
 
-  const target = findPeripheralBuildSpot(state, runtime, sawmillConfig);
+  const target = findPeripheralBuildSpot(state, runtime, sawmillConfig, reservedPositions);
   if (!target) {
     return null;
   }
@@ -565,16 +598,17 @@ function createSawmillBuildJob(state, config, runtime) {
 }
 
 // Create a mine build job when no mines are available.
-function createMineBuildJob(state, config, runtime) {
+function createMineBuildJob(state, config, runtime, reservedPositions) {
   const mineConfig = (config.structures && config.structures.mine) || {};
   const maxCount = Number(mineConfig.maxCount ?? 0);
   const existingMines = (state.structures || []).filter((structure) => structure.type === 'mine').length;
-  if (maxCount > 0 && existingMines >= maxCount) {
+  const queuedMines = countQueuedBuildJobs(state, 'mine');
+  if (maxCount > 0 && existingMines + queuedMines >= maxCount) {
     return null;
   }
 
   const buildWhenNoMine = mineConfig.buildWhenNoMine !== false;
-  if (buildWhenNoMine && existingMines > 0) {
+  if (buildWhenNoMine && existingMines + queuedMines > 0) {
     return null;
   }
 
@@ -583,7 +617,7 @@ function createMineBuildJob(state, config, runtime) {
     return null;
   }
 
-  const target = findMineBuildSpot(state, runtime, mineConfig);
+  const target = findMineBuildSpot(state, runtime, mineConfig, reservedPositions);
   if (!target) {
     return null;
   }
@@ -1194,7 +1228,8 @@ function createManagedWellBuildJob(state, config, runtime, reservedPositions) {
   }
   const maxCount = Number(wellConfig.maxCount ?? 0);
   const existingWells = (state.structures || []).filter((structure) => structure.type === 'well').length;
-  if (maxCount > 0 && existingWells >= maxCount) {
+  const queuedWells = countQueuedBuildJobs(state, 'well');
+  if (maxCount > 0 && existingWells + queuedWells >= maxCount) {
     return null;
   }
 
@@ -1249,7 +1284,8 @@ function createManagedWellBuildJob(state, config, runtime, reservedPositions) {
       clusterConfig.height,
     );
     const maxAllowed = maxCount > 0 ? Math.min(maxCount, clusterSlots) : clusterSlots;
-    if (maxAllowed <= 0 || existingWells >= maxAllowed) {
+    const planned = existingWells + queuedWells;
+    if (maxAllowed <= 0 || planned >= maxAllowed) {
       return null;
     }
     target = findClusterBuildSpot(
@@ -1293,7 +1329,8 @@ function createManagedFieldBuildJob(state, config, runtime, reservedPositions) {
   }
   const maxCount = Number(fieldConfig.maxCount ?? 0);
   const existingFields = (state.structures || []).filter((structure) => structure.type === 'field').length;
-  if (maxCount > 0 && existingFields >= maxCount) {
+  const queuedFields = countQueuedBuildJobs(state, 'field');
+  if (maxCount > 0 && existingFields + queuedFields >= maxCount) {
     return null;
   }
 
@@ -1344,7 +1381,8 @@ function createManagedFieldBuildJob(state, config, runtime, reservedPositions) {
       clusterConfig.height,
     );
     const maxAllowed = maxCount > 0 ? Math.min(maxCount, clusterSlots) : clusterSlots;
-    if (maxAllowed <= 0 || existingFields >= maxAllowed) {
+    const planned = existingFields + queuedFields;
+    if (maxAllowed <= 0 || planned >= maxAllowed) {
       return null;
     }
     target = findClusterBuildSpot(
@@ -1491,12 +1529,12 @@ function createManagedWatchtowerBuildJob(state, config, runtime, reservedPositio
 }
 
 // Find the first available build spot near the village center.
-function findVillageBuildSpot(state, runtime) {
-  return findVillageBuildSpotFromRadius(state, runtime, 0);
+function findVillageBuildSpot(state, runtime, reservedPositions) {
+  return findVillageBuildSpotFromRadius(state, runtime, 0, null, reservedPositions);
 }
 
 // Find a build spot starting from a minimum radius and optional filter.
-function findVillageBuildSpotFromRadius(state, runtime, minRadius, extraCheck) {
+function findVillageBuildSpotFromRadius(state, runtime, minRadius, extraCheck, reservedPositions) {
   const center = getVillageCenter(state, runtime);
   const maxRadius = getMaxWallRingRadius(center, runtime);
   const startRadius = Math.max(0, Math.floor(minRadius || 0));
@@ -1506,13 +1544,17 @@ function findVillageBuildSpotFromRadius(state, runtime, minRadius, extraCheck) {
       const dy = radius - Math.abs(dx);
       const x1 = center.x + dx;
       const y1 = center.y + dy;
-      if (isBuildableCell(state, runtime, x1, y1) && (!extraCheck || extraCheck(x1, y1))) {
+      if (isBuildableCell(state, runtime, x1, y1)
+        && !isReservedPosition(reservedPositions, x1, y1)
+        && (!extraCheck || extraCheck(x1, y1))) {
         return { x: x1, y: y1 };
       }
       if (dy !== 0) {
         const x2 = center.x + dx;
         const y2 = center.y - dy;
-        if (isBuildableCell(state, runtime, x2, y2) && (!extraCheck || extraCheck(x2, y2))) {
+        if (isBuildableCell(state, runtime, x2, y2)
+          && !isReservedPosition(reservedPositions, x2, y2)
+          && (!extraCheck || extraCheck(x2, y2))) {
           return { x: x2, y: y2 };
         }
       }
@@ -1652,21 +1694,21 @@ function findPoissonBuildSpot(state, runtime, structureConfig, reservedPositions
 }
 
 // Find a build spot outside the core village radius.
-function findPeripheralBuildSpot(state, runtime, structureConfig) {
+function findPeripheralBuildSpot(state, runtime, structureConfig, reservedPositions) {
   const minRadius = getPeripheralBuildRadius(state, runtime, structureConfig);
-  return findVillageBuildSpotFromRadius(state, runtime, minRadius);
+  return findVillageBuildSpotFromRadius(state, runtime, minRadius, null, reservedPositions);
 }
 
 // Find a fertile build spot for fields.
-function findFertileBuildSpot(state, runtime, structureConfig) {
+function findFertileBuildSpot(state, runtime, structureConfig, reservedPositions) {
   const minRadius = getPeripheralBuildRadius(state, runtime, structureConfig);
   return findVillageBuildSpotFromRadius(state, runtime, minRadius, (x, y) => {
     return getTerrainTypeAt(state, x, y) === 'fertile';
-  });
+  }, reservedPositions);
 }
 
 // Find a build spot on mining terrain.
-function findMineBuildSpot(state, runtime, structureConfig) {
+function findMineBuildSpot(state, runtime, structureConfig, reservedPositions) {
   const minRadius = getPeripheralBuildRadius(state, runtime, structureConfig);
   const allowed = getMineTerrainTypes(structureConfig);
   return findVillageBuildSpotFromRadius(state, runtime, minRadius, (x, y) => {
@@ -1675,7 +1717,7 @@ function findMineBuildSpot(state, runtime, structureConfig) {
     }
     const type = getTerrainTypeAt(state, x, y);
     return type ? allowed.includes(type) : false;
-  });
+  }, reservedPositions);
 }
 
 // Determine the village center from existing structures or terrain.

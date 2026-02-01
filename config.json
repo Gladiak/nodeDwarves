@@ -47,6 +47,7 @@
         "fertileHeight": 0.44,
         "fertileDistance": 4,
         "humidityDecay": 8,
+        "waterDistanceDiagonalWeight": 1.35,
         "riverBias": {
           "east": -0.02,
           "south": -0.01,
@@ -61,10 +62,25 @@
         "riverValleyDropAdjacent": 0.12,
         "lakeDepth": 0.03,
         "lakeThreshold": 0.035,
+        "lakePatch": {
+          "radiusMin": 3,
+          "radiusMax": 6
+        },
+        "ponds": {
+          "enabled": true,
+          "count": 2,
+          "radiusMin": 2,
+          "radiusMax": 4,
+          "buffer": 3,
+          "heightMax": 0.55
+        },
         "forest": {
           "humidityMin": 0.28,
           "heightMax": 0.78,
+          "waterDistanceMin": 1,
           "waterDistanceMax": 10,
+          "waterDistanceJitter": 2.5,
+          "waterDistanceNoiseScale": 0.26,
           "noiseScale": 0.12,
           "noiseThreshold": 0.32,
           "clusterPasses": 4
@@ -1618,26 +1634,26 @@
     },
     "decayPerTick": {
       "hunger": 0.002,
-      "thirst": 0.003
+      "thirst": 0.0033
     }
   },
   "consumption": {
     "hungerThreshold": 0.3,
-    "thirstThreshold": 0.25,
+    "thirstThreshold": 0.22,
     "hungerTarget": 0.3,
     "thirstTarget": 0.2,
     "maxUnitsPerTick": 1,
     "rawFoodRelief": 0.35,
     "waterRelief": 0.35,
     "beerRelief": 0.5,
-    "beerReserveBase": 10,
-    "beerReservePerCapita": 0.05,
-    "beerMinReserveRatio": 0.25,
-    "beerMoraleGain": 0.14,
+    "beerReserveBase": 8,
+    "beerReservePerCapita": 0.04,
+    "beerMinReserveRatio": 0.2,
+    "beerMoraleGain": 0.16,
     "beerMoraleDecayPerTick": 0.0015,
-    "beerMoraleMax": 0.35,
-    "beerProductionBonusMax": 0.5,
-    "beerProductionBonusExponent": 1.6,
+    "beerMoraleMax": 0.42,
+    "beerProductionBonusMax": 0.6,
+    "beerProductionBonusExponent": 1.8,
     "beerProductionApplyTo": [
       "food",
       "water",
@@ -1674,6 +1690,10 @@
       "water": 2,
       "wood": 1,
       "stone": 1
+    },
+    "buildQueue": {
+      "maxConcurrent": 2,
+      "maxPerTick": 2
     }
   },
   "symbols": {

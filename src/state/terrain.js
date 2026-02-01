@@ -99,13 +99,14 @@ function createValleyTerrain(runtime, settings, seed) {
   smooth = normalizeHeightMap(smooth);
   const riverInfo = buildValleyRivers(smooth, valley, seed);
   const carved = carveRiverValley(smooth, riverInfo.river, valley);
-
-  const waterSet = new Set([...riverInfo.lakes]);
+  const ponds = buildValleyPonds(carved, riverInfo, valley, rng);
+  const lakeSet = new Set([...riverInfo.lakes, ...ponds]);
+  const waterSet = new Set([...lakeSet]);
   for (const cell of riverInfo.river) {
     waterSet.add(`${cell.x},${cell.y}`);
   }
 
-  const dist = computeDistanceToWater(waterSet, width, height);
+  const dist = computeDistanceToWater(waterSet, width, height, valley.waterDistanceDiagonalWeight);
   const humidity = dist.map((row) => row.map((d) => Math.exp(-d / valley.humidityDecay)));
 
   const baseTypes = Array.from({ length: height }, () => new Array(width).fill('plain'));
@@ -113,7 +114,7 @@ function createValleyTerrain(runtime, settings, seed) {
     for (let x = 0; x < width; x += 1) {
       const key = `${x},${y}`;
       if (waterSet.has(key)) {
-        baseTypes[y][x] = riverInfo.lakes.has(key) ? 'lake' : 'river';
+        baseTypes[y][x] = lakeSet.has(key) ? 'lake' : 'river';
         continue;
       }
       const h = carved[y][x];
@@ -129,6 +130,17 @@ function createValleyTerrain(runtime, settings, seed) {
     }
   }
 
+  const forestConfig = valley.forest || {};
+  const forestWaterDistanceMin = Math.max(0, Number(forestConfig.waterDistanceMin ?? 0));
+  const forestWaterDistanceMax = Math.max(
+    forestWaterDistanceMin,
+    Number(forestConfig.waterDistanceMax ?? 0),
+  );
+  const forestWaterDistanceJitter = Math.max(0, Number(forestConfig.waterDistanceJitter ?? 0));
+  const forestWaterDistanceNoiseScale = Math.max(
+    0.001,
+    Number(forestConfig.waterDistanceNoiseScale ?? forestConfig.noiseScale ?? 0.11),
+  );
   const forest = Array.from({ length: height }, () => new Array(width).fill(false));
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
@@ -136,29 +148,42 @@ function createValleyTerrain(runtime, settings, seed) {
       if (type === 'river' || type === 'lake' || type === 'mountain') {
         continue;
       }
-      if (carved[y][x] > valley.forest.heightMax) {
+      if (carved[y][x] > forestConfig.heightMax) {
         continue;
       }
-      if (dist[y][x] > valley.forest.waterDistanceMax) {
+      const waterDist = dist[y][x];
+      if (waterDist <= forestWaterDistanceMin) {
         continue;
       }
-      if (humidity[y][x] < valley.forest.humidityMin) {
+      let effectiveDist = waterDist;
+      if (forestWaterDistanceJitter > 0) {
+        const noise = smoothValueNoise(
+          x * forestWaterDistanceNoiseScale,
+          y * forestWaterDistanceNoiseScale,
+          seed + 181,
+        );
+        effectiveDist = waterDist + (noise - 0.5) * 2 * forestWaterDistanceJitter;
+      }
+      if (effectiveDist > forestWaterDistanceMax) {
+        continue;
+      }
+      if (humidity[y][x] < forestConfig.humidityMin) {
         continue;
       }
       const noise = fractalNoise(
-        x * valley.forest.noiseScale,
-        y * valley.forest.noiseScale,
+        x * forestConfig.noiseScale,
+        y * forestConfig.noiseScale,
         seed + 77,
         3,
         0.5,
         2.0,
       );
-      if (noise > valley.forest.noiseThreshold) {
+      if (noise > forestConfig.noiseThreshold) {
         forest[y][x] = true;
       }
     }
   }
-  for (let pass = 0; pass < valley.forest.clusterPasses; pass += 1) {
+  for (let pass = 0; pass < forestConfig.clusterPasses; pass += 1) {
     smoothClusterMap(forest, baseTypes, (x, y) => humidity[y][x] > 0.4);
   }
 
@@ -266,7 +291,9 @@ function ensureValleyTerrainCoverage(types, baseTypes, heights, dist, riverInfo,
     const anchor = riverCells.length > 0
       ? riverCells[Math.floor((rng ? rng() : Math.random()) * riverCells.length)]
       : { x: Math.floor(types[0].length / 2), y: Math.floor(types.length / 2) };
-    placeLakePatch(types, anchor.x, anchor.y);
+    const lakePatch = valley.lakePatch || {};
+    const lakeRadius = randomBetweenWithRng(rng, lakePatch.radiusMin, lakePatch.radiusMax);
+    placeLakePatch(types, anchor.x, anchor.y, lakeRadius);
     counts.lake = 1;
   }
 
@@ -371,6 +398,135 @@ function ensureValleyTerrainCoverage(types, baseTypes, heights, dist, riverInfo,
   }
 }
 
+// Function: buildValleyPonds.
+function buildValleyPonds(heightMap, riverInfo, valley, rng) {
+  const pondsConfig = valley && valley.ponds ? valley.ponds : {};
+  if (pondsConfig.enabled === false || pondsConfig.count <= 0) {
+    return new Set();
+  }
+
+  const height = heightMap.length;
+  const width = height > 0 ? heightMap[0].length : 0;
+  if (width <= 0 || height <= 0) {
+    return new Set();
+  }
+
+  const pondSet = new Set();
+  const avoidSet = new Set();
+  const riverCells = Array.isArray(riverInfo && riverInfo.river) ? riverInfo.river : [];
+  for (const cell of riverCells) {
+    avoidSet.add(`${cell.x},${cell.y}`);
+  }
+  if (riverInfo && riverInfo.lakes) {
+    for (const key of riverInfo.lakes) {
+      avoidSet.add(key);
+    }
+  }
+
+  const random = typeof rng === 'function' ? rng : Math.random;
+  for (let i = 0; i < pondsConfig.count; i += 1) {
+    const radius = randomBetweenWithRng(random, pondsConfig.radiusMin, pondsConfig.radiusMax);
+    const center = pickPondCenter(
+      heightMap,
+      avoidSet,
+      radius,
+      pondsConfig.buffer,
+      pondsConfig.heightMax,
+      random,
+    );
+    if (!center) {
+      continue;
+    }
+    const pondCells = addPondCells(pondSet, center.x, center.y, radius, width, height);
+    for (const key of pondCells) {
+      avoidSet.add(key);
+    }
+  }
+
+  return pondSet;
+}
+
+// Function: pickPondCenter.
+function pickPondCenter(heightMap, avoidSet, radius, buffer, heightMax, rng) {
+  const height = heightMap.length;
+  const width = height > 0 ? heightMap[0].length : 0;
+  if (width <= 0 || height <= 0) {
+    return null;
+  }
+  const random = typeof rng === 'function' ? rng : Math.random;
+  const r = Math.max(1, radius);
+  const margin = Math.max(0, buffer) + r;
+  const minX = margin;
+  const minY = margin;
+  const maxX = width - 1 - margin;
+  const maxY = height - 1 - margin;
+  if (minX > maxX || minY > maxY) {
+    return null;
+  }
+
+  const maxHeight = Number.isFinite(heightMax) ? clamp(heightMax, 0, 1) : 1;
+  const attempts = 60;
+  let best = null;
+  let bestHeight = Infinity;
+  for (let i = 0; i < attempts; i += 1) {
+    const x = randomBetweenWithRng(random, minX, maxX);
+    const y = randomBetweenWithRng(random, minY, maxY);
+    if (isWaterWithinBuffer(avoidSet, x, y, margin)) {
+      continue;
+    }
+    const h = heightMap[y][x];
+    if (h > maxHeight) {
+      continue;
+    }
+    if (h < bestHeight) {
+      bestHeight = h;
+      best = { x, y };
+    }
+  }
+
+  if (!best && maxHeight < 1) {
+    return pickPondCenter(heightMap, avoidSet, radius, buffer, 1, rng);
+  }
+
+  return best;
+}
+
+// Function: isWaterWithinBuffer.
+function isWaterWithinBuffer(avoidSet, x, y, radius) {
+  const r = Math.max(0, radius);
+  for (let yy = y - r; yy <= y + r; yy += 1) {
+    for (let xx = x - r; xx <= x + r; xx += 1) {
+      if (avoidSet.has(`${xx},${yy}`)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+// Function: addPondCells.
+function addPondCells(pondSet, x, y, radius, width, height) {
+  const r = Math.max(1, radius);
+  const r2 = r * r;
+  const minX = Math.max(0, x - r);
+  const maxX = Math.min(width - 1, x + r);
+  const minY = Math.max(0, y - r);
+  const maxY = Math.min(height - 1, y + r);
+  const added = [];
+  for (let yy = minY; yy <= maxY; yy += 1) {
+    for (let xx = minX; xx <= maxX; xx += 1) {
+      const dx = xx - x;
+      const dy = yy - y;
+      if (dx * dx + dy * dy <= r2) {
+        const key = `${xx},${yy}`;
+        pondSet.add(key);
+        added.push(key);
+      }
+    }
+  }
+  return added;
+}
+
 // Function: ensureMinimumFoodTiles.
 function ensureMinimumFoodTiles(types, baseTypes, dist, valley, rng, counts) {
   const foodConfig = valley.food || {};
@@ -467,22 +623,26 @@ function selectCellByHeight(heights, types, predicate, preferHigh) {
 }
 
 // Function: placeLakePatch.
-function placeLakePatch(types, x, y) {
+function placeLakePatch(types, x, y, radius) {
   const height = types.length;
   const width = height > 0 ? types[0].length : 0;
-  const offsets = [
-    { dx: 0, dy: 0 },
-    { dx: 1, dy: 0 },
-    { dx: 0, dy: 1 },
-    { dx: 1, dy: 1 },
-  ];
-  for (const offset of offsets) {
-    const nx = x + offset.dx;
-    const ny = y + offset.dy;
-    if (nx < 0 || ny < 0 || nx >= width || ny >= height) {
-      continue;
+  if (width <= 0 || height <= 0) {
+    return;
+  }
+  const r = Math.max(1, radius);
+  const r2 = r * r;
+  const minX = Math.max(0, x - r);
+  const maxX = Math.min(width - 1, x + r);
+  const minY = Math.max(0, y - r);
+  const maxY = Math.min(height - 1, y + r);
+  for (let yy = minY; yy <= maxY; yy += 1) {
+    for (let xx = minX; xx <= maxX; xx += 1) {
+      const dx = xx - x;
+      const dy = yy - y;
+      if (dx * dx + dy * dy <= r2) {
+        types[yy][xx] = 'lake';
+      }
     }
-    types[ny][nx] = 'lake';
   }
 }
 
@@ -625,6 +785,10 @@ function normalizeValleySettings(raw, defaults) {
   const fertileHeight = clamp(Number(raw.fertileHeight ?? 0.46), 0, 1);
   const fertileDistance = clamp(Math.floor(Number(raw.fertileDistance ?? 3)), 0, 10);
   const humidityDecay = Math.max(1, Number(raw.humidityDecay ?? 6));
+  const diagonalRaw = Number(raw.waterDistanceDiagonalWeight ?? 1);
+  const waterDistanceDiagonalWeight = Number.isFinite(diagonalRaw)
+    ? clamp(diagonalRaw, 0, 2)
+    : 1;
   const riverBias = raw.riverBias || {};
   const riverCount = clamp(Math.floor(Number(raw.riverCount ?? 1)), 1, 4);
   const riverSourceMinDistance = clamp(Math.floor(Number(raw.riverSourceMinDistance ?? 6)), 0, 50);
@@ -637,7 +801,45 @@ function normalizeValleySettings(raw, defaults) {
   const riverValleyDropAdjacent = Math.max(0, Number(raw.riverValleyDropAdjacent ?? 0.1));
   const lakeDepth = Math.max(0, Number(raw.lakeDepth ?? 0.02));
   const lakeThreshold = Math.max(0, Number(raw.lakeThreshold ?? 0.03));
+  const lakePatch = raw.lakePatch || {};
+  const lakePatchRadiusMinRaw = Number(lakePatch.radiusMin ?? 3);
+  const lakePatchRadiusMin = Number.isFinite(lakePatchRadiusMinRaw)
+    ? clamp(Math.floor(lakePatchRadiusMinRaw), 1, 10)
+    : 3;
+  const lakePatchRadiusMaxRaw = Number(lakePatch.radiusMax ?? 6);
+  const lakePatchRadiusMax = Number.isFinite(lakePatchRadiusMaxRaw)
+    ? clamp(Math.floor(lakePatchRadiusMaxRaw), lakePatchRadiusMin, 14)
+    : Math.max(lakePatchRadiusMin, 6);
+  const ponds = raw.ponds || {};
+  const pondsEnabled = ponds.enabled !== false;
+  const pondsCountRaw = Number(ponds.count ?? 2);
+  const pondsCount = Number.isFinite(pondsCountRaw) ? clamp(Math.floor(pondsCountRaw), 0, 6) : 2;
+  const pondsRadiusMinRaw = Number(ponds.radiusMin ?? 2);
+  const pondsRadiusMin = Number.isFinite(pondsRadiusMinRaw)
+    ? clamp(Math.floor(pondsRadiusMinRaw), 1, 8)
+    : 2;
+  const pondsRadiusMaxRaw = Number(ponds.radiusMax ?? 4);
+  const pondsRadiusMax = Number.isFinite(pondsRadiusMaxRaw)
+    ? clamp(Math.floor(pondsRadiusMaxRaw), pondsRadiusMin, 10)
+    : Math.max(pondsRadiusMin, 4);
+  const pondsBufferRaw = Number(ponds.buffer ?? 3);
+  const pondsBuffer = Number.isFinite(pondsBufferRaw)
+    ? clamp(Math.floor(pondsBufferRaw), 0, 12)
+    : 3;
+  const pondsHeightMaxRaw = Number(ponds.heightMax ?? 0.55);
+  const pondsHeightMax = Number.isFinite(pondsHeightMaxRaw)
+    ? clamp(pondsHeightMaxRaw, 0, 1)
+    : 0.55;
   const forest = raw.forest || {};
+  const forestNoiseScale = Math.max(0.01, Number(forest.noiseScale ?? 0.11));
+  const forestWaterDistanceMin = clamp(Math.floor(Number(forest.waterDistanceMin ?? 0)), 0, 10);
+  const forestWaterDistanceMaxRaw = clamp(Math.floor(Number(forest.waterDistanceMax ?? 4)), 0, 12);
+  const forestWaterDistanceMax = Math.max(forestWaterDistanceMin, forestWaterDistanceMaxRaw);
+  const forestWaterDistanceJitter = Math.max(0, Number(forest.waterDistanceJitter ?? 0));
+  const forestWaterDistanceNoiseScale = Math.max(
+    0.001,
+    Number(forest.waterDistanceNoiseScale ?? forestNoiseScale),
+  );
   const stone = raw.stone || {};
   const food = raw.food || {};
 
@@ -653,6 +855,7 @@ function normalizeValleySettings(raw, defaults) {
     fertileHeight,
     fertileDistance,
     humidityDecay,
+    waterDistanceDiagonalWeight,
     riverBias: {
       east: Number(riverBias.east ?? -0.02),
       south: Number(riverBias.south ?? -0.01),
@@ -667,11 +870,26 @@ function normalizeValleySettings(raw, defaults) {
     riverValleyDropAdjacent,
     lakeDepth,
     lakeThreshold,
+    lakePatch: {
+      radiusMin: lakePatchRadiusMin,
+      radiusMax: lakePatchRadiusMax,
+    },
+    ponds: {
+      enabled: pondsEnabled,
+      count: pondsCount,
+      radiusMin: pondsRadiusMin,
+      radiusMax: pondsRadiusMax,
+      buffer: pondsBuffer,
+      heightMax: pondsHeightMax,
+    },
     forest: {
       humidityMin: clamp(Number(forest.humidityMin ?? 0.43), 0, 1),
       heightMax: clamp(Number(forest.heightMax ?? 0.72), 0, 1),
-      waterDistanceMax: clamp(Math.floor(Number(forest.waterDistanceMax ?? 4)), 0, 12),
-      noiseScale: Math.max(0.01, Number(forest.noiseScale ?? 0.11)),
+      waterDistanceMin: forestWaterDistanceMin,
+      waterDistanceMax: forestWaterDistanceMax,
+      waterDistanceJitter: forestWaterDistanceJitter,
+      waterDistanceNoiseScale: forestWaterDistanceNoiseScale,
+      noiseScale: forestNoiseScale,
       noiseThreshold: clamp(Number(forest.noiseThreshold ?? 0.6), 0, 1),
       clusterPasses: clamp(Math.floor(Number(forest.clusterPasses ?? 2)), 0, 5),
     },
@@ -1393,40 +1611,130 @@ function normalizeHeightMap(map) {
 }
 
 // Function: computeDistanceToWater.
-function computeDistanceToWater(waterSet, width, height) {
+function computeDistanceToWater(waterSet, width, height, diagonalWeight) {
   const dist = Array.from({ length: height }, () => new Array(width).fill(Infinity));
-  const queue = [];
+  const diag = Number(diagonalWeight);
+  const useDiagonal = Number.isFinite(diag) && diag > 0;
+  if (!useDiagonal) {
+    const queue = [];
+    for (const key of waterSet) {
+      const [sx, sy] = key.split(',').map(Number);
+      if (Number.isFinite(sx) && Number.isFinite(sy)) {
+        dist[sy][sx] = 0;
+        queue.push({ x: sx, y: sy });
+      }
+    }
+    const dirs = [
+      { dx: 1, dy: 0 },
+      { dx: -1, dy: 0 },
+      { dx: 0, dy: 1 },
+      { dx: 0, dy: -1 },
+    ];
+    let idx = 0;
+    while (idx < queue.length) {
+      const { x, y } = queue[idx];
+      idx += 1;
+      for (const dir of dirs) {
+        const nx = x + dir.dx;
+        const ny = y + dir.dy;
+        if (nx < 0 || ny < 0 || nx >= width || ny >= height) {
+          continue;
+        }
+        const nd = dist[y][x] + 1;
+        if (nd < dist[ny][nx]) {
+          dist[ny][nx] = nd;
+          queue.push({ x: nx, y: ny });
+        }
+      }
+    }
+    return dist;
+  }
+
+  const heap = { items: [] };
   for (const key of waterSet) {
     const [sx, sy] = key.split(',').map(Number);
     if (Number.isFinite(sx) && Number.isFinite(sy)) {
       dist[sy][sx] = 0;
-      queue.push({ x: sx, y: sy });
+      heapPush(heap, { x: sx, y: sy, dist: 0 });
     }
   }
   const dirs = [
-    { dx: 1, dy: 0 },
-    { dx: -1, dy: 0 },
-    { dx: 0, dy: 1 },
-    { dx: 0, dy: -1 },
+    { dx: 1, dy: 0, cost: 1 },
+    { dx: -1, dy: 0, cost: 1 },
+    { dx: 0, dy: 1, cost: 1 },
+    { dx: 0, dy: -1, cost: 1 },
+    { dx: 1, dy: 1, cost: diag },
+    { dx: -1, dy: 1, cost: diag },
+    { dx: 1, dy: -1, cost: diag },
+    { dx: -1, dy: -1, cost: diag },
   ];
-  let idx = 0;
-  while (idx < queue.length) {
-    const { x, y } = queue[idx];
-    idx += 1;
+  while (heap.items.length > 0) {
+    const current = heapPop(heap);
+    if (!current) {
+      break;
+    }
+    if (current.dist !== dist[current.y][current.x]) {
+      continue;
+    }
     for (const dir of dirs) {
-      const nx = x + dir.dx;
-      const ny = y + dir.dy;
+      const nx = current.x + dir.dx;
+      const ny = current.y + dir.dy;
       if (nx < 0 || ny < 0 || nx >= width || ny >= height) {
         continue;
       }
-      const nd = dist[y][x] + 1;
+      const nd = current.dist + dir.cost;
       if (nd < dist[ny][nx]) {
         dist[ny][nx] = nd;
-        queue.push({ x: nx, y: ny });
+        heapPush(heap, { x: nx, y: ny, dist: nd });
       }
     }
   }
   return dist;
+}
+
+// Function: heapPush.
+function heapPush(heap, item) {
+  const items = heap.items;
+  let idx = items.length;
+  items.push(item);
+  while (idx > 0) {
+    const parent = Math.floor((idx - 1) / 2);
+    if (items[parent].dist <= item.dist) {
+      break;
+    }
+    items[idx] = items[parent];
+    idx = parent;
+  }
+  items[idx] = item;
+}
+
+// Function: heapPop.
+function heapPop(heap) {
+  const items = heap.items;
+  if (items.length === 0) {
+    return null;
+  }
+  const root = items[0];
+  const last = items.pop();
+  if (items.length === 0) {
+    return root;
+  }
+  let idx = 0;
+  while (true) {
+    const left = idx * 2 + 1;
+    if (left >= items.length) {
+      break;
+    }
+    const right = left + 1;
+    const smallest = right < items.length && items[right].dist < items[left].dist ? right : left;
+    if (items[smallest].dist >= last.dist) {
+      break;
+    }
+    items[idx] = items[smallest];
+    idx = smallest;
+  }
+  items[idx] = last;
+  return root;
 }
 
 // Function: buildValleyRiver.
