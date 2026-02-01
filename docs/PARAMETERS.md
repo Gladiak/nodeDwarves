@@ -438,6 +438,7 @@ Ruins exploration:
 - `ruins.expedition.failureCooldownTicks`: cooldown ticks after a failed expedition.
 - `ruins.expedition.partySizeMin`: minimum expedition party size.
 - `ruins.expedition.partySizeMax`: maximum expedition party size.
+- `ruins.expedition.maxConcurrentAfterClear`: max concurrent expeditions after all rooms are cleared (cooldown is ignored).
 - `ruins.expedition.minStockpileRatio.<resource>`: minimum stockpile ratios before expeditions start.
 - `ruins.expedition.failureLossMin`: minimum expedition casualties on failure.
 - `ruins.expedition.failureLossMax`: maximum expedition casualties on failure.

@@ -151,7 +151,7 @@ function createRuinsState(config) {
     enabled: true,
     roomsCleared: 0,
     roomCount: rooms.length,
-    expedition: null,
+    expeditions: [],
     cooldown: 0,
     artifactsFound: {},
     setCounts: {},

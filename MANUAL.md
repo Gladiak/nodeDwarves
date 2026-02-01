@@ -182,6 +182,8 @@ Notes:
   - Each room has `ruins.rooms[].expeditionTicks`.
   - Success applies `ruins.expedition.cooldownTicks`; failure applies `ruins.expedition.failureCooldownTicks`.
   - After all rooms are cleared, expeditions repeat the final room to finish artifact collections.
+  - Repeatable expeditions can run concurrently (up to `ruins.expedition.maxConcurrentAfterClear`) and
+    are limited by idle adults and resource costs rather than cooldowns.
   - Expeditions stop automatically once all artifacts in `ruins.artifacts.pool` are found.
 - Guardians and combat:
   - Guardian spawns with `ruins.rooms[].guardianChance`.

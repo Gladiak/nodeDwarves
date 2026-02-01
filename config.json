@@ -5,7 +5,7 @@
     "height": 28,
     "maxWidth": 200,
     "maxHeight": 40,
-    "tickMs": 200,
+    "tickMs": 20,
     "header": {
       "enabled": true,
       "height": 1,
@@ -1207,7 +1207,7 @@
       "workersPerArmory": 2,
       "kitTicks": 24,
       "kitOutput": 1,
-      "kitMax": 6,
+      "kitMax": 25,
       "kitCost": {
         "iron": 2,
         "wood": 1
@@ -1412,6 +1412,7 @@
       "failureCooldownTicks": 80,
       "partySizeMin": 3,
       "partySizeMax": 7,
+      "maxConcurrentAfterClear": 3,
       "minStockpileRatio": {
         "food": 0.6,
         "water": 0.6,
@@ -1609,7 +1610,11 @@
         "2": { "hazardReduction": 0.05 },
         "3": { "combatBonus": 0.1 },
         "4": { "artifactChanceBonus": 0.1, "casualtyReduction": 0.15 },
-        "5": { "combatBonus": 0.2, "hazardReduction": 0.1, "casualtyReduction": 0.25 }
+        "5": {
+          "combatBonus": 0.2,
+          "hazardReduction": 0.1,
+          "casualtyReduction": 0.25
+        }
       }
     },
     "comboBonuses": [

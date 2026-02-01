@@ -358,23 +358,47 @@ function buildRuinsHudLines(state, config, columnWidth) {
   const allArtifacts = areAllArtifactsFound(ruins, ruinsConfig);
   lines.push(`Rooms: ${cleared}/${rooms.length}`);
 
-  const expedition = ruins.expedition;
-  if (expedition && expedition.active) {
-    const roomNumber = Math.max(1, Number(expedition.roomIndex || 0) + 1);
-    const ticks = Math.max(0, Math.floor(Number(expedition.ticksRemaining || 0)));
-    const partySize = Array.isArray(expedition.dwarfIds) ? expedition.dwarfIds.length : 0;
-    lines.push(fitLine(`Expedition: R${roomNumber} t${ticks} p${partySize}`, columnWidth));
-  } else if (Number(ruins.cooldown || 0) > 0) {
+  const expeditionConfig = ruinsConfig.expedition || {};
+  const repeatable = cleared >= rooms.length && !allArtifacts;
+  const maxConcurrentAfterClear = Math.max(
+    1,
+    Math.floor(Number(expeditionConfig.maxConcurrentAfterClear || 1)),
+  );
+  let expeditions = Array.isArray(ruins.expeditions) ? ruins.expeditions : [];
+  if (expeditions.length === 0 && ruins.expedition && ruins.expedition.active) {
+    expeditions = [ruins.expedition];
+  }
+  expeditions = expeditions.filter((expedition) => expedition && expedition.active !== false);
+
+  if (expeditions.length > 0) {
+    if (repeatable) {
+      lines.push(fitLine(`Expeditions: ${expeditions.length}/${maxConcurrentAfterClear} active`, columnWidth));
+      const maxLines = Math.min(expeditions.length, maxConcurrentAfterClear);
+      for (let index = 0; index < maxLines; index += 1) {
+        const expedition = expeditions[index];
+        const roomNumber = Math.max(1, Number(expedition.roomIndex || 0) + 1);
+        const ticks = Math.max(0, Math.floor(Number(expedition.ticksRemaining || 0)));
+        const partySize = Array.isArray(expedition.dwarfIds) ? expedition.dwarfIds.length : 0;
+        lines.push(fitLine(`Expedition ${index + 1}: R${roomNumber} t${ticks} p${partySize}`, columnWidth));
+      }
+    } else {
+      const expedition = expeditions[0];
+      const roomNumber = Math.max(1, Number(expedition.roomIndex || 0) + 1);
+      const ticks = Math.max(0, Math.floor(Number(expedition.ticksRemaining || 0)));
+      const partySize = Array.isArray(expedition.dwarfIds) ? expedition.dwarfIds.length : 0;
+      lines.push(fitLine(`Expedition: R${roomNumber} t${ticks} p${partySize}`, columnWidth));
+    }
+  } else if (!repeatable && Number(ruins.cooldown || 0) > 0) {
     lines.push(fitLine(`Expedition: cooldown ${Math.floor(Number(ruins.cooldown || 0))}`, columnWidth));
   } else if (cleared >= rooms.length && allArtifacts) {
     lines.push("Expedition: complete");
   } else if (cleared >= rooms.length) {
-    lines.push("Expedition: repeatable");
+    lines.push(repeatable ? "Expeditions: repeatable" : "Expedition: repeatable");
   } else {
     lines.push("Expedition: ready");
   }
 
-  const kitResource = (ruinsConfig.expedition && ruinsConfig.expedition.kitResource) || "expedition_kit";
+  const kitResource = expeditionConfig.kitResource || "expedition_kit";
   const kits = Number(state.stockpile[kitResource] || 0);
   lines.push(`Kits: ${formatCompactNumber(kits)}`);
 

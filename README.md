@@ -70,6 +70,8 @@ The Ancient Dwarven Ruins are an end-game feature based on automated expeditions
 The colony sends parties of idle adults into the ruins (consuming kits and resources), and
 each success unlocks the next room. Once all rooms are cleared, expeditions repeat the
 final room until all artifacts are collected.
+After all rooms are cleared, up to 3 expeditions can run in parallel (configurable via
+`ruins.expedition.maxConcurrentAfterClear`), limited by idle adults and resource costs.
 
 Room structure (linear progression):
 

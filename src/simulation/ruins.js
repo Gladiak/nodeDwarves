@@ -23,14 +23,29 @@ function updateRuins(state, config, runtime) {
   if (!ruins.artifactsFound) {
     ruins.artifactsFound = {};
   }
+  if (!Array.isArray(ruins.expeditions)) {
+    ruins.expeditions = [];
+  }
+  if (ruins.expedition) {
+    if (ruins.expedition.active) {
+      ruins.expeditions.push(ruins.expedition);
+    }
+    ruins.expedition = null;
+  }
+  ruins.expeditions = ruins.expeditions.filter((expedition) => expedition && expedition.active !== false);
   const rooms = Array.isArray(ruinsConfig.rooms) ? ruinsConfig.rooms : [];
   ruins.roomCount = rooms.length;
   if (rooms.length === 0) {
     return;
   }
 
-  if (ruins.expedition && ruins.expedition.active) {
-    tickExpedition(state, config, ruinsConfig, rooms);
+  const hadActive = ruins.expeditions.length > 0;
+  if (hadActive) {
+    tickExpeditions(state, config, ruinsConfig, rooms);
+  }
+
+  const ignoreCooldown = shouldIgnoreCooldown(ruins, ruinsConfig, rooms);
+  if (hadActive && !ignoreCooldown) {
     return;
   }
 
@@ -38,15 +53,23 @@ function updateRuins(state, config, runtime) {
     ruins.cooldown = Math.max(0, Number(ruins.cooldown || 0) - 1);
   }
 
-  if (ruins.cooldown > 0) {
+  if (!ignoreCooldown && ruins.cooldown > 0) {
     return;
   }
 
-  if (!canStartExpedition(state, config, ruinsConfig, rooms)) {
+  const maxConcurrent = resolveMaxConcurrent(ruins, ruinsConfig, rooms);
+  let activeCount = ruins.expeditions.length;
+  if (activeCount >= maxConcurrent) {
     return;
   }
 
-  startExpedition(state, config, ruinsConfig, rooms);
+  while (activeCount < maxConcurrent) {
+    if (!canStartExpedition(state, config, ruinsConfig, rooms)) {
+      return;
+    }
+    startExpedition(state, config, ruinsConfig, rooms);
+    activeCount += 1;
+  }
 }
 
 function createDefaultRuinsState(ruinsConfig) {
@@ -55,7 +78,7 @@ function createDefaultRuinsState(ruinsConfig) {
     enabled: true,
     roomsCleared: 0,
     roomCount: rooms.length,
-    expedition: null,
+    expeditions: [],
     cooldown: 0,
     artifactsFound: {},
     setCounts: {},
@@ -178,28 +201,37 @@ function startExpedition(state, config, ruinsConfig, rooms) {
   }
 
   const ticks = Math.max(1, Number(room.expeditionTicks || 1));
-  state.ruins.expedition = {
+  const expedition = {
     active: true,
     roomIndex,
     ticksRemaining: ticks,
     dwarfIds,
     useMithril,
   };
+  state.ruins.expeditions = Array.isArray(state.ruins.expeditions) ? state.ruins.expeditions : [];
+  state.ruins.expeditions.push(expedition);
   state.ruins.stats.started = Number(state.ruins.stats.started || 0) + 1;
   pushEvent(state, config, `Ruins: expedition started (Room ${roomIndex + 1})`);
 }
 
-function tickExpedition(state, config, ruinsConfig, rooms) {
-  const expedition = state.ruins.expedition;
-  if (!expedition) {
+function tickExpeditions(state, config, ruinsConfig, rooms) {
+  const expeditions = Array.isArray(state.ruins.expeditions) ? state.ruins.expeditions : [];
+  if (expeditions.length === 0) {
     return;
   }
-  expedition.ticksRemaining = Number(expedition.ticksRemaining || 0) - 1;
-  if (expedition.ticksRemaining > 0) {
-    return;
+  const active = [];
+  for (const expedition of expeditions) {
+    if (!expedition || expedition.active === false) {
+      continue;
+    }
+    expedition.ticksRemaining = Number(expedition.ticksRemaining || 0) - 1;
+    if (expedition.ticksRemaining > 0) {
+      active.push(expedition);
+      continue;
+    }
+    resolveExpedition(state, config, ruinsConfig, rooms, expedition);
   }
-
-  resolveExpedition(state, config, ruinsConfig, rooms, expedition);
+  state.ruins.expeditions = active;
 }
 
 function resolveExpedition(state, config, ruinsConfig, rooms, expedition) {
@@ -300,7 +332,6 @@ function finishExpedition(state, config, ruinsConfig, expedition, success, reaso
     state.ruins.cooldown = cooldownTicks;
   }
 
-  state.ruins.expedition = null;
 }
 
 function resolveExpeditionLosses(state, ruinsConfig, expedition) {
@@ -515,6 +546,29 @@ function allArtifactsFound(ruinsConfig, ruinsState) {
     }
   }
   return true;
+}
+
+// Decide whether repeatable expeditions bypass cooldown gating.
+function shouldIgnoreCooldown(ruins, ruinsConfig, rooms) {
+  const cleared = Math.max(0, Number(ruins.roomsCleared || 0));
+  if (cleared < rooms.length) {
+    return false;
+  }
+  return !allArtifactsFound(ruinsConfig, ruins);
+}
+
+// Resolve concurrent expedition limit once the final room is repeatable.
+function resolveMaxConcurrent(ruins, ruinsConfig, rooms) {
+  const expeditionConfig = ruinsConfig.expedition || {};
+  const cleared = Math.max(0, Number(ruins.roomsCleared || 0));
+  if (cleared < rooms.length || allArtifactsFound(ruinsConfig, ruins)) {
+    return 1;
+  }
+  const raw = Number(expeditionConfig.maxConcurrentAfterClear || 1);
+  if (!Number.isFinite(raw)) {
+    return 1;
+  }
+  return Math.max(1, Math.floor(raw));
 }
 
 function getExpeditionAliveIds(state, expedition) {
