@@ -48,6 +48,7 @@ alive while you watch the chaos unfold in ASCII.
 - ♻️ Resource nodes have finite capacity and regenerate slowly.
 - 🌾 Fields regenerate based on water availability and seasonal limits.
 - 🌤️ Seasons apply modifiers to needs, gather speed, regen, and reproduction.
+- 🎨 Optional seasonal palettes recolor terrain in patchy waves during season transitions.
 - 🌧️ Weather cycles (clear, rain, storm, drought, cold) add extra modifiers.
 - 👪 Population is dynamic: dwarves age, form bonds, reproduce with gestation, and can die.
 - 🪵🪨 Wood and stone build clustered villages (center-out placement).

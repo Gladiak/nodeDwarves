@@ -130,7 +130,9 @@
       "plainSymbols": {
         "primary": "\"",
         "secondary": "ⁿ",
-        "primaryWeight": 0.75
+        "tertiary": "∞",
+        "primaryWeight": 0.75,
+        "secondaryWeight": 0.22
       },
       "riverSymbols": {
         "horizontal": "─",
@@ -164,6 +166,23 @@
         "terrain_food": "\u001b[93m",
         "terrain_forest": "\u001b[32m",
         "terrain_stone": "\u001b[37m",
+        "terrain_plain_spring": "\u001b[92m",
+        "terrain_plain_summer": "\u001b[32m",
+        "terrain_plain_autumn": "\u001b[33m",
+        "terrain_plain_winter": "\u001b[37m",
+        "terrain_fertile_spring": "\u001b[92m",
+        "terrain_fertile_summer": "\u001b[92m",
+        "terrain_fertile_autumn": "\u001b[93m",
+        "terrain_fertile_winter": "\u001b[97m",
+        "terrain_forest_spring": "\u001b[92m",
+        "terrain_forest_summer": "\u001b[32m",
+        "terrain_forest_autumn": "\u001b[33m",
+        "terrain_forest_winter": "\u001b[37m",
+        "terrain_food_spring": "\u001b[92m",
+        "terrain_food_summer": "\u001b[93m",
+        "terrain_food_autumn": "\u001b[93m",
+        "terrain_food_winter": "\u001b[97m",
+        "terrain_cherry": "\u001b[95m",
         "dwarf": "\u001b[93m",
         "merchant": "\u001b[96m",
         "hud_header": "\u001b[96m",
@@ -186,6 +205,57 @@
         "weather_storm": "\u001b[33m",
         "weather_drought": "\u001b[31m",
         "weather_cold": "\u001b[36m"
+      },
+      "seasonal": {
+        "enabled": true,
+        "types": ["plain", "fertile", "forest", "food", "grass"],
+        "palettes": {
+          "spring": {
+            "plain": "terrain_plain_spring",
+            "fertile": "terrain_fertile_spring",
+            "forest": "terrain_forest_spring",
+            "food": "terrain_food_spring",
+            "grass": "terrain_plain_spring",
+            "cherry": "terrain_cherry"
+          },
+          "summer": {
+            "plain": "terrain_plain_summer",
+            "fertile": "terrain_fertile_summer",
+            "forest": "terrain_forest_summer",
+            "food": "terrain_food_summer",
+            "grass": "terrain_plain_summer"
+          },
+          "autumn": {
+            "plain": "terrain_plain_autumn",
+            "fertile": "terrain_fertile_autumn",
+            "forest": "terrain_forest_autumn",
+            "food": "terrain_food_autumn",
+            "grass": "terrain_plain_autumn"
+          },
+          "winter": {
+            "plain": "terrain_plain_winter",
+            "fertile": "terrain_fertile_winter",
+            "forest": "terrain_forest_winter",
+            "food": "terrain_food_winter",
+            "grass": "terrain_plain_winter"
+          }
+        },
+        "patchy": {
+          "enabled": true,
+          "scale": 0.08,
+          "octaves": 2,
+          "persistence": 0.55,
+          "lacunarity": 2,
+          "seedOffset": 911
+        },
+        "cherry": {
+          "enabled": true,
+          "season": "spring",
+          "terrain": "forest",
+          "ratio": 0.2,
+          "noiseScale": 0.22,
+          "seedOffset": 1337
+        }
       }
     }
   },
