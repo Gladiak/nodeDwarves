@@ -355,6 +355,7 @@ function buildRuinsHudLines(state, config, columnWidth) {
 
   const lines = [];
   const cleared = Math.max(0, Number(ruins.roomsCleared || 0));
+  const allArtifacts = areAllArtifactsFound(ruins, ruinsConfig);
   lines.push(`Rooms: ${cleared}/${rooms.length}`);
 
   const expedition = ruins.expedition;
@@ -365,8 +366,10 @@ function buildRuinsHudLines(state, config, columnWidth) {
     lines.push(fitLine(`Expedition: R${roomNumber} t${ticks} p${partySize}`, columnWidth));
   } else if (Number(ruins.cooldown || 0) > 0) {
     lines.push(fitLine(`Expedition: cooldown ${Math.floor(Number(ruins.cooldown || 0))}`, columnWidth));
-  } else if (cleared >= rooms.length) {
+  } else if (cleared >= rooms.length && allArtifacts) {
     lines.push("Expedition: complete");
+  } else if (cleared >= rooms.length) {
+    lines.push("Expedition: repeatable");
   } else {
     lines.push("Expedition: ready");
   }
@@ -417,6 +420,21 @@ function buildArtifactProgressLines(ruins, ruinsConfig, columnWidth) {
   }
   const line = `Artifacts: ${entries.join(' ')}`;
   return wrapLine(line, columnWidth);
+}
+
+function areAllArtifactsFound(ruins, ruinsConfig) {
+  const pool = (ruinsConfig.artifacts && ruinsConfig.artifacts.pool) || {};
+  const entries = Object.keys(pool);
+  if (entries.length === 0) {
+    return true;
+  }
+  const found = ruins.artifactsFound || {};
+  for (const id of entries) {
+    if (!found[id]) {
+      return false;
+    }
+  }
+  return true;
 }
 
 function buildRuinsBonusLines(ruins, columnWidth) {

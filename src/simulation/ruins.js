@@ -42,10 +42,6 @@ function updateRuins(state, config, runtime) {
     return;
   }
 
-  if (ruins.roomsCleared >= rooms.length) {
-    return;
-  }
-
   if (!canStartExpedition(state, config, ruinsConfig, rooms)) {
     return;
   }
@@ -83,6 +79,9 @@ function createDefaultRuinsState(ruinsConfig) {
 function canStartExpedition(state, config, ruinsConfig, rooms) {
   const expeditionConfig = ruinsConfig.expedition || {};
   if (!hasStructure(state, 'ruins')) {
+    return false;
+  }
+  if (state.ruins.roomsCleared >= rooms.length && allArtifactsFound(ruinsConfig, state.ruins)) {
     return false;
   }
   if (expeditionConfig.requiresArmory && !hasStructure(state, 'armory')) {
@@ -501,6 +500,21 @@ function getIdleAdults(state, config) {
 
 function hasStructure(state, type) {
   return (state.structures || []).some((structure) => structure.type === type);
+}
+
+function allArtifactsFound(ruinsConfig, ruinsState) {
+  const pool = (ruinsConfig.artifacts && ruinsConfig.artifacts.pool) || {};
+  const entries = Object.keys(pool);
+  if (entries.length === 0) {
+    return true;
+  }
+  const found = ruinsState.artifactsFound || {};
+  for (const id of entries) {
+    if (!found[id]) {
+      return false;
+    }
+  }
+  return true;
 }
 
 function getExpeditionAliveIds(state, expedition) {
