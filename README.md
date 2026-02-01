@@ -103,6 +103,25 @@ Combo bonuses (between sets):
 - **Oath of Stone** (3 Forge + 3 Wardens): +6% output, +10% combat power.
 - **Dominion of the Ancients** (5 Forge + 5 Wardens): +10% output, +20% combat power, -10% hazard.
 
+## Simulation reset (endgame cycles) 🔁
+
+When the colony has completed the ruins, the simulation can reset on a brand new
+map to start a fresh cycle.
+
+Trigger prerequisites:
+
+- `endgame.enabled` is true.
+- All artifacts in `ruins.artifacts.pool` are found.
+- `endgame.minTicksAfterArtifacts` ticks have elapsed since the final artifact
+  was collected.
+
+When the reset fires:
+
+- A new map, terrain, nodes, structures, and stockpiles are generated.
+- Population resets to `endgame.resetPopulation` (if set).
+- Cycle stats are updated and shown in the HUD (`Cycles`, `Last cycle Ticks`).
+- Optional difficulty scaling applies per completed cycle (`endgame.difficulty`).
+
 ## Job system and priorities ⚙️
 
 - 🧭 Shortages are sorted by severity (missing/target ratio).
@@ -320,6 +339,7 @@ Houses always render with `symbols.house`, while the HUD lists house levels with
     ├── runtime.js                # Terminal sizing and layout
     ├── simulation                # Simulation modules
     │   ├── dwarf_actions.js
+    │   ├── endgame.js
     │   ├── events.js
     │   ├── index.js
     │   ├── jobs.js

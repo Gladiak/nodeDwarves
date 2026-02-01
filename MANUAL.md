@@ -173,6 +173,7 @@ Notes:
 
 - `endgame.js`
   - Resets the simulation after all artifacts are collected and a configurable delay has passed.
+  - Trigger uses `endgame.minTicksAfterArtifacts` since the last artifact completion.
   - Tracks completed cycles and scales difficulty per cycle (optional).
 
 ### Ruins and expeditions
