@@ -9,13 +9,20 @@ const {
   findNearbyWalkablePosition,
 } = require('./movement');
 const { randomBetween } = require('./random');
-const { isWalkableTile, isTerrainResourceTile, pickTerrainResourceTarget } = require('./terrain');
+const {
+  isWalkableTile,
+  isTerrainResourceTile,
+  pickTerrainResourceTarget,
+  getTerrainCooldownTicks,
+  applyTerrainCooldown,
+} = require('./terrain');
 const { createStructure, getHouseMaxLevel, getHouseCapacity, isBuildableCell } = require('./structures');
 const {
   createResourceNode,
   getGatherYield,
   getToolMultiplier,
   shouldPauseBrewing,
+  shouldIgnoreTerrainCooldown,
   hasInputs,
   consumeInputs,
   applyOutputs,
@@ -226,10 +233,11 @@ function processDwarfJob(dwarf, state, config, runtime) {
       targetY = clamp(targetNode.y, 0, runtime.gridHeight - 1);
       job.target = { x: targetX, y: targetY };
     } else if (config.resources && config.resources.useTerrainTiles === true) {
-      if (!isTerrainResourceTile(state, config, job.resource, targetX, targetY)) {
+      const ignoreCooldown = shouldIgnoreTerrainCooldown(state, config, job.resource);
+      if (!isTerrainResourceTile(state, config, job.resource, targetX, targetY, { ignoreCooldown })) {
         const home = getDwarfHomePosition(dwarf, state);
         const anchor = home || dwarf || null;
-        const newTarget = pickTerrainResourceTarget(state, config, job.resource, anchor);
+        const newTarget = pickTerrainResourceTarget(state, config, job.resource, anchor, { ignoreCooldown });
         if (!newTarget) {
           removeJob(state, job.id);
           dwarf.job = null;
@@ -508,6 +516,12 @@ function processDwarfJob(dwarf, state, config, runtime) {
     targetNode.remaining = Math.max(0, Number(targetNode.remaining || 0) - amount);
     if (targetNode.remaining <= 0 && (removeDepleted || !regenEnabled)) {
       removeNode(state, targetNode.nodeId);
+    }
+  }
+  if (!targetNode && config.resources && config.resources.useTerrainTiles === true) {
+    const cooldownTicks = getTerrainCooldownTicks(config, job.resource);
+    if (cooldownTicks > 0) {
+      applyTerrainCooldown(state, targetX, targetY, cooldownTicks);
     }
   }
   removeJob(state, job.id);

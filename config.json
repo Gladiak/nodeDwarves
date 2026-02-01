@@ -89,6 +89,7 @@
           "humidityMin": 0.4,
           "waterDistanceMax": 3,
           "minTiles": 32,
+          "minTilesWaterDistanceMax": 6,
           "noiseScale": 0.12,
           "noiseThreshold": 0.68,
           "clusterPasses": 2
@@ -128,6 +129,11 @@
         "radiusMax": 7,
         "shoreWidth": 1,
         "buffer": 3
+      },
+      "minimumTiles": {
+        "food": 64,
+        "mountain": 40,
+        "stone": 24
       },
       "symbols": {
         "river": "─",
@@ -227,7 +233,7 @@
       },
       "seasonal": {
         "enabled": true,
-        "types": ["plain", "fertile", "forest", "food", "grass"],
+        "types": ["plain", "fertile", "forest", "grass"],
         "palettes": {
           "spring": {
             "plain": "terrain_plain_spring",
@@ -287,17 +293,17 @@
     "seasonNames": ["spring", "autumn"],
     "durationTicks": 100,
     "chance": {
-      "min": 0.15,
-      "max": 0.35
+      "min": 0.22,
+      "max": 0.45
     },
     "minPopulation": 10,
     "minTick": 400,
     "minSeasonsBetween": 1,
     "defenseAdults": 30,
-    "defenseMax": 0.75,
+    "defenseMax": 0.6,
     "deathRate": {
-      "min": 0.35,
-      "max": 0.65
+      "min": 0.4,
+      "max": 0.7
     },
     "resourceLoss": {
       "min": 0.04,
@@ -306,7 +312,9 @@
         "food": 1,
         "water": 1,
         "wood": 0.5,
-        "stone": 0.25
+        "stone": 0.25,
+        "beer": 0.4,
+        "iron": 0.4
       }
     },
     "beasts": {
@@ -429,6 +437,9 @@
         "merchant": {
           "enabled": false
         },
+        "endgame": {
+          "enabled": false
+        },
         "needs": {
           "decayPerTick": {
             "hunger": 0.0022,
@@ -514,6 +525,9 @@
         },
         "merchant": {
           "enabled": true
+        },
+        "endgame": {
+          "enabled": false
         },
         "needs": {
           "decayPerTick": {
@@ -890,6 +904,16 @@
   "simulation": {
     "maxTicks": 0
   },
+  "endgame": {
+    "enabled": true,
+    "resetPopulation": 30,
+    "minTicksAfterArtifacts": 1000,
+    "difficulty": {
+      "enabled": true,
+      "perCycle": 0.08,
+      "maxMultiplier": 1.6
+    }
+  },
   "dwarves": {
     "count": 12
   },
@@ -913,8 +937,28 @@
       "stone": 6
     },
     "targetsPerCapita": {
+      "food": 0.6,
+      "water": 0.5,
+      "wood": 0.08,
+      "stone": 0.06
+    },
+    "decayPerTick": {
+      "food": 0.00005,
+      "water": 0.00005,
+      "beer": 0.00015,
+      "wood": 0.00003,
+      "stone": 0.00003
+    },
+    "terrainCooldownTicks": {
+      "default": 70,
+      "food": 40,
+      "water": 55,
+      "wood": 80,
+      "stone": 100
+    },
+    "terrainCooldownCriticalRatio": {
       "food": 0.35,
-      "water": 0.3
+      "water": 0.35
     },
     "labels": {
       "food": "Food",
@@ -1065,8 +1109,8 @@
       "capacity": 1,
       "nodeCapacity": 32,
       "maxCount": 6,
-      "buildWhenNodeRatioBelow": 0.4,
-      "buildWhenStockpileRatioBelow": 0.55,
+      "buildWhenNodeRatioBelow": 0.55,
+      "buildWhenStockpileRatioBelow": 0.7,
       "skipWhenTerrainWaterWithin": 10,
       "criticalStockpileRatio": 0.2,
       "buildMinRadius": 6,
@@ -1106,13 +1150,13 @@
       "capacity": 1,
       "nodeCapacity": 32,
       "maxCount": 14,
-      "buildWhenNodeRatioBelow": 0.4,
-      "buildWhenStockpileRatioBelow": 0.45,
+      "buildWhenNodeRatioBelow": 0.55,
+      "buildWhenStockpileRatioBelow": 0.6,
       "buildMinRadius": 4,
       "buildOuterBuffer": 2,
       "buildMinResources": {
         "food": 0.45,
-        "water": 0.7
+        "water": 0.6
       },
       "allowForestWhenPlainBelow": 1,
       "irrigationMinMultiplier": 0.55,
@@ -1160,11 +1204,11 @@
         "iron": 6
       },
       "outputPerTick": {
-        "wood": 0.5
+        "wood": 0.35
       },
       "levelMax": 10,
       "levelBonusMin": 0.02,
-      "levelBonusMax": 0.2,
+      "levelBonusMax": 0.15,
       "levelBonusExponent": 2,
       "upgradeTicks": 40,
       "upgradeCostScale": 1.25,
@@ -1283,8 +1327,8 @@
     "brewery": {
       "count": 0,
       "capacity": 1,
-      "workersPerBrewery": 4,
-      "maxCount": 4,
+      "workersPerBrewery": 3,
+      "maxCount": 3,
       "buildMinRadius": 2,
       "buildOuterBuffer": 1,
       "buildTicks": 70,
@@ -1293,13 +1337,13 @@
         "stone": 12
       },
       "outputPerTick": {
-        "beer": 1.5
+        "beer": 1
       },
-      "foodCostPerTick": 0.05,
-      "pauseWhenFoodRatioBelow": 0.45,
+      "foodCostPerTick": 0.1,
+      "pauseWhenFoodRatioBelow": 0.6,
       "levelMax": 10,
       "levelBonusMin": 0.05,
-      "levelBonusMax": 0.5,
+      "levelBonusMax": 0.35,
       "levelBonusExponent": 2,
       "foodCostReductionMin": 0,
       "foodCostReductionMax": 0.25,
@@ -1327,12 +1371,12 @@
         "stone": 10
       },
       "outputPerTick": {
-        "iron": 0.08,
-        "stone": 0.165
+        "iron": 0.06,
+        "stone": 0.12
       },
       "levelMax": 10,
       "levelBonusMin": 0.02,
-      "levelBonusMax": 0.2,
+      "levelBonusMax": 0.15,
       "levelBonusExponent": 2,
       "upgradeTicks": 50,
       "upgradeCostScale": 1.25,
@@ -1647,7 +1691,7 @@
     "initialLevel": 1,
     "maxLevel": 10,
     "bonusMin": 0.003,
-    "bonusMax": 0.1,
+    "bonusMax": 0.06,
     "bonusExponent": 2,
     "upgradeTicks": 45,
     "upgradeBaseCost": {
@@ -1675,6 +1719,7 @@
     },
     "stayTicks": 20,
     "maxTradesPerVisit": 10,
+    "neverGive": ["food", "water"],
     "reserveRatio": 0.7,
     "tradeRate": {
       "give": 1,
@@ -1769,18 +1814,22 @@
     "reproduction": {
       "enabled": true,
       "gestationTicks": 50,
-      "baseChance": 0.0085,
-      "cooldownTicks": 60,
+      "baseChance": 0.005,
+      "cooldownTicks": 70,
       "resourcePerCapita": {
-        "food": 0.6,
-        "water": 0.6
+        "food": 0.65,
+        "water": 0.65
       },
-      "softCap": 48,
-      "crowdingMinFactor": 0.6,
+      "softCap": 300,
+      "crowdingMinFactor": 0.1,
       "moraleInfluence": 0.35,
       "birthCost": {
-        "food": 0.3,
-        "water": 0.3
+        "food": 0.55,
+        "water": 0.55
+      },
+      "minStockpileRatio": {
+        "food": 0.6,
+        "water": 0.6
       }
     },
     "death": {
@@ -1920,26 +1969,25 @@
     }
   },
   "consumption": {
-    "hungerThreshold": 0.3,
-    "thirstThreshold": 0.22,
+    "hungerThreshold": 0.34,
+    "thirstThreshold": 0.26,
     "hungerTarget": 0.3,
     "thirstTarget": 0.2,
     "maxUnitsPerTick": 1,
-    "rawFoodRelief": 0.35,
-    "waterRelief": 0.35,
+    "rawFoodRelief": 0.32,
+    "waterRelief": 0.32,
     "beerRelief": 0.5,
     "beerReserveBase": 8,
     "beerReservePerCapita": 0.04,
     "beerMinReserveRatio": 0.2,
-    "beerMoraleGain": 0.16,
-    "beerMoraleDecayPerTick": 0.0015,
-    "beerMoraleMax": 0.42,
-    "beerProductionBonusMax": 0.6,
+    "beerMoraleGain": 0.09,
+    "beerMoraleDecayPerTick": 0.0035,
+    "beerMoraleMax": 0.28,
+    "beerProductionBonusMax": 0.25,
     "beerProductionBonusExponent": 1.8,
     "beerProductionApplyTo": [
       "food",
       "water",
-      "beer",
       "wood",
       "stone",
       "iron",
@@ -1962,8 +2010,8 @@
     "defaultGatherTicks": 6,
     "defaultGatherYield": 1,
     "gatherTicks": {
-      "food": 5,
-      "water": 3,
+      "food": 4,
+      "water": 2,
       "wood": 6,
       "stone": 7
     },
@@ -1972,6 +2020,10 @@
       "water": 2,
       "wood": 1,
       "stone": 1
+    },
+    "gatherTriggerRatio": {
+      "food": 1.15,
+      "water": 1.15
     },
     "buildQueue": {
       "maxConcurrent": 2,

@@ -19,13 +19,16 @@ const { updateBrewmasters, updateRoles } = require('./roles');
 const { assignJobs } = require('./jobs');
 const { processDwarfAction } = require('./dwarf_actions');
 const { updateMerchant } = require('./merchant');
-const { updateHouseStorage, regenerateNodes } = require('./resources');
+const { updateHouseStorage, regenerateNodes, applyStockpileDecay } = require('./resources');
+const { tickTerrainCooldowns } = require('./terrain');
 const { updateRuins } = require('./ruins');
+const { updateEndgameDifficulty, maybeHandleEndgameReset } = require('./endgame');
 
 // Advance the simulation by one tick.
 function stepState(state, config, runtime, action) {
   state.lastConfig = config;
   state.tick += 1;
+  const endgameDifficulty = updateEndgameDifficulty(state, config);
   updateSeason(state, config);
   updateWeather(state, config);
   updateRaidStart(state, config, runtime);
@@ -38,7 +41,10 @@ function stepState(state, config, runtime, action) {
     applyNeedDecay(
       dwarf,
       config.needs.decayPerTick || {},
-      getSeasonModifier(state, 'needDecay', 1) * housingPenalty.needDecay * weatherNeedMultiplier,
+      getSeasonModifier(state, 'needDecay', 1)
+        * housingPenalty.needDecay
+        * weatherNeedMultiplier
+        * endgameDifficulty,
       weatherNeedByNeed,
     );
     consumeResources(dwarf, state, config);
@@ -61,9 +67,12 @@ function stepState(state, config, runtime, action) {
   }
 
   updateMerchant(state, config, runtime);
+  applyStockpileDecay(state, config);
+  tickTerrainCooldowns(state);
   updateHouseStorage(state, config);
   regenerateNodes(state, config);
   updateRaidTick(state, config, runtime);
+  maybeHandleEndgameReset(state, config, runtime);
 }
 
 module.exports = { stepState };

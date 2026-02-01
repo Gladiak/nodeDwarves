@@ -145,10 +145,15 @@ function buildHudColumns(state, config, columnWidth, options = {}) {
     }
     lines.push(header(label));
   };
+  const cycleStats = state.cycleStats || {};
+  const cycleCount = Math.max(0, Number(cycleStats.count || 0));
+  const lastCycleTicks = Math.max(0, Number(cycleStats.lastTicks || 0));
 
   const left = [];
   pushSection(left, "World");
   left.push(`Tick: ${state.tick}`);
+  left.push(`Cycles: ${cycleCount}`);
+  left.push(`Last cycle Ticks: ${lastCycleTicks}`);
   left.push(`Year ${yearLabel}, Season ${seasonLabel}`);
   left.push(`Weather: ${formatWeatherStatus(state.weather, colors)}`);
   left.push(`Event: ${lastEvent}`);

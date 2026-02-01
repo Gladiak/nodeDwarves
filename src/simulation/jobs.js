@@ -896,6 +896,27 @@ function getActionWeights(action, config) {
   return weights;
 }
 
+// Resolve the gather trigger ratio for a resource (multiplies the stockpile target).
+function getGatherTriggerRatio(config, resourceId) {
+  const jobsConfig = (config && config.jobs) || {};
+  const trigger = jobsConfig.gatherTriggerRatio;
+  if (Number.isFinite(trigger)) {
+    return Math.max(0, Number(trigger));
+  }
+  if (!trigger || typeof trigger !== "object") {
+    return 1;
+  }
+  const specific = trigger[resourceId];
+  const fallback = trigger.default ?? trigger.all;
+  if (Number.isFinite(specific)) {
+    return Math.max(0, Number(specific));
+  }
+  if (Number.isFinite(fallback)) {
+    return Math.max(0, Number(fallback));
+  }
+  return 1;
+}
+
 // Compute shortage list sorted by urgency.
 function computeShortages(state, targets, weights, config) {
   const shortages = [];
@@ -910,10 +931,12 @@ function computeShortages(state, targets, weights, config) {
     }
 
     const current = Number(stockpile[resource] || 0);
-    const missing = target - current;
+    const triggerRatio = getGatherTriggerRatio(config, resource);
+    const effectiveTarget = target * triggerRatio;
+    const missing = effectiveTarget - current;
 
     if (missing > 0) {
-      const ratio = missing / target;
+      const ratio = effectiveTarget > 0 ? missing / effectiveTarget : 0;
       const stockpileRatio = clamp(current / target, 0, 1);
       const weightRaw =
         weights && weights[resource] !== undefined ? weights[resource] : 1;

@@ -57,6 +57,7 @@ function createCoastTerrain(runtime, settings, seed) {
   applyCoast(types, settings, seed);
   applyLakes(types, settings, rng);
   applyRivers(types, settings, rng);
+  ensureMinimumTerrainTiles(types, null, null, null, settings, rng);
   const walkable = buildWalkableMap(types, settings.walkable);
   const spawnable = buildSpawnableMap(walkable);
 
@@ -250,6 +251,7 @@ function createValleyTerrain(runtime, settings, seed) {
   }
 
   ensureValleyTerrainCoverage(types, baseTypes, carved, dist, riverInfo, valley, rng);
+  ensureMinimumTerrainTiles(types, baseTypes, carved, dist, settings, rng);
 
   const walkable = buildWalkableMap(types, settings.walkable);
   const spawnable = buildSpawnableMap(walkable);
@@ -528,9 +530,12 @@ function addPondCells(pondSet, x, y, radius, width, height) {
 }
 
 // Function: ensureMinimumFoodTiles.
-function ensureMinimumFoodTiles(types, baseTypes, dist, valley, rng, counts) {
+function ensureMinimumFoodTiles(types, baseTypes, dist, valley, rng, counts, minOverride) {
   const foodConfig = valley.food || {};
-  const minTiles = Math.max(0, Math.floor(Number(foodConfig.minTiles ?? 0)));
+  const minTiles = Math.max(
+    0,
+    Math.floor(Number(minOverride ?? foodConfig.minTiles ?? 0)),
+  );
   if (minTiles <= 0) {
     return;
   }
@@ -543,21 +548,33 @@ function ensureMinimumFoodTiles(types, baseTypes, dist, valley, rng, counts) {
     : Math.max(0, Math.floor(foodConfig.waterDistanceMax ?? 0));
   const height = types.length;
   const width = height > 0 ? types[0].length : 0;
-  const candidates = [];
-  for (let y = 0; y < height; y += 1) {
-    for (let x = 0; x < width; x += 1) {
-      if (baseTypes[y][x] !== 'plain' && baseTypes[y][x] !== 'fertile') {
-        continue;
+  const collectCandidates = (distanceLimit) => {
+    const list = [];
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        if (baseTypes[y][x] !== 'plain' && baseTypes[y][x] !== 'fertile') {
+          continue;
+        }
+        const type = types[y][x];
+        if (type === 'river'
+          || type === 'lake'
+          || type === 'mountain'
+          || type === 'forest'
+          || type === 'stone') {
+          continue;
+        }
+        if (Number.isFinite(distanceLimit) && dist[y][x] > distanceLimit) {
+          continue;
+        }
+        list.push({ x, y });
       }
-      const type = types[y][x];
-      if (type === 'river' || type === 'lake' || type === 'mountain' || type === 'forest' || type === 'stone') {
-        continue;
-      }
-      if (dist[y][x] > maxDist) {
-        continue;
-      }
-      candidates.push({ x, y });
     }
+    return list;
+  };
+
+  let candidates = collectCandidates(maxDist);
+  if (candidates.length < minTiles) {
+    candidates = collectCandidates(null);
   }
   if (candidates.length === 0) {
     return;
@@ -569,6 +586,152 @@ function ensureMinimumFoodTiles(types, baseTypes, dist, valley, rng, counts) {
     types[cell.y][cell.x] = 'food';
   }
   counts.food = current + needed;
+}
+
+// Ensure minimum counts for key terrain types.
+function ensureMinimumTerrainTiles(types, baseTypes, heights, dist, settings, rng) {
+  const minimums = settings && settings.minimumTiles ? settings.minimumTiles : null;
+  if (!minimums || typeof minimums !== 'object') {
+    return;
+  }
+
+  let counts = countTerrainTypes(types);
+
+  const minFood = Math.max(0, Math.floor(Number(minimums.food ?? 0)));
+  if (minFood > 0 && baseTypes && dist) {
+    ensureMinimumFoodTiles(types, baseTypes, dist, settings.valley || {}, rng, counts, minFood);
+    counts = countTerrainTypes(types);
+  }
+
+  const minStone = Math.max(0, Math.floor(Number(minimums.stone ?? 0)));
+  if (minStone > 0) {
+    ensureMinimumStoneTiles(types, heights, counts, minStone, rng);
+    counts = countTerrainTypes(types);
+  }
+
+  const minMountain = Math.max(0, Math.floor(Number(minimums.mountain ?? 0)));
+  if (minMountain > 0) {
+    ensureMinimumMountainTiles(types, heights, counts, minMountain, rng);
+  }
+}
+
+function buildTerrainCandidateList(types, heights, predicate, rng) {
+  const height = types.length;
+  const width = height > 0 ? types[0].length : 0;
+  const candidates = [];
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const type = types[y][x];
+      if (predicate && !predicate(type, x, y)) {
+        continue;
+      }
+      const score = heights && heights[y] ? Number(heights[y][x] || 0) : 0;
+      candidates.push({ x, y, score });
+    }
+  }
+  if (heights && heights.length > 0) {
+    candidates.sort((a, b) => b.score - a.score);
+  } else {
+    shuffleInPlace(candidates, rng);
+  }
+  return candidates;
+}
+
+function ensureMinimumMountainTiles(types, heights, counts, minTiles, rng) {
+  const current = Number(counts.mountain || 0);
+  if (current >= minTiles) {
+    return;
+  }
+  const needed = minTiles - current;
+  const isWater = (type) => type === 'river' || type === 'lake' || type === 'water' || type === 'shore';
+  const basePredicate = (type) => !isWater(type) && type !== 'mountain' && type !== 'stone';
+
+  let placed = 0;
+  const primary = buildTerrainCandidateList(
+    types,
+    heights,
+    (type) => basePredicate(type) && type !== 'food' && type !== 'forest',
+    rng,
+  );
+  for (const cell of primary) {
+    types[cell.y][cell.x] = 'mountain';
+    placed += 1;
+    if (placed >= needed) {
+      return;
+    }
+  }
+
+  const fallback = buildTerrainCandidateList(types, heights, basePredicate, rng);
+  for (const cell of fallback) {
+    if (types[cell.y][cell.x] === 'mountain') {
+      continue;
+    }
+    types[cell.y][cell.x] = 'mountain';
+    placed += 1;
+    if (placed >= needed) {
+      return;
+    }
+  }
+}
+
+function ensureMinimumStoneTiles(types, heights, counts, minTiles, rng) {
+  const current = Number(counts.stone || 0);
+  if (current >= minTiles) {
+    return;
+  }
+  let remaining = minTiles - current;
+
+  const mountainCandidates = buildTerrainCandidateList(
+    types,
+    heights,
+    (type) => type === 'mountain',
+    rng,
+  );
+  for (const cell of mountainCandidates) {
+    types[cell.y][cell.x] = 'stone';
+    remaining -= 1;
+    if (remaining <= 0) {
+      return;
+    }
+  }
+
+  const isWater = (type) => type === 'river' || type === 'lake' || type === 'water' || type === 'shore';
+  const primaryFallback = buildTerrainCandidateList(
+    types,
+    heights,
+    (type) => !isWater(type)
+      && type !== 'stone'
+      && type !== 'food'
+      && type !== 'forest',
+    rng,
+  );
+  for (const cell of primaryFallback) {
+    if (types[cell.y][cell.x] === 'stone') {
+      continue;
+    }
+    types[cell.y][cell.x] = 'stone';
+    remaining -= 1;
+    if (remaining <= 0) {
+      return;
+    }
+  }
+
+  const finalFallback = buildTerrainCandidateList(
+    types,
+    heights,
+    (type) => !isWater(type) && type !== 'stone',
+    rng,
+  );
+  for (const cell of finalFallback) {
+    if (types[cell.y][cell.x] === 'stone') {
+      continue;
+    }
+    types[cell.y][cell.x] = 'stone';
+    remaining -= 1;
+    if (remaining <= 0) {
+      return;
+    }
+  }
 }
 
 // Function: countTerrainTypes.
@@ -687,6 +850,7 @@ function normalizeTerrainSettings(terrainConfig) {
     thresholds: normalizeTerrainThresholds(terrainConfig.thresholds || {}),
     walkable: normalizeWalkableSettings(terrainConfig.walkable || {}),
     symbols: normalizeTerrainSymbols(terrainConfig.symbols || {}),
+    minimumTiles: normalizeMinimumTiles(terrainConfig.minimumTiles || {}),
   };
 }
 
@@ -716,6 +880,22 @@ function normalizeTerrainSymbols(raw) {
     stone: pickSymbol(raw.stone, '*'),
     mountain: pickSymbol(raw.mountain, '^'),
   };
+}
+
+function normalizeMinimumTiles(raw) {
+  if (!raw || typeof raw !== 'object') {
+    return {};
+  }
+  const keys = ['food', 'mountain', 'stone'];
+  const normalized = {};
+  for (const key of keys) {
+    const value = Number(raw[key]);
+    if (!Number.isFinite(value)) {
+      continue;
+    }
+    normalized[key] = Math.max(0, Math.floor(value));
+  }
+  return normalized;
 }
 
 // Function: normalizeCoastSettings.

@@ -30,8 +30,10 @@ The tick order in code lives in `src/simulation/index.js`.
 6. Assign jobs (`jobs.js`).
 7. Move and perform actions (`dwarf_actions.js`).
 8. Merchant update (`merchant.js`).
-9. House storage + node regen (`resources.js`).
-10. Raid tick update (`raids.js`).
+9. Stockpile decay + terrain cooldown tick (`resources.js`, `terrain.js`).
+10. House storage + node regen (`resources.js`).
+11. Raid tick update (`raids.js`).
+12. Endgame cycle check (`endgame.js`).
 
 **Tick flow diagram**
 
@@ -45,10 +47,12 @@ flowchart TD
   F --> G[Assign jobs]
   G --> H[Process dwarf actions]
   H --> I[Merchant update]
-  I --> J[House storage + node regen]
-  J --> K[Raid tick update]
-  K --> L[Render frame]
-  L --> M[Wait tickMs, next tick]
+  I --> J[Stockpile decay + terrain cooldown]
+  J --> K[House storage + node regen]
+  K --> L[Raid tick update]
+  L --> M[Endgame cycle check]
+  M --> N[Render frame]
+  N --> O[Wait tickMs, next tick]
 ```
 
 Notes:
@@ -90,6 +94,7 @@ Notes:
     - `spawnable` map
   - Valley mode can sprinkle extra ponds (`display.terrain.valley.ponds`) that count as lake water for humidity and gathering.
   - Forest edges near water can be softened with distance jitter and a shoreline buffer via `display.terrain.valley.forest`.
+  - Minimum terrain tile counts (food/mountain/stone) can be enforced with `display.terrain.minimumTiles`.
   - Terrain affects movement, spawn rules, and (optionally) resource gathering.
 
 ## 5) Simulation systems (what lives in `src/simulation/`)
@@ -98,8 +103,9 @@ Notes:
 
 - `population.js`
   - Aging, life stages, needs, morale, stress.
-  - Beer consumption is driven by thirst thresholds and reserve ratios; defaults now drink a bit earlier and grant a stronger high-morale bonus.
+- Beer consumption is driven by thirst thresholds and reserve ratios; defaults cap the morale boost and production bonus to prevent runaway loops.
   - Housing assignment, couple co-housing, reproduction flow, and death handling.
+  - Reproduction can be gated by minimum stockpile ratios to prevent boom-bust cycles.
   - Winter penalties are tied to housing coverage.
 
 ### Jobs and economy
@@ -110,6 +116,7 @@ Notes:
   - Build jobs can be parallelized with `jobs.buildQueue` while idle builders exist.
   - Supports role-based scheduling (builder/gatherer/manager/brewmaster).
   - Optional AI action weights can bias priority order.
+  - Gather trigger ratios can multiply targets to start gathering earlier for key resources.
 
 ### Dwarf actions
 
@@ -132,6 +139,7 @@ Notes:
   - Node regeneration (season + weather modifiers).
   - Field irrigation logic based on water stockpile.
   - House storage buffers and decay rules.
+  - Stockpile decay and terrain gathering cooldowns (with critical shortage bypass).
 
 ### Structures and building
 
@@ -160,6 +168,12 @@ Notes:
 - `raids.js`
   - Seasonal wildlife raids (optional, config-driven).
   - Spawns beasts, applies deaths and loot loss, and logs events.
+
+### Endgame cycles
+
+- `endgame.js`
+  - Resets the simulation after all artifacts are collected and a configurable delay has passed.
+  - Tracks completed cycles and scales difficulty per cycle (optional).
 
 ### Ruins and expeditions
 
@@ -290,7 +304,7 @@ Policies are saved as JSON in `models/` so JS inference stays dependency-free.
 - `population`: needs decay, aging, housing rules, reproduction, roles, pathing.
 - `seasons` + `weather`: cycle durations and modifiers.
 - `raids`: wildlife raid settings.
-- `merchant`: spawn cadence and trade behavior.
+- `merchant`: spawn cadence and trade behavior (including `neverGive` exclusions).
 - `ai`: runtime policy + training defaults.
 
 See `docs/PARAMETERS.md` for a full reference.
@@ -370,6 +384,7 @@ This section is intentionally detailed so adding resources is painless.
 
 - `jobs.gatherTicks.<id>`: how long each gather takes.
 - `jobs.gatherYield.<id>`: how much is produced per gather.
+- `jobs.gatherTriggerRatio.<id>`: multiplier applied to targets when computing shortages.
 
 **Visuals** (highly recommended):
 

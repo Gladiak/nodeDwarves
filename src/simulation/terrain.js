@@ -111,6 +111,83 @@ function ensureTerrainIndex(state) {
   return state.terrainIndex;
 }
 
+// Resolve the cooldown ticks for terrain gathering, allowing per-resource overrides.
+function getTerrainCooldownTicks(config, resourceId) {
+  const resources = config && config.resources ? config.resources : {};
+  const cooldown = resources.terrainCooldownTicks;
+  if (cooldown === undefined || cooldown === null) {
+    return 0;
+  }
+  if (Number.isFinite(cooldown)) {
+    return Math.max(0, Math.floor(Number(cooldown)));
+  }
+  if (typeof cooldown !== 'object') {
+    return 0;
+  }
+  const specific = cooldown && resourceId ? cooldown[resourceId] : undefined;
+  if (Number.isFinite(specific)) {
+    return Math.max(0, Math.floor(Number(specific)));
+  }
+  const fallback = cooldown.default ?? cooldown.all ?? 0;
+  return Math.max(0, Math.floor(Number(fallback || 0)));
+}
+
+function getTerrainCooldownKey(x, y) {
+  return `${x},${y}`;
+}
+
+function ensureTerrainCooldowns(state) {
+  if (!state) {
+    return null;
+  }
+  if (!state.terrainCooldowns || typeof state.terrainCooldowns !== 'object') {
+    state.terrainCooldowns = {};
+  }
+  return state.terrainCooldowns;
+}
+
+// Check if a terrain tile is currently on cooldown for gathering.
+function isTerrainTileOnCooldown(state, x, y) {
+  const map = state && state.terrainCooldowns;
+  if (!map || typeof map !== 'object') {
+    return false;
+  }
+  const remaining = Number(map[getTerrainCooldownKey(x, y)] || 0);
+  return remaining > 0;
+}
+
+// Apply a cooldown to a terrain tile after gathering.
+function applyTerrainCooldown(state, x, y, ticks) {
+  const duration = Math.max(0, Math.floor(Number(ticks || 0)));
+  if (duration <= 0) {
+    return;
+  }
+  const map = ensureTerrainCooldowns(state);
+  if (!map) {
+    return;
+  }
+  const key = getTerrainCooldownKey(x, y);
+  const current = Math.max(0, Math.floor(Number(map[key] || 0)));
+  map[key] = Math.max(current, duration);
+}
+
+// Decrement all active terrain cooldowns once per tick.
+function tickTerrainCooldowns(state) {
+  const map = state && state.terrainCooldowns;
+  if (!map || typeof map !== 'object') {
+    return;
+  }
+  for (const [key, value] of Object.entries(map)) {
+    const remaining = Math.max(0, Math.floor(Number(value || 0)));
+    const next = remaining - 1;
+    if (next <= 0) {
+      delete map[key];
+    } else {
+      map[key] = next;
+    }
+  }
+}
+
 // Add resource ids that are available via terrain tiles.
 function addTerrainResourcesToSet(nodeResources, state, resources) {
   if (!nodeResources || !state || !resources || !resources.terrainAllowed) {
@@ -134,7 +211,7 @@ function addTerrainResourcesToSet(nodeResources, state, resources) {
 }
 
 // Pick a terrain tile that yields the requested resource.
-function pickTerrainResourceTarget(state, config, resourceId, anchor) {
+function pickTerrainResourceTarget(state, config, resourceId, anchor, options) {
   const resources = config.resources || {};
   const allowed = Array.isArray(resources.terrainAllowed && resources.terrainAllowed[resourceId])
     ? resources.terrainAllowed[resourceId]
@@ -146,7 +223,13 @@ function pickTerrainResourceTarget(state, config, resourceId, anchor) {
   if (!index) {
     return null;
   }
+  const ignoreCooldown = options && options.ignoreCooldown === true;
   const samples = [];
+  const pushIfReady = (pos) => {
+    if (ignoreCooldown || !isTerrainTileOnCooldown(state, pos.x, pos.y)) {
+      samples.push(pos);
+    }
+  };
   const samplePerType = 200;
   const maxFullScan = 8000;
   let totalPositions = 0;
@@ -161,10 +244,12 @@ function pickTerrainResourceTarget(state, config, resourceId, anchor) {
       continue;
     }
     if (useFullScan || list.length <= samplePerType) {
-      samples.push(...list);
+      for (const pos of list) {
+        pushIfReady(pos);
+      }
     } else {
       for (let i = 0; i < samplePerType; i += 1) {
-        samples.push(list[Math.floor(Math.random() * list.length)]);
+        pushIfReady(list[Math.floor(Math.random() * list.length)]);
       }
     }
   }
@@ -188,7 +273,7 @@ function pickTerrainResourceTarget(state, config, resourceId, anchor) {
 }
 
 // Check whether a terrain tile is a valid resource source.
-function isTerrainResourceTile(state, config, resourceId, x, y) {
+function isTerrainResourceTile(state, config, resourceId, x, y, options) {
   const resources = config.resources || {};
   const allowed = Array.isArray(resources.terrainAllowed && resources.terrainAllowed[resourceId])
     ? resources.terrainAllowed[resourceId]
@@ -198,6 +283,10 @@ function isTerrainResourceTile(state, config, resourceId, x, y) {
   }
   const type = getTerrainTypeAt(state, x, y);
   if (!type) {
+    return false;
+  }
+  const ignoreCooldown = options && options.ignoreCooldown === true;
+  if (!ignoreCooldown && isTerrainTileOnCooldown(state, x, y)) {
     return false;
   }
   return allowed.includes(type);
@@ -238,4 +327,7 @@ module.exports = {
   pickTerrainResourceTarget,
   isTerrainResourceTile,
   getTerrainResourceRatio,
+  getTerrainCooldownTicks,
+  applyTerrainCooldown,
+  tickTerrainCooldowns,
 };

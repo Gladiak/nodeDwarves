@@ -60,7 +60,7 @@ function updateRaidStart(state, config, runtime) {
     return;
   }
 
-  const difficulty = getRaidDifficulty(config);
+  const difficulty = getRaidDifficulty(config, state);
   const chanceConfig = raidConfig.chance || {};
   const chanceMin = clamp(Number(chanceConfig.min ?? 0), 0, 1);
   const chanceMax = clamp(Number(chanceConfig.max ?? chanceMin), 0, 1);
@@ -159,7 +159,7 @@ function finishRaid(state, config, raidState) {
   const towerDefense = clamp(towerCount * towerDefensePer, 0, towerDefenseMax);
   const totalDefense = clamp(defense + towerDefense, 0, 1);
 
-  const difficulty = getRaidDifficulty(config);
+  const difficulty = getRaidDifficulty(config, state);
   const deathConfig = raidConfig.deathRate || {};
   const deathMin = clamp(Number(deathConfig.min ?? 0), 0, 1);
   const deathMax = clamp(Number(deathConfig.max ?? deathMin), 0, 1);
@@ -213,6 +213,7 @@ function applyRaidDeaths(state, deadIds) {
   }
   state.deathsByCause.raid = Number(state.deathsByCause.raid || 0) + deadIds.size;
   state.deathsCount = Number(state.deathsCount || 0) + deadIds.size;
+  state.lastDeathTick = Number(state.tick || 0);
   state.dwarves = state.dwarves.filter((dwarf) => !deadIds.has(dwarf.id));
   state.jobs = state.jobs.filter((job) => !deadIds.has(job.dwarfId));
   return deadIds.size;
@@ -376,13 +377,15 @@ function applyWatchtowerAttacks(state, config, raidState) {
 }
 
 // Resolve raid difficulty value from config.
-function getRaidDifficulty(config) {
+function getRaidDifficulty(config, state) {
   const aiConfig = (config && config.ai) || {};
   const value = Number(aiConfig.difficulty);
-  if (Number.isFinite(value)) {
-    return clamp(value, 0, 1);
+  const base = Number.isFinite(value) ? clamp(value, 0, 1) : 0.5;
+  const multiplier = Number(state && state.endgameDifficulty || 1);
+  if (!Number.isFinite(multiplier) || multiplier <= 0) {
+    return base;
   }
-  return 0.5;
+  return clamp(base * multiplier, 0, 1);
 }
 
 // Linear interpolation helper for raid scaling.

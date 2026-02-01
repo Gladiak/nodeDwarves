@@ -24,6 +24,7 @@ alive while you watch the chaos unfold in ASCII.
 - 🧺 Resource economy with food, water, beer, wood, stone, iron, expedition kits, mithril, adamantium, and mana crystal.
 - 🏘️ Village growth: houses (beds), wells (water nodes), fields (food nodes), breweries (beer), sawmills (wood), workshops (tools), armories (expedition kits), mithril forges (global output boost), mines (iron/stone + rare drops).
 - 🗝️ End-game ruins expeditions with artifacts, set bonuses, and guardian threats.
+- 🔁 End-game cycles: once all artifacts are found and a cooldown window passes, the sim restarts on a new map, tracks completed runs, and can scale difficulty per cycle.
 - ❄️ Seasons + housing effects (bonding, winter penalties).
 - 🌦️ Dynamic weather cycle that reshapes needs, gathering, and regeneration.
 - 🎓 PPO training in Python with JS-only inference.
@@ -40,22 +41,24 @@ alive while you watch the chaos unfold in ASCII.
 - 🌊 River tiles render with curved box-drawing symbols and can originate from multiple map edges.
 - 🌲 Forest patches spread beyond water corridors via humidity diffusion, with jittered edges for more organic shorelines.
 - 🌾 Plains render as a weighted mix of CP437 glyphs for subtle texture.
-- 🧺 Food tiles are guaranteed to appear near water to avoid barren starts.
+- 🧺 Food tiles are guaranteed to appear near water to avoid barren starts, with minimum counts enforced for food/mountain/stone tiles.
 - ⏱️ Each tick:
   1. Dwarves accumulate needs (hunger, thirst).
   2. Resources are consumed when needs cross thresholds.
-  3. Shortages are computed vs target stockpile levels (optionally scaled per population).
+  3. Shortages are computed vs target stockpile levels (optionally scaled per population and gather trigger multipliers).
   4. Jobs are assigned based on the largest shortages.
   5. Dwarves move to targets, work, and update stockpiles.
 - ♻️ Resource nodes have finite capacity and regenerate slowly.
+- ⏳ Terrain gathering tiles can go on cooldown after use, and stockpiles can decay over time.
 - 🌾 Fields regenerate based on water availability and seasonal limits.
 - 🌤️ Seasons apply modifiers to needs, gather speed, regen, and reproduction.
 - 🎨 Optional seasonal palettes recolor terrain in patchy waves during season transitions.
 - 🌧️ Weather cycles (clear, rain, storm, drought, cold) add extra modifiers.
 - 👪 Population is dynamic: dwarves age, form bonds, reproduce with gestation, and can die.
+- 👪 Reproduction can be gated by minimum stockpile ratios to avoid boom-bust starvation cycles.
 - 🪵🪨 Wood and stone build clustered villages (center-out placement).
 - 🛏️ Housing provides beds; insufficient shelter slows bonding and makes winter harsher.
-- 🧳 A roaming merchant visits periodically, trades surplus for scarce resources, then leaves.
+- 🧳 A roaming merchant visits periodically, trades surplus for scarce resources, then leaves (food/water can be excluded from offers).
 - 🚰 Wells and 🌾 fields use Poisson-style spacing across the map, respecting terrain and distance from the core.
 - 🏛️ Ruins spawn in mountainous terrain; expeditions consume kits, face guardians, and unlock artifact bonuses (repeatable in the final room for completion).
 - 📊 HUD shows averages, bars, priorities, and counts for wells/fields plus house level breakdowns.
@@ -63,6 +66,7 @@ alive while you watch the chaos unfold in ASCII.
 - 🧭 Terrain adds visual texture (coast, lakes, rivers); walkability and movement delay are configurable per terrain.
 - 🧭 Dwarves use configurable pathing with potential-field variation for more organic routes.
 - 🧩 Resources can come from nodes or from terrain tiles (configurable).
+- ⏳ Terrain gathering cooldowns can be bypassed during critical shortages.
 
 ## Ancient dwarven ruins 🗝️
 
@@ -109,7 +113,7 @@ Combo bonuses (between sets):
 - 💧 Wells are built when water stocks or water node reserves dip below thresholds.
 - 🌱 Fields are built when food stocks or food node reserves dip below thresholds and baseline stockpiles are safe.
 - 🪚 Sawmills convert stone + iron investment into steady wood output.
-- 🍺 Breweries convert food into beer with brewmasters that scale with population; upgrades boost output while reducing food cost. Brewing can pause when food is critically low, beer can be rationed against reserve targets, and beer consumption can add a production bonus across resources. Defaults now favor earlier beer consumption and a stronger high-morale bonus.
+- 🍺 Breweries convert food into beer with brewmasters that scale with population; upgrades boost output while reducing food cost. Brewing can pause when food is critically low, beer can be rationed against reserve targets, and beer consumption can add a production bonus across resources. Defaults cap the morale bonus to avoid runaway production loops.
 - 🛠️ Workshops unlock tool upgrades that boost all gathering yields, including mines.
 - 🔥 Mithril forges provide a global output multiplier that scales by level; late-game upgrades require rare minerals.
 - ⛏️ Mines and 🪚 sawmills can be upgraded to level 10 for higher output (exponential cost/bonus).

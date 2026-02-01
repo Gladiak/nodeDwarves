@@ -361,6 +361,7 @@ function applyExpeditionDeaths(state, deadIds) {
     return;
   }
   state.deathsCount = Number(state.deathsCount || 0) + deadIds.size;
+  state.lastDeathTick = Number(state.tick || 0);
   state.deathsByCause = state.deathsByCause || {};
   state.deathsByCause.ruins = Number(state.deathsByCause.ruins || 0) + deadIds.size;
   state.dwarves = state.dwarves.filter((dwarf) => !deadIds.has(dwarf.id));
