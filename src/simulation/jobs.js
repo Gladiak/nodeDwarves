@@ -17,6 +17,7 @@ const {
   createFieldBuildJob,
   createSawmillBuildJob,
   createWorkshopBuildJob,
+  createArmoryBuildJob,
   createMithrilForgeBuildJob,
   createBreweryBuildJob,
   createMineBuildJob,
@@ -103,6 +104,11 @@ function assignJobs(state, config, runtime, action) {
     return;
   }
 
+  assignArmoryJobs(state, config, idleDwarves, roleConfig, emergency);
+  if (idleDwarves.length === 0) {
+    return;
+  }
+
   const resourceConfig = config.resources || {};
   const targets = resourceConfig.targets || resourceConfig.stockpile || {};
   const weights = getActionWeights(action, config);
@@ -173,7 +179,7 @@ function assignJobs(state, config, runtime, action) {
 
 // Check whether a dwarf can be assigned work.
 function canWork(dwarf, config) {
-  return isAdult(dwarf, config);
+  return isAdult(dwarf, config) && !dwarf.expedition;
 }
 
 // Take an idle dwarf with the requested role if available.
@@ -385,6 +391,9 @@ function assignBuildJobIfNeeded(
       buildJob = createMithrilForgeBuildJob(state, config, runtime, buildQueue.reservedPositions);
     }
     if (!buildJob) {
+      buildJob = createArmoryBuildJob(state, config, runtime, buildQueue.reservedPositions);
+    }
+    if (!buildJob) {
       return;
     }
     const preferred = roleConfig.enabled
@@ -473,6 +482,91 @@ function assignBreweryJobs(state, config, runtime, brewers, buildQueue) {
       openSlots -= 1;
     }
     if (brewers.length === 0) {
+      return;
+    }
+  }
+}
+
+// Assign armory jobs to craft expedition kits.
+function assignArmoryJobs(state, config, idleDwarves, roleConfig, emergency) {
+  const ruinsConfig = config.ruins || {};
+  if (ruinsConfig.enabled === false) {
+    return;
+  }
+  const armoryConfig = (config.structures && config.structures.armory) || {};
+  if (armoryConfig.pauseOnEmergency !== false && emergency) {
+    return;
+  }
+  const workersPer = Math.max(
+    0,
+    Number(armoryConfig.workersPerArmory ?? armoryConfig.capacity ?? 0),
+  );
+  if (workersPer <= 0) {
+    return;
+  }
+  const armories = (state.structures || []).filter(
+    (structure) => structure.type === "armory",
+  );
+  if (armories.length === 0) {
+    return;
+  }
+
+  const expeditionConfig = (config.ruins && config.ruins.expedition) || {};
+  const kitResource = expeditionConfig.kitResource || "expedition_kit";
+  const kitMax = Math.max(0, Number(armoryConfig.kitMax ?? 0));
+  let kitReserved = 0;
+  for (const job of state.jobs) {
+    if (job.type !== "armory") {
+      continue;
+    }
+    const outputs = job.outputs || {};
+    kitReserved += Number(outputs[kitResource] || 0);
+  }
+  const kitCurrent = Number(state.stockpile[kitResource] || 0);
+  if (kitMax > 0 && kitCurrent + kitReserved >= kitMax) {
+    return;
+  }
+
+  const workersByArmory = {};
+  for (const job of state.jobs) {
+    if (job.type !== "armory" || !job.structureId) {
+      continue;
+    }
+    workersByArmory[job.structureId] =
+      Number(workersByArmory[job.structureId] || 0) + 1;
+  }
+
+  for (const armory of armories) {
+    const active = Number(workersByArmory[armory.id] || 0);
+    let openSlots = workersPer - active;
+    while (openSlots > 0 && idleDwarves.length > 0) {
+      if (kitMax > 0 && kitCurrent + kitReserved >= kitMax) {
+        return;
+      }
+      const preferred = roleConfig.enabled
+        ? takeIdleDwarf(idleDwarves, "gatherer")
+        : null;
+      const dwarf = preferred || takeIdleDwarf(idleDwarves);
+      if (!dwarf) {
+        return;
+      }
+      const job = createArmoryJob(
+        state,
+        config,
+        armory,
+        kitResource,
+        armoryConfig,
+      );
+      if (!job) {
+        return;
+      }
+      kitReserved += Number((job.outputs || {})[kitResource] || 0);
+      job.dwarfId = dwarf.id;
+      dwarf.job = job;
+      state.jobs.push(job);
+      openSlots -= 1;
+    }
+    if (idleDwarves.length === 0) {
       return;
     }
   }
@@ -964,6 +1058,31 @@ function createJobForShortage(
     workshopUsage,
     workshopCapacity,
   );
+}
+
+// Create an armory job to craft expedition kits.
+function createArmoryJob(state, config, armory, kitResource, armoryConfig) {
+  if (!armory) {
+    return null;
+  }
+  const kitCost = armoryConfig.kitCost || {};
+  if (Object.keys(kitCost).length > 0 && !hasInputs(state.stockpile, kitCost)) {
+    return null;
+  }
+  if (Object.keys(kitCost).length > 0) {
+    consumeInputs(state.stockpile, kitCost);
+  }
+  const output = Math.max(0, Number(armoryConfig.kitOutput ?? 1));
+  const workTicks = Math.max(1, Math.floor(Number(armoryConfig.kitTicks || 20)));
+  return {
+    id: `job_${state.jobCounter++}`,
+    type: "armory",
+    structureId: armory.id,
+    target: { x: armory.x, y: armory.y },
+    workRemaining: workTicks,
+    outputs: { [kitResource]: output },
+    dwarfId: null,
+  };
 }
 
 // Create a craft job for a recipe and reserve inputs.

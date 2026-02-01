@@ -329,6 +329,18 @@ function processDwarfJob(dwarf, state, config, runtime) {
     targetY = clamp(targetStructure.y, 0, runtime.gridHeight - 1);
     job.target = { x: targetX, y: targetY };
   }
+  if (job.type === 'armory') {
+    targetStructure = findStructureById(state.structures, job.structureId);
+    if (!targetStructure || targetStructure.type !== 'armory') {
+      removeJob(state, job.id);
+      dwarf.job = null;
+      return;
+    }
+
+    targetX = clamp(targetStructure.x, 0, runtime.gridWidth - 1);
+    targetY = clamp(targetStructure.y, 0, runtime.gridHeight - 1);
+    job.target = { x: targetX, y: targetY };
+  }
 
   if (!isWalkableTile(state, targetX, targetY)) {
     removeJob(state, job.id);
@@ -390,6 +402,14 @@ function processDwarfJob(dwarf, state, config, runtime) {
     return;
   }
 
+  if (job.type === 'armory') {
+    for (const [resource, amount] of Object.entries(job.outputs || {})) {
+      state.stockpile[resource] = Number(state.stockpile[resource] || 0) + Number(amount || 0);
+    }
+    removeJob(state, job.id);
+    dwarf.job = null;
+    return;
+  }
   if (job.type === 'craft') {
     applyOutputs(state.stockpile, job.outputs || {}, state, config);
     removeJob(state, job.id);

@@ -15,8 +15,30 @@ function buildHudLines(state, config, runtime) {
     return buildSingleHud(state, config, columnWidth);
   }
 
-  const { left, right } = buildHudColumns(state, config, columnWidth);
-  return formatColumns([left, right], runtime.hudWidth, columns, gap);
+  const { left, right } = buildHudColumns(state, config, columnWidth, {
+    includeRuins: false,
+  });
+  const columnLines = formatColumns([left, right], runtime.hudWidth, columns, gap);
+  const ruinsSection = buildRuinsHudSection(state, config, runtime.hudWidth);
+  if (ruinsSection.length === 0) {
+    return columnLines;
+  }
+
+  const totalHeight = Math.max(1, Number(runtime.gridHeight || columnLines.length || 1));
+  const lines = columnLines.slice(0, totalHeight);
+  while (lines.length < totalHeight) {
+    lines.push('');
+  }
+
+  if (ruinsSection.length >= totalHeight) {
+    return ruinsSection.slice(0, totalHeight);
+  }
+
+  const start = totalHeight - ruinsSection.length;
+  for (let i = 0; i < ruinsSection.length; i += 1) {
+    lines[start + i] = ruinsSection[i];
+  }
+  return lines;
 }
 
 // Build a single-column HUD layout.
@@ -26,13 +48,13 @@ function buildSingleHud(state, config, columnWidth) {
 }
 
 // Build the left and right HUD columns.
-function buildHudColumns(state, config, columnWidth) {
+function buildHudColumns(state, config, columnWidth, options = {}) {
   const dwarves = state.dwarves;
   const avgNeeds = averageNeeds(dwarves);
   const avgMorale = averageValue(dwarves, (d) => d.state.morale);
   const avgMoraleBoost = averageValue(dwarves, (d) => d.state.moraleBoostBeer);
   const avgStress = averageValue(dwarves, (d) => d.state.stress);
-  const idleCount = dwarves.filter((dwarf) => !dwarf.job).length;
+  const idleCount = dwarves.filter((dwarf) => !dwarf.job && !dwarf.expedition).length;
   const topPriority =
     state.lastPriorities && state.lastPriorities[0]
       ? state.lastPriorities[0].resource
@@ -71,8 +93,14 @@ function buildHudColumns(state, config, columnWidth) {
   const mineCount = structures.filter(
     (structure) => structure.type === "mine",
   ).length;
+  const armoryCount = structures.filter(
+    (structure) => structure.type === "armory",
+  ).length;
   const forgeCount = structures.filter(
     (structure) => structure.type === "mithril_forge",
+  ).length;
+  const ruinsCount = structures.filter(
+    (structure) => structure.type === "ruins",
   ).length;
   const watchtowerCount = structures.filter(
     (structure) => structure.type === "watchtower",
@@ -132,7 +160,6 @@ function buildHudColumns(state, config, columnWidth) {
   left.push(`Morale: ${avgMorale.toFixed(2)} (+${avgMoraleBoost.toFixed(2)})`);
   left.push(`Stress: ${avgStress.toFixed(2)}`);
   left.push(formatBondingLine(state, config));
-  left.push(formatReproBlocksLine(state));
   pushSection(left, "Housing");
   left.push(`Houses: ${houseCount}`);
   const levelEntries = Object.keys(houseLevels)
@@ -185,7 +212,8 @@ function buildHudColumns(state, config, columnWidth) {
   right.push(
     fitLine(`Sawmills: ${sawmillCount}  Mines: ${mineCount}`, columnWidth),
   );
-  right.push(fitLine(`Forge: ${forgeCount}`, columnWidth));
+  right.push(fitLine(`Forge: ${forgeCount}  Armory: ${armoryCount}`, columnWidth));
+  right.push(fitLine(`Ruins: ${ruinsCount}`, columnWidth));
   if (state.tools) {
     const maxLevel = Math.max(1, Number(state.tools.maxLevel || 1));
     const level = Math.min(
@@ -197,6 +225,13 @@ function buildHudColumns(state, config, columnWidth) {
   const structureLevels = getStructureLevelSummary(structures, columnWidth);
   if (structureLevels) {
     right.push(fitLine(structureLevels, columnWidth));
+  }
+
+  const includeRuins = options.includeRuins !== false;
+  const ruinsLines = includeRuins ? buildRuinsHudLines(state, config, columnWidth) : [];
+  if (ruinsLines.length > 0) {
+    pushSection(right, "Ruins");
+    right.push(...ruinsLines);
   }
 
   pushSection(right, "Stockpile");
@@ -303,18 +338,145 @@ function formatBondingLine(state, config) {
 }
 
 // Build a compact reproduction block summary for the HUD.
-function formatReproBlocksLine(state) {
-  const stats = state.reproductionStats || {};
-  const ticks = Number(stats.ticks || 0);
-  const perTick = (value) =>
-    formatCompactFloat(ticks > 0 ? Number(value || 0) / ticks : 0);
-  const infertile = perTick(stats.blockedInfertile);
-  const pregnant = perTick(stats.blockedPregnant);
-  const cooldown = perTick(stats.blockedCooldown);
-  const noResources = perTick(stats.blockedNoResources);
-  const noHousing = perTick(stats.blockedNoHousing);
-  const chance = perTick(stats.blockedChance);
-  return `Block/t i${infertile} p${pregnant} c${cooldown} r${noResources} h${noHousing} ch${chance}`;
+// Build HUD lines for ruins exploration progress.
+function buildRuinsHudLines(state, config, columnWidth) {
+  const ruinsConfig = config.ruins || {};
+  if (ruinsConfig.enabled === false) {
+    return [];
+  }
+  const ruins = state.ruins;
+  if (!ruins) {
+    return [];
+  }
+  const rooms = Array.isArray(ruinsConfig.rooms) ? ruinsConfig.rooms : [];
+  if (rooms.length === 0) {
+    return [];
+  }
+
+  const lines = [];
+  const cleared = Math.max(0, Number(ruins.roomsCleared || 0));
+  const allArtifacts = areAllArtifactsFound(ruins, ruinsConfig);
+  lines.push(`Rooms: ${cleared}/${rooms.length}`);
+
+  const expedition = ruins.expedition;
+  if (expedition && expedition.active) {
+    const roomNumber = Math.max(1, Number(expedition.roomIndex || 0) + 1);
+    const ticks = Math.max(0, Math.floor(Number(expedition.ticksRemaining || 0)));
+    const partySize = Array.isArray(expedition.dwarfIds) ? expedition.dwarfIds.length : 0;
+    lines.push(fitLine(`Expedition: R${roomNumber} t${ticks} p${partySize}`, columnWidth));
+  } else if (Number(ruins.cooldown || 0) > 0) {
+    lines.push(fitLine(`Expedition: cooldown ${Math.floor(Number(ruins.cooldown || 0))}`, columnWidth));
+  } else if (cleared >= rooms.length && allArtifacts) {
+    lines.push("Expedition: complete");
+  } else if (cleared >= rooms.length) {
+    lines.push("Expedition: repeatable");
+  } else {
+    lines.push("Expedition: ready");
+  }
+
+  const kitResource = (ruinsConfig.expedition && ruinsConfig.expedition.kitResource) || "expedition_kit";
+  const kits = Number(state.stockpile[kitResource] || 0);
+  lines.push(`Kits: ${formatCompactNumber(kits)}`);
+
+  const artifactLines = buildArtifactProgressLines(ruins, ruinsConfig, columnWidth);
+  for (const line of artifactLines) {
+    lines.push(line);
+  }
+
+  const bonusLines = buildRuinsBonusLines(ruins, columnWidth);
+  for (const line of bonusLines) {
+    lines.push(line);
+  }
+
+  return lines;
+}
+
+function buildRuinsHudSection(state, config, width) {
+  const lines = buildRuinsHudLines(state, config, width);
+  if (lines.length === 0) {
+    return [];
+  }
+  const colors = getColorConfig(config);
+  const header = applyColor("Ruins", "hud_header", colors);
+  return [header, ...lines];
+}
+
+function buildArtifactProgressLines(ruins, ruinsConfig, columnWidth) {
+  const sets = ruinsConfig.artifacts && ruinsConfig.artifacts.sets
+    ? ruinsConfig.artifacts.sets
+    : {};
+  const entries = [];
+  for (const [setId, def] of Object.entries(sets)) {
+    const total = Array.isArray(def.artifacts) ? def.artifacts.length : 0;
+    if (total <= 0) {
+      continue;
+    }
+    const count = Math.max(0, Number((ruins.setCounts || {})[setId] || 0));
+    const name = def.name || setId;
+    entries.push(`${name} ${count}/${total}`);
+  }
+  if (entries.length === 0) {
+    return [];
+  }
+  const line = `Artifacts: ${entries.join(' ')}`;
+  return wrapLine(line, columnWidth);
+}
+
+function areAllArtifactsFound(ruins, ruinsConfig) {
+  const pool = (ruinsConfig.artifacts && ruinsConfig.artifacts.pool) || {};
+  const entries = Object.keys(pool);
+  if (entries.length === 0) {
+    return true;
+  }
+  const found = ruins.artifactsFound || {};
+  for (const id of entries) {
+    if (!found[id]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function buildRuinsBonusLines(ruins, columnWidth) {
+  const bonuses = ruins.bonuses || {};
+  const parts = [];
+  const output = Math.max(0, Number(bonuses.outputMultiplier || 0));
+  const hazard = Math.max(0, Number(bonuses.hazardReduction || 0));
+  const combat = Math.max(0, Number(bonuses.combatBonus || 0));
+  const drop = Math.max(0, Number(bonuses.artifactChanceBonus || 0));
+  const loss = Math.max(0, Number(bonuses.casualtyReduction || 0));
+
+  if (output > 0) {
+    parts.push(`prod +${Math.round(output * 100)}%`);
+  }
+  if (hazard > 0) {
+    parts.push(`risk -${Math.round(hazard * 100)}%`);
+  }
+  if (combat > 0) {
+    parts.push(`combat +${Math.round(combat * 100)}%`);
+  }
+  if (drop > 0) {
+    parts.push(`drop +${Math.round(drop * 100)}%`);
+  }
+  if (loss > 0) {
+    parts.push(`loss -${Math.round(loss * 100)}%`);
+  }
+
+  const lines = [];
+  if (parts.length > 0) {
+    for (const line of wrapLine(`Bonus: ${parts.join(' ')}`, columnWidth)) {
+      lines.push(line);
+    }
+  }
+
+  const combos = Array.isArray(bonuses.activeCombos) ? bonuses.activeCombos : [];
+  if (combos.length > 0) {
+    for (const line of wrapLine(`Combos: ${combos.join(', ')}`, columnWidth)) {
+      lines.push(line);
+    }
+  }
+
+  return lines;
 }
 
 // Format a small float with at most 2 decimal places.

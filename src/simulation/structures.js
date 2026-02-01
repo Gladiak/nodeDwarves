@@ -475,6 +475,62 @@ function createWorkshopBuildJob(state, config, runtime, reservedPositions) {
   };
 }
 
+// Create an armory build job when none exists.
+function createArmoryBuildJob(state, config, runtime, reservedPositions) {
+  const ruinsConfig = (config && config.ruins) || {};
+  if (ruinsConfig.enabled === false) {
+    return null;
+  }
+  const armoryConfig = (config.structures && config.structures.armory) || {};
+  const maxCount = Number(armoryConfig.maxCount ?? 0);
+  const existing = (state.structures || []).filter((structure) => structure.type === 'armory').length;
+  const queued = countQueuedBuildJobs(state, 'armory');
+  if (maxCount > 0 && existing + queued >= maxCount) {
+    return null;
+  }
+  if (existing + queued > 0) {
+    return null;
+  }
+
+  const minResources = armoryConfig.buildMinResources;
+  if (minResources && typeof minResources === 'object') {
+    for (const [resource, minRatioRaw] of Object.entries(minResources)) {
+      const minRatio = Number(minRatioRaw);
+      if (!Number.isFinite(minRatio) || minRatio <= 0) {
+        continue;
+      }
+      const ratio = getStockpileRatio(state, config, resource);
+      if (ratio < minRatio) {
+        return null;
+      }
+    }
+  }
+
+  const buildCost = armoryConfig.buildCost || {};
+  if (Object.keys(buildCost).length > 0 && !hasInputs(state.stockpile, buildCost)) {
+    return null;
+  }
+
+  const target = findPeripheralBuildSpot(state, runtime, armoryConfig, reservedPositions);
+  if (!target) {
+    return null;
+  }
+
+  if (Object.keys(buildCost).length > 0) {
+    consumeInputs(state.stockpile, buildCost);
+  }
+
+  const buildTicks = Math.max(1, Number(armoryConfig.buildTicks || 90));
+  return {
+    id: `job_${state.jobCounter++}`,
+    type: 'build',
+    structureType: 'armory',
+    target,
+    workRemaining: buildTicks,
+    dwarfId: null,
+  };
+}
+
 // Create a mithril forge build job when none exists.
 function createMithrilForgeBuildJob(state, config, runtime, reservedPositions) {
   const forgeConfig = (config.structures && config.structures.mithril_forge) || {};
@@ -2119,6 +2175,7 @@ module.exports = {
   createFieldBuildJob,
   createSawmillBuildJob,
   createWorkshopBuildJob,
+  createArmoryBuildJob,
   createMithrilForgeBuildJob,
   createBreweryBuildJob,
   createMineBuildJob,

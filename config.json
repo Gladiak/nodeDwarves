@@ -42,7 +42,7 @@
       "valley": {
         "bowlStrength": 0.24,
         "smoothingPasses": 2,
-        "mountainHeight": 0.78,
+        "mountainHeight": 0.74,
         "hillHeight": 0.6,
         "fertileHeight": 0.44,
         "fertileDistance": 4,
@@ -185,7 +185,7 @@
         "terrain_plain_spring": "\u001b[92m",
         "terrain_plain_summer": "\u001b[32m",
         "terrain_plain_autumn": "\u001b[33m",
-        "terrain_plain_winter": "\u001b[37m",
+        "terrain_plain_winter": "\u001b[97m",
         "terrain_fertile_spring": "\u001b[92m",
         "terrain_fertile_summer": "\u001b[92m",
         "terrain_fertile_autumn": "\u001b[93m",
@@ -193,7 +193,7 @@
         "terrain_forest_spring": "\u001b[92m",
         "terrain_forest_summer": "\u001b[32m",
         "terrain_forest_autumn": "\u001b[33m",
-        "terrain_forest_winter": "\u001b[37m",
+        "terrain_forest_winter": "\u001b[97m",
         "terrain_food_spring": "\u001b[92m",
         "terrain_food_summer": "\u001b[93m",
         "terrain_food_autumn": "\u001b[93m",
@@ -204,7 +204,9 @@
         "hud_header": "\u001b[96m",
         "house": "\u001b[90m",
         "mine": "\u001b[37m",
+        "ruins": "\u001b[37m",
         "workshop": "\u001b[36m",
+        "armory": "\u001b[31m",
         "mithril_forge": "\u001b[95m",
         "sawmill": "\u001b[33m",
         "watchtower": "\u001b[37m",
@@ -215,6 +217,7 @@
         "wood": "\u001b[33m",
         "stone": "\u001b[90m",
         "iron": "\u001b[37m",
+        "expedition_kit": "\u001b[93m",
         "beer": "\u001b[33m",
         "weather_clear": "\u001b[37m",
         "weather_rain": "\u001b[34m",
@@ -898,6 +901,7 @@
       "wood": 8,
       "stone": 6,
       "iron": 0,
+      "expedition_kit": 0,
       "mithril": 0,
       "adamantio": 0,
       "mana_crystal": 0
@@ -919,6 +923,7 @@
       "wood": "Wood",
       "stone": "Stone",
       "iron": "Iron",
+      "expedition_kit": "ExpKit",
       "mithril": "Mithril",
       "adamantio": "Adamantium",
       "mana_crystal": "ManaCrystal"
@@ -1181,6 +1186,34 @@
         "iron": 6
       }
     },
+    "armory": {
+      "count": 0,
+      "capacity": 1,
+      "maxCount": 1,
+      "buildMinRadius": 2,
+      "buildOuterBuffer": 1,
+      "buildMinResources": {
+        "food": 0.8,
+        "water": 0.8,
+        "wood": 0.7,
+        "stone": 0.7
+      },
+      "buildTicks": 90,
+      "buildCost": {
+        "wood": 18,
+        "stone": 14,
+        "iron": 10
+      },
+      "workersPerArmory": 2,
+      "kitTicks": 24,
+      "kitOutput": 1,
+      "kitMax": 6,
+      "kitCost": {
+        "iron": 2,
+        "wood": 1
+      },
+      "pauseOnEmergency": true
+    },
     "mithril_forge": {
       "count": 0,
       "capacity": 1,
@@ -1327,6 +1360,11 @@
       "preciousChanceMin": 0.01,
       "preciousChanceMax": 0.1
     },
+    "ruins": {
+      "count": 1,
+      "capacity": 1,
+      "spawnTerrain": ["mountain", "stone"]
+    },
     "watchtower": {
       "count": 0,
       "capacity": 1,
@@ -1360,6 +1398,245 @@
         "defenseMax": 0.2
       }
     }
+  },
+  "ruins": {
+    "enabled": true,
+    "outputBonusApplyTo": ["wood", "stone", "iron", "mithril"],
+    "expedition": {
+      "requiresArmory": true,
+      "kitResource": "expedition_kit",
+      "kitPowerBonus": 0.15,
+      "minIdleAdults": 3,
+      "minPopulation": 10,
+      "cooldownTicks": 40,
+      "failureCooldownTicks": 80,
+      "partySizeMin": 3,
+      "partySizeMax": 7,
+      "minStockpileRatio": {
+        "food": 0.6,
+        "water": 0.6,
+        "wood": 0.5,
+        "stone": 0.5
+      },
+      "failureLossMin": 1,
+      "failureLossMax": 3
+    },
+    "mithrilReinforcement": {
+      "enabled": true,
+      "minRoom": 4,
+      "cost": {
+        "mithril": 1
+      },
+      "powerBonus": 0.35
+    },
+    "guardians": {
+      "artifactBonus": 0.08
+    },
+    "rooms": [
+      {
+        "id": "entry",
+        "name": "Fractured Entrance",
+        "expeditionTicks": 150,
+        "partySize": 3,
+        "cost": {
+          "food": 6,
+          "water": 6,
+          "wood": 2,
+          "stone": 2
+        },
+        "hazardChance": 0.1,
+        "guardianChance": 0,
+        "guardianPower": 0,
+        "artifactChance": 0.08,
+        "artifactRolls": 1
+      },
+      {
+        "id": "runes",
+        "name": "Rune Hall",
+        "expeditionTicks": 220,
+        "partySize": 4,
+        "cost": {
+          "food": 8,
+          "water": 8,
+          "wood": 3,
+          "stone": 3
+        },
+        "hazardChance": 0.18,
+        "guardianChance": 0.1,
+        "guardianPower": 3,
+        "artifactChance": 0.18,
+        "artifactRolls": 1
+      },
+      {
+        "id": "forge",
+        "name": "Ancient Forge",
+        "expeditionTicks": 300,
+        "partySize": 5,
+        "cost": {
+          "food": 10,
+          "water": 10,
+          "wood": 4,
+          "stone": 4,
+          "iron": 2
+        },
+        "hazardChance": 0.28,
+        "guardianChance": 0.35,
+        "guardianPower": 5,
+        "artifactChance": 0.3,
+        "artifactRolls": 1
+      },
+      {
+        "id": "archive",
+        "name": "Masters' Archive",
+        "expeditionTicks": 400,
+        "partySize": 6,
+        "cost": {
+          "food": 12,
+          "water": 12,
+          "wood": 4,
+          "stone": 5,
+          "iron": 3
+        },
+        "hazardChance": 0.4,
+        "guardianChance": 0.55,
+        "guardianPower": 7,
+        "artifactChance": 0.4,
+        "artifactRolls": 1
+      },
+      {
+        "id": "sanctum",
+        "name": "Stone King's Sanctum",
+        "expeditionTicks": 520,
+        "partySize": 7,
+        "cost": {
+          "food": 14,
+          "water": 14,
+          "wood": 5,
+          "stone": 6,
+          "iron": 4
+        },
+        "hazardChance": 0.55,
+        "guardianChance": 0.75,
+        "guardianPower": 9,
+        "artifactChance": 0.5,
+        "artifactRolls": 1
+      }
+    ],
+    "artifacts": {
+      "sets": {
+        "forge": {
+          "name": "Forge of the Ancients",
+          "artifacts": [
+            "hammer_khorg",
+            "runic_bellows",
+            "deep_scales",
+            "basalt_seal",
+            "fathers_anvil"
+          ]
+        },
+        "wardens": {
+          "name": "Hall Wardens",
+          "artifacts": [
+            "deep_lantern",
+            "runic_crowns",
+            "thrain_shield",
+            "mist_veil",
+            "masters_tome"
+          ]
+        }
+      },
+      "pool": {
+        "hammer_khorg": {
+          "name": "Hammer of Khorg",
+          "set": "forge",
+          "weight": 1
+        },
+        "runic_bellows": {
+          "name": "Runic Bellows",
+          "set": "forge",
+          "weight": 1
+        },
+        "deep_scales": {
+          "name": "Deep Scales",
+          "set": "forge",
+          "weight": 1
+        },
+        "basalt_seal": {
+          "name": "Basalt Seal",
+          "set": "forge",
+          "weight": 1
+        },
+        "fathers_anvil": {
+          "name": "Fathers' Anvil",
+          "set": "forge",
+          "weight": 1
+        },
+        "deep_lantern": {
+          "name": "Deep Lantern",
+          "set": "wardens",
+          "weight": 1
+        },
+        "runic_crowns": {
+          "name": "Runic Crowns",
+          "set": "wardens",
+          "weight": 1
+        },
+        "thrain_shield": {
+          "name": "Thrain's Shield",
+          "set": "wardens",
+          "weight": 1
+        },
+        "mist_veil": {
+          "name": "Veil of Mists",
+          "set": "wardens",
+          "weight": 1
+        },
+        "masters_tome": {
+          "name": "Masters' Tome",
+          "set": "wardens",
+          "weight": 1
+        }
+      }
+    },
+    "setBonuses": {
+      "forge": {
+        "2": { "outputMultiplier": 0.05 },
+        "3": { "outputMultiplier": 0.1 },
+        "4": { "outputMultiplier": 0.15 },
+        "5": { "outputMultiplier": 0.25 }
+      },
+      "wardens": {
+        "2": { "hazardReduction": 0.05 },
+        "3": { "combatBonus": 0.1 },
+        "4": { "artifactChanceBonus": 0.1, "casualtyReduction": 0.15 },
+        "5": { "combatBonus": 0.2, "hazardReduction": 0.1, "casualtyReduction": 0.25 }
+      }
+    },
+    "comboBonuses": [
+      {
+        "id": "2_2",
+        "label": "Runic Pacts",
+        "requires": { "forge": 2, "wardens": 2 },
+        "bonus": { "outputMultiplier": 0.03, "combatBonus": 0.05 }
+      },
+      {
+        "id": "3_3",
+        "label": "Oath of Stone",
+        "requires": { "forge": 3, "wardens": 3 },
+        "bonus": { "outputMultiplier": 0.06, "combatBonus": 0.1 }
+      },
+      {
+        "id": "5_5",
+        "label": "Dominion of the Ancients",
+        "requires": { "forge": 5, "wardens": 5 },
+        "bonus": {
+          "outputMultiplier": 0.1,
+          "combatBonus": 0.2,
+          "hazardReduction": 0.1,
+          "artifactChanceBonus": 0.1
+        }
+      }
+    ]
   },
   "tools": {
     "initialLevel": 1,
@@ -1706,6 +1983,7 @@
     "wood": "♣",
     "stone": "♦",
     "iron": "■",
+    "expedition_kit": "K",
     "mithril": "Ω",
     "adamantio": "Θ",
     "mana_crystal": "Φ",
@@ -1714,7 +1992,9 @@
     "well": "°",
     "field": "▒",
     "mine": "╬",
+    "ruins": "R",
     "workshop": "╦",
+    "armory": "A",
     "brewery": "ß",
     "mithril_forge": "Σ",
     "sawmill": "╫",

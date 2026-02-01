@@ -8,6 +8,7 @@ alive while you watch the chaos unfold in ASCII.
 
 - [Highlights](#highlights-)
 - [Simulation overview](#simulation-overview-)
+- [Ancient dwarven ruins](#ancient-dwarven-ruins-)
 - [Job system and priorities](#job-system-and-priorities-)
 - [Quick start](#quick-start-)
 - [AI mode (Python)](#ai-mode-python-)
@@ -20,8 +21,9 @@ alive while you watch the chaos unfold in ASCII.
 ## Highlights ✨
 
 - 🧠 Fully autonomous simulation with a real-time ASCII renderer.
-- 🧺 Resource economy with food, water, beer, wood, stone, iron, mithril, adamantium, and mana crystal.
-- 🏘️ Village growth: houses (beds), wells (water nodes), fields (food nodes), breweries (beer), sawmills (wood), workshops (tools), mithril forges (global output boost), mines (iron/stone + rare drops).
+- 🧺 Resource economy with food, water, beer, wood, stone, iron, expedition kits, mithril, adamantium, and mana crystal.
+- 🏘️ Village growth: houses (beds), wells (water nodes), fields (food nodes), breweries (beer), sawmills (wood), workshops (tools), armories (expedition kits), mithril forges (global output boost), mines (iron/stone + rare drops).
+- 🗝️ End-game ruins expeditions with artifacts, set bonuses, and guardian threats.
 - ❄️ Seasons + housing effects (bonding, winter penalties).
 - 🌦️ Dynamic weather cycle that reshapes needs, gathering, and regeneration.
 - 🎓 PPO training in Python with JS-only inference.
@@ -55,11 +57,45 @@ alive while you watch the chaos unfold in ASCII.
 - 🛏️ Housing provides beds; insufficient shelter slows bonding and makes winter harsher.
 - 🧳 A roaming merchant visits periodically, trades surplus for scarce resources, then leaves.
 - 🚰 Wells and 🌾 fields use Poisson-style spacing across the map, respecting terrain and distance from the core.
+- 🏛️ Ruins spawn in mountainous terrain; expeditions consume kits, face guardians, and unlock artifact bonuses (repeatable in the final room for completion).
 - 📊 HUD shows averages, bars, priorities, and counts for wells/fields plus house level breakdowns.
 - 🖼️ The map renders with a framed border for clearer navigation.
 - 🧭 Terrain adds visual texture (coast, lakes, rivers); walkability and movement delay are configurable per terrain.
 - 🧭 Dwarves use configurable pathing with potential-field variation for more organic routes.
 - 🧩 Resources can come from nodes or from terrain tiles (configurable).
+
+## Ancient dwarven ruins 🗝️
+
+The Ancient Dwarven Ruins are an end-game feature based on automated expeditions.
+The colony sends parties of idle adults into the ruins (consuming kits and resources), and
+each success unlocks the next room. Once all rooms are cleared, expeditions repeat the
+final room until all artifacts are collected.
+
+Room structure (linear progression):
+
+- **Fractured Entrance** → **Rune Hall** → **Ancient Forge** → **Masters' Archive** → **Stone King's Sanctum**.
+- Each room defines expedition duration, party size, resource cost, hazard risk, guardian
+  chance/power, and artifact drop chance.
+- If the guardian is defeated, it increases the artifact drop chance.
+
+Artifact sets:
+
+- **Forge of the Ancients**: Hammer of Khorg, Runic Bellows, Deep Scales, Basalt Seal, Fathers' Anvil.
+- **Hall Wardens**: Deep Lantern, Runic Crowns, Thrain's Shield, Veil of Mists, Masters' Tome.
+  Artifacts do not grant individual bonuses; they exist to reach set and combo thresholds.
+
+Set bonuses (thresholds within a set, cumulative in the same set):
+
+- **Forge of the Ancients**: 2→ +5% output, 3→ +10% output, 4→ +15% output, 5→ +25% output
+  (applies to wood/stone/iron/mithril).
+- **Hall Wardens**: 2→ -5% hazard, 3→ +10% combat power, 4→ +10% artifact chance +15% casualty reduction,
+  5→ +20% combat power -10% hazard +25% casualty reduction.
+
+Combo bonuses (between sets):
+
+- **Runic Pacts** (2 Forge + 2 Wardens): +3% output, +5% combat power.
+- **Oath of Stone** (3 Forge + 3 Wardens): +6% output, +10% combat power.
+- **Dominion of the Ancients** (5 Forge + 5 Wardens): +10% output, +20% combat power, -10% hazard.
 
 ## Job system and priorities ⚙️
 
@@ -232,21 +268,33 @@ Houses always render with `symbols.house`, while the HUD lists house levels with
 
 ```text
 .
+├── AGENTS.md                     # Agent guidelines
+├── LICENSE
+├── MANUAL.md                     # Full codebase tour
+├── README.md
 ├── ai_server.js                  # Headless JSON server for Python agents
 ├── app.js                        # Entrypoint and main loop
+├── assets
+│   └── NodeDwarves.gif           # Demo recording
 ├── config.json                   # Simulation knobs and defaults
-├── REQUIREMENTS.md               # MVP requirements
-├── README.md
 ├── docs
 │   ├── PARAMETERS.md             # Full config parameter reference
 │   └── TRAINING_OVERRIDES.md     # Training overrides guide
-├── python
-│   ├── agent.py                  # Example Python agent
-│   └── train.py                  # PPO training loop (PyTorch)
 ├── models
 │   ├── policy_best.json          # Best-eval policy (default)
 │   ├── policy_best.meta.json     # Best-eval metadata
 │   └── policy.json               # Optional latest policy (configurable)
+├── package.json                  # Node scripts + deps
+├── python
+│   ├── agent.py                  # Example Python agent
+│   ├── bootstrap.py              # venv bootstrap
+│   └── train.py                  # PPO training loop (PyTorch)
+├── scripts
+│   ├── bonding_study.js
+│   ├── movement_batch.js
+│   ├── movement_sandbox.js
+│   ├── pathing_probe.js
+│   └── regression.js
 └── src
     ├── ai                         # AI observation + policy inference
     │   ├── observation.js
@@ -260,7 +308,8 @@ Houses always render with `symbols.house`, while the HUD lists house levels with
     │   ├── header.js
     │   ├── hud.js
     │   ├── index.js
-    │   └── legend.js
+    │   ├── legend.js
+    │   └── seasonal_colors.js
     ├── render.js                 # ASCII renderer + HUD (wrapper)
     ├── runtime.js                # Terminal sizing and layout
     ├── simulation                # Simulation modules
@@ -275,6 +324,7 @@ Houses always render with `symbols.house`, while the HUD lists house levels with
     │   ├── random.js
     │   ├── resources.js
     │   ├── roles.js
+    │   ├── ruins.js
     │   ├── season.js
     │   ├── structures.js
     │   ├── terrain.js

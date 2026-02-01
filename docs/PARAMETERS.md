@@ -134,7 +134,7 @@ Events:
 
 Resources:
 
-- `resources.stockpile.<resource>`: initial stockpile amounts (e.g. `food`, `water`, `beer`, `wood`, `stone`, `iron`, `mithril`, `adamantio`, `mana_crystal`).
+- `resources.stockpile.<resource>`: initial stockpile amounts (e.g. `food`, `water`, `beer`, `wood`, `stone`, `iron`, `expedition_kit`, `mithril`, `adamantio`, `mana_crystal`).
 - `resources.targets.<resource>`: target stockpile amounts used for shortages and stockpile ratios.
 - `resources.targetsPerCapita.<resource>`: per-dwarf target add-on (added to `resources.targets`) for scaling shortages and ratios.
 - `resources.labels.<resource>`: HUD label overrides for stockpile resources (falls back to the resource id).
@@ -320,6 +320,22 @@ Structures (workshop):
 - `structures.workshop.buildTicks`: ticks required to build a workshop.
 - `structures.workshop.buildCost.<resource>`: resource costs to build a workshop.
 
+Structures (armory):
+
+- `structures.armory.count`: initial armory count.
+- `structures.armory.maxCount`: maximum armories allowed.
+- `structures.armory.buildMinRadius`: minimum Manhattan radius from village center.
+- `structures.armory.buildOuterBuffer`: extra distance beyond the current village perimeter (houses).
+- `structures.armory.buildMinResources.<resource>`: minimum stockpile ratios before building.
+- `structures.armory.buildTicks`: ticks required to build an armory.
+- `structures.armory.buildCost.<resource>`: resource costs to build an armory.
+- `structures.armory.workersPerArmory`: workers assigned per armory.
+- `structures.armory.kitTicks`: ticks required to craft a kit.
+- `structures.armory.kitOutput`: kits produced per job.
+- `structures.armory.kitMax`: maximum kits to keep in stockpile.
+- `structures.armory.kitCost.<resource>`: resource costs per kit.
+- `structures.armory.pauseOnEmergency`: pause armory jobs during emergency gathering.
+
 Structures (mithril forge):
 
 - `structures.mithril_forge.count`: initial mithril forge count.
@@ -403,6 +419,50 @@ Structures (mines):
 - `structures.mine.rareDrops.<resource>.amount`: amount added on a successful roll.
 - `structures.mine.preciousChanceMin`: placeholder chance at level 1 for future precious drops.
 - `structures.mine.preciousChanceMax`: placeholder chance at max level for future precious drops.
+
+Structures (ruins):
+
+- `structures.ruins.count`: initial ruins count (typically 1, always placed at start).
+- `structures.ruins.spawnTerrain`: terrain types allowed for initial ruins placement.
+
+Ruins exploration:
+
+- `ruins.enabled`: enable ruins exploration system.
+- `ruins.outputBonusApplyTo`: resources that receive output bonuses from ruin artifacts.
+- `ruins.expedition.requiresArmory`: require at least one armory to start expeditions.
+- `ruins.expedition.kitResource`: stockpile resource id used as expedition kits.
+- `ruins.expedition.kitPowerBonus`: combat power bonus from a kit (fraction).
+- `ruins.expedition.minIdleAdults`: minimum idle adults required to start an expedition.
+- `ruins.expedition.minPopulation`: minimum population required to start an expedition.
+- `ruins.expedition.cooldownTicks`: cooldown ticks after a successful expedition.
+- `ruins.expedition.failureCooldownTicks`: cooldown ticks after a failed expedition.
+- `ruins.expedition.partySizeMin`: minimum expedition party size.
+- `ruins.expedition.partySizeMax`: maximum expedition party size.
+- `ruins.expedition.minStockpileRatio.<resource>`: minimum stockpile ratios before expeditions start.
+- `ruins.expedition.failureLossMin`: minimum expedition casualties on failure.
+- `ruins.expedition.failureLossMax`: maximum expedition casualties on failure.
+- `ruins.mithrilReinforcement.enabled`: enable mithril reinforcement for expeditions.
+- `ruins.mithrilReinforcement.minRoom`: minimum room index (1-based) to allow mithril use.
+- `ruins.mithrilReinforcement.cost.<resource>`: resources consumed for mithril reinforcement.
+- `ruins.mithrilReinforcement.powerBonus`: combat power bonus when mithril is used (fraction).
+- `ruins.guardians.artifactBonus`: extra artifact chance when guardians are defeated (fraction).
+- `ruins.rooms[]`: ordered list of rooms to explore.
+- `ruins.rooms[].name`: display name for the room.
+- `ruins.rooms[].expeditionTicks`: ticks required to explore the room.
+- `ruins.rooms[].partySize`: desired party size for the room.
+- `ruins.rooms[].cost.<resource>`: per-expedition resource costs for the room.
+- `ruins.rooms[].hazardChance`: base failure chance (0..1).
+- `ruins.rooms[].guardianChance`: chance to spawn a guardian (0..1).
+- `ruins.rooms[].guardianPower`: guardian power threshold.
+- `ruins.rooms[].artifactChance`: base artifact drop chance (0..1).
+- `ruins.rooms[].artifactRolls`: number of artifact rolls on success.
+- `ruins.artifacts.sets.<set>.name`: label for an artifact set.
+- `ruins.artifacts.sets.<set>.artifacts`: ordered artifact ids for the set (used for counts).
+- `ruins.artifacts.pool.<artifact>.name`: artifact display name.
+- `ruins.artifacts.pool.<artifact>.set`: artifact set id.
+- `ruins.artifacts.pool.<artifact>.weight`: weight for random selection.
+- `ruins.setBonuses.<set>.<count>.<bonus>`: bonus values unlocked at the given set count.
+- `ruins.comboBonuses[]`: cross-set bonus entries with `requires` and `bonus` mappings.
 
 Tools:
 

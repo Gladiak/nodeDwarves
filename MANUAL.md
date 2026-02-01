@@ -161,6 +161,55 @@ Notes:
   - Seasonal wildlife raids (optional, config-driven).
   - Spawns beasts, applies deaths and loot loss, and logs events.
 
+### Ruins and expeditions
+
+- `ruins.js`
+  - Drives the ruins expedition loop (rooms, hazards, guardians, rewards).
+  - Manages expedition cooldowns, casualties, and artifact bonuses.
+- Armory kits are crafted in the `armory` structure and consumed per expedition.
+- Mithril is only used for late-game expedition reinforcement.
+- Preconditions (all must be satisfied before an expedition can start):
+  - `ruins.enabled` is true and a `ruins` structure exists on the map.
+  - `ruins.expedition.requiresArmory` requires at least one `armory`.
+  - At least 1 kit in stockpile (`ruins.expedition.kitResource`).
+  - `ruins.expedition.minPopulation` and `ruins.expedition.minIdleAdults` are met.
+  - All `ruins.expedition.minStockpileRatio.<resource>` thresholds are met.
+  - Room cost (`ruins.rooms[].cost`) is available.
+- Party size:
+  - Desired size is `ruins.rooms[].partySize`, clamped to `ruins.expedition.partySizeMin/Max`.
+  - If idle adults are fewer than `partySizeMin`, no expedition starts.
+- Timing:
+  - Each room has `ruins.rooms[].expeditionTicks`.
+  - Success applies `ruins.expedition.cooldownTicks`; failure applies `ruins.expedition.failureCooldownTicks`.
+  - After all rooms are cleared, expeditions repeat the final room to finish artifact collections.
+  - Expeditions stop automatically once all artifacts in `ruins.artifacts.pool` are found.
+- Guardians and combat:
+  - Guardian spawns with `ruins.rooms[].guardianChance`.
+  - Combat power is `partySize * (1 + kitPowerBonus + mithrilPowerBonus + combatBonus)`.
+  - Guardian is defeated if combat power >= `ruins.rooms[].guardianPower`; otherwise expedition fails.
+  - `kitPowerBonus` comes from `ruins.expedition.kitPowerBonus`.
+  - `mithrilPowerBonus` applies only if reinforcement is used (see below).
+  - `combatBonus` comes from artifacts/set/combos (`ruins.setBonuses` and `ruins.comboBonuses`).
+- Hazards:
+  - Base failure chance per room is `ruins.rooms[].hazardChance`.
+  - Hazard chance is reduced by `hazardReduction` bonuses (from artifacts/combos).
+- Mithril reinforcement:
+  - Enabled by `ruins.mithrilReinforcement.enabled`.
+  - Only available from room index `ruins.mithrilReinforcement.minRoom` (1-based).
+  - Consumes `ruins.mithrilReinforcement.cost` and adds `ruins.mithrilReinforcement.powerBonus`.
+- Artifacts and drop rates (on successful expedition only):
+  - Number of rolls: `ruins.rooms[].artifactRolls`.
+  - Per roll chance: `artifactChance + guardianBonus + artifactChanceBonus`.
+    - `artifactChance` is `ruins.rooms[].artifactChance`.
+    - `guardianBonus` is `ruins.guardians.artifactBonus` (only if a guardian was defeated).
+    - `artifactChanceBonus` comes from set/combo bonuses.
+  - Each successful roll selects a not-yet-found artifact from `ruins.artifacts.pool` by weight.
+  - Found artifacts update set counts (`ruins.artifacts.sets`) and activate bonuses (`ruins.setBonuses`, `ruins.comboBonuses`).
+- Failure and casualties:
+  - On failure, casualties are randomly selected from the expedition party.
+  - Base loss range is `ruins.expedition.failureLossMin/Max`.
+  - Losses are reduced by `casualtyReduction` bonuses (from artifacts/combos).
+
 ### Merchant
 
 - `merchant.js`

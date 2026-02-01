@@ -12,6 +12,7 @@ This file defines how to implement new features in a consistent, stable way.
 - Continuously improve model intelligence and learning capability in measured, stable steps.
 - When implementation details are unclear, ask for clarifications before coding changes.
 - Always update README.md and MANUAL.md after new implementations or tweaks, if needed.
+- Always write documentation in English.
 
 ## Project structure
 
@@ -105,3 +106,4 @@ This file defines how to implement new features in a consistent, stable way.
 - Use ASCII only unless a file already uses Unicode.
 - Prefer early returns and guard clauses.
 - Add short English comments above top-level functions to aid onboarding.
+- Use English for all player-facing in-game strings (HUD, events, labels, config names).

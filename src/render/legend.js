@@ -57,10 +57,12 @@ function buildFooterLines(config, runtime) {
     'well',
     'field',
     'workshop',
+    'armory',
     'mithril_forge',
     'brewery',
     'sawmill',
     'mine',
+    'ruins',
     'watchtower',
   ]);
   for (const [type, definition] of Object.entries(structureConfig)) {

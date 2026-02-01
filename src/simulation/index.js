@@ -20,6 +20,7 @@ const { assignJobs } = require('./jobs');
 const { processDwarfAction } = require('./dwarf_actions');
 const { updateMerchant } = require('./merchant');
 const { updateHouseStorage, regenerateNodes } = require('./resources');
+const { updateRuins } = require('./ruins');
 
 // Advance the simulation by one tick.
 function stepState(state, config, runtime, action) {
@@ -47,6 +48,7 @@ function stepState(state, config, runtime, action) {
   handleDeaths(state, config);
   updateBrewmasters(state, config);
   updateRoles(state, config);
+  updateRuins(state, config, runtime);
   assignHousing(state, config);
   updateRelationships(state, config);
   cohouseCouples(state, config);
