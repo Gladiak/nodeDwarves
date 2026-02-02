@@ -637,6 +637,11 @@ function computeMetrics(state, config) {
   }
   const housingStats = getHousingStats(state, config);
   const raidObservation = getRaidObservation(state, config, housingStats);
+  const ruinsStats = state && state.ruins ? state.ruins.stats || {} : {};
+  const ruinsArtifacts = state && state.ruins && state.ruins.artifactsFound
+    ? Object.keys(state.ruins.artifactsFound).length
+    : 0;
+  const ruinsRoomsCleared = state && state.ruins ? Number(state.ruins.roomsCleared || 0) : 0;
 
   return {
     stockpileAvg,
@@ -652,6 +657,10 @@ function computeMetrics(state, config) {
     raid: raidObservation,
     raidDeaths: Number(state.deathsByCause && state.deathsByCause.raid || 0),
     raidLoot: cloneLootMap(state.raidStats && state.raidStats.loot),
+    ruinsSuccesses: Number(ruinsStats.successes || 0),
+    ruinsFailures: Number(ruinsStats.failures || 0),
+    ruinsArtifacts,
+    ruinsRoomsCleared,
   };
 }
 
@@ -678,6 +687,10 @@ function computeReward(prevMetrics, metrics, config) {
   const raidPrepDefenseWeight = Number(rewardConfig.raidPrepDefense ?? 0);
   const deathWeight = Number(rewardConfig.death ?? 2);
   const extinctionPenalty = Number(rewardConfig.extinction ?? 0);
+  const ruinsSuccessWeight = Number(rewardConfig.ruinsSuccess ?? 0);
+  const ruinsArtifactWeight = Number(rewardConfig.ruinsArtifact ?? 0);
+  const ruinsFailureWeight = Number(rewardConfig.ruinsFailure ?? 0);
+  const ruinsRoomClearWeight = Number(rewardConfig.ruinsRoomClear ?? 0);
 
   const prevPop = prevMetrics ? prevMetrics.population.total : metrics.population.total;
   const deaths = Math.max(0, prevPop - metrics.population.total);
@@ -708,6 +721,14 @@ function computeReward(prevMetrics, metrics, config) {
   const raidDeathsPenalty = raidDeaths * raidDeathsWeight;
   const raidLootDelta = getRaidLootDelta(prevMetrics ? prevMetrics.raidLoot : null, metrics.raidLoot);
   const raidLootPenalty = getRaidLootRatio(raidLootDelta, config) * raidLootWeight;
+  const prevRuinsSuccesses = prevMetrics ? Number(prevMetrics.ruinsSuccesses || 0) : metrics.ruinsSuccesses;
+  const prevRuinsFailures = prevMetrics ? Number(prevMetrics.ruinsFailures || 0) : metrics.ruinsFailures;
+  const prevRuinsArtifacts = prevMetrics ? Number(prevMetrics.ruinsArtifacts || 0) : metrics.ruinsArtifacts;
+  const prevRuinsRooms = prevMetrics ? Number(prevMetrics.ruinsRoomsCleared || 0) : metrics.ruinsRoomsCleared;
+  const ruinsSuccessDelta = Math.max(0, Number(metrics.ruinsSuccesses || 0) - prevRuinsSuccesses);
+  const ruinsFailureDelta = Math.max(0, Number(metrics.ruinsFailures || 0) - prevRuinsFailures);
+  const ruinsArtifactDelta = Math.max(0, Number(metrics.ruinsArtifacts || 0) - prevRuinsArtifacts);
+  const ruinsRoomsDelta = Math.max(0, Number(metrics.ruinsRoomsCleared || 0) - prevRuinsRooms);
   const reward = ((metrics.stockpileAvg * stockpileAvgWeight)
     + (metrics.stockpileMin * stockpileMinWeight)
     + (waterRatio * waterStockpileWeight)) * stockpileFactor
@@ -719,9 +740,13 @@ function computeReward(prevMetrics, metrics, config) {
     - (waterDeficit * waterLowPenalty * stockpileFactor)
     + raidPrepShelter
     + raidPrepDefense
+    + (ruinsSuccessDelta * ruinsSuccessWeight)
+    + (ruinsArtifactDelta * ruinsArtifactWeight)
+    + (ruinsRoomsDelta * ruinsRoomClearWeight)
     - raidExposurePenalty
     - raidDeathsPenalty
     - raidLootPenalty
+    - (ruinsFailureDelta * ruinsFailureWeight)
     - (deaths * deathWeight)
     - (extinct * extinctionPenalty);
 

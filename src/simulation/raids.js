@@ -1,12 +1,33 @@
 'use strict';
 
 const { clamp } = require('../utils');
+const { getClanEffects, getClanList, getClanShare } = require('../clans');
 const { pushEvent } = require('./events');
+const { getMythMultiplier } = require('./myths');
 const { shuffleInPlace } = require('./random');
 const { isAdult } = require('./population');
 const { moveDwarf, findEdgeWalkablePosition, findAnyWalkablePosition } = require('./movement');
 
 const RAID_SIDES = ['north', 'south', 'west', 'east'];
+
+// Resolve a weighted clan bonus for a raid effect key.
+function getClanRaidBonus(state, config, effectKey) {
+  const clanList = getClanList(config);
+  if (clanList.length === 0) {
+    return 0;
+  }
+  let bonus = 0;
+  for (const clanId of clanList) {
+    const effects = getClanEffects(config, clanId);
+    const value = Math.max(0, Number(effects[effectKey] || 0));
+    if (value <= 0) {
+      continue;
+    }
+    const share = getClanShare(state.dwarves, clanId, (dwarf) => isAdult(dwarf, config));
+    bonus += value * share;
+  }
+  return bonus;
+}
 
 // Evaluate raid start conditions at the beginning of a season.
 function updateRaidStart(state, config, runtime) {
@@ -157,13 +178,19 @@ function finishRaid(state, config, raidState) {
   const towerDefensePer = Math.max(0, Number(towerRaid.defensePerTower ?? 0));
   const towerDefenseMax = clamp(Number(towerRaid.defenseMax ?? 0), 0, 1);
   const towerDefense = clamp(towerCount * towerDefensePer, 0, towerDefenseMax);
-  const totalDefense = clamp(defense + towerDefense, 0, 1);
+  const clanDefenseBonus = getClanRaidBonus(state, config, 'raid_defense_bonus');
+  const totalDefense = clamp(defense + towerDefense + clanDefenseBonus, 0, 1);
 
   const difficulty = getRaidDifficulty(config, state);
   const deathConfig = raidConfig.deathRate || {};
   const deathMin = clamp(Number(deathConfig.min ?? 0), 0, 1);
   const deathMax = clamp(Number(deathConfig.max ?? deathMin), 0, 1);
-  const deathRate = clamp(lerp(deathMin, deathMax, difficulty) * (1 - totalDefense), 0, 1);
+  const mythDeathMultiplier = getMythMultiplier(state, config, 'raidDeathRate', 1);
+  const deathRate = clamp(
+    lerp(deathMin, deathMax, difficulty) * (1 - totalDefense) * mythDeathMultiplier,
+    0,
+    1,
+  );
   let deaths = Math.ceil(exposedCount * deathRate);
   if (exposedCount > 0 && deaths === 0) {
     deaths = 1;
@@ -181,12 +208,15 @@ function finishRaid(state, config, raidState) {
   if (raidDeaths > 0) {
     raidStats.deaths = Number(raidStats.deaths || 0) + raidDeaths;
   }
+  raidStats.lastRaidDeaths = raidDeaths;
+  raidStats.lastRaidTick = Number(state.tick || 0);
 
   const lossConfig = raidConfig.resourceLoss || {};
   const lossMin = clamp(Number(lossConfig.min ?? 0), 0, 1);
   const lossMax = clamp(Number(lossConfig.max ?? lossMin), 0, 1);
   const baseLoss = lerp(lossMin, lossMax, difficulty);
-  const lossRatio = clamp(baseLoss * (1 - totalDefense), 0, 1);
+  const mythLossMultiplier = getMythMultiplier(state, config, 'raidResourceLoss', 1);
+  const lossRatio = clamp(baseLoss * (1 - totalDefense) * mythLossMultiplier, 0, 1);
   const stolen = applyRaidResourceLoss(state, lossRatio, lossConfig.weights || {});
   addRaidLoot(raidStats, stolen);
   const stolenLabel = formatRaidLoot(stolen);
@@ -259,10 +289,22 @@ function formatRaidLoot(stolen) {
 // Ensure raid stats exist on the state.
 function ensureRaidStats(state) {
   if (!state.raidStats) {
-    state.raidStats = { count: 0, deaths: 0, loot: {} };
+    state.raidStats = {
+      count: 0,
+      deaths: 0,
+      loot: {},
+      lastRaidDeaths: 0,
+      lastRaidTick: 0,
+    };
   }
   if (!state.raidStats.loot || typeof state.raidStats.loot !== 'object') {
     state.raidStats.loot = {};
+  }
+  if (!Number.isFinite(state.raidStats.lastRaidDeaths)) {
+    state.raidStats.lastRaidDeaths = 0;
+  }
+  if (!Number.isFinite(state.raidStats.lastRaidTick)) {
+    state.raidStats.lastRaidTick = 0;
   }
   return state.raidStats;
 }
@@ -332,7 +374,9 @@ function applyWatchtowerAttacks(state, config, raidState) {
   const raidConfig = towerConfig.raid || {};
   const range = Math.max(0, Number(raidConfig.range ?? 0));
   const hitChance = clamp(Number(raidConfig.hitChance ?? 0), 0, 1);
-  const maxKillsPerTick = Math.max(0, Number(raidConfig.maxKillsPerTick ?? 0));
+  const baseMaxKills = Math.max(0, Number(raidConfig.maxKillsPerTick ?? 0));
+  const clanMaxKillsBonus = getClanRaidBonus(state, config, 'raid_max_kills_bonus');
+  const maxKillsPerTick = Math.max(0, Math.round(baseMaxKills * (1 + clanMaxKillsBonus)));
   if (range <= 0 || hitChance <= 0 || maxKillsPerTick <= 0) {
     return;
   }

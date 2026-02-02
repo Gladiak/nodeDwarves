@@ -1,8 +1,10 @@
 'use strict';
 
 const { clamp } = require('../utils');
+const { getClanEffects } = require('../clans');
 const { getSeasonModifier } = require('./season');
 const { getWeatherModifier } = require('./weather');
+const { getMythMultiplier } = require('./myths');
 const { getTerrainResourceRatio, pickTerrainResourceTarget } = require('./terrain');
 
 // Regenerate resource nodes based on config, season, and weather multipliers.
@@ -16,8 +18,10 @@ function regenerateNodes(state, config) {
 
   const multiplier = getSeasonModifier(state, 'nodeRegen', 1);
   const weatherRegen = getWeatherModifier(state, config, 'nodeRegen', 1);
+  const mythRegen = getMythMultiplier(state, config, 'nodeRegen', 1);
   const fieldSeason = getSeasonModifier(state, 'fieldRegen', 1);
   const fieldWeather = getWeatherModifier(state, config, 'fieldRegen', 1);
+  const mythFieldRegen = getMythMultiplier(state, config, 'fieldRegen', 1);
   const fieldIrrigation = getFieldIrrigationMultiplier(state, config);
   const perTick = Number(regenConfig.perTick ?? 0);
   const intervalTicks = Math.max(1, Number(regenConfig.intervalTicks ?? 0));
@@ -49,9 +53,9 @@ function regenerateNodes(state, config) {
 
     let baseDelta = baseRegen;
     if (node.source === 'field') {
-      baseDelta *= fieldSeason * fieldIrrigation * fieldWeather;
+      baseDelta *= fieldSeason * fieldIrrigation * fieldWeather * mythFieldRegen;
     } else {
-      baseDelta *= multiplier * weatherRegen;
+      baseDelta *= multiplier * weatherRegen * mythRegen;
     }
 
     let nodeDelta = Math.floor(baseDelta);
@@ -165,7 +169,8 @@ function getFieldIrrigationMultiplier(state, config) {
   const ratio = clamp(waterRatio, 0, 1);
   const base = low + (high - low) * ratio;
   const weatherMultiplier = getWeatherModifier(state, config, 'irrigation', 1);
-  return base * weatherMultiplier;
+  const mythMultiplier = getMythMultiplier(state, config, 'irrigation', 1);
+  return base * weatherMultiplier * mythMultiplier;
 }
 
 // Update house storage buffers and handle overflow/decay.
@@ -354,7 +359,12 @@ function createGatherJob(resourceId, state, config, dwarf) {
     return null;
   }
 
-  const workTicks = getGatherTicks(config, resourceId, state);
+  let workTicks = getGatherTicks(config, resourceId, state);
+  const clanEffects = getClanEffects(config, dwarf && dwarf.clanId);
+  const gatherTicksPenalty = Math.max(0, Number(clanEffects.gather_ticks_penalty || 0));
+  if (gatherTicksPenalty > 0) {
+    workTicks = Math.max(1, Math.round(workTicks * (1 + gatherTicksPenalty)));
+  }
 
   return {
     id: `job_${state.jobCounter++}`,
@@ -376,6 +386,7 @@ function getGatherTicks(config, resourceId, state) {
   const moraleMultiplier = getMoraleGatherTickMultiplier(state, config, resourceId);
   const multiplier = getSeasonModifier(state, 'gatherTicks', 1)
     * getWeatherModifier(state, config, 'gatherTicks', 1)
+    * getMythMultiplier(state, config, 'gatherTicks', 1)
     * moraleMultiplier;
   return Math.max(1, Math.round(base * multiplier));
 }
@@ -441,7 +452,8 @@ function getGatherYield(config, resourceId, node, state) {
   const value = specific !== undefined ? specific : jobs.defaultGatherYield;
   const baseYield = Math.max(1, Number(value || 1));
   const multiplier = getSeasonModifier(state, 'gatherYield', 1)
-    * getWeatherModifier(state, config, 'gatherYield', 1);
+    * getWeatherModifier(state, config, 'gatherYield', 1)
+    * getMythMultiplier(state, config, 'gatherYield', 1);
   const toolMultiplier = getToolMultiplier(state, config, resourceId);
   const forgeMultiplier = getForgeMultiplier(state, config);
   const beerMultiplier = getBeerProductionMultiplier(state, config, resourceId);

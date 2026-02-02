@@ -2,6 +2,7 @@
 
 const { clamp } = require('../utils');
 const { createInitialState } = require('../state');
+const { carryMythsAcrossCycle } = require('./myths');
 
 function getEndgameConfig(config) {
   return (config && config.endgame) || {};
@@ -130,6 +131,7 @@ function runEndgameReset(state, config, runtime) {
 
   const nextState = createInitialState(configOverride, runtime);
   const stats = getCycleStats(state);
+  carryMythsAcrossCycle(state, nextState, config);
   nextState.cycleStats = {
     count: stats.count + 1,
     lastTicks: Math.max(0, Number(state.tick || 0)),

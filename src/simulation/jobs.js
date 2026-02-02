@@ -1,6 +1,7 @@
 "use strict";
 
 const { clamp } = require("../utils");
+const { getClanEffects } = require("../clans");
 const { getSeasonModifier } = require("./season");
 const { getRoleConfig, isEmergencyGather } = require("./roles");
 const { isAdult, getHousingNeed } = require("./population");
@@ -214,6 +215,43 @@ function orderIdleDwarves(idleDwarves) {
   return gatherers.concat(unknown, builders, managers);
 }
 
+// Apply clan build tick modifiers to a job, if applicable.
+function applyClanBuildTicks(job, dwarf, config) {
+  if (!job || !dwarf) {
+    return;
+  }
+  if (
+    job.type !== "build"
+    && job.type !== "upgrade"
+    && job.type !== "upgrade_tools"
+    && job.type !== "upgrade_structure"
+  ) {
+    return;
+  }
+  const clanEffects = getClanEffects(config, dwarf.clanId);
+  const bonus = Math.max(0, Number(clanEffects.build_ticks_bonus || 0));
+  if (bonus <= 0) {
+    return;
+  }
+  const workRemaining = Math.max(1, Number(job.workRemaining || 1));
+  job.workRemaining = Math.max(1, Math.round(workRemaining * (1 - bonus)));
+}
+
+// Clone a cost map while keeping only positive numeric values.
+function cloneCost(cost) {
+  const result = {};
+  if (!cost || typeof cost !== "object") {
+    return result;
+  }
+  for (const [resource, amount] of Object.entries(cost)) {
+    const value = Number(amount || 0);
+    if (Number.isFinite(value) && value > 0) {
+      result[resource] = value;
+    }
+  }
+  return result;
+}
+
 // Resolve build queue limits for parallel construction.
 function getBuildQueueConfig(config) {
   const jobsConfig = (config && config.jobs) || {};
@@ -307,6 +345,7 @@ function assignManagedStructureJobs(state, config, runtime, idleDwarves, buildQu
       return;
     }
     buildJob.dwarfId = dwarf.id;
+    applyClanBuildTicks(buildJob, dwarf, config);
     dwarf.job = buildJob;
     state.jobs.push(buildJob);
     reserveBuildQueue(buildQueue, buildJob);
@@ -404,6 +443,7 @@ function assignBuildJobIfNeeded(
       return;
     }
     buildJob.dwarfId = dwarf.id;
+    applyClanBuildTicks(buildJob, dwarf, config);
     dwarf.job = buildJob;
     state.jobs.push(buildJob);
     reserveBuildQueue(buildQueue, buildJob);
@@ -442,6 +482,7 @@ function assignBreweryJobs(state, config, runtime, brewers, buildQueue) {
           return;
         }
         buildJob.dwarfId = dwarf.id;
+        applyClanBuildTicks(buildJob, dwarf, config);
         dwarf.job = buildJob;
         state.jobs.push(buildJob);
         reserveBuildQueue(buildQueue, buildJob);
@@ -760,8 +801,10 @@ function assignToolUpgradeJob(
     workRemaining: buildTicks,
     dwarfId: dwarf.id,
     nextLevel: current + 1,
+    cost: cloneCost(cost),
   };
 
+  applyClanBuildTicks(job, dwarf, config);
   dwarf.job = job;
   state.jobs.push(job);
 }
@@ -868,8 +911,10 @@ function assignStructureUpgradeJob(
       workRemaining: buildTicks,
       dwarfId: dwarf.id,
       nextLevel,
+      cost: cloneCost(cost),
     };
 
+    applyClanBuildTicks(job, dwarf, config);
     dwarf.job = job;
     state.jobs.push(job);
     return;

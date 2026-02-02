@@ -15,6 +15,21 @@ const {
 } = require('./resources');
 const { getHousingNeed } = require('./population');
 
+// Clone a cost map while keeping only positive numeric values.
+function cloneCost(cost) {
+  const result = {};
+  if (!cost || typeof cost !== 'object') {
+    return result;
+  }
+  for (const [resource, amount] of Object.entries(cost)) {
+    const value = Number(amount || 0);
+    if (Number.isFinite(value) && value > 0) {
+      result[resource] = value;
+    }
+  }
+  return result;
+}
+
 // Create a structure instance using config defaults and symbols.
 function createStructure(state, config, type, x, y) {
   const structureConfig = (config.structures && config.structures[type]) || {};
@@ -117,6 +132,7 @@ function createHouseBuildJob(state, config, runtime, reservedPositions) {
     target,
     workRemaining: buildTicks,
     dwarfId: null,
+    cost: cloneCost(buildCost),
   };
 }
 
@@ -235,6 +251,7 @@ function createHouseUpgradeJob(state, config, runtime, preferUpgrade = false, re
     target: { x: best.house.x, y: best.house.y },
     workRemaining: buildTicks,
     dwarfId: null,
+    cost: cloneCost(buildCost),
   };
 }
 
@@ -365,6 +382,7 @@ function createWellBuildJob(state, config, runtime, reservedPositions) {
     target,
     workRemaining: buildTicks,
     dwarfId: null,
+    cost: cloneCost(buildCost),
   };
 }
 
@@ -434,6 +452,7 @@ function createFieldBuildJob(state, config, runtime, reservedPositions) {
     target,
     workRemaining: buildTicks,
     dwarfId: null,
+    cost: cloneCost(buildCost),
   };
 }
 
@@ -472,6 +491,7 @@ function createWorkshopBuildJob(state, config, runtime, reservedPositions) {
     target,
     workRemaining: buildTicks,
     dwarfId: null,
+    cost: cloneCost(buildCost),
   };
 }
 
@@ -528,6 +548,7 @@ function createArmoryBuildJob(state, config, runtime, reservedPositions) {
     target,
     workRemaining: buildTicks,
     dwarfId: null,
+    cost: cloneCost(buildCost),
   };
 }
 
@@ -580,6 +601,7 @@ function createMithrilForgeBuildJob(state, config, runtime, reservedPositions) {
     target,
     workRemaining: buildTicks,
     dwarfId: null,
+    cost: cloneCost(buildCost),
   };
 }
 
@@ -615,6 +637,7 @@ function createBreweryBuildJob(state, config, runtime, reservedPositions) {
     target,
     workRemaining: buildTicks,
     dwarfId: null,
+    cost: cloneCost(buildCost),
   };
 }
 
@@ -650,6 +673,7 @@ function createSawmillBuildJob(state, config, runtime, reservedPositions) {
     target,
     workRemaining: buildTicks,
     dwarfId: null,
+    cost: cloneCost(buildCost),
   };
 }
 
@@ -690,6 +714,7 @@ function createMineBuildJob(state, config, runtime, reservedPositions) {
     target,
     workRemaining: buildTicks,
     dwarfId: null,
+    cost: cloneCost(buildCost),
   };
 }
 
@@ -1372,6 +1397,7 @@ function createManagedWellBuildJob(state, config, runtime, reservedPositions) {
     target,
     workRemaining: buildTicks,
     dwarfId: null,
+    cost: cloneCost(buildCost),
   };
 }
 
@@ -1469,6 +1495,7 @@ function createManagedFieldBuildJob(state, config, runtime, reservedPositions) {
     target,
     workRemaining: buildTicks,
     dwarfId: null,
+    cost: cloneCost(buildCost),
   };
 }
 
@@ -1581,6 +1608,7 @@ function createManagedWatchtowerBuildJob(state, config, runtime, reservedPositio
     target,
     workRemaining: buildTicks,
     dwarfId: null,
+    cost: cloneCost(buildCost),
   };
 }
 
@@ -1778,6 +1806,7 @@ function findMineBuildSpot(state, runtime, structureConfig, reservedPositions) {
 
 // Determine the village center from existing structures or terrain.
 function getVillageCenter(state, runtime) {
+  const edgeBuffer = resolveEdgeBuffer(runtime, state && state.lastConfig);
   const houses = (state.structures || []).filter((structure) => structure.type === 'house');
   if (houses.length > 0) {
     const sum = houses.reduce((acc, house) => {
@@ -1785,37 +1814,42 @@ function getVillageCenter(state, runtime) {
       acc.y += Number(house.y || 0);
       return acc;
     }, { x: 0, y: 0 });
-    return {
+    return clampToEdgeBuffer({
       x: Math.round(sum.x / houses.length),
       y: Math.round(sum.y / houses.length),
-    };
+    }, runtime, edgeBuffer);
   }
 
   const workshops = (state.structures || []).filter((structure) => structure.type === 'workshop');
   if (workshops.length > 0) {
     const workshop = workshops[0];
-    return { x: Number(workshop.x || 0), y: Number(workshop.y || 0) };
+    return clampToEdgeBuffer({
+      x: Number(workshop.x || 0),
+      y: Number(workshop.y || 0),
+    }, runtime, edgeBuffer);
   }
 
   if (state.villageCenter && Number.isFinite(state.villageCenter.x) && Number.isFinite(state.villageCenter.y)) {
-    return {
+    return clampToEdgeBuffer({
       x: clamp(state.villageCenter.x, 0, runtime.gridWidth - 1),
       y: clamp(state.villageCenter.y, 0, runtime.gridHeight - 1),
-    };
+    }, runtime, edgeBuffer);
   }
 
   const selected = selectVillageCenter(state, runtime, state.lastConfig);
   if (selected) {
-    state.villageCenter = { x: selected.x, y: selected.y };
-    return selected;
+    const clamped = clampToEdgeBuffer(selected, runtime, edgeBuffer);
+    state.villageCenter = { x: clamped.x, y: clamped.y };
+    return clamped;
   }
 
   const fallback = {
     x: Math.floor(runtime.gridWidth / 2),
     y: Math.floor(runtime.gridHeight / 2),
   };
-  state.villageCenter = { x: fallback.x, y: fallback.y };
-  return fallback;
+  const clamped = clampToEdgeBuffer(fallback, runtime, edgeBuffer);
+  state.villageCenter = { x: clamped.x, y: clamped.y };
+  return clamped;
 }
 
 // Select a village center using terrain openness and resource proximity.
@@ -1835,6 +1869,7 @@ function selectVillageCenter(state, runtime, config) {
   const radius = settlement.clearRadius;
   const minOpenRatio = settlement.minOpenRatio;
   const blocked = new Set(settlement.blockedTerrain);
+  const edgeBuffer = resolveEdgeBuffer(runtime, config);
   if (shouldAllowForestBuild(state, config)) {
     blocked.delete('forest');
   }
@@ -1852,6 +1887,11 @@ function selectVillageCenter(state, runtime, config) {
   let bestFallback = null;
   for (let y = 0; y < height; y += scanStep) {
     for (let x = 0; x < width; x += scanStep) {
+      if (edgeBuffer > 0) {
+        if (x < edgeBuffer || y < edgeBuffer || x > width - 1 - edgeBuffer || y > height - 1 - edgeBuffer) {
+          continue;
+        }
+      }
       if (!isSpawnableTile(state, x, y)) {
         continue;
       }
@@ -1907,6 +1947,7 @@ function getSettlementConfig(config) {
   const raw = population.settlement || {};
   const scanStep = clamp(Math.floor(Number(raw.scanStep ?? 3)), 1, 8);
   const clearRadius = clamp(Math.floor(Number(raw.clearRadius ?? 6)), 2, 16);
+  const edgeBuffer = clamp(Math.floor(Number(raw.edgeBuffer ?? 2)), 0, 12);
   const minOpenRatio = clamp(Number(raw.minOpenRatio ?? 0.65), 0, 1);
   const resourceDistanceCap = Math.max(5, Number(raw.resourceDistanceCap ?? 40));
   const defaultBlocked = ['river', 'lake', 'mountain', 'forest', 'stone'];
@@ -1930,11 +1971,36 @@ function getSettlementConfig(config) {
     enabled: raw.enabled !== false,
     scanStep,
     clearRadius,
+    edgeBuffer,
     minOpenRatio,
     resourceDistanceCap,
     resourceWeights,
     blockedTerrain: new Set(blockedTerrain),
   };
+}
+
+// Clamp a point inside the grid using an optional edge buffer.
+function clampToEdgeBuffer(point, runtime, edgeBuffer) {
+  if (!point || !runtime) {
+    return point;
+  }
+  const maxBufferX = Math.max(0, Math.floor((runtime.gridWidth - 1) / 2));
+  const maxBufferY = Math.max(0, Math.floor((runtime.gridHeight - 1) / 2));
+  const safeBuffer = clamp(Math.floor(Number(edgeBuffer || 0)), 0, Math.min(maxBufferX, maxBufferY));
+  const minX = safeBuffer;
+  const minY = safeBuffer;
+  const maxX = Math.max(minX, runtime.gridWidth - 1 - safeBuffer);
+  const maxY = Math.max(minY, runtime.gridHeight - 1 - safeBuffer);
+  return {
+    x: clamp(Math.floor(Number(point.x || 0)), minX, maxX),
+    y: clamp(Math.floor(Number(point.y || 0)), minY, maxY),
+  };
+}
+
+// Resolve the effective edge buffer for settlement/center placement.
+function resolveEdgeBuffer(runtime, config) {
+  const settlement = getSettlementConfig(config);
+  return settlement.edgeBuffer;
 }
 
 // Build a lookup of resource sources (nodes + terrain tiles when enabled).

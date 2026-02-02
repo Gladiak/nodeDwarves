@@ -13,6 +13,14 @@ NodeDwarves is a fully autonomous colony simulation that runs in the terminal. E
 
 Everything important is **config-driven** via `config.json`.
 
+Key concepts:
+
+- **State-first**: the entire simulation is a single JS state object updated each tick.
+- **Config-first**: all tunables live in `config.json` (with training overrides layered on top).
+- **Shortage-driven economy**: stockpile ratios drive priorities, builds, and guardrails.
+- **Soft modifiers**: seasons, weather, clans, ruins, and myths apply multipliers instead of new actions.
+- **Deterministic core**: randomness is localized (weather, raids, ruins) to keep runs comparable for training.
+
 ## 2) Tick flow (diagram + order)
 
 The tick order in code lives in `src/simulation/index.js`.
@@ -33,7 +41,8 @@ The tick order in code lives in `src/simulation/index.js`.
 9. Stockpile decay + terrain cooldown tick (`resources.js`, `terrain.js`).
 10. House storage + node regen (`resources.js`).
 11. Raid tick update (`raids.js`).
-12. Endgame cycle check (`endgame.js`).
+12. Myth update (`myths.js`).
+13. Endgame cycle check (`endgame.js`).
 
 **Tick flow diagram**
 
@@ -50,15 +59,18 @@ flowchart TD
   I --> J[Stockpile decay + terrain cooldown]
   J --> K[House storage + node regen]
   K --> L[Raid tick update]
-  L --> M[Endgame cycle check]
-  M --> N[Render frame]
-  N --> O[Wait tickMs, next tick]
+  L --> M[Myth update]
+  M --> N[Endgame cycle check]
+  N --> O[Render frame]
+  O --> P[Wait tickMs, next tick]
 ```
 
 Notes:
 
 - The **render** step happens outside the simulation in `app.js` after `stepState(...)`.
-- When you add new systems, decide where they fit in this order.
+- AI actions are sampled in `app.js` every `ai.stepTicks` and passed into `assignJobs(...)`.
+- Endgame resets replace the state in place; active myths are cleared, traditions persist.
+- When you add new systems, decide where they fit in this order and which modifiers they should respect.
 
 ## 3) Entry points and runtime
 
@@ -66,12 +78,15 @@ Notes:
   - Main CLI entrypoint.
   - Loads `config.json`, builds the terminal runtime, creates initial state, and starts the tick loop.
   - Optionally loads an AI policy when `--ai <path>` or env `AI_POLICY` is provided.
+  - Tick pacing uses `display.tickMs`; hard stop uses `simulation.maxTicks`.
+  - AI action cadence uses `ai.stepTicks` to throttle policy calls.
 - `src/config.js`
   - Thin JSON loader for configuration.
 - `src/runtime.js`
   - Calculates grid size, HUD space, frame sizes, and handles terminal resize.
 - `src/terminal.js`
   - Low-level terminal helpers (clear screen, move cursor, hide/show cursor).
+  - Responsible for screen clearing and cursor control during live rendering.
 
 ## 4) State creation and world generation
 
@@ -81,6 +96,7 @@ Notes:
   - `createInitialState(config, runtime)` builds the state object:
     - `dwarves`, `nodes`, `structures`, `merchant`, `weather`, `raid`, `tools`, etc.
     - `stockpile` initialized from `config.resources.stockpile`.
+    - Counters and stats used by AI, raids, ruins, myths, and endgame cycles.
   - `fitStateToGrid(...)` repositions entities after resize and keeps everything in-bounds.
 
 ### Terrain generation
@@ -96,85 +112,150 @@ Notes:
   - Forest edges near water can be softened with distance jitter and a shoreline buffer via `display.terrain.valley.forest`.
   - Minimum terrain tile counts (food/mountain/stone) can be enforced with `display.terrain.minimumTiles`.
   - Terrain affects movement, spawn rules, and (optionally) resource gathering.
+  - Terrain resources can be harvested directly when `resources.useTerrainTiles` is enabled.
+  - Terrain walkability and movement delays are controlled by `display.terrain.walkable.*` and `display.terrain.movementDelay.*`.
 
 ## 5) Simulation systems (what lives in `src/simulation/`)
 
 ### Population and life cycle
 
 - `population.js`
-  - Aging, life stages, needs, morale, stress.
-- Beer consumption is driven by thirst thresholds and reserve ratios; defaults cap the morale boost and production bonus to prevent runaway loops.
-  - Housing assignment, couple co-housing, reproduction flow, and death handling.
-  - Reproduction can be gated by minimum stockpile ratios to prevent boom-bust cycles.
-  - Winter penalties are tied to housing coverage.
+  - Ages and life stages from `population.aging` (adult age, fertile range, old age start, max age).
+  - Needs decay per tick from `needs.decayPerTick`, scaled by season/weather/housing/myths.
+  - Consumption uses `consumption.*` thresholds/relief values for food, water, beer, plus beer reserve logic.
+  - Derived mood metrics (morale/stress/fatigue) come from average needs and beer morale boost.
+  - Deaths: starvation threshold/ticks and old-age chance from `population.death` and `population.aging`.
+  - Housing assignment, couple co-housing, and winter penalties are driven by `population.housing.*`.
+  - Relationships/bonding use `population.relationships.*`, with morale and housing multipliers.
+  - Reproduction uses `population.reproduction.*` (base chance, soft cap, gestation, cooldown, stockpile gates, birth cost).
+
+### Clan culture
+
+- `clans` config + `src/clans.js` provide clan IDs, labels, and weighted distributions.
+  - `clans.enabled` toggles the system; `clans.list` declares available clans.
+  - Distribution is weighted by `clans.distribution.<id>` when spawning dwarves.
+  - Inheritance uses `clans.inheritance.mode` (parent or random).
+- Clan effects are per-dwarf and applied across systems:
+  - Gathering/building/mine output or tick modifiers.
+  - Raid defense and raid kill caps scaled by adult share.
+  - Ruins combat/hazard bonuses scaled by expedition party share.
+  - Storm/cold need decay bonuses during harsh weather.
+- Build cost penalties (stone/iron) are applied when a build/upgrade job completes and stockpile can cover the extra cost.
+- HUD shows clan totals in a dedicated Clans block using `clans.labels` for short names.
 
 ### Jobs and economy
 
 - `jobs.js`
   - Computes **shortages** by comparing stockpile vs targets.
+  - Shortages use `resources.targets` (+ `resources.targetsPerCapita`) with optional `jobs.gatherTriggerRatio`.
   - Creates gather/build/craft/upgrade jobs based on shortages and guardrails.
-  - Build jobs can be parallelized with `jobs.buildQueue` while idle builders exist.
+  - Build jobs are rate-limited by `jobs.buildQueue.maxConcurrent/maxPerTick`.
+  - Managed structures (wells/fields/watchtowers) spawn build jobs using stockpile/node ratio thresholds.
+  - Housing builds and upgrades respect `population.housing.buildTargetRatio` and `structures.house.upgrade*` rules.
   - Supports role-based scheduling (builder/gatherer/manager/brewmaster).
-  - Optional AI action weights can bias priority order.
-  - Gather trigger ratios can multiply targets to start gathering earlier for key resources.
+  - Optional AI action weights can bias priority order and resource focus.
 
 ### Dwarf actions
 
 - `dwarf_actions.js`
   - Executes a dwarf's job: move, gather, build, upgrade, craft.
-  - Idle behavior (return home, wander around home).
+  - Gather jobs pull from nodes or terrain tiles; terrain tiles get cooldowns after use.
+  - Build/upgrade jobs create or level structures and can spawn well/field nodes.
+  - Mine/sawmill/brewery jobs output per tick while staffed; brewery consumes food per tick.
+  - Craft/armory jobs apply outputs on completion (after paying inputs).
+  - Idle behavior returns home or wanders around the anchor.
   - Panic logic during raids (run to home or flee).
 
 ### Movement and pathing
 
 - `movement.js`
   - Grid-based movement with cooldowns.
-  - Two pathing modes: classic detour and potential-field.
-  - Terrain can add movement delays.
+  - Pathing mode from `population.pathing.mode`: `detour` or `field`.
+  - Detour mode uses stall detection (`stallThreshold`), detour ticks, and local BFS (`bfsRadius`).
+  - Field mode builds distance fields (`field.radius`) cached for `field.ttlTicks`.
+  - Field step costs weight terrain delay and crowding (`field.terrainWeight`, `field.crowdWeight`),
+    plus inertia and stay penalty.
+  - Terrain movement delays come from `display.terrain.movementDelay.<type>`.
 
 ### Resources and stockpile
 
 - `resources.js`
   - Stockpile target calculation (with per-capita options).
-  - Node regeneration (season + weather modifiers).
-  - Field irrigation logic based on water stockpile.
-  - House storage buffers and decay rules.
-  - Stockpile decay and terrain gathering cooldowns (with critical shortage bypass).
+  - Stockpile ratios drive shortages, guardrails, and AI signals.
+  - Node regeneration uses `resources.nodeRegen.*` scaled by season/weather/myths.
+  - Field irrigation scales with water stockpile (`structures.field.irrigationMin/MaxMultiplier`).
+  - Terrain gathering uses `resources.useTerrainTiles` and `resources.terrainAllowed`.
+  - Terrain cooldowns are controlled by `resources.terrainCooldownTicks` and can be bypassed
+    by `resources.terrainCooldownCriticalRatio` during shortages.
+  - House storage buffers use `structures.house.storage.*` (capacity per level, transfer, decay).
+  - Stockpile decay per tick uses `resources.decayPerTick`.
+  - Output multipliers stack from tools, mithril forge, beer morale, and ruins bonuses.
 
 ### Structures and building
 
 - `structures.js`
   - Structure creation, build jobs, upgrade jobs, placement rules.
-  - Houses can have levels and variable capacities.
+  - Build costs/ticks live in `structures.<type>.buildCost/buildTicks` (plus upgrade variants).
+  - Houses have levels with per-level capacity and optional storage buffers.
+  - Wells/fields spawn resource nodes and respect max counts and spacing rules.
+  - Watchtowers provide raid defense and per-tick attacks.
+  - Mines/sawmills/breweries scale output by level with exponential upgrade costs.
   - Guardrails are **ratio-based** (important for stability).
 
 ### Roles
 
 - `roles.js`
-  - Assigns adult dwarves into roles.
-  - Supports role switching cooldowns and emergency gather logic.
-  - Special handling for brewmaster counts.
+  - Assigns adult dwarves into roles based on `population.roles.*`.
+  - Role switching uses `population.roles.switchCooldownTicks`.
+  - Emergency gathering triggers when `population.roles.emergencyMinRatio` is breached for
+    `population.roles.emergencyResources`.
+  - Special handling for brewmaster counts via `structures.brewery.brewmaster*`.
 
 ### Seasons and weather
 
 - `season.js`
-  - Cycles seasons by ticks and applies modifiers.
+  - Cycles seasons using `seasons.order` and `seasons.durationTicks`.
+  - Per-season modifiers live in `seasons.modifiers.<season>` (needs, gathering, regen, reproduction, fields).
 - `weather.js`
-  - Picks weather types by weighted probability + season bias.
-  - Weather modifiers affect needs and regen.
+  - Picks weather types by weighted probability + `weather.seasonBias`.
+  - Duration is controlled by `weather.durationTicks` or per-state overrides.
+  - Weather modifiers affect needs, gathering, node regen, irrigation, and per-need decay.
+  - Weather transitions log events for the HUD.
+
+### Myths (global modifiers)
+
+- `myths.js`
+  - Tracks global cultural modifiers triggered by repeated crises or successes.
+  - Trigger types include resource crises, raid losses, ruins success streaks, and drought/water crises.
+  - Effects apply as multipliers on existing systems (needs, gathering, raids, ruins, reproduction).
+  - Caps and cooldowns are config-driven (`myths.maxActive`, `myths.minGapTicks`).
+  - Myths expire after `durationTicks`; expired myths can become **traditions**.
+  - Traditions are weaker, persist across endgame cycles within the same run, and are capped by `myths.maxTraditions`.
+  - HUD lists active myths + traditions. A separate "Myth bonuses" line summarizes combined
+    deltas and wraps automatically (capped to 2-3 lines depending on HUD width). AI
+    observations include myth flags and severity.
 
 ### Raids
 
 - `raids.js`
   - Seasonal wildlife raids (optional, config-driven).
-  - Spawns beasts, applies deaths and loot loss, and logs events.
+  - Start conditions use `raids.seasonNames`, `raids.minTick`, `raids.minPopulation`, and `raids.minSeasonsBetween`.
+  - Trigger chance is `raids.chance.min/max`, scaled by difficulty.
+  - Beasts are spawned for visuals using `raids.beasts.*`.
+  - Defense combines adult ratio, watchtowers, and clan bonuses.
+  - Deaths and loot loss scale with difficulty and defense (`raids.deathRate`, `raids.resourceLoss`).
+  - Outcomes update raid stats and push HUD events.
 
 ### Endgame cycles
 
 - `endgame.js`
   - Resets the simulation after all artifacts are collected and a configurable delay has passed.
   - Trigger uses `endgame.minTicksAfterArtifacts` since the last artifact completion.
-  - Tracks completed cycles and scales difficulty per cycle (optional).
+  - Resets map, terrain, nodes, structures, and stockpiles.
+  - Population resets to `endgame.resetPopulation` if set.
+  - Tracks completed cycles and last cycle ticks in `cycleStats`.
+  - Difficulty can scale per cycle via `endgame.difficulty.*`.
+  - Myths are cleared, but traditions persist across cycles within the same run.
 
 ### Ruins and expeditions
 
@@ -231,17 +312,27 @@ Notes:
 
 - `merchant.js`
   - A simple state machine: idle → entering → trading → exiting.
-  - Trades based on surplus/need ratios using resource targets.
+  - Spawn cadence uses `merchant.spawnRangeTicks.min/max`.
+  - Visit duration is `merchant.stayTicks`, capped by `merchant.maxTradesPerVisit`.
+  - Trades are chosen from stockpile ratios vs targets, respecting `merchant.reserveRatio`.
+  - Trade rates come from `merchant.tradeRate` (default + per-resource overrides).
+  - `merchant.neverGive` prevents key resources from being traded away.
 
 ### Terrain helpers
 
 - `terrain.js`
-  - Walkable/spawnable checks, terrain resource sampling, movement delays.
+  - Walkable/spawnable checks for placement and movement.
+  - Terrain resource sampling for gather jobs (when `resources.useTerrainTiles` is enabled).
+  - Terrain cooldown tracking per tile after gathering.
+  - Resource ratio calculations when terrain tiles are used as sources.
+  - Terrain movement delay lookups used by pathing.
 
 ### Events + randomness
 
-- `events.js` tracks event log lines for the HUD.
-- `random.js` provides stable random helpers.
+- `events.js` tracks event log lines for the HUD (`events.maxEntries`).
+  - Systems push concise strings for weather, raids, ruins, builds, and myth changes.
+- `random.js` provides random helpers (ranges, shuffling) used across systems.
+  - Training/eval can override randomness through scenario config and seed control.
 
 ## 6) Rendering system (ASCII + HUD)
 
@@ -249,31 +340,42 @@ Everything under `src/render/` is pure rendering: no simulation changes.
 
 - `render/index.js`
   - Composes header, grid, HUD, footer, and optional frame.
+  - Layout sizing uses `display.hud.*`, `display.header.*`, `display.footer.*`, and frame settings.
+  - Default layout assumes a 190x60 terminal (columns x rows); adjust `display.width`/`display.height`
+    and HUD width if you target a different size.
   - Places nodes, structures, dwarves, merchant, and raid beasts on the grid.
-  - Selects a stable subset of dwarves to keep the map readable.
+  - Selects a stable subset of dwarves to keep the map readable (`display.dwarves.maxVisible`).
 
 - `render/grid.js`
   - Builds the base grid from terrain symbols.
-  - River connections use box-drawing symbols.
-  - Optional seasonal color overrides.
+  - River connections use box-drawing symbols and `display.terrain.riverSymbols.*`.
+  - Terrain symbol set comes from `display.terrain.symbols.*`.
+  - Optional seasonal color overrides via `display.colors.seasonal.*`.
 
 - `render/hud.js`
-  - Builds a multi-column HUD: world, population, housing, defense, structures, stockpile bars.
+  - Builds a multi-column HUD: world, population, clans, housing, defense, structures, stockpile bars.
+  - Column layout uses `display.hud.columns` and `display.hud.columnGap`.
+  - Stockpile bars scale with `display.hud.stockBarMax` or resource targets.
+  - World HUD includes event stream (`events.maxEntries`) and myth/ruins overlays.
 
 - `render/legend.js`
   - Footer legend built from `config.json` symbols and resource nodes.
+  - Uses `symbols.*` and `resources.labels.*` for readable names.
 
 - `render/colors.js` and `render/seasonal_colors.js`
-  - Optional ANSI color mapping and seasonal palettes.
+  - Optional ANSI color mapping (`display.colors.map`) and seasonal palettes.
+  - Seasonal palettes can be per-terrain and per-season with patchy noise transitions.
 
 ## 7) AI and training 🤖
 
 ### JS inference
 
 - `src/ai/observation.js`
-  - Converts state to observation features (stockpile ratios, node ratios, needs, weather, raids, housing, etc.).
+  - Converts state to observation features (stockpile ratios, node ratios, needs, weather, raids, housing, ruins, myths).
+  - Adds normalized ratios and flags used by the policy feature list.
 - `src/ai/policy.js`
   - Loads JSON policies (linear or MLP) and outputs action weights.
+  - Feature order is defined by `featureNames`; defaults live in the file.
 - `src/ai_policy.js`
   - Thin wrapper used by `app.js`.
 
@@ -283,17 +385,30 @@ Everything under `src/render/` is pure rendering: no simulation changes.
   - Runs a simulation instance that communicates over stdin/stdout JSON lines.
   - Commands: `reset`, `step`, `close`.
   - Handles scenario overrides, seeded randomness, rewards, and debug payloads.
+  - Supports training overrides and eval overrides (see `docs/TRAINING_OVERRIDES.md`).
 
 ### Python side
 
 - `python/train.py`
   - PPO training loop (2x128 MLP), logs, checkpoints, and evals.
+  - Exports JSON weights for JS inference.
 - `python/agent.py`
   - Example agent showing how to call the server.
 - `python/bootstrap.py`
   - Creates a local venv and installs deps.
 
 Policies are saved as JSON in `models/` so JS inference stays dependency-free.
+
+### Training notes (clans + ruins)
+
+Clan dynamics add heterogeneity and longer-horizon trade-offs. To keep PPO stable:
+
+- Run longer episodes to span raids and ruins with mixed clan parties.
+- Keep eval runs deterministic (fixed seeds) to measure policy robustness.
+- Consider a curriculum: start with clans disabled or reduced bonuses, then ramp up.
+- Use slightly higher entropy early to explore clan/role/job combinations.
+- Observations include clan shares and ruins status (active, cooldown, progress, artifacts); retrain with `--fresh` if you change them.
+- Reward shaping can emphasize ruins outcomes via `ai.reward.ruinsSuccess`, `ai.reward.ruinsArtifact`, `ai.reward.ruinsFailure`, and `ai.reward.ruinsRoomClear`.
 
 ## 8) Configuration (single source of truth)
 
@@ -303,10 +418,12 @@ Policies are saved as JSON in `models/` so JS inference stays dependency-free.
 - `resources`: stockpile targets, node counts/capacity, regen rates, crafting inputs.
 - `structures`: build costs, build ticks, upgrade rules, capacities.
 - `population`: needs decay, aging, housing rules, reproduction, roles, pathing.
+- `clans`: clan IDs, distributions, inheritance, and per-clan effects.
 - `seasons` + `weather`: cycle durations and modifiers.
 - `raids`: wildlife raid settings.
 - `merchant`: spawn cadence and trade behavior (including `neverGive` exclusions).
 - `ai`: runtime policy + training defaults.
+- `myths`: global modifier definitions, triggers, caps, and traditions.
 
 See `docs/PARAMETERS.md` for a full reference.
 
@@ -321,6 +438,7 @@ If you are adding new mechanics, resources, or balancing gameplay:
 - Keep guardrails ratio-based (stockpile/target), not absolute values.
 - Check seasonal and weather modifiers so new features scale naturally.
 - If you touch jobs or stockpiles, also update HUD/legend for clarity.
+- If you add new global modifiers, update myths config + HUD for visibility.
 
 Suggested starting files:
 
@@ -337,6 +455,12 @@ If you work on the policy or training loop:
 - The JS ↔ Python bridge is `ai_server.js`.
 
 Important rule: if you change **resource lists** or **observation features**, you must retrain from scratch with `--fresh` (see `npm run ai:train:fresh`).
+
+Training presets:
+
+- `ai:train:combo` uses a long-horizon train pass (4 workers, accelerated difficulty ramp) plus a short full-sim finetune at max difficulty.
+- `ai:train:full:hard` runs full-sim at fixed max difficulty (4 workers, long-horizon steps) to stress-test late-game survival.
+
 
 ### Rendering
 

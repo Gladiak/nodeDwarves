@@ -1,9 +1,31 @@
 'use strict';
 
 const { clamp } = require('../utils');
+const { getClanEffects, getClanList, getClanShareByIds } = require('../clans');
 const { getStockpileRatio, hasInputs, consumeInputs } = require('./resources');
 const { pushEvent } = require('./events');
+const { getMythMultiplier } = require('./myths');
 const { isAdult } = require('./population');
+
+// Resolve a weighted clan bonus for an expedition effect key.
+function getClanExpeditionBonus(state, config, expedition, effectKey) {
+  const clanList = getClanList(config);
+  if (clanList.length === 0 || !expedition) {
+    return 0;
+  }
+  const dwarfIds = expedition.dwarfIds || [];
+  let bonus = 0;
+  for (const clanId of clanList) {
+    const effects = getClanEffects(config, clanId);
+    const value = Math.max(0, Number(effects[effectKey] || 0));
+    if (value <= 0) {
+      continue;
+    }
+    const share = getClanShareByIds(state.dwarves, dwarfIds, clanId);
+    bonus += value * share;
+  }
+  return bonus;
+}
 
 function updateRuins(state, config, runtime) {
   const ruinsConfig = (config && config.ruins) || {};
@@ -18,7 +40,30 @@ function updateRuins(state, config, runtime) {
     recomputeBonuses(state, ruinsConfig);
   }
   if (!ruins.stats) {
-    ruins.stats = { started: 0, successes: 0, failures: 0, artifacts: 0 };
+    ruins.stats = {
+      started: 0,
+      successes: 0,
+      failures: 0,
+      artifacts: 0,
+      lastOutcome: null,
+      lastOutcomeTick: 0,
+      lastSuccesses: 0,
+      lastFailures: 0,
+      lastArtifactsFound: 0,
+    };
+  } else {
+    if (!Number.isFinite(ruins.stats.lastOutcomeTick)) {
+      ruins.stats.lastOutcomeTick = 0;
+    }
+    if (!Number.isFinite(ruins.stats.lastSuccesses)) {
+      ruins.stats.lastSuccesses = 0;
+    }
+    if (!Number.isFinite(ruins.stats.lastFailures)) {
+      ruins.stats.lastFailures = 0;
+    }
+    if (!Number.isFinite(ruins.stats.lastArtifactsFound)) {
+      ruins.stats.lastArtifactsFound = 0;
+    }
   }
   if (!ruins.artifactsFound) {
     ruins.artifactsFound = {};
@@ -95,6 +140,11 @@ function createDefaultRuinsState(ruinsConfig) {
       successes: 0,
       failures: 0,
       artifacts: 0,
+      lastOutcome: null,
+      lastOutcomeTick: 0,
+      lastSuccesses: 0,
+      lastFailures: 0,
+      lastArtifactsFound: 0,
     },
   };
 }
@@ -242,8 +292,10 @@ function resolveExpedition(state, config, ruinsConfig, rooms, expedition) {
   }
 
   const bonuses = state.ruins.bonuses || {};
-  const hazardReduction = clamp(Number(bonuses.hazardReduction || 0), 0, 0.95);
-  const hazardChance = clamp(Number(room.hazardChance || 0), 0, 1) * (1 - hazardReduction);
+  const clanHazardReduction = getClanExpeditionBonus(state, config, expedition, 'ruins_hazard_reduction');
+  const hazardReduction = clamp(Number(bonuses.hazardReduction || 0) + clanHazardReduction, 0, 0.95);
+  const mythHazard = getMythMultiplier(state, config, 'ruinsHazard', 1);
+  const hazardChance = clamp(Number(room.hazardChance || 0), 0, 1) * (1 - hazardReduction) * mythHazard;
 
   let guardianSpawned = false;
   let guardianDefeated = false;
@@ -256,7 +308,8 @@ function resolveExpedition(state, config, ruinsConfig, rooms, expedition) {
     const mithrilPowerBonus = expedition.useMithril
       ? Math.max(0, Number((ruinsConfig.mithrilReinforcement || {}).powerBonus || 0))
       : 0;
-    const combatBonus = Math.max(0, Number(bonuses.combatBonus || 0));
+    const clanCombatBonus = getClanExpeditionBonus(state, config, expedition, 'ruins_combat_bonus');
+    const combatBonus = Math.max(0, Number(bonuses.combatBonus || 0) + clanCombatBonus);
     const power = partySize * (1 + kitPowerBonus + mithrilPowerBonus + combatBonus);
     if (power >= guardianPower) {
       guardianDefeated = true;
@@ -279,6 +332,7 @@ function resolveExpedition(state, config, ruinsConfig, rooms, expedition) {
 function finishExpedition(state, config, ruinsConfig, expedition, success, reason) {
   const roomIndex = expedition.roomIndex;
   const room = Array.isArray(ruinsConfig.rooms) ? ruinsConfig.rooms[roomIndex] : null;
+  let artifactsFound = 0;
 
   if (success) {
     state.ruins.roomsCleared = Math.max(state.ruins.roomsCleared, roomIndex + 1);
@@ -291,7 +345,8 @@ function finishExpedition(state, config, ruinsConfig, expedition, success, reaso
         ? Math.max(0, Number((ruinsConfig.guardians || {}).artifactBonus || 0))
         : 0;
       const bonusChance = Math.max(0, Number((state.ruins.bonuses || {}).artifactChanceBonus || 0));
-      const totalChance = clamp(baseChance + guardianBonus + bonusChance, 0, 1);
+      const mythArtifact = getMythMultiplier(state, config, 'ruinsArtifactChance', 1);
+      const totalChance = clamp((baseChance + guardianBonus + bonusChance) * mythArtifact, 0, 1);
       const rolls = Math.max(1, Math.floor(Number(room.artifactRolls || 1)));
       let foundAny = false;
       for (let roll = 0; roll < rolls; roll += 1) {
@@ -305,6 +360,7 @@ function finishExpedition(state, config, ruinsConfig, expedition, success, reaso
         state.ruins.artifactsFound[artifactId] = true;
         state.ruins.stats.artifacts = Number(state.ruins.stats.artifacts || 0) + 1;
         foundAny = true;
+        artifactsFound += 1;
         const artifactName = getArtifactName(ruinsConfig, artifactId);
         pushEvent(state, config, `Ruins: artifact found - ${artifactName}`);
       }
@@ -321,6 +377,23 @@ function finishExpedition(state, config, ruinsConfig, expedition, success, reaso
       pushEvent(state, config, 'Ruins: expedition failed');
     }
   }
+
+  const stats = state.ruins.stats || {};
+  const tick = Number(state.tick || 0);
+  if (stats.lastOutcomeTick !== tick) {
+    stats.lastOutcomeTick = tick;
+    stats.lastSuccesses = 0;
+    stats.lastFailures = 0;
+    stats.lastArtifactsFound = 0;
+  }
+  if (success) {
+    stats.lastSuccesses = Number(stats.lastSuccesses || 0) + 1;
+  } else {
+    stats.lastFailures = Number(stats.lastFailures || 0) + 1;
+  }
+  stats.lastOutcome = success ? 'success' : 'failure';
+  stats.lastArtifactsFound = Number(stats.lastArtifactsFound || 0) + artifactsFound;
+  state.ruins.stats = stats;
 
   releaseExpeditioners(state, expedition);
 

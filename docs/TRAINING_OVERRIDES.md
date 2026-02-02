@@ -85,6 +85,35 @@ episodes from collapsing into extinction during long runs.
 - `population.death.oldAgeChanceMin`: min old-age death chance per tick.
 - `population.death.oldAgeChanceMax`: max old-age death chance per tick.
 
+Clans:
+
+- `clans.enabled`: enable clan dynamics during training.
+- `clans.distribution.<clan>`: rebalance initial clan mix for curriculum shaping.
+- `clans.effects.<clan>.<effect>`: tune clan bonuses/penalties for stability experiments.
+
+Ruins:
+
+- `ruins.enabled`: enable ruins expeditions.
+- `ruins.expedition.minIdleAdults`: minimum idle adults required to start an expedition.
+- `ruins.expedition.minPopulation`: minimum population required to start an expedition.
+- `ruins.expedition.cooldownTicks`: base cooldown between expeditions.
+- `ruins.expedition.failureCooldownTicks`: extra cooldown after failed expeditions.
+- `ruins.expedition.partySizeMin`: minimum expedition party size.
+- `ruins.expedition.partySizeMax`: maximum expedition party size.
+- `ruins.expedition.minStockpileRatio.<resource>`: stockpile ratio gate for expeditions.
+- `ruins.expedition.failureLossMin`: minimum resource loss on failure.
+- `ruins.expedition.failureLossMax`: maximum resource loss on failure.
+- `ruins.mithrilReinforcement.minRoom`: room index where mithril can appear.
+- `ruins.rooms`: override the room list for shorter or longer progression.
+- `ruins.rooms[].expeditionTicks`: ticks required to clear a room.
+- `ruins.rooms[].partySize`: party size target for a room.
+- `ruins.rooms[].cost.<resource>`: resource costs paid per room.
+- `ruins.rooms[].hazardChance`: hazard chance per room (0..1).
+- `ruins.rooms[].guardianChance`: guardian spawn chance per room (0..1).
+- `ruins.rooms[].guardianPower`: guardian strength scalar.
+- `ruins.rooms[].artifactChance`: artifact chance per room (0..1).
+- `ruins.rooms[].artifactRolls`: number of artifact rolls per room.
+
 Endgame cycles:
 
 - `endgame.enabled`: enable or disable endgame cycle resets.
@@ -142,6 +171,12 @@ Structures:
 - `structures.field.buildMinResources.<resource>`: minimum stockpile ratio required before building fields.
 - `structures.field.irrigationMinMultiplier`: minimum field regen multiplier when water is scarce.
 - `structures.field.irrigationMaxMultiplier`: maximum field regen multiplier when water is abundant.
+- `structures.armory.workersPerArmory`: workers assigned per armory.
+- `structures.armory.kitTicks`: ticks required per kit.
+- `structures.armory.kitOutput`: kits crafted per job completion.
+- `structures.armory.kitMax`: cap for stored kits.
+- `structures.armory.kitCost.<resource>`: resource cost per kit.
+- `structures.armory.pauseOnEmergency`: pause armory jobs during emergencies.
 - `structures.brewery.workersPerBrewery`: workers assigned per brewery.
 - `structures.brewery.outputPerTick.<resource>`: per-worker output applied each tick while brewing.
 - `structures.brewery.foodCostPerTick`: base food consumed per tick while brewing.

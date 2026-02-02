@@ -227,6 +227,32 @@ Raids:
 - `raids.beasts.min/max`: min/max beast count for visuals.
 - `raids.beasts.perPop`: population per beast (visual scaling).
 
+Myths:
+
+- `myths.enabled`: enable global myth modifiers.
+- `myths.maxActive`: maximum active myths at once (0 = no cap).
+- `myths.maxTraditions`: max retained traditions between endgame cycles (0 = no cap).
+- `myths.minGapTicks`: minimum ticks between activations of the same myth.
+- `myths.historyLimit`: maximum myth history entries to retain (0 = unlimited).
+- `myths.traditionsEnabled`: enable tradition carry-over between endgame cycles.
+- `myths.definitions.<id>.label`: HUD label for the myth.
+- `myths.definitions.<id>.durationTicks`: myth duration in ticks (0 = indefinite).
+- `myths.definitions.<id>.effects.<key>`: multiplier applied while the myth is active (1 = neutral).
+- `myths.definitions.<id>.traditionEffects.<key>`: multiplier applied by the tradition (1 = neutral).
+- `myths.definitions.<id>.trigger.type`: trigger type (`resource_crisis`, `raid_deaths`, `ruins_success`, `drought_or_water_crisis`).
+- `myths.definitions.<id>.trigger.resources`: resource ids used for `resource_crisis` ratios.
+- `myths.definitions.<id>.trigger.ratioThreshold`: stockpile ratio threshold for `resource_crisis`.
+- `myths.definitions.<id>.trigger.ticksRequired`: ticks below threshold to trigger.
+- `myths.definitions.<id>.trigger.seasonWindow`: seasons window for repeated crises/droughts.
+- `myths.definitions.<id>.trigger.seasonCount`: seasons with crisis required (resource crisis).
+- `myths.definitions.<id>.trigger.deathsPerRaidThreshold`: deaths in a single raid to trigger.
+- `myths.definitions.<id>.trigger.recentRaidWindow`: number of recent raids to sum.
+- `myths.definitions.<id>.trigger.recentRaidDeathsThreshold`: total deaths in recent raids to trigger.
+- `myths.definitions.<id>.trigger.artifactImmediate`: trigger immediately on artifact found.
+- `myths.definitions.<id>.trigger.successStreak`: consecutive ruins successes needed.
+- `myths.definitions.<id>.trigger.droughtCount`: drought seasons required for trigger.
+- `myths.definitions.<id>.trigger.waterRatioThreshold`: water ratio threshold for drought crisis.
+
 Population roles:
 
 - `population.roles.enabled`: enable builder/gatherer role preferences.
@@ -261,6 +287,7 @@ Population relationships:
 - `population.settlement.enabled`: enable smarter settlement center selection.
 - `population.settlement.scanStep`: grid sampling step when evaluating settlement centers.
 - `population.settlement.clearRadius`: radius around a candidate center to evaluate open space (tiles).
+- `population.settlement.edgeBuffer`: minimum tiles from map edge for the village center.
 - `population.settlement.minOpenRatio`: minimum open-space ratio required for a candidate (0..1).
 - `population.settlement.resourceDistanceCap`: distance cap for resource proximity scoring (tiles).
 - `population.settlement.resourceWeights.<resource>`: weights for proximity to key resources (0..1).
@@ -289,6 +316,28 @@ Population reproduction:
 - `population.reproduction.moraleInfluence`: morale weight on conception chance (0..1).
 - `population.reproduction.birthCost.<resource>`: stockpile cost consumed at conception.
 - `population.reproduction.minStockpileRatio.<resource>`: block conceptions if stockpile ratio is below this (0..1).
+
+Clans:
+
+- `clans.enabled`: enable clan culture system.
+- `clans.list`: ordered list of clan ids.
+- `clans.labels.<clan>`: short clan label used in the HUD.
+- `clans.distribution.<clan>`: spawn weight for initial/random clan assignment.
+- `clans.inheritance.mode`: `parent` (inherit from parents) or `random` (distribution only).
+- `clans.effects.<clan>.mine_output_bonus`: mine output bonus applied to all mine outputs (0..1).
+- `clans.effects.<clan>.mine_rare_chance_bonus`: additive rare drop chance for mines (0..1).
+- `clans.effects.<clan>.storm_cold_need_decay_bonus`: extra need-decay multiplier during storm/cold (0..1).
+- `clans.effects.<clan>.build_ticks_bonus`: build/upgrade tick reduction (0..1).
+- `clans.effects.<clan>.build_cost_penalty`: extra stone/iron cost ratio for build/upgrade jobs (0..1).
+- `clans.effects.<clan>.gather_ticks_penalty`: gather tick penalty (0..1).
+- `clans.effects.<clan>.mine_output_penalty`: mine output penalty (0..1).
+- `clans.effects.<clan>.sawmill_output_penalty`: sawmill output penalty (0..1).
+- `clans.effects.<clan>.raid_defense_bonus`: raid defense bonus scaled by clan share of adults (0..1).
+- `clans.effects.<clan>.raid_max_kills_bonus`: watchtower max-kills bonus scaled by clan share of adults (0..1).
+- `clans.effects.<clan>.ruins_combat_bonus`: ruins combat bonus scaled by clan share in expedition party (0..1).
+- `clans.effects.<clan>.ruins_hazard_reduction`: ruins hazard reduction scaled by clan share in expedition party (0..1).
+- `clans.effects.<clan>.gather_yield_penalty`: gather yield penalty (0..1).
+- `clans.effects.<clan>.gather_penalty_resources`: list of gather resources affected by the penalty.
 
 Structures (houses):
 
@@ -559,6 +608,10 @@ AI and training:
 - `ai.reward.raidLoot`: penalty for normalized raid loot loss (delta vs targets).
 - `ai.reward.raidPrepShelter`: bonus for shelter readiness (beds/pop) during raid-eligible seasons.
 - `ai.reward.raidPrepDefense`: bonus for defense readiness (adults + watchtowers) during raid-eligible seasons.
+- `ai.reward.ruinsSuccess`: reward per successful expedition (delta).
+- `ai.reward.ruinsArtifact`: reward per artifact found (delta).
+- `ai.reward.ruinsFailure`: penalty per failed expedition (delta).
+- `ai.reward.ruinsRoomClear`: reward per room cleared (delta).
 - `ai.reward.death`: penalty per death.
 - `ai.reward.extinction`: penalty when population hits zero.
 - `ai.termination.enabled`: enable early termination when the sim is stable.
@@ -620,7 +673,7 @@ AI and training:
 - `ai.training.trainer.miniBatchSize`: minibatch size for PPO updates.
 - `ai.training.trainer.batchEpisodes`: episodes per update batch.
 - `ai.training.trainer.hiddenSizes`: MLP hidden layer sizes (e.g. `[128, 128]`).
-- `ai.training.trainer.featureNames`: ordered list of observation features per resource (e.g. `shortage`, `nodeScarcity`, `criticalNeeds`, `idleAdults`, `populationBalance`, `seasonIndex`, `seasonProgress`, `weatherSeverity`, `weatherTimeLeft`, `raidActive`, `raidTimeLeft`, `raidExposed`, `raidDefense`, `housingShortage`, `seasonEligible`).
+- `ai.training.trainer.featureNames`: ordered list of observation features per resource (e.g. `shortage`, `nodeScarcity`, `criticalNeeds`, `idleAdults`, `populationBalance`, `seasonIndex`, `seasonProgress`, `weatherSeverity`, `weatherTimeLeft`, `raidActive`, `raidTimeLeft`, `raidExposed`, `raidDefense`, `housingShortage`, `seasonEligible`, `ruinsActive`, `ruinsCooldown`, `ruinsProgress`, `ruinsArtifacts`, `clanShare_abyssborn`).
 - `ai.training.trainer.activation`: hidden-layer activation (`tanh` or `relu`).
 - `ai.training.trainer.logStdInit`: initial log-std for action sampling.
 - `ai.training.trainer.maxGradNorm`: gradient norm clip.

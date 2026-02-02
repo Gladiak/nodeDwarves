@@ -3,6 +3,7 @@
 const { updateSeason, getSeasonModifier } = require('./season');
 const { updateWeather, getWeatherModifier, getWeatherNeedMultipliers } = require('./weather');
 const { updateRaidStart, updateRaidTick } = require('./raids');
+const { getClanEffects } = require('../clans');
 const {
   advanceAge,
   applyNeedDecay,
@@ -23,6 +24,7 @@ const { updateHouseStorage, regenerateNodes, applyStockpileDecay } = require('./
 const { tickTerrainCooldowns } = require('./terrain');
 const { updateRuins } = require('./ruins');
 const { updateEndgameDifficulty, maybeHandleEndgameReset } = require('./endgame');
+const { updateMyths, getMythMultiplier } = require('./myths');
 
 // Advance the simulation by one tick.
 function stepState(state, config, runtime, action) {
@@ -35,8 +37,17 @@ function stepState(state, config, runtime, action) {
   const housingPenalty = getWinterHousingPenalty(state, config);
   const weatherNeedMultiplier = getWeatherModifier(state, config, 'needDecay', 1);
   const weatherNeedByNeed = getWeatherNeedMultipliers(state, config);
+  const mythNeedMultiplier = getMythMultiplier(state, config, 'needDecay', 1);
+  const stormColdActive = state.weather
+    ? state.weather.type === 'storm' || state.weather.type === 'cold'
+    : false;
 
   for (const dwarf of state.dwarves) {
+    const clanEffects = getClanEffects(config, dwarf.clanId);
+    const stormColdBonus = Math.max(0, Number(clanEffects.storm_cold_need_decay_bonus || 0));
+    const clanNeedMultiplier = stormColdActive && stormColdBonus > 0
+      ? 1 + stormColdBonus
+      : 1;
     advanceAge(dwarf, config);
     applyNeedDecay(
       dwarf,
@@ -44,7 +55,9 @@ function stepState(state, config, runtime, action) {
       getSeasonModifier(state, 'needDecay', 1)
         * housingPenalty.needDecay
         * weatherNeedMultiplier
-        * endgameDifficulty,
+        * endgameDifficulty
+        * clanNeedMultiplier
+        * mythNeedMultiplier,
       weatherNeedByNeed,
     );
     consumeResources(dwarf, state, config);
@@ -72,6 +85,7 @@ function stepState(state, config, runtime, action) {
   updateHouseStorage(state, config);
   regenerateNodes(state, config);
   updateRaidTick(state, config, runtime);
+  updateMyths(state, config);
   maybeHandleEndgameReset(state, config, runtime);
 }
 

@@ -12,6 +12,7 @@ This file defines how to implement new features in a consistent, stable way.
 - Continuously improve model intelligence and learning capability in measured, stable steps.
 - When implementation details are unclear, ask for clarifications before coding changes.
 - Always update README.md and MANUAL.md after new implementations or tweaks, if needed.
+- For substantial implementations, update documentation with a clear, high-detail explanation (README, MANUAL, and relevant docs).
 - Always write documentation in English.
 
 ## Project structure

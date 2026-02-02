@@ -4,6 +4,37 @@ const { clamp } = require('../utils');
 const { pushEvent } = require('./events');
 const { getSeasonModifier } = require('./season');
 const { hasInputs, consumeInputs, getStockpileRatio } = require('./resources');
+const { getMythMultiplier } = require('./myths');
+const { getClanConfig, pickClanId } = require('../clans');
+
+// Resolve the clan id for a newborn based on config and parents.
+function resolveNewbornClanId(parentA, parentB, config) {
+  const clanConfig = getClanConfig(config);
+  if (clanConfig.enabled === false) {
+    return null;
+  }
+  const inheritance = clanConfig.inheritance || {};
+  const mode = String(inheritance.mode || 'parent');
+  const parentClans = [parentA, parentB]
+    .map((parent) => (parent ? parent.clanId : null))
+    .filter((clanId) => clanId);
+
+  if (mode === 'random') {
+    return pickClanId(config);
+  }
+
+  if (parentClans.length === 1) {
+    return parentClans[0];
+  }
+  if (parentClans.length >= 2) {
+    if (parentClans[0] === parentClans[1]) {
+      return parentClans[0];
+    }
+    return Math.random() < 0.5 ? parentClans[0] : parentClans[1];
+  }
+
+  return pickClanId(config);
+}
 
 // Advance dwarf age ticks and update life stage transitions.
 function advanceAge(dwarf, config) {
@@ -651,7 +682,12 @@ function attemptConceptions(state, config, reproduction) {
   const crowdingFactor = getCrowdingFactor(state, reproduction);
   const moraleFactor = getMoraleFactor(state, reproduction);
   const seasonFactor = getSeasonModifier(state, 'reproductionChance', 1);
-  const chance = clamp(baseChance * resourceFactor * crowdingFactor * moraleFactor * seasonFactor, 0, 1);
+  const mythFactor = getMythMultiplier(state, config, 'reproductionChance', 1);
+  const chance = clamp(
+    baseChance * resourceFactor * crowdingFactor * moraleFactor * seasonFactor * mythFactor,
+    0,
+    1,
+  );
   stats.resourceFactorSum = Number(stats.resourceFactorSum || 0) + resourceFactor;
   stats.crowdingFactorSum = Number(stats.crowdingFactorSum || 0) + crowdingFactor;
   stats.moraleFactorSum = Number(stats.moraleFactorSum || 0) + moraleFactor;
@@ -824,6 +860,7 @@ function isFertileAdult(dwarf, config) {
 function spawnNewborn(state, config, parentA, parentB) {
   const needsTemplate = config.needs.initial || {};
   const aging = (config.population && config.population.aging) || {};
+  const clanId = resolveNewbornClanId(parentA, parentB, config);
   const newborn = {
     id: `dwarf_${++state.dwarfCounter}`,
     x: parentA ? parentA.x : 0,
@@ -841,6 +878,7 @@ function spawnNewborn(state, config, parentA, parentB) {
     job: null,
     role: null,
     roleCooldown: 0,
+    clanId,
     homeId: (parentA && parentA.homeId) || (parentB && parentB.homeId) || null,
     partnerId: null,
     bondTargetId: null,
