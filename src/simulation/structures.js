@@ -785,6 +785,81 @@ function getPlacementConfig(structureConfig) {
   };
 }
 
+// Check whether a placement candidate passes all placement constraints.
+function isPlacementCandidate({
+  state,
+  runtime,
+  x,
+  y,
+  center,
+  reservedPositions,
+  placement,
+  minDistanceFromCenter,
+  maxDistanceFromCenter,
+  minDistanceBetween,
+  minStructureDistance,
+  allowTerrain,
+  allowForest,
+  structurePositions,
+  sameTypeStructures,
+}) {
+  if (!isBuildableCell(state, runtime, x, y)) {
+    return false;
+  }
+  if (isReservedPosition(reservedPositions, x, y)) {
+    return false;
+  }
+  const distFromCenter = Math.abs(center.x - x) + Math.abs(center.y - y);
+  if (minDistanceFromCenter > 0 && distFromCenter < minDistanceFromCenter) {
+    return false;
+  }
+  if (maxDistanceFromCenter > 0 && distFromCenter > maxDistanceFromCenter) {
+    return false;
+  }
+  if (!isPlacementTerrainAllowed(state, x, y, placement, allowTerrain, allowForest)) {
+    return false;
+  }
+
+  const position = { x, y };
+  if (minStructureDistance > 0
+    && minDistanceToStructures(position, structurePositions) < minStructureDistance) {
+    return false;
+  }
+  if (minDistanceBetween > 0
+    && minDistanceToStructures(position, sameTypeStructures) < minDistanceBetween) {
+    return false;
+  }
+  return true;
+}
+
+// Find a nearby placement candidate by expanding the search radius.
+function findNearbyPlacementCandidate(options, maxRadius) {
+  const radiusMax = Math.max(0, Math.floor(Number(maxRadius || 0)));
+  if (radiusMax <= 0) {
+    return isPlacementCandidate(options) ? { x: options.x, y: options.y } : null;
+  }
+  const originX = options.x;
+  const originY = options.y;
+  for (let radius = 0; radius <= radiusMax; radius += 1) {
+    for (let dx = -radius; dx <= radius; dx += 1) {
+      const dy = radius - Math.abs(dx);
+      const x1 = originX + dx;
+      const y1 = originY + dy;
+      if (isPlacementCandidate({ ...options, x: x1, y: y1 })) {
+        return { x: x1, y: y1 };
+      }
+      if (dy !== 0) {
+        const x2 = originX + dx;
+        const y2 = originY - dy;
+        if (isPlacementCandidate({ ...options, x: x2, y: y2 })) {
+          return { x: x2, y: y2 };
+        }
+      }
+    }
+  }
+  return null;
+}
+
 // Build a map of structure positions keyed by "x,y".
 function buildStructurePositionMap(structures) {
   const map = new Map();
@@ -1750,6 +1825,10 @@ function findPoissonBuildSpot(state, runtime, structureConfig, reservedPositions
   const allowTerrain = options && options.allowTerrain ? options.allowTerrain : null;
   const structureType = options && options.structureType ? options.structureType : null;
   const allowForest = Boolean(options && options.allowForest);
+  const nearbySearchRadius = Math.max(
+    0,
+    Math.floor(Number(placement.nearbySearchRadius ?? placement.maxDistanceFromCenter ?? 0)),
+  );
 
   const structurePositions = buildStructurePositions(state.structures || []);
   const sameTypeStructures = structureType
@@ -1762,41 +1841,97 @@ function findPoissonBuildSpot(state, runtime, structureConfig, reservedPositions
   for (let i = 0; i < maxAttempts; i += 1) {
     const x = randomBetween(0, width - 1);
     const y = randomBetween(0, height - 1);
-    const key = `${x},${y}`;
-    if (reservedPositions && reservedPositions.has(key)) {
-      continue;
-    }
-    if (!isBuildableCell(state, runtime, x, y)) {
-      continue;
-    }
     const distFromCenter = Math.abs(center.x - x) + Math.abs(center.y - y);
-    if (minDistanceFromCenter > 0 && distFromCenter < minDistanceFromCenter) {
+    if (minDistanceFromCenter > 0 && distFromCenter + nearbySearchRadius < minDistanceFromCenter) {
       continue;
     }
-    if (maxDistanceFromCenter > 0 && distFromCenter > maxDistanceFromCenter) {
+    if (maxDistanceFromCenter > 0 && distFromCenter - nearbySearchRadius > maxDistanceFromCenter) {
       continue;
     }
-    if (!isPlacementTerrainAllowed(state, x, y, placement, allowTerrain, allowForest)) {
+    const candidate = findNearbyPlacementCandidate({
+      state,
+      runtime,
+      x,
+      y,
+      center,
+      reservedPositions,
+      placement,
+      minDistanceFromCenter,
+      maxDistanceFromCenter,
+      minDistanceBetween,
+      minStructureDistance,
+      allowTerrain,
+      allowForest,
+      structurePositions,
+      sameTypeStructures,
+    }, nearbySearchRadius);
+    if (!candidate) {
       continue;
     }
 
-    const position = { x, y };
-    if (minStructureDistance > 0
-      && minDistanceToStructures(position, structurePositions) < minStructureDistance) {
-      continue;
-    }
-    if (minDistanceBetween > 0
-      && minDistanceToStructures(position, sameTypeStructures) < minDistanceBetween) {
-      continue;
-    }
-
-    const distanceToSame = minDistanceToStructures(position, sameTypeStructures);
-    const distanceToAll = minDistanceToStructures(position, structurePositions);
+    const distanceToSame = minDistanceToStructures(candidate, sameTypeStructures);
+    const distanceToAll = minDistanceToStructures(candidate, structurePositions);
     const score = Math.min(distanceToSame, distanceToAll);
     const normalized = Number.isFinite(score) ? score : width + height;
     if (normalized > bestScore) {
       bestScore = normalized;
-      best = position;
+      best = candidate;
+    }
+  }
+
+  if (!best) {
+    const fallbackMax = maxDistanceFromCenter > 0
+      ? Math.min(maxDistanceFromCenter, getMaxWallRingRadius(center, runtime))
+      : getMaxWallRingRadius(center, runtime);
+    const startRadius = Math.max(0, Math.floor(minDistanceFromCenter || 0));
+    for (let radius = startRadius; radius <= fallbackMax; radius += 1) {
+      for (let dx = -radius; dx <= radius; dx += 1) {
+        const dy = radius - Math.abs(dx);
+        const x1 = center.x + dx;
+        const y1 = center.y + dy;
+        if (isPlacementCandidate({
+          state,
+          runtime,
+          x: x1,
+          y: y1,
+          center,
+          reservedPositions,
+          placement,
+          minDistanceFromCenter,
+          maxDistanceFromCenter,
+          minDistanceBetween,
+          minStructureDistance,
+          allowTerrain,
+          allowForest,
+          structurePositions,
+          sameTypeStructures,
+        })) {
+          return { x: x1, y: y1 };
+        }
+        if (dy !== 0) {
+          const x2 = center.x + dx;
+          const y2 = center.y - dy;
+          if (isPlacementCandidate({
+            state,
+            runtime,
+            x: x2,
+            y: y2,
+            center,
+            reservedPositions,
+            placement,
+            minDistanceFromCenter,
+            maxDistanceFromCenter,
+            minDistanceBetween,
+            minStructureDistance,
+            allowTerrain,
+            allowForest,
+            structurePositions,
+            sameTypeStructures,
+          })) {
+            return { x: x2, y: y2 };
+          }
+        }
+      }
     }
   }
 
@@ -1806,7 +1941,11 @@ function findPoissonBuildSpot(state, runtime, structureConfig, reservedPositions
 // Find a build spot outside the core village radius.
 function findPeripheralBuildSpot(state, runtime, structureConfig, reservedPositions) {
   const minRadius = getPeripheralBuildRadius(state, runtime, structureConfig);
-  return findVillageBuildSpotFromRadius(state, runtime, minRadius, null, reservedPositions);
+  const spot = findVillageBuildSpotFromRadius(state, runtime, minRadius, null, reservedPositions);
+  if (spot) {
+    return spot;
+  }
+  return findVillageBuildSpot(state, runtime, reservedPositions);
 }
 
 // Find a fertile build spot for fields.
