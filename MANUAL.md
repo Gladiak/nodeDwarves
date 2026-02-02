@@ -35,14 +35,15 @@ The tick order in code lives in `src/simulation/index.js`.
    - Needs decay (season/weather modifiers).
    - Consume resources from stockpile when thresholds hit.
 5. Handle deaths, roles, housing, relationships, reproduction (`population.js`, `roles.js`).
-6. Assign jobs (`jobs.js`).
-7. Move and perform actions (`dwarf_actions.js`).
-8. Merchant update (`merchant.js`).
-9. Stockpile decay + terrain cooldown tick (`resources.js`, `terrain.js`).
-10. House storage + node regen (`resources.js`).
-11. Raid tick update (`raids.js`).
-12. Myth update (`myths.js`).
-13. Endgame cycle check (`endgame.js`).
+6. Village founding checks (`villages.js`).
+7. Assign jobs (`jobs.js`).
+8. Move and perform actions (`dwarf_actions.js`).
+9. Merchant update (`merchant.js`).
+10. Stockpile decay + terrain cooldown tick (`resources.js`, `terrain.js`).
+11. House storage + node regen (`resources.js`).
+12. Raid tick update (`raids.js`).
+13. Myth update (`myths.js`).
+14. Endgame cycle check (`endgame.js`).
 
 **Tick flow diagram**
 
@@ -53,16 +54,17 @@ flowchart TD
   C --> D[Raid start check]
   D --> E[Per-dwarf: age + needs + consume]
   E --> F[Population systems: deaths, roles, housing, relationships, reproduction]
-  F --> G[Assign jobs]
-  G --> H[Process dwarf actions]
-  H --> I[Merchant update]
-  I --> J[Stockpile decay + terrain cooldown]
-  J --> K[House storage + node regen]
-  K --> L[Raid tick update]
-  L --> M[Myth update]
-  M --> N[Endgame cycle check]
-  N --> O[Render frame]
-  O --> P[Wait tickMs, next tick]
+  F --> G[Village founding]
+  G --> H[Assign jobs]
+  H --> I[Process dwarf actions]
+  I --> J[Merchant update]
+  J --> K[Stockpile decay + terrain cooldown]
+  K --> L[House storage + node regen]
+  L --> M[Raid tick update]
+  M --> N[Myth update]
+  N --> O[Endgame cycle check]
+  O --> P[Render frame]
+  P --> Q[Wait tickMs, next tick]
 ```
 
 Notes:
@@ -205,6 +207,14 @@ Notes:
   - Watchtowers provide raid defense and per-tick attacks.
   - Mines/sawmills/breweries scale output by level with exponential upgrade costs.
   - Guardrails are **ratio-based** (important for stability).
+
+### Villages
+
+- `villages.js`
+  - Tracks village centers and founding triggers.
+  - New villages are founded at population thresholds.
+  - New centers must be far enough from existing villages and near required resources.
+  - Stockpile remains shared; village centers influence well/field/house placement.
 
 ### Roles
 
@@ -366,6 +376,7 @@ Everything under `src/render/` is pure rendering: no simulation changes.
   - Column layout uses `display.hud.columns` and `display.hud.columnGap`.
   - Stockpile bars scale with `display.hud.stockBarMax` or resource targets.
   - World HUD includes event stream (`events.maxEntries`) and myth/ruins overlays.
+  - World HUD includes the current village count.
 
 - `render/legend.js`
   - Footer legend built from `config.json` symbols and resource nodes.

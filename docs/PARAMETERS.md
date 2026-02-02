@@ -352,6 +352,18 @@ Population reproduction:
 - `population.reproduction.birthCost.<resource>`: stockpile cost consumed at conception.
 - `population.reproduction.minStockpileRatio.<resource>`: block conceptions if stockpile ratio is below this (0..1).
 
+Villages:
+
+- `villages.enabled`: enable multi-village founding.
+- `villages.maxCount`: maximum simultaneous villages.
+- `villages.founderCount`: number of dwarves credited as founders when a village is created.
+- `villages.populationThresholds`: population thresholds for founding new villages (e.g. `[200, 400]`).
+- `villages.minDistanceBetween`: minimum Manhattan distance between village centers.
+- `villages.requiredResources`: resources that must be nearby for a new village site.
+- `villages.requiredResourceDistance`: max distance for required resources (tiles).
+- `villages.structureRadius`: radius used to spread new builds across village centers (tiles).
+- `villages.expandStructures`: structure types allowed to use non-primary village centers.
+
 Clans:
 
 - `clans.enabled`: enable clan culture system.
