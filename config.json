@@ -5,7 +5,7 @@
     "height": 60,
     "maxWidth": 190,
     "maxHeight": 60,
-    "tickMs": 20,
+    "tickMs": 200,
     "header": {
       "enabled": true,
       "height": 1,

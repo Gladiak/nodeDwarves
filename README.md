@@ -30,7 +30,7 @@ Have a wild idea? Jump in and ship it — pick one of these and make the colony 
 
 ## Screenshot - How it looks 📸
 
-![NodeDwarves simulation](assets/NodeDwarves.gif)
+![NodeDwarves simulation](assets/NodeDwarves.png)
 
 ## Simulation overview 🗺️
 
