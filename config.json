@@ -145,7 +145,7 @@
         "hill": "▓",
         "plain": "\"",
         "fertile": "░",
-        "food": "♥",
+        "food": "φ",
         "forest": "♣",
         "stone": "♦"
       },
@@ -224,12 +224,12 @@
         "stone": "\u001b[90m",
         "iron": "\u001b[37m",
         "expedition_kit": "\u001b[93m",
-      "beer": "\u001b[33m",
-      "clan_abyssborn": "\u001b[94m",
-      "clan_khorg_embers": "\u001b[91m",
-      "clan_threshold_wardens": "\u001b[92m",
-      "clan_deep_lantern": "\u001b[95m",
-      "weather_clear": "\u001b[37m",
+        "beer": "\u001b[33m",
+        "clan_abyssborn": "\u001b[94m",
+        "clan_khorg_embers": "\u001b[91m",
+        "clan_threshold_wardens": "\u001b[92m",
+        "clan_deep_lantern": "\u001b[95m",
+        "weather_clear": "\u001b[37m",
         "weather_rain": "\u001b[34m",
         "weather_storm": "\u001b[33m",
         "weather_drought": "\u001b[31m",
@@ -509,11 +509,11 @@
         "dwarves": {
           "count": 20
         },
-    "ai": {
-      "maxTicks": 7000,
-      "termination": {
-        "enabled": false
-      }
+        "ai": {
+          "maxTicks": 7000,
+          "termination": {
+            "enabled": false
+          }
         },
         "merchant": {
           "enabled": false
@@ -626,11 +626,11 @@
         "dwarves": {
           "count": 20
         },
-    "ai": {
-      "maxTicks": 7000,
-      "termination": {
-        "enabled": false
-      }
+        "ai": {
+          "maxTicks": 7000,
+          "termination": {
+            "enabled": false
+          }
         },
         "merchant": {
           "enabled": true
@@ -1141,11 +1141,18 @@
           }
         }
       ],
-      "evalScenarios": ["baseline", "full_sim", "water_scarce", "food_scarce", "ruins_focus", "clan_lantern"],
+      "evalScenarios": [
+        "baseline",
+        "full_sim",
+        "water_scarce",
+        "food_scarce",
+        "ruins_focus",
+        "clan_lantern"
+      ],
       "trainer": {
         "algorithm": "ppo",
         "episodes": 40000,
-    "maxSteps": 3500,
+        "maxSteps": 3500,
         "stepTicks": 2,
         "gamma": 0.995,
         "gaeLambda": 0.97,
@@ -1193,7 +1200,7 @@
         "debugMode": "summary",
         "evalEvery": 3000,
         "evalEpisodes": 8,
-    "evalMaxSteps": 0,
+        "evalMaxSteps": 0,
         "evalDifficulty": 1,
         "evalScore": "rpt",
         "sampleScore": "rpt",
@@ -2399,7 +2406,7 @@
     "dwarf": "☺",
     "merchant": "$",
     "beast": "♠",
-    "food": "♥",
+    "food": "φ",
     "water": "≈",
     "wood": "♣",
     "stone": "♦",
