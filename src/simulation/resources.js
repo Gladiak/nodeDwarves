@@ -97,7 +97,8 @@ function getResourceNodeRatio(state, resourceId) {
 // Compute the target stockpile amount, optionally scaling per capita.
 function getStockpileTarget(state, config, resourceId, fallbackTargets) {
   const resources = config.resources || {};
-  const targets = fallbackTargets || resources.targets || resources.stockpile || {};
+  const scaledTargets = state && state.resourceTargets ? state.resourceTargets : null;
+  const targets = fallbackTargets || scaledTargets || resources.targets || resources.stockpile || {};
   const baseTarget = Math.max(0, Number(targets[resourceId] || 0));
   const perCapitaConfig = resources.targetsPerCapita || {};
   const perCapita = Math.max(0, Number(perCapitaConfig[resourceId] || 0));

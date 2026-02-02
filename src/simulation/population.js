@@ -138,6 +138,21 @@ function getWinterHousingPenalty(state, config) {
   };
 }
 
+// Boost bond gain for same-clan interactions when configured.
+function getClanBondGain(dwarf, partner, baseGain, relationships) {
+  const bonus = Math.max(0, Number(relationships.sameClanBondGainBonus ?? 0));
+  if (bonus <= 0) {
+    return baseGain;
+  }
+  if (!dwarf || !partner || !dwarf.clanId || !partner.clanId) {
+    return baseGain;
+  }
+  if (dwarf.clanId !== partner.clanId) {
+    return baseGain;
+  }
+  return baseGain * (1 + bonus);
+}
+
 // Assign housing to dwarves based on available beds and partnerships.
 function assignHousing(state, config) {
   const housingConfig = (config.population && config.population.housing) || {};
@@ -544,8 +559,9 @@ function updateRelationships(state, config) {
       if (b.partnerId && b.partnerId !== a.id) {
         continue;
       }
-      progressBond(a, b, adjustedBondGain, bondDecay, bondThreshold);
-      progressBond(b, a, adjustedBondGain, bondDecay, bondThreshold);
+      const gain = getClanBondGain(a, b, adjustedBondGain, relationships);
+      progressBond(a, b, gain, bondDecay, bondThreshold);
+      progressBond(b, a, gain, bondDecay, bondThreshold);
     }
 
     for (let i = 0; i < proximityInteractions; i += 1) {
@@ -564,8 +580,9 @@ function updateRelationships(state, config) {
       if (b.partnerId && b.partnerId !== a.id) {
         continue;
       }
-      progressBond(a, b, adjustedBondGain, bondDecay, bondThreshold);
-      progressBond(b, a, adjustedBondGain, bondDecay, bondThreshold);
+      const gain = getClanBondGain(a, b, adjustedBondGain, relationships);
+      progressBond(a, b, gain, bondDecay, bondThreshold);
+      progressBond(b, a, gain, bondDecay, bondThreshold);
     }
 
     return;
@@ -587,8 +604,9 @@ function updateRelationships(state, config) {
     if (b.partnerId && b.partnerId !== a.id) {
       continue;
     }
-    progressBond(a, b, bondGain, bondDecay, bondThreshold);
-    progressBond(b, a, bondGain, bondDecay, bondThreshold);
+    const gain = getClanBondGain(a, b, bondGain, relationships);
+    progressBond(a, b, gain, bondDecay, bondThreshold);
+    progressBond(b, a, gain, bondDecay, bondThreshold);
   }
 }
 

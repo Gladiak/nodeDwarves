@@ -159,6 +159,15 @@ Resources:
 - `resources.stockpile.<resource>`: initial stockpile amounts (e.g. `food`, `water`, `beer`, `wood`, `stone`, `iron`, `expedition_kit`, `mithril`, `adamantio`, `mana_crystal`).
 - `resources.targets.<resource>`: target stockpile amounts used for shortages and stockpile ratios.
 - `resources.targetsPerCapita.<resource>`: per-dwarf target add-on (added to `resources.targets`) for scaling shortages and ratios.
+- `resources.mapScale.enabled`: enable scaling of initial resources based on map area.
+- `resources.mapScale.baselineWidth`: baseline map (grid) width used for map scaling.
+- `resources.mapScale.baselineHeight`: baseline map (grid) height used for map scaling.
+- `resources.mapScale.minMultiplier`: minimum clamp for the map scale multiplier.
+- `resources.mapScale.maxMultiplier`: maximum clamp for the map scale multiplier.
+- `resources.mapScale.applyTo.stockpile`: scale initial stockpile amounts by the map multiplier.
+- `resources.mapScale.applyTo.targets`: scale stockpile targets by the map multiplier.
+- `resources.mapScale.applyTo.nodes`: scale resource node counts by the map multiplier.
+- `resources.mapScale.applyTo.nodeCapacity`: scale node capacities by the map multiplier.
 - `resources.labels.<resource>`: HUD label overrides for stockpile resources (falls back to the resource id).
 - `resources.useTerrainTiles`: gather resources directly from terrain tiles when available.
 - `resources.terrainAllowed.<resource>`: allowed terrain tile types for resource placement and terrain gathering.
@@ -271,6 +280,7 @@ Population relationships:
 - `population.relationships.maxDistance`: max distance (Manhattan) for proximity bonding.
 - `population.relationships.bondGain`: bond score gained per interaction.
 - `population.relationships.bondDecay`: bond score decay per interaction.
+- `population.relationships.sameClanBondGainBonus`: extra bond gain multiplier for same-clan pairs (0.2 = +20%).
 - `population.relationships.bondThreshold`: bond score required for stable bonding.
 - `population.relationships.moraleMin`: morale where bonding bonus starts (0..1).
 - `population.relationships.moraleMax`: morale where bonding bonus caps (0..1).
@@ -378,7 +388,8 @@ Structures (wells, fields):
 - `structures.well.manager.buildBelowRatio`: start building when water stockpile ratio is below this (0..1).
 - `structures.well.manager.stopAboveRatio`: stop building when water stockpile ratio is above this (0..1).
 - `structures.well.placement.mode`: placement mode (`poisson` uses map sampling; omit for legacy).
-- `structures.well.placement.minDistanceFromCenter`: minimum Manhattan distance from village center (0 uses build radius).
+- `structures.well.placement.minDistanceFromCenter`: minimum Manhattan distance from village center (omit to use build radius).
+- `structures.well.placement.maxDistanceFromCenter`: maximum Manhattan distance from village center (0 = no cap).
 - `structures.well.placement.minDistanceBetween`: minimum Manhattan distance between wells.
 - `structures.well.placement.minStructureDistance`: minimum Manhattan distance from any structure.
 - `structures.well.placement.maxAttempts`: random samples per build attempt.
@@ -399,7 +410,8 @@ Structures (wells, fields):
 - `structures.field.manager.buildBelowRatio`: start building when food stockpile ratio is below this (0..1).
 - `structures.field.manager.stopAboveRatio`: stop building when food stockpile ratio is above this (0..1).
 - `structures.field.placement.mode`: placement mode (`poisson` uses map sampling; omit for legacy).
-- `structures.field.placement.minDistanceFromCenter`: minimum Manhattan distance from village center (0 uses build radius).
+- `structures.field.placement.minDistanceFromCenter`: minimum Manhattan distance from village center (omit to use build radius).
+- `structures.field.placement.maxDistanceFromCenter`: maximum Manhattan distance from village center (0 = no cap).
 - `structures.field.placement.minDistanceBetween`: minimum Manhattan distance between fields.
 - `structures.field.placement.minStructureDistance`: minimum Manhattan distance from any structure.
 - `structures.field.placement.maxAttempts`: random samples per build attempt.

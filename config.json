@@ -88,7 +88,7 @@
         "food": {
           "humidityMin": 0.4,
           "waterDistanceMax": 3,
-          "minTiles": 44,
+          "minTiles": 90,
           "minTilesWaterDistanceMax": 6,
           "noiseScale": 0.12,
           "noiseThreshold": 0.68,
@@ -131,7 +131,7 @@
         "buffer": 3
       },
       "minimumTiles": {
-        "food": 87,
+        "food": 200,
         "mountain": 54,
         "stone": 33
       },
@@ -340,10 +340,10 @@
         "durationTicks": 450,
         "effects": {
           "needDecay": 0.94,
-          "gatherTicks": 1.05
+          "gatherTicks": 1.02
         },
         "traditionEffects": {
-          "needDecay": 0.98
+          "needDecay": 0.985
         },
         "trigger": {
           "type": "resource_crisis",
@@ -360,10 +360,10 @@
         "effects": {
           "raidDeathRate": 0.9,
           "raidResourceLoss": 0.92,
-          "gatherTicks": 1.04
+          "gatherTicks": 1.02
         },
         "traditionEffects": {
-          "raidDeathRate": 0.97
+          "raidDeathRate": 0.985
         },
         "trigger": {
           "type": "raid_deaths",
@@ -376,11 +376,11 @@
         "label": "Relic Fever",
         "durationTicks": 300,
         "effects": {
-          "ruinsArtifactChance": 1.08,
-          "ruinsHazard": 1.06
+          "ruinsArtifactChance": 1.06,
+          "ruinsHazard": 1.03
         },
         "traditionEffects": {
-          "ruinsArtifactChance": 1.03
+          "ruinsArtifactChance": 1.02
         },
         "trigger": {
           "type": "ruins_success",
@@ -392,12 +392,12 @@
         "label": "Dry Wells",
         "durationTicks": 350,
         "effects": {
-          "fieldRegen": 0.9,
-          "irrigation": 0.9,
-          "nodeRegen": 0.95
+          "fieldRegen": 0.94,
+          "irrigation": 0.95,
+          "nodeRegen": 0.97
         },
         "traditionEffects": {
-          "fieldRegen": 0.97
+          "fieldRegen": 0.985
         },
         "trigger": {
           "type": "drought_or_water_crisis",
@@ -1223,7 +1223,7 @@
   },
   "resources": {
     "stockpile": {
-      "food": 40,
+      "food": 30,
       "water": 40,
       "beer": 0,
       "wood": 8,
@@ -1239,6 +1239,19 @@
       "water": 60,
       "wood": 8,
       "stone": 6
+    },
+    "mapScale": {
+      "enabled": true,
+      "baselineWidth": 108,
+      "baselineHeight": 54,
+      "minMultiplier": 0.9,
+      "maxMultiplier": 1.6,
+      "applyTo": {
+        "stockpile": true,
+        "targets": false,
+        "nodes": true,
+        "nodeCapacity": false
+      }
     },
     "targetsPerCapita": {
       "food": 0.6,
@@ -1294,7 +1307,7 @@
     "nodeRegen": {
       "enabled": true,
       "intervalTicks": 35,
-      "amount": 4,
+      "amount": 5,
       "onlyDepleted": false
     },
     "nodes": {
@@ -1432,6 +1445,7 @@
       "placement": {
         "mode": "poisson",
         "minDistanceFromCenter": 0,
+        "maxDistanceFromCenter": 10,
         "minDistanceBetween": 1,
         "minStructureDistance": 6,
         "maxAttempts": 800,
@@ -1478,6 +1492,7 @@
       "placement": {
         "mode": "poisson",
         "minDistanceFromCenter": 0,
+        "maxDistanceFromCenter": 10,
         "minDistanceBetween": 1,
         "minStructureDistance": 6,
         "maxAttempts": 800,
@@ -2050,6 +2065,7 @@
       "maxDistance": 8,
       "bondGain": 1.3,
       "bondDecay": 0.12,
+      "sameClanBondGainBonus": 0.2,
       "bondThreshold": 12,
       "moraleMin": 0.6,
       "moraleMax": 0.95,

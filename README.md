@@ -58,7 +58,7 @@ alive while you watch the chaos unfold in ASCII.
 - 🎨 Optional seasonal palettes recolor terrain in patchy waves during season transitions.
 - 🌧️ Weather cycles (clear, rain, storm, drought, cold) add extra modifiers.
 - 🗿 Myths: rare global modifiers born from repeated crises or successes; traditions persist between endgame cycles within the same run.
-- 👪 Population is dynamic: dwarves age, form bonds, reproduce with gestation, and can die.
+- 👪 Population is dynamic: dwarves age, form bonds (same-clan pairs can bond faster), reproduce with gestation, and can die.
 - 👪 Reproduction can be gated by minimum stockpile ratios to avoid boom-bust starvation cycles.
 - 🪵🪨 Wood and stone build clustered villages (center-out placement).
 - 🛏️ Housing provides beds; insufficient shelter slows bonding and makes winter harsher.
@@ -308,6 +308,11 @@ All core knobs live in `config.json`. The training loop reads defaults from
 `ai.training.trainer` and CLI flags can override any of them.
 
 See [Parameter reference](docs/PARAMETERS.md).
+
+Map size scaling: `resources.mapScale` can scale initial stockpiles (and,
+optionally, node counts/targets) based on the runtime grid area. Use
+`baselineWidth`/`baselineHeight` to define the map (grid) size baseline when you
+change the terminal size or HUD width.
 
 ### Wildlife raids 🐺
 

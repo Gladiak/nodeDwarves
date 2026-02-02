@@ -96,6 +96,8 @@ Notes:
   - `createInitialState(config, runtime)` builds the state object:
     - `dwarves`, `nodes`, `structures`, `merchant`, `weather`, `raid`, `tools`, etc.
     - `stockpile` initialized from `config.resources.stockpile`.
+    - Initial stockpiles (and optional node counts) can scale with map size via `resources.mapScale`
+      using the map grid dimensions as a baseline.
     - Counters and stats used by AI, raids, ruins, myths, and endgame cycles.
   - `fitStateToGrid(...)` repositions entities after resize and keeps everything in-bounds.
 
@@ -126,7 +128,8 @@ Notes:
   - Derived mood metrics (morale/stress/fatigue) come from average needs and beer morale boost.
   - Deaths: starvation threshold/ticks and old-age chance from `population.death` and `population.aging`.
   - Housing assignment, couple co-housing, and winter penalties are driven by `population.housing.*`.
-  - Relationships/bonding use `population.relationships.*`, with morale and housing multipliers.
+  - Relationships/bonding use `population.relationships.*`, with morale and housing multipliers,
+    plus optional same-clan bond gain bonuses.
   - Reproduction uses `population.reproduction.*` (base chance, soft cap, gestation, cooldown, stockpile gates, birth cost).
 
 ### Clan culture

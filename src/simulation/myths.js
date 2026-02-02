@@ -70,7 +70,8 @@ function getSeasonIndex(state) {
 // Compute target stockpile amount for ratio checks.
 function getStockpileTarget(state, config, resourceId) {
   const resources = (config && config.resources) || {};
-  const targets = resources.targets || resources.stockpile || {};
+  const scaledTargets = state && state.resourceTargets ? state.resourceTargets : null;
+  const targets = scaledTargets || resources.targets || resources.stockpile || {};
   const baseTarget = Math.max(0, Number(targets[resourceId] || 0));
   const perCapitaConfig = resources.targetsPerCapita || {};
   const perCapita = Math.max(0, Number(perCapitaConfig[resourceId] || 0));

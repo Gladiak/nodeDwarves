@@ -752,7 +752,20 @@ function getClusterConfig(structureConfig) {
 function getPlacementConfig(structureConfig) {
   const placement = (structureConfig && structureConfig.placement) || {};
   const mode = String(placement.mode || '').toLowerCase();
-  const minDistanceFromCenter = Math.max(0, Math.floor(Number(placement.minDistanceFromCenter ?? 0)));
+  const hasMinDistanceFromCenter = Object.prototype.hasOwnProperty.call(
+    placement,
+    'minDistanceFromCenter',
+  );
+  const hasMaxDistanceFromCenter = Object.prototype.hasOwnProperty.call(
+    placement,
+    'maxDistanceFromCenter',
+  );
+  const minDistanceFromCenter = hasMinDistanceFromCenter
+    ? Math.max(0, Math.floor(Number(placement.minDistanceFromCenter ?? 0)))
+    : 0;
+  const maxDistanceFromCenter = hasMaxDistanceFromCenter
+    ? Math.max(0, Math.floor(Number(placement.maxDistanceFromCenter ?? 0)))
+    : 0;
   const minDistanceBetween = Math.max(0, Math.floor(Number(placement.minDistanceBetween ?? 0)));
   const minStructureDistance = Math.max(0, Math.floor(Number(placement.minStructureDistance ?? 0)));
   const maxAttempts = Math.max(1, Math.floor(Number(placement.maxAttempts ?? 0)));
@@ -761,7 +774,10 @@ function getPlacementConfig(structureConfig) {
     : [];
   return {
     mode,
+    hasMinDistanceFromCenter,
+    hasMaxDistanceFromCenter,
     minDistanceFromCenter,
+    maxDistanceFromCenter,
     minDistanceBetween,
     minStructureDistance,
     maxAttempts,
@@ -1718,9 +1734,16 @@ function findPoissonBuildSpot(state, runtime, structureConfig, reservedPositions
 
   const center = getVillageCenter(state, runtime);
   const fallbackMin = getPeripheralBuildRadius(state, runtime, structureConfig);
-  const minDistanceFromCenter = placement.minDistanceFromCenter > 0
+  const minDistanceFromCenter = placement.hasMinDistanceFromCenter
     ? placement.minDistanceFromCenter
     : fallbackMin;
+  let maxDistanceFromCenter = placement.hasMaxDistanceFromCenter
+    ? placement.maxDistanceFromCenter
+    : 0;
+  if (maxDistanceFromCenter > 0 && minDistanceFromCenter > 0
+    && maxDistanceFromCenter < minDistanceFromCenter) {
+    maxDistanceFromCenter = minDistanceFromCenter;
+  }
   const minDistanceBetween = placement.minDistanceBetween;
   const minStructureDistance = placement.minStructureDistance;
   const maxAttempts = placement.maxAttempts > 0 ? placement.maxAttempts : width * height;
@@ -1748,6 +1771,9 @@ function findPoissonBuildSpot(state, runtime, structureConfig, reservedPositions
     }
     const distFromCenter = Math.abs(center.x - x) + Math.abs(center.y - y);
     if (minDistanceFromCenter > 0 && distFromCenter < minDistanceFromCenter) {
+      continue;
+    }
+    if (maxDistanceFromCenter > 0 && distFromCenter > maxDistanceFromCenter) {
       continue;
     }
     if (!isPlacementTerrainAllowed(state, x, y, placement, allowTerrain, allowForest)) {

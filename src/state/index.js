@@ -8,12 +8,95 @@ const {
   getTerrainResourcePredicate,
 } = require('./terrain');
 
+// Resolve map scaling configuration for resource initialization.
+function getResourceMapScale(config, runtime) {
+  const resources = (config && config.resources) || {};
+  const mapScale = resources.mapScale || {};
+  if (mapScale.enabled === false) {
+    return { mapScale, multiplier: 1 };
+  }
+  const baselineWidth = Math.max(0, Number(mapScale.baselineWidth || 0));
+  const baselineHeight = Math.max(0, Number(mapScale.baselineHeight || 0));
+  const baselineArea = baselineWidth > 0 && baselineHeight > 0
+    ? baselineWidth * baselineHeight
+    : 0;
+  if (baselineArea <= 0) {
+    return { mapScale, multiplier: 1 };
+  }
+  const width = Math.max(0, Number(runtime && runtime.gridWidth || 0));
+  const height = Math.max(0, Number(runtime && runtime.gridHeight || 0));
+  if (width <= 0 || height <= 0) {
+    return { mapScale, multiplier: 1 };
+  }
+  let multiplier = (width * height) / baselineArea;
+  const minMultiplier = Number(mapScale.minMultiplier ?? 0);
+  const maxMultiplier = Number(mapScale.maxMultiplier ?? 0);
+  if (Number.isFinite(minMultiplier) && minMultiplier > 0) {
+    multiplier = Math.max(minMultiplier, multiplier);
+  }
+  if (Number.isFinite(maxMultiplier) && maxMultiplier > 0) {
+    multiplier = Math.min(maxMultiplier, multiplier);
+  }
+  return { mapScale, multiplier };
+}
+
+// Check whether a map scale applies to a resource section.
+function shouldApplyMapScale(mapScale, key) {
+  if (!mapScale || typeof mapScale !== 'object') {
+    return false;
+  }
+  const applyTo = mapScale.applyTo || {};
+  if (Object.prototype.hasOwnProperty.call(applyTo, key)) {
+    return applyTo[key] === true;
+  }
+  return false;
+}
+
+// Scale a resource map using the map multiplier.
+function scaleResourceMap(source, multiplier) {
+  const scaled = {};
+  if (!source || typeof source !== 'object') {
+    return scaled;
+  }
+  for (const [id, value] of Object.entries(source)) {
+    const numeric = Number(value || 0);
+    if (!Number.isFinite(numeric)) {
+      continue;
+    }
+    const scaledValue = Math.max(0, Math.round(numeric * multiplier));
+    scaled[id] = scaledValue;
+  }
+  return scaled;
+}
+
+// Build the initial stockpile, applying map scaling when configured.
+function buildInitialStockpile(config, mapScaleContext) {
+  const resources = (config && config.resources) || {};
+  const baseStockpile = resources.stockpile || {};
+  if (!mapScaleContext || !shouldApplyMapScale(mapScaleContext.mapScale, 'stockpile')) {
+    return { ...baseStockpile };
+  }
+  return scaleResourceMap(baseStockpile, mapScaleContext.multiplier);
+}
+
+// Build scaled stockpile targets when enabled.
+function buildScaledTargets(config, mapScaleContext) {
+  if (!mapScaleContext || !shouldApplyMapScale(mapScaleContext.mapScale, 'targets')) {
+    return null;
+  }
+  const resources = (config && config.resources) || {};
+  const baseTargets = resources.targets || {};
+  return scaleResourceMap(baseTargets, mapScaleContext.multiplier);
+}
+
 // Build the initial simulation state.
 function createInitialState(config, runtime) {
   const terrain = createTerrain(config, runtime, null);
   const occupied = new Set();
+  const mapScaleContext = getResourceMapScale(config, runtime);
+  const scaledTargets = buildScaledTargets(config, mapScaleContext);
   const structures = createStructures(config, runtime, occupied, terrain);
-  const nodes = createResourceNodes(config, runtime, occupied, terrain);
+  const nodes = createResourceNodes(config, runtime, occupied, terrain, mapScaleContext);
   const dwarves = createDwarves(config, runtime, occupied, terrain);
   const merchant = createMerchantState(config);
   const merchantStats = createMerchantStats();
@@ -40,7 +123,8 @@ function createInitialState(config, runtime) {
     ruins,
     myths,
     terrain,
-    stockpile: { ...config.resources.stockpile },
+    stockpile: buildInitialStockpile(config, mapScaleContext),
+    resourceTargets: scaledTargets,
     jobs: [],
     jobCounter: 1,
     structureCounter: structures.length,
@@ -267,7 +351,7 @@ function createStructures(config, runtime, occupied, terrain) {
 }
 
 // Create initial resource nodes based on config.
-function createResourceNodes(config, runtime, occupied, terrain) {
+function createResourceNodes(config, runtime, occupied, terrain, mapScaleContext) {
   const resources = config.resources || {};
   if (resources.useTerrainTiles === true) {
     return [];
@@ -278,13 +362,30 @@ function createResourceNodes(config, runtime, occupied, terrain) {
   const defaultCapacity = Number(resources.defaultNodeCapacity || 10);
   const symbols = config.symbols || {};
   const terrainAllowed = resources.terrainAllowed || {};
+  const mapScale = mapScaleContext ? mapScaleContext.mapScale : null;
+  const mapMultiplier = mapScaleContext ? mapScaleContext.multiplier : 1;
+  const scaleNodes = shouldApplyMapScale(mapScale, 'nodes');
+  const scaleCapacity = shouldApplyMapScale(mapScale, 'nodeCapacity');
   let nodeCounter = 1;
 
   for (const [id, count] of Object.entries(nodeConfig)) {
+    const baseCount = Math.max(0, Math.floor(Number(count || 0)));
+    const scaledCount = scaleNodes
+      ? Math.max(0, Math.round(baseCount * mapMultiplier))
+      : baseCount;
     const isAllowed = getTerrainResourcePredicate(terrain, terrainAllowed, id);
-    const positions = createPositions(count, runtime.gridWidth, runtime.gridHeight, occupied, isAllowed);
+    const positions = createPositions(
+      scaledCount,
+      runtime.gridWidth,
+      runtime.gridHeight,
+      occupied,
+      isAllowed,
+    );
     const symbol = symbols[id] || '?';
-    const capacity = Math.max(1, Number(capacityConfig[id] || defaultCapacity));
+    const baseCapacity = Math.max(1, Number(capacityConfig[id] || defaultCapacity));
+    const capacity = scaleCapacity
+      ? Math.max(1, Math.round(baseCapacity * mapMultiplier))
+      : baseCapacity;
 
     for (const pos of positions) {
       nodes.push({
@@ -300,7 +401,7 @@ function createResourceNodes(config, runtime, occupied, terrain) {
       occupied.add(positionKey(pos.x, pos.y));
     }
 
-    if (count > 0 && positions.length === 0) {
+    if (scaledCount > 0 && positions.length === 0) {
       const fallback = findFallbackPosition(runtime, occupied, isAllowed);
       if (fallback) {
         nodes.push({
