@@ -4,22 +4,6 @@ An autonomous, gamey dwarf colony simulation that lives entirely in your termina
 No player input after launch: the colony gathers, adapts, and tries to keep itself
 alive while you watch the chaos unfold in ASCII.
 
-## Index
-
-- [Highlights](#highlights)
-- [Roadmap ideas](#roadmap-ideas)
-- [Simulation overview](#simulation-overview)
-- [Clan culture](#clan-culture)
-- [Ancient dwarven ruins](#ancient-dwarven-ruins)
-- [Myths (global modifiers)](#myths-global-modifiers)
-- [Job system and priorities](#job-system-and-priorities)
-- [Quick start](#quick-start)
-- [AI mode (Python)](#ai-mode-python)
-- [Configuration](#configuration)
-- [Scenario presets (training)](#scenario-presets-training)
-- [ASCII legend](#ascii-legend)
-- [Project layout](#project-layout)
-
 ## Highlights ✨
 
 - 🧠 Fully autonomous simulation with a real-time ASCII renderer.
