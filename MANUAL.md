@@ -354,6 +354,11 @@ Everything under `src/render/` is pure rendering: no simulation changes.
   - Builds the base grid from terrain symbols.
   - River connections use box-drawing symbols and `display.terrain.riverSymbols.*`.
   - Terrain symbol set comes from `display.terrain.symbols.*`.
+  - Forest tiles can use a dense symbol for interior tiles, with optional patchy noise via `display.terrain.forestSymbols.*`.
+  - Hill tiles can use a pronounced symbol with patchy noise, and can be forced near mountains, via `display.terrain.hillSymbols.*`.
+  - Mountain tiles can use medium vs high symbols with patchy noise, and can be forced to medium near hills, via `display.terrain.mountainSymbols.*`.
+  - Stone tiles reuse the mountain glyphs and colors in the map render.
+  - Dense forest colors are driven by `display.colors.map.terrain_forest_dense*`.
   - Optional seasonal color overrides via `display.colors.seasonal.*`.
 
 - `render/hud.js`

@@ -22,6 +22,13 @@ function getResourceLabel(resourceConfig, resourceId) {
   return toPascalCase(label);
 }
 
+function pickSymbol(value, fallback) {
+  if (typeof value === 'string' && value.length > 0) {
+    return value;
+  }
+  return fallback;
+}
+
 // Build footer lines containing the legend and map key.
 function buildFooterLines(config, runtime) {
   const height = Math.max(0, Number(runtime.footerHeight || 0));
@@ -96,25 +103,46 @@ function buildFooterLines(config, runtime) {
   const lines = [];
   let terrainLine = '';
   if (terrainEnabled) {
-    const terrainOrder = [
-      'river',
-      'lake',
-      'mountain',
-      'hill',
-      'plain',
-      'fertile',
-      'food',
-      'forest',
-      'stone',
-    ];
     const terrainParts = [];
-    for (const type of terrainOrder) {
-      const symbol = terrainSymbols[type];
+    const forestSymbols = terrainConfig.forestSymbols || {};
+    const hillSymbols = terrainConfig.hillSymbols || {};
+    const mountainSymbols = terrainConfig.mountainSymbols || {};
+
+    const pushTerrain = (symbol, label, colorKey) => {
       if (!symbol) {
-        continue;
+        return;
       }
-      terrainParts.push(colorizeLegend(`${symbol} ${toPascalCase(type)}`, `terrain_${type}`, colors));
+      terrainParts.push(colorizeLegend(`${symbol} ${toPascalCase(label)}`, colorKey, colors));
+    };
+
+    pushTerrain(terrainSymbols.river, 'river', 'terrain_river');
+    pushTerrain(terrainSymbols.lake, 'lake', 'terrain_lake');
+
+    const mountainMedium = pickSymbol(mountainSymbols.medium, terrainSymbols.mountain);
+    const mountainHigh = pickSymbol(mountainSymbols.high, mountainMedium);
+    pushTerrain(mountainMedium, 'mountain', colors.map.terrain_mountain_medium ? 'terrain_mountain_medium' : 'terrain_mountain');
+    if (mountainHigh && mountainHigh !== mountainMedium) {
+      pushTerrain(mountainHigh, 'mountain high', colors.map.terrain_mountain_high ? 'terrain_mountain_high' : 'terrain_mountain');
     }
+
+    const hillGentle = pickSymbol(hillSymbols.primary, terrainSymbols.hill);
+    const hillPronounced = pickSymbol(hillSymbols.pronounced, hillGentle);
+    pushTerrain(hillGentle, 'hill', 'terrain_hill');
+    if (hillPronounced && hillPronounced !== hillGentle) {
+      pushTerrain(hillPronounced, 'hill pronounced', colors.map.terrain_hill_pronounced ? 'terrain_hill_pronounced' : 'terrain_hill');
+    }
+
+    pushTerrain(terrainSymbols.plain, 'plain', 'terrain_plain');
+    pushTerrain(terrainSymbols.fertile, 'fertile', 'terrain_fertile');
+    pushTerrain(terrainSymbols.food, 'food', 'terrain_food');
+
+    const forestNormal = pickSymbol(forestSymbols.primary, terrainSymbols.forest);
+    const forestDense = pickSymbol(forestSymbols.dense, forestNormal);
+    pushTerrain(forestNormal, 'forest', 'terrain_forest');
+    if (forestDense && forestDense !== forestNormal) {
+      pushTerrain(forestDense, 'forest dense', colors.map.terrain_forest_dense ? 'terrain_forest_dense' : 'terrain_forest');
+    }
+
     if (terrainParts.length > 0) {
       terrainLine = `Map: ${terrainParts.join('  ')}`;
     }

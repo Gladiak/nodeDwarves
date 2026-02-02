@@ -94,6 +94,26 @@ Display and layout:
 - `display.terrain.plainSymbols.tertiary`: tertiary symbol for plain/grass tiles when randomized.
 - `display.terrain.plainSymbols.primaryWeight`: chance of choosing the primary symbol (0..1).
 - `display.terrain.plainSymbols.secondaryWeight`: chance of choosing the secondary symbol (0..1).
+- `display.terrain.mountainSymbols.medium`: medium mountain symbol.
+- `display.terrain.mountainSymbols.high`: high mountain symbol for interior tiles.
+- `display.terrain.mountainSymbols.mediumNearHill`: force medium mountains next to hills.
+- `display.terrain.mountainSymbols.highMinNeighbors`: minimum adjacent mountain tiles (8-neighbor) required for the high symbol.
+- `display.terrain.mountainSymbols.highNoiseScale`: noise scale for high mountain patches (higher = smaller patches).
+- `display.terrain.mountainSymbols.highNoiseThreshold`: noise threshold to allow high mountain patches (0..1).
+- `display.terrain.mountainSymbols.highNoiseSeedOffset`: seed offset for high mountain patch noise.
+- `display.terrain.hillSymbols.primary`: primary symbol for hill tiles.
+- `display.terrain.hillSymbols.pronounced`: pronounced hill symbol for interior hill tiles.
+- `display.terrain.hillSymbols.pronouncedNearMountain`: force pronounced hills next to mountains.
+- `display.terrain.hillSymbols.pronouncedMinNeighbors`: minimum adjacent hill tiles (8-neighbor) required for the pronounced symbol.
+- `display.terrain.hillSymbols.pronouncedNoiseScale`: noise scale for pronounced hill patches (higher = smaller patches).
+- `display.terrain.hillSymbols.pronouncedNoiseThreshold`: noise threshold to allow pronounced hill patches (0..1).
+- `display.terrain.hillSymbols.pronouncedNoiseSeedOffset`: seed offset for pronounced hill patch noise.
+- `display.terrain.forestSymbols.primary`: primary symbol for forest tiles.
+- `display.terrain.forestSymbols.dense`: dense forest symbol for interior forest tiles.
+- `display.terrain.forestSymbols.denseMinNeighbors`: minimum adjacent forest tiles (8-neighbor) required for the dense symbol.
+- `display.terrain.forestSymbols.denseNoiseScale`: noise scale for dense forest patches (higher = smaller patches).
+- `display.terrain.forestSymbols.denseNoiseThreshold`: noise threshold to allow dense forest patches (0..1).
+- `display.terrain.forestSymbols.denseNoiseSeedOffset`: seed offset for dense forest patch noise.
 - `display.terrain.riverSymbols.horizontal`: symbol for horizontal river segments.
 - `display.terrain.riverSymbols.vertical`: symbol for vertical river segments.
 - `display.terrain.riverSymbols.cornerNE`: symbol for river corner connecting north + east.
@@ -112,6 +132,11 @@ Display and layout:
 - `display.colors.map.<key>`: ANSI color for an entity key (e.g. `dwarf`, `merchant`, `house`, `food`, `hud_header`).
 - `display.colors.map.weather_<type>`: ANSI color for HUD weather labels (e.g. `weather_rain`).
 - `display.colors.map.terrain_<type>`: ANSI color for terrain tiles (`terrain_river`, `terrain_lake`, `terrain_mountain`, `terrain_hill`, `terrain_plain`, `terrain_fertile`, `terrain_food`, `terrain_forest`, `terrain_stone`).
+- `display.colors.map.terrain_mountain_medium`: ANSI color for medium mountain tiles.
+- `display.colors.map.terrain_mountain_high`: ANSI color for high mountain tiles.
+- `display.colors.map.terrain_hill_pronounced`: ANSI color for pronounced hill tiles (used with the pronounced hill symbol).
+- `display.colors.map.terrain_forest_dense`: ANSI color for dense forest tiles (used with the dense forest symbol).
+- `display.colors.map.terrain_forest_dense_<season>`: seasonal overrides for dense forests (`spring`, `summer`, `autumn`, `winter`).
 - `display.colors.seasonal.enabled`: enable seasonal terrain color transitions.
 - `display.colors.seasonal.types`: terrain types that should use seasonal palettes (e.g. `plain`, `fertile`, `forest`, `food`, `grass`).
 - `display.colors.seasonal.palettes.<season>.<type>`: color map key for a terrain type in a season (uses `display.colors.map` keys).

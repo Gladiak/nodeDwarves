@@ -39,6 +39,10 @@ Have a wild idea? Jump in and ship it — pick one of these and make the colony 
 - 🌊 River tiles render with curved box-drawing symbols and can originate from multiple map edges.
 - 🌲 Forest patches spread beyond water corridors via humidity diffusion, with jittered edges for more organic shorelines.
 - 🌾 Plains render as a weighted mix of CP437 glyphs for subtle texture.
+- 🌲 Forest tiles can swap to a denser symbol on interior tiles, with a darker tint for extra depth.
+- ⛰️ Hills can render gentle vs pronounced glyphs for extra terrain depth.
+- 🏔️ Mountains render as medium vs high peaks, with higher peaks highlighted in white.
+- ⛰️ Stone terrain uses the same mountain glyphs, so mineral regions blend into the peaks.
 - 🧺 Food tiles are guaranteed to appear near water to avoid barren starts, with minimum counts enforced for food/mountain/stone tiles.
 - ⏱️ Each tick:
   1. Dwarves accumulate needs (hunger, thirst).
