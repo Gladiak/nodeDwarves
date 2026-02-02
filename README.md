@@ -7,6 +7,7 @@ alive while you watch the chaos unfold in ASCII.
 ## Index
 
 - [Highlights](#highlights-)
+- [Roadmap](#roadmap-)
 - [Simulation overview](#simulation-overview-)
 - [Clan culture](#clan-culture-)
 - [Ancient dwarven ruins](#ancient-dwarven-ruins-)
@@ -16,7 +17,6 @@ alive while you watch the chaos unfold in ASCII.
 - [AI mode (Python)](#ai-mode-python-)
 - [Configuration](#configuration-)
 - [Scenario presets (training)](#scenario-presets-training-)
-- [Roadmap](#roadmap-)
 - [ASCII legend](#ascii-legend-)
 - [Project layout](#project-layout-)
 
@@ -32,6 +32,11 @@ alive while you watch the chaos unfold in ASCII.
 - 🎓 PPO training in Python with JS-only inference.
 - 🧱 Modular architecture (simulation, state, render, AI) for easier iteration.
 - 🛡️ Clan culture: per-dwarf bonuses/penalties with HUD clan counts.
+
+## Roadmap ideas 🧭
+
+- Simple disease system tied to crowding and hygiene.
+- Village security upgrades (winter shelters).
 
 ## Screenshot - How it looks 📸
 
@@ -259,7 +264,6 @@ If you change resources or action space, reset the policy files ♻️:
 npm run ai:train:fresh
 ```
 
-
 Run the visual simulation with the trained policy 🕹️:
 
 ```bash
@@ -460,11 +464,6 @@ Ways to jump in:
 - Prototype new AI curricula or reward shaping.
 
 Open a PR or start a discussion with your ideas.
-
-## Roadmap ideas 🧭
-
-- Simple disease system tied to crowding and hygiene.
-- Village security upgrades (winter shelters).
 
 ## License 📄
 
