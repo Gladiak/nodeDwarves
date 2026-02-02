@@ -9,6 +9,7 @@ const {
   findNearbyWalkablePosition,
 } = require('./movement');
 const { randomBetween } = require('./random');
+const { getClanEffects } = require('../clans');
 const {
   isWalkableTile,
   isTerrainResourceTile,
@@ -370,16 +371,20 @@ function processDwarfJob(dwarf, state, config, runtime) {
   }
 
   if (job.type === 'mine') {
-    const output = getMineOutput(state, config, targetStructure);
+    const clanEffects = getClanEffects(config, dwarf.clanId);
+    const output = getMineOutput(state, config, targetStructure, clanEffects);
     if (output) {
       applyOutputs(state.stockpile, output, state, config);
     }
     return;
   }
   if (job.type === 'sawmill') {
+    const clanEffects = getClanEffects(config, dwarf.clanId);
     const output = getSawmillOutput(state, config, targetStructure);
-    if (output) {
-      applyOutputs(state.stockpile, output, state, config);
+    const penalty = Math.max(0, Number(clanEffects.sawmill_output_penalty || 0));
+    const adjusted = applyOutputMultiplier(output, 1 - penalty);
+    if (adjusted) {
+      applyOutputs(state.stockpile, adjusted, state, config);
     }
     return;
   }
@@ -444,6 +449,7 @@ function processDwarfJob(dwarf, state, config, runtime) {
       state.nodes.push(node);
     }
     pushEvent(state, config, `Build: ${structure.id}`);
+    applyClanBuildCostPenalty(dwarf, state, config, job);
     removeJob(state, job.id);
     dwarf.job = null;
     return;
@@ -469,6 +475,7 @@ function processDwarfJob(dwarf, state, config, runtime) {
     const symbols = config.symbols || {};
     house.symbol = symbols.house || house.symbol;
     pushEvent(state, config, `Upgrade: ${house.id} L${nextLevel}`);
+    applyClanBuildCostPenalty(dwarf, state, config, job);
     removeJob(state, job.id);
     dwarf.job = null;
     return;
@@ -483,6 +490,7 @@ function processDwarfJob(dwarf, state, config, runtime) {
     tools.maxLevel = maxLevel;
     state.tools = tools;
     pushEvent(state, config, `Tools: L${nextLevel}`);
+    applyClanBuildCostPenalty(dwarf, state, config, job);
     removeJob(state, job.id);
     dwarf.job = null;
     return;
@@ -500,12 +508,24 @@ function processDwarfJob(dwarf, state, config, runtime) {
     const nextLevel = Math.min(maxLevel, Number(job.nextLevel || current + 1));
     structure.level = nextLevel;
     pushEvent(state, config, `Upgrade: ${structure.id} L${nextLevel}`);
+    applyClanBuildCostPenalty(dwarf, state, config, job);
     removeJob(state, job.id);
     dwarf.job = null;
     return;
   }
 
-  const amount = getGatherYield(config, job.resource, targetNode, state);
+  let amount = getGatherYield(config, job.resource, targetNode, state);
+  const clanEffects = getClanEffects(config, dwarf.clanId);
+  const gatherPenalty = Math.max(0, Number(clanEffects.gather_yield_penalty || 0));
+  const penaltyResources = Array.isArray(clanEffects.gather_penalty_resources)
+    ? clanEffects.gather_penalty_resources
+    : null;
+  if (
+    gatherPenalty > 0
+    && (!penaltyResources || penaltyResources.includes(job.resource))
+  ) {
+    amount = Math.max(1, Math.round(amount * (1 - gatherPenalty)));
+  }
   state.stockpile[job.resource] = Number(state.stockpile[job.resource] || 0) + amount;
   if (targetNode) {
     const resourceConfig = config.resources || {};
@@ -569,8 +589,57 @@ function removeNode(state, nodeId) {
   }
 }
 
+// Apply a multiplier to an output map.
+function applyOutputMultiplier(output, multiplier) {
+  if (!output || typeof output !== 'object') {
+    return output;
+  }
+  const safeMultiplier = Number.isFinite(multiplier) ? multiplier : 1;
+  if (safeMultiplier === 1) {
+    return output;
+  }
+  const scaled = {};
+  for (const [resource, amount] of Object.entries(output)) {
+    scaled[resource] = Number(amount || 0) * safeMultiplier;
+  }
+  return scaled;
+}
+
+// Apply per-clan build cost penalty for stone/iron at completion time.
+function applyClanBuildCostPenalty(dwarf, state, config, job) {
+  if (!dwarf || !job || !state || !config) {
+    return;
+  }
+  const clanEffects = getClanEffects(config, dwarf.clanId);
+  const penalty = Math.max(0, Number(clanEffects.build_cost_penalty || 0));
+  if (penalty <= 0) {
+    return;
+  }
+  const cost = job.cost;
+  if (!cost || typeof cost !== 'object') {
+    return;
+  }
+  const extra = {};
+  for (const [resource, amount] of Object.entries(cost)) {
+    if (resource !== 'stone' && resource !== 'iron') {
+      continue;
+    }
+    const extraAmount = Math.max(0, Math.floor(Number(amount || 0) * penalty));
+    if (extraAmount > 0) {
+      extra[resource] = extraAmount;
+    }
+  }
+  if (Object.keys(extra).length === 0) {
+    return;
+  }
+  if (!hasInputs(state.stockpile, extra)) {
+    return;
+  }
+  consumeInputs(state.stockpile, extra);
+}
+
 // Resolve mine outputs per tick from config.
-function getMineOutput(state, config, structure) {
+function getMineOutput(state, config, structure, clanEffects) {
   const mineConfig = config.structures && config.structures.mine;
   if (!mineConfig || !mineConfig.outputPerTick) {
     return null;
@@ -581,17 +650,21 @@ function getMineOutput(state, config, structure) {
     const multiplier = getToolMultiplier(state, config, resource);
     output[resource] = Number(amount || 0) * multiplier * structureMultiplier;
   }
-  const rareOutput = getMineRareOutputs(state, config, structure, structureMultiplier);
+  const rareBonus = Math.max(0, Number(clanEffects && clanEffects.mine_rare_chance_bonus || 0));
+  const rareOutput = getMineRareOutputs(state, config, structure, structureMultiplier, rareBonus);
   if (rareOutput) {
     for (const [resource, amount] of Object.entries(rareOutput)) {
       output[resource] = Number(output[resource] || 0) + Number(amount || 0);
     }
   }
-  return output;
+  const bonus = Math.max(0, Number(clanEffects && clanEffects.mine_output_bonus || 0));
+  const penalty = Math.max(0, Number(clanEffects && clanEffects.mine_output_penalty || 0));
+  const multiplier = Math.max(0, 1 + bonus - penalty);
+  return applyOutputMultiplier(output, multiplier);
 }
 
 // Resolve rare mine drops based on mine level and configured chances.
-function getMineRareOutputs(state, config, structure, structureMultiplier) {
+function getMineRareOutputs(state, config, structure, structureMultiplier, rareBonus) {
   const mineConfig = config.structures && config.structures.mine;
   const rareDrops = mineConfig && mineConfig.rareDrops;
   if (!rareDrops || typeof rareDrops !== 'object') {
@@ -609,7 +682,8 @@ function getMineRareOutputs(state, config, structure, structureMultiplier) {
     if (level < minLevel) {
       continue;
     }
-    const chance = clamp(Number(definition.chance || 0), 0, 1);
+    const baseChance = clamp(Number(definition.chance || 0), 0, 1);
+    const chance = clamp(baseChance + Math.max(0, Number(rareBonus || 0)), 0, 1);
     if (chance <= 0 || Math.random() >= chance) {
       continue;
     }

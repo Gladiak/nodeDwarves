@@ -21,6 +21,12 @@ const DEFAULT_FEATURES = [
   'raidDefense',
   'housingShortage',
   'seasonEligible',
+  'mythsActiveRatio',
+  'mythsSeverity',
+  'mythFlag_rationing_oath',
+  'mythFlag_blood_vigil',
+  'mythFlag_relic_fever',
+  'mythFlag_dry_wells',
 ];
 
 // Load a policy definition from disk.

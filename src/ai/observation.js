@@ -2,6 +2,7 @@
 
 const { clamp } = require('../utils');
 const { getStockpileTarget } = require('../simulation/resources');
+const { getClanList, getClanShare } = require('../clans');
 
 // Build a full observation object from the current state.
 function buildObservation(state, config) {
@@ -19,6 +20,9 @@ function buildObservation(state, config) {
 
   const housingStats = getHousingStats(state, config);
   const raidObservation = getRaidObservation(state, config, housingStats);
+  const ruinsObservation = buildRuinsObservation(state, config);
+  const mythsObservation = buildMythsObservation(state, config);
+  const clanShares = getClanShares(state, config);
 
   return {
     season: state.season || null,
@@ -30,6 +34,9 @@ function buildObservation(state, config) {
     populationBalance: getPopulationBalance(state, config),
     housingRatio: housingStats.housingRatio,
     raid: raidObservation,
+    ruins: ruinsObservation,
+    myths: mythsObservation,
+    clanShares,
   };
 }
 
@@ -55,6 +62,16 @@ function buildFeatures(obs, resource, config, featureNames) {
   const housingRatio = clamp(Number(obs.housingRatio || 0), 0, 1);
   const housingShortage = clamp(1 - housingRatio, 0, 1);
   const seasonEligible = raid.seasonEligible ? 1 : 0;
+  const ruins = obs.ruins || {};
+  const ruinsActive = ruins.active ? 1 : 0;
+  const ruinsCooldown = clamp(Number(ruins.cooldownRatio ?? 0), 0, 1);
+  const ruinsProgress = clamp(Number(ruins.progress ?? 0), 0, 1);
+  const ruinsArtifacts = clamp(Number(ruins.artifacts ?? 0), 0, 1);
+  const myths = obs.myths || {};
+  const mythsActiveRatio = clamp(Number(myths.activeRatio ?? 0), 0, 1);
+  const mythsSeverity = clamp(Number(myths.severity ?? 0), 0, 1);
+  const mythFlags = myths.flags || {};
+  const clanShares = obs.clanShares || {};
 
   const values = {
     shortage,
@@ -72,7 +89,23 @@ function buildFeatures(obs, resource, config, featureNames) {
     raidDefense,
     housingShortage,
     seasonEligible,
+    ruinsActive,
+    ruinsCooldown,
+    ruinsProgress,
+    ruinsArtifacts,
+    mythsActiveRatio,
+    mythsSeverity,
   };
+  const mythDefs = (config && config.myths && config.myths.definitions) || {};
+  for (const mythId of Object.keys(mythDefs)) {
+    const key = `mythFlag_${mythId}`;
+    values[key] = clamp(Number(mythFlags[mythId] || 0), 0, 1);
+  }
+  const clanList = getClanList(config);
+  for (const clanId of clanList) {
+    const key = `clanShare_${clanId}`;
+    values[key] = clamp(Number(clanShares[clanId] || 0), 0, 1);
+  }
 
   const names = Array.isArray(featureNames) && featureNames.length > 0
     ? featureNames
@@ -213,6 +246,111 @@ function getHousingStats(state, config) {
     population,
     housingRatio,
   };
+}
+
+// Build ruins observation scalars.
+function buildRuinsObservation(state, config) {
+  const ruinsConfig = (config && config.ruins) || {};
+  if (ruinsConfig.enabled === false) {
+    return { active: 0, cooldownRatio: 0, progress: 0, artifacts: 0 };
+  }
+  const ruins = state && state.ruins ? state.ruins : null;
+  if (!ruins) {
+    return { active: 0, cooldownRatio: 0, progress: 0, artifacts: 0 };
+  }
+  const rooms = Array.isArray(ruinsConfig.rooms) ? ruinsConfig.rooms : [];
+  const roomCount = rooms.length > 0 ? rooms.length : 1;
+  const progress = clamp(Number(ruins.roomsCleared || 0) / roomCount, 0, 1);
+  const pool = ruinsConfig.artifacts && ruinsConfig.artifacts.pool
+    ? ruinsConfig.artifacts.pool
+    : {};
+  const totalArtifacts = Object.keys(pool).length;
+  const found = ruins.artifactsFound ? Object.keys(ruins.artifactsFound).length : 0;
+  const artifacts = totalArtifacts > 0 ? clamp(found / totalArtifacts, 0, 1) : 0;
+  const expeditionConfig = ruinsConfig.expedition || {};
+  const maxCooldown = Math.max(
+    1,
+    Number(expeditionConfig.cooldownTicks || 0),
+    Number(expeditionConfig.failureCooldownTicks || 0),
+  );
+  const cooldownRatio = clamp(Number(ruins.cooldown || 0) / maxCooldown, 0, 1);
+  const active = Array.isArray(ruins.expeditions) && ruins.expeditions.length > 0 ? 1 : 0;
+  return {
+    active,
+    cooldownRatio,
+    progress,
+    artifacts,
+  };
+}
+
+// Build myths observation scalars.
+function buildMythsObservation(state, config) {
+  const mythsConfig = (config && config.myths) || {};
+  if (mythsConfig.enabled === false || !state || !state.myths) {
+    return { activeRatio: 0, severity: 0, flags: {} };
+  }
+  const defs = mythsConfig.definitions || {};
+  const activeIds = Object.keys(state.myths.active || {});
+  const maxActive = Math.max(1, Number(mythsConfig.maxActive || activeIds.length || 1));
+  const activeRatio = clamp(activeIds.length / maxActive, 0, 1);
+  const traditions = state.myths.traditions || {};
+  let totalSeverity = 0;
+  let count = 0;
+  for (const mythId of activeIds) {
+    const def = defs[mythId];
+    const effects = def && def.effects;
+    const severity = getEffectsSeverity(effects);
+    if (severity > 0) {
+      totalSeverity += severity;
+      count += 1;
+    }
+  }
+  for (const mythId of Object.keys(traditions)) {
+    const def = defs[mythId];
+    const effects = def && def.traditionEffects;
+    const severity = getEffectsSeverity(effects);
+    if (severity > 0) {
+      totalSeverity += severity;
+      count += 1;
+    }
+  }
+  const severity = count > 0 ? clamp(totalSeverity / count, 0, 1) : 0;
+  const flags = {};
+  for (const mythId of Object.keys(defs)) {
+    flags[mythId] = activeIds.includes(mythId) ? 1 : 0;
+  }
+  return { activeRatio, severity, flags };
+}
+
+// Compute average absolute deviation from 1 for a multiplier map.
+function getEffectsSeverity(effects) {
+  if (!effects || typeof effects !== 'object') {
+    return 0;
+  }
+  let total = 0;
+  let count = 0;
+  for (const value of Object.values(effects)) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric) || numeric <= 0) {
+      continue;
+    }
+    total += Math.abs(1 - numeric);
+    count += 1;
+  }
+  return count > 0 ? total / count : 0;
+}
+
+// Compute clan share fractions across adults.
+function getClanShares(state, config) {
+  const clanList = getClanList(config);
+  if (clanList.length === 0) {
+    return {};
+  }
+  const shares = {};
+  for (const clanId of clanList) {
+    shares[clanId] = getClanShare(state.dwarves || [], clanId, (dwarf) => dwarf.lifeStage === 'adult');
+  }
+  return shares;
 }
 
 // Build raid-related observation metrics.

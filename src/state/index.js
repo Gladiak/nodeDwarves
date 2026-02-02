@@ -1,6 +1,7 @@
 'use strict';
 
 const { clamp } = require('../utils');
+const { pickClanId } = require('../clans');
 const {
   createTerrain,
   getTerrainSpawnPredicate,
@@ -22,6 +23,7 @@ function createInitialState(config, runtime) {
   const raidStats = createRaidStats();
   const tools = createToolsState(config);
   const ruins = createRuinsState(config);
+  const myths = createMythsState(config);
 
   return {
     tick: 0,
@@ -36,6 +38,7 @@ function createInitialState(config, runtime) {
     raidStats,
     tools,
     ruins,
+    myths,
     terrain,
     stockpile: { ...config.resources.stockpile },
     jobs: [],
@@ -134,6 +137,8 @@ function createRaidStats() {
     count: 0,
     deaths: 0,
     loot: {},
+    lastRaidDeaths: 0,
+    lastRaidTick: 0,
   };
 }
 
@@ -176,7 +181,28 @@ function createRuinsState(config) {
       successes: 0,
       failures: 0,
       artifacts: 0,
+      lastOutcome: null,
+      lastOutcomeTick: 0,
+      lastSuccesses: 0,
+      lastFailures: 0,
+      lastArtifactsFound: 0,
     },
+  };
+}
+
+// Create the initial myths state.
+function createMythsState(config) {
+  const mythsConfig = (config && config.myths) || {};
+  if (mythsConfig.enabled === false) {
+    return null;
+  }
+  return {
+    active: {},
+    history: [],
+    traditions: {},
+    counters: {},
+    lastTriggerTicks: {},
+    lastProcessed: {},
   };
 }
 
@@ -338,6 +364,7 @@ function createDwarves(config, runtime, occupied, terrain) {
     const role = roles.enabled && isAdult
       ? (Math.random() < clamp(Number(roles.builderRatio ?? 0), 0, 1) ? 'builder' : 'gatherer')
       : null;
+    const clanId = pickClanId(config);
     return {
       id: `dwarf_${index + 1}`,
       x: pos.x,
@@ -346,6 +373,7 @@ function createDwarves(config, runtime, occupied, terrain) {
       lifeStage: getLifeStage(ageTicks, aging),
       role,
       roleCooldown: 0,
+      clanId,
       needs: { ...needsTemplate },
       state: {
         health: 1,

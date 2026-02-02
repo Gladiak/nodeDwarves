@@ -8,7 +8,9 @@ alive while you watch the chaos unfold in ASCII.
 
 - [Highlights](#highlights-)
 - [Simulation overview](#simulation-overview-)
+- [Clan culture](#clan-culture-)
 - [Ancient dwarven ruins](#ancient-dwarven-ruins-)
+- [Myths (global modifiers)](#myths-global-modifiers-)
 - [Job system and priorities](#job-system-and-priorities-)
 - [Quick start](#quick-start-)
 - [AI mode (Python)](#ai-mode-python-)
@@ -29,6 +31,7 @@ alive while you watch the chaos unfold in ASCII.
 - 🌦️ Dynamic weather cycle that reshapes needs, gathering, and regeneration.
 - 🎓 PPO training in Python with JS-only inference.
 - 🧱 Modular architecture (simulation, state, render, AI) for easier iteration.
+- 🛡️ Clan culture: per-dwarf bonuses/penalties with HUD clan counts.
 
 ## Screenshot - How it looks 📸
 
@@ -54,6 +57,7 @@ alive while you watch the chaos unfold in ASCII.
 - 🌤️ Seasons apply modifiers to needs, gather speed, regen, and reproduction.
 - 🎨 Optional seasonal palettes recolor terrain in patchy waves during season transitions.
 - 🌧️ Weather cycles (clear, rain, storm, drought, cold) add extra modifiers.
+- 🗿 Myths: rare global modifiers born from repeated crises or successes; traditions persist between endgame cycles within the same run.
 - 👪 Population is dynamic: dwarves age, form bonds, reproduce with gestation, and can die.
 - 👪 Reproduction can be gated by minimum stockpile ratios to avoid boom-bust starvation cycles.
 - 🪵🪨 Wood and stone build clustered villages (center-out placement).
@@ -61,12 +65,34 @@ alive while you watch the chaos unfold in ASCII.
 - 🧳 A roaming merchant visits periodically, trades surplus for scarce resources, then leaves (food/water can be excluded from offers).
 - 🚰 Wells and 🌾 fields use Poisson-style spacing across the map, respecting terrain and distance from the core.
 - 🏛️ Ruins spawn in mountainous terrain; expeditions consume kits, face guardians, and unlock artifact bonuses (repeatable in the final room for completion).
-- 📊 HUD shows averages, bars, priorities, and counts for wells/fields plus house level breakdowns.
+- 📊 HUD shows averages, bars, priorities, clan totals, and structure breakdowns.
 - 🖼️ The map renders with a framed border for clearer navigation.
 - 🧭 Terrain adds visual texture (coast, lakes, rivers); walkability and movement delay are configurable per terrain.
 - 🧭 Dwarves use configurable pathing with potential-field variation for more organic routes.
 - 🧩 Resources can come from nodes or from terrain tiles (configurable).
 - ⏳ Terrain gathering cooldowns can be bypassed during critical shortages.
+
+## Clan culture 🛡️
+
+Each dwarf belongs to a clan. Clan identity is assigned at spawn and, by default,
+inherited from parents (configurable via `clans.inheritance.mode`). Clan effects
+are per-dwarf and lightweight, designed to create trade-offs without requiring
+manual micromanagement.
+
+Default clans:
+
+- **Abyssborn**: +12% mine output (base + rare), +0.05 additive rare drop chance; +8% need decay during storm/cold.
+- **Embers of Khorg**: -8% build/upgrade ticks; +5% stone/iron build costs.
+- **Threshold Wardens**: +10% raid defense scaled by adult share; +8% watchtower max kills scaled by adult share;
+  -5% gather speed (gather ticks + mine/sawmill output).
+- **Deep Lantern**: +8% ruins combat and +5% hazard reduction scaled by expedition party share;
+  -5% gather yield on wood/stone.
+
+HUD labels use `clans.labels` (short by default: Abyssborn, Embers, Wardens, Lantern).
+The Clans section lists clan totals with per-clan HUD colors. The layout assumes
+a 190x60 terminal (columns x rows) with the default HUD width/columns; smaller
+terminals will clip, so adjust `display.hud.width` or `display.hud.columns` if
+you need more space.
 
 ## Ancient dwarven ruins 🗝️
 
@@ -102,6 +128,38 @@ Combo bonuses (between sets):
 - **Runic Pacts** (2 Forge + 2 Wardens): +3% output, +5% combat power.
 - **Oath of Stone** (3 Forge + 3 Wardens): +6% output, +10% combat power.
 - **Dominion of the Ancients** (5 Forge + 5 Wardens): +10% output, +20% combat power, -10% hazard.
+
+## Myths (global modifiers) 🗿
+
+Myths are lightweight, global modifiers that emerge when the colony repeatedly
+faces crises or achieves notable feats. They do not add new player inputs or
+jobs. Instead, they apply soft multipliers (±5–15%) to existing systems like
+needs decay, gathering speed, raid outcomes, or ruins rewards. Multipliers are
+applied on top of season/weather/clan effects (e.g. a myth can slightly reduce
+need decay or slightly slow gathering).
+
+Default myths (see `config.json` → `myths.definitions`):
+
+- **Rationing Oath**: triggered by sustained food/water shortage. Active: reduces need decay but slows gathering. Tradition: a smaller, persistent reduction to need decay.
+- **Blood Vigil**: triggered by heavy raid losses. Active: lowers raid casualties and loot loss but slightly slows gathering. Tradition: a smaller, persistent reduction to raid casualties.
+- **Relic Fever**: triggered by artifact finds or consecutive ruins successes. Active: improves artifact odds but increases expedition hazard. Tradition: a smaller, persistent improvement to artifact odds.
+- **Dry Wells**: triggered by droughts or low water reserves. Active: lowers field regen and irrigation efficiency, plus slightly slows node regen. Tradition: a smaller, persistent reduction to field regen.
+
+Traditions:
+
+- When a myth expires, it can become a weaker **tradition** if enabled and a
+  slot is available. Traditions persist across endgame **cycles** within the
+  same run (they do not carry across separate runs by default).
+- Caps and cooldowns are config-driven (`myths.maxActive`, `myths.maxTraditions`,
+  `myths.minGapTicks`). If the tradition cap is exceeded, the oldest tradition
+  is dropped.
+- Active myths are cleared on cycle reset; traditions remain.
+
+The HUD lists active myths with remaining ticks and any traditions in effect. A
+separate "Myth bonuses" line summarizes the combined deltas and wraps
+automatically (capped to 2-3 lines depending on HUD width). Myth flags are part
+of the AI observation; changing myth features requires fresh training
+(`npm run ai:train:fresh`).
 
 ## Simulation reset (endgame cycles) 🔁
 
@@ -177,13 +235,17 @@ npm run ai:train:finetune
 
 You can stop training with Ctrl+C to terminate the run.
 
-`ai:train:combo` runs a speed-first training loop and then a short fine-tuning pass
-(`--full-sim`) with lower learning rate/entropy settings. The combo script trades
-off quality for wall-clock speed (fewer episodes/steps, debug off). Eval runs only
-in the finetune phase to refresh the best snapshot.
+`ai:train:combo` runs a long-horizon training loop (4 workers, 700 episodes with
+an accelerated difficulty ramp to reach max difficulty) followed by a short
+`--full-sim` finetune pass (150 episodes, difficulty fixed to 1.0). It targets
+5k–7k ticks per episode while keeping runtime under control. Eval runs only in
+the finetune phase to refresh the best snapshot.
 
 `ai:train:finetune` runs a short full-sim fine-tuning pass with a lower learning
 rate and entropy to close the gap with eval/full_sim.
+
+`ai:train:full:hard` runs full-sim training at max difficulty (4 workers, 500 episodes,
+max steps tuned for long-horizon behavior) to stress-test late-game survival.
 
 Use `ai:train:combo:fresh` to force a fresh start for the fast phase:
 
@@ -196,6 +258,7 @@ If you change resources or action space, reset the policy files ♻️:
 ```bash
 npm run ai:train:fresh
 ```
+
 
 Run the visual simulation with the trained policy 🕹️:
 
@@ -225,6 +288,19 @@ If you change observation features (via `ai.training.trainer.featureNames`),
 training must restart with `--fresh`.
 Observation features live in `src/ai/observation.js`, and policy inference lives
 in `src/ai/policy.js`.
+
+### Training notes (clans + ruins) 🧠
+
+Clan dynamics introduce per-dwarf heterogeneity and longer-horizon trade-offs
+(raid defense vs production, ruins risk vs resource throughput). For stable PPO
+training:
+
+- Run longer episodes so policies experience raids and ruins with mixed clans.
+- Keep evaluation deterministic (fixed seeds) to measure robustness across clan mixes.
+- Consider a curriculum: start with clans disabled or reduced bonuses, then ramp up.
+- Use slightly higher entropy early to explore clan/role/job combinations.
+- Observations include clan shares and ruins status (active, cooldown, progress, artifacts); if you change them, retrain with `--fresh`.
+- Reward shaping can emphasize ruins outcomes via `ai.reward.ruinsSuccess`, `ai.reward.ruinsArtifact`, `ai.reward.ruinsFailure`, and `ai.reward.ruinsRoomClear`.
 
 ## Configuration 🧰
 
@@ -278,6 +354,7 @@ You can optionally ramp a scenario's weight with difficulty using
   during training to focus on the weakest-performing scenarios.
 - If `ai.training.evalScenarios` is set, evaluation splits the eval episodes
   across those scenarios for a balanced score.
+- Presets like `ruins_focus` and `clan_*` bias ruins pacing and clan mixes to build long-horizon competence.
 - The debug log includes a "Scenario mix" section that shows how often each
   preset appeared in the window.
 
@@ -325,6 +402,7 @@ Houses always render with `symbols.house`, while the HUD lists house levels with
     │   ├── observation.js
     │   └── policy.js
     ├── ai_policy.js              # Runtime policy loader/inference (wrapper)
+    ├── clans.js                  # Clan helpers + weighting utilities
     ├── config.js                 # Config loader
     ├── render                    # Renderer modules
     │   ├── colors.js

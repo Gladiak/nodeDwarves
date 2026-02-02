@@ -39,6 +39,8 @@ FEATURE_NAME_SET = set(DEFAULT_FEATURE_NAMES)
 
 DEBUG_LOG_DIRNAME = "debug"
 DEBUG_LOG_EVERY = 500
+SUMMARY_LOG_EVERY = max(1, int(os.getenv("SUMMARY_LOG_EVERY", DEBUG_LOG_EVERY)))
+LOG_RATE = os.getenv("TRAIN_LOG_RATE", "").strip().lower() in ("1", "true", "yes", "on")
 DEBUG_LOG_KEEP = 5
 DETAIL_EVAL_REGRESSION_ABS = 25.0
 DETAIL_EVAL_REGRESSION_REL = 0.01
@@ -348,6 +350,7 @@ def format_summary_line(
     debug,
     events,
     scenario_target_mix,
+    eps_per_min=None,
 ):
     def fmt(value, digits=2):
         try:
@@ -380,9 +383,11 @@ def format_summary_line(
     event_label = ",".join(events) if events else "-"
     raid_loot_label = format_map_label(raid_loot, digits=1)
 
+    rate_label = f" eps_pm={fmt(eps_per_min, 1)}" if eps_per_min is not None else ""
+
     return (
         f"ep={episode} win={window_start}-{episode} count={window_count} "
-        f"avg_reward={fmt(avg_reward)} avg_steps={fmt(avg_steps, 1)} avg_ticks={fmt(ticks_avg, 1)} "
+        f"avg_reward={fmt(avg_reward)} avg_steps={fmt(avg_steps, 1)} avg_ticks={fmt(ticks_avg, 1)}{rate_label} "
         f"rps={fmt(reward_per_step, 3)} rpt={fmt(reward_per_tick, 3)} "
         f"avg_births={fmt(avg_births)} avg_deaths={fmt(avg_deaths)} "
         f"lr={fmt(lr, 6)} diff={fmt(difficulty, 2)} "
@@ -559,13 +564,17 @@ def write_summary_header(
         )
         handle.write(f"scenario_sampling={sampling_label}\n")
     handle.write(f"eval_scenarios={' '.join(eval_scenarios) if eval_scenarios else 'n/a'}\n")
-    handle.write(f"log_every_console={args.log_every} log_every_summary={DEBUG_LOG_EVERY}\n")
+    handle.write(f"log_every_console={args.log_every} log_every_summary={SUMMARY_LOG_EVERY}\n")
+    if LOG_RATE:
+        handle.write("log_rate=enabled\n")
     handle.write("\n# Legend (values are averaged over each summary window)\n")
     handle.write("# ep: end episode of the window.\n")
     handle.write("# win: window start-end episodes.\n")
     handle.write("# count: episodes in the window.\n")
     handle.write("# avg_reward/avg_steps/avg_ticks/avg_births/avg_deaths: mean episode metrics.\n")
     handle.write("# rps/rpt: reward per step / reward per tick.\n")
+    if LOG_RATE:
+        handle.write("# eps_pm: episodes per minute in the summary window.\n")
     handle.write("# lr: optimizer learning rate at log time.\n")
     handle.write("# diff: curriculum difficulty factor (0..1).\n")
     handle.write("# tick/pop: last tick and population seen in the window.\n")
@@ -2145,12 +2154,14 @@ def main():
     deaths_window = 0
     debug_window = init_debug_accumulator()
     window_start = 1
+    window_start_time = time.perf_counter()
     file_reward_window = 0.0
     file_steps_window = 0
     file_births_window = 0
     file_deaths_window = 0
     file_debug_window = init_debug_accumulator()
     file_window_start = 1
+    file_window_start_time = time.perf_counter()
     eval_seed_base = (args.seed + 100000) if args.seed is not None else None
     detail_prefix = (args.debug_prefix or "").strip()
     if detail_prefix:
@@ -2373,14 +2384,19 @@ def main():
                     or next_expected == args.episodes
                 ):
                     window_count = next_expected - window_start + 1
+                    eps_per_min = None
+                    if LOG_RATE:
+                        elapsed = time.perf_counter() - window_start_time
+                        eps_per_min = window_count / elapsed * 60.0 if elapsed > 0 else 0.0
                     avg_reward = reward_window / window_count
                     avg_steps = steps_window / window_count
                     avg_births = births_window / window_count
                     avg_deaths = deaths_window / window_count
+                    rate_label = f" eps_pm={eps_per_min:.1f} " if eps_per_min is not None else ""
                     print(
                         f"\nepisode={next_expected} avg_reward={avg_reward:.2f} avg_steps={avg_steps:.1f} "
                         f"avg_births={avg_births:.2f} avg_deaths={avg_deaths:.2f} "
-                        f"lr={optimizer.param_groups[0]['lr']:.6f} diff={difficulty:.2f} "
+                        f"{rate_label}lr={optimizer.param_groups[0]['lr']:.6f} diff={difficulty:.2f} "
                         f"tick={info.get('tick')} pop={info.get('population')}"
                     )
                     save_policy(
@@ -2399,12 +2415,17 @@ def main():
                     deaths_window = 0
                     debug_window = init_debug_accumulator()
                     window_start = next_expected + 1
+                    window_start_time = time.perf_counter()
 
                 if (
                     summary_log_handle
-                    and (next_expected % DEBUG_LOG_EVERY == 0 or next_expected == args.episodes)
+                    and (next_expected % SUMMARY_LOG_EVERY == 0 or next_expected == args.episodes)
                 ):
                     file_window_count = next_expected - file_window_start + 1
+                    eps_per_min = None
+                    if LOG_RATE:
+                        elapsed = time.perf_counter() - file_window_start_time
+                        eps_per_min = file_window_count / elapsed * 60.0 if elapsed > 0 else 0.0
                     file_avg_reward = file_reward_window / file_window_count
                     file_avg_steps = file_steps_window / file_window_count
                     file_avg_births = file_births_window / file_window_count
@@ -2439,6 +2460,7 @@ def main():
                         file_debug,
                         events,
                         get_scenario_target_mix(scenario_defs),
+                        eps_per_min,
                     )
                     summary_log_handle.write(summary_line + "\n")
                     summary_log_handle.flush()
@@ -2487,6 +2509,7 @@ def main():
                     file_deaths_window = 0
                     file_debug_window = init_debug_accumulator()
                     file_window_start = next_expected + 1
+                    file_window_start_time = time.perf_counter()
 
                 if eval_proc and args.eval_every > 0 and next_expected % args.eval_every == 0:
                     eval_max_steps = (
