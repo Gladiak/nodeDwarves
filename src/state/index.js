@@ -562,6 +562,24 @@ function createPositions(count, width, height, occupied, allowFn) {
     attempts += 1;
   }
 
+  if (positions.length < target) {
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        if (positions.length >= target) {
+          break;
+        }
+        const key = positionKey(x, y);
+        if (!occupied.has(key) && (!allowFn || allowFn(x, y))) {
+          positions.push({ x, y });
+          occupied.add(key);
+        }
+      }
+      if (positions.length >= target) {
+        break;
+      }
+    }
+  }
+
   return positions;
 }
 

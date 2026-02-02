@@ -104,6 +104,8 @@ Room structure (linear progression):
 - Each room defines expedition duration, party size, resource cost, hazard risk, guardian
   chance/power, and artifact drop chance.
 - If the guardian is defeated, it increases the artifact drop chance.
+- Terrain generation reserves enough spawn tiles for the initial ruins via
+  `structures.ruins.minSpawnTiles`.
 
 Artifact sets:
 

@@ -113,6 +113,7 @@ Notes:
   - Valley mode can sprinkle extra ponds (`display.terrain.valley.ponds`) that count as lake water for humidity and gathering.
   - Forest edges near water can be softened with distance jitter and a shoreline buffer via `display.terrain.valley.forest`.
   - Minimum terrain tile counts (food/mountain/stone) can be enforced with `display.terrain.minimumTiles`.
+  - Ruins placement can reserve spawn terrain via `structures.ruins.minSpawnTiles`.
   - Terrain affects movement, spawn rules, and (optionally) resource gathering.
   - Terrain resources can be harvested directly when `resources.useTerrainTiles` is enabled.
   - Terrain walkability and movement delays are controlled by `display.terrain.walkable.*` and `display.terrain.movementDelay.*`.

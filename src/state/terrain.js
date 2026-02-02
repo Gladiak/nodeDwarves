@@ -1,6 +1,6 @@
-'use strict';
+"use strict";
 
-const { clamp } = require('../utils');
+const { clamp } = require("../utils");
 
 // Function: createTerrain.
 function createTerrain(config, runtime, previousTerrain) {
@@ -18,14 +18,14 @@ function createTerrain(config, runtime, previousTerrain) {
 
   const settings = normalizeTerrainSettings(terrainConfig);
   const seed = resolveTerrainSeed(settings.seed, previousTerrain, runtime);
-  if (settings.mode === 'valley') {
-    return createValleyTerrain(runtime, settings, seed);
+  if (settings.mode === "valley") {
+    return createValleyTerrain(runtime, settings, seed, config);
   }
-  return createCoastTerrain(runtime, settings, seed);
+  return createCoastTerrain(runtime, settings, seed, config);
 }
 
 // Function: createCoastTerrain.
-function createCoastTerrain(runtime, settings, seed) {
+function createCoastTerrain(runtime, settings, seed, config) {
   const width = Math.max(0, Number(runtime.gridWidth || 0));
   const height = Math.max(0, Number(runtime.gridHeight || 0));
   const types = Array.from({ length: height }, () => new Array(width));
@@ -37,14 +37,24 @@ function createCoastTerrain(runtime, settings, seed) {
     for (let x = 0; x < width; x += 1) {
       const nx = x * settings.scale;
       const ny = y * settings.scale;
-      let value = fractalNoise(nx, ny, seed, settings.octaves, settings.persistence, settings.lacunarity);
+      let value = fractalNoise(
+        nx,
+        ny,
+        seed,
+        settings.octaves,
+        settings.persistence,
+        settings.lacunarity,
+      );
 
       if (settings.island.enabled) {
         const dx = ((x / widthDenom) * 2 - 1) * aspect;
         const dy = (y / heightDenom) * 2 - 1;
         const dist = Math.sqrt(dx * dx + dy * dy);
         const radius = Math.max(0.01, settings.island.radius);
-        const falloff = Math.pow(clamp(dist / radius, 0, 1), settings.island.falloff);
+        const falloff = Math.pow(
+          clamp(dist / radius, 0, 1),
+          settings.island.falloff,
+        );
         value -= falloff;
       }
 
@@ -58,6 +68,7 @@ function createCoastTerrain(runtime, settings, seed) {
   applyLakes(types, settings, rng);
   applyRivers(types, settings, rng);
   ensureMinimumTerrainTiles(types, null, null, null, settings, rng);
+  ensureMinimumRuinSpawnTiles(types, null, config, rng);
   const walkable = buildWalkableMap(types, settings.walkable);
   const spawnable = buildSpawnableMap(walkable);
 
@@ -75,7 +86,7 @@ function createCoastTerrain(runtime, settings, seed) {
 }
 
 // Function: createValleyTerrain.
-function createValleyTerrain(runtime, settings, seed) {
+function createValleyTerrain(runtime, settings, seed, config) {
   const width = Math.max(0, Number(runtime.gridWidth || 0));
   const height = Math.max(0, Number(runtime.gridHeight || 0));
   const valley = settings.valley;
@@ -107,46 +118,68 @@ function createValleyTerrain(runtime, settings, seed) {
     waterSet.add(`${cell.x},${cell.y}`);
   }
 
-  const dist = computeDistanceToWater(waterSet, width, height, valley.waterDistanceDiagonalWeight);
-  const humidity = dist.map((row) => row.map((d) => Math.exp(-d / valley.humidityDecay)));
+  const dist = computeDistanceToWater(
+    waterSet,
+    width,
+    height,
+    valley.waterDistanceDiagonalWeight,
+  );
+  const humidity = dist.map((row) =>
+    row.map((d) => Math.exp(-d / valley.humidityDecay)),
+  );
 
-  const baseTypes = Array.from({ length: height }, () => new Array(width).fill('plain'));
+  const baseTypes = Array.from({ length: height }, () =>
+    new Array(width).fill("plain"),
+  );
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
       const key = `${x},${y}`;
       if (waterSet.has(key)) {
-        baseTypes[y][x] = lakeSet.has(key) ? 'lake' : 'river';
+        baseTypes[y][x] = lakeSet.has(key) ? "lake" : "river";
         continue;
       }
       const h = carved[y][x];
       if (h >= valley.mountainHeight) {
-        baseTypes[y][x] = 'mountain';
+        baseTypes[y][x] = "mountain";
       } else if (h >= valley.hillHeight) {
-        baseTypes[y][x] = 'hill';
-      } else if (h <= valley.fertileHeight && dist[y][x] <= valley.fertileDistance) {
-        baseTypes[y][x] = 'fertile';
+        baseTypes[y][x] = "hill";
+      } else if (
+        h <= valley.fertileHeight &&
+        dist[y][x] <= valley.fertileDistance
+      ) {
+        baseTypes[y][x] = "fertile";
       } else {
-        baseTypes[y][x] = 'plain';
+        baseTypes[y][x] = "plain";
       }
     }
   }
 
   const forestConfig = valley.forest || {};
-  const forestWaterDistanceMin = Math.max(0, Number(forestConfig.waterDistanceMin ?? 0));
+  const forestWaterDistanceMin = Math.max(
+    0,
+    Number(forestConfig.waterDistanceMin ?? 0),
+  );
   const forestWaterDistanceMax = Math.max(
     forestWaterDistanceMin,
     Number(forestConfig.waterDistanceMax ?? 0),
   );
-  const forestWaterDistanceJitter = Math.max(0, Number(forestConfig.waterDistanceJitter ?? 0));
+  const forestWaterDistanceJitter = Math.max(
+    0,
+    Number(forestConfig.waterDistanceJitter ?? 0),
+  );
   const forestWaterDistanceNoiseScale = Math.max(
     0.001,
-    Number(forestConfig.waterDistanceNoiseScale ?? forestConfig.noiseScale ?? 0.11),
+    Number(
+      forestConfig.waterDistanceNoiseScale ?? forestConfig.noiseScale ?? 0.11,
+    ),
   );
-  const forest = Array.from({ length: height }, () => new Array(width).fill(false));
+  const forest = Array.from({ length: height }, () =>
+    new Array(width).fill(false),
+  );
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
       const type = baseTypes[y][x];
-      if (type === 'river' || type === 'lake' || type === 'mountain') {
+      if (type === "river" || type === "lake" || type === "mountain") {
         continue;
       }
       if (carved[y][x] > forestConfig.heightMax) {
@@ -163,7 +196,8 @@ function createValleyTerrain(runtime, settings, seed) {
           y * forestWaterDistanceNoiseScale,
           seed + 181,
         );
-        effectiveDist = waterDist + (noise - 0.5) * 2 * forestWaterDistanceJitter;
+        effectiveDist =
+          waterDist + (noise - 0.5) * 2 * forestWaterDistanceJitter;
       }
       if (effectiveDist > forestWaterDistanceMax) {
         continue;
@@ -188,11 +222,13 @@ function createValleyTerrain(runtime, settings, seed) {
     smoothClusterMap(forest, baseTypes, (x, y) => humidity[y][x] > 0.4);
   }
 
-  const stone = Array.from({ length: height }, () => new Array(width).fill(false));
+  const stone = Array.from({ length: height }, () =>
+    new Array(width).fill(false),
+  );
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
       const type = baseTypes[y][x];
-      if (type !== 'mountain') {
+      if (type !== "mountain") {
         continue;
       }
       if (carved[y][x] < valley.stone.heightMin) {
@@ -226,32 +262,43 @@ function createValleyTerrain(runtime, settings, seed) {
     seed,
   );
 
-  const types = Array.from({ length: height }, () => new Array(width).fill('plain'));
+  const types = Array.from({ length: height }, () =>
+    new Array(width).fill("plain"),
+  );
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
       const base = baseTypes[y][x];
-      if (base === 'river' || base === 'lake') {
+      if (base === "river" || base === "lake") {
         types[y][x] = base;
         continue;
       }
-      if (base === 'mountain') {
-        types[y][x] = stone[y][x] ? 'stone' : 'mountain';
+      if (base === "mountain") {
+        types[y][x] = stone[y][x] ? "stone" : "mountain";
         continue;
       }
       if (forest[y][x]) {
-        types[y][x] = 'forest';
+        types[y][x] = "forest";
         continue;
       }
       if (food[y][x]) {
-        types[y][x] = 'food';
+        types[y][x] = "food";
         continue;
       }
       types[y][x] = base;
     }
   }
 
-  ensureValleyTerrainCoverage(types, baseTypes, carved, dist, riverInfo, valley, rng);
+  ensureValleyTerrainCoverage(
+    types,
+    baseTypes,
+    carved,
+    dist,
+    riverInfo,
+    valley,
+    rng,
+  );
   ensureMinimumTerrainTiles(types, baseTypes, carved, dist, settings, rng);
+  ensureMinimumRuinSpawnTiles(types, carved, config, rng);
 
   const walkable = buildWalkableMap(types, settings.walkable);
   const spawnable = buildSpawnableMap(walkable);
@@ -268,41 +315,124 @@ function createValleyTerrain(runtime, settings, seed) {
   };
 }
 
+// Ensure a minimum number of spawn tiles for ruins.
+function ensureMinimumRuinSpawnTiles(types, heights, config, rng) {
+  const ruinsStruct =
+    config && config.structures && config.structures.ruins
+      ? config.structures.ruins
+      : {};
+  const ruinsStructCount = Math.max(
+    0,
+    Math.floor(Number(ruinsStruct.count ?? 0)),
+  );
+  if (ruinsStructCount <= 0) {
+    return;
+  }
+  const minTiles = Math.max(
+    0,
+    Math.floor(Number(ruinsStruct.minSpawnTiles ?? 0)),
+  );
+  if (minTiles <= 0) {
+    return;
+  }
+  const rawAllowed = Array.isArray(ruinsStruct.spawnTerrain)
+    ? ruinsStruct.spawnTerrain
+    : [];
+  const allowedList = rawAllowed.map((entry) => String(entry));
+  if (allowedList.length === 0) {
+    return;
+  }
+  const allowedSet = new Set(allowedList);
+  let count = 0;
+  for (let y = 0; y < types.length; y += 1) {
+    for (let x = 0; x < types[y].length; x += 1) {
+      if (allowedSet.has(types[y][x])) {
+        count += 1;
+      }
+    }
+  }
+  if (count >= minTiles) {
+    return;
+  }
+  const avoid = new Set(["river", "lake", "water", "shore"]);
+  const preferred = allowedSet.has("mountain") ? "mountain" : allowedList[0];
+  const candidates = buildTerrainCandidateList(
+    types,
+    heights,
+    (type) => !allowedSet.has(type) && !avoid.has(type),
+    rng,
+  );
+  for (const cell of candidates) {
+    if (count >= minTiles) {
+      break;
+    }
+    types[cell.y][cell.x] = preferred;
+    count += 1;
+  }
+}
+
 // Function: ensureValleyTerrainCoverage.
-function ensureValleyTerrainCoverage(types, baseTypes, heights, dist, riverInfo, valley, rng) {
+function ensureValleyTerrainCoverage(
+  types,
+  baseTypes,
+  heights,
+  dist,
+  riverInfo,
+  valley,
+  rng,
+) {
   const counts = countTerrainTypes(types);
 
   if (!counts.river) {
-    const riverCells = Array.isArray(riverInfo && riverInfo.river) ? riverInfo.river : [];
+    const riverCells = Array.isArray(riverInfo && riverInfo.river)
+      ? riverInfo.river
+      : [];
     if (riverCells.length > 0) {
       for (const cell of riverCells) {
-        types[cell.y][cell.x] = 'river';
+        types[cell.y][cell.x] = "river";
       }
       counts.river = riverCells.length;
     } else {
       const midY = Math.floor(types.length / 2);
       for (let x = 0; x < types[0].length; x += 1) {
-        types[midY][x] = 'river';
+        types[midY][x] = "river";
       }
       counts.river = types[0].length;
     }
   }
 
   if (!counts.lake) {
-    const riverCells = Array.isArray(riverInfo && riverInfo.river) ? riverInfo.river : [];
-    const anchor = riverCells.length > 0
-      ? riverCells[Math.floor((rng ? rng() : Math.random()) * riverCells.length)]
-      : { x: Math.floor(types[0].length / 2), y: Math.floor(types.length / 2) };
+    const riverCells = Array.isArray(riverInfo && riverInfo.river)
+      ? riverInfo.river
+      : [];
+    const anchor =
+      riverCells.length > 0
+        ? riverCells[
+            Math.floor((rng ? rng() : Math.random()) * riverCells.length)
+          ]
+        : {
+            x: Math.floor(types[0].length / 2),
+            y: Math.floor(types.length / 2),
+          };
     const lakePatch = valley.lakePatch || {};
-    const lakeRadius = randomBetweenWithRng(rng, lakePatch.radiusMin, lakePatch.radiusMax);
+    const lakeRadius = randomBetweenWithRng(
+      rng,
+      lakePatch.radiusMin,
+      lakePatch.radiusMax,
+    );
     placeLakePatch(types, anchor.x, anchor.y, lakeRadius);
     counts.lake = 1;
   }
 
   if (!counts.mountain) {
-    const cell = selectCellByHeight(heights, types, (type) => type !== 'river' && type !== 'lake', true);
+    const cell = selectCellByHeight(
+      heights,
+      types,
+      (type) => type !== "river" && type !== "lake",
+      true,
+    );
     if (cell) {
-      types[cell.y][cell.x] = 'mountain';
+      types[cell.y][cell.x] = "mountain";
       counts.mountain = 1;
     }
   }
@@ -311,11 +441,11 @@ function ensureValleyTerrainCoverage(types, baseTypes, heights, dist, riverInfo,
     const cell = selectCellByHeight(
       heights,
       types,
-      (type) => type !== 'river' && type !== 'lake' && type !== 'mountain',
+      (type) => type !== "river" && type !== "lake" && type !== "mountain",
       true,
     );
     if (cell) {
-      types[cell.y][cell.x] = 'hill';
+      types[cell.y][cell.x] = "hill";
       counts.hill = 1;
     }
   }
@@ -324,11 +454,14 @@ function ensureValleyTerrainCoverage(types, baseTypes, heights, dist, riverInfo,
     const cell = selectCellByHeight(
       heights,
       types,
-      (type, x, y) => type !== 'river' && type !== 'lake' && dist[y][x] <= valley.fertileDistance + 1,
+      (type, x, y) =>
+        type !== "river" &&
+        type !== "lake" &&
+        dist[y][x] <= valley.fertileDistance + 1,
       false,
     );
     if (cell) {
-      types[cell.y][cell.x] = 'fertile';
+      types[cell.y][cell.x] = "fertile";
       counts.fertile = 1;
     }
   }
@@ -337,49 +470,56 @@ function ensureValleyTerrainCoverage(types, baseTypes, heights, dist, riverInfo,
     const cell = selectCellByHeight(
       heights,
       types,
-      (type) => type !== 'river' && type !== 'lake' && type !== 'mountain',
+      (type) => type !== "river" && type !== "lake" && type !== "mountain",
       false,
     );
     if (cell) {
-      types[cell.y][cell.x] = 'plain';
+      types[cell.y][cell.x] = "plain";
       counts.plain = 1;
     }
   }
 
   if (!counts.forest) {
-    const maxDist = valley.forest && Number.isFinite(valley.forest.waterDistanceMax)
-      ? valley.forest.waterDistanceMax
-      : 4;
+    const maxDist =
+      valley.forest && Number.isFinite(valley.forest.waterDistanceMax)
+        ? valley.forest.waterDistanceMax
+        : 4;
     const cell = selectCellByHeight(
       heights,
       types,
-      (type, x, y) => type !== 'river' && type !== 'lake' && type !== 'mountain' && dist[y][x] <= maxDist,
+      (type, x, y) =>
+        type !== "river" &&
+        type !== "lake" &&
+        type !== "mountain" &&
+        dist[y][x] <= maxDist,
       false,
     );
     if (cell) {
-      types[cell.y][cell.x] = 'forest';
+      types[cell.y][cell.x] = "forest";
       counts.forest = 1;
     }
   }
 
   if (!counts.food) {
-    const maxDist = valley.food && Number.isFinite(valley.food.waterDistanceMax)
-      ? valley.food.waterDistanceMax
-      : valley.fertileDistance + 1;
+    const maxDist =
+      valley.food && Number.isFinite(valley.food.waterDistanceMax)
+        ? valley.food.waterDistanceMax
+        : valley.fertileDistance + 1;
     const cell = selectCellByHeight(
       heights,
       types,
-      (type, x, y) => (baseTypes[y][x] === 'fertile' || baseTypes[y][x] === 'plain')
-        && type !== 'river'
-        && type !== 'lake'
-        && type !== 'mountain'
-        && type !== 'forest'
-        && type !== 'stone'
-        && dist[y][x] <= maxDist,
+      (type, x, y) =>
+        (baseTypes[y][x] === "fertile" || baseTypes[y][x] === "plain") &&
+        type !== "river" &&
+        type !== "lake" &&
+        type !== "mountain" &&
+        type !== "forest" &&
+        type !== "stone" &&
+        dist[y][x] <= maxDist,
       false,
     );
     if (cell) {
-      types[cell.y][cell.x] = 'food';
+      types[cell.y][cell.x] = "food";
       counts.food = 1;
     }
   }
@@ -390,11 +530,11 @@ function ensureValleyTerrainCoverage(types, baseTypes, heights, dist, riverInfo,
     const cell = selectCellByHeight(
       heights,
       types,
-      (type) => type === 'mountain',
+      (type) => type === "mountain",
       true,
     );
     if (cell) {
-      types[cell.y][cell.x] = 'stone';
+      types[cell.y][cell.x] = "stone";
       counts.stone = 1;
     }
   }
@@ -415,7 +555,9 @@ function buildValleyPonds(heightMap, riverInfo, valley, rng) {
 
   const pondSet = new Set();
   const avoidSet = new Set();
-  const riverCells = Array.isArray(riverInfo && riverInfo.river) ? riverInfo.river : [];
+  const riverCells = Array.isArray(riverInfo && riverInfo.river)
+    ? riverInfo.river
+    : [];
   for (const cell of riverCells) {
     avoidSet.add(`${cell.x},${cell.y}`);
   }
@@ -425,9 +567,13 @@ function buildValleyPonds(heightMap, riverInfo, valley, rng) {
     }
   }
 
-  const random = typeof rng === 'function' ? rng : Math.random;
+  const random = typeof rng === "function" ? rng : Math.random;
   for (let i = 0; i < pondsConfig.count; i += 1) {
-    const radius = randomBetweenWithRng(random, pondsConfig.radiusMin, pondsConfig.radiusMax);
+    const radius = randomBetweenWithRng(
+      random,
+      pondsConfig.radiusMin,
+      pondsConfig.radiusMax,
+    );
     const center = pickPondCenter(
       heightMap,
       avoidSet,
@@ -439,7 +585,14 @@ function buildValleyPonds(heightMap, riverInfo, valley, rng) {
     if (!center) {
       continue;
     }
-    const pondCells = addPondCells(pondSet, center.x, center.y, radius, width, height);
+    const pondCells = addPondCells(
+      pondSet,
+      center.x,
+      center.y,
+      radius,
+      width,
+      height,
+    );
     for (const key of pondCells) {
       avoidSet.add(key);
     }
@@ -455,7 +608,7 @@ function pickPondCenter(heightMap, avoidSet, radius, buffer, heightMax, rng) {
   if (width <= 0 || height <= 0) {
     return null;
   }
-  const random = typeof rng === 'function' ? rng : Math.random;
+  const random = typeof rng === "function" ? rng : Math.random;
   const r = Math.max(1, radius);
   const margin = Math.max(0, buffer) + r;
   const minX = margin;
@@ -530,7 +683,15 @@ function addPondCells(pondSet, x, y, radius, width, height) {
 }
 
 // Function: ensureMinimumFoodTiles.
-function ensureMinimumFoodTiles(types, baseTypes, dist, valley, rng, counts, minOverride) {
+function ensureMinimumFoodTiles(
+  types,
+  baseTypes,
+  dist,
+  valley,
+  rng,
+  counts,
+  minOverride,
+) {
   const foodConfig = valley.food || {};
   const minTiles = Math.max(
     0,
@@ -552,15 +713,17 @@ function ensureMinimumFoodTiles(types, baseTypes, dist, valley, rng, counts, min
     const list = [];
     for (let y = 0; y < height; y += 1) {
       for (let x = 0; x < width; x += 1) {
-        if (baseTypes[y][x] !== 'plain' && baseTypes[y][x] !== 'fertile') {
+        if (baseTypes[y][x] !== "plain" && baseTypes[y][x] !== "fertile") {
           continue;
         }
         const type = types[y][x];
-        if (type === 'river'
-          || type === 'lake'
-          || type === 'mountain'
-          || type === 'forest'
-          || type === 'stone') {
+        if (
+          type === "river" ||
+          type === "lake" ||
+          type === "mountain" ||
+          type === "forest" ||
+          type === "stone"
+        ) {
           continue;
         }
         if (Number.isFinite(distanceLimit) && dist[y][x] > distanceLimit) {
@@ -583,15 +746,23 @@ function ensureMinimumFoodTiles(types, baseTypes, dist, valley, rng, counts, min
   const needed = Math.min(minTiles - current, candidates.length);
   for (let i = 0; i < needed; i += 1) {
     const cell = candidates[i];
-    types[cell.y][cell.x] = 'food';
+    types[cell.y][cell.x] = "food";
   }
   counts.food = current + needed;
 }
 
 // Ensure minimum counts for key terrain types.
-function ensureMinimumTerrainTiles(types, baseTypes, heights, dist, settings, rng) {
-  const minimums = settings && settings.minimumTiles ? settings.minimumTiles : null;
-  if (!minimums || typeof minimums !== 'object') {
+function ensureMinimumTerrainTiles(
+  types,
+  baseTypes,
+  heights,
+  dist,
+  settings,
+  rng,
+) {
+  const minimums =
+    settings && settings.minimumTiles ? settings.minimumTiles : null;
+  if (!minimums || typeof minimums !== "object") {
     return;
   }
 
@@ -599,7 +770,15 @@ function ensureMinimumTerrainTiles(types, baseTypes, heights, dist, settings, rn
 
   const minFood = Math.max(0, Math.floor(Number(minimums.food ?? 0)));
   if (minFood > 0 && baseTypes && dist) {
-    ensureMinimumFoodTiles(types, baseTypes, dist, settings.valley || {}, rng, counts, minFood);
+    ensureMinimumFoodTiles(
+      types,
+      baseTypes,
+      dist,
+      settings.valley || {},
+      rng,
+      counts,
+      minFood,
+    );
     counts = countTerrainTypes(types);
   }
 
@@ -643,30 +822,37 @@ function ensureMinimumMountainTiles(types, heights, counts, minTiles, rng) {
     return;
   }
   const needed = minTiles - current;
-  const isWater = (type) => type === 'river' || type === 'lake' || type === 'water' || type === 'shore';
-  const basePredicate = (type) => !isWater(type) && type !== 'mountain' && type !== 'stone';
+  const isWater = (type) =>
+    type === "river" || type === "lake" || type === "water" || type === "shore";
+  const basePredicate = (type) =>
+    !isWater(type) && type !== "mountain" && type !== "stone";
 
   let placed = 0;
   const primary = buildTerrainCandidateList(
     types,
     heights,
-    (type) => basePredicate(type) && type !== 'food' && type !== 'forest',
+    (type) => basePredicate(type) && type !== "food" && type !== "forest",
     rng,
   );
   for (const cell of primary) {
-    types[cell.y][cell.x] = 'mountain';
+    types[cell.y][cell.x] = "mountain";
     placed += 1;
     if (placed >= needed) {
       return;
     }
   }
 
-  const fallback = buildTerrainCandidateList(types, heights, basePredicate, rng);
+  const fallback = buildTerrainCandidateList(
+    types,
+    heights,
+    basePredicate,
+    rng,
+  );
   for (const cell of fallback) {
-    if (types[cell.y][cell.x] === 'mountain') {
+    if (types[cell.y][cell.x] === "mountain") {
       continue;
     }
-    types[cell.y][cell.x] = 'mountain';
+    types[cell.y][cell.x] = "mountain";
     placed += 1;
     if (placed >= needed) {
       return;
@@ -684,32 +870,34 @@ function ensureMinimumStoneTiles(types, heights, counts, minTiles, rng) {
   const mountainCandidates = buildTerrainCandidateList(
     types,
     heights,
-    (type) => type === 'mountain',
+    (type) => type === "mountain",
     rng,
   );
   for (const cell of mountainCandidates) {
-    types[cell.y][cell.x] = 'stone';
+    types[cell.y][cell.x] = "stone";
     remaining -= 1;
     if (remaining <= 0) {
       return;
     }
   }
 
-  const isWater = (type) => type === 'river' || type === 'lake' || type === 'water' || type === 'shore';
+  const isWater = (type) =>
+    type === "river" || type === "lake" || type === "water" || type === "shore";
   const primaryFallback = buildTerrainCandidateList(
     types,
     heights,
-    (type) => !isWater(type)
-      && type !== 'stone'
-      && type !== 'food'
-      && type !== 'forest',
+    (type) =>
+      !isWater(type) &&
+      type !== "stone" &&
+      type !== "food" &&
+      type !== "forest",
     rng,
   );
   for (const cell of primaryFallback) {
-    if (types[cell.y][cell.x] === 'stone') {
+    if (types[cell.y][cell.x] === "stone") {
       continue;
     }
-    types[cell.y][cell.x] = 'stone';
+    types[cell.y][cell.x] = "stone";
     remaining -= 1;
     if (remaining <= 0) {
       return;
@@ -719,14 +907,14 @@ function ensureMinimumStoneTiles(types, heights, counts, minTiles, rng) {
   const finalFallback = buildTerrainCandidateList(
     types,
     heights,
-    (type) => !isWater(type) && type !== 'stone',
+    (type) => !isWater(type) && type !== "stone",
     rng,
   );
   for (const cell of finalFallback) {
-    if (types[cell.y][cell.x] === 'stone') {
+    if (types[cell.y][cell.x] === "stone") {
       continue;
     }
-    types[cell.y][cell.x] = 'stone';
+    types[cell.y][cell.x] = "stone";
     remaining -= 1;
     if (remaining <= 0) {
       return;
@@ -803,7 +991,7 @@ function placeLakePatch(types, x, y, radius) {
       const dx = xx - x;
       const dy = yy - y;
       if (dx * dx + dy * dy <= r2) {
-        types[yy][xx] = 'lake';
+        types[yy][xx] = "lake";
       }
     }
   }
@@ -811,15 +999,20 @@ function placeLakePatch(types, x, y, radius) {
 
 // Function: normalizeTerrainSettings.
 function normalizeTerrainSettings(terrainConfig) {
-  const mode = String(terrainConfig.mode || 'coast');
+  const mode = String(terrainConfig.mode || "coast");
   const scaleRaw = Number(terrainConfig.scale ?? 0.08);
   const scale = Number.isFinite(scaleRaw) && scaleRaw > 0 ? scaleRaw : 0.08;
   const octavesRaw = Number(terrainConfig.octaves ?? 3);
-  const octaves = Number.isFinite(octavesRaw) ? clamp(Math.floor(octavesRaw), 1, 8) : 3;
+  const octaves = Number.isFinite(octavesRaw)
+    ? clamp(Math.floor(octavesRaw), 1, 8)
+    : 3;
   const persistenceRaw = Number(terrainConfig.persistence ?? 0.5);
-  const persistence = Number.isFinite(persistenceRaw) ? clamp(persistenceRaw, 0, 1) : 0.5;
+  const persistence = Number.isFinite(persistenceRaw)
+    ? clamp(persistenceRaw, 0, 1)
+    : 0.5;
   const lacunarityRaw = Number(terrainConfig.lacunarity ?? 2.0);
-  const lacunarity = Number.isFinite(lacunarityRaw) && lacunarityRaw > 0 ? lacunarityRaw : 2.0;
+  const lacunarity =
+    Number.isFinite(lacunarityRaw) && lacunarityRaw > 0 ? lacunarityRaw : 2.0;
   const islandConfig = terrainConfig.island || {};
   const islandEnabled = islandConfig.enabled !== false;
   const radiusRaw = Number(islandConfig.radius ?? 0.9);
@@ -867,26 +1060,26 @@ function normalizeTerrainThresholds(raw) {
 // Function: normalizeTerrainSymbols.
 function normalizeTerrainSymbols(raw) {
   return {
-    river: pickSymbol(raw.river ?? raw.water, '='),
-    lake: pickSymbol(raw.lake ?? raw.water, '~'),
-    water: pickSymbol(raw.water, '~'),
-    shore: pickSymbol(raw.shore, ':'),
-    grass: pickSymbol(raw.grass, '.'),
-    hill: pickSymbol(raw.hill, 'n'),
-    plain: pickSymbol(raw.plain, '.'),
-    fertile: pickSymbol(raw.fertile, ':'),
-    forest: pickSymbol(raw.forest, 'T'),
-    food: pickSymbol(raw.food, 'f'),
-    stone: pickSymbol(raw.stone, '*'),
-    mountain: pickSymbol(raw.mountain, '^'),
+    river: pickSymbol(raw.river ?? raw.water, "="),
+    lake: pickSymbol(raw.lake ?? raw.water, "~"),
+    water: pickSymbol(raw.water, "~"),
+    shore: pickSymbol(raw.shore, ":"),
+    grass: pickSymbol(raw.grass, "."),
+    hill: pickSymbol(raw.hill, "n"),
+    plain: pickSymbol(raw.plain, "."),
+    fertile: pickSymbol(raw.fertile, ":"),
+    forest: pickSymbol(raw.forest, "T"),
+    food: pickSymbol(raw.food, "f"),
+    stone: pickSymbol(raw.stone, "*"),
+    mountain: pickSymbol(raw.mountain, "^"),
   };
 }
 
 function normalizeMinimumTiles(raw) {
-  if (!raw || typeof raw !== 'object') {
+  if (!raw || typeof raw !== "object") {
     return {};
   }
-  const keys = ['food', 'mountain', 'stone'];
+  const keys = ["food", "mountain", "stone"];
   const normalized = {};
   for (const key of keys) {
     const value = Number(raw[key]);
@@ -913,18 +1106,25 @@ function normalizeCoastSettings(raw) {
     side,
     width: Number.isFinite(widthRaw) ? clamp(widthRaw, 0.01, 0.5) : 0.12,
     shoreWidth: Number.isFinite(shoreRaw) ? clamp(shoreRaw, 0, 0.2) : 0.03,
-    noiseScale: Number.isFinite(noiseScaleRaw) ? clamp(noiseScaleRaw, 0.01, 0.2) : 0.06,
+    noiseScale: Number.isFinite(noiseScaleRaw)
+      ? clamp(noiseScaleRaw, 0.01, 0.2)
+      : 0.06,
     jaggedness: Number.isFinite(jaggedRaw) ? clamp(jaggedRaw, 0, 1) : 0.35,
   };
 }
 
 // Function: normalizeCoastSide.
 function normalizeCoastSide(value) {
-  const side = String(value || '').toLowerCase();
-  if (side === 'north' || side === 'south' || side === 'east' || side === 'west') {
+  const side = String(value || "").toLowerCase();
+  if (
+    side === "north" ||
+    side === "south" ||
+    side === "east" ||
+    side === "west"
+  ) {
     return side;
   }
-  return 'west';
+  return "west";
 }
 
 // Function: normalizeLakeSettings.
@@ -937,8 +1137,12 @@ function normalizeLakeSettings(raw) {
   const radiusMaxRaw = Number(raw.radiusMax ?? 6);
   const shoreRaw = Number(raw.shoreWidth ?? 1);
   const bufferRaw = Number(raw.buffer ?? 3);
-  const count = Number.isFinite(countRaw) ? clamp(Math.floor(countRaw), 0, 4) : 1;
-  const radiusMin = Number.isFinite(radiusMinRaw) ? clamp(Math.floor(radiusMinRaw), 1, 12) : 3;
+  const count = Number.isFinite(countRaw)
+    ? clamp(Math.floor(countRaw), 0, 4)
+    : 1;
+  const radiusMin = Number.isFinite(radiusMinRaw)
+    ? clamp(Math.floor(radiusMinRaw), 1, 12)
+    : 3;
   const radiusMax = Number.isFinite(radiusMaxRaw)
     ? clamp(Math.floor(radiusMaxRaw), radiusMin, 14)
     : Math.max(radiusMin, 6);
@@ -947,8 +1151,12 @@ function normalizeLakeSettings(raw) {
     count,
     radiusMin,
     radiusMax,
-    shoreWidth: Number.isFinite(shoreRaw) ? clamp(Math.floor(shoreRaw), 0, 3) : 1,
-    buffer: Number.isFinite(bufferRaw) ? clamp(Math.floor(bufferRaw), 0, 10) : 3,
+    shoreWidth: Number.isFinite(shoreRaw)
+      ? clamp(Math.floor(shoreRaw), 0, 3)
+      : 1,
+    buffer: Number.isFinite(bufferRaw)
+      ? clamp(Math.floor(bufferRaw), 0, 10)
+      : 3,
   };
 }
 
@@ -958,12 +1166,20 @@ function normalizeValleySettings(raw, defaults) {
   const octaves = Number(raw.octaves ?? defaults.octaves ?? 4);
   const persistence = Number(raw.persistence ?? defaults.persistence ?? 0.5);
   const lacunarity = Number(raw.lacunarity ?? defaults.lacunarity ?? 2.0);
-  const smoothingPasses = clamp(Math.floor(Number(raw.smoothingPasses ?? 3)), 1, 8);
+  const smoothingPasses = clamp(
+    Math.floor(Number(raw.smoothingPasses ?? 3)),
+    1,
+    8,
+  );
   const bowlStrength = clamp(Number(raw.bowlStrength ?? 0.3), 0, 1);
   const mountainHeight = clamp(Number(raw.mountainHeight ?? 0.8), 0, 1);
   const hillHeight = clamp(Number(raw.hillHeight ?? 0.66), 0, 1);
   const fertileHeight = clamp(Number(raw.fertileHeight ?? 0.46), 0, 1);
-  const fertileDistance = clamp(Math.floor(Number(raw.fertileDistance ?? 3)), 0, 10);
+  const fertileDistance = clamp(
+    Math.floor(Number(raw.fertileDistance ?? 3)),
+    0,
+    10,
+  );
   const humidityDecay = Math.max(1, Number(raw.humidityDecay ?? 6));
   const diagonalRaw = Number(raw.waterDistanceDiagonalWeight ?? 1);
   const waterDistanceDiagonalWeight = Number.isFinite(diagonalRaw)
@@ -971,14 +1187,22 @@ function normalizeValleySettings(raw, defaults) {
     : 1;
   const riverBias = raw.riverBias || {};
   const riverCount = clamp(Math.floor(Number(raw.riverCount ?? 1)), 1, 4);
-  const riverSourceMinDistance = clamp(Math.floor(Number(raw.riverSourceMinDistance ?? 6)), 0, 50);
+  const riverSourceMinDistance = clamp(
+    Math.floor(Number(raw.riverSourceMinDistance ?? 6)),
+    0,
+    50,
+  );
   const riverWander = clamp(Number(raw.riverWander ?? 0.25), 0, 1);
   const riverSourceSides = Array.isArray(raw.riverSourceSides)
-    ? raw.riverSourceSides.map((side) => String(side || '').toLowerCase())
-      .filter((side) => ['north', 'south', 'east', 'west'].includes(side))
-    : ['north', 'south', 'east', 'west'];
+    ? raw.riverSourceSides
+        .map((side) => String(side || "").toLowerCase())
+        .filter((side) => ["north", "south", "east", "west"].includes(side))
+    : ["north", "south", "east", "west"];
   const riverValleyDrop = Math.max(0, Number(raw.riverValleyDrop ?? 0.22));
-  const riverValleyDropAdjacent = Math.max(0, Number(raw.riverValleyDropAdjacent ?? 0.1));
+  const riverValleyDropAdjacent = Math.max(
+    0,
+    Number(raw.riverValleyDropAdjacent ?? 0.1),
+  );
   const lakeDepth = Math.max(0, Number(raw.lakeDepth ?? 0.02));
   const lakeThreshold = Math.max(0, Number(raw.lakeThreshold ?? 0.03));
   const lakePatch = raw.lakePatch || {};
@@ -993,7 +1217,9 @@ function normalizeValleySettings(raw, defaults) {
   const ponds = raw.ponds || {};
   const pondsEnabled = ponds.enabled !== false;
   const pondsCountRaw = Number(ponds.count ?? 2);
-  const pondsCount = Number.isFinite(pondsCountRaw) ? clamp(Math.floor(pondsCountRaw), 0, 6) : 2;
+  const pondsCount = Number.isFinite(pondsCountRaw)
+    ? clamp(Math.floor(pondsCountRaw), 0, 6)
+    : 2;
   const pondsRadiusMinRaw = Number(ponds.radiusMin ?? 2);
   const pondsRadiusMin = Number.isFinite(pondsRadiusMinRaw)
     ? clamp(Math.floor(pondsRadiusMinRaw), 1, 8)
@@ -1012,10 +1238,24 @@ function normalizeValleySettings(raw, defaults) {
     : 0.55;
   const forest = raw.forest || {};
   const forestNoiseScale = Math.max(0.01, Number(forest.noiseScale ?? 0.11));
-  const forestWaterDistanceMin = clamp(Math.floor(Number(forest.waterDistanceMin ?? 0)), 0, 10);
-  const forestWaterDistanceMaxRaw = clamp(Math.floor(Number(forest.waterDistanceMax ?? 4)), 0, 12);
-  const forestWaterDistanceMax = Math.max(forestWaterDistanceMin, forestWaterDistanceMaxRaw);
-  const forestWaterDistanceJitter = Math.max(0, Number(forest.waterDistanceJitter ?? 0));
+  const forestWaterDistanceMin = clamp(
+    Math.floor(Number(forest.waterDistanceMin ?? 0)),
+    0,
+    10,
+  );
+  const forestWaterDistanceMaxRaw = clamp(
+    Math.floor(Number(forest.waterDistanceMax ?? 4)),
+    0,
+    12,
+  );
+  const forestWaterDistanceMax = Math.max(
+    forestWaterDistanceMin,
+    forestWaterDistanceMaxRaw,
+  );
+  const forestWaterDistanceJitter = Math.max(
+    0,
+    Number(forest.waterDistanceJitter ?? 0),
+  );
   const forestWaterDistanceNoiseScale = Math.max(
     0.001,
     Number(forest.waterDistanceNoiseScale ?? forestNoiseScale),
@@ -1027,7 +1267,8 @@ function normalizeValleySettings(raw, defaults) {
     noiseScale: Number.isFinite(scale) && scale > 0 ? scale : 0.06,
     octaves: Number.isFinite(octaves) ? clamp(Math.floor(octaves), 1, 8) : 4,
     persistence: Number.isFinite(persistence) ? clamp(persistence, 0, 1) : 0.5,
-    lacunarity: Number.isFinite(lacunarity) && lacunarity > 0 ? lacunarity : 2.0,
+    lacunarity:
+      Number.isFinite(lacunarity) && lacunarity > 0 ? lacunarity : 2.0,
     smoothingPasses,
     bowlStrength,
     mountainHeight: Math.max(hillHeight, mountainHeight),
@@ -1045,7 +1286,10 @@ function normalizeValleySettings(raw, defaults) {
     riverCount,
     riverSourceMinDistance,
     riverWander,
-    riverSourceSides: riverSourceSides.length > 0 ? riverSourceSides : ['north', 'south', 'east', 'west'],
+    riverSourceSides:
+      riverSourceSides.length > 0
+        ? riverSourceSides
+        : ["north", "south", "east", "west"],
     riverValleyDrop,
     riverValleyDropAdjacent,
     lakeDepth,
@@ -1075,7 +1319,11 @@ function normalizeValleySettings(raw, defaults) {
     },
     food: {
       humidityMin: clamp(Number(food.humidityMin ?? 0.4), 0, 1),
-      waterDistanceMax: clamp(Math.floor(Number(food.waterDistanceMax ?? 5)), 0, 12),
+      waterDistanceMax: clamp(
+        Math.floor(Number(food.waterDistanceMax ?? 5)),
+        0,
+        12,
+      ),
       noiseScale: Math.max(0.01, Number(food.noiseScale ?? 0.12)),
       noiseThreshold: clamp(Number(food.noiseThreshold ?? 0.7), 0, 1),
       clusterPasses: clamp(Math.floor(Number(food.clusterPasses ?? 1)), 0, 5),
@@ -1097,11 +1345,17 @@ function normalizeValleySettings(raw, defaults) {
 function normalizeRiverSettings(raw) {
   const enabled = raw.enabled !== false;
   const countRaw = Number(raw.count ?? 0);
-  const count = Number.isFinite(countRaw) ? clamp(Math.floor(countRaw), 0, 4) : 0;
+  const count = Number.isFinite(countRaw)
+    ? clamp(Math.floor(countRaw), 0, 4)
+    : 0;
   const widthRaw = Number(raw.width ?? 1);
-  const width = Number.isFinite(widthRaw) ? clamp(Math.floor(widthRaw), 1, 3) : 1;
+  const width = Number.isFinite(widthRaw)
+    ? clamp(Math.floor(widthRaw), 1, 3)
+    : 1;
   const shoreRaw = Number(raw.shoreWidth ?? 1);
-  const shoreWidth = Number.isFinite(shoreRaw) ? clamp(Math.floor(shoreRaw), 0, 3) : 1;
+  const shoreWidth = Number.isFinite(shoreRaw)
+    ? clamp(Math.floor(shoreRaw), 0, 3)
+    : 1;
   const wanderRaw = Number(raw.wander ?? 0.5);
   const wander = Number.isFinite(wanderRaw) ? clamp(wanderRaw, 0, 1) : 0.5;
   return {
@@ -1144,9 +1398,10 @@ function resolveTerrainSeed(rawSeed, previousTerrain, runtime) {
   if (explicit !== 0) {
     return explicit >>> 0;
   }
-  const previous = previousTerrain && Number.isFinite(previousTerrain.seed)
-    ? Number(previousTerrain.seed)
-    : 0;
+  const previous =
+    previousTerrain && Number.isFinite(previousTerrain.seed)
+      ? Number(previousTerrain.seed)
+      : 0;
   if (previous) {
     return previous >>> 0;
   }
@@ -1158,18 +1413,18 @@ function resolveTerrainSeed(rawSeed, previousTerrain, runtime) {
 // Function: resolveTerrainType.
 function resolveTerrainType(value, thresholds) {
   if (value < thresholds.water) {
-    return 'water';
+    return "water";
   }
   if (value < thresholds.shore) {
-    return 'shore';
+    return "shore";
   }
   if (value < thresholds.grass) {
-    return 'grass';
+    return "grass";
   }
   if (value < thresholds.forest) {
-    return 'forest';
+    return "forest";
   }
-  return 'mountain';
+  return "mountain";
 }
 
 // Function: applyCoast.
@@ -1200,9 +1455,9 @@ function applyCoast(types, settings, seed) {
         boundary = spec.sea + offset;
       }
       if (distance <= boundary) {
-        types[y][x] = 'water';
+        types[y][x] = "water";
       } else if (distance <= boundary + spec.shore) {
-        types[y][x] = 'shore';
+        types[y][x] = "shore";
       }
     }
   }
@@ -1219,11 +1474,21 @@ function applyLakes(types, settings, rng) {
   if (width <= 0 || height <= 0) {
     return;
   }
-  const random = typeof rng === 'function' ? rng : Math.random;
+  const random = typeof rng === "function" ? rng : Math.random;
 
   for (let i = 0; i < lakes.count; i += 1) {
-    const radius = randomBetweenWithRng(random, lakes.radiusMin, lakes.radiusMax);
-    const center = pickLakeCenter(types, settings, random, radius, lakes.buffer);
+    const radius = randomBetweenWithRng(
+      random,
+      lakes.radiusMin,
+      lakes.radiusMax,
+    );
+    const center = pickLakeCenter(
+      types,
+      settings,
+      random,
+      radius,
+      lakes.buffer,
+    );
     if (!center) {
       continue;
     }
@@ -1243,7 +1508,7 @@ function applyRivers(types, settings, rng) {
     return;
   }
 
-  const random = typeof rng === 'function' ? rng : Math.random;
+  const random = typeof rng === "function" ? rng : Math.random;
   const coast = settings.coast || {};
   const coastSpec = coast.enabled ? getCoastSpec(coast, width, height) : null;
 
@@ -1278,30 +1543,38 @@ function applyRivers(types, settings, rng) {
 
 // Function: pickEdgePoint.
 function pickEdgePoint(width, height, random) {
-  const rng = typeof random === 'function' ? random : Math.random;
+  const rng = typeof random === "function" ? random : Math.random;
   const sideIndex = Math.floor(rng() * 4);
   if (sideIndex === 0) {
-    return { x: randomBetweenWithRng(rng, 0, width - 1), y: 0, side: 'north' };
+    return { x: randomBetweenWithRng(rng, 0, width - 1), y: 0, side: "north" };
   }
   if (sideIndex === 1) {
-    return { x: randomBetweenWithRng(rng, 0, width - 1), y: height - 1, side: 'south' };
+    return {
+      x: randomBetweenWithRng(rng, 0, width - 1),
+      y: height - 1,
+      side: "south",
+    };
   }
   if (sideIndex === 2) {
-    return { x: 0, y: randomBetweenWithRng(rng, 0, height - 1), side: 'west' };
+    return { x: 0, y: randomBetweenWithRng(rng, 0, height - 1), side: "west" };
   }
-  return { x: width - 1, y: randomBetweenWithRng(rng, 0, height - 1), side: 'east' };
+  return {
+    x: width - 1,
+    y: randomBetweenWithRng(rng, 0, height - 1),
+    side: "east",
+  };
 }
 
 // Function: pickOppositeEdgePoint.
 function pickOppositeEdgePoint(width, height, side, random) {
-  const rng = typeof random === 'function' ? random : Math.random;
-  if (side === 'north') {
+  const rng = typeof random === "function" ? random : Math.random;
+  if (side === "north") {
     return { x: randomBetweenWithRng(rng, 0, width - 1), y: height - 1 };
   }
-  if (side === 'south') {
+  if (side === "south") {
     return { x: randomBetweenWithRng(rng, 0, width - 1), y: 0 };
   }
-  if (side === 'west') {
+  if (side === "west") {
     return { x: width - 1, y: randomBetweenWithRng(rng, 0, height - 1) };
   }
   return { x: 0, y: randomBetweenWithRng(rng, 0, height - 1) };
@@ -1309,14 +1582,14 @@ function pickOppositeEdgePoint(width, height, side, random) {
 
 // Function: pickCoastEdgePoint.
 function pickCoastEdgePoint(width, height, side, random) {
-  const rng = typeof random === 'function' ? random : Math.random;
-  if (side === 'north') {
+  const rng = typeof random === "function" ? random : Math.random;
+  if (side === "north") {
     return { x: randomBetweenWithRng(rng, 0, width - 1), y: 0 };
   }
-  if (side === 'south') {
+  if (side === "south") {
     return { x: randomBetweenWithRng(rng, 0, width - 1), y: height - 1 };
   }
-  if (side === 'west') {
+  if (side === "west") {
     return { x: 0, y: randomBetweenWithRng(rng, 0, height - 1) };
   }
   return { x: width - 1, y: randomBetweenWithRng(rng, 0, height - 1) };
@@ -1329,7 +1602,7 @@ function pickInlandPoint(types, random, coastSpec, buffer) {
   if (width <= 0 || height <= 0) {
     return null;
   }
-  const rng = typeof random === 'function' ? random : Math.random;
+  const rng = typeof random === "function" ? random : Math.random;
   const edgeBuffer = Math.max(0, Number(buffer || 0));
   let minX = edgeBuffer;
   let maxX = width - 1 - edgeBuffer;
@@ -1337,13 +1610,13 @@ function pickInlandPoint(types, random, coastSpec, buffer) {
   let maxY = height - 1 - edgeBuffer;
   if (coastSpec) {
     const inland = coastSpec.sea + coastSpec.shore + 2 + edgeBuffer;
-    if (coastSpec.side === 'west') {
+    if (coastSpec.side === "west") {
       minX = Math.max(minX, inland);
-    } else if (coastSpec.side === 'east') {
+    } else if (coastSpec.side === "east") {
       maxX = Math.min(maxX, width - 1 - inland);
-    } else if (coastSpec.side === 'north') {
+    } else if (coastSpec.side === "north") {
       minY = Math.max(minY, inland);
-    } else if (coastSpec.side === 'south') {
+    } else if (coastSpec.side === "south") {
       maxY = Math.min(maxY, height - 1 - inland);
     }
   }
@@ -1357,7 +1630,7 @@ function pickInlandPoint(types, random, coastSpec, buffer) {
   for (let i = 0; i < attempts; i += 1) {
     const x = randomBetweenWithRng(rng, minX, maxX);
     const y = randomBetweenWithRng(rng, minY, maxY);
-    if (types[y][x] !== 'water') {
+    if (types[y][x] !== "water") {
       return { x, y };
     }
   }
@@ -1371,7 +1644,7 @@ function pickLakeCenter(types, settings, random, radius, buffer) {
   if (width <= 0 || height <= 0) {
     return null;
   }
-  const rng = typeof random === 'function' ? random : Math.random;
+  const rng = typeof random === "function" ? random : Math.random;
   const coast = settings.coast || {};
   const coastSpec = coast.enabled ? getCoastSpec(coast, width, height) : null;
   const extra = Math.max(0, Number(buffer || 0)) + radius + 1;
@@ -1381,13 +1654,13 @@ function pickLakeCenter(types, settings, random, radius, buffer) {
   let maxY = height - 1 - extra;
   if (coastSpec) {
     const inland = coastSpec.sea + coastSpec.shore + extra;
-    if (coastSpec.side === 'west') {
+    if (coastSpec.side === "west") {
       minX = Math.max(minX, inland);
-    } else if (coastSpec.side === 'east') {
+    } else if (coastSpec.side === "east") {
       maxX = Math.min(maxX, width - 1 - inland);
-    } else if (coastSpec.side === 'north') {
+    } else if (coastSpec.side === "north") {
       minY = Math.max(minY, inland);
-    } else if (coastSpec.side === 'south') {
+    } else if (coastSpec.side === "south") {
       maxY = Math.min(maxY, height - 1 - inland);
     }
   }
@@ -1398,7 +1671,7 @@ function pickLakeCenter(types, settings, random, radius, buffer) {
   for (let i = 0; i < attempts; i += 1) {
     const x = randomBetweenWithRng(rng, minX, maxX);
     const y = randomBetweenWithRng(rng, minY, maxY);
-    if (types[y][x] !== 'water') {
+    if (types[y][x] !== "water") {
       return { x, y };
     }
   }
@@ -1427,9 +1700,9 @@ function carveLake(types, x, y, radius, shoreWidth) {
       const dy = yy - y;
       const dist2 = dx * dx + dy * dy;
       if (dist2 <= r2) {
-        types[yy][xx] = 'water';
-      } else if (shore > 0 && dist2 <= rOuter2 && types[yy][xx] !== 'water') {
-        types[yy][xx] = 'shore';
+        types[yy][xx] = "water";
+      } else if (shore > 0 && dist2 <= rOuter2 && types[yy][xx] !== "water") {
+        types[yy][xx] = "shore";
       }
     }
   }
@@ -1440,8 +1713,8 @@ function getCoastSpec(coast, width, height) {
   if (!coast || !coast.enabled) {
     return null;
   }
-  const side = coast.side || 'west';
-  const edge = side === 'north' || side === 'south' ? height : width;
+  const side = coast.side || "west";
+  const edge = side === "north" || side === "south" ? height : width;
   const sea = Math.max(1, Math.round(edge * clamp(coast.width, 0, 1)));
   const shore = Math.max(0, Math.round(edge * clamp(coast.shoreWidth, 0, 1)));
   return { side, sea, shore };
@@ -1449,14 +1722,14 @@ function getCoastSpec(coast, width, height) {
 
 // Function: getCoastDistance.
 function getCoastDistance(side, x, y, width, height) {
-  if (side === 'north') {
+  if (side === "north") {
     return y;
   }
-  if (side === 'south') {
-    return (height - 1) - y;
+  if (side === "south") {
+    return height - 1 - y;
   }
-  if (side === 'east') {
-    return (width - 1) - x;
+  if (side === "east") {
+    return width - 1 - x;
   }
   return x;
 }
@@ -1506,7 +1779,7 @@ function carveWater(types, x, y, width, shoreWidth) {
       if (nx < 0 || ny < 0 || nx > maxX || ny > maxY) {
         continue;
       }
-      types[ny][nx] = 'water';
+      types[ny][nx] = "water";
     }
   }
   const shoreRadius = Math.max(0, radius + shoreWidth);
@@ -1517,8 +1790,8 @@ function carveWater(types, x, y, width, shoreWidth) {
       if (nx < 0 || ny < 0 || nx > maxX || ny > maxY) {
         continue;
       }
-      if (types[ny][nx] !== 'water') {
-        types[ny][nx] = 'shore';
+      if (types[ny][nx] !== "water") {
+        types[ny][nx] = "shore";
       }
     }
   }
@@ -1532,9 +1805,10 @@ function buildWalkableMap(types, walkableConfig) {
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
       const type = types[y][x];
-      const allowed = walkableConfig && walkableConfig[type] !== undefined
-        ? walkableConfig[type]
-        : true;
+      const allowed =
+        walkableConfig && walkableConfig[type] !== undefined
+          ? walkableConfig[type]
+          : true;
       map[y][x] = Boolean(allowed);
     }
   }
@@ -1551,12 +1825,18 @@ function buildSpawnableMap(walkable) {
   if (width <= 0) {
     return null;
   }
-  const start = findNearestWalkable(walkable, Math.floor(width / 2), Math.floor(height / 2));
+  const start = findNearestWalkable(
+    walkable,
+    Math.floor(width / 2),
+    Math.floor(height / 2),
+  );
   if (!start) {
     return null;
   }
 
-  const spawnable = Array.from({ length: height }, () => new Array(width).fill(false));
+  const spawnable = Array.from({ length: height }, () =>
+    new Array(width).fill(false),
+  );
   const queue = [start];
   spawnable[start.y][start.x] = true;
 
@@ -1591,7 +1871,9 @@ function findNearestWalkable(walkable, startX, startY) {
     return null;
   }
   const queue = [{ x: startX, y: startY }];
-  const visited = Array.from({ length: height }, () => new Array(width).fill(false));
+  const visited = Array.from({ length: height }, () =>
+    new Array(width).fill(false),
+  );
   visited[startY][startX] = true;
 
   while (queue.length > 0) {
@@ -1632,7 +1914,9 @@ function getTerrainResourcePredicate(terrain, terrainAllowed, resourceId) {
   if (!terrain) {
     return null;
   }
-  const allowedTypes = Array.isArray(terrainAllowed && terrainAllowed[resourceId])
+  const allowedTypes = Array.isArray(
+    terrainAllowed && terrainAllowed[resourceId],
+  )
     ? terrainAllowed[resourceId]
     : null;
   const allowedSet = allowedTypes ? new Set(allowedTypes) : null;
@@ -1646,8 +1930,12 @@ function getTerrainResourcePredicate(terrain, terrainAllowed, resourceId) {
       return true;
     }
     const type = terrain.types && terrain.types[y] ? terrain.types[y][x] : null;
-    const walkableHere = !terrain.walkable || (terrain.walkable[y] && terrain.walkable[y][x]);
-    if (allowedSet.has(type) && (walkableTypes[type] !== false || walkableHere)) {
+    const walkableHere =
+      !terrain.walkable || (terrain.walkable[y] && terrain.walkable[y][x]);
+    if (
+      allowedSet.has(type) &&
+      (walkableTypes[type] !== false || walkableHere)
+    ) {
       return true;
     }
     for (const allowed of allowedSet) {
@@ -1792,13 +2080,15 @@ function normalizeHeightMap(map) {
 
 // Function: computeDistanceToWater.
 function computeDistanceToWater(waterSet, width, height, diagonalWeight) {
-  const dist = Array.from({ length: height }, () => new Array(width).fill(Infinity));
+  const dist = Array.from({ length: height }, () =>
+    new Array(width).fill(Infinity),
+  );
   const diag = Number(diagonalWeight);
   const useDiagonal = Number.isFinite(diag) && diag > 0;
   if (!useDiagonal) {
     const queue = [];
     for (const key of waterSet) {
-      const [sx, sy] = key.split(',').map(Number);
+      const [sx, sy] = key.split(",").map(Number);
       if (Number.isFinite(sx) && Number.isFinite(sy)) {
         dist[sy][sx] = 0;
         queue.push({ x: sx, y: sy });
@@ -1832,7 +2122,7 @@ function computeDistanceToWater(waterSet, width, height, diagonalWeight) {
 
   const heap = { items: [] };
   for (const key of waterSet) {
-    const [sx, sy] = key.split(',').map(Number);
+    const [sx, sy] = key.split(",").map(Number);
     if (Number.isFinite(sx) && Number.isFinite(sy)) {
       dist[sy][sx] = 0;
       heapPush(heap, { x: sx, y: sy, dist: 0 });
@@ -1906,7 +2196,10 @@ function heapPop(heap) {
       break;
     }
     const right = left + 1;
-    const smallest = right < items.length && items[right].dist < items[left].dist ? right : left;
+    const smallest =
+      right < items.length && items[right].dist < items[left].dist
+        ? right
+        : left;
     if (items[smallest].dist >= last.dist) {
       break;
     }
@@ -1920,7 +2213,10 @@ function heapPop(heap) {
 // Function: buildValleyRiver.
 function buildValleyRivers(heightMap, valley, seed) {
   const count = clamp(Math.floor(Number(valley.riverCount ?? 1)), 1, 4);
-  const minDistance = Math.max(0, Math.floor(Number(valley.riverSourceMinDistance ?? 0)));
+  const minDistance = Math.max(
+    0,
+    Math.floor(Number(valley.riverSourceMinDistance ?? 0)),
+  );
   const sources = pickRiverSources(
     heightMap,
     count,
@@ -1982,7 +2278,9 @@ function traceValleyRiver(heightMap, valley, source, rng) {
       { x, y: y - 1, bias: valley.riverBias.north },
     ].filter((n) => n.x >= 0 && n.y >= 0 && n.x < width && n.y < height);
     if (previous && neighbors.length > 1) {
-      neighbors = neighbors.filter((n) => n.x !== previous.x || n.y !== previous.y);
+      neighbors = neighbors.filter(
+        (n) => n.x !== previous.x || n.y !== previous.y,
+      );
       if (neighbors.length === 0) {
         neighbors = [
           { x: x + 1, y, bias: valley.riverBias.east },
@@ -1997,9 +2295,10 @@ function traceValleyRiver(heightMap, valley, source, rng) {
     const scored = [];
     for (const candidate of neighbors) {
       const noise = (rng ? rng() : Math.random()) - 0.5;
-      const score = heightMap[candidate.y][candidate.x]
-        + candidate.bias
-        + noise * wander * 0.08;
+      const score =
+        heightMap[candidate.y][candidate.x] +
+        candidate.bias +
+        noise * wander * 0.08;
       scored.push({ candidate, score });
     }
     if (scored.length === 0) {
@@ -2009,7 +2308,10 @@ function traceValleyRiver(heightMap, valley, source, rng) {
     best = scored[0].candidate;
     bestScore = scored[0].score;
     if (scored.length > 1 && (rng ? rng() : Math.random()) < wander) {
-      const pickIndex = Math.min(scored.length - 1, 1 + Math.floor((rng ? rng() : Math.random()) * 2));
+      const pickIndex = Math.min(
+        scored.length - 1,
+        1 + Math.floor((rng ? rng() : Math.random()) * 2),
+      );
       best = scored[pickIndex].candidate;
       bestScore = scored[pickIndex].score;
     }
@@ -2023,7 +2325,10 @@ function traceValleyRiver(heightMap, valley, source, rng) {
           }
           if (heightMap[ny][nx] <= currentH + valley.lakeThreshold) {
             lakes.add(`${nx},${ny}`);
-            heightMap[ny][nx] = Math.min(heightMap[ny][nx], currentH - valley.lakeDepth);
+            heightMap[ny][nx] = Math.min(
+              heightMap[ny][nx],
+              currentH - valley.lakeDepth,
+            );
           }
         }
       }
@@ -2040,10 +2345,12 @@ function traceValleyRiver(heightMap, valley, source, rng) {
 function pickRiverSources(heightMap, count, minDistance, sides, rng) {
   const height = heightMap.length;
   const width = height > 0 ? heightMap[0].length : 0;
-  const sideList = Array.isArray(sides) && sides.length > 0
-    ? sides.map((side) => String(side || '').toLowerCase())
-      .filter((side) => ['north', 'south', 'east', 'west'].includes(side))
-    : ['north', 'south', 'east', 'west'];
+  const sideList =
+    Array.isArray(sides) && sides.length > 0
+      ? sides
+          .map((side) => String(side || "").toLowerCase())
+          .filter((side) => ["north", "south", "east", "west"].includes(side))
+      : ["north", "south", "east", "west"];
   const candidates = [];
   const candidatesBySide = {
     north: [],
@@ -2053,24 +2360,32 @@ function pickRiverSources(heightMap, count, minDistance, sides, rng) {
   };
   const seen = new Set();
 
-  if (sideList.includes('north')) {
+  if (sideList.includes("north")) {
     for (let x = 0; x < width; x += 1) {
       candidatesBySide.north.push({ x, y: 0, h: heightMap[0][x] });
     }
   }
-  if (sideList.includes('south')) {
+  if (sideList.includes("south")) {
     for (let x = 0; x < width; x += 1) {
-      candidatesBySide.south.push({ x, y: height - 1, h: heightMap[height - 1][x] });
+      candidatesBySide.south.push({
+        x,
+        y: height - 1,
+        h: heightMap[height - 1][x],
+      });
     }
   }
-  if (sideList.includes('west')) {
+  if (sideList.includes("west")) {
     for (let y = 0; y < height; y += 1) {
       candidatesBySide.west.push({ x: 0, y, h: heightMap[y][0] });
     }
   }
-  if (sideList.includes('east')) {
+  if (sideList.includes("east")) {
     for (let y = 0; y < height; y += 1) {
-      candidatesBySide.east.push({ x: width - 1, y, h: heightMap[y][width - 1] });
+      candidatesBySide.east.push({
+        x: width - 1,
+        y,
+        h: heightMap[y][width - 1],
+      });
     }
   }
 
@@ -2085,7 +2400,8 @@ function pickRiverSources(heightMap, count, minDistance, sides, rng) {
     candidatesBySide[key].sort((a, b) => b.h - a.h);
   }
 
-  const cycleSides = sideList.length > 0 ? sideList : ['north', 'south', 'east', 'west'];
+  const cycleSides =
+    sideList.length > 0 ? sideList : ["north", "south", "east", "west"];
   const sources = [];
 
   for (let i = 0; i < count; i += 1) {
@@ -2097,7 +2413,12 @@ function pickRiverSources(heightMap, count, minDistance, sides, rng) {
       if (seen.has(key)) {
         continue;
       }
-      if (minDistance > 0 && sources.some((source) => manhattanDistance(source, candidate) < minDistance)) {
+      if (
+        minDistance > 0 &&
+        sources.some(
+          (source) => manhattanDistance(source, candidate) < minDistance,
+        )
+      ) {
         continue;
       }
       picked = candidate;
@@ -2109,7 +2430,12 @@ function pickRiverSources(heightMap, count, minDistance, sides, rng) {
         if (seen.has(key)) {
           continue;
         }
-        if (minDistance > 0 && sources.some((source) => manhattanDistance(source, candidate) < minDistance)) {
+        if (
+          minDistance > 0 &&
+          sources.some(
+            (source) => manhattanDistance(source, candidate) < minDistance,
+          )
+        ) {
           continue;
         }
         picked = candidate;
@@ -2117,7 +2443,10 @@ function pickRiverSources(heightMap, count, minDistance, sides, rng) {
       }
     }
     if (!picked && candidates.length > 0) {
-      picked = candidates[Math.floor((rng ? rng() : Math.random()) * candidates.length)];
+      picked =
+        candidates[
+          Math.floor((rng ? rng() : Math.random()) * candidates.length)
+        ];
     }
     if (picked) {
       sources.push({ x: picked.x, y: picked.y });
@@ -2184,7 +2513,10 @@ function carveRiverValley(heightMap, river, valley) {
         if (x < 0 || y < 0 || x >= width || y >= height) {
           continue;
         }
-        const drop = dx === 0 && dy === 0 ? valley.riverValleyDrop : valley.riverValleyDropAdjacent;
+        const drop =
+          dx === 0 && dy === 0
+            ? valley.riverValleyDrop
+            : valley.riverValleyDropAdjacent;
         carved[y][x] = Math.max(0, carved[y][x] - drop);
       }
     }
@@ -2200,7 +2532,7 @@ function smoothClusterMap(map, baseTypes, keepFn) {
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
       const base = baseTypes[y][x];
-      if (base === 'river' || base === 'lake' || base === 'mountain') {
+      if (base === "river" || base === "lake" || base === "mountain") {
         continue;
       }
       let count = 0;
@@ -2235,13 +2567,24 @@ function smoothClusterMap(map, baseTypes, keepFn) {
 }
 
 // Function: buildValleyFoodMask.
-function buildValleyFoodMask(width, height, baseTypes, dist, humidity, forest, valley, seed) {
-  const food = Array.from({ length: height }, () => new Array(width).fill(false));
+function buildValleyFoodMask(
+  width,
+  height,
+  baseTypes,
+  dist,
+  humidity,
+  forest,
+  valley,
+  seed,
+) {
+  const food = Array.from({ length: height }, () =>
+    new Array(width).fill(false),
+  );
   const settings = valley.food || {};
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
       const base = baseTypes[y][x];
-      if (base !== 'fertile' && base !== 'plain') {
+      if (base !== "fertile" && base !== "plain") {
         continue;
       }
       if (forest[y][x]) {
@@ -2269,7 +2612,7 @@ function buildValleyFoodMask(width, height, baseTypes, dist, humidity, forest, v
   for (let pass = 0; pass < settings.clusterPasses; pass += 1) {
     smoothClusterMap(food, baseTypes, (x, y) => {
       const base = baseTypes[y][x];
-      if (base !== 'fertile' && base !== 'plain') {
+      if (base !== "fertile" && base !== "plain") {
         return false;
       }
       if (forest[y][x]) {
@@ -2308,9 +2651,9 @@ function hasNearbyCluster(map, x, y) {
 
 // Function: createTerrainRng.
 function createTerrainRng(seed) {
-  let t = (Number(seed) >>> 0) || 1;
+  let t = Number(seed) >>> 0 || 1;
   return function random() {
-    t += 0x6D2B79F5;
+    t += 0x6d2b79f5;
     let r = Math.imul(t ^ (t >>> 15), 1 | t);
     r ^= r + Math.imul(r ^ (r >>> 7), 61 | r);
     return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
@@ -2324,7 +2667,7 @@ function randomBetweenWithRng(rng, min, max) {
   if (high <= low) {
     return low;
   }
-  const rand = typeof rng === 'function' ? rng() : Math.random();
+  const rand = typeof rng === "function" ? rng() : Math.random();
   return Math.floor(rand * (high - low + 1)) + low;
 }
 

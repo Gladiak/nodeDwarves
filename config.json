@@ -141,10 +141,10 @@
         "water": "≈",
         "shore": "░",
         "grass": "\"",
-        "mountain": "█",
-        "hill": "▓",
+        "mountain": "▲",
+        "hill": "n",
         "plain": "\"",
-        "fertile": "░",
+        "fertile": ":",
         "food": "φ",
         "forest": "♣",
         "stone": "♦"
@@ -181,7 +181,7 @@
         "frame": "\u001b[90m",
         "terrain_river": "\u001b[34m",
         "terrain_lake": "\u001b[36m",
-        "terrain_mountain": "\u001b[90m",
+        "terrain_mountain": "\u001b[37m",
         "terrain_hill": "\u001b[33m",
         "terrain_plain": "\u001b[32m",
         "terrain_fertile": "\u001b[92m",
@@ -1733,7 +1733,8 @@
     "ruins": {
       "count": 1,
       "capacity": 1,
-      "spawnTerrain": ["mountain", "stone"]
+      "spawnTerrain": ["mountain", "stone"],
+      "minSpawnTiles": 48
     },
     "watchtower": {
       "count": 0,
@@ -2420,7 +2421,7 @@
     "well": "°",
     "field": "▒",
     "mine": "╬",
-    "ruins": "R",
+    "ruins": "∩",
     "workshop": "╦",
     "armory": "A",
     "brewery": "ß",

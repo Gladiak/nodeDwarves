@@ -539,6 +539,7 @@ Structures (ruins):
 
 - `structures.ruins.count`: initial ruins count (typically 1, always placed at start).
 - `structures.ruins.spawnTerrain`: terrain types allowed for initial ruins placement.
+- `structures.ruins.minSpawnTiles`: minimum number of spawn terrain tiles reserved for ruins.
 
 Ruins exploration:
 
