@@ -63,6 +63,7 @@ Have a wild idea? Jump in and ship it — pick one of these and make the colony 
 - 🛏️ Housing provides beds; insufficient shelter slows bonding and makes winter harsher.
 - 🧳 A roaming merchant visits periodically, trades surplus for scarce resources, then leaves (food/water can be excluded from offers).
 - 🚰 Wells and 🌾 fields use Poisson-style spacing across the map, respecting terrain and distance from the core.
+- 🏘️ Villages can be founded at population thresholds, adding new build centers (shared stockpile; max 3 villages).
 - 🏛️ Ruins spawn in mountainous terrain; expeditions consume kits, face guardians, and unlock artifact bonuses (repeatable in the final room for completion).
 - 📊 HUD shows averages, bars, priorities, clan totals, and structure breakdowns.
 - 🖼️ The map renders with a framed border for clearer navigation.
@@ -437,6 +438,7 @@ Houses always render with `symbols.house`, while the HUD lists house levels with
     │   ├── season.js
     │   ├── structures.js
     │   ├── terrain.js
+    │   ├── villages.js
     │   └── weather.js
     ├── simulation.js             # Needs, jobs, movement, survival loops (wrapper)
     ├── state                     # World state + terrain generation

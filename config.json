@@ -220,7 +220,7 @@
         "terrain_plain_spring": "\u001b[32m",
         "terrain_plain_summer": "\u001b[92m",
         "terrain_plain_autumn": "\u001b[38;5;187m",
-        "terrain_plain_winter": "\u001b[97m",
+        "terrain_plain_winter": "\u001b[38;2;219;244;231m",
         "terrain_fertile_spring": "\u001b[32m",
         "terrain_fertile_summer": "\u001b[92m",
         "terrain_fertile_autumn": "\u001b[38;5;180m",
@@ -2182,7 +2182,7 @@
         "food": 0.65,
         "water": 0.65
       },
-      "softCap": 300,
+      "softCap": 700,
       "crowdingMinFactor": 0.1,
       "moraleInfluence": 0.35,
       "birthCost": {
@@ -2200,6 +2200,17 @@
       "oldAgeChanceMin": 0.0001,
       "oldAgeChanceMax": 0.0018
     }
+  },
+  "villages": {
+    "enabled": true,
+    "maxCount": 3,
+    "founderCount": 8,
+    "populationThresholds": [200, 400],
+    "minDistanceBetween": 20,
+    "requiredResources": ["food", "water"],
+    "requiredResourceDistance": 12,
+    "structureRadius": 12,
+    "expandStructures": ["house", "well", "field"]
   },
   "clans": {
     "enabled": true,

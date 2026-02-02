@@ -125,6 +125,10 @@ function createInitialState(config, runtime) {
     terrain,
     stockpile: buildInitialStockpile(config, mapScaleContext),
     resourceTargets: scaledTargets,
+    villages: null,
+    villageStats: null,
+    villageCounter: 0,
+    villageBuildCursor: null,
     jobs: [],
     jobCounter: 1,
     structureCounter: structures.length,
@@ -636,6 +640,10 @@ function syncTerrainToGrid(state, runtime, config) {
     state.terrain = null;
     if (state) {
       state.villageCenter = null;
+      state.villages = null;
+      state.villageStats = null;
+      state.villageCounter = 0;
+      state.villageBuildCursor = null;
       state.terrainIndex = null;
     }
     return;
@@ -647,6 +655,10 @@ function syncTerrainToGrid(state, runtime, config) {
     state.terrain = createTerrain(config, runtime, state.terrain);
     if (state) {
       state.villageCenter = null;
+      state.villages = null;
+      state.villageStats = null;
+      state.villageCounter = 0;
+      state.villageBuildCursor = null;
       state.terrainIndex = null;
     }
   }

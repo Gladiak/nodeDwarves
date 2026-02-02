@@ -115,7 +115,8 @@ function createHouseBuildJob(state, config, runtime, reservedPositions) {
     return null;
   }
 
-  const target = findVillageBuildSpot(state, runtime, reservedPositions);
+  const center = pickVillageCenterForStructure(state, config, runtime, 'house');
+  const target = findVillageBuildSpot(state, runtime, reservedPositions, center);
   if (!target) {
     return null;
   }
@@ -337,13 +338,13 @@ function createWellBuildJob(state, config, runtime, reservedPositions) {
     return null;
   }
 
+  const center = pickVillageCenterForStructure(state, config, runtime, 'well');
   const stockRatio = getStockpileRatio(state, config, 'water');
   const criticalThreshold = clamp(Number(wellConfig.criticalStockpileRatio ?? 0), 0, 1);
   const isCritical = stockRatio <= criticalThreshold;
   const terrainWaterDistance = Math.max(0, Number(wellConfig.skipWhenTerrainWaterWithin ?? 0));
   if (terrainWaterDistance > 0 && !isCritical) {
-    const villageCenter = getVillageCenter(state, runtime);
-    if (hasTerrainResourceWithin(state, config, 'water', villageCenter, terrainWaterDistance)) {
+    if (hasTerrainResourceWithin(state, config, 'water', center, terrainWaterDistance)) {
       return null;
     }
   }
@@ -364,8 +365,9 @@ function createWellBuildJob(state, config, runtime, reservedPositions) {
     ? findPoissonBuildSpot(state, runtime, wellConfig, reservedPositions, {
       structureType: 'well',
       allowForest: shouldAllowForestBuild(state, config),
+      center,
     })
-    : findPeripheralBuildSpot(state, runtime, wellConfig, reservedPositions);
+    : findPeripheralBuildSpot(state, runtime, wellConfig, reservedPositions, center);
   if (!target) {
     return null;
   }
@@ -397,6 +399,7 @@ function createFieldBuildJob(state, config, runtime, reservedPositions) {
     return null;
   }
 
+  const center = pickVillageCenterForStructure(state, config, runtime, 'field');
   const nodeThreshold = Number(fieldConfig.buildWhenNodeRatioBelow ?? 0.4);
   const stockThreshold = Number(fieldConfig.buildWhenStockpileRatioBelow ?? 0.6);
   const nodeRatio = getResourceNodeRatio(state, 'food');
@@ -434,8 +437,9 @@ function createFieldBuildJob(state, config, runtime, reservedPositions) {
       structureType: 'field',
       allowTerrain,
       allowForest,
+      center,
     })
-    : findFertileBuildSpot(state, runtime, fieldConfig, reservedPositions);
+    : findFertileBuildSpot(state, runtime, fieldConfig, reservedPositions, center);
   if (!target) {
     return null;
   }
@@ -1254,7 +1258,17 @@ function pickClusterCenter(state, runtime, center, type, wallRadius, clusterConf
 }
 
 // Validate whether an existing cluster center is still acceptable.
-function isClusterCenterValid(state, runtime, center, type, wallRadius, clusterConfig, otherCenter, allowTerrainOverride) {
+function isClusterCenterValid(
+  state,
+  runtime,
+  center,
+  type,
+  wallRadius,
+  clusterConfig,
+  otherCenter,
+  allowTerrainOverride,
+  villageCenterOverride,
+) {
   if (!center) {
     return false;
   }
@@ -1270,7 +1284,7 @@ function isClusterCenterValid(state, runtime, center, type, wallRadius, clusterC
       return false;
     }
   }
-  const villageCenter = getVillageCenter(state, runtime);
+  const villageCenter = villageCenterOverride || getVillageCenter(state, runtime);
   const halfW = Math.floor(clusterConfig.width / 2);
   const halfH = Math.floor(clusterConfig.height / 2);
   const minDistance = wallRadius + clusterConfig.minWallDistance + clusterConfig.radius;
@@ -1318,7 +1332,7 @@ function isClusterCenterValid(state, runtime, center, type, wallRadius, clusterC
 }
 
 // Resolve fixed cluster centers for wells and fields.
-function ensureStructureClusters(state, runtime, config) {
+function ensureStructureClusters(state, runtime, config, centerOverride) {
   if (!state.structureClusters) {
     state.structureClusters = {};
   }
@@ -1329,15 +1343,35 @@ function ensureStructureClusters(state, runtime, config) {
   const fieldAllowTerrain = allowForest
     ? (innerState, x, y) => isFieldBuildTerrain(innerState, x, y, true)
     : isFieldClusterTerrain;
-  const center = getVillageCenter(state, runtime);
+  const center = centerOverride || getVillageCenter(state, runtime);
   const wallRadius = 0;
 
   const wellClusterConfig = getClusterConfig(wellConfig);
   const fieldClusterConfig = getClusterConfig(fieldConfig);
-  if (clusters.well && !isClusterCenterValid(state, runtime, clusters.well, 'well', wallRadius, wellClusterConfig, clusters.field)) {
+  if (clusters.well && !isClusterCenterValid(
+    state,
+    runtime,
+    clusters.well,
+    'well',
+    wallRadius,
+    wellClusterConfig,
+    clusters.field,
+    null,
+    center,
+  )) {
     clusters.well = null;
   }
-  if (clusters.field && !isClusterCenterValid(state, runtime, clusters.field, 'field', wallRadius, fieldClusterConfig, clusters.well, fieldAllowTerrain)) {
+  if (clusters.field && !isClusterCenterValid(
+    state,
+    runtime,
+    clusters.field,
+    'field',
+    wallRadius,
+    fieldClusterConfig,
+    clusters.well,
+    fieldAllowTerrain,
+    center,
+  )) {
     clusters.field = null;
   }
 
@@ -1412,12 +1446,12 @@ function createManagedWellBuildJob(state, config, runtime, reservedPositions) {
     return null;
   }
 
+  const center = pickVillageCenterForStructure(state, config, runtime, 'well');
   const criticalThreshold = clamp(Number(wellConfig.criticalStockpileRatio ?? 0), 0, 1);
   const isCritical = stockRatio <= criticalThreshold;
   const terrainWaterDistance = Math.max(0, Number(wellConfig.skipWhenTerrainWaterWithin ?? 0));
   if (terrainWaterDistance > 0 && !isCritical) {
-    const villageCenter = getVillageCenter(state, runtime);
-    if (hasTerrainResourceWithin(state, config, 'water', villageCenter, terrainWaterDistance)) {
+    if (hasTerrainResourceWithin(state, config, 'water', center, terrainWaterDistance)) {
       return null;
     }
   }
@@ -1432,11 +1466,12 @@ function createManagedWellBuildJob(state, config, runtime, reservedPositions) {
     target = findPoissonBuildSpot(state, runtime, wellConfig, reservedPositions, {
       structureType: 'well',
       allowForest: shouldAllowForestBuild(state, config),
+      center,
     });
   } else {
-    const clusters = ensureStructureClusters(state, runtime, config);
-    const center = clusters && clusters.well;
-    if (!center) {
+    const clusters = ensureStructureClusters(state, runtime, config, center);
+    const clusterCenter = clusters && clusters.well;
+    if (!clusterCenter) {
       return null;
     }
     const clusterConfig = getClusterConfig(wellConfig);
@@ -1445,7 +1480,7 @@ function createManagedWellBuildJob(state, config, runtime, reservedPositions) {
     const clusterSlots = countClusterSlots(
       state,
       runtime,
-      center,
+      clusterCenter,
       clusterConfig.radius,
       'well',
       null,
@@ -1463,7 +1498,7 @@ function createManagedWellBuildJob(state, config, runtime, reservedPositions) {
     target = findClusterBuildSpot(
       state,
       runtime,
-      center,
+      clusterCenter,
       clusterConfig.radius,
       null,
       reservedPositions,
@@ -1514,6 +1549,7 @@ function createManagedFieldBuildJob(state, config, runtime, reservedPositions) {
     return null;
   }
 
+  const center = pickVillageCenterForStructure(state, config, runtime, 'field');
   const buildCost = fieldConfig.buildCost || {};
   if (Object.keys(buildCost).length > 0 && !hasInputs(state.stockpile, buildCost)) {
     return null;
@@ -1530,11 +1566,12 @@ function createManagedFieldBuildJob(state, config, runtime, reservedPositions) {
       structureType: 'field',
       allowTerrain,
       allowForest,
+      center,
     });
   } else {
-    const clusters = ensureStructureClusters(state, runtime, config);
-    const center = clusters && clusters.field;
-    if (!center) {
+    const clusters = ensureStructureClusters(state, runtime, config, center);
+    const clusterCenter = clusters && clusters.field;
+    if (!clusterCenter) {
       return null;
     }
     const clusterConfig = getClusterConfig(fieldConfig);
@@ -1543,7 +1580,7 @@ function createManagedFieldBuildJob(state, config, runtime, reservedPositions) {
     const clusterSlots = countClusterSlots(
       state,
       runtime,
-      center,
+      clusterCenter,
       clusterConfig.radius,
       'field',
       isFieldClusterTerrain,
@@ -1561,7 +1598,7 @@ function createManagedFieldBuildJob(state, config, runtime, reservedPositions) {
     target = findClusterBuildSpot(
       state,
       runtime,
-      center,
+      clusterCenter,
       clusterConfig.radius,
       isFieldClusterTerrain,
       reservedPositions,
@@ -1704,13 +1741,20 @@ function createManagedWatchtowerBuildJob(state, config, runtime, reservedPositio
 }
 
 // Find the first available build spot near the village center.
-function findVillageBuildSpot(state, runtime, reservedPositions) {
-  return findVillageBuildSpotFromRadius(state, runtime, 0, null, reservedPositions);
+function findVillageBuildSpot(state, runtime, reservedPositions, centerOverride) {
+  return findVillageBuildSpotFromRadius(
+    state,
+    runtime,
+    0,
+    null,
+    reservedPositions,
+    centerOverride,
+  );
 }
 
 // Find a build spot starting from a minimum radius and optional filter.
-function findVillageBuildSpotFromRadius(state, runtime, minRadius, extraCheck, reservedPositions) {
-  const center = getVillageCenter(state, runtime);
+function findVillageBuildSpotFromRadius(state, runtime, minRadius, extraCheck, reservedPositions, centerOverride) {
+  const center = centerOverride || getVillageCenter(state, runtime);
   const maxRadius = getMaxWallRingRadius(center, runtime);
   const startRadius = Math.max(0, Math.floor(minRadius || 0));
 
@@ -1755,8 +1799,8 @@ function getMaxWallRingRadius(center, runtime) {
 }
 
 // Compute the outer radius of village structures.
-function getVillageOuterRadius(state, runtime, excludeTypes) {
-  const center = getVillageCenter(state, runtime);
+function getVillageOuterRadius(state, runtime, excludeTypes, centerOverride) {
+  const center = centerOverride || getVillageCenter(state, runtime);
   let maxDistance = 0;
   for (const structure of state.structures || []) {
     if (excludeTypes && excludeTypes.has(structure.type)) {
@@ -1771,10 +1815,15 @@ function getVillageOuterRadius(state, runtime, excludeTypes) {
 }
 
 // Compute a peripheral build radius for certain structures.
-function getPeripheralBuildRadius(state, runtime, structureConfig) {
+function getPeripheralBuildRadius(state, runtime, structureConfig, centerOverride) {
   const minRadius = Math.max(0, Number(structureConfig.buildMinRadius ?? 0));
   const outerBuffer = Math.max(0, Number(structureConfig.buildOuterBuffer ?? 0));
-  const perimeter = getVillageOuterRadius(state, runtime, new Set(['well', 'field']));
+  const perimeter = getVillageOuterRadius(
+    state,
+    runtime,
+    new Set(['well', 'field']),
+    centerOverride,
+  );
   const maxRadius = getMaxWallRingRadius(perimeter.center, runtime);
   if (maxRadius <= 0) {
     return 0;
@@ -1808,7 +1857,7 @@ function findPoissonBuildSpot(state, runtime, structureConfig, reservedPositions
   }
 
   const center = getVillageCenter(state, runtime);
-  const fallbackMin = getPeripheralBuildRadius(state, runtime, structureConfig);
+  const fallbackMin = getPeripheralBuildRadius(state, runtime, structureConfig, center);
   const minDistanceFromCenter = placement.hasMinDistanceFromCenter
     ? placement.minDistanceFromCenter
     : fallbackMin;
@@ -1939,26 +1988,33 @@ function findPoissonBuildSpot(state, runtime, structureConfig, reservedPositions
 }
 
 // Find a build spot outside the core village radius.
-function findPeripheralBuildSpot(state, runtime, structureConfig, reservedPositions) {
-  const minRadius = getPeripheralBuildRadius(state, runtime, structureConfig);
-  const spot = findVillageBuildSpotFromRadius(state, runtime, minRadius, null, reservedPositions);
+function findPeripheralBuildSpot(state, runtime, structureConfig, reservedPositions, centerOverride) {
+  const minRadius = getPeripheralBuildRadius(state, runtime, structureConfig, centerOverride);
+  const spot = findVillageBuildSpotFromRadius(
+    state,
+    runtime,
+    minRadius,
+    null,
+    reservedPositions,
+    centerOverride,
+  );
   if (spot) {
     return spot;
   }
-  return findVillageBuildSpot(state, runtime, reservedPositions);
+  return findVillageBuildSpot(state, runtime, reservedPositions, centerOverride);
 }
 
 // Find a fertile build spot for fields.
-function findFertileBuildSpot(state, runtime, structureConfig, reservedPositions) {
-  const minRadius = getPeripheralBuildRadius(state, runtime, structureConfig);
+function findFertileBuildSpot(state, runtime, structureConfig, reservedPositions, centerOverride) {
+  const minRadius = getPeripheralBuildRadius(state, runtime, structureConfig, centerOverride);
   return findVillageBuildSpotFromRadius(state, runtime, minRadius, (x, y) => {
     return getTerrainTypeAt(state, x, y) === 'fertile';
-  }, reservedPositions);
+  }, reservedPositions, centerOverride);
 }
 
 // Find a build spot on mining terrain.
-function findMineBuildSpot(state, runtime, structureConfig, reservedPositions) {
-  const minRadius = getPeripheralBuildRadius(state, runtime, structureConfig);
+function findMineBuildSpot(state, runtime, structureConfig, reservedPositions, centerOverride) {
+  const minRadius = getPeripheralBuildRadius(state, runtime, structureConfig, centerOverride);
   const allowed = getMineTerrainTypes(structureConfig);
   return findVillageBuildSpotFromRadius(state, runtime, minRadius, (x, y) => {
     if (!allowed || allowed.length === 0) {
@@ -1966,12 +2022,25 @@ function findMineBuildSpot(state, runtime, structureConfig, reservedPositions) {
     }
     const type = getTerrainTypeAt(state, x, y);
     return type ? allowed.includes(type) : false;
-  }, reservedPositions);
+  }, reservedPositions, centerOverride);
 }
 
 // Determine the village center from existing structures or terrain.
 function getVillageCenter(state, runtime) {
   const edgeBuffer = resolveEdgeBuffer(runtime, state && state.lastConfig);
+  if (state && Array.isArray(state.villages) && state.villages.length > 0) {
+    const primary = state.villages[0];
+    if (primary && primary.center) {
+      return clampToEdgeBuffer(
+        {
+          x: Number(primary.center.x || 0),
+          y: Number(primary.center.y || 0),
+        },
+        runtime,
+        edgeBuffer,
+      );
+    }
+  }
   const houses = (state.structures || []).filter((structure) => structure.type === 'house');
   if (houses.length > 0) {
     const sum = houses.reduce((acc, house) => {
@@ -2017,8 +2086,87 @@ function getVillageCenter(state, runtime) {
   return clamped;
 }
 
+// Resolve all known village centers (at least the primary center).
+function getVillageCenters(state, runtime) {
+  const edgeBuffer = resolveEdgeBuffer(runtime, state && state.lastConfig);
+  if (state && Array.isArray(state.villages) && state.villages.length > 0) {
+    return state.villages.map((village) =>
+      clampToEdgeBuffer(
+        {
+          x: Number(village.center && village.center.x || 0),
+          y: Number(village.center && village.center.y || 0),
+        },
+        runtime,
+        edgeBuffer,
+      ),
+    );
+  }
+  return [getVillageCenter(state, runtime)];
+}
+
+// Pick a village center for placing a specific structure type.
+function pickVillageCenterForStructure(state, config, runtime, structureType) {
+  const centers = getVillageCenters(state, runtime);
+  if (centers.length <= 1) {
+    return centers[0];
+  }
+  const villagesConfig = (config && config.villages) || {};
+  const expandList =
+    Array.isArray(villagesConfig.expandStructures) && villagesConfig.expandStructures.length > 0
+      ? villagesConfig.expandStructures.map((value) => String(value))
+      : ['house', 'well', 'field'];
+  const expandSet = new Set(expandList);
+  if (!expandSet.has(String(structureType || ''))) {
+    return centers[0];
+  }
+
+  const radius = Math.max(
+    0,
+    Math.floor(Number(villagesConfig.structureRadius ?? 12)),
+  );
+  if (radius <= 0) {
+    if (!state.villageBuildCursor) {
+      state.villageBuildCursor = {};
+    }
+    const cursor = Math.max(0, Number(state.villageBuildCursor[structureType] || 0));
+    const index = centers.length > 0 ? cursor % centers.length : 0;
+    state.villageBuildCursor[structureType] = index + 1;
+    return centers[index] || centers[0];
+  }
+  const structures = Array.isArray(state.structures) ? state.structures : [];
+  let bestIndex = 0;
+  let bestCount = Infinity;
+  let bestMinDistance = -1;
+
+  for (let i = 0; i < centers.length; i += 1) {
+    const center = centers[i];
+    let count = 0;
+    let minDistance = Infinity;
+    for (const structure of structures) {
+      if (!structure || structure.type !== structureType) {
+        continue;
+      }
+      const dist = Math.abs(structure.x - center.x) + Math.abs(structure.y - center.y);
+      if (dist <= radius) {
+        count += 1;
+      }
+      if (dist < minDistance) {
+        minDistance = dist;
+      }
+    }
+    const resolvedMin = Number.isFinite(minDistance) ? minDistance : Infinity;
+    if (count < bestCount || (count === bestCount && resolvedMin > bestMinDistance)) {
+      bestIndex = i;
+      bestCount = count;
+      bestMinDistance = resolvedMin;
+    }
+  }
+
+  return centers[bestIndex] || centers[0];
+}
+
 // Select a village center using terrain openness and resource proximity.
-function selectVillageCenter(state, runtime, config) {
+function selectVillageCenter(state, runtime, config, options) {
   const terrain = state && state.terrain;
   if (!terrain || !terrain.types) {
     return null;
@@ -2027,6 +2175,19 @@ function selectVillageCenter(state, runtime, config) {
   if (!settlement.enabled) {
     return null;
   }
+  const opts = options && typeof options === 'object' ? options : {};
+  const existingCenters = Array.isArray(opts.existingCenters) ? opts.existingCenters : [];
+  const minDistanceFromCenters = Math.max(
+    0,
+    Math.floor(Number(opts.minDistanceFromCenters ?? 0)),
+  );
+  const requiredResources = Array.isArray(opts.requiredResources)
+    ? opts.requiredResources.map((value) => String(value))
+    : [];
+  const requiredResourceDistance = Math.max(
+    0,
+    Math.floor(Number(opts.requiredResourceDistance ?? 0)),
+  );
 
   const width = runtime.gridWidth;
   const height = runtime.gridHeight;
@@ -2071,6 +2232,29 @@ function selectVillageCenter(state, runtime, config) {
       );
       if (!stats || stats.total === 0) {
         continue;
+      }
+      if (minDistanceFromCenters > 0 && existingCenters.length > 0) {
+        let nearest = Infinity;
+        for (const center of existingCenters) {
+          if (!center) {
+            continue;
+          }
+          const dist = Math.abs(Number(center.x || 0) - x) + Math.abs(Number(center.y || 0) - y);
+          if (dist < nearest) {
+            nearest = dist;
+          }
+          if (nearest < minDistanceFromCenters) {
+            break;
+          }
+        }
+        if (nearest < minDistanceFromCenters) {
+          continue;
+        }
+      }
+      if (requiredResources.length > 0 && requiredResourceDistance > 0) {
+        if (!hasRequiredResources(nodesByResource, requiredResources, requiredResourceDistance, x, y)) {
+          continue;
+        }
       }
       const resourceScore = scoreResourceProximity(
         nodesByResource,
@@ -2344,6 +2528,42 @@ function scoreResourceProximity(lookup, weights, cap, x, y) {
     score += normalized * weight;
   }
   return score;
+}
+
+// Compute the Manhattan distance to the closest resource source.
+function distanceToClosestResource(lookup, resourceId, x, y) {
+  if (!lookup || !resourceId) {
+    return Infinity;
+  }
+  const nodes = lookup[resourceId];
+  if (!Array.isArray(nodes) || nodes.length === 0) {
+    return Infinity;
+  }
+  let best = Infinity;
+  for (const node of nodes) {
+    const dist = Math.abs(Number(node.x || 0) - x) + Math.abs(Number(node.y || 0) - y);
+    if (dist < best) {
+      best = dist;
+    }
+  }
+  return best;
+}
+
+// Ensure a candidate is close enough to required resources.
+function hasRequiredResources(lookup, requiredResources, maxDistance, x, y) {
+  if (!Array.isArray(requiredResources) || requiredResources.length === 0) {
+    return true;
+  }
+  if (maxDistance <= 0) {
+    return true;
+  }
+  for (const resourceId of requiredResources) {
+    const dist = distanceToClosestResource(lookup, resourceId, x, y);
+    if (!Number.isFinite(dist) || dist > maxDistance) {
+      return false;
+    }
+  }
+  return true;
 }
 
 // Compare settlement candidates for preference ordering.
