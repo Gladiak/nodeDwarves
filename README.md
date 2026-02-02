@@ -6,19 +6,19 @@ alive while you watch the chaos unfold in ASCII.
 
 ## Index
 
-- [Highlights](#highlights-)
-- [Roadmap](#roadmap-)
-- [Simulation overview](#simulation-overview-)
-- [Clan culture](#clan-culture-)
-- [Ancient dwarven ruins](#ancient-dwarven-ruins-)
-- [Myths (global modifiers)](#myths-global-modifiers-)
-- [Job system and priorities](#job-system-and-priorities-)
-- [Quick start](#quick-start-)
-- [AI mode (Python)](#ai-mode-python-)
-- [Configuration](#configuration-)
-- [Scenario presets (training)](#scenario-presets-training-)
-- [ASCII legend](#ascii-legend-)
-- [Project layout](#project-layout-)
+- [Highlights](#highlights)
+- [Roadmap ideas](#roadmap-ideas)
+- [Simulation overview](#simulation-overview)
+- [Clan culture](#clan-culture)
+- [Ancient dwarven ruins](#ancient-dwarven-ruins)
+- [Myths (global modifiers)](#myths-global-modifiers)
+- [Job system and priorities](#job-system-and-priorities)
+- [Quick start](#quick-start)
+- [AI mode (Python)](#ai-mode-python)
+- [Configuration](#configuration)
+- [Scenario presets (training)](#scenario-presets-training)
+- [ASCII legend](#ascii-legend)
+- [Project layout](#project-layout)
 
 ## Highlights ✨
 
@@ -35,8 +35,14 @@ alive while you watch the chaos unfold in ASCII.
 
 ## Roadmap ideas 🧭
 
+Have a wild idea? Jump in and ship it — pick one of these and make the colony stronger.
+
 - Simple disease system tied to crowding and hygiene.
-- Village security upgrades (winter shelters).
+- Village security upgrades (winter shelters, gatehouses, patrol routes).
+- Seasonal festivals or rituals that trade stockpile costs for morale/production boosts.
+- Logistics improvements: stockpile zones, hauling priorities, or storage upgrades.
+- Caravan contracts: periodic trade requests with rewards and reputation effects.
+- Long-term wonders: a monumental project that unlocks late-game bonuses.
 
 ## Screenshot - How it looks 📸
 
