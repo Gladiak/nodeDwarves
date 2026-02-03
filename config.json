@@ -33,7 +33,6 @@
     },
     "terrain": {
       "enabled": true,
-      "mode": "valley",
       "seed": 0,
       "scale": 0.07,
       "octaves": 5,
@@ -42,12 +41,19 @@
       "valley": {
         "bowlStrength": 0.24,
         "smoothingPasses": 2,
+        "domain_warp": {
+          "enabled": true,
+          "strength": 1.4,
+          "scale": 0.08
+        },
         "mountainHeight": 0.74,
         "hillHeight": 0.6,
         "fertileHeight": 0.44,
         "fertileDistance": 4,
         "humidityDecay": 8,
         "waterDistanceDiagonalWeight": 1.35,
+        "water_distance_jitter": 0.6,
+        "water_distance_noise_scale": 0.2,
         "riverBias": {
           "east": -0.02,
           "south": -0.01,
@@ -65,8 +71,9 @@
         "lakePatch": {
           "radiusMin": 3,
           "radiusMax": 6,
-          "edge_jaggedness": 0.35,
-          "edge_noise_scale": 0.2
+          "edge_jaggedness": 0.5,
+          "edge_noise_scale": 0.16,
+          "edge_aspect": 0.6
         },
         "ponds": {
           "enabled": true,
@@ -75,8 +82,9 @@
           "radiusMax": 4,
           "buffer": 3,
           "heightMax": 0.55,
-          "edge_jaggedness": 0.4,
-          "edge_noise_scale": 0.25
+          "edge_jaggedness": 0.55,
+          "edge_noise_scale": 0.16,
+          "edge_aspect": 0.65
         },
         "forest": {
           "humidityMin": 0.28,
@@ -135,23 +143,6 @@
       },
       "movementDelay": {
         "mountain": 1
-      },
-      "rivers": {
-        "enabled": true,
-        "count": 4,
-        "width": 2,
-        "shoreWidth": 2,
-        "wander": 0.7
-      },
-      "lakes": {
-        "enabled": true,
-        "count": 3,
-        "radiusMin": 3,
-        "radiusMax": 7,
-        "shoreWidth": 1,
-        "buffer": 3,
-        "edge_jaggedness": 0.35,
-        "edge_noise_scale": 0.2
       },
       "minimumTiles": {
         "food": 200,

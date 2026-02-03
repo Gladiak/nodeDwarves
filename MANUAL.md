@@ -107,14 +107,15 @@ Notes:
 
 - `src/state/terrain.js`
   - Generates terrain using noise and rules.
-  - Supports **coast** and **valley** modes (see `config.display.terrain.mode`).
+  - Valley-only terrain generator (see `config.display.terrain.valley.*`).
   - Produces:
     - `types` grid (terrain types)
     - `walkable` map
     - `spawnable` map
   - Valley mode can sprinkle extra ponds (`display.terrain.valley.ponds`) that count as lake water for humidity and gathering.
+  - Domain warp and water-distance jitter can break up geometric patterns (`display.terrain.valley.domain_warp`, `display.terrain.valley.water_distance_*`).
   - Forest edges near lakes can be softened with distance jitter and shoreline edge noise via `display.terrain.valley.forest`.
-  - Coast lakes and valley ponds/fallback lakes can use jagged edges via the `edge_*` lake/pond settings.
+  - Valley ponds/fallback lakes can use jagged edges or edge stretch via the `edge_*` lake/pond settings.
   - Pasture patches can be generated via `display.terrain.valley.pasture` and get their own symbol/color.
   - Minimum terrain tile counts (food/pasture/mountain/stone) can be enforced with `display.terrain.minimumTiles`.
   - Ruins placement can reserve spawn terrain via `structures.ruins.minSpawnTiles`.

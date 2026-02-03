@@ -49,7 +49,7 @@ Have a wild idea? Jump in and ship it — pick one of these and make the colony 
 ## Simulation overview 🗺️
 
 - 🗺️ The world is a fixed-size ASCII grid with resource nodes, structures, and dwarves.
-- 🌍 The map renders a randomized terrain backdrop (coast/valley modes) with CP437-friendly symbols, plus rivers, lakes, and ponds; lake edges and near-lake forests can be jittered via config.
+- 🌍 The map renders a randomized valley terrain backdrop with CP437-friendly symbols, plus rivers, lakes, and ponds; domain warp and water-distance jitter reduce geometric patterns, and lake/pond edges can be jittered or stretched via config.
 - 🌊 River tiles render with curved box-drawing symbols and can originate from multiple map edges.
 - 🌲 Forest patches spread beyond water corridors via humidity diffusion, with jittered edges for more organic shorelines.
 - 🌾 Plains render as a weighted mix of CP437 glyphs for subtle texture.
@@ -82,7 +82,7 @@ Have a wild idea? Jump in and ship it — pick one of these and make the colony 
 - 🏛️ Ruins spawn in mountainous terrain; expeditions consume kits, face guardians, and unlock artifact bonuses (repeatable in the final room for completion).
 - 📊 HUD shows averages, bars, priorities, clan totals, and structure breakdowns.
 - 🖼️ The map renders with a framed border for clearer navigation.
-- 🧭 Terrain adds visual texture (coast, lakes, rivers); walkability and movement delay are configurable per terrain.
+- 🧭 Terrain adds visual texture (valley rivers, lakes, ponds); walkability and movement delay are configurable per terrain.
 - 🧭 Dwarves use configurable pathing with potential-field variation for more organic routes.
 - 🧩 Resources can come from nodes or from terrain tiles (configurable).
 - ⏳ Terrain gathering cooldowns can be bypassed during critical shortages.

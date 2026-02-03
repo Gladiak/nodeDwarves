@@ -25,29 +25,25 @@ Display and layout:
 - `display.frame.topRight`: frame top-right corner character.
 - `display.frame.bottomLeft`: frame bottom-left corner character.
 - `display.frame.bottomRight`: frame bottom-right corner character.
-- `display.terrain.enabled`: enable randomized terrain background for the map.
-- `display.terrain.mode`: terrain generator mode (`valley` or `coast`).
+- `display.terrain.enabled`: enable randomized valley terrain background for the map.
 - `display.terrain.seed`: seed for terrain generation (`0` = random each run).
 - `display.terrain.scale`: noise scale (lower = larger blobs).
 - `display.terrain.octaves`: noise layers for terrain variation.
 - `display.terrain.persistence`: amplitude decay per octave (0..1).
 - `display.terrain.lacunarity`: frequency multiplier per octave.
-- `display.terrain.lakes.enabled`: enable extra lakes in coast mode.
-- `display.terrain.lakes.count`: number of lakes to place in coast mode.
-- `display.terrain.lakes.radiusMin`: minimum lake radius (tiles).
-- `display.terrain.lakes.radiusMax`: maximum lake radius (tiles).
-- `display.terrain.lakes.shoreWidth`: shoreline thickness for coast lakes (tiles).
-- `display.terrain.lakes.buffer`: minimum distance between lakes and other water (tiles).
-- `display.terrain.lakes.edge_jaggedness`: jaggedness applied to coast lake edges (0..1).
-- `display.terrain.lakes.edge_noise_scale`: noise scale for coast lake edge jaggedness.
 - `display.terrain.valley.bowlStrength`: valley bowl intensity (0..1).
 - `display.terrain.valley.smoothingPasses`: number of smoothing passes for the heightmap.
+- `display.terrain.valley.domain_warp.enabled`: enable domain warp for more organic terrain.
+- `display.terrain.valley.domain_warp.strength`: warp strength in tiles.
+- `display.terrain.valley.domain_warp.scale`: noise scale for the warp field.
 - `display.terrain.valley.mountainHeight`: height threshold for mountains (0..1).
 - `display.terrain.valley.hillHeight`: height threshold for hills (0..1).
 - `display.terrain.valley.fertileHeight`: height threshold for fertile ground (0..1).
 - `display.terrain.valley.fertileDistance`: max distance from water for fertile ground (tiles).
 - `display.terrain.valley.humidityDecay`: humidity falloff distance (higher = wider humidity).
 - `display.terrain.valley.waterDistanceDiagonalWeight`: diagonal step cost for water distance (0 = Manhattan, >1 rounder).
+- `display.terrain.valley.water_distance_jitter`: noise jitter applied to water distance (tiles).
+- `display.terrain.valley.water_distance_noise_scale`: noise scale for water distance jitter.
 - `display.terrain.valley.riverBias.<dir>`: river bias per direction (`east`, `south`, `west`, `north`).
 - `display.terrain.valley.riverCount`: number of valley rivers to carve (1..4).
 - `display.terrain.valley.riverSourceMinDistance`: minimum Manhattan distance between river sources.
@@ -61,6 +57,7 @@ Display and layout:
 - `display.terrain.valley.lakePatch.radiusMax`: maximum fallback lake radius when none exist (tiles).
 - `display.terrain.valley.lakePatch.edge_jaggedness`: jaggedness applied to fallback lake edges (0..1).
 - `display.terrain.valley.lakePatch.edge_noise_scale`: noise scale for fallback lake edge jaggedness.
+- `display.terrain.valley.lakePatch.edge_aspect`: edge stretch for more elongated fallback lakes (0..1).
 - `display.terrain.valley.ponds.enabled`: enable extra valley ponds.
 - `display.terrain.valley.ponds.count`: number of ponds to place.
 - `display.terrain.valley.ponds.radiusMin`: minimum pond radius (tiles).
@@ -69,6 +66,7 @@ Display and layout:
 - `display.terrain.valley.ponds.heightMax`: maximum height for pond centers (0..1).
 - `display.terrain.valley.ponds.edge_jaggedness`: jaggedness applied to pond edges (0..1).
 - `display.terrain.valley.ponds.edge_noise_scale`: noise scale for pond edge jaggedness.
+- `display.terrain.valley.ponds.edge_aspect`: edge stretch for more elongated ponds (0..1).
 - `display.terrain.valley.forest.humidityMin`: minimum humidity to spawn forests.
 - `display.terrain.valley.forest.heightMax`: max height for forests.
 - `display.terrain.valley.forest.waterDistanceMin`: minimum distance from water to allow forests (tiles).

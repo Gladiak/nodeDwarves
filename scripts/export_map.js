@@ -763,9 +763,7 @@ function buildMetadata(options) {
     terrain: {
       seed: Number.isFinite(terrain.seed) ? terrain.seed : null,
       mode:
-        options.config.display && options.config.display.terrain
-          ? String(options.config.display.terrain.mode || "coast")
-          : null,
+        options.config.display && options.config.display.terrain ? "valley" : null,
       width: Number.isFinite(terrain.width) ? terrain.width : null,
       height: Number.isFinite(terrain.height) ? terrain.height : null,
     },

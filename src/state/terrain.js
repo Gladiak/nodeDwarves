@@ -18,71 +18,7 @@ function createTerrain(config, runtime, previousTerrain) {
 
   const settings = normalizeTerrainSettings(terrainConfig);
   const seed = resolveTerrainSeed(settings.seed, previousTerrain, runtime);
-  if (settings.mode === "valley") {
-    return createValleyTerrain(runtime, settings, seed, config);
-  }
-  return createCoastTerrain(runtime, settings, seed, config);
-}
-
-// Function: createCoastTerrain.
-function createCoastTerrain(runtime, settings, seed, config) {
-  const width = Math.max(0, Number(runtime.gridWidth || 0));
-  const height = Math.max(0, Number(runtime.gridHeight || 0));
-  const types = Array.from({ length: height }, () => new Array(width));
-  const widthDenom = Math.max(1, width - 1);
-  const heightDenom = Math.max(1, height - 1);
-  const aspect = height > 0 ? width / height : 1;
-
-  for (let y = 0; y < height; y += 1) {
-    for (let x = 0; x < width; x += 1) {
-      const nx = x * settings.scale;
-      const ny = y * settings.scale;
-      let value = fractalNoise(
-        nx,
-        ny,
-        seed,
-        settings.octaves,
-        settings.persistence,
-        settings.lacunarity,
-      );
-
-      if (settings.island.enabled) {
-        const dx = ((x / widthDenom) * 2 - 1) * aspect;
-        const dy = (y / heightDenom) * 2 - 1;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        const radius = Math.max(0.01, settings.island.radius);
-        const falloff = Math.pow(
-          clamp(dist / radius, 0, 1),
-          settings.island.falloff,
-        );
-        value -= falloff;
-      }
-
-      value = clamp(value, 0, 1);
-      types[y][x] = resolveTerrainType(value, settings.thresholds);
-    }
-  }
-
-  const rng = createTerrainRng(seed);
-  applyCoast(types, settings, seed);
-  applyLakes(types, settings, rng);
-  applyRivers(types, settings, rng);
-  ensureMinimumTerrainTiles(types, null, null, null, settings, rng);
-  ensureMinimumRuinSpawnTiles(types, null, config, rng);
-  const walkable = buildWalkableMap(types, settings.walkable);
-  const spawnable = buildSpawnableMap(walkable);
-
-  return {
-    width,
-    height,
-    seed,
-    types,
-    walkable,
-    spawnable,
-    walkableTypes: settings.walkable,
-    symbols: settings.symbols,
-    thresholds: settings.thresholds,
-  };
+  return createValleyTerrain(runtime, settings, seed, config);
 }
 
 // Function: createValleyTerrain.
@@ -90,12 +26,14 @@ function createValleyTerrain(runtime, settings, seed, config) {
   const width = Math.max(0, Number(runtime.gridWidth || 0));
   const height = Math.max(0, Number(runtime.gridHeight || 0));
   const valley = settings.valley;
+  const warp = buildDomainWarp(valley.domainWarp, seed);
   const rng = createTerrainRng(seed + 17);
   const heightMap = Array.from({ length: height }, (_, y) => {
     return Array.from({ length: width }, (_, x) => {
+      const warped = applyDomainWarp(x, y, warp);
       const base = fractalNoise(
-        x * valley.noiseScale,
-        y * valley.noiseScale,
+        warped.x * valley.noiseScale,
+        warped.y * valley.noiseScale,
         seed,
         valley.octaves,
         valley.persistence,
@@ -118,12 +56,13 @@ function createValleyTerrain(runtime, settings, seed, config) {
     waterSet.add(`${cell.x},${cell.y}`);
   }
 
-  const dist = computeDistanceToWater(
+  const baseDist = computeDistanceToWater(
     waterSet,
     width,
     height,
     valley.waterDistanceDiagonalWeight,
   );
+  const dist = applyDistanceJitter(baseDist, valley, seed);
   const lakeDist = computeDistanceToWater(
     lakeSet,
     width,
@@ -211,9 +150,10 @@ function createValleyTerrain(runtime, settings, seed, config) {
       if (humidity[y][x] < forestConfig.humidityMin) {
         continue;
       }
+      const warped = applyDomainWarp(x, y, warp);
       const noise = fractalNoise(
-        x * forestConfig.noiseScale,
-        y * forestConfig.noiseScale,
+        warped.x * forestConfig.noiseScale,
+        warped.y * forestConfig.noiseScale,
         seed + 77,
         3,
         0.5,
@@ -241,9 +181,10 @@ function createValleyTerrain(runtime, settings, seed, config) {
       if (carved[y][x] < valley.stone.heightMin) {
         continue;
       }
+      const warped = applyDomainWarp(x, y, warp);
       const noise = fractalNoise(
-        x * valley.stone.noiseScale,
-        y * valley.stone.noiseScale,
+        warped.x * valley.stone.noiseScale,
+        warped.y * valley.stone.noiseScale,
         seed + 99,
         3,
         0.5,
@@ -267,6 +208,7 @@ function createValleyTerrain(runtime, settings, seed, config) {
     forest,
     valley,
     seed,
+    warp,
   );
   const pastureEnabled = !(config && config.pasture && config.pasture.enabled === false);
   const pasture = pastureEnabled
@@ -280,6 +222,7 @@ function createValleyTerrain(runtime, settings, seed, config) {
         food,
         valley,
         seed,
+        warp,
       )
     : Array.from({ length: height }, () => new Array(width).fill(false));
 
@@ -694,7 +637,8 @@ function addPondCells(pondSet, x, y, radius, width, height, edgeConfig) {
   const jaggedPad = useJagged
     ? Math.ceil(r * edgeConfig.jaggedness)
     : 0;
-  const maxRadius = r + jaggedPad;
+  const stretch = getMaxEdgeStretch(edgeConfig);
+  const maxRadius = Math.ceil(r * stretch) + jaggedPad;
   const minX = Math.max(0, x - maxRadius);
   const maxX = Math.min(width - 1, x + maxRadius);
   const minY = Math.max(0, y - maxRadius);
@@ -704,7 +648,7 @@ function addPondCells(pondSet, x, y, radius, width, height, edgeConfig) {
     for (let xx = minX; xx <= maxX; xx += 1) {
       const dx = xx - x;
       const dy = yy - y;
-      const dist2 = dx * dx + dy * dy;
+      const dist2 = computeEdgeDistanceSquared(dx, dy, edgeConfig);
       const edgeRadius = useJagged
         ? getJaggedRadius(r, edgeConfig, xx, yy)
         : r;
@@ -1148,7 +1092,8 @@ function placeLakePatch(types, x, y, radius, edgeConfig) {
   const jaggedPad = useJagged
     ? Math.ceil(r * edgeConfig.jaggedness)
     : 0;
-  const maxRadius = r + jaggedPad;
+  const stretch = getMaxEdgeStretch(edgeConfig);
+  const maxRadius = Math.ceil(r * stretch) + jaggedPad;
   const minX = Math.max(0, x - maxRadius);
   const maxX = Math.min(width - 1, x + maxRadius);
   const minY = Math.max(0, y - maxRadius);
@@ -1157,7 +1102,7 @@ function placeLakePatch(types, x, y, radius, edgeConfig) {
     for (let xx = minX; xx <= maxX; xx += 1) {
       const dx = xx - x;
       const dy = yy - y;
-      const dist2 = dx * dx + dy * dy;
+      const dist2 = computeEdgeDistanceSquared(dx, dy, edgeConfig);
       const edgeRadius = useJagged
         ? getJaggedRadius(r, edgeConfig, xx, yy)
         : r;
@@ -1170,7 +1115,6 @@ function placeLakePatch(types, x, y, radius, edgeConfig) {
 
 // Function: normalizeTerrainSettings.
 function normalizeTerrainSettings(terrainConfig) {
-  const mode = String(terrainConfig.mode || "coast");
   const scaleRaw = Number(terrainConfig.scale ?? 0.08);
   const scale = Number.isFinite(scaleRaw) && scaleRaw > 0 ? scaleRaw : 0.08;
   const octavesRaw = Number(terrainConfig.octaves ?? 3);
@@ -1184,48 +1128,22 @@ function normalizeTerrainSettings(terrainConfig) {
   const lacunarityRaw = Number(terrainConfig.lacunarity ?? 2.0);
   const lacunarity =
     Number.isFinite(lacunarityRaw) && lacunarityRaw > 0 ? lacunarityRaw : 2.0;
-  const islandConfig = terrainConfig.island || {};
-  const islandEnabled = islandConfig.enabled !== false;
-  const radiusRaw = Number(islandConfig.radius ?? 0.9);
-  const falloffRaw = Number(islandConfig.falloff ?? 1.8);
-  const island = {
-    enabled: islandEnabled,
-    radius: Number.isFinite(radiusRaw) ? clamp(radiusRaw, 0.1, 2.5) : 0.9,
-    falloff: Number.isFinite(falloffRaw) ? clamp(falloffRaw, 0.5, 6) : 1.8,
-  };
-
   return {
-    mode,
     seed: terrainConfig.seed ?? 0,
     scale,
     octaves,
     persistence,
     lacunarity,
-    island,
     valley: normalizeValleySettings(terrainConfig.valley || {}, {
       scale,
       octaves,
       persistence,
       lacunarity,
     }),
-    coast: normalizeCoastSettings(terrainConfig.coast || {}),
-    lakes: normalizeLakeSettings(terrainConfig.lakes || {}),
-    rivers: normalizeRiverSettings(terrainConfig.rivers || {}),
-    thresholds: normalizeTerrainThresholds(terrainConfig.thresholds || {}),
     walkable: normalizeWalkableSettings(terrainConfig.walkable || {}),
     symbols: normalizeTerrainSymbols(terrainConfig.symbols || {}),
     minimumTiles: normalizeMinimumTiles(terrainConfig.minimumTiles || {}),
   };
-}
-
-// Function: normalizeTerrainThresholds.
-function normalizeTerrainThresholds(raw) {
-  const water = clamp(Number(raw.water ?? 0.32), 0, 1);
-  const shore = clamp(Number(raw.shore ?? 0.38), water, 1);
-  const grass = clamp(Number(raw.grass ?? 0.62), shore, 1);
-  const forest = clamp(Number(raw.forest ?? 0.78), grass, 1);
-  const mountain = clamp(Number(raw.mountain ?? 1), forest, 1);
-  return { water, shore, grass, forest, mountain };
 }
 
 // Function: normalizeTerrainSymbols.
@@ -1263,87 +1181,6 @@ function normalizeMinimumTiles(raw) {
   return normalized;
 }
 
-// Function: normalizeCoastSettings.
-function normalizeCoastSettings(raw) {
-  if (!raw || raw.enabled !== true) {
-    return { enabled: false };
-  }
-  const side = normalizeCoastSide(raw.side);
-  const widthRaw = Number(raw.width ?? 0.12);
-  const shoreRaw = Number(raw.shoreWidth ?? 0.03);
-  const noiseScaleRaw = Number(raw.noiseScale ?? 0.06);
-  const jaggedRaw = Number(raw.jaggedness ?? 0.35);
-  return {
-    enabled: true,
-    side,
-    width: Number.isFinite(widthRaw) ? clamp(widthRaw, 0.01, 0.5) : 0.12,
-    shoreWidth: Number.isFinite(shoreRaw) ? clamp(shoreRaw, 0, 0.2) : 0.03,
-    noiseScale: Number.isFinite(noiseScaleRaw)
-      ? clamp(noiseScaleRaw, 0.01, 0.2)
-      : 0.06,
-    jaggedness: Number.isFinite(jaggedRaw) ? clamp(jaggedRaw, 0, 1) : 0.35,
-  };
-}
-
-// Function: normalizeCoastSide.
-function normalizeCoastSide(value) {
-  const side = String(value || "").toLowerCase();
-  if (
-    side === "north" ||
-    side === "south" ||
-    side === "east" ||
-    side === "west"
-  ) {
-    return side;
-  }
-  return "west";
-}
-
-// Function: normalizeLakeSettings.
-function normalizeLakeSettings(raw) {
-  if (!raw || raw.enabled !== true) {
-    return { enabled: false };
-  }
-  const countRaw = Number(raw.count ?? 1);
-  const radiusMinRaw = Number(raw.radiusMin ?? 3);
-  const radiusMaxRaw = Number(raw.radiusMax ?? 6);
-  const shoreRaw = Number(raw.shoreWidth ?? 1);
-  const bufferRaw = Number(raw.buffer ?? 3);
-  const edgeJaggednessRaw = Number(
-    raw.edge_jaggedness ?? raw.edgeJaggedness ?? 0,
-  );
-  const edgeNoiseScaleRaw = Number(
-    raw.edge_noise_scale ?? raw.edgeNoiseScale ?? 0,
-  );
-  const count = Number.isFinite(countRaw)
-    ? clamp(Math.floor(countRaw), 0, 4)
-    : 1;
-  const radiusMin = Number.isFinite(radiusMinRaw)
-    ? clamp(Math.floor(radiusMinRaw), 1, 12)
-    : 3;
-  const radiusMax = Number.isFinite(radiusMaxRaw)
-    ? clamp(Math.floor(radiusMaxRaw), radiusMin, 14)
-    : Math.max(radiusMin, 6);
-  return {
-    enabled: true,
-    count,
-    radiusMin,
-    radiusMax,
-    shoreWidth: Number.isFinite(shoreRaw)
-      ? clamp(Math.floor(shoreRaw), 0, 3)
-      : 1,
-    buffer: Number.isFinite(bufferRaw)
-      ? clamp(Math.floor(bufferRaw), 0, 10)
-      : 3,
-    edgeJaggedness: Number.isFinite(edgeJaggednessRaw)
-      ? clamp(edgeJaggednessRaw, 0, 1)
-      : 0,
-    edgeNoiseScale: Number.isFinite(edgeNoiseScaleRaw)
-      ? Math.max(0, edgeNoiseScaleRaw)
-      : 0,
-  };
-}
-
 // Function: normalizeValleySettings.
 function normalizeValleySettings(raw, defaults) {
   const scale = Number(raw.noiseScale ?? defaults.scale ?? 0.06);
@@ -1356,6 +1193,16 @@ function normalizeValleySettings(raw, defaults) {
     8,
   );
   const bowlStrength = clamp(Number(raw.bowlStrength ?? 0.3), 0, 1);
+  const domainWarp = raw.domain_warp || raw.domainWarp || {};
+  const domainWarpEnabled = domainWarp.enabled !== false;
+  const domainWarpStrengthRaw = Number(domainWarp.strength ?? 1.2);
+  const domainWarpStrength = Number.isFinite(domainWarpStrengthRaw)
+    ? clamp(domainWarpStrengthRaw, 0, 8)
+    : 0;
+  const domainWarpScaleRaw = Number(domainWarp.scale ?? 0.08);
+  const domainWarpScale = Number.isFinite(domainWarpScaleRaw)
+    ? Math.max(0, domainWarpScaleRaw)
+    : 0;
   const mountainHeight = clamp(Number(raw.mountainHeight ?? 0.8), 0, 1);
   const hillHeight = clamp(Number(raw.hillHeight ?? 0.66), 0, 1);
   const fertileHeight = clamp(Number(raw.fertileHeight ?? 0.46), 0, 1);
@@ -1369,6 +1216,18 @@ function normalizeValleySettings(raw, defaults) {
   const waterDistanceDiagonalWeight = Number.isFinite(diagonalRaw)
     ? clamp(diagonalRaw, 0, 2)
     : 1;
+  const waterDistanceJitterRaw = Number(
+    raw.water_distance_jitter ?? raw.waterDistanceJitter ?? 0.6,
+  );
+  const waterDistanceJitter = Number.isFinite(waterDistanceJitterRaw)
+    ? clamp(waterDistanceJitterRaw, 0, 12)
+    : 0;
+  const waterDistanceNoiseScaleRaw = Number(
+    raw.water_distance_noise_scale ?? raw.waterDistanceNoiseScale ?? 0.2,
+  );
+  const waterDistanceNoiseScale = Number.isFinite(waterDistanceNoiseScaleRaw)
+    ? Math.max(0.001, waterDistanceNoiseScaleRaw)
+    : 0.2;
   const riverBias = raw.riverBias || {};
   const riverCount = clamp(Math.floor(Number(raw.riverCount ?? 1)), 1, 4);
   const riverSourceMinDistance = clamp(
@@ -1404,6 +1263,9 @@ function normalizeValleySettings(raw, defaults) {
   const lakePatchEdgeNoiseScaleRaw = Number(
     lakePatch.edge_noise_scale ?? lakePatch.edgeNoiseScale ?? 0,
   );
+  const lakePatchEdgeAspectRaw = Number(
+    lakePatch.edge_aspect ?? lakePatch.edgeAspect ?? 0,
+  );
   const ponds = raw.ponds || {};
   const pondsEnabled = ponds.enabled !== false;
   const pondsCountRaw = Number(ponds.count ?? 2);
@@ -1431,6 +1293,9 @@ function normalizeValleySettings(raw, defaults) {
   );
   const pondsEdgeNoiseScaleRaw = Number(
     ponds.edge_noise_scale ?? ponds.edgeNoiseScale ?? 0,
+  );
+  const pondsEdgeAspectRaw = Number(
+    ponds.edge_aspect ?? ponds.edgeAspect ?? 0,
   );
   const forest = raw.forest || {};
   const forestNoiseScale = Math.max(0.01, Number(forest.noiseScale ?? 0.11));
@@ -1487,12 +1352,19 @@ function normalizeValleySettings(raw, defaults) {
       Number.isFinite(lacunarity) && lacunarity > 0 ? lacunarity : 2.0,
     smoothingPasses,
     bowlStrength,
+    domainWarp: {
+      enabled: domainWarpEnabled,
+      strength: domainWarpStrength,
+      scale: domainWarpScale,
+    },
     mountainHeight: Math.max(hillHeight, mountainHeight),
     hillHeight: Math.min(hillHeight, mountainHeight),
     fertileHeight,
     fertileDistance,
     humidityDecay,
     waterDistanceDiagonalWeight,
+    waterDistanceJitter,
+    waterDistanceNoiseScale,
     riverBias: {
       east: Number(riverBias.east ?? -0.02),
       south: Number(riverBias.south ?? -0.01),
@@ -1519,6 +1391,9 @@ function normalizeValleySettings(raw, defaults) {
       edgeNoiseScale: Number.isFinite(lakePatchEdgeNoiseScaleRaw)
         ? Math.max(0, lakePatchEdgeNoiseScaleRaw)
         : 0,
+      edgeAspect: Number.isFinite(lakePatchEdgeAspectRaw)
+        ? clamp(lakePatchEdgeAspectRaw, 0, 1)
+        : 0,
     },
     ponds: {
       enabled: pondsEnabled,
@@ -1532,6 +1407,9 @@ function normalizeValleySettings(raw, defaults) {
         : 0,
       edgeNoiseScale: Number.isFinite(pondsEdgeNoiseScaleRaw)
         ? Math.max(0, pondsEdgeNoiseScaleRaw)
+        : 0,
+      edgeAspect: Number.isFinite(pondsEdgeAspectRaw)
+        ? clamp(pondsEdgeAspectRaw, 0, 1)
         : 0,
     },
     forest: {
@@ -1602,32 +1480,6 @@ function normalizeValleySettings(raw, defaults) {
   };
 }
 
-// Function: normalizeRiverSettings.
-function normalizeRiverSettings(raw) {
-  const enabled = raw.enabled !== false;
-  const countRaw = Number(raw.count ?? 0);
-  const count = Number.isFinite(countRaw)
-    ? clamp(Math.floor(countRaw), 0, 4)
-    : 0;
-  const widthRaw = Number(raw.width ?? 1);
-  const width = Number.isFinite(widthRaw)
-    ? clamp(Math.floor(widthRaw), 1, 3)
-    : 1;
-  const shoreRaw = Number(raw.shoreWidth ?? 1);
-  const shoreWidth = Number.isFinite(shoreRaw)
-    ? clamp(Math.floor(shoreRaw), 0, 3)
-    : 1;
-  const wanderRaw = Number(raw.wander ?? 0.5);
-  const wander = Number.isFinite(wanderRaw) ? clamp(wanderRaw, 0, 1) : 0.5;
-  return {
-    enabled,
-    count,
-    width,
-    shoreWidth,
-    wander,
-  };
-}
-
 // Function: normalizeWalkableSettings.
 function normalizeWalkableSettings(raw) {
   return {
@@ -1672,79 +1524,50 @@ function resolveTerrainSeed(rawSeed, previousTerrain, runtime) {
   return mixed || 1;
 }
 
-// Function: resolveTerrainType.
-function resolveTerrainType(value, thresholds) {
-  if (value < thresholds.water) {
-    return "water";
-  }
-  if (value < thresholds.shore) {
-    return "shore";
-  }
-  if (value < thresholds.grass) {
-    return "grass";
-  }
-  if (value < thresholds.forest) {
-    return "forest";
-  }
-  return "mountain";
-}
-
-// Function: applyCoast.
-function applyCoast(types, settings, seed) {
-  const coast = settings.coast || {};
-  if (!coast.enabled) {
-    return;
-  }
-  const height = types.length;
-  const width = height > 0 ? types[0].length : 0;
-  if (width <= 0 || height <= 0) {
-    return;
-  }
-  const spec = getCoastSpec(coast, width, height);
-  if (!spec) {
-    return;
-  }
-
-  const noiseScale = coast.noiseScale;
-  const jagged = coast.jaggedness;
-  for (let y = 0; y < height; y += 1) {
-    for (let x = 0; x < width; x += 1) {
-      const distance = getCoastDistance(spec.side, x, y, width, height);
-      let boundary = spec.sea;
-      if (noiseScale > 0 && jagged > 0) {
-        const n = smoothValueNoise(x * noiseScale, y * noiseScale, seed + 1337);
-        const offset = Math.round((n - 0.5) * 2 * jagged * spec.sea);
-        boundary = spec.sea + offset;
-      }
-      if (distance <= boundary) {
-        types[y][x] = "water";
-      } else if (distance <= boundary + spec.shore) {
-        types[y][x] = "shore";
-      }
-    }
-  }
-}
-
 // Function: buildLakeEdgeConfig.
 function buildLakeEdgeConfig(source, rng, seedOffset) {
   if (!source) {
     return null;
   }
-  const jaggedness = Number(source.edgeJaggedness ?? 0);
-  const noiseScale = Number(source.edgeNoiseScale ?? 0);
-  if (!Number.isFinite(jaggedness) || jaggedness <= 0) {
-    return null;
-  }
-  if (!Number.isFinite(noiseScale) || noiseScale <= 0) {
+  const jaggednessRaw = Number(source.edgeJaggedness ?? 0);
+  const noiseScaleRaw = Number(source.edgeNoiseScale ?? 0);
+  const aspectRaw = Number(source.edge_aspect ?? source.edgeAspect ?? 0);
+  const jaggedness = Number.isFinite(jaggednessRaw)
+    ? clamp(jaggednessRaw, 0, 1)
+    : 0;
+  const noiseScale = Number.isFinite(noiseScaleRaw)
+    ? Math.max(0, noiseScaleRaw)
+    : 0;
+  const aspect = Number.isFinite(aspectRaw) ? clamp(aspectRaw, 0, 1) : 0;
+  const hasJagged = jaggedness > 0 && noiseScale > 0;
+  const hasAspect = aspect > 0;
+  if (!hasJagged && !hasAspect) {
     return null;
   }
   const random = typeof rng === "function" ? rng : Math.random;
   const offset = Number.isFinite(seedOffset) ? Math.floor(seedOffset) : 0;
-  const seed = Math.floor(random() * 2147483647) + offset;
+  const seed = hasJagged ? Math.floor(random() * 2147483647) + offset : 0;
+  let stretchX = 1;
+  let stretchY = 1;
+  let cos = 1;
+  let sin = 0;
+  if (hasAspect) {
+    const ratio = 1 + (random() * 2 - 1) * aspect;
+    const angle = random() * Math.PI * 2;
+    cos = Math.cos(angle);
+    sin = Math.sin(angle);
+    const safe = Math.max(0.35, ratio);
+    stretchX = safe;
+    stretchY = Math.max(0.35, 1 / safe);
+  }
   return {
-    jaggedness: clamp(jaggedness, 0, 1),
-    noiseScale,
+    jaggedness,
+    noiseScale: hasJagged ? noiseScale : 0,
     seed,
+    stretchX,
+    stretchY,
+    cos,
+    sin,
   };
 }
 
@@ -1763,349 +1586,26 @@ function getJaggedRadius(radius, edge, x, y) {
   return Math.max(1, radius + offset);
 }
 
-// Function: applyLakes.
-function applyLakes(types, settings, rng) {
-  const lakes = settings.lakes || {};
-  if (!lakes.enabled || lakes.count <= 0) {
-    return;
+function getMaxEdgeStretch(edge) {
+  if (!edge || !Number.isFinite(edge.stretchX) || !Number.isFinite(edge.stretchY)) {
+    return 1;
   }
-  const height = types.length;
-  const width = height > 0 ? types[0].length : 0;
-  if (width <= 0 || height <= 0) {
-    return;
-  }
-  const random = typeof rng === "function" ? rng : Math.random;
-
-  for (let i = 0; i < lakes.count; i += 1) {
-    const radius = randomBetweenWithRng(
-      random,
-      lakes.radiusMin,
-      lakes.radiusMax,
-    );
-    const center = pickLakeCenter(
-      types,
-      settings,
-      random,
-      radius,
-      lakes.buffer,
-    );
-    if (!center) {
-      continue;
-    }
-    const edgeConfig = buildLakeEdgeConfig(lakes, random, 613);
-    carveLake(types, center.x, center.y, radius, lakes.shoreWidth, edgeConfig);
-  }
+  return Math.max(1, edge.stretchX, edge.stretchY);
 }
 
-// Function: applyRivers.
-function applyRivers(types, settings, rng) {
-  const rivers = settings.rivers || {};
-  if (!rivers.enabled || rivers.count <= 0) {
-    return;
+function computeEdgeDistanceSquared(dx, dy, edge) {
+  if (!edge || !Number.isFinite(edge.stretchX) || !Number.isFinite(edge.stretchY)) {
+    return dx * dx + dy * dy;
   }
-  const height = types.length;
-  const width = height > 0 ? types[0].length : 0;
-  if (width <= 0 || height <= 0) {
-    return;
-  }
-
-  const random = typeof rng === "function" ? rng : Math.random;
-  const coast = settings.coast || {};
-  const coastSpec = coast.enabled ? getCoastSpec(coast, width, height) : null;
-
-  for (let i = 0; i < rivers.count; i += 1) {
-    let start = null;
-    let end = null;
-    if (coastSpec) {
-      start = pickInlandPoint(types, random, coastSpec, rivers.width);
-      end = pickCoastEdgePoint(width, height, coastSpec.side, random);
-    } else {
-      start = pickEdgePoint(width, height, random);
-      end = pickOppositeEdgePoint(width, height, start.side, random);
-    }
-    if (!start || !end) {
-      continue;
-    }
-    const line = buildLine(start, end);
-    for (const point of line) {
-      let x = point.x;
-      let y = point.y;
-      if (random() < rivers.wander) {
-        if (random() < 0.5) {
-          x = clamp(x + (random() < 0.5 ? -1 : 1), 0, width - 1);
-        } else {
-          y = clamp(y + (random() < 0.5 ? -1 : 1), 0, height - 1);
-        }
-      }
-      carveWater(types, x, y, rivers.width, rivers.shoreWidth);
-    }
-  }
-}
-
-// Function: pickEdgePoint.
-function pickEdgePoint(width, height, random) {
-  const rng = typeof random === "function" ? random : Math.random;
-  const sideIndex = Math.floor(rng() * 4);
-  if (sideIndex === 0) {
-    return { x: randomBetweenWithRng(rng, 0, width - 1), y: 0, side: "north" };
-  }
-  if (sideIndex === 1) {
-    return {
-      x: randomBetweenWithRng(rng, 0, width - 1),
-      y: height - 1,
-      side: "south",
-    };
-  }
-  if (sideIndex === 2) {
-    return { x: 0, y: randomBetweenWithRng(rng, 0, height - 1), side: "west" };
-  }
-  return {
-    x: width - 1,
-    y: randomBetweenWithRng(rng, 0, height - 1),
-    side: "east",
-  };
-}
-
-// Function: pickOppositeEdgePoint.
-function pickOppositeEdgePoint(width, height, side, random) {
-  const rng = typeof random === "function" ? random : Math.random;
-  if (side === "north") {
-    return { x: randomBetweenWithRng(rng, 0, width - 1), y: height - 1 };
-  }
-  if (side === "south") {
-    return { x: randomBetweenWithRng(rng, 0, width - 1), y: 0 };
-  }
-  if (side === "west") {
-    return { x: width - 1, y: randomBetweenWithRng(rng, 0, height - 1) };
-  }
-  return { x: 0, y: randomBetweenWithRng(rng, 0, height - 1) };
-}
-
-// Function: pickCoastEdgePoint.
-function pickCoastEdgePoint(width, height, side, random) {
-  const rng = typeof random === "function" ? random : Math.random;
-  if (side === "north") {
-    return { x: randomBetweenWithRng(rng, 0, width - 1), y: 0 };
-  }
-  if (side === "south") {
-    return { x: randomBetweenWithRng(rng, 0, width - 1), y: height - 1 };
-  }
-  if (side === "west") {
-    return { x: 0, y: randomBetweenWithRng(rng, 0, height - 1) };
-  }
-  return { x: width - 1, y: randomBetweenWithRng(rng, 0, height - 1) };
-}
-
-// Function: pickInlandPoint.
-function pickInlandPoint(types, random, coastSpec, buffer) {
-  const height = types.length;
-  const width = height > 0 ? types[0].length : 0;
-  if (width <= 0 || height <= 0) {
-    return null;
-  }
-  const rng = typeof random === "function" ? random : Math.random;
-  const edgeBuffer = Math.max(0, Number(buffer || 0));
-  let minX = edgeBuffer;
-  let maxX = width - 1 - edgeBuffer;
-  let minY = edgeBuffer;
-  let maxY = height - 1 - edgeBuffer;
-  if (coastSpec) {
-    const inland = coastSpec.sea + coastSpec.shore + 2 + edgeBuffer;
-    if (coastSpec.side === "west") {
-      minX = Math.max(minX, inland);
-    } else if (coastSpec.side === "east") {
-      maxX = Math.min(maxX, width - 1 - inland);
-    } else if (coastSpec.side === "north") {
-      minY = Math.max(minY, inland);
-    } else if (coastSpec.side === "south") {
-      maxY = Math.min(maxY, height - 1 - inland);
-    }
-  }
-  if (minX > maxX || minY > maxY) {
-    minX = edgeBuffer;
-    maxX = width - 1 - edgeBuffer;
-    minY = edgeBuffer;
-    maxY = height - 1 - edgeBuffer;
-  }
-  const attempts = 40;
-  for (let i = 0; i < attempts; i += 1) {
-    const x = randomBetweenWithRng(rng, minX, maxX);
-    const y = randomBetweenWithRng(rng, minY, maxY);
-    if (types[y][x] !== "water") {
-      return { x, y };
-    }
-  }
-  return { x: Math.floor(width / 2), y: Math.floor(height / 2) };
-}
-
-// Function: pickLakeCenter.
-function pickLakeCenter(types, settings, random, radius, buffer) {
-  const height = types.length;
-  const width = height > 0 ? types[0].length : 0;
-  if (width <= 0 || height <= 0) {
-    return null;
-  }
-  const rng = typeof random === "function" ? random : Math.random;
-  const coast = settings.coast || {};
-  const coastSpec = coast.enabled ? getCoastSpec(coast, width, height) : null;
-  const extra = Math.max(0, Number(buffer || 0)) + radius + 1;
-  let minX = extra;
-  let maxX = width - 1 - extra;
-  let minY = extra;
-  let maxY = height - 1 - extra;
-  if (coastSpec) {
-    const inland = coastSpec.sea + coastSpec.shore + extra;
-    if (coastSpec.side === "west") {
-      minX = Math.max(minX, inland);
-    } else if (coastSpec.side === "east") {
-      maxX = Math.min(maxX, width - 1 - inland);
-    } else if (coastSpec.side === "north") {
-      minY = Math.max(minY, inland);
-    } else if (coastSpec.side === "south") {
-      maxY = Math.min(maxY, height - 1 - inland);
-    }
-  }
-  if (minX > maxX || minY > maxY) {
-    return null;
-  }
-  const attempts = 40;
-  for (let i = 0; i < attempts; i += 1) {
-    const x = randomBetweenWithRng(rng, minX, maxX);
-    const y = randomBetweenWithRng(rng, minY, maxY);
-    if (types[y][x] !== "water") {
-      return { x, y };
-    }
-  }
-  return null;
-}
-
-// Function: carveLake.
-function carveLake(types, x, y, radius, shoreWidth, edgeConfig) {
-  const height = types.length;
-  const width = height > 0 ? types[0].length : 0;
-  if (width <= 0 || height <= 0) {
-    return;
-  }
-  const r = Math.max(1, radius);
-  const shore = Math.max(0, shoreWidth);
-  const useJagged = isJaggedEdgeEnabled(edgeConfig);
-  const jaggedPad = useJagged
-    ? Math.ceil(r * edgeConfig.jaggedness)
-    : 0;
-  const maxRadius = r + shore + jaggedPad;
-  const minX = Math.max(0, x - maxRadius);
-  const maxX = Math.min(width - 1, x + maxRadius);
-  const minY = Math.max(0, y - maxRadius);
-  const maxY = Math.min(height - 1, y + maxRadius);
-  for (let yy = minY; yy <= maxY; yy += 1) {
-    for (let xx = minX; xx <= maxX; xx += 1) {
-      const dx = xx - x;
-      const dy = yy - y;
-      const dist2 = dx * dx + dy * dy;
-      const edgeRadius = useJagged
-        ? getJaggedRadius(r, edgeConfig, xx, yy)
-        : r;
-      const edgeOuter = edgeRadius + shore;
-      if (dist2 <= edgeRadius * edgeRadius) {
-        types[yy][xx] = "water";
-      } else if (
-        shore > 0 &&
-        dist2 <= edgeOuter * edgeOuter &&
-        types[yy][xx] !== "water"
-      ) {
-        types[yy][xx] = "shore";
-      }
-    }
-  }
-}
-
-// Function: getCoastSpec.
-function getCoastSpec(coast, width, height) {
-  if (!coast || !coast.enabled) {
-    return null;
-  }
-  const side = coast.side || "west";
-  const edge = side === "north" || side === "south" ? height : width;
-  const sea = Math.max(1, Math.round(edge * clamp(coast.width, 0, 1)));
-  const shore = Math.max(0, Math.round(edge * clamp(coast.shoreWidth, 0, 1)));
-  return { side, sea, shore };
-}
-
-// Function: getCoastDistance.
-function getCoastDistance(side, x, y, width, height) {
-  if (side === "north") {
-    return y;
-  }
-  if (side === "south") {
-    return height - 1 - y;
-  }
-  if (side === "east") {
-    return width - 1 - x;
-  }
-  return x;
-}
-
-// Function: buildLine.
-function buildLine(start, end) {
-  const points = [];
-  let x0 = start.x;
-  let y0 = start.y;
-  const x1 = end.x;
-  const y1 = end.y;
-  const dx = Math.abs(x1 - x0);
-  const dy = Math.abs(y1 - y0);
-  const sx = x0 < x1 ? 1 : -1;
-  const sy = y0 < y1 ? 1 : -1;
-  let err = dx - dy;
-
-  while (true) {
-    points.push({ x: x0, y: y0 });
-    if (x0 === x1 && y0 === y1) {
-      break;
-    }
-    const e2 = 2 * err;
-    if (e2 > -dy) {
-      err -= dy;
-      x0 += sx;
-    }
-    if (e2 < dx) {
-      err += dx;
-      y0 += sy;
-    }
-  }
-
-  return points;
-}
-
-// Function: carveWater.
-function carveWater(types, x, y, width, shoreWidth) {
-  const height = types.length;
-  const maxY = height - 1;
-  const maxX = height > 0 ? types[0].length - 1 : 0;
-  const radius = Math.max(0, width - 1);
-  for (let dy = -radius; dy <= radius; dy += 1) {
-    for (let dx = -radius; dx <= radius; dx += 1) {
-      const nx = x + dx;
-      const ny = y + dy;
-      if (nx < 0 || ny < 0 || nx > maxX || ny > maxY) {
-        continue;
-      }
-      types[ny][nx] = "water";
-    }
-  }
-  const shoreRadius = Math.max(0, radius + shoreWidth);
-  for (let dy = -shoreRadius; dy <= shoreRadius; dy += 1) {
-    for (let dx = -shoreRadius; dx <= shoreRadius; dx += 1) {
-      const nx = x + dx;
-      const ny = y + dy;
-      if (nx < 0 || ny < 0 || nx > maxX || ny > maxY) {
-        continue;
-      }
-      if (types[ny][nx] !== "water") {
-        types[ny][nx] = "shore";
-      }
-    }
-  }
+  const cos = Number.isFinite(edge.cos) ? edge.cos : 1;
+  const sin = Number.isFinite(edge.sin) ? edge.sin : 0;
+  const rx = dx * cos - dy * sin;
+  const ry = dx * sin + dy * cos;
+  const sx = edge.stretchX || 1;
+  const sy = edge.stretchY || 1;
+  const ex = rx / sx;
+  const ey = ry / sy;
+  return ex * ex + ey * ey;
 }
 
 // Function: buildWalkableMap.
@@ -2387,6 +1887,76 @@ function normalizeHeightMap(map) {
   }
   const range = max - min || 1;
   return map.map((row) => row.map((value) => (value - min) / range));
+}
+
+// Function: buildDomainWarp.
+function buildDomainWarp(config, seed) {
+  const settings = config || {};
+  const enabled = settings.enabled !== false;
+  const strengthRaw = Number(settings.strength ?? 0);
+  const strength = Number.isFinite(strengthRaw) ? clamp(strengthRaw, 0, 12) : 0;
+  const scaleRaw = Number(settings.scale ?? 0);
+  const scale = Number.isFinite(scaleRaw) ? Math.max(0, scaleRaw) : 0;
+  if (!enabled || strength <= 0 || scale <= 0) {
+    return { enabled: false };
+  }
+  const baseSeed = Number(seed || 0);
+  return {
+    enabled: true,
+    strength,
+    scale,
+    seedX: baseSeed + 401,
+    seedY: baseSeed + 937,
+  };
+}
+
+// Function: applyDomainWarp.
+function applyDomainWarp(x, y, warp) {
+  if (!warp || !warp.enabled) {
+    return { x, y };
+  }
+  const noiseX = smoothValueNoise(x * warp.scale, y * warp.scale, warp.seedX);
+  const noiseY = smoothValueNoise(x * warp.scale, y * warp.scale, warp.seedY);
+  const dx = (noiseX - 0.5) * 2 * warp.strength;
+  const dy = (noiseY - 0.5) * 2 * warp.strength;
+  return { x: x + dx, y: y + dy };
+}
+
+// Function: applyDistanceJitter.
+function applyDistanceJitter(dist, valley, seed) {
+  if (!dist || dist.length === 0) {
+    return dist;
+  }
+  const jitterRaw = Number(valley ? valley.waterDistanceJitter ?? 0 : 0);
+  const jitter = Number.isFinite(jitterRaw) ? clamp(jitterRaw, 0, 12) : 0;
+  if (jitter <= 0) {
+    return dist;
+  }
+  const noiseScaleRaw = Number(
+    valley ? valley.waterDistanceNoiseScale ?? 0 : 0,
+  );
+  const noiseScale = Number.isFinite(noiseScaleRaw)
+    ? Math.max(0.001, noiseScaleRaw)
+    : 0.1;
+  const height = dist.length;
+  const width = height > 0 ? dist[0].length : 0;
+  const jittered = Array.from({ length: height }, () =>
+    new Array(width).fill(0),
+  );
+  const noiseSeed = Number(seed || 0) + 523;
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const base = dist[y][x];
+      if (!Number.isFinite(base)) {
+        jittered[y][x] = base;
+        continue;
+      }
+      const noise = smoothValueNoise(x * noiseScale, y * noiseScale, noiseSeed);
+      const offset = (noise - 0.5) * 2 * jitter;
+      jittered[y][x] = Math.max(0, base + offset);
+    }
+  }
+  return jittered;
 }
 
 // Function: computeDistanceToWater.
@@ -2887,6 +2457,7 @@ function buildValleyFoodMask(
   forest,
   valley,
   seed,
+  warp,
 ) {
   const food = Array.from({ length: height }, () =>
     new Array(width).fill(false),
@@ -2907,9 +2478,10 @@ function buildValleyFoodMask(
       if (humidity[y][x] < settings.humidityMin) {
         continue;
       }
+      const warped = applyDomainWarp(x, y, warp);
       const noise = fractalNoise(
-        x * settings.noiseScale,
-        y * settings.noiseScale,
+        warped.x * settings.noiseScale,
+        warped.y * settings.noiseScale,
         seed + 143,
         3,
         0.5,
@@ -2949,6 +2521,7 @@ function buildValleyPastureMask(
   food,
   valley,
   seed,
+  warp,
 ) {
   const pasture = Array.from({ length: height }, () =>
     new Array(width).fill(false),
@@ -3018,9 +2591,10 @@ function buildValleyPastureMask(
         if (!isEligible(x, y)) {
           continue;
         }
+        const warped = applyDomainWarp(x, y, warp);
         const noise = fractalNoise(
-          x * settings.noiseScale,
-          y * settings.noiseScale,
+          warped.x * settings.noiseScale,
+          warped.y * settings.noiseScale,
           seed + 211,
           3,
           0.5,
