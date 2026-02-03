@@ -32,6 +32,14 @@ Display and layout:
 - `display.terrain.octaves`: noise layers for terrain variation.
 - `display.terrain.persistence`: amplitude decay per octave (0..1).
 - `display.terrain.lacunarity`: frequency multiplier per octave.
+- `display.terrain.lakes.enabled`: enable extra lakes in coast mode.
+- `display.terrain.lakes.count`: number of lakes to place in coast mode.
+- `display.terrain.lakes.radiusMin`: minimum lake radius (tiles).
+- `display.terrain.lakes.radiusMax`: maximum lake radius (tiles).
+- `display.terrain.lakes.shoreWidth`: shoreline thickness for coast lakes (tiles).
+- `display.terrain.lakes.buffer`: minimum distance between lakes and other water (tiles).
+- `display.terrain.lakes.edge_jaggedness`: jaggedness applied to coast lake edges (0..1).
+- `display.terrain.lakes.edge_noise_scale`: noise scale for coast lake edge jaggedness.
 - `display.terrain.valley.bowlStrength`: valley bowl intensity (0..1).
 - `display.terrain.valley.smoothingPasses`: number of smoothing passes for the heightmap.
 - `display.terrain.valley.mountainHeight`: height threshold for mountains (0..1).
@@ -51,18 +59,25 @@ Display and layout:
 - `display.terrain.valley.lakeThreshold`: height threshold for lake filling.
 - `display.terrain.valley.lakePatch.radiusMin`: minimum fallback lake radius when none exist (tiles).
 - `display.terrain.valley.lakePatch.radiusMax`: maximum fallback lake radius when none exist (tiles).
+- `display.terrain.valley.lakePatch.edge_jaggedness`: jaggedness applied to fallback lake edges (0..1).
+- `display.terrain.valley.lakePatch.edge_noise_scale`: noise scale for fallback lake edge jaggedness.
 - `display.terrain.valley.ponds.enabled`: enable extra valley ponds.
 - `display.terrain.valley.ponds.count`: number of ponds to place.
 - `display.terrain.valley.ponds.radiusMin`: minimum pond radius (tiles).
 - `display.terrain.valley.ponds.radiusMax`: maximum pond radius (tiles).
 - `display.terrain.valley.ponds.buffer`: minimum distance from existing water (tiles).
 - `display.terrain.valley.ponds.heightMax`: maximum height for pond centers (0..1).
+- `display.terrain.valley.ponds.edge_jaggedness`: jaggedness applied to pond edges (0..1).
+- `display.terrain.valley.ponds.edge_noise_scale`: noise scale for pond edge jaggedness.
 - `display.terrain.valley.forest.humidityMin`: minimum humidity to spawn forests.
 - `display.terrain.valley.forest.heightMax`: max height for forests.
 - `display.terrain.valley.forest.waterDistanceMin`: minimum distance from water to allow forests (tiles).
 - `display.terrain.valley.forest.waterDistanceMax`: maximum distance from water to spawn forests (tiles).
 - `display.terrain.valley.forest.waterDistanceJitter`: noise jitter applied to water distance (tiles).
 - `display.terrain.valley.forest.waterDistanceNoiseScale`: noise scale for water distance jitter.
+- `display.terrain.valley.forest.edge_distance`: distance from lakes where edge jitter applies (tiles).
+- `display.terrain.valley.forest.edge_jitter`: strength of forest edge jitter near water (0..1).
+- `display.terrain.valley.forest.edge_noise_scale`: noise scale for forest edge jitter.
 - `display.terrain.valley.forest.noiseScale`: forest noise scale.
 - `display.terrain.valley.forest.noiseThreshold`: forest noise threshold.
 - `display.terrain.valley.forest.clusterPasses`: forest clustering passes.

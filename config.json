@@ -64,7 +64,9 @@
         "lakeThreshold": 0.035,
         "lakePatch": {
           "radiusMin": 3,
-          "radiusMax": 6
+          "radiusMax": 6,
+          "edge_jaggedness": 0.35,
+          "edge_noise_scale": 0.2
         },
         "ponds": {
           "enabled": true,
@@ -72,7 +74,9 @@
           "radiusMin": 2,
           "radiusMax": 4,
           "buffer": 3,
-          "heightMax": 0.55
+          "heightMax": 0.55,
+          "edge_jaggedness": 0.4,
+          "edge_noise_scale": 0.25
         },
         "forest": {
           "humidityMin": 0.28,
@@ -81,6 +85,9 @@
           "waterDistanceMax": 10,
           "waterDistanceJitter": 2.5,
           "waterDistanceNoiseScale": 0.26,
+          "edge_distance": 3,
+          "edge_jitter": 0.35,
+          "edge_noise_scale": 0.22,
           "noiseScale": 0.12,
           "noiseThreshold": 0.32,
           "clusterPasses": 4
@@ -142,7 +149,9 @@
         "radiusMin": 3,
         "radiusMax": 7,
         "shoreWidth": 1,
-        "buffer": 3
+        "buffer": 3,
+        "edge_jaggedness": 0.35,
+        "edge_noise_scale": 0.2
       },
       "minimumTiles": {
         "food": 200,

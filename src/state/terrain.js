@@ -124,6 +124,12 @@ function createValleyTerrain(runtime, settings, seed, config) {
     height,
     valley.waterDistanceDiagonalWeight,
   );
+  const lakeDist = computeDistanceToWater(
+    lakeSet,
+    width,
+    height,
+    valley.waterDistanceDiagonalWeight,
+  );
   const humidity = dist.map((row) =>
     row.map((d) => Math.exp(-d / valley.humidityDecay)),
   );
@@ -221,6 +227,7 @@ function createValleyTerrain(runtime, settings, seed, config) {
   for (let pass = 0; pass < forestConfig.clusterPasses; pass += 1) {
     smoothClusterMap(forest, baseTypes, (x, y) => humidity[y][x] > 0.4);
   }
+  applyForestEdgeJitter(forest, lakeDist, forestConfig, seed);
 
   const stone = Array.from({ length: height }, () =>
     new Array(width).fill(false),
@@ -438,7 +445,8 @@ function ensureValleyTerrainCoverage(
       lakePatch.radiusMin,
       lakePatch.radiusMax,
     );
-    placeLakePatch(types, anchor.x, anchor.y, lakeRadius);
+    const edgeConfig = buildLakeEdgeConfig(lakePatch, rng, 433);
+    placeLakePatch(types, anchor.x, anchor.y, lakeRadius, edgeConfig);
     counts.lake = 1;
   }
 
@@ -603,6 +611,7 @@ function buildValleyPonds(heightMap, riverInfo, valley, rng) {
     if (!center) {
       continue;
     }
+    const edgeConfig = buildLakeEdgeConfig(pondsConfig, random, 907);
     const pondCells = addPondCells(
       pondSet,
       center.x,
@@ -610,6 +619,7 @@ function buildValleyPonds(heightMap, riverInfo, valley, rng) {
       radius,
       width,
       height,
+      edgeConfig,
     );
     for (const key of pondCells) {
       avoidSet.add(key);
@@ -678,19 +688,27 @@ function isWaterWithinBuffer(avoidSet, x, y, radius) {
 }
 
 // Function: addPondCells.
-function addPondCells(pondSet, x, y, radius, width, height) {
+function addPondCells(pondSet, x, y, radius, width, height, edgeConfig) {
   const r = Math.max(1, radius);
-  const r2 = r * r;
-  const minX = Math.max(0, x - r);
-  const maxX = Math.min(width - 1, x + r);
-  const minY = Math.max(0, y - r);
-  const maxY = Math.min(height - 1, y + r);
+  const useJagged = isJaggedEdgeEnabled(edgeConfig);
+  const jaggedPad = useJagged
+    ? Math.ceil(r * edgeConfig.jaggedness)
+    : 0;
+  const maxRadius = r + jaggedPad;
+  const minX = Math.max(0, x - maxRadius);
+  const maxX = Math.min(width - 1, x + maxRadius);
+  const minY = Math.max(0, y - maxRadius);
+  const maxY = Math.min(height - 1, y + maxRadius);
   const added = [];
   for (let yy = minY; yy <= maxY; yy += 1) {
     for (let xx = minX; xx <= maxX; xx += 1) {
       const dx = xx - x;
       const dy = yy - y;
-      if (dx * dx + dy * dy <= r2) {
+      const dist2 = dx * dx + dy * dy;
+      const edgeRadius = useJagged
+        ? getJaggedRadius(r, edgeConfig, xx, yy)
+        : r;
+      if (dist2 <= edgeRadius * edgeRadius) {
         const key = `${xx},${yy}`;
         pondSet.add(key);
         added.push(key);
@@ -698,6 +716,55 @@ function addPondCells(pondSet, x, y, radius, width, height) {
     }
   }
   return added;
+}
+
+// Function: applyForestEdgeJitter.
+function applyForestEdgeJitter(forest, dist, forestConfig, seed) {
+  if (!forestConfig) {
+    return;
+  }
+  const edgeDistanceRaw = Number(forestConfig.edgeDistance ?? 0);
+  const edgeDistance = Number.isFinite(edgeDistanceRaw)
+    ? clamp(Math.floor(edgeDistanceRaw), 0, 12)
+    : 0;
+  const edgeJitterRaw = Number(forestConfig.edgeJitter ?? 0);
+  const edgeJitter = Number.isFinite(edgeJitterRaw)
+    ? clamp(edgeJitterRaw, 0, 1)
+    : 0;
+  const edgeNoiseScaleRaw = Number(
+    forestConfig.edgeNoiseScale ?? forestConfig.noiseScale ?? 0.1,
+  );
+  const edgeNoiseScale = Number.isFinite(edgeNoiseScaleRaw)
+    ? Math.max(0.001, edgeNoiseScaleRaw)
+    : 0.1;
+  if (edgeDistance <= 0 || edgeJitter <= 0) {
+    return;
+  }
+  const height = forest.length;
+  const width = height > 0 ? forest[0].length : 0;
+  const edgeSeedOffset = Number(forestConfig.edgeSeedOffset ?? 317);
+  const noiseSeed = Number(seed || 0) + edgeSeedOffset;
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      if (!forest[y][x]) {
+        continue;
+      }
+      const waterDist = dist[y][x];
+      if (!Number.isFinite(waterDist) || waterDist > edgeDistance) {
+        continue;
+      }
+      const noise = smoothValueNoise(
+        x * edgeNoiseScale,
+        y * edgeNoiseScale,
+        noiseSeed,
+      );
+      const proximity = edgeDistance > 0 ? 1 - waterDist / edgeDistance : 0;
+      const threshold = edgeJitter * clamp(proximity, 0, 1);
+      if (noise < threshold) {
+        forest[y][x] = false;
+      }
+    }
+  }
 }
 
 // Function: ensureMinimumFoodTiles.
@@ -1070,23 +1137,31 @@ function selectCellByHeight(heights, types, predicate, preferHigh) {
 }
 
 // Function: placeLakePatch.
-function placeLakePatch(types, x, y, radius) {
+function placeLakePatch(types, x, y, radius, edgeConfig) {
   const height = types.length;
   const width = height > 0 ? types[0].length : 0;
   if (width <= 0 || height <= 0) {
     return;
   }
   const r = Math.max(1, radius);
-  const r2 = r * r;
-  const minX = Math.max(0, x - r);
-  const maxX = Math.min(width - 1, x + r);
-  const minY = Math.max(0, y - r);
-  const maxY = Math.min(height - 1, y + r);
+  const useJagged = isJaggedEdgeEnabled(edgeConfig);
+  const jaggedPad = useJagged
+    ? Math.ceil(r * edgeConfig.jaggedness)
+    : 0;
+  const maxRadius = r + jaggedPad;
+  const minX = Math.max(0, x - maxRadius);
+  const maxX = Math.min(width - 1, x + maxRadius);
+  const minY = Math.max(0, y - maxRadius);
+  const maxY = Math.min(height - 1, y + maxRadius);
   for (let yy = minY; yy <= maxY; yy += 1) {
     for (let xx = minX; xx <= maxX; xx += 1) {
       const dx = xx - x;
       const dy = yy - y;
-      if (dx * dx + dy * dy <= r2) {
+      const dist2 = dx * dx + dy * dy;
+      const edgeRadius = useJagged
+        ? getJaggedRadius(r, edgeConfig, xx, yy)
+        : r;
+      if (dist2 <= edgeRadius * edgeRadius) {
         types[yy][xx] = "lake";
       }
     }
@@ -1234,6 +1309,12 @@ function normalizeLakeSettings(raw) {
   const radiusMaxRaw = Number(raw.radiusMax ?? 6);
   const shoreRaw = Number(raw.shoreWidth ?? 1);
   const bufferRaw = Number(raw.buffer ?? 3);
+  const edgeJaggednessRaw = Number(
+    raw.edge_jaggedness ?? raw.edgeJaggedness ?? 0,
+  );
+  const edgeNoiseScaleRaw = Number(
+    raw.edge_noise_scale ?? raw.edgeNoiseScale ?? 0,
+  );
   const count = Number.isFinite(countRaw)
     ? clamp(Math.floor(countRaw), 0, 4)
     : 1;
@@ -1254,6 +1335,12 @@ function normalizeLakeSettings(raw) {
     buffer: Number.isFinite(bufferRaw)
       ? clamp(Math.floor(bufferRaw), 0, 10)
       : 3,
+    edgeJaggedness: Number.isFinite(edgeJaggednessRaw)
+      ? clamp(edgeJaggednessRaw, 0, 1)
+      : 0,
+    edgeNoiseScale: Number.isFinite(edgeNoiseScaleRaw)
+      ? Math.max(0, edgeNoiseScaleRaw)
+      : 0,
   };
 }
 
@@ -1311,6 +1398,12 @@ function normalizeValleySettings(raw, defaults) {
   const lakePatchRadiusMax = Number.isFinite(lakePatchRadiusMaxRaw)
     ? clamp(Math.floor(lakePatchRadiusMaxRaw), lakePatchRadiusMin, 14)
     : Math.max(lakePatchRadiusMin, 6);
+  const lakePatchEdgeJaggednessRaw = Number(
+    lakePatch.edge_jaggedness ?? lakePatch.edgeJaggedness ?? 0,
+  );
+  const lakePatchEdgeNoiseScaleRaw = Number(
+    lakePatch.edge_noise_scale ?? lakePatch.edgeNoiseScale ?? 0,
+  );
   const ponds = raw.ponds || {};
   const pondsEnabled = ponds.enabled !== false;
   const pondsCountRaw = Number(ponds.count ?? 2);
@@ -1333,6 +1426,12 @@ function normalizeValleySettings(raw, defaults) {
   const pondsHeightMax = Number.isFinite(pondsHeightMaxRaw)
     ? clamp(pondsHeightMaxRaw, 0, 1)
     : 0.55;
+  const pondsEdgeJaggednessRaw = Number(
+    ponds.edge_jaggedness ?? ponds.edgeJaggedness ?? 0,
+  );
+  const pondsEdgeNoiseScaleRaw = Number(
+    ponds.edge_noise_scale ?? ponds.edgeNoiseScale ?? 0,
+  );
   const forest = raw.forest || {};
   const forestNoiseScale = Math.max(0.01, Number(forest.noiseScale ?? 0.11));
   const forestWaterDistanceMin = clamp(
@@ -1357,6 +1456,24 @@ function normalizeValleySettings(raw, defaults) {
     0.001,
     Number(forest.waterDistanceNoiseScale ?? forestNoiseScale),
   );
+  const forestEdgeDistanceRaw = Number(
+    forest.edge_distance ?? forest.edgeDistance ?? 0,
+  );
+  const forestEdgeDistance = Number.isFinite(forestEdgeDistanceRaw)
+    ? clamp(Math.floor(forestEdgeDistanceRaw), 0, 12)
+    : 0;
+  const forestEdgeJitterRaw = Number(
+    forest.edge_jitter ?? forest.edgeJitter ?? 0,
+  );
+  const forestEdgeJitter = Number.isFinite(forestEdgeJitterRaw)
+    ? clamp(forestEdgeJitterRaw, 0, 1)
+    : 0;
+  const forestEdgeNoiseScaleRaw = Number(
+    forest.edge_noise_scale ?? forest.edgeNoiseScale ?? forestNoiseScale,
+  );
+  const forestEdgeNoiseScale = Number.isFinite(forestEdgeNoiseScaleRaw)
+    ? Math.max(0.001, forestEdgeNoiseScaleRaw)
+    : forestNoiseScale;
   const stone = raw.stone || {};
   const food = raw.food || {};
   const pasture = raw.pasture || {};
@@ -1396,6 +1513,12 @@ function normalizeValleySettings(raw, defaults) {
     lakePatch: {
       radiusMin: lakePatchRadiusMin,
       radiusMax: lakePatchRadiusMax,
+      edgeJaggedness: Number.isFinite(lakePatchEdgeJaggednessRaw)
+        ? clamp(lakePatchEdgeJaggednessRaw, 0, 1)
+        : 0,
+      edgeNoiseScale: Number.isFinite(lakePatchEdgeNoiseScaleRaw)
+        ? Math.max(0, lakePatchEdgeNoiseScaleRaw)
+        : 0,
     },
     ponds: {
       enabled: pondsEnabled,
@@ -1404,6 +1527,12 @@ function normalizeValleySettings(raw, defaults) {
       radiusMax: pondsRadiusMax,
       buffer: pondsBuffer,
       heightMax: pondsHeightMax,
+      edgeJaggedness: Number.isFinite(pondsEdgeJaggednessRaw)
+        ? clamp(pondsEdgeJaggednessRaw, 0, 1)
+        : 0,
+      edgeNoiseScale: Number.isFinite(pondsEdgeNoiseScaleRaw)
+        ? Math.max(0, pondsEdgeNoiseScaleRaw)
+        : 0,
     },
     forest: {
       humidityMin: clamp(Number(forest.humidityMin ?? 0.43), 0, 1),
@@ -1412,6 +1541,9 @@ function normalizeValleySettings(raw, defaults) {
       waterDistanceMax: forestWaterDistanceMax,
       waterDistanceJitter: forestWaterDistanceJitter,
       waterDistanceNoiseScale: forestWaterDistanceNoiseScale,
+      edgeDistance: forestEdgeDistance,
+      edgeJitter: forestEdgeJitter,
+      edgeNoiseScale: forestEdgeNoiseScale,
       noiseScale: forestNoiseScale,
       noiseThreshold: clamp(Number(forest.noiseThreshold ?? 0.6), 0, 1),
       clusterPasses: clamp(Math.floor(Number(forest.clusterPasses ?? 2)), 0, 5),
@@ -1593,6 +1725,44 @@ function applyCoast(types, settings, seed) {
   }
 }
 
+// Function: buildLakeEdgeConfig.
+function buildLakeEdgeConfig(source, rng, seedOffset) {
+  if (!source) {
+    return null;
+  }
+  const jaggedness = Number(source.edgeJaggedness ?? 0);
+  const noiseScale = Number(source.edgeNoiseScale ?? 0);
+  if (!Number.isFinite(jaggedness) || jaggedness <= 0) {
+    return null;
+  }
+  if (!Number.isFinite(noiseScale) || noiseScale <= 0) {
+    return null;
+  }
+  const random = typeof rng === "function" ? rng : Math.random;
+  const offset = Number.isFinite(seedOffset) ? Math.floor(seedOffset) : 0;
+  const seed = Math.floor(random() * 2147483647) + offset;
+  return {
+    jaggedness: clamp(jaggedness, 0, 1),
+    noiseScale,
+    seed,
+  };
+}
+
+// Function: isJaggedEdgeEnabled.
+function isJaggedEdgeEnabled(edge) {
+  return Boolean(edge && edge.jaggedness > 0 && edge.noiseScale > 0);
+}
+
+// Function: getJaggedRadius.
+function getJaggedRadius(radius, edge, x, y) {
+  if (!isJaggedEdgeEnabled(edge)) {
+    return radius;
+  }
+  const noise = smoothValueNoise(x * edge.noiseScale, y * edge.noiseScale, edge.seed);
+  const offset = (noise - 0.5) * 2 * edge.jaggedness * radius;
+  return Math.max(1, radius + offset);
+}
+
 // Function: applyLakes.
 function applyLakes(types, settings, rng) {
   const lakes = settings.lakes || {};
@@ -1622,7 +1792,8 @@ function applyLakes(types, settings, rng) {
     if (!center) {
       continue;
     }
-    carveLake(types, center.x, center.y, radius, lakes.shoreWidth);
+    const edgeConfig = buildLakeEdgeConfig(lakes, random, 613);
+    carveLake(types, center.x, center.y, radius, lakes.shoreWidth, edgeConfig);
   }
 }
 
@@ -1809,7 +1980,7 @@ function pickLakeCenter(types, settings, random, radius, buffer) {
 }
 
 // Function: carveLake.
-function carveLake(types, x, y, radius, shoreWidth) {
+function carveLake(types, x, y, radius, shoreWidth, edgeConfig) {
   const height = types.length;
   const width = height > 0 ? types[0].length : 0;
   if (width <= 0 || height <= 0) {
@@ -1817,21 +1988,31 @@ function carveLake(types, x, y, radius, shoreWidth) {
   }
   const r = Math.max(1, radius);
   const shore = Math.max(0, shoreWidth);
-  const r2 = r * r;
-  const rOuter = r + shore;
-  const rOuter2 = rOuter * rOuter;
-  const minX = Math.max(0, x - rOuter);
-  const maxX = Math.min(width - 1, x + rOuter);
-  const minY = Math.max(0, y - rOuter);
-  const maxY = Math.min(height - 1, y + rOuter);
+  const useJagged = isJaggedEdgeEnabled(edgeConfig);
+  const jaggedPad = useJagged
+    ? Math.ceil(r * edgeConfig.jaggedness)
+    : 0;
+  const maxRadius = r + shore + jaggedPad;
+  const minX = Math.max(0, x - maxRadius);
+  const maxX = Math.min(width - 1, x + maxRadius);
+  const minY = Math.max(0, y - maxRadius);
+  const maxY = Math.min(height - 1, y + maxRadius);
   for (let yy = minY; yy <= maxY; yy += 1) {
     for (let xx = minX; xx <= maxX; xx += 1) {
       const dx = xx - x;
       const dy = yy - y;
       const dist2 = dx * dx + dy * dy;
-      if (dist2 <= r2) {
+      const edgeRadius = useJagged
+        ? getJaggedRadius(r, edgeConfig, xx, yy)
+        : r;
+      const edgeOuter = edgeRadius + shore;
+      if (dist2 <= edgeRadius * edgeRadius) {
         types[yy][xx] = "water";
-      } else if (shore > 0 && dist2 <= rOuter2 && types[yy][xx] !== "water") {
+      } else if (
+        shore > 0 &&
+        dist2 <= edgeOuter * edgeOuter &&
+        types[yy][xx] !== "water"
+      ) {
         types[yy][xx] = "shore";
       }
     }

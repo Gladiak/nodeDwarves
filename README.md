@@ -49,7 +49,7 @@ Have a wild idea? Jump in and ship it — pick one of these and make the colony 
 ## Simulation overview 🗺️
 
 - 🗺️ The world is a fixed-size ASCII grid with resource nodes, structures, and dwarves.
-- 🌍 The map renders a randomized terrain backdrop (coast/valley modes) with CP437-friendly symbols, plus rivers, lakes, and ponds.
+- 🌍 The map renders a randomized terrain backdrop (coast/valley modes) with CP437-friendly symbols, plus rivers, lakes, and ponds; lake edges and near-lake forests can be jittered via config.
 - 🌊 River tiles render with curved box-drawing symbols and can originate from multiple map edges.
 - 🌲 Forest patches spread beyond water corridors via humidity diffusion, with jittered edges for more organic shorelines.
 - 🌾 Plains render as a weighted mix of CP437 glyphs for subtle texture.
@@ -346,6 +346,46 @@ Map size scaling: `resources.mapScale` can scale initial stockpiles (and,
 optionally, node counts/targets) based on the runtime grid area. Use
 `baselineWidth`/`baselineHeight` to define the map (grid) size baseline when you
 change the terminal size or HUD width.
+
+## Map export (PNG) 🗺️
+
+Generate a colored PNG of the terrain map only (no HUD or active entities; static structures like mines/ruins are included; frame follows `display.frame.enabled`):
+
+```bash
+npm run map:export -- --width=120 --height=40 --season=spring
+```
+
+Options:
+- `--width`, `--height`: map size in columns/rows.
+- `--season`: season name (`spring`, `summer`, `autumn`, `winter`).
+- `--seasonProgress`: season progress in `0..1` (default `0.5`).
+- `--seed`: override the terrain seed (number).
+- `--scale`: render scale multiplier (default 2).
+- `--fontSize`: base font size in px (default 14).
+- `--lineHeight`: line height ratio (default 1.2).
+- `--font`: font family list (CSS format).
+- `--background`: background color hex (default `#24273a`).
+- `--foreground`: default foreground color hex (default `#cad3f5`).
+- `--count`: number of images to export (default 1). If `--seed` is set, seeds
+  increment from that base; otherwise random seeds are used.
+- `--outDir`: output folder (default `maps`).
+- `--name`: output filename (optional, `.png` appended). When combined with
+  `--count`, a numeric suffix is appended.
+
+Map exports use fixed terrain and ANSI palettes defined in
+`scripts/export_map.js` so terminal colors remain unchanged. If
+`display.frame.enabled` is true, the export includes the frame; `--width` and
+`--height` still refer to the inner map size (the output grows by 2 rows/cols).
+
+The export uses Puppeteer (headless Chromium) to render the map.
+`npm install` will download a Chromium build unless you configure Puppeteer to
+use a system browser.
+The PNG embeds a `tEXt` metadata chunk named `NodeDwarves` with JSON containing
+the terrain seed, season info, terrain tile counts, hashes, render options, and
+a SHA-256 `signature` so each image can be uniquely identified later.
+Season exports default to mid-season ticks to avoid transitional palettes.
+Large exports can consume significant RAM; reduce `fontSize`, `lineHeight`, or
+`scale` if you hit memory limits.
 
 ### Wildlife raids 🐺
 

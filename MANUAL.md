@@ -113,7 +113,8 @@ Notes:
     - `walkable` map
     - `spawnable` map
   - Valley mode can sprinkle extra ponds (`display.terrain.valley.ponds`) that count as lake water for humidity and gathering.
-  - Forest edges near water can be softened with distance jitter and a shoreline buffer via `display.terrain.valley.forest`.
+  - Forest edges near lakes can be softened with distance jitter and shoreline edge noise via `display.terrain.valley.forest`.
+  - Coast lakes and valley ponds/fallback lakes can use jagged edges via the `edge_*` lake/pond settings.
   - Pasture patches can be generated via `display.terrain.valley.pasture` and get their own symbol/color.
   - Minimum terrain tile counts (food/pasture/mountain/stone) can be enforced with `display.terrain.minimumTiles`.
   - Ruins placement can reserve spawn terrain via `structures.ruins.minSpawnTiles`.
@@ -635,3 +636,28 @@ npm run ai:play
 ```
 
 (See `README.md` for full command variants.)
+
+### Export a map PNG
+
+```bash
+npm run map:export -- --width=120 --height=40 --season=spring
+```
+
+Notes:
+- Renders the terrain map only (no HUD or active entities; includes static structures like mines/ruins; frame follows `display.frame.enabled`).
+- Outputs to `maps/` by default.
+- Uses a fixed terrain palette defined in `scripts/export_map.js` so terminal
+  colors remain unchanged.
+- If `display.frame.enabled` is true, the export includes the frame; `--width`
+  and `--height` still refer to the inner map size (output grows by 2).
+- Default export background/foreground are `#24273a` / `#cad3f5` (override with
+  `--background`/`--foreground`).
+- Stores metadata in a PNG `tEXt` chunk named `NodeDwarves` with JSON containing
+  seed, season info, terrain counts, hashes, and a SHA-256 signature.
+- Uses Puppeteer (headless Chromium) for rendering (Chromium is downloaded on
+  install unless configured) and picks mid-season ticks to avoid transition
+  palettes.
+- `--seasonProgress` lets you pick a progress value in `0..1`.
+- `--count` exports multiple images; with `--seed` it increments from that
+  base, otherwise seeds are random.
+- When `--name` is used with `--count`, a numeric suffix is appended.

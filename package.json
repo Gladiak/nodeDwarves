@@ -17,7 +17,11 @@
     "ai:regression": "node scripts/regression.js --all",
     "ai:regression:record": "node scripts/regression.js --record --profile standard",
     "start": "node app.js",
+    "map:export": "node scripts/export_map.js",
     "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "puppeteer": "^24.36.1"
   },
   "keywords": [],
   "author": "",
