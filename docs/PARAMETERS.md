@@ -768,6 +768,8 @@ AI and training:
 - `ai.training.trainer.logStdInit`: initial log-std for action sampling.
 - `ai.training.trainer.maxGradNorm`: gradient norm clip.
 - `ai.training.trainer.workers`: number of parallel rollout workers.
+- `ai.training.trainer.device`: training device (`auto`, `cpu`, or `cuda[:index]`).
+- `ai.training.trainer.workerDevice`: rollout device for worker processes (`cpu` recommended; `cuda[:index]` if you want GPU rollouts).
 - `ai.training.trainer.logEvery`: episodes between training logs.
 - `ai.training.trainer.debugMode`: debug payload mode for ai_server (`full`, `summary`, `final`, `off`).
 - `ai.training.trainer.evalEvery`: episodes between evaluation runs.

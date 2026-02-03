@@ -257,6 +257,12 @@ branch checkout, Torch/Numpy checks, runs `npm run ai:train:python:fresh`, and
 saves training output to Google Drive. Open it in Colab and adjust `BRANCH`
 and `DRIVE_DIR` as needed.
 
+Training device:
+
+- `ai.training.trainer.device` controls the main PPO device (`auto`, `cpu`, or `cuda[:index]`). `auto` uses CUDA when available and falls back to CPU.
+- `ai.training.trainer.workerDevice` controls rollout workers (default `cpu`). Keeping workers on CPU avoids GPU contention; only switch to CUDA if you intentionally want GPU rollouts.
+- Override via CLI: `python3 python/train.py --device cuda --worker-device cpu`.
+
 `ai:train` (alias of `ai:train:fast`) runs a fast baseline training loop
 (8 workers, 700 episodes, accelerated difficulty ramp, step_ticks=2). It
 targets ~4.8k ticks per episode while keeping runtime low. Eval is off in this

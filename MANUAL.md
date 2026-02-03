@@ -423,6 +423,12 @@ Everything under `src/render/` is pure rendering: no simulation changes.
 
 Policies are saved as JSON in `models/` so JS inference stays dependency-free.
 
+Training device selection:
+
+- `ai.training.trainer.device` selects the PPO device (`auto`, `cpu`, or `cuda[:index]`). `auto` uses CUDA when available and falls back to CPU.
+- `ai.training.trainer.workerDevice` selects the rollout worker device (default `cpu`). Keep workers on CPU to avoid GPU contention unless you explicitly want GPU rollouts.
+- CLI overrides are supported: `python3 python/train.py --device cuda --worker-device cpu`.
+
 ### Training notes (clans + ruins)
 
 Clan dynamics add heterogeneity and longer-horizon trade-offs. To keep PPO stable:

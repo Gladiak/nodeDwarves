@@ -1288,6 +1288,8 @@
         "logStdInit": -0.8,
         "maxGradNorm": 0.5,
         "workers": 6,
+        "device": "auto",
+        "workerDevice": "cpu",
         "logEvery": 2000,
         "debugMode": "summary",
         "evalEvery": 3000,
