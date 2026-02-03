@@ -261,6 +261,20 @@ function createValleyTerrain(runtime, settings, seed, config) {
     valley,
     seed,
   );
+  const pastureEnabled = !(config && config.pasture && config.pasture.enabled === false);
+  const pasture = pastureEnabled
+    ? buildValleyPastureMask(
+        width,
+        height,
+        baseTypes,
+        dist,
+        humidity,
+        forest,
+        food,
+        valley,
+        seed,
+      )
+    : Array.from({ length: height }, () => new Array(width).fill(false));
 
   const types = Array.from({ length: height }, () =>
     new Array(width).fill("plain"),
@@ -282,6 +296,10 @@ function createValleyTerrain(runtime, settings, seed, config) {
       }
       if (food[y][x]) {
         types[y][x] = "food";
+        continue;
+      }
+      if (pasture[y][x]) {
+        types[y][x] = "pasture";
         continue;
       }
       types[y][x] = base;
@@ -751,6 +769,70 @@ function ensureMinimumFoodTiles(
   counts.food = current + needed;
 }
 
+// Ensure minimum pasture tiles for stable grazing areas.
+function ensureMinimumPastureTiles(
+  types,
+  baseTypes,
+  dist,
+  valley,
+  rng,
+  counts,
+  minTiles,
+) {
+  const current = Number(counts.pasture || 0);
+  if (current >= minTiles) {
+    return;
+  }
+  const pastureConfig = valley.pasture || {};
+  const distanceLimit = Number.isFinite(pastureConfig.waterDistanceMax)
+    ? Math.max(0, Math.floor(Number(pastureConfig.waterDistanceMax)))
+    : null;
+
+  const collectCandidates = (maxDist) => {
+    const list = [];
+    for (let y = 0; y < types.length; y += 1) {
+      for (let x = 0; x < types[y].length; x += 1) {
+        const base = baseTypes[y][x];
+        if (base !== "fertile" && base !== "plain") {
+          continue;
+        }
+        const type = types[y][x];
+        if (
+          type === "river" ||
+          type === "lake" ||
+          type === "mountain" ||
+          type === "forest" ||
+          type === "stone" ||
+          type === "food" ||
+          type === "pasture"
+        ) {
+          continue;
+        }
+        if (Number.isFinite(maxDist) && dist[y][x] > maxDist) {
+          continue;
+        }
+        list.push({ x, y });
+      }
+    }
+    return list;
+  };
+
+  let candidates = collectCandidates(distanceLimit);
+  if (candidates.length < minTiles) {
+    candidates = collectCandidates(null);
+  }
+  if (candidates.length === 0) {
+    return;
+  }
+  shuffleInPlace(candidates, rng);
+  const needed = Math.min(minTiles - current, candidates.length);
+  for (let i = 0; i < needed; i += 1) {
+    const cell = candidates[i];
+    types[cell.y][cell.x] = "pasture";
+  }
+  counts.pasture = current + needed;
+}
+
 // Ensure minimum counts for key terrain types.
 function ensureMinimumTerrainTiles(
   types,
@@ -778,6 +860,20 @@ function ensureMinimumTerrainTiles(
       rng,
       counts,
       minFood,
+    );
+    counts = countTerrainTypes(types);
+  }
+
+  const minPasture = Math.max(0, Math.floor(Number(minimums.pasture ?? 0)));
+  if (minPasture > 0 && baseTypes && dist) {
+    ensureMinimumPastureTiles(
+      types,
+      baseTypes,
+      dist,
+      settings.valley || {},
+      rng,
+      counts,
+      minPasture,
     );
     counts = countTerrainTypes(types);
   }
@@ -1070,6 +1166,7 @@ function normalizeTerrainSymbols(raw) {
     fertile: pickSymbol(raw.fertile, ":"),
     forest: pickSymbol(raw.forest, "T"),
     food: pickSymbol(raw.food, "f"),
+    pasture: pickSymbol(raw.pasture, ","),
     stone: pickSymbol(raw.stone, "*"),
     mountain: pickSymbol(raw.mountain, "^"),
   };
@@ -1079,7 +1176,7 @@ function normalizeMinimumTiles(raw) {
   if (!raw || typeof raw !== "object") {
     return {};
   }
-  const keys = ["food", "mountain", "stone"];
+  const keys = ["food", "pasture", "mountain", "stone"];
   const normalized = {};
   for (const key of keys) {
     const value = Number(raw[key]);
@@ -1262,6 +1359,8 @@ function normalizeValleySettings(raw, defaults) {
   );
   const stone = raw.stone || {};
   const food = raw.food || {};
+  const pasture = raw.pasture || {};
+  const pasturePatches = pasture.patches || {};
 
   return {
     noiseScale: Number.isFinite(scale) && scale > 0 ? scale : 0.06,
@@ -1332,6 +1431,36 @@ function normalizeValleySettings(raw, defaults) {
         ? clamp(Math.floor(Number(food.minTilesWaterDistanceMax)), 0, 12)
         : undefined,
     },
+    pasture: {
+      humidityMin: clamp(Number(pasture.humidityMin ?? 0.33), 0, 1),
+      waterDistanceMax: clamp(
+        Math.floor(Number(pasture.waterDistanceMax ?? 6)),
+        0,
+        12,
+      ),
+      noiseScale: Math.max(0.01, Number(pasture.noiseScale ?? 0.1)),
+      noiseThreshold: clamp(Number(pasture.noiseThreshold ?? 0.65), 0, 1),
+      clusterPasses: clamp(Math.floor(Number(pasture.clusterPasses ?? 1)), 0, 5),
+      patches: (() => {
+        const count = Number.isFinite(Number(pasturePatches.count))
+          ? clamp(Math.floor(Number(pasturePatches.count)), 0, 50)
+          : 0;
+        const radiusMin = Number.isFinite(Number(pasturePatches.radiusMin))
+          ? clamp(Math.floor(Number(pasturePatches.radiusMin)), 1, 12)
+          : 3;
+        const radiusMaxRaw = Number.isFinite(Number(pasturePatches.radiusMax))
+          ? clamp(Math.floor(Number(pasturePatches.radiusMax)), 1, 20)
+          : 6;
+        const radiusMax = Math.max(radiusMin, radiusMaxRaw);
+        const fill = clamp(Number(pasturePatches.fill ?? 0.8), 0, 1);
+        return {
+          count,
+          radiusMin,
+          radiusMax,
+          fill,
+        };
+      })(),
+    },
     stone: {
       heightMin: clamp(Number(stone.heightMin ?? 0.58), 0, 1),
       noiseScale: Math.max(0.01, Number(stone.noiseScale ?? 0.13)),
@@ -1381,6 +1510,7 @@ function normalizeWalkableSettings(raw) {
     fertile: raw.fertile !== false,
     forest: raw.forest !== false,
     food: raw.food !== false,
+    pasture: raw.pasture !== false,
     stone: raw.stone !== false,
   };
 }
@@ -2625,6 +2755,108 @@ function buildValleyFoodMask(
     });
   }
   return food;
+}
+
+// Function: buildValleyPastureMask.
+function buildValleyPastureMask(
+  width,
+  height,
+  baseTypes,
+  dist,
+  humidity,
+  forest,
+  food,
+  valley,
+  seed,
+) {
+  const pasture = Array.from({ length: height }, () =>
+    new Array(width).fill(false),
+  );
+  const settings = valley.pasture || {};
+  const patches = settings.patches || {};
+  const patchCount = Math.max(0, Math.floor(Number(patches.count || 0)));
+  const randomBetweenRng = (rng, min, max) => {
+    const low = Number.isFinite(min) ? Number(min) : 0;
+    const high = Number.isFinite(max) ? Number(max) : low;
+    if (high <= low) {
+      return low;
+    }
+    return Math.floor(rng() * (high - low + 1)) + low;
+  };
+  const isEligible = (x, y) => {
+    const base = baseTypes[y][x];
+    if (base !== "fertile" && base !== "plain") {
+      return false;
+    }
+    if (forest[y][x] || (food && food[y][x])) {
+      return false;
+    }
+    if (dist[y][x] > settings.waterDistanceMax) {
+      return false;
+    }
+    return humidity[y][x] >= settings.humidityMin;
+  };
+
+  if (patchCount > 0) {
+    const rng = createTerrainRng(seed + 211);
+    const candidates = [];
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        if (isEligible(x, y)) {
+          candidates.push({ x, y });
+        }
+      }
+    }
+    const radiusMin = Math.max(1, Math.floor(Number(patches.radiusMin || 3)));
+    const radiusMax = Math.max(radiusMin, Math.floor(Number(patches.radiusMax || radiusMin)));
+    const fill = clamp(Number(patches.fill ?? 0.8), 0, 1);
+    for (let i = 0; i < patchCount && candidates.length > 0; i += 1) {
+      const seedIndex = Math.floor(rng() * candidates.length);
+      const center = candidates[seedIndex];
+      const radius = randomBetweenRng(rng, radiusMin, radiusMax);
+      for (let y = Math.max(0, center.y - radius); y <= Math.min(height - 1, center.y + radius); y += 1) {
+        for (let x = Math.max(0, center.x - radius); x <= Math.min(width - 1, center.x + radius); x += 1) {
+          if (!isEligible(x, y)) {
+            continue;
+          }
+          const dx = x - center.x;
+          const dy = y - center.y;
+          if (Math.sqrt(dx * dx + dy * dy) > radius) {
+            continue;
+          }
+          if (fill < 1 && rng() > fill) {
+            continue;
+          }
+          pasture[y][x] = true;
+        }
+      }
+    }
+  } else {
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        if (!isEligible(x, y)) {
+          continue;
+        }
+        const noise = fractalNoise(
+          x * settings.noiseScale,
+          y * settings.noiseScale,
+          seed + 211,
+          3,
+          0.5,
+          2.0,
+        );
+        if (noise > settings.noiseThreshold) {
+          pasture[y][x] = true;
+        }
+      }
+    }
+  }
+  for (let pass = 0; pass < settings.clusterPasses; pass += 1) {
+    smoothClusterMap(pasture, baseTypes, (x, y) => {
+      return isEligible(x, y);
+    });
+  }
+  return pasture;
 }
 
 // Function: hasNearbyCluster.

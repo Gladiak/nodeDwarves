@@ -99,6 +99,11 @@ function buildFooterLines(config, runtime) {
     legendParts.push(colorizeLegend(`${beastSymbol} ${toPascalCase('beasts')}`, 'beast', colors));
   }
 
+  const wildlifeConfig = config.wildlife || {};
+  if (wildlifeConfig.enabled === true && symbols.herd) {
+    legendParts.push(colorizeLegend(`${symbols.herd} ${toPascalCase('herds')}`, 'herd', colors));
+  }
+
   const legendLine = `Legend: ${legendParts.join('  ')}`;
   const lines = [];
   let terrainLine = '';
@@ -135,6 +140,7 @@ function buildFooterLines(config, runtime) {
     pushTerrain(terrainSymbols.plain, 'plain', 'terrain_plain');
     pushTerrain(terrainSymbols.fertile, 'fertile', 'terrain_fertile');
     pushTerrain(terrainSymbols.food, 'food', 'terrain_food');
+    pushTerrain(terrainSymbols.pasture, 'pasture', 'terrain_pasture');
 
     const forestNormal = pickSymbol(forestSymbols.primary, terrainSymbols.forest);
     const forestDense = pickSymbol(forestSymbols.dense, forestNormal);

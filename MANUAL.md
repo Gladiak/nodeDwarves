@@ -114,7 +114,8 @@ Notes:
     - `spawnable` map
   - Valley mode can sprinkle extra ponds (`display.terrain.valley.ponds`) that count as lake water for humidity and gathering.
   - Forest edges near water can be softened with distance jitter and a shoreline buffer via `display.terrain.valley.forest`.
-  - Minimum terrain tile counts (food/mountain/stone) can be enforced with `display.terrain.minimumTiles`.
+  - Pasture patches can be generated via `display.terrain.valley.pasture` and get their own symbol/color.
+  - Minimum terrain tile counts (food/pasture/mountain/stone) can be enforced with `display.terrain.minimumTiles`.
   - Ruins placement can reserve spawn terrain via `structures.ruins.minSpawnTiles`.
   - Terrain affects movement, spawn rules, and (optionally) resource gathering.
   - Terrain resources can be harvested directly when `resources.useTerrainTiles` is enabled.
@@ -155,6 +156,7 @@ Notes:
   - Computes **shortages** by comparing stockpile vs targets.
   - Shortages use `resources.targets` (+ `resources.targetsPerCapita`) with optional `jobs.gatherTriggerRatio`.
   - Creates gather/build/craft/upgrade jobs based on shortages and guardrails.
+  - When wildlife is enabled, food shortages can spawn **hunt** jobs targeting roaming herds.
   - Build jobs are rate-limited by `jobs.buildQueue.maxConcurrent/maxPerTick`.
   - Managed structures (wells/fields/watchtowers) spawn build jobs using stockpile/node ratio thresholds.
   - Housing builds and upgrades respect `population.housing.buildTargetRatio` and `structures.house.upgrade*` rules.
@@ -166,6 +168,7 @@ Notes:
 - `dwarf_actions.js`
   - Executes a dwarf's job: move, gather, build, upgrade, craft.
   - Gather jobs pull from nodes or terrain tiles; terrain tiles get cooldowns after use.
+  - Hunt jobs resolve against wildlife herds with configurable death/penalty risk and food yield.
   - Build/upgrade jobs create or level structures and can spawn well/field nodes.
   - Mine/sawmill/brewery jobs output per tick while staffed; brewery consumes food per tick.
   - Craft/armory jobs apply outputs on completion (after paying inputs).
@@ -193,6 +196,7 @@ Notes:
   - Terrain gathering uses `resources.useTerrainTiles` and `resources.terrainAllowed`.
   - Terrain cooldowns are controlled by `resources.terrainCooldownTicks` and can be bypassed
     by `resources.terrainCooldownCriticalRatio` during shortages.
+  - Pasture stock regrows on a global birth interval via `pasture.birth.*`.
   - House storage buffers use `structures.house.storage.*` (capacity per level, transfer, decay).
   - Stockpile decay per tick uses `resources.decayPerTick`.
   - Output multipliers stack from tools, mithril forge, beer morale, and ruins bonuses.
@@ -474,12 +478,15 @@ If you work on the policy or training loop:
 - Training loop and scenario sampling live in `python/train.py`.
 - The JS ↔ Python bridge is `ai_server.js`.
 
-Important rule: if you change **resource lists** or **observation features**, you must retrain from scratch with `--fresh` (see `npm run ai:train:fresh`).
+Important rule: if you change **resource lists** or **observation features**, you must retrain from scratch with `--fresh` (for example `npm run ai:train -- --fresh`).
 
 Training presets:
 
-- `ai:train:combo` uses a long-horizon train pass (4 workers, accelerated difficulty ramp) plus a short full-sim finetune at max difficulty.
-- `ai:train:full:hard` runs full-sim at fixed max difficulty (4 workers, long-horizon steps) to stress-test late-game survival.
+- `ai:train` (alias of `ai:train:fast`) runs a fast baseline loop tuned for sub-5-minute runs (8 workers, 200 episodes, max_steps=1600, step_ticks=2). The difficulty ramp reaches 1.0 by episode 120 and eval runs every 50 episodes at difficulty 1.0. Eval cadence matches log cadence (eval_every = log_every, SUMMARY_LOG_EVERY = log_every).
+- `ai:train:fresh` runs the same fast preset but clears existing policy and best-eval snapshots first.
+- `ai:train:fast:quality` runs the fast phase plus a short full-sim finetune at max difficulty (40 episodes, max_steps=1800).
+- `ai:train:fast:endgame` runs full-sim at fixed max difficulty with a shorter stress setup (80 episodes, max_steps=2400).
+- All presets save the best model to `models/policy_best.json` (with meta in `models/policy_best.meta.json`) and resume from it unless `--fresh` is used.
 
 
 ### Rendering
@@ -567,7 +574,7 @@ Training reads resources from:
 
 So adding a new resource **changes observation/action sizes**. This means:
 
-- retrain with `npm run ai:train:fresh`
+- retrain with `npm run ai:train -- --fresh`
 - update any saved policy files in `models/`
 - keep `ai.training.trainer.featureNames` stable unless you intentionally add new features
 
@@ -616,6 +623,10 @@ npm start
 ```bash
 npm run ai:train
 ```
+
+For Colab-based runs, use `colab/nodeDwarves_training.ipynb` to clone/pull,
+check Torch/Numpy, run `npm run ai:train:python:fresh`, and save outputs to
+Google Drive.
 
 ### Run trained policy
 

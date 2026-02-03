@@ -12,6 +12,7 @@ alive while you watch the chaos unfold in ASCII.
 - 🗝️ End-game ruins expeditions with artifacts, set bonuses, and guardian threats.
 - 🔁 End-game cycles: once all artifacts are found and a cooldown window passes, the sim restarts on a new map, tracks completed runs, and can scale difficulty per cycle.
 - ❄️ Seasons + housing effects (bonding, winter penalties).
+- 🐾 Wildlife migrations + pasture grazing: herds roam seasonally, hunters take risks, pastures regrow.
 - 🌦️ Dynamic weather cycle that reshapes needs, gathering, and regeneration.
 - 🎓 PPO training in Python with JS-only inference.
 - 🧱 Modular architecture (simulation, state, render, AI) for easier iteration.
@@ -22,7 +23,6 @@ alive while you watch the chaos unfold in ASCII.
 Have a wild idea? Jump in and ship it — pick one of these and make the colony stronger.
 
 - Faction diplomacy and tribute: neighbor demands or aid requests; reputation shifts merchant rates and raid pressure.
-- Wildlife migrations and hunting camps: seasonal herds traverse the map; hunters gather food at risk with config-tuned spawn windows.
 - Seasonal festivals or rituals that trade stockpile costs for morale/production boosts.
 - Simple disease system tied to crowding and hygiene.
 - Refugees and deserters: population waves triggered by morale, housing, and raid safety; handled as deterministic events with caps.
@@ -67,6 +67,7 @@ Have a wild idea? Jump in and ship it — pick one of these and make the colony 
 - ♻️ Resource nodes have finite capacity and regenerate slowly.
 - ⏳ Terrain gathering tiles can go on cooldown after use, and stockpiles can decay over time.
 - 🌾 Fields regenerate based on water availability and seasonal limits.
+- 🐾 Pastures provide stable grazing stock that regrows over time, while wildlife herds cross the map in spring/autumn and can be hunted for food with risk.
 - 🌤️ Seasons apply modifiers to needs, gather speed, regen, and reproduction.
 - 🎨 Optional seasonal palettes recolor terrain in patchy waves during season transitions.
 - 🌧️ Weather cycles (clear, rain, storm, drought, cold) add extra modifiers.
@@ -175,7 +176,7 @@ The HUD lists active myths with remaining ticks and any traditions in effect. A
 separate "Myth bonuses" line summarizes the combined deltas and wraps
 automatically (capped to 2-3 lines depending on HUD width). Myth flags are part
 of the AI observation; changing myth features requires fresh training
-(`npm run ai:train:fresh`).
+(`npm run ai:train -- --fresh`).
 
 ## Simulation reset (endgame cycles) 🔁
 
@@ -241,38 +242,55 @@ Run training 🧑‍🏫:
 ```bash
 npm run ai:train
 
+npm run ai:train:fresh
+
 npm run ai:train -- --episodes 5000
 
-npm run ai:train:combo
+npm run ai:train:fast:quality
 
-npm run ai:train:finetune
+npm run ai:train:fast:endgame
 
 ```
 
 You can stop training with Ctrl+C to terminate the run.
 
-`ai:train:combo` runs a long-horizon training loop (4 workers, 700 episodes with
-an accelerated difficulty ramp to reach max difficulty) followed by a short
-`--full-sim` finetune pass (150 episodes, difficulty fixed to 1.0). It targets
-5k–7k ticks per episode while keeping runtime under control. Eval runs only in
-the finetune phase to refresh the best snapshot.
+Google Colab notebook: `colab/nodeDwarves_training.ipynb` automates clone/pull,
+branch checkout, Torch/Numpy checks, runs `npm run ai:train:python:fresh`, and
+saves training output to Google Drive. Open it in Colab and adjust `BRANCH`
+and `DRIVE_DIR` as needed.
 
-`ai:train:finetune` runs a short full-sim fine-tuning pass with a lower learning
-rate and entropy to close the gap with eval/full_sim.
+`ai:train` (alias of `ai:train:fast`) runs a fast baseline training loop tuned
+for a sub-5-minute run on a typical 8-core laptop: 8 workers, 200 episodes,
+max_steps=1600, step_ticks=2, and a difficulty ramp that reaches 1.0 by episode
+120. Eval runs every 50 episodes at difficulty 1.0 so the best model and meta
+are saved during the run.
+All presets keep eval cadence aligned with console logging and summary logs
+(eval_every = log_every, SUMMARY_LOG_EVERY = log_every).
 
-`ai:train:full:hard` runs full-sim training at max difficulty (4 workers, 500 episodes,
-max steps tuned for long-horizon behavior) to stress-test late-game survival.
+`ai:train:fast:quality` runs the fast phase above followed by a short `--full-sim`
+finetune pass (40 episodes, max_steps=1800, difficulty fixed to 1.0) with eval
+enabled.
 
-Use `ai:train:combo:fresh` to force a fresh start for the fast phase:
+`ai:train:fast:endgame` runs full-sim training at max difficulty with a shorter
+stress pass (80 episodes, max_steps=2400, step_ticks=2) to probe late-game
+survival.
 
-```bash
-npm run ai:train:combo:fresh
-```
+All presets save the best model to `models/policy_best.json` (meta at
+`models/policy_best.meta.json`) and resume from it by default unless `--fresh`
+is provided.
 
-If you change resources or action space, reset the policy files ♻️:
+To force a fresh start, use the dedicated script or add `--fresh` to the fast phase:
 
 ```bash
 npm run ai:train:fresh
+
+npm run ai:train -- --fresh
+```
+
+If you change resources or action space, reset the policy files ♻️ (use `--fresh`):
+
+```bash
+npm run ai:train -- --fresh
 ```
 
 Run the visual simulation with the trained policy 🕹️:
@@ -452,6 +470,7 @@ Houses always render with `symbols.house`, while the HUD lists house levels with
     │   ├── season.js
     │   ├── structures.js
     │   ├── terrain.js
+    │   ├── wildlife.js
     │   ├── villages.js
     │   └── weather.js
     ├── simulation.js             # Needs, jobs, movement, survival loops (wrapper)

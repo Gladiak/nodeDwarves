@@ -3,6 +3,7 @@
 const { updateSeason, getSeasonModifier } = require('./season');
 const { updateWeather, getWeatherModifier, getWeatherNeedMultipliers } = require('./weather');
 const { updateRaidStart, updateRaidTick } = require('./raids');
+const { updateWildlifeStart, updateWildlifeTick, updatePastureBirths } = require('./wildlife');
 const { getClanEffects } = require('../clans');
 const {
   advanceAge,
@@ -35,6 +36,7 @@ function stepState(state, config, runtime, action) {
   updateSeason(state, config);
   updateWeather(state, config);
   updateRaidStart(state, config, runtime);
+  updateWildlifeStart(state, config, runtime);
   const housingPenalty = getWinterHousingPenalty(state, config);
   const weatherNeedMultiplier = getWeatherModifier(state, config, 'needDecay', 1);
   const weatherNeedByNeed = getWeatherNeedMultipliers(state, config);
@@ -87,6 +89,8 @@ function stepState(state, config, runtime, action) {
   updateHouseStorage(state, config);
   regenerateNodes(state, config);
   updateRaidTick(state, config, runtime);
+  updateWildlifeTick(state, config, runtime);
+  updatePastureBirths(state, config);
   updateMyths(state, config);
   maybeHandleEndgameReset(state, config, runtime);
 }

@@ -9,6 +9,7 @@ const { addTerrainResourcesToSet } = require("./terrain");
 const {
   createGatherJob,
   getStockpileTarget,
+  getStockpileRatio,
   shouldPauseBrewing,
   hasInputs,
   consumeInputs,
@@ -1092,6 +1093,94 @@ function distance(a, b) {
   );
 }
 
+// Return active wildlife herds that still have remaining stock.
+function getActiveHerds(state) {
+  const wildlife = state && state.wildlife;
+  if (!wildlife || !Array.isArray(wildlife.herds)) {
+    return [];
+  }
+  return wildlife.herds.filter((herd) => herd && Number(herd.remaining || 0) > 0);
+}
+
+// Count the number of active hunt jobs.
+function countActiveHuntJobs(state) {
+  const jobs = (state && Array.isArray(state.jobs)) ? state.jobs : [];
+  return jobs.filter((job) => job.type === "hunt").length;
+}
+
+// Choose the nearest herd for a hunt job.
+function selectHerdForHunt(herds, dwarf) {
+  if (!Array.isArray(herds) || herds.length === 0) {
+    return null;
+  }
+  let bestDistance = Infinity;
+  let candidates = [];
+  for (const herd of herds) {
+    const dist = distance(dwarf, herd);
+    if (dist < bestDistance) {
+      bestDistance = dist;
+      candidates = [herd];
+    } else if (dist === bestDistance) {
+      candidates.push(herd);
+    }
+  }
+  if (candidates.length === 0) {
+    return null;
+  }
+  return candidates[Math.floor(Math.random() * candidates.length)];
+}
+
+// Create a hunt job targeting a moving herd.
+function createHuntJob(state, config, dwarf) {
+  if (!state || !config || !dwarf) {
+    return null;
+  }
+  const wildlifeConfig = (config && config.wildlife) || {};
+  if (wildlifeConfig.enabled !== true) {
+    return null;
+  }
+  const huntConfig = wildlifeConfig.hunt || {};
+  if (huntConfig.enabled !== true) {
+    return null;
+  }
+  const herds = getActiveHerds(state);
+  if (herds.length === 0) {
+    return null;
+  }
+
+  const maxConcurrent = Math.max(0, Math.floor(Number(huntConfig.max_concurrent ?? 0)));
+  if (maxConcurrent > 0) {
+    const active = countActiveHuntJobs(state);
+    if (active >= maxConcurrent) {
+      return null;
+    }
+  }
+
+  const minFoodRatio = clamp(Number(huntConfig.min_food_ratio ?? 0), 0, 1);
+  if (minFoodRatio > 0) {
+    const ratio = getStockpileRatio(state, config, "food");
+    if (ratio >= minFoodRatio) {
+      return null;
+    }
+  }
+
+  const herd = selectHerdForHunt(herds, dwarf);
+  if (!herd) {
+    return null;
+  }
+  const defaultTicks = (config.jobs && config.jobs.defaultGatherTicks) || 6;
+  const workTicks = Math.max(1, Math.floor(Number(huntConfig.work_ticks ?? defaultTicks)));
+  return {
+    id: `job_${state.jobCounter++}`,
+    type: "hunt",
+    resource: "food",
+    herdId: herd.id,
+    target: { x: herd.x, y: herd.y },
+    workRemaining: workTicks,
+    dwarfId: null,
+  };
+}
+
 // Create a gather or craft job for a resource shortage.
 function createJobForShortage(
   resourceId,
@@ -1104,6 +1193,12 @@ function createJobForShortage(
   workshopCapacity,
   allowCraft = true,
 ) {
+  if (resourceId === "food") {
+    const huntJob = createHuntJob(state, config, dwarf);
+    if (huntJob) {
+      return huntJob;
+    }
+  }
   if (nodeResources.has(resourceId)) {
     return createGatherJob(resourceId, state, config, dwarf);
   }

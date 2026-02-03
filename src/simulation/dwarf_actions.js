@@ -12,6 +12,7 @@ const { randomBetween } = require('./random');
 const { getClanEffects } = require('../clans');
 const {
   isWalkableTile,
+  getTerrainTypeAt,
   isTerrainResourceTile,
   pickTerrainResourceTarget,
   getTerrainCooldownTicks,
@@ -28,6 +29,7 @@ const {
   consumeInputs,
   applyOutputs,
 } = require('./resources');
+const { findHerdById } = require('./wildlife');
 
 // Process the dwarf's per-tick action (panic, job, or idle).
 function processDwarfAction(dwarf, state, config, runtime) {
@@ -253,6 +255,17 @@ function processDwarfJob(dwarf, state, config, runtime) {
       dwarf.job = null;
       return;
     }
+  }
+  if (job.type === 'hunt') {
+    const herd = findHerdById(state, job.herdId);
+    if (!herd || Number(herd.remaining || 0) <= 0) {
+      removeJob(state, job.id);
+      dwarf.job = null;
+      return;
+    }
+    targetX = clamp(herd.x, 0, runtime.gridWidth - 1);
+    targetY = clamp(herd.y, 0, runtime.gridHeight - 1);
+    job.target = { x: targetX, y: targetY };
   }
   if (job.type === 'craft') {
     targetWorkshop = findStructureById(state.structures, job.workshopId);
@@ -514,6 +527,51 @@ function processDwarfJob(dwarf, state, config, runtime) {
     return;
   }
 
+  if (job.type === 'hunt') {
+    const wildlifeConfig = (config && config.wildlife) || {};
+    const huntConfig = wildlifeConfig.hunt || {};
+    const herd = findHerdById(state, job.herdId);
+    if (!herd || Number(herd.remaining || 0) <= 0) {
+      removeJob(state, job.id);
+      dwarf.job = null;
+      return;
+    }
+
+    const yieldMinRaw = Number(huntConfig.yield_min ?? 1);
+    const yieldMin = Math.max(1, Math.floor(yieldMinRaw || 1));
+    const yieldMaxRaw = Number(huntConfig.yield_max ?? yieldMin);
+    const yieldMax = Math.max(yieldMin, Math.floor(yieldMaxRaw || yieldMin));
+    let amount = randomBetween(yieldMin, yieldMax);
+
+    const riskConfig = huntConfig.risk || {};
+    const deathChance = clamp(Number(riskConfig.death_chance ?? 0), 0, 1);
+    const penaltyChance = clamp(Number(riskConfig.penalty_chance ?? 0), 0, 1);
+    const roll = Math.random();
+    if (roll < deathChance) {
+      pushEvent(state, config, `Hunt failed: ${dwarf.id} fell`);
+      applyHuntDeath(state, dwarf);
+      return;
+    }
+    if (roll < deathChance + penaltyChance) {
+      const penalty = riskConfig.penalty || {};
+      const yieldMultiplier = Math.max(0, Number(penalty.yield_multiplier ?? 1));
+      const cooldown = Math.max(0, Math.floor(Number(penalty.move_cooldown ?? 0)));
+      amount = Math.max(0, Math.round(amount * yieldMultiplier));
+      if (cooldown > 0) {
+        dwarf.moveCooldown = Math.max(0, Number(dwarf.moveCooldown || 0)) + cooldown;
+      }
+    }
+
+    const actual = Math.min(Math.max(0, amount), Math.max(0, Number(herd.remaining || 0)));
+    if (actual > 0) {
+      herd.remaining = Math.max(0, Number(herd.remaining || 0) - actual);
+      state.stockpile.food = Number(state.stockpile.food || 0) + actual;
+    }
+    removeJob(state, job.id);
+    dwarf.job = null;
+    return;
+  }
+
   let amount = getGatherYield(config, job.resource, targetNode, state);
   const clanEffects = getClanEffects(config, dwarf.clanId);
   const gatherPenalty = Math.max(0, Number(clanEffects.gather_yield_penalty || 0));
@@ -525,6 +583,12 @@ function processDwarfJob(dwarf, state, config, runtime) {
     && (!penaltyResources || penaltyResources.includes(job.resource))
   ) {
     amount = Math.max(1, Math.round(amount * (1 - gatherPenalty)));
+  }
+  if (!targetNode && job.resource === 'food') {
+    const terrainType = getTerrainTypeAt(state, targetX, targetY);
+    if (terrainType === 'pasture') {
+      amount = consumePastureStock(state, targetX, targetY, amount);
+    }
   }
   state.stockpile[job.resource] = Number(state.stockpile[job.resource] || 0) + amount;
   if (targetNode) {
@@ -554,6 +618,42 @@ function removeJob(state, jobId) {
   if (index >= 0) {
     state.jobs.splice(index, 1);
   }
+}
+
+// Consume stock from a pasture tile and return the actual yield.
+function consumePastureStock(state, x, y, amount) {
+  const pasture = state && state.pasture;
+  if (!pasture || !pasture.mask || !pasture.remaining) {
+    return amount;
+  }
+  const width = pasture.width;
+  const height = pasture.height;
+  if (x < 0 || y < 0 || x >= width || y >= height) {
+    return amount;
+  }
+  const index = y * width + x;
+  if (!pasture.mask[index]) {
+    return amount;
+  }
+  const remaining = Math.max(0, Number(pasture.remaining[index] || 0));
+  if (remaining <= 0) {
+    return 0;
+  }
+  const actual = Math.min(remaining, Math.max(0, Number(amount || 0)));
+  pasture.remaining[index] = remaining - actual;
+  return actual;
+}
+
+// Apply a hunt death and remove the dwarf from state.
+function applyHuntDeath(state, dwarf) {
+  if (!state || !dwarf) {
+    return;
+  }
+  state.deathsByCause.hunt = Number(state.deathsByCause.hunt || 0) + 1;
+  state.deathsCount = Number(state.deathsCount || 0) + 1;
+  state.lastDeathTick = Number(state.tick || 0);
+  state.dwarves = state.dwarves.filter((entry) => entry.id !== dwarf.id);
+  state.jobs = state.jobs.filter((job) => job.dwarfId !== dwarf.id);
 }
 
 // Find a resource node by its node id.

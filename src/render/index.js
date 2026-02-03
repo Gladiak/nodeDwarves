@@ -53,6 +53,26 @@ function renderFrame(state, config, runtime) {
     }
   }
 
+  const wildlife = state.wildlife;
+  if (wildlife && Array.isArray(wildlife.herds)) {
+    const herdSymbol = symbols.herd || '&';
+    for (const herd of wildlife.herds) {
+      if (!herd || Number(herd.remaining || 0) <= 0) {
+        continue;
+      }
+      const offsets = Array.isArray(herd.offsets) && herd.offsets.length > 0
+        ? herd.offsets
+        : [{ dx: 0, dy: 0 }];
+      for (const offset of offsets) {
+        const x = herd.x + Number(offset.dx || 0);
+        const y = herd.y + Number(offset.dy || 0);
+        if (grid[y] && grid[y][x] !== undefined) {
+          grid[y][x] = applyColor(herdSymbol, 'herd', colors);
+        }
+      }
+    }
+  }
+
   const raidState = state.raid;
   const beastSymbol = getBeastSymbol(config);
   if (raidState && raidState.active && beastSymbol && Array.isArray(raidState.beasts)) {
