@@ -5,7 +5,7 @@
     "height": 60,
     "maxWidth": 190,
     "maxHeight": 60,
-    "tickMs": 200,
+    "tickMs": 20,
     "header": {
       "enabled": true,
       "height": 1,
@@ -86,16 +86,16 @@
           "clusterPasses": 4
         },
         "pasture": {
-          "humidityMin": 0.35,
-          "waterDistanceMax": 6,
+          "humidityMin": 0.3,
+          "waterDistanceMax": 8,
           "noiseScale": 0.1,
-          "noiseThreshold": 0.65,
-          "clusterPasses": 2,
+          "noiseThreshold": 0.64,
+          "clusterPasses": 1,
           "patches": {
-            "count": 6,
-            "radiusMin": 4,
-            "radiusMax": 7,
-            "fill": 0.8
+            "count": 8,
+            "radiusMin": 2,
+            "radiusMax": 4,
+            "fill": 0.56
           }
         },
         "food": {
@@ -146,7 +146,7 @@
       },
       "minimumTiles": {
         "food": 200,
-        "pasture": 120,
+        "pasture": 70,
         "mountain": 54,
         "stone": 33
       },
