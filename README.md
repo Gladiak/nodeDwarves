@@ -21,11 +21,25 @@ alive while you watch the chaos unfold in ASCII.
 
 Have a wild idea? Jump in and ship it — pick one of these and make the colony stronger.
 
-- Simple disease system tied to crowding and hygiene.
-- Village security upgrades (winter shelters, gatehouses, patrol routes).
+- Faction diplomacy and tribute: neighbor demands or aid requests; reputation shifts merchant rates and raid pressure.
+- Wildlife migrations and hunting camps: seasonal herds traverse the map; hunters gather food at risk with config-tuned spawn windows.
 - Seasonal festivals or rituals that trade stockpile costs for morale/production boosts.
-- Logistics improvements: stockpile zones, hauling priorities, or storage upgrades.
+- Simple disease system tied to crowding and hygiene.
+- Refugees and deserters: population waves triggered by morale, housing, and raid safety; handled as deterministic events with caps.
+- Mining hazards and supports: deeper mines boost rare drops but add cave-in risk; support structures mitigate danger.
+- Fire hazards and firefighting: rare events that damage structures during storms/droughts; implement as event rolls, fire status ticks, and a dedicated job priority.
 - Caravan contracts: periodic trade requests with rewards and reputation effects.
+- Village security upgrades (winter shelters, gatehouses, patrol routes).
+- Canals and aqueducts: buildable water routing that extends fertile zones and irrigates distant fields, with upkeep costs.
+- Road building and path upkeep: faster movement and less congestion along roads; implement as buildable terrain overlays with movement multipliers and decay/maintenance.
+- Cisterns and reservoirs: buffer water during droughts and smooth well usage; implement as structures with storage capacity, rain fill rates, and draw rules.
+- Soil fertility and crop rotation: fields gain fatigue over time and recover when fallow; yield scales with per-field fertility.
+- Tool wear and maintenance: tool levels slowly decay with use; workshop jobs repair/upgrade using wood and iron.
+- Food preservation chains: convert surplus food into longer-lasting rations; implement as a recipe + structure with spoilage tuning and shortage triggers.
+- Skill progression and apprenticeships: gradual per-role XP that raises output/efficiency; implement as per-dwarf skill tracks with config-driven caps and job bias.
+- Dwarf traits and injuries: light, persistent modifiers from harsh work or events; implement as per-dwarf tags with decay and config-safe caps.
+- Logistics improvements: stockpile zones, hauling priorities, or storage upgrades.
+- Weather forecasting and preparation: signal towers reveal upcoming weather windows and temporarily bias job priorities.
 - Long-term wonders: a monumental project that unlocks late-game bonuses.
 
 ## Screenshot - How it looks 📸
