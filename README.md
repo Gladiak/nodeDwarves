@@ -242,6 +242,8 @@ Run training 🧑‍🏫:
 ```bash
 npm run ai:train
 
+npm run ai:train:fresh
+
 npm run ai:train -- --episodes 5000
 
 npm run ai:train:fast:quality
@@ -257,24 +259,31 @@ branch checkout, Torch/Numpy checks, runs `npm run ai:train:python:fresh`, and
 saves training output to Google Drive. Open it in Colab and adjust `BRANCH`
 and `DRIVE_DIR` as needed.
 
-`ai:train` (alias of `ai:train:fast`) runs a fast baseline training loop
-(8 workers, 700 episodes, accelerated difficulty ramp, step_ticks=2). It
-targets ~4.8k ticks per episode while keeping runtime low. Eval is off in this
-phase to maximize throughput.
+`ai:train` (alias of `ai:train:fast`) runs a fast baseline training loop tuned
+for a sub-5-minute run on a typical 8-core laptop: 8 workers, 200 episodes,
+max_steps=1600, step_ticks=2, and a difficulty ramp that reaches 1.0 by episode
+120. Eval runs every 50 episodes at difficulty 1.0 so the best model and meta
+are saved during the run.
+All presets keep eval cadence aligned with console logging and summary logs
+(eval_every = log_every, SUMMARY_LOG_EVERY = log_every).
 
 `ai:train:fast:quality` runs the fast phase above followed by a short `--full-sim`
-finetune pass (150 episodes, difficulty fixed to 1.0) with eval enabled.
+finetune pass (40 episodes, max_steps=1800, difficulty fixed to 1.0) with eval
+enabled.
 
-`ai:train:fast:endgame` runs full-sim training at max difficulty with a long-horizon
-setup (3000 steps, step_ticks=2) to stress-test late-game survival.
+`ai:train:fast:endgame` runs full-sim training at max difficulty with a shorter
+stress pass (80 episodes, max_steps=2400, step_ticks=2) to probe late-game
+survival.
 
 All presets save the best model to `models/policy_best.json` (meta at
 `models/policy_best.meta.json`) and resume from it by default unless `--fresh`
 is provided.
 
-To force a fresh start, add `--fresh` to the fast phase:
+To force a fresh start, use the dedicated script or add `--fresh` to the fast phase:
 
 ```bash
+npm run ai:train:fresh
+
 npm run ai:train -- --fresh
 ```
 

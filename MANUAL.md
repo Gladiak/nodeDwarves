@@ -482,9 +482,10 @@ Important rule: if you change **resource lists** or **observation features**, yo
 
 Training presets:
 
-- `ai:train` (alias of `ai:train:fast`) runs a fast baseline loop (8 workers, step_ticks=2) with an accelerated difficulty ramp.
-- `ai:train:fast:quality` runs the fast phase plus a short full-sim finetune at max difficulty.
-- `ai:train:fast:endgame` runs full-sim at fixed max difficulty with a long-horizon setup to stress-test late-game survival.
+- `ai:train` (alias of `ai:train:fast`) runs a fast baseline loop tuned for sub-5-minute runs (8 workers, 200 episodes, max_steps=1600, step_ticks=2). The difficulty ramp reaches 1.0 by episode 120 and eval runs every 50 episodes at difficulty 1.0. Eval cadence matches log cadence (eval_every = log_every, SUMMARY_LOG_EVERY = log_every).
+- `ai:train:fresh` runs the same fast preset but clears existing policy and best-eval snapshots first.
+- `ai:train:fast:quality` runs the fast phase plus a short full-sim finetune at max difficulty (40 episodes, max_steps=1800).
+- `ai:train:fast:endgame` runs full-sim at fixed max difficulty with a shorter stress setup (80 episodes, max_steps=2400).
 - All presets save the best model to `models/policy_best.json` (with meta in `models/policy_best.meta.json`) and resume from it unless `--fresh` is used.
 
 
