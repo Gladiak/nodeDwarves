@@ -88,25 +88,6 @@ def configure_torch_threads(default_threads=2, default_interop=1):
         pass
 
 
-def resolve_device(requested):
-    text = str(requested or "auto").strip().lower()
-    if text in ("", "auto"):
-        return torch.device("cuda" if torch.cuda.is_available() else "cpu"), text
-    if text in ("gpu", "cuda") or text.startswith("cuda"):
-        if torch.cuda.is_available():
-            return torch.device(text.replace("gpu", "cuda")), text
-        return torch.device("cpu"), text
-    if text == "cpu":
-        return torch.device("cpu"), text
-    try:
-        device = torch.device(text)
-    except (TypeError, ValueError, RuntimeError):
-        return torch.device("cpu"), text
-    if device.type == "cuda" and not torch.cuda.is_available():
-        return torch.device("cpu"), text
-    return device, text
-
-
 def format_debug(info, resources):
     debug = info.get("debug") or {}
     if not debug:
@@ -1227,7 +1208,6 @@ def worker_loop(worker_id, task_queue, result_queue, update_queue, resources, se
     except OSError:
         pass
     torch.set_num_threads(1)
-    worker_device, _ = resolve_device(settings.get("device", "cpu"))
     env = os.environ.copy()
     debug_mode = settings.get("debug_mode")
     if debug_mode:
@@ -1252,7 +1232,7 @@ def worker_loop(worker_id, task_queue, result_queue, update_queue, resources, se
                 settings["hidden_sizes"],
                 settings["activation"],
                 settings["log_std_init"],
-            ).to(worker_device)
+            )
 
             latest_payload = drain_queue(update_queue)
             if latest_payload:
@@ -1455,7 +1435,7 @@ class ActorCritic(nn.Module):
         if deterministic:
             tanh_action = torch.tanh(mean)
             action = scale_action(tanh_action, min_weight, max_weight)
-            log_prob = torch.zeros(action.shape[0], device=action.device)
+            log_prob = torch.zeros(action.shape[0])
         else:
             std = self.log_std.exp()
             dist = Normal(mean, std)
@@ -1532,13 +1512,12 @@ def run_episode(
     critical_sum = 0.0
     idle_sum = 0.0
     population_balance_sum = 0.0
-    device = next(model.parameters()).device
 
     with inference_mode():
         for step in range(max_steps):
             obs = response.get("obs", {})
             vector = build_obs_vector(obs, resources, feature_names)
-            obs_tensor = torch.tensor([vector], dtype=torch.float32, device=device)
+            obs_tensor = torch.tensor([vector], dtype=torch.float32)
             action_tensor, log_prob, value = model.act(
                 obs_tensor,
                 min_weight,
@@ -1579,7 +1558,7 @@ def run_episode(
         if not done and steps > 0:
             obs = response.get("obs", {})
             vector = build_obs_vector(obs, resources, feature_names)
-            obs_tensor = torch.tensor([vector], dtype=torch.float32, device=device)
+            obs_tensor = torch.tensor([vector], dtype=torch.float32)
             bootstrap_value = float(model.value(obs_tensor).squeeze(-1).item())
 
     info = response.get("info", {})
@@ -1636,7 +1615,6 @@ def evaluate(
     total_ticks = 0.0
     total_births = 0.0
     total_deaths = 0.0
-    device = next(model.parameters()).device
     scenario_plan = []
     if scenarios:
         per_scenario = max(1, episodes // max(1, len(scenarios)))
@@ -1670,7 +1648,7 @@ def evaluate(
                 for step in range(max_steps):
                     obs = response.get("obs", {})
                     vector = build_obs_vector(obs, resources, feature_names)
-                    obs_tensor = torch.tensor([vector], dtype=torch.float32, device=device)
+                    obs_tensor = torch.tensor([vector], dtype=torch.float32)
                     action_tensor, _, _ = model.act(
                         obs_tensor,
                         min_weight,
@@ -1713,18 +1691,17 @@ def apply_ppo_update(
     mini_batch_size,
     max_grad_norm,
 ):
-    device = next(model.parameters()).device
-    obs = torch.tensor(batch["obs"], dtype=torch.float32, device=device)
-    actions = torch.tensor(batch["actions"], dtype=torch.float32, device=device)
-    old_log_probs = torch.tensor(batch["log_probs"], dtype=torch.float32, device=device)
-    returns = torch.tensor(batch["returns"], dtype=torch.float32, device=device)
-    advantages = torch.tensor(batch["advantages"], dtype=torch.float32, device=device)
+    obs = torch.tensor(batch["obs"], dtype=torch.float32)
+    actions = torch.tensor(batch["actions"], dtype=torch.float32)
+    old_log_probs = torch.tensor(batch["log_probs"], dtype=torch.float32)
+    returns = torch.tensor(batch["returns"], dtype=torch.float32)
+    advantages = torch.tensor(batch["advantages"], dtype=torch.float32)
 
     advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
     batch_size = obs.shape[0]
     for _ in range(epochs):
-        indices = torch.randperm(batch_size, device=device)
+        indices = torch.randperm(batch_size)
         for start in range(0, batch_size, mini_batch_size):
             idx = indices[start:start + mini_batch_size]
             batch_obs = obs[idx]
@@ -1884,8 +1861,6 @@ def build_training_defaults(config):
         "log_std_init": to_float(trainer.get("logStdInit"), -0.5),
         "max_grad_norm": to_float(trainer.get("maxGradNorm"), 0.5),
         "workers": to_int(trainer.get("workers"), 1),
-        "device": to_str(trainer.get("device"), "auto"),
-        "worker_device": to_str(trainer.get("workerDevice"), "cpu"),
         "difficulty_start": to_float(
             trainer.get("difficultyStart"),
             to_float(training.get("difficultyStart"), 0.1),
@@ -1958,8 +1933,6 @@ def parse_args():
     parser.add_argument("--log-std-init", type=float, default=defaults["log_std_init"])
     parser.add_argument("--max-grad-norm", type=float, default=defaults["max_grad_norm"])
     parser.add_argument("--workers", type=int, default=defaults["workers"])
-    parser.add_argument("--device", type=str, default=defaults["device"])
-    parser.add_argument("--worker-device", type=str, default=defaults["worker_device"])
     parser.add_argument("--difficulty-start", type=float, default=defaults["difficulty_start"])
     parser.add_argument("--difficulty-end", type=float, default=defaults["difficulty_end"])
     parser.add_argument("--difficulty-ramp", type=int, default=defaults["difficulty_ramp"])
@@ -2100,14 +2073,9 @@ def load_policy_feature_names(path):
 def main():
     args = parse_args()
     configure_torch_threads()
-    device, requested_device = resolve_device(args.device)
-    if str(requested_device).lower().startswith("cuda") and device.type != "cuda":
-        print("Warning: CUDA requested but unavailable; falling back to CPU.", file=sys.stderr)
     if args.seed is not None:
         random.seed(args.seed)
         torch.manual_seed(args.seed)
-        if device.type == "cuda":
-            torch.cuda.manual_seed_all(args.seed)
 
     config = load_config(args.config)
     scenario_defs = get_scenario_definitions(config)
@@ -2155,7 +2123,7 @@ def main():
         args.hidden_sizes,
         args.activation,
         args.log_std_init,
-    ).to(device)
+    )
 
     min_weight = float(config.get("ai", {}).get("minWeight", 0.0))
     max_weight = float(config.get("ai", {}).get("maxWeight", 2.0))
@@ -2254,7 +2222,6 @@ def main():
         "feature_names": feature_names,
         "activation": args.activation,
         "log_std_init": args.log_std_init,
-        "device": args.worker_device,
         "full_sim": args.full_sim,
         "debug_mode": args.debug_mode,
     }
