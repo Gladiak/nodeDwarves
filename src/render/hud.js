@@ -145,6 +145,14 @@ function buildHudColumns(state, config, columnWidth, options = {}) {
     0,
     towerDefenseMax,
   );
+  const wildlifeConfig = config.wildlife || {};
+  const wildlifeEnabled = wildlifeConfig.enabled === true;
+  const herdCount = wildlifeEnabled && state.wildlife && Array.isArray(state.wildlife.herds)
+    ? state.wildlife.herds.filter((herd) => herd && Number(herd.remaining || 0) > 0).length
+    : 0;
+  const huntCount = wildlifeEnabled
+    ? state.jobs.filter((job) => job.type === "hunt").length
+    : 0;
   const seasonLabel = formatSeasonLabel(state.season);
   const yearLabel = formatYearLabel(state, config);
   const lastEvent = formatLastEvent(state.events);
@@ -179,6 +187,9 @@ function buildHudColumns(state, config, columnWidth, options = {}) {
   left.push(`Last cycle Ticks: ${lastCycleTicks}`);
   left.push(`Year ${yearLabel}, Season ${seasonLabel}`);
   left.push(`Weather: ${formatWeatherStatus(state.weather, colors)}`);
+  if (wildlifeEnabled) {
+    left.push(`Wildlife: herds ${herdCount}`);
+  }
   left.push(`Event: ${lastEvent}`);
   left.push(`Merchant: ${formatMerchantStatus(state.merchant)}`);
   pushSection(left, "Population");
@@ -187,6 +198,9 @@ function buildHudColumns(state, config, columnWidth, options = {}) {
   );
   left.push(`Idle: ${idleCount}`);
   left.push(`Jobs: ${state.jobs.length}`);
+  if (wildlifeEnabled) {
+    left.push(`Hunts: ${huntCount}`);
+  }
   left.push(`Morale: ${avgMorale.toFixed(2)} (+${avgMoraleBoost.toFixed(2)})`);
   left.push(`Stress: ${avgStress.toFixed(2)}`);
   left.push(formatBondingLine(state, config));

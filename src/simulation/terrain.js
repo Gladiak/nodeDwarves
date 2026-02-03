@@ -136,6 +136,23 @@ function getTerrainCooldownKey(x, y) {
   return `${x},${y}`;
 }
 
+function isPastureDepleted(state, x, y) {
+  const pasture = state && state.pasture;
+  if (!pasture || !pasture.mask || !pasture.remaining) {
+    return false;
+  }
+  const width = pasture.width;
+  const height = pasture.height;
+  if (x < 0 || y < 0 || x >= width || y >= height) {
+    return false;
+  }
+  const index = y * width + x;
+  if (!pasture.mask[index]) {
+    return false;
+  }
+  return Number(pasture.remaining[index] || 0) <= 0;
+}
+
 function ensureTerrainCooldowns(state) {
   if (!state) {
     return null;
@@ -225,10 +242,14 @@ function pickTerrainResourceTarget(state, config, resourceId, anchor, options) {
   }
   const ignoreCooldown = options && options.ignoreCooldown === true;
   const samples = [];
-  const pushIfReady = (pos) => {
-    if (ignoreCooldown || !isTerrainTileOnCooldown(state, pos.x, pos.y)) {
-      samples.push(pos);
+  const pushIfReady = (pos, type) => {
+    if (!ignoreCooldown && isTerrainTileOnCooldown(state, pos.x, pos.y)) {
+      return;
     }
+    if (resourceId === 'food' && type === 'pasture' && isPastureDepleted(state, pos.x, pos.y)) {
+      return;
+    }
+    samples.push(pos);
   };
   const samplePerType = 200;
   const maxFullScan = 8000;
@@ -245,11 +266,11 @@ function pickTerrainResourceTarget(state, config, resourceId, anchor, options) {
     }
     if (useFullScan || list.length <= samplePerType) {
       for (const pos of list) {
-        pushIfReady(pos);
+        pushIfReady(pos, type);
       }
     } else {
       for (let i = 0; i < samplePerType; i += 1) {
-        pushIfReady(list[Math.floor(Math.random() * list.length)]);
+        pushIfReady(list[Math.floor(Math.random() * list.length)], type);
       }
     }
   }
@@ -283,6 +304,9 @@ function isTerrainResourceTile(state, config, resourceId, x, y, options) {
   }
   const type = getTerrainTypeAt(state, x, y);
   if (!type) {
+    return false;
+  }
+  if (resourceId === 'food' && type === 'pasture' && isPastureDepleted(state, x, y)) {
     return false;
   }
   const ignoreCooldown = options && options.ignoreCooldown === true;

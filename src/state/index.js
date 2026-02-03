@@ -98,6 +98,7 @@ function createInitialState(config, runtime) {
   const structures = createStructures(config, runtime, occupied, terrain);
   const nodes = createResourceNodes(config, runtime, occupied, terrain, mapScaleContext);
   const dwarves = createDwarves(config, runtime, occupied, terrain);
+  const pasture = createPastureState(config, terrain);
   const merchant = createMerchantState(config);
   const merchantStats = createMerchantStats();
   const weather = createWeatherState(config);
@@ -107,6 +108,7 @@ function createInitialState(config, runtime) {
   const tools = createToolsState(config);
   const ruins = createRuinsState(config);
   const myths = createMythsState(config);
+  const wildlife = createWildlifeState(config);
 
   return {
     tick: 0,
@@ -122,6 +124,8 @@ function createInitialState(config, runtime) {
     tools,
     ruins,
     myths,
+    pasture,
+    wildlife,
     terrain,
     stockpile: buildInitialStockpile(config, mapScaleContext),
     resourceTargets: scaledTargets,
@@ -149,6 +153,7 @@ function createInitialState(config, runtime) {
       starvation: 0,
       oldAge: 0,
       raid: 0,
+      hunt: 0,
       ruins: 0,
     },
     reproductionStats: {
@@ -172,6 +177,63 @@ function createInitialState(config, runtime) {
       blockedLowStockpile: 0,
       blockedChance: 0,
     },
+  };
+}
+
+// Create pasture stock state from terrain tiles.
+function createPastureState(config, terrain) {
+  const pastureConfig = config && config.pasture ? config.pasture : {};
+  if (pastureConfig.enabled === false) {
+    return null;
+  }
+  if (!terrain || !terrain.types) {
+    return null;
+  }
+  const capacity = Math.max(0, Number(pastureConfig.capacity_per_tile || 0));
+  if (capacity <= 0) {
+    return null;
+  }
+  const width = terrain.width;
+  const height = terrain.height;
+  const total = width * height;
+  const mask = new Array(total).fill(false);
+  const remaining = new Array(total).fill(0);
+  let count = 0;
+  for (let y = 0; y < height; y += 1) {
+    const row = terrain.types[y];
+    for (let x = 0; x < width; x += 1) {
+      if (row[x] !== 'pasture') {
+        continue;
+      }
+      const index = y * width + x;
+      mask[index] = true;
+      remaining[index] = capacity;
+      count += 1;
+    }
+  }
+  if (count === 0) {
+    return null;
+  }
+  return {
+    width,
+    height,
+    capacity,
+    mask,
+    remaining,
+    count,
+  };
+}
+
+// Create initial wildlife state.
+function createWildlifeState(config) {
+  const wildlifeConfig = (config && config.wildlife) || {};
+  if (wildlifeConfig.enabled === false) {
+    return null;
+  }
+  return {
+    herds: [],
+    lastSeasonIndex: null,
+    herdCounter: 0,
   };
 }
 
@@ -616,6 +678,12 @@ function fitStateToGrid(state, runtime, config) {
     }
   }
 
+  if (state.wildlife && Array.isArray(state.wildlife.herds)) {
+    for (const herd of state.wildlife.herds) {
+      placeEntity(herd, occupied, runtime, isAllowed);
+    }
+  }
+
   for (const dwarf of state.dwarves) {
     placeEntity(dwarf, occupied, runtime, isAllowed);
   }
@@ -638,6 +706,7 @@ function syncTerrainToGrid(state, runtime, config) {
   const terrainConfig = config.display.terrain || {};
   if (terrainConfig.enabled === false) {
     state.terrain = null;
+    state.pasture = null;
     if (state) {
       state.villageCenter = null;
       state.villages = null;
@@ -653,6 +722,7 @@ function syncTerrainToGrid(state, runtime, config) {
       || state.terrain.width !== runtime.gridWidth
       || state.terrain.height !== runtime.gridHeight) {
     state.terrain = createTerrain(config, runtime, state.terrain);
+    state.pasture = createPastureState(config, state.terrain);
     if (state) {
       state.villageCenter = null;
       state.villages = null;

@@ -85,6 +85,19 @@
           "noiseThreshold": 0.32,
           "clusterPasses": 4
         },
+        "pasture": {
+          "humidityMin": 0.35,
+          "waterDistanceMax": 6,
+          "noiseScale": 0.1,
+          "noiseThreshold": 0.65,
+          "clusterPasses": 2,
+          "patches": {
+            "count": 6,
+            "radiusMin": 4,
+            "radiusMax": 7,
+            "fill": 0.8
+          }
+        },
         "food": {
           "humidityMin": 0.4,
           "waterDistanceMax": 3,
@@ -109,6 +122,7 @@
         "plain": true,
         "fertile": true,
         "food": true,
+        "pasture": true,
         "forest": true,
         "stone": true
       },
@@ -132,6 +146,7 @@
       },
       "minimumTiles": {
         "food": 200,
+        "pasture": 120,
         "mountain": 54,
         "stone": 33
       },
@@ -146,6 +161,7 @@
         "plain": "\"",
         "fertile": ":",
         "food": "φ",
+        "pasture": "§",
         "forest": "♣"
       },
       "plainSymbols": {
@@ -213,6 +229,8 @@
         "terrain_hill_pronounced": "\u001b[38;5;179m",
         "terrain_plain": "\u001b[32m",
         "terrain_fertile": "\u001b[92m",
+        "terrain_pasture": "\u001b[38;2;195;176;145m",
+        "terrain_pasture_depleted": "\u001b[38;2;143;133;109m",
         "terrain_food": "\u001b[93m",
         "terrain_forest": "\u001b[32m",
         "terrain_forest_dense": "\u001b[38;5;22m",
@@ -251,6 +269,7 @@
         "watchtower": "\u001b[37m",
         "brewery": "\u001b[35m",
         "beast": "\u001b[91m",
+        "herd": "\u001b[38;2;160;134;121m",
         "food": "\u001b[32m",
         "water": "\u001b[34m",
         "wood": "\u001b[33m",
@@ -323,6 +342,46 @@
   },
   "events": {
     "maxEntries": 5
+  },
+  "wildlife": {
+    "enabled": true,
+    "seasons": ["spring", "autumn"],
+    "spawn": {
+      "herds_min": 1,
+      "herds_max": 2
+    },
+    "herd": {
+      "size_min": 12,
+      "size_max": 20,
+      "ttl_ticks": 160,
+      "move_every_ticks": 3,
+      "render_min": 5,
+      "render_max": 6
+    },
+    "hunt": {
+      "enabled": true,
+      "max_concurrent": 3,
+      "min_food_ratio": 0.8,
+      "work_ticks": 6,
+      "yield_min": 2,
+      "yield_max": 3,
+      "risk": {
+        "death_chance": 0.08,
+        "penalty_chance": 0.18,
+        "penalty": {
+          "yield_multiplier": 0.4,
+          "move_cooldown": 4
+        }
+      }
+    }
+  },
+  "pasture": {
+    "enabled": true,
+    "capacity_per_tile": 6,
+    "birth": {
+      "interval_ticks": 40,
+      "amount": 1
+    }
   },
   "raids": {
     "enabled": true,
@@ -1330,7 +1389,7 @@
       "mana_crystal": "ManaCrystal"
     },
     "terrainAllowed": {
-      "food": ["food"],
+      "food": ["food", "pasture"],
       "water": ["river", "lake"],
       "wood": ["forest"],
       "stone": ["mountain"]
@@ -2451,6 +2510,7 @@
     "dwarf": "☺",
     "merchant": "$",
     "beast": "♠",
+    "herd": "&",
     "food": "φ",
     "water": "≈",
     "wood": "♣",

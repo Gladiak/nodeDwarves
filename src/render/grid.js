@@ -17,6 +17,23 @@ function pickSymbol(value, fallback) {
   return fallback;
 }
 
+function isPastureDepleted(state, x, y) {
+  const pasture = state && state.pasture;
+  if (!pasture || !pasture.mask || !pasture.remaining) {
+    return false;
+  }
+  const width = pasture.width;
+  const height = pasture.height;
+  if (x < 0 || y < 0 || x >= width || y >= height) {
+    return false;
+  }
+  const index = y * width + x;
+  if (!pasture.mask[index]) {
+    return false;
+  }
+  return Number(pasture.remaining[index] || 0) <= 0;
+}
+
 function normalizeRiverSymbols(raw) {
   return {
     horizontal: pickSymbol(raw && raw.horizontal, "\u2500"),
@@ -621,6 +638,11 @@ function buildGridBase(state, config, runtime, colors, emptySymbol) {
         }
         if (hillPronounced) {
           colorKey = resolvePronouncedHillColorKey(colorKey, colors);
+        }
+        if (colorType === "pasture" && isPastureDepleted(state, x, y)) {
+          if (colors && colors.map && colors.map.terrain_pasture_depleted) {
+            colorKey = "terrain_pasture_depleted";
+          }
         }
         grid[y][x] = colorKey ? applyColor(symbol, colorKey, colors) : symbol;
       } else {

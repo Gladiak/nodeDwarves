@@ -66,6 +66,15 @@ Display and layout:
 - `display.terrain.valley.forest.noiseScale`: forest noise scale.
 - `display.terrain.valley.forest.noiseThreshold`: forest noise threshold.
 - `display.terrain.valley.forest.clusterPasses`: forest clustering passes.
+- `display.terrain.valley.pasture.humidityMin`: minimum humidity to spawn pasture tiles.
+- `display.terrain.valley.pasture.waterDistanceMax`: maximum distance from water to spawn pasture tiles (tiles).
+- `display.terrain.valley.pasture.noiseScale`: pasture noise scale.
+- `display.terrain.valley.pasture.noiseThreshold`: pasture noise threshold.
+- `display.terrain.valley.pasture.clusterPasses`: pasture clustering passes.
+- `display.terrain.valley.pasture.patches.count`: number of pasture clusters to seed (0 = disabled).
+- `display.terrain.valley.pasture.patches.radiusMin`: minimum radius for a pasture cluster.
+- `display.terrain.valley.pasture.patches.radiusMax`: maximum radius for a pasture cluster.
+- `display.terrain.valley.pasture.patches.fill`: fill ratio within a pasture cluster (0..1).
 - `display.terrain.valley.food.humidityMin`: minimum humidity to spawn food patches.
 - `display.terrain.valley.food.waterDistanceMax`: maximum distance from water to spawn food patches (tiles).
 - `display.terrain.valley.food.minTiles`: minimum number of food tiles to guarantee (near water).
@@ -77,8 +86,8 @@ Display and layout:
 - `display.terrain.valley.stone.noiseScale`: stone noise scale.
 - `display.terrain.valley.stone.noiseThreshold`: stone noise threshold.
 - `display.terrain.valley.stone.clusterPasses`: stone clustering passes.
-- `display.terrain.minimumTiles.<type>`: minimum number of terrain tiles to guarantee (`food`, `mountain`, `stone`).
-- `display.terrain.walkable.<type>`: whether a terrain tile is walkable (`river`, `lake`, `mountain`, `hill`, `plain`, `fertile`, `food`, `forest`, `stone`).
+- `display.terrain.minimumTiles.<type>`: minimum number of terrain tiles to guarantee (`food`, `pasture`, `mountain`, `stone`).
+- `display.terrain.walkable.<type>`: whether a terrain tile is walkable (`river`, `lake`, `mountain`, `hill`, `plain`, `fertile`, `food`, `pasture`, `forest`, `stone`).
 - `display.terrain.movementDelay.<type>`: extra movement cooldown ticks when entering a terrain type (defaults to `0`).
 - `display.terrain.symbols.river`: map symbol for river tiles.
 - `display.terrain.symbols.lake`: map symbol for lake tiles.
@@ -87,6 +96,7 @@ Display and layout:
 - `display.terrain.symbols.plain`: map symbol for plain tiles.
 - `display.terrain.symbols.fertile`: map symbol for fertile tiles.
 - `display.terrain.symbols.food`: map symbol for food tiles.
+- `display.terrain.symbols.pasture`: map symbol for pasture tiles.
 - `display.terrain.symbols.forest`: map symbol for forest tiles.
 - `display.terrain.symbols.stone`: map symbol for stone tiles.
 - `display.terrain.plainSymbols.primary`: primary symbol for plain/grass tiles when randomized.
@@ -132,11 +142,14 @@ Display and layout:
 - `display.colors.map.<key>`: ANSI color for an entity key (e.g. `dwarf`, `merchant`, `house`, `food`, `hud_header`).
 - `display.colors.map.weather_<type>`: ANSI color for HUD weather labels (e.g. `weather_rain`).
 - `display.colors.map.terrain_<type>`: ANSI color for terrain tiles (`terrain_river`, `terrain_lake`, `terrain_mountain`, `terrain_hill`, `terrain_plain`, `terrain_fertile`, `terrain_food`, `terrain_forest`, `terrain_stone`).
+- `display.colors.map.herd`: ANSI color for wildlife herds on the map.
 - `display.colors.map.terrain_mountain_medium`: ANSI color for medium mountain tiles.
 - `display.colors.map.terrain_mountain_high`: ANSI color for high mountain tiles.
 - `display.colors.map.terrain_hill_pronounced`: ANSI color for pronounced hill tiles (used with the pronounced hill symbol).
 - `display.colors.map.terrain_forest_dense`: ANSI color for dense forest tiles (used with the dense forest symbol).
 - `display.colors.map.terrain_forest_dense_<season>`: seasonal overrides for dense forests (`spring`, `summer`, `autumn`, `winter`).
+- `display.colors.map.terrain_pasture`: ANSI color for pasture tiles.
+- `display.colors.map.terrain_pasture_depleted`: ANSI color for depleted pasture tiles.
 - `display.colors.seasonal.enabled`: enable seasonal terrain color transitions.
 - `display.colors.seasonal.types`: terrain types that should use seasonal palettes (e.g. `plain`, `fertile`, `forest`, `food`, `grass`).
 - `display.colors.seasonal.palettes.<season>.<type>`: color map key for a terrain type in a season (uses `display.colors.map` keys).
@@ -157,6 +170,33 @@ Display and layout:
 Events:
 
 - `events.maxEntries`: number of recent events to show in the HUD.
+
+Wildlife and pastures:
+
+- `wildlife.enabled`: enable seasonal wildlife herds and hunting.
+- `wildlife.seasons`: seasons that can spawn herds (defaults to spring/autumn if empty).
+- `wildlife.spawn.herds_min`: minimum herds per eligible season start.
+- `wildlife.spawn.herds_max`: maximum herds per eligible season start.
+- `wildlife.herd.size_min`: minimum food stock in a herd.
+- `wildlife.herd.size_max`: maximum food stock in a herd.
+- `wildlife.herd.ttl_ticks`: ticks before a herd despawns if not exhausted.
+- `wildlife.herd.move_every_ticks`: movement interval for herds.
+- `wildlife.herd.render_min`: minimum number of symbols rendered per herd.
+- `wildlife.herd.render_max`: maximum number of symbols rendered per herd.
+- `wildlife.hunt.enabled`: enable hunt jobs.
+- `wildlife.hunt.max_concurrent`: max concurrent hunt jobs (0 = unlimited).
+- `wildlife.hunt.min_food_ratio`: minimum food stockpile ratio required before hunting stops.
+- `wildlife.hunt.work_ticks`: ticks required to complete a hunt.
+- `wildlife.hunt.yield_min`: minimum food yield per hunt.
+- `wildlife.hunt.yield_max`: maximum food yield per hunt.
+- `wildlife.hunt.risk.death_chance`: chance of death on a hunt.
+- `wildlife.hunt.risk.penalty_chance`: chance of a non-lethal penalty on a hunt.
+- `wildlife.hunt.risk.penalty.yield_multiplier`: multiplier applied to hunt yield on penalty.
+- `wildlife.hunt.risk.penalty.move_cooldown`: extra move cooldown ticks applied on penalty.
+- `pasture.enabled`: enable pasture stock tracking.
+- `pasture.capacity_per_tile`: max food stock per pasture tile.
+- `pasture.birth.interval_ticks`: ticks between pasture stock regrowth.
+- `pasture.birth.amount`: stock amount restored per birth tick.
 
 Merchant:
 
