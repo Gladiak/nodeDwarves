@@ -87,6 +87,9 @@ Have a wild idea? Jump in and ship it — pick one of these and make the colony 
 - 🧭 Dwarves use configurable pathing with potential-field variation for more organic routes.
 - 🧩 Resources can come from nodes or from terrain tiles (configurable).
 - ⏳ Terrain gathering cooldowns can be bypassed during critical shortages.
+- ⏸️ Dwarf inspect panel (press `i`, works live or paused) with epic lore, clan details, and saga snippets.
+- 🗂️ Legend overlay panel (press `l`) for a clean, two-section key.
+- 🗺️ Map export (press `m`) using the current season styling.
 
 ## Clan culture 🛡️
 
@@ -226,7 +229,7 @@ npm install
 npm start
 ```
 
-Press `Space` to pause/resume the simulation.
+Press `Space` to pause/resume the simulation. Press `l` for the legend panel, `i` for dwarf info, and `m` to export a map.
 
 ## AI mode (Python) 🤖
 
@@ -348,7 +351,9 @@ change the terminal size or HUD width.
 
 ## Map export (PNG) 🗺️
 
-Generate a colored PNG of the terrain map only (no HUD or active entities; static structures like mines/ruins are included; frame follows `display.frame.enabled`):
+Generate a colored PNG of the terrain map only (no HUD or active entities; static structures like mines/ruins are included; frame follows `display.frame.enabled`).
+
+During gameplay, press `m` to export the current season map into `maps/`.
 
 ```bash
 npm run map:export -- --width=120 --height=40 --season=spring
@@ -437,9 +442,9 @@ See [Training overrides (performance)](docs/TRAINING_OVERRIDES.md).
 
 ## ASCII legend 🧷
 
-The legend is printed below the map in the footer. Symbols are configurable in
+The legend lives in an overlay panel (press `l`). Symbols are configurable in
 `config.json` under `symbols`.
-Houses always render with `symbols.house`, while the HUD lists house levels with their counts.
+The footer now focuses on control hints instead of map/legend symbols.
 
 ## Project layout 🧱
 
@@ -479,14 +484,18 @@ Houses always render with `symbols.house`, while the HUD lists house levels with
     ├── ai_policy.js              # Runtime policy loader/inference (wrapper)
     ├── clans.js                  # Clan helpers + weighting utilities
     ├── config.js                 # Config loader
+    ├── dwarf_lore.js             # Deterministic dwarf name/trait/motto generator
     ├── render                    # Renderer modules
     │   ├── colors.js
     │   ├── format.js
     │   ├── grid.js
     │   ├── header.js
     │   ├── hud.js
+    │   ├── inspect.js
     │   ├── index.js
     │   ├── legend.js
+    │   ├── legend_panel.js
+    │   ├── save_panel.js
     │   └── seasonal_colors.js
     ├── render.js                 # ASCII renderer + HUD (wrapper)
     ├── runtime.js                # Terminal sizing and layout

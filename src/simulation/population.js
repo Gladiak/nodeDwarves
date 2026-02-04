@@ -881,6 +881,7 @@ function spawnNewborn(state, config, parentA, parentB) {
   const clanId = resolveNewbornClanId(parentA, parentB, config);
   const newborn = {
     id: `dwarf_${++state.dwarfCounter}`,
+    spawnIndex: state.dwarfCounter,
     x: parentA ? parentA.x : 0,
     y: parentA ? parentA.y : 0,
     ageTicks: 0,

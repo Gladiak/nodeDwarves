@@ -142,6 +142,22 @@ function createInitialState(config, runtime) {
     lastPriorities: [],
     dwarfCounter: dwarves.length,
     events: [],
+    ui: {
+      inspect: {
+        open: false,
+        index: 0,
+        ids: [],
+      },
+      legend: {
+        open: false,
+      },
+      saveMap: {
+        open: false,
+        busy: false,
+        message: '',
+        closeAtMs: 0,
+      },
+    },
     birthsCount: 0,
     deathsCount: 0,
     lastDeathTick: 0,
@@ -554,6 +570,7 @@ function createDwarves(config, runtime, occupied, terrain) {
     const clanId = pickClanId(config);
     return {
       id: `dwarf_${index + 1}`,
+      spawnIndex: index + 1,
       x: pos.x,
       y: pos.y,
       ageTicks,
