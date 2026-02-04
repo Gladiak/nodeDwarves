@@ -65,7 +65,7 @@ rl.on('line', (line) => {
       stepState(state, activeConfig, runtime, stepAction);
     }
     const metrics = computeMetrics(state, activeConfig);
-    const reward = computeReward(prevMetrics, metrics, activeConfig);
+    const reward = computeReward(prevMetrics, metrics, activeConfig, stepAction);
     prevMetrics = metrics;
     const doneStatus = getDoneStatus(state, activeConfig, metrics);
     writeResponse(buildResponse(reward, doneStatus.done, doneStatus.reason, forceDebug));
@@ -645,6 +645,10 @@ function computeMetrics(state, config) {
     ? Object.keys(state.ruins.artifactsFound).length
     : 0;
   const ruinsRoomsCleared = state && state.ruins ? Number(state.ruins.roomsCleared || 0) : 0;
+  const festival = state && state.festival ? state.festival : null;
+  const festivalActive = festival && festival.active ? 1 : 0;
+  const festivalObservation = getFestivalObservation(state, config);
+  const festivalEligible = festivalObservation && festivalObservation.eligible ? 1 : 0;
 
   return {
     stockpileAvg,
@@ -664,11 +668,13 @@ function computeMetrics(state, config) {
     ruinsFailures: Number(ruinsStats.failures || 0),
     ruinsArtifacts,
     ruinsRoomsCleared,
+    festivalActive,
+    festivalEligible,
   };
 }
 
 // Function: computeReward.
-function computeReward(prevMetrics, metrics, config) {
+function computeReward(prevMetrics, metrics, config, action) {
   const rewardConfig = (config.ai && config.ai.reward) || {};
   const stockpileAvgWeight = Number(rewardConfig.stockpileAvg ?? 1);
   const stockpileMinWeight = Number(rewardConfig.stockpileMin ?? 0.5);
@@ -694,6 +700,15 @@ function computeReward(prevMetrics, metrics, config) {
   const ruinsArtifactWeight = Number(rewardConfig.ruinsArtifact ?? 0);
   const ruinsFailureWeight = Number(rewardConfig.ruinsFailure ?? 0);
   const ruinsRoomClearWeight = Number(rewardConfig.ruinsRoomClear ?? 0);
+  const festivalActiveWeight = Number(
+    rewardConfig.festival_active ?? rewardConfig.festivalActive ?? 0,
+  );
+  const festivalStartWeight = Number(
+    rewardConfig.festival_start ?? rewardConfig.festivalStart ?? 0,
+  );
+  const festivalIntentWeight = Number(
+    rewardConfig.festival_intent ?? rewardConfig.festivalIntent ?? 0,
+  );
 
   const prevPop = prevMetrics ? prevMetrics.population.total : metrics.population.total;
   const deaths = Math.max(0, prevPop - metrics.population.total);
@@ -732,6 +747,22 @@ function computeReward(prevMetrics, metrics, config) {
   const ruinsFailureDelta = Math.max(0, Number(metrics.ruinsFailures || 0) - prevRuinsFailures);
   const ruinsArtifactDelta = Math.max(0, Number(metrics.ruinsArtifacts || 0) - prevRuinsArtifacts);
   const ruinsRoomsDelta = Math.max(0, Number(metrics.ruinsRoomsCleared || 0) - prevRuinsRooms);
+  const festivalActive = Number(metrics.festivalActive || 0);
+  const prevFestivalActive = prevMetrics ? Number(prevMetrics.festivalActive || 0) : 0;
+  const festivalStarted = festivalActive > 0 && prevFestivalActive <= 0 ? 1 : 0;
+  const festivalEligible = Number(metrics.festivalEligible || 0);
+  const minWeight = Number((config.ai && config.ai.minWeight) ?? 0);
+  const maxWeight = Number((config.ai && config.ai.maxWeight) ?? 1);
+  const intentRaw = action ? Number(action.festivalIntent) : NaN;
+  let festivalIntent = 0;
+  if (Number.isFinite(intentRaw)) {
+    if (maxWeight > minWeight) {
+      festivalIntent = clamp((intentRaw - minWeight) / (maxWeight - minWeight), 0, 1);
+    } else {
+      festivalIntent = clamp(intentRaw, 0, 1);
+    }
+  }
+  const festivalIntentBonus = festivalEligible > 0 ? festivalIntent * festivalIntentWeight : 0;
   const reward = ((metrics.stockpileAvg * stockpileAvgWeight)
     + (metrics.stockpileMin * stockpileMinWeight)
     + (waterRatio * waterStockpileWeight)) * stockpileFactor
@@ -746,6 +777,9 @@ function computeReward(prevMetrics, metrics, config) {
     + (ruinsSuccessDelta * ruinsSuccessWeight)
     + (ruinsArtifactDelta * ruinsArtifactWeight)
     + (ruinsRoomsDelta * ruinsRoomClearWeight)
+    + (festivalActive * festivalActiveWeight)
+    + (festivalStarted * festivalStartWeight)
+    + festivalIntentBonus
     - raidExposurePenalty
     - raidDeathsPenalty
     - raidLootPenalty

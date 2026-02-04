@@ -442,7 +442,7 @@ Clan dynamics add heterogeneity and longer-horizon trade-offs. To keep PPO stabl
 - Consider a curriculum: start with clans disabled or reduced bonuses, then ramp up.
 - Use slightly higher entropy early to explore clan/role/job combinations.
 - Observations include clan shares and ruins status (active, cooldown, progress, artifacts); retrain with `--fresh` if you change them.
-- Reward shaping can emphasize ruins outcomes via `ai.reward.ruinsSuccess`, `ai.reward.ruinsArtifact`, `ai.reward.ruinsFailure`, and `ai.reward.ruinsRoomClear`.
+- Reward shaping can emphasize ruins outcomes via `ai.reward.ruinsSuccess`, `ai.reward.ruinsArtifact`, `ai.reward.ruinsFailure`, and `ai.reward.ruinsRoomClear`, plus festivals via `ai.reward.festival_active`, `ai.reward.festival_start`, and `ai.reward.festival_intent`.
 
 ## 8) Configuration (single source of truth)
 
@@ -492,7 +492,7 @@ Important rule: if you change **resource lists** or **observation features**, yo
 
 Training presets:
 
-- `ai:train` (alias of `ai:train:fast`) runs a fast baseline loop tuned for sub-5-minute runs (8 workers, 200 episodes, max_steps=1600, step_ticks=2). The difficulty ramp reaches 1.0 by episode 120 and eval runs every 50 episodes at difficulty 1.0. Eval cadence matches log cadence (eval_every = log_every, SUMMARY_LOG_EVERY = log_every).
+- `ai:train` (alias of `ai:train:fast`) runs a fast baseline loop tuned for sub-5-minute runs (8 workers, 200 episodes, max_steps=1600, step_ticks=2). The difficulty ramp reaches 1.0 by episode 120 and eval runs every 50 episodes at difficulty 1.0.
 - `ai:train:fresh` runs the same fast preset but clears existing policy and best-eval snapshots first.
 - `ai:train:fast:quality` runs the fast phase plus a short full-sim finetune at max difficulty (40 episodes, max_steps=1800).
 - `ai:train:fast:endgame` runs full-sim at fixed max difficulty with a shorter stress setup (80 episodes, max_steps=2400).

@@ -249,6 +249,9 @@ function updateFestivals(state, config, runtime, action) {
     return;
   }
 
+  const intentRaw = action && action.festivalIntent;
+  const intent = normalizeFestivalIntent(intentRaw, config);
+
   if (festival.active) {
     const startedTick = Number(festival.startedTick || 0);
     const duration = Math.max(0, Number(festival.durationTicks || 0));
@@ -277,8 +280,6 @@ function updateFestivals(state, config, runtime, action) {
     return;
   }
 
-  const intentRaw = action && action.festivalIntent;
-  const intent = normalizeFestivalIntent(intentRaw, config);
   const rawThreshold = (festivalsConfig.ai && festivalsConfig.ai.intentThreshold) ?? 0;
   const threshold = clamp(Number(rawThreshold), 0, 1);
   if (intent < threshold) {

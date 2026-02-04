@@ -540,6 +540,9 @@
       "ruinsArtifact": 2.5,
       "ruinsFailure": 1.0,
       "ruinsRoomClear": 0.6,
+      "festival_active": 0.2,
+      "festival_start": 2.0,
+      "festival_intent": 0.8,
       "death": 7,
       "extinction": 320
     },
@@ -1365,7 +1368,7 @@
     "decayPerTick": {
       "food": 0.00005,
       "water": 0.00005,
-      "beer": 0.00015,
+      "beer": 0.00008,
       "wood": 0.00003,
       "stone": 0.00003
     },
@@ -1761,8 +1764,8 @@
       "outputPerTick": {
         "beer": 1
       },
-      "foodCostPerTick": 0.1,
-      "pauseWhenFoodRatioBelow": 0.6,
+      "foodCostPerTick": 0.06,
+      "pauseWhenFoodRatioBelow": 0.45,
       "levelMax": 10,
       "levelBonusMin": 0.05,
       "levelBonusMax": 0.35,
@@ -2372,12 +2375,12 @@
     },
     "minCostRatio": 2.5,
     "effects": {
-      "needDecay": 0.93,
-      "gatherYield": 1.12
+      "needDecay": 0.9,
+      "gatherYield": 1.25
     },
     "ai": {
       "enabled": true,
-      "intentThreshold": 0.6
+      "intentThreshold": 0.45
     }
   },
   "weather": {
@@ -2481,7 +2484,7 @@
     "beerRelief": 0.5,
     "beerReserveBase": 8,
     "beerReservePerCapita": 0.04,
-    "beerMinReserveRatio": 0.2,
+    "beerMinReserveRatio": 0.6,
     "beerMoraleGain": 0.09,
     "beerMoraleDecayPerTick": 0.0035,
     "beerMoraleMax": 0.28,
