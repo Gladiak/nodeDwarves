@@ -12,6 +12,7 @@ alive while you watch the chaos unfold in ASCII.
 - 🗝️ End-game ruins expeditions with artifacts, set bonuses, and guardian threats.
 - 🔁 End-game cycles: once all artifacts are found and a cooldown window passes, the sim restarts on a new map, tracks completed runs, and can scale difficulty per cycle.
 - ❄️ Seasons + housing effects (bonding, winter penalties).
+- 🎊 Seasonal festivals: the AI spends beer in spring/autumn windows to boost morale and gather yield.
 - 🐾 Wildlife migrations + pasture grazing: herds roam seasonally, hunters take risks, pastures regrow.
 - 🌦️ Dynamic weather cycle that reshapes needs, gathering, and regeneration.
 - 🎓 PPO training in Python with JS-only inference.
@@ -23,7 +24,6 @@ alive while you watch the chaos unfold in ASCII.
 Have a wild idea? Jump in and ship it — pick one of these and make the colony stronger.
 
 - Faction diplomacy and tribute: neighbor demands or aid requests; reputation shifts merchant rates and raid pressure.
-- Seasonal festivals or rituals that trade stockpile costs for morale/production boosts.
 - Simple disease system tied to crowding and hygiene.
 - Refugees and deserters: population waves triggered by morale, housing, and raid safety; handled as deterministic events with caps.
 - Mining hazards and supports: deeper mines boost rare drops but add cave-in risk; support structures mitigate danger.
@@ -69,6 +69,7 @@ Have a wild idea? Jump in and ship it — pick one of these and make the colony 
 - 🌾 Fields regenerate based on water availability and seasonal limits.
 - 🐾 Pastures provide stable grazing stock that regrows over time, while wildlife herds cross the map in spring/autumn and can be hunted for food with risk.
 - 🌤️ Seasons apply modifiers to needs, gather speed, regen, and reproduction.
+- 🎊 Seasonal festivals can trigger in spring/autumn windows, spending beer for morale and gather yield boosts.
 - 🎨 Optional seasonal palettes recolor terrain in patchy waves during season transitions.
 - 🌧️ Weather cycles (clear, rain, storm, drought, cold) add extra modifiers.
 - 🗿 Myths: rare global modifiers born from repeated crises or successes; traditions persist between endgame cycles within the same run.
@@ -497,6 +498,7 @@ Houses always render with `symbols.house`, while the HUD lists house levels with
     │   ├── dwarf_actions.js
     │   ├── endgame.js
     │   ├── events.js
+    │   ├── festivals.js
     │   ├── index.js
     │   ├── jobs.js
     │   ├── merchant.js

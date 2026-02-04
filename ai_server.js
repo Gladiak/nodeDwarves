@@ -6,6 +6,7 @@ const { buildRuntime } = require('./src/runtime');
 const { createInitialState } = require('./src/state');
 const { stepState } = require('./src/simulation');
 const { getTerrainResourceRatio } = require('./src/simulation/terrain');
+const { getFestivalObservation } = require('./src/simulation/festivals');
 const { clamp } = require('./src/utils');
 
 const baseConfig = loadConfig();
@@ -574,6 +575,7 @@ function getRaidLootRatio(deltaLoot, config) {
 function buildObservation(state, config, metrics) {
   const weatherSeverity = getWeatherSeverity(state, config);
   const weatherTimeLeft = getWeatherTimeLeft(state);
+  const festivalObservation = getFestivalObservation(state, config);
   return {
     tick: state.tick,
     season: state.season || null,
@@ -593,6 +595,7 @@ function buildObservation(state, config, metrics) {
     populationBalance: metrics.populationBalance,
     housingRatio: metrics.housingRatio,
     raid: metrics.raid,
+    festival: festivalObservation,
   };
 }
 

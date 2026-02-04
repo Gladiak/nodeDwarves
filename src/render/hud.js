@@ -3,6 +3,7 @@
 const { clamp, padRight } = require("../utils");
 const { getClanLabel, getClanList, countClans } = require("../clans");
 const { getStockpileTarget } = require("../simulation/resources");
+const { getFestivalStatus } = require("../simulation/festivals");
 const { getColorConfig, applyColor } = require("./colors");
 const { fitLine, wrapLine } = require("./format");
 
@@ -187,6 +188,19 @@ function buildHudColumns(state, config, columnWidth, options = {}) {
   left.push(`Last cycle Ticks: ${lastCycleTicks}`);
   left.push(`Year ${yearLabel}, Season ${seasonLabel}`);
   left.push(`Weather: ${formatWeatherStatus(state.weather, colors)}`);
+  const festivalStatus = getFestivalStatus(state, config);
+  if (festivalStatus) {
+    if (festivalStatus.active) {
+      left.push(
+        fitLine(
+          `Festival: ${festivalStatus.label} ${festivalStatus.ticksLeft}/${festivalStatus.duration}`,
+          columnWidth,
+        ),
+      );
+    } else {
+      left.push("Festival: -");
+    }
+  }
   if (wildlifeEnabled) {
     left.push(`Wildlife: herds ${herdCount}`);
   }

@@ -314,6 +314,24 @@ Raids:
 - `raids.beasts.min/max`: min/max beast count for visuals.
 - `raids.beasts.perPop`: population per beast (visual scaling).
 
+Festivals:
+
+- `festivals.enabled`: enable seasonal festivals.
+- `festivals.label`: festival label used in HUD/events.
+- `festivals.seasonNames`: seasons eligible for festivals (empty = any).
+- `festivals.seasonWindowTicks`: ticks from season start when a festival may begin.
+- `festivals.durationTicks`: festival duration in ticks.
+- `festivals.cooldownSeasons`: minimum seasons between festivals (0 = once per season).
+- `festivals.minPopulation`: minimum population required to start a festival.
+- `festivals.blockDuringRaid`: disallow festivals while raids are active.
+- `festivals.minStockpileRatios.<resource>`: stockpile ratio thresholds for eligibility.
+- `festivals.costs.<resource>`: stockpile costs paid when the festival starts.
+- `festivals.minCostRatio`: required multiple of each cost (1.3 = 130% of cost).
+- `festivals.effects.needDecay`: need decay multiplier while active.
+- `festivals.effects.gatherYield`: gather yield multiplier while active.
+- `festivals.ai.enabled`: allow AI to trigger festivals.
+- `festivals.ai.intentThreshold`: normalized threshold (0..1) for the AI festival intent.
+
 Myths:
 
 - `myths.enabled`: enable global myth modifiers.

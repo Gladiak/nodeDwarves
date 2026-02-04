@@ -108,6 +108,7 @@ function createInitialState(config, runtime) {
   const tools = createToolsState(config);
   const ruins = createRuinsState(config);
   const myths = createMythsState(config);
+  const festival = createFestivalState(config);
   const wildlife = createWildlifeState(config);
 
   return {
@@ -124,6 +125,7 @@ function createInitialState(config, runtime) {
     tools,
     ruins,
     myths,
+    festival,
     pasture,
     wildlife,
     terrain,
@@ -353,6 +355,24 @@ function createMythsState(config) {
     counters: {},
     lastTriggerTicks: {},
     lastProcessed: {},
+  };
+}
+
+// Create the initial festival state.
+function createFestivalState(config) {
+  const festivalsConfig = (config && config.festivals) || {};
+  if (festivalsConfig.enabled === false) {
+    return null;
+  }
+  return {
+    active: false,
+    label: null,
+    id: null,
+    startedTick: null,
+    durationTicks: 0,
+    effects: {},
+    lastSeasonIndex: null,
+    lastSeasonName: null,
   };
 }
 

@@ -3,6 +3,7 @@
 const { updateSeason, getSeasonModifier } = require('./season');
 const { updateWeather, getWeatherModifier, getWeatherNeedMultipliers } = require('./weather');
 const { updateRaidStart, updateRaidTick } = require('./raids');
+const { updateFestivals, getFestivalModifier } = require('./festivals');
 const { updateWildlifeStart, updateWildlifeTick, updatePastureBirths } = require('./wildlife');
 const { getClanEffects } = require('../clans');
 const {
@@ -36,11 +37,13 @@ function stepState(state, config, runtime, action) {
   updateSeason(state, config);
   updateWeather(state, config);
   updateRaidStart(state, config, runtime);
+  updateFestivals(state, config, runtime, action);
   updateWildlifeStart(state, config, runtime);
   const housingPenalty = getWinterHousingPenalty(state, config);
   const weatherNeedMultiplier = getWeatherModifier(state, config, 'needDecay', 1);
   const weatherNeedByNeed = getWeatherNeedMultipliers(state, config);
   const mythNeedMultiplier = getMythMultiplier(state, config, 'needDecay', 1);
+  const festivalNeedMultiplier = getFestivalModifier(state, 'needDecay', 1);
   const stormColdActive = state.weather
     ? state.weather.type === 'storm' || state.weather.type === 'cold'
     : false;
@@ -60,7 +63,8 @@ function stepState(state, config, runtime, action) {
         * weatherNeedMultiplier
         * endgameDifficulty
         * clanNeedMultiplier
-        * mythNeedMultiplier,
+        * mythNeedMultiplier
+        * festivalNeedMultiplier,
       weatherNeedByNeed,
     );
     consumeResources(dwarf, state, config);

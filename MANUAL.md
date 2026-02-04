@@ -30,20 +30,21 @@ The tick order in code lives in `src/simulation/index.js`.
 1. Update **season** (`season.js`).
 2. Update **weather** (`weather.js`).
 3. Check raid start conditions (`raids.js`).
-4. For each dwarf:
+4. Update festivals (`festivals.js`).
+5. For each dwarf:
    - Age + life stage updates (`population.js`).
    - Needs decay (season/weather modifiers).
    - Consume resources from stockpile when thresholds hit.
-5. Handle deaths, roles, housing, relationships, reproduction (`population.js`, `roles.js`).
-6. Village founding checks (`villages.js`).
-7. Assign jobs (`jobs.js`).
-8. Move and perform actions (`dwarf_actions.js`).
-9. Merchant update (`merchant.js`).
-10. Stockpile decay + terrain cooldown tick (`resources.js`, `terrain.js`).
-11. House storage + node regen (`resources.js`).
-12. Raid tick update (`raids.js`).
-13. Myth update (`myths.js`).
-14. Endgame cycle check (`endgame.js`).
+6. Handle deaths, roles, housing, relationships, reproduction (`population.js`, `roles.js`).
+7. Village founding checks (`villages.js`).
+8. Assign jobs (`jobs.js`).
+9. Move and perform actions (`dwarf_actions.js`).
+10. Merchant update (`merchant.js`).
+11. Stockpile decay + terrain cooldown tick (`resources.js`, `terrain.js`).
+12. House storage + node regen (`resources.js`).
+13. Raid tick update (`raids.js`).
+14. Myth update (`myths.js`).
+15. Endgame cycle check (`endgame.js`).
 
 **Tick flow diagram**
 
@@ -52,25 +53,27 @@ flowchart TD
   A[Tick start] --> B[Season update]
   B --> C[Weather update]
   C --> D[Raid start check]
-  D --> E[Per-dwarf: age + needs + consume]
-  E --> F[Population systems: deaths, roles, housing, relationships, reproduction]
-  F --> G[Village founding]
-  G --> H[Assign jobs]
-  H --> I[Process dwarf actions]
-  I --> J[Merchant update]
-  J --> K[Stockpile decay + terrain cooldown]
-  K --> L[House storage + node regen]
-  L --> M[Raid tick update]
-  M --> N[Myth update]
-  N --> O[Endgame cycle check]
-  O --> P[Render frame]
-  P --> Q[Wait tickMs, next tick]
+  D --> E[Festival update]
+  E --> F[Per-dwarf: age + needs + consume]
+  F --> G[Population systems: deaths, roles, housing, relationships, reproduction]
+  G --> H[Village founding]
+  H --> I[Assign jobs]
+  I --> J[Process dwarf actions]
+  J --> K[Merchant update]
+  K --> L[Stockpile decay + terrain cooldown]
+  L --> M[House storage + node regen]
+  M --> N[Raid tick update]
+  N --> O[Myth update]
+  O --> P[Endgame cycle check]
+  P --> Q[Render frame]
+  Q --> R[Wait tickMs, next tick]
 ```
 
 Notes:
 
 - The **render** step happens outside the simulation in `app.js` after `stepState(...)`.
-- AI actions are sampled in `app.js` every `ai.stepTicks` and passed into `assignJobs(...)`.
+- AI actions are sampled in `app.js` every `ai.stepTicks` and passed into the simulation for
+  job priorities and festival intent.
 - Endgame resets replace the state in place; active myths are cleared, traditions persist.
 - When you add new systems, decide where they fit in this order and which modifiers they should respect.
 
@@ -236,6 +239,10 @@ Notes:
 - `season.js`
   - Cycles seasons using `seasons.order` and `seasons.durationTicks`.
   - Per-season modifiers live in `seasons.modifiers.<season>` (needs, gathering, regen, reproduction, fields).
+- `festivals.js`
+  - AI-triggered seasonal festivals that consume stockpile costs for short-term boosts.
+  - Eligibility uses `festivals.seasonWindowTicks`, `festivals.seasonNames`, and guardrails.
+  - Effects are multiplier-based (`festivals.effects.needDecay`, `festivals.effects.gatherYield`).
 - `weather.js`
   - Picks weather types by weighted probability + `weather.seasonBias`.
   - Duration is controlled by `weather.durationTicks` or per-state overrides.
@@ -397,10 +404,10 @@ Everything under `src/render/` is pure rendering: no simulation changes.
 ### JS inference
 
 - `src/ai/observation.js`
-  - Converts state to observation features (stockpile ratios, node ratios, needs, weather, raids, housing, ruins, myths).
+  - Converts state to observation features (stockpile ratios, node ratios, needs, weather, raids, housing, ruins, myths, festivals).
   - Adds normalized ratios and flags used by the policy feature list.
 - `src/ai/policy.js`
-  - Loads JSON policies (linear or MLP) and outputs action weights.
+  - Loads JSON policies (linear or MLP) and outputs action weights plus festival intent.
   - Feature order is defined by `featureNames`; defaults live in the file.
 - `src/ai_policy.js`
   - Thin wrapper used by `app.js`.

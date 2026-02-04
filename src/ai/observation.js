@@ -2,6 +2,7 @@
 
 const { clamp } = require('../utils');
 const { getStockpileTarget } = require('../simulation/resources');
+const { getFestivalObservation } = require('../simulation/festivals');
 const { getClanList, getClanShare } = require('../clans');
 
 // Build a full observation object from the current state.
@@ -22,6 +23,7 @@ function buildObservation(state, config) {
   const raidObservation = getRaidObservation(state, config, housingStats);
   const ruinsObservation = buildRuinsObservation(state, config);
   const mythsObservation = buildMythsObservation(state, config);
+  const festivalObservation = getFestivalObservation(state, config);
   const clanShares = getClanShares(state, config);
 
   return {
@@ -36,6 +38,7 @@ function buildObservation(state, config) {
     raid: raidObservation,
     ruins: ruinsObservation,
     myths: mythsObservation,
+    festival: festivalObservation,
     clanShares,
   };
 }
@@ -71,6 +74,11 @@ function buildFeatures(obs, resource, config, featureNames) {
   const mythsActiveRatio = clamp(Number(myths.activeRatio ?? 0), 0, 1);
   const mythsSeverity = clamp(Number(myths.severity ?? 0), 0, 1);
   const mythFlags = myths.flags || {};
+  const festival = obs.festival || {};
+  const festivalActive = festival.active ? 1 : 0;
+  const festivalTimeLeft = clamp(Number(festival.timeLeft ?? 0), 0, 1);
+  const festivalEligible = clamp(Number(festival.eligible ?? 0), 0, 1);
+  const festivalCostRatio = clamp(Number(festival.costRatio ?? 0), 0, 1);
   const clanShares = obs.clanShares || {};
 
   const values = {
@@ -95,6 +103,10 @@ function buildFeatures(obs, resource, config, featureNames) {
     ruinsArtifacts,
     mythsActiveRatio,
     mythsSeverity,
+    festivalActive,
+    festivalTimeLeft,
+    festivalEligible,
+    festivalCostRatio,
   };
   const mythDefs = (config && config.myths && config.myths.definitions) || {};
   for (const mythId of Object.keys(mythDefs)) {

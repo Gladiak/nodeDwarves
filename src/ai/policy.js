@@ -23,6 +23,10 @@ const DEFAULT_FEATURES = [
   'seasonEligible',
   'mythsActiveRatio',
   'mythsSeverity',
+  'festivalActive',
+  'festivalTimeLeft',
+  'festivalEligible',
+  'festivalCostRatio',
   'mythFlag_rationing_oath',
   'mythFlag_blood_vigil',
   'mythFlag_relic_fever',
@@ -94,14 +98,21 @@ function selectAction(state, config, policy) {
     if (!output || output.length < resources.length) {
       return null;
     }
+    let festivalIntent;
     for (let i = 0; i < resources.length; i += 1) {
       const resource = resources[i];
       const value = clamp(Number(output[i] ?? 0), -1, 1);
-      weights[resource] = scaleAction(value, policy.minWeight, policy.maxWeight);
+      const scaled = scaleAction(value, policy.minWeight, policy.maxWeight);
+      if (resource === 'festival') {
+        festivalIntent = scaled;
+        continue;
+      }
+      weights[resource] = scaled;
     }
-    return { weights };
+    return festivalIntent !== undefined ? { weights, festivalIntent } : { weights };
   }
 
+  let festivalIntent;
   for (const resource of resources) {
     const featureValues = buildFeatures(obs, resource, config, policy.featureNames);
     const params = policy.weights[resource] || [];
@@ -110,10 +121,15 @@ function selectAction(state, config, policy) {
     for (let i = 0; i < featureValues.length; i += 1) {
       mean += Number(params[i] || 0) * featureValues[i];
     }
-    weights[resource] = clamp(mean, policy.minWeight, policy.maxWeight);
+    const scaled = clamp(mean, policy.minWeight, policy.maxWeight);
+    if (resource === 'festival') {
+      festivalIntent = scaled;
+      continue;
+    }
+    weights[resource] = scaled;
   }
 
-  return { weights };
+  return festivalIntent !== undefined ? { weights, festivalIntent } : { weights };
 }
 
 // Build a flattened observation vector for all resources.

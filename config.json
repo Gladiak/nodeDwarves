@@ -1275,6 +1275,10 @@
           "raidDefense",
           "housingShortage",
           "seasonEligible",
+          "festivalActive",
+          "festivalTimeLeft",
+          "festivalEligible",
+          "festivalCostRatio",
           "ruinsActive",
           "ruinsCooldown",
           "ruinsProgress",
@@ -2351,6 +2355,29 @@
         "reproductionChance": 0.85,
         "fieldRegen": 0.7
       }
+    }
+  },
+  "festivals": {
+    "enabled": true,
+    "label": "Seasonal Festival",
+    "seasonNames": ["spring", "autumn"],
+    "seasonWindowTicks": 20,
+    "durationTicks": 40,
+    "cooldownSeasons": 0,
+    "minPopulation": 12,
+    "blockDuringRaid": true,
+    "minStockpileRatios": {},
+    "costs": {
+      "beer": 400
+    },
+    "minCostRatio": 2.5,
+    "effects": {
+      "needDecay": 0.93,
+      "gatherYield": 1.12
+    },
+    "ai": {
+      "enabled": true,
+      "intentThreshold": 0.6
     }
   },
   "weather": {
