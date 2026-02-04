@@ -226,6 +226,8 @@ npm install
 npm start
 ```
 
+Press `Space` to pause/resume the simulation.
+
 ## AI mode (Python) 🤖
 
 The AI lives in Python (PyTorch PPO) and talks to the simulation over

@@ -85,6 +85,7 @@ Notes:
   - Optionally loads an AI policy when `--ai <path>` or env `AI_POLICY` is provided.
   - Tick pacing uses `display.tickMs`; hard stop uses `simulation.maxTicks`.
   - AI action cadence uses `ai.stepTicks` to throttle policy calls.
+  - Space toggles pause/resume during the live simulation.
 - `src/config.js`
   - Thin JSON loader for configuration.
 - `src/runtime.js`
