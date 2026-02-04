@@ -12,6 +12,7 @@ alive while you watch the chaos unfold in ASCII.
 - 🗝️ End-game ruins expeditions with artifacts, set bonuses, and guardian threats.
 - 🔁 End-game cycles: once all artifacts are found and a cooldown window passes, the sim restarts on a new map, tracks completed runs, and can scale difficulty per cycle.
 - ❄️ Seasons + housing effects (bonding, winter penalties).
+- 🎊 Seasonal festivals: the AI spends beer in spring/autumn windows to boost morale and gather yield.
 - 🐾 Wildlife migrations + pasture grazing: herds roam seasonally, hunters take risks, pastures regrow.
 - 🌦️ Dynamic weather cycle that reshapes needs, gathering, and regeneration.
 - 🎓 PPO training in Python with JS-only inference.
@@ -23,7 +24,6 @@ alive while you watch the chaos unfold in ASCII.
 Have a wild idea? Jump in and ship it — pick one of these and make the colony stronger.
 
 - Faction diplomacy and tribute: neighbor demands or aid requests; reputation shifts merchant rates and raid pressure.
-- Seasonal festivals or rituals that trade stockpile costs for morale/production boosts.
 - Simple disease system tied to crowding and hygiene.
 - Refugees and deserters: population waves triggered by morale, housing, and raid safety; handled as deterministic events with caps.
 - Mining hazards and supports: deeper mines boost rare drops but add cave-in risk; support structures mitigate danger.
@@ -69,6 +69,7 @@ Have a wild idea? Jump in and ship it — pick one of these and make the colony 
 - 🌾 Fields regenerate based on water availability and seasonal limits.
 - 🐾 Pastures provide stable grazing stock that regrows over time, while wildlife herds cross the map in spring/autumn and can be hunted for food with risk.
 - 🌤️ Seasons apply modifiers to needs, gather speed, regen, and reproduction.
+- 🎊 Seasonal festivals can trigger in spring/autumn windows, spending beer for morale and gather yield boosts.
 - 🎨 Optional seasonal palettes recolor terrain in patchy waves during season transitions.
 - 🌧️ Weather cycles (clear, rain, storm, drought, cold) add extra modifiers.
 - 🗿 Myths: rare global modifiers born from repeated crises or successes; traditions persist between endgame cycles within the same run.
@@ -225,6 +226,8 @@ npm install
 npm start
 ```
 
+Press `Space` to pause/resume the simulation.
+
 ## AI mode (Python) 🤖
 
 The AI lives in Python (PyTorch PPO) and talks to the simulation over
@@ -264,8 +267,6 @@ for a sub-5-minute run on a typical 8-core laptop: 8 workers, 200 episodes,
 max_steps=1600, step_ticks=2, and a difficulty ramp that reaches 1.0 by episode
 120. Eval runs every 50 episodes at difficulty 1.0 so the best model and meta
 are saved during the run.
-All presets keep eval cadence aligned with console logging and summary logs
-(eval_every = log_every, SUMMARY_LOG_EVERY = log_every).
 
 `ai:train:fast:quality` runs the fast phase above followed by a short `--full-sim`
 finetune pass (40 episodes, max_steps=1800, difficulty fixed to 1.0) with eval
@@ -313,10 +314,8 @@ snapshot is saved to `ai.training.trainer.bestModelPath` (default
 `models/policy_best.json`) and its score is tracked in
 `ai.training.trainer.bestModelMetaPath` (default `models/policy_best.meta.json`).
 Training is incremental by default when `ai.training.trainer.resumeFromBest` is
-enabled. Console logs stay compact, while a summary log is written to
-`debug/run_*/summary.log` every 500 episodes (one line per window) with a legend.
-Detailed snapshots are written to `debug/run_*/detail_ep*.log` only on notable
-events (best eval, eval regression, scenario shift).
+enabled. Training output is intentionally quiet; progress is tracked via saved
+models and best-eval metadata.
 If you change observation features (via `ai.training.trainer.featureNames`),
 training must restart with `--fresh`.
 Observation features live in `src/ai/observation.js`, and policy inference lives
@@ -333,7 +332,7 @@ training:
 - Consider a curriculum: start with clans disabled or reduced bonuses, then ramp up.
 - Use slightly higher entropy early to explore clan/role/job combinations.
 - Observations include clan shares and ruins status (active, cooldown, progress, artifacts); if you change them, retrain with `--fresh`.
-- Reward shaping can emphasize ruins outcomes via `ai.reward.ruinsSuccess`, `ai.reward.ruinsArtifact`, `ai.reward.ruinsFailure`, and `ai.reward.ruinsRoomClear`.
+- Reward shaping can emphasize ruins outcomes via `ai.reward.ruinsSuccess`, `ai.reward.ruinsArtifact`, `ai.reward.ruinsFailure`, and `ai.reward.ruinsRoomClear`, plus festivals via `ai.reward.festival_active`, `ai.reward.festival_start`, and `ai.reward.festival_intent`.
 
 ## Configuration 🧰
 
@@ -433,8 +432,6 @@ You can optionally ramp a scenario's weight with difficulty using
 - If `ai.training.evalScenarios` is set, evaluation splits the eval episodes
   across those scenarios for a balanced score.
 - Presets like `ruins_focus` and `clan_*` bias ruins pacing and clan mixes to build long-horizon competence.
-- The debug log includes a "Scenario mix" section that shows how often each
-  preset appeared in the window.
 
 See [Training overrides (performance)](docs/TRAINING_OVERRIDES.md).
 
@@ -497,6 +494,7 @@ Houses always render with `symbols.house`, while the HUD lists house levels with
     │   ├── dwarf_actions.js
     │   ├── endgame.js
     │   ├── events.js
+    │   ├── festivals.js
     │   ├── index.js
     │   ├── jobs.js
     │   ├── merchant.js

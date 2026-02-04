@@ -5,6 +5,7 @@ const { getClanEffects } = require('../clans');
 const { getSeasonModifier } = require('./season');
 const { getWeatherModifier } = require('./weather');
 const { getMythMultiplier } = require('./myths');
+const { getFestivalModifier } = require('./festivals');
 const { getTerrainResourceRatio, pickTerrainResourceTarget } = require('./terrain');
 
 // Regenerate resource nodes based on config, season, and weather multipliers.
@@ -454,7 +455,8 @@ function getGatherYield(config, resourceId, node, state) {
   const baseYield = Math.max(1, Number(value || 1));
   const multiplier = getSeasonModifier(state, 'gatherYield', 1)
     * getWeatherModifier(state, config, 'gatherYield', 1)
-    * getMythMultiplier(state, config, 'gatherYield', 1);
+    * getMythMultiplier(state, config, 'gatherYield', 1)
+    * getFestivalModifier(state, 'gatherYield', 1);
   const toolMultiplier = getToolMultiplier(state, config, resourceId);
   const forgeMultiplier = getForgeMultiplier(state, config);
   const beerMultiplier = getBeerProductionMultiplier(state, config, resourceId);

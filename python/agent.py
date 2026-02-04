@@ -47,6 +47,7 @@ def main():
             obs = response.get("obs", {})
             action = {
                 "weights": choose_weights(obs),
+                "festivalIntent": 0.0,
                 "ticks": step_ticks,
             }
             response = send(proc, {"cmd": "step", "action": action})

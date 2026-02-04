@@ -34,14 +34,20 @@ DEFAULT_FEATURE_NAMES = [
     "raidDefense",
     "housingShortage",
     "seasonEligible",
+    "festivalActive",
+    "festivalTimeLeft",
+    "festivalEligible",
+    "festivalCostRatio",
 ]
 FEATURE_NAME_SET = set(DEFAULT_FEATURE_NAMES)
+FESTIVAL_ACTION_ID = "festival"
 
 DEBUG_LOG_DIRNAME = "debug"
 DEBUG_LOG_EVERY = 500
 SUMMARY_LOG_EVERY = max(1, int(os.getenv("SUMMARY_LOG_EVERY", DEBUG_LOG_EVERY)))
 LOG_RATE = os.getenv("TRAIN_LOG_RATE", "").strip().lower() in ("1", "true", "yes", "on")
 DEBUG_LOG_KEEP = 5
+TRAINING_LOGS_ENABLED = False
 DETAIL_EVAL_REGRESSION_ABS = 25.0
 DETAIL_EVAL_REGRESSION_REL = 0.01
 DETAIL_SCENARIO_SHIFT = 0.2
@@ -907,6 +913,30 @@ def get_resources_from_config(config):
     return []
 
 
+def append_festival_action(resources, config):
+    festivals = (config or {}).get("festivals") or {}
+    if festivals.get("enabled", True) is False:
+        return resources
+    ai = festivals.get("ai") or {}
+    if ai.get("enabled", True) is False:
+        return resources
+    if FESTIVAL_ACTION_ID in resources:
+        return resources
+    return list(resources) + [FESTIVAL_ACTION_ID]
+
+
+def split_action_payload(action, resources):
+    weights = {}
+    festival_intent = None
+    for idx, resource in enumerate(resources):
+        value = float(action[idx])
+        if resource == FESTIVAL_ACTION_ID:
+            festival_intent = value
+        else:
+            weights[resource] = value
+    return weights, festival_intent
+
+
 def get_scenario_definitions(config):
     if not isinstance(config, dict):
         return []
@@ -1314,6 +1344,11 @@ def build_features(obs, resource, feature_names):
     season_eligible = clamp(float(raid.get("seasonEligible", 0.0)), 0.0, 1.0)
     housing_ratio = float(obs.get("housingRatio", 0.0))
     housing_shortage = clamp(1.0 - housing_ratio, 0.0, 1.0)
+    festival = obs.get("festival") or {}
+    festival_active = 1.0 if festival.get("active") else 0.0
+    festival_time_left = clamp(float(festival.get("timeLeft", 0.0)), 0.0, 1.0)
+    festival_eligible = clamp(float(festival.get("eligible", 0.0)), 0.0, 1.0)
+    festival_cost_ratio = clamp(float(festival.get("costRatio", 0.0)), 0.0, 1.0)
 
     feature_map = {
         "shortage": shortage,
@@ -1331,6 +1366,10 @@ def build_features(obs, resource, feature_names):
         "raidDefense": raid_defense,
         "housingShortage": housing_shortage,
         "seasonEligible": season_eligible,
+        "festivalActive": festival_active,
+        "festivalTimeLeft": festival_time_left,
+        "festivalEligible": festival_eligible,
+        "festivalCostRatio": festival_cost_ratio,
     }
 
     return [float(feature_map.get(name, 0.0)) for name in feature_names]
@@ -1525,8 +1564,10 @@ def run_episode(
                 deterministic=False,
             )
             action = action_tensor.squeeze(0).tolist()
-            weights = {resource: float(action[idx]) for idx, resource in enumerate(resources)}
+            weights, festival_intent = split_action_payload(action, resources)
             action_payload = {"weights": weights, "ticks": step_ticks}
+            if festival_intent is not None:
+                action_payload["festivalIntent"] = festival_intent
             if step == max_steps - 1:
                 action_payload["debug"] = True
             response = send(proc, {"cmd": "step", "action": action_payload})
@@ -1538,6 +1579,8 @@ def run_episode(
             population_balance_sum += float(obs.get("populationBalance", 0.0) or 0.0)
             ratios = obs.get("stockpileRatio", {}) or {}
             for resource in resources:
+                if resource == FESTIVAL_ACTION_ID:
+                    continue
                 ratio = float(ratios.get(resource, 1.0) or 0.0)
                 shortage_sum[resource] += clamp(1.0 - ratio, 0.0, 1.0)
 
@@ -1656,8 +1699,11 @@ def evaluate(
                         deterministic=True,
                     )
                     action = action_tensor.squeeze(0).tolist()
-                    weights = {resource: float(action[idx]) for idx, resource in enumerate(resources)}
-                    response = send(proc, {"cmd": "step", "action": {"weights": weights, "ticks": step_ticks}})
+                    weights, festival_intent = split_action_payload(action, resources)
+                    action_payload = {"weights": weights, "ticks": step_ticks}
+                    if festival_intent is not None:
+                        action_payload["festivalIntent"] = festival_intent
+                    response = send(proc, {"cmd": "step", "action": action_payload})
                     reward = float(response.get("reward", 0.0))
                     total_reward += reward
                     total_steps += 1
@@ -2114,6 +2160,8 @@ def main():
     if not resources:
         raise SystemExit("No resources available for training. Check config.json.")
 
+    resources = append_festival_action(resources, config)
+
     feature_names = args.feature_names or list(DEFAULT_FEATURE_NAMES)
     input_size = len(resources) * len(feature_names)
     action_size = len(resources)
@@ -2166,15 +2214,18 @@ def main():
     detail_prefix = (args.debug_prefix or "").strip()
     if detail_prefix:
         detail_prefix = detail_prefix.replace(os.sep, "_")
-    debug_run_dir, summary_log_path = init_debug_run(
-        run_dir=args.debug_run_dir,
-        summary_name=args.debug_summary_name,
-    )
+    debug_run_dir = None
+    summary_log_path = None
+    if TRAINING_LOGS_ENABLED:
+        debug_run_dir, summary_log_path = init_debug_run(
+            run_dir=args.debug_run_dir,
+            summary_name=args.debug_summary_name,
+        )
     summary_log_handle = None
     scenario_sampling = get_scenario_sampling(config)
     scenario_sampler = init_scenario_sampler(config, scenario_defs)
 
-    if summary_log_path:
+    if TRAINING_LOGS_ENABLED and summary_log_path:
         try:
             summary_log_handle = open(summary_log_path, "a", encoding="utf-8")
             write_summary_header(
@@ -2319,12 +2370,13 @@ def main():
                 steps_window += steps
                 births_window += int(info.get("births", 0))
                 deaths_window += int(info.get("deaths", 0))
-                accumulate_debug(debug_window, info)
-                file_reward_window += reward
-                file_steps_window += steps
-                file_births_window += int(info.get("births", 0))
-                file_deaths_window += int(info.get("deaths", 0))
-                accumulate_debug(file_debug_window, info)
+                if TRAINING_LOGS_ENABLED:
+                    accumulate_debug(debug_window, info)
+                    file_reward_window += reward
+                    file_steps_window += steps
+                    file_births_window += int(info.get("births", 0))
+                    file_deaths_window += int(info.get("deaths", 0))
+                    accumulate_debug(file_debug_window, info)
 
                 scenario_name = extract_scenario_name(info)
                 episode_metrics = info.get("episodeMetrics") or {}
@@ -2337,7 +2389,8 @@ def main():
                 ):
                     scenario_sampler["last_update"] = next_expected
                     if update_scenario_weights(scenario_sampler, scenario_defs):
-                        pending_detail_events.append("scenario_weights")
+                        if TRAINING_LOGS_ENABLED:
+                            pending_detail_events.append("scenario_weights")
 
                 if batch_episode_count >= args.batch_episodes:
                     entropy_progress = min(1.0, next_expected / max(1, args.entropy_ramp))
@@ -2383,22 +2436,23 @@ def main():
                     or next_expected % args.log_every == 0
                     or next_expected == args.episodes
                 ):
-                    window_count = next_expected - window_start + 1
-                    eps_per_min = None
-                    if LOG_RATE:
-                        elapsed = time.perf_counter() - window_start_time
-                        eps_per_min = window_count / elapsed * 60.0 if elapsed > 0 else 0.0
-                    avg_reward = reward_window / window_count
-                    avg_steps = steps_window / window_count
-                    avg_births = births_window / window_count
-                    avg_deaths = deaths_window / window_count
-                    rate_label = f" eps_pm={eps_per_min:.1f} " if eps_per_min is not None else ""
-                    print(
-                        f"\nepisode={next_expected} avg_reward={avg_reward:.2f} avg_steps={avg_steps:.1f} "
-                        f"avg_births={avg_births:.2f} avg_deaths={avg_deaths:.2f} "
-                        f"{rate_label}lr={optimizer.param_groups[0]['lr']:.6f} diff={difficulty:.2f} "
-                        f"tick={info.get('tick')} pop={info.get('population')}"
-                    )
+                    if TRAINING_LOGS_ENABLED:
+                        window_count = next_expected - window_start + 1
+                        eps_per_min = None
+                        if LOG_RATE:
+                            elapsed = time.perf_counter() - window_start_time
+                            eps_per_min = window_count / elapsed * 60.0 if elapsed > 0 else 0.0
+                        avg_reward = reward_window / window_count
+                        avg_steps = steps_window / window_count
+                        avg_births = births_window / window_count
+                        avg_deaths = deaths_window / window_count
+                        rate_label = f" eps_pm={eps_per_min:.1f} " if eps_per_min is not None else ""
+                        print(
+                            f"\nepisode={next_expected} avg_reward={avg_reward:.2f} avg_steps={avg_steps:.1f} "
+                            f"avg_births={avg_births:.2f} avg_deaths={avg_deaths:.2f} "
+                            f"{rate_label}lr={optimizer.param_groups[0]['lr']:.6f} diff={difficulty:.2f} "
+                            f"tick={info.get('tick')} pop={info.get('population')}"
+                        )
                     save_policy(
                         args.model_path,
                         model,
@@ -2418,7 +2472,8 @@ def main():
                     window_start_time = time.perf_counter()
 
                 if (
-                    summary_log_handle
+                    TRAINING_LOGS_ENABLED
+                    and summary_log_handle
                     and (next_expected % SUMMARY_LOG_EVERY == 0 or next_expected == args.episodes)
                 ):
                     file_window_count = next_expected - file_window_start + 1
@@ -2542,11 +2597,12 @@ def main():
                         stats.get("avg_ticks", 0.0),
                         args.eval_score,
                     )
-                    print(
-                        f"eval episode={next_expected} avg_reward={stats['avg_reward']:.2f} "
-                        f"avg_steps={stats['avg_steps']:.1f} avg_births={stats['avg_births']:.2f} "
-                        f"avg_deaths={stats['avg_deaths']:.2f} score={eval_score:.3f}"
-                    )
+                    if TRAINING_LOGS_ENABLED:
+                        print(
+                            f"eval episode={next_expected} avg_reward={stats['avg_reward']:.2f} "
+                            f"avg_steps={stats['avg_steps']:.1f} avg_births={stats['avg_births']:.2f} "
+                            f"avg_deaths={stats['avg_deaths']:.2f} score={eval_score:.3f}"
+                        )
                     if last_eval_score is not None:
                         drop = last_eval_score - eval_score
                         threshold = max(
@@ -2554,7 +2610,8 @@ def main():
                             abs(last_eval_score) * DETAIL_EVAL_REGRESSION_REL,
                         )
                         if drop >= threshold:
-                            pending_detail_events.append(f"eval_regression={drop:.2f}")
+                            if TRAINING_LOGS_ENABLED:
+                                pending_detail_events.append(f"eval_regression={drop:.2f}")
                     last_eval_score = eval_score
                     if args.best_model_path:
                         if best_eval is None or eval_score > best_eval:
@@ -2580,8 +2637,9 @@ def main():
                                 f"best eval episode={next_expected} score={best_eval:.3f} "
                                 f"avg_reward={stats['avg_reward']:.2f} saved={args.best_model_path}"
                             )
-                            print(tint(line, BEST_EVAL_COLOR))
-                            pending_detail_events.append(f"best_eval={best_eval:.2f}")
+                            if TRAINING_LOGS_ENABLED:
+                                print(tint(line, BEST_EVAL_COLOR))
+                                pending_detail_events.append(f"best_eval={best_eval:.2f}")
 
                 next_expected += 1
 

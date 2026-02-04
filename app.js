@@ -15,6 +15,7 @@ const policyPath = resolvePolicyPath(config);
 const policy = policyPath ? loadPolicy(policyPath) : null;
 let currentAction = null;
 let nextActionTick = 0;
+let paused = false;
 
 const tickMs = Number(config.display.tickMs || 200);
 const maxTicks = Number(config.simulation.maxTicks || 0);
@@ -34,6 +35,7 @@ setupResizeHandler(config.display, () => {
 
 hideCursor();
 clearScreen();
+setupInput();
 loop();
 
 // Function: loop.
@@ -42,12 +44,15 @@ function loop() {
     return;
   }
 
-  if (policy && state.tick >= nextActionTick) {
-    currentAction = selectAction(state, config, policy);
-    nextActionTick = state.tick + getActionTicks(config);
+  if (!paused) {
+    if (policy && state.tick >= nextActionTick) {
+      currentAction = selectAction(state, config, policy);
+      nextActionTick = state.tick + getActionTicks(config);
+    }
+
+    stepState(state, config, runtime, currentAction);
   }
 
-  stepState(state, config, runtime, currentAction);
   const frame = renderFrame(state, config, runtime);
   moveCursorHome();
   process.stdout.write(frame);
@@ -63,6 +68,10 @@ function loop() {
 
 // Function: shutdown.
 function shutdown() {
+  if (process.stdin.isTTY) {
+    process.stdin.setRawMode(false);
+    process.stdin.pause();
+  }
   showCursor();
   process.stdout.write('\n');
   process.exit(0);
@@ -91,4 +100,27 @@ function getActionTicks(config) {
   const aiConfig = config.ai || {};
   const ticks = Number(aiConfig.stepTicks || 1);
   return Math.max(1, ticks);
+}
+
+// Function: setupInput.
+function setupInput() {
+  if (!process.stdin.isTTY) {
+    return;
+  }
+  process.stdin.setRawMode(true);
+  process.stdin.resume();
+  process.stdin.on('data', (chunk) => {
+    const text = chunk.toString('utf8');
+    for (const char of text) {
+      if (char === ' ') {
+        paused = !paused;
+        return;
+      }
+      if (char === '\u0003') {
+        running = false;
+        shutdown();
+        return;
+      }
+    }
+  });
 }
