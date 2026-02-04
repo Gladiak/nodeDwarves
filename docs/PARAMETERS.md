@@ -25,6 +25,16 @@ Display and layout:
 - `display.frame.topRight`: frame top-right corner character.
 - `display.frame.bottomLeft`: frame bottom-left corner character.
 - `display.frame.bottomRight`: frame bottom-right corner character.
+- `display.inspect_panel.enabled`: enable the dwarf inspect panel overlay (toggle with `i`).
+- `display.inspect_panel.width`: inspect panel width in characters.
+- `display.inspect_panel.height`: inspect panel height in lines.
+- `display.legend_panel.enabled`: enable the legend overlay panel (toggle with `l`).
+- `display.legend_panel.width`: legend panel width in characters.
+- `display.legend_panel.height`: legend panel height in lines.
+- `display.save_panel.enabled`: enable the map-export confirmation panel.
+- `display.save_panel.width`: save panel width in characters.
+- `display.save_panel.height`: save panel height in lines.
+- `display.save_panel.autoCloseMs`: auto-close delay for the save panel in milliseconds.
 - `display.terrain.enabled`: enable randomized valley terrain background for the map.
 - `display.terrain.seed`: seed for terrain generation (`0` = random each run).
 - `display.terrain.scale`: noise scale (lower = larger blobs).

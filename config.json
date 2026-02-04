@@ -7,8 +7,8 @@
     "maxHeight": 60,
     "tickMs": 20,
     "header": {
-      "enabled": true,
-      "height": 1,
+      "enabled": false,
+      "height": 0,
       "title": "~ ⚒️ 🍺 ~ NodeDwarves Simulation: Dig Deep, Drink Hard ~ 🍺 ⚒️ ~"
     },
     "footer": {
@@ -30,6 +30,22 @@
       "topRight": "╗",
       "bottomLeft": "╚",
       "bottomRight": "╝"
+    },
+    "inspect_panel": {
+      "enabled": true,
+      "width": 90,
+      "height": 40
+    },
+    "legend_panel": {
+      "enabled": true,
+      "width": 88,
+      "height": 22
+    },
+    "save_panel": {
+      "enabled": true,
+      "width": 64,
+      "height": 7,
+      "autoCloseMs": 3000
     },
     "terrain": {
       "enabled": true,

@@ -4,9 +4,12 @@ const { padRight, clamp } = require('../utils');
 const { buildGridBase } = require('./grid');
 const { buildHeaderLines } = require('./header');
 const { buildFooterLines, getBeastSymbol } = require('./legend');
+const { buildLegendPanel, applyLegendPanel } = require('./legend_panel');
 const { buildHudLines } = require('./hud');
 const { getColorConfig, applyColor } = require('./colors');
 const { formatMapLine } = require('./format');
+const { buildInspectPanel, applyInspectPanel } = require('./inspect');
+const { buildSavePanel, applySavePanel } = require('./save_panel');
 
 // Render a full frame including map, HUD, header, and footer.
 function renderFrame(state, config, runtime) {
@@ -88,6 +91,21 @@ function renderFrame(state, config, runtime) {
     if (grid[merchant.y] && grid[merchant.y][merchant.x] !== undefined) {
       grid[merchant.y][merchant.x] = applyColor(symbols.merchant || 'M', 'merchant', colors);
     }
+  }
+
+  const legendPanel = buildLegendPanel(state, config, runtime);
+  if (legendPanel) {
+    applyLegendPanel(grid, legendPanel, colors);
+  }
+
+  const inspectPanel = buildInspectPanel(state, config, runtime);
+  if (inspectPanel) {
+    applyInspectPanel(grid, inspectPanel, colors);
+  }
+
+  const savePanel = buildSavePanel(state, config, runtime);
+  if (savePanel) {
+    applySavePanel(grid, savePanel, colors);
   }
 
   const hudLines = runtime.hudEnabled ? buildHudLines(state, config, runtime) : [];

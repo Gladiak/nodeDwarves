@@ -86,6 +86,9 @@ Notes:
   - Tick pacing uses `display.tickMs`; hard stop uses `simulation.maxTicks`.
   - AI action cadence uses `ai.stepTicks` to throttle policy calls.
   - Space toggles pause/resume during the live simulation.
+  - Press `i` to open/close the dwarf inspect panel (works during pause or live); use `←`/`→` to browse spawn order.
+  - Press `l` to toggle the legend overlay panel (works during pause or live).
+  - Press `m` to export a map snapshot using the current season styling.
 - `src/config.js`
   - Thin JSON loader for configuration.
 - `src/runtime.js`
@@ -373,6 +376,21 @@ Everything under `src/render/` is pure rendering: no simulation changes.
     and HUD width if you target a different size.
   - Places nodes, structures, dwarves, merchant, and raid beasts on the grid.
   - Selects a stable subset of dwarves to keep the map readable (`display.dwarves.maxVisible`).
+  - Applies the dwarf inspect overlay when `display.inspect_panel.enabled` is true.
+  - Applies the map-save confirmation overlay when `display.save_panel.enabled` is true.
+
+- `render/inspect.js`
+  - Builds the ASCII inspect panel overlay (box, content, controls) and draws it onto the grid.
+  - Panel size is controlled by `display.inspect_panel.width`/`height`.
+  - Lore content is deterministic and pulled from `src/dwarf_lore.js` (epithet, title, heraldry, saga).
+
+- `render/legend_panel.js`
+  - Builds the legend overlay panel (legend and map key sections) and draws it onto the grid.
+  - Panel size is controlled by `display.legend_panel.width`/`height`.
+
+- `render/save_panel.js`
+  - Builds the map-export confirmation modal and draws it onto the grid.
+  - Panel size is controlled by `display.save_panel.width`/`height`.
 
 - `render/grid.js`
   - Builds the base grid from terrain symbols.
@@ -393,7 +411,8 @@ Everything under `src/render/` is pure rendering: no simulation changes.
   - World HUD includes the current village count.
 
 - `render/legend.js`
-  - Footer legend built from `config.json` symbols and resource nodes.
+  - Footer controls are built for `Space`, `l`, `i`, and `m`.
+  - Legend/map entries are built from `config.json` symbols and resource nodes for the overlay panel.
   - Uses `symbols.*` and `resources.labels.*` for readable names.
 
 - `render/colors.js` and `render/seasonal_colors.js`

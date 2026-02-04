@@ -1,8 +1,8 @@
 'use strict';
 
 const { padRight } = require('../utils');
-const { getColorConfig, colorizeLegend } = require('./colors');
-const { wrapLine } = require('./format');
+const { getColorConfig, colorizeLegend, applyColor } = require('./colors');
+const { wrapLine, fitLine } = require('./format');
 
 function toPascalCase(value) {
   const text = String(value || '').trim();
@@ -29,17 +29,12 @@ function pickSymbol(value, fallback) {
   return fallback;
 }
 
-// Build footer lines containing the legend and map key.
-function buildFooterLines(config, runtime) {
-  const height = Math.max(0, Number(runtime.footerHeight || 0));
-  if (height === 0) {
-    return [];
-  }
-
-  const width = Number(runtime.totalWidth || runtime.gridWidth || 0);
+// Build raw legend and terrain entries for reuse.
+function buildLegendSections(config, options = {}) {
+  const useColor = options.color !== false;
+  const detailed = options.detailed === true;
   const symbols = config.symbols || {};
   const colors = getColorConfig(config);
-  const legendParts = [];
   const resourceConfig = config.resources || {};
   const nodeConfig = resourceConfig.nodes || {};
   const structureConfig = config.structures || {};
@@ -47,17 +42,26 @@ function buildFooterLines(config, runtime) {
   const terrainSymbols = terrainConfig.symbols || {};
   const terrainEnabled = terrainConfig.enabled !== false && terrainSymbols && typeof terrainSymbols === 'object';
 
-  legendParts.push(colorizeLegend(`${symbols.dwarf || '@'} ${toPascalCase('dwarf')}`, 'dwarf', colors));
+  const formatEntry = (symbol, label, key) => {
+    const text = `${symbol} ${toPascalCase(label)}`;
+    if (detailed) {
+      return { text, colorKey: key || null };
+    }
+    return useColor ? colorizeLegend(text, key, colors) : text;
+  };
+
+  const legendParts = [];
+  legendParts.push(formatEntry(symbols.dwarf || '@', 'dwarf', 'dwarf'));
   for (const resource of Object.keys(nodeConfig)) {
     if (isTerrainMappedResource(resourceConfig, terrainSymbols, resource)) {
       continue;
     }
     const symbol = symbols[resource] || resource[0] || '?';
-    legendParts.push(colorizeLegend(`${symbol} ${getResourceLabel(resourceConfig, resource)}`, resource, colors));
+    legendParts.push(formatEntry(symbol, getResourceLabel(resourceConfig, resource), resource));
   }
   const houseLegend = symbols.house || getHouseLegendLabel(structureConfig.house);
   if (houseLegend) {
-    legendParts.push(colorizeLegend(`${houseLegend} ${toPascalCase('house')}`, 'house', colors));
+    legendParts.push(formatEntry(houseLegend, 'house', 'house'));
   }
   const structureWhitelist = new Set([
     'house',
@@ -85,30 +89,27 @@ function buildFooterLines(config, runtime) {
       continue;
     }
     const symbol = symbols[type] || symbols.structure || '#';
-    legendParts.push(colorizeLegend(`${symbol} ${toPascalCase(type)}`, type, colors));
+    legendParts.push(formatEntry(symbol, type, type));
   }
 
   const merchantConfig = config.merchant || {};
   if (merchantConfig.enabled !== false) {
-    legendParts.push(colorizeLegend(`${symbols.merchant || 'M'} ${toPascalCase('merchant')}`, 'merchant', colors));
+    legendParts.push(formatEntry(symbols.merchant || 'M', 'merchant', 'merchant'));
   }
 
   const raidConfig = config.raids || {};
   const beastSymbol = getBeastSymbol(config);
   if (raidConfig.enabled === true && beastSymbol) {
-    legendParts.push(colorizeLegend(`${beastSymbol} ${toPascalCase('beasts')}`, 'beast', colors));
+    legendParts.push(formatEntry(beastSymbol, 'beasts', 'beast'));
   }
 
   const wildlifeConfig = config.wildlife || {};
   if (wildlifeConfig.enabled === true && symbols.herd) {
-    legendParts.push(colorizeLegend(`${symbols.herd} ${toPascalCase('herds')}`, 'herd', colors));
+    legendParts.push(formatEntry(symbols.herd, 'herds', 'herd'));
   }
 
-  const legendLine = `Legend: ${legendParts.join('  ')}`;
-  const lines = [];
-  let terrainLine = '';
+  const terrainParts = [];
   if (terrainEnabled) {
-    const terrainParts = [];
     const forestSymbols = terrainConfig.forestSymbols || {};
     const hillSymbols = terrainConfig.hillSymbols || {};
     const mountainSymbols = terrainConfig.mountainSymbols || {};
@@ -117,7 +118,7 @@ function buildFooterLines(config, runtime) {
       if (!symbol) {
         return;
       }
-      terrainParts.push(colorizeLegend(`${symbol} ${toPascalCase(label)}`, colorKey, colors));
+      terrainParts.push(formatEntry(symbol, label, colorKey));
     };
 
     pushTerrain(terrainSymbols.river, 'river', 'terrain_river');
@@ -148,29 +149,213 @@ function buildFooterLines(config, runtime) {
     if (forestDense && forestDense !== forestNormal) {
       pushTerrain(forestDense, 'forest dense', colors.map.terrain_forest_dense ? 'terrain_forest_dense' : 'terrain_forest');
     }
+  }
 
-    if (terrainParts.length > 0) {
-      terrainLine = `Map: ${terrainParts.join('  ')}`;
+  return { legendParts, terrainParts };
+}
+
+// Build footer lines containing the legend and map key.
+function buildFooterLines(config, runtime) {
+  const height = Math.max(0, Number(runtime.footerHeight || 0));
+  if (height === 0) {
+    return [];
+  }
+
+  const width = Number(runtime.totalWidth || runtime.gridWidth || 0);
+  const colors = getColorConfig(config);
+  const lines = [];
+
+  const innerWidth = Math.max(0, width - 6);
+  const simTitle = resolveSimulationTitle(config);
+  const titleText = pickFitting([
+    '⟪ DWARVEN COMMANDS ⟫',
+    'ᚦ DWARVEN COMMANDS ᚦ',
+    'DWARVEN COMMANDS',
+    'COMMANDS',
+  ], innerWidth);
+  const controlsText = pickFitting([
+    'ᚠ [SPACE] PAUSE ᚱ [l] LEGEND ᚨ [i] DWARF INFO ᛗ [m] MAP SAVE ᚾ',
+    '[SPACE] PAUSE  ::  [l] LEGEND  ::  [i] DWARF INFO  ::  [m] MAP SAVE',
+    '[SPACE] PAUSE  [l] LEGEND  [i] DWARF INFO  [m] MAP SAVE',
+  ], innerWidth);
+  const mottoText = pickFitting(buildTitleOptions(simTitle), innerWidth);
+
+  if (height >= 3) {
+    lines.push(buildFrameLine(width, titleText, colors, false));
+    lines.push(buildContentLine(width, controlsText, colors));
+    lines.push(buildFrameLine(width, mottoText, colors, true));
+  } else if (height === 2) {
+    lines.push(buildContentLine(width, controlsText, colors));
+    lines.push(buildFrameLine(width, mottoText, colors, true));
+  } else {
+    const wrapped = wrapLine(controlsText, width);
+    lines.push(padRight(wrapped[0] || '', width));
+  }
+
+  while (lines.length < height) {
+    lines.push(padRight('', width));
+  }
+  return lines.slice(0, height);
+}
+
+// Pick the first option that fits the width.
+function pickFitting(options, width) {
+  const list = Array.isArray(options) ? options : [];
+  for (const option of list) {
+    if (measureDisplayWidth(option) <= width) {
+      return option;
     }
   }
+  if (list.length > 0) {
+    return list[list.length - 1];
+  }
+  return '';
+}
 
-  if (terrainLine && height >= 2) {
-    const legendWrapped = wrapLine(legendLine, width);
-    const terrainWrapped = wrapLine(terrainLine, width);
-    const maxLegendLines = Math.max(0, height - 1);
-    for (let i = 0; i < maxLegendLines; i += 1) {
-      lines.push(padRight(legendWrapped[i] || '', width));
+// Resolve the simulation title for footer display.
+function resolveSimulationTitle(config) {
+  const display = config.display || {};
+  const header = display.header || {};
+  if (header && header.title) {
+    return String(header.title);
+  }
+  return '~ ⚒️ 🍺 ~ NodeDwarves Simulation: Dig Deep, Drink Hard ~ 🍺 ⚒️ ~';
+}
+
+// Build title variants to fit smaller widths.
+function buildTitleOptions(title) {
+  const sanitized = sanitizeFooterTitle(title);
+  if (!sanitized) {
+    return ['NodeDwarves Simulation'];
+  }
+  return [
+    sanitized,
+    sanitized.replace(/^~\s*/g, '').replace(/\s*~$/g, ''),
+    'NodeDwarves Simulation: Dig Deep, Drink Hard',
+    'NodeDwarves Simulation',
+    'NodeDwarves',
+  ];
+}
+
+// Remove emoji-width ambiguity while keeping a dwarven feel.
+function sanitizeFooterTitle(value) {
+  let text = String(value || '').trim();
+  if (!text) {
+    return '';
+  }
+  const replacements = [
+    { pattern: /⚒️/g, value: 'ᚠ' },
+    { pattern: /⚒/g, value: 'ᚠ' },
+    { pattern: /🍺/g, value: 'ᛒ' },
+  ];
+  for (const entry of replacements) {
+    text = text.replace(entry.pattern, entry.value);
+  }
+  text = text.replace(/[\uFE0F\u200D]/g, '');
+  text = text.replace(/\p{Extended_Pictographic}/gu, '');
+  text = text.replace(/\s{2,}/g, ' ').trim();
+  return text;
+}
+
+// Build a framed banner line with centered text.
+function buildFrameLine(width, label, colors, isBottom) {
+  const innerWidth = Math.max(0, width - 6);
+  const text = fitDisplayLine(label, innerWidth);
+  const textLen = measureDisplayWidth(text);
+  const fillTotal = Math.max(0, innerWidth - textLen);
+  const leftFill = Math.floor(fillTotal / 2);
+  const rightFill = fillTotal - leftFill;
+  const left = isBottom ? '╚═╩' : '╔═╦';
+  const right = isBottom ? '╩═╝' : '╦═╗';
+  const colored = text ? applyColor(text, 'hud_header', colors) : '';
+  return `${left}${'═'.repeat(leftFill)}${colored}${'═'.repeat(rightFill)}${right}`;
+}
+
+// Build a banner content line with white borders and centered controls.
+function buildContentLine(width, label, colors) {
+  const innerWidth = Math.max(0, width - 6);
+  const text = fitDisplayLine(label, innerWidth);
+  const textLen = measureDisplayWidth(text);
+  const leftPad = Math.floor(Math.max(0, innerWidth - textLen) / 2);
+  const rightPad = Math.max(0, innerWidth - textLen - leftPad);
+  const content = padDisplayRight(`${' '.repeat(leftPad)}${text}${' '.repeat(rightPad)}`, innerWidth);
+  const colored = content ? applyColor(content, 'hud_header', colors) : content;
+  return `║ᚠ ${colored} ᚠ║`;
+}
+
+// Measure display width for a string (handles emoji/variation selectors).
+function measureDisplayWidth(value) {
+  const text = String(value || '');
+  let width = 0;
+  for (const char of text) {
+    width += measureCharWidth(char);
+  }
+  return width;
+}
+
+// Clamp a string to the target display width without splitting emoji.
+function fitDisplayLine(value, width) {
+  if (width <= 0) {
+    return '';
+  }
+  const text = String(value || '');
+  let result = '';
+  let used = 0;
+  for (const char of text) {
+    const charWidth = measureCharWidth(char);
+    if (used + charWidth > width) {
+      break;
     }
-    lines.push(padRight(terrainWrapped[0] || '', width));
-    return lines.slice(0, height);
+    result += char;
+    used += charWidth;
   }
+  return result;
+}
 
-  const wrapped = wrapLine(legendLine, width);
-  for (let i = 0; i < height; i += 1) {
-    lines.push(padRight(wrapped[i] || '', width));
+// Pad a string to a target display width.
+function padDisplayRight(value, width) {
+  const text = String(value || '');
+  const length = measureDisplayWidth(text);
+  if (length >= width) {
+    return text;
   }
+  return `${text}${' '.repeat(width - length)}`;
+}
 
-  return lines;
+// Determine display width for a single character.
+function measureCharWidth(char) {
+  if (!char) {
+    return 0;
+  }
+  if (char === '\uFE0F' || char === '\u200D') {
+    return 0;
+  }
+  if (isWideChar(char)) {
+    return 2;
+  }
+  return 1;
+}
+
+// Rough wide-character detection (emoji + CJK blocks).
+function isWideChar(char) {
+  if (/\p{Extended_Pictographic}/u.test(char)) {
+    return true;
+  }
+  const code = char.codePointAt(0) || 0;
+  return (
+    code >= 0x1100 && (
+      code <= 0x115f ||
+      code === 0x2329 ||
+      code === 0x232a ||
+      (code >= 0x2e80 && code <= 0xa4cf && code !== 0x303f) ||
+      (code >= 0xac00 && code <= 0xd7a3) ||
+      (code >= 0xf900 && code <= 0xfaff) ||
+      (code >= 0xfe10 && code <= 0xfe19) ||
+      (code >= 0xfe30 && code <= 0xfe6f) ||
+      (code >= 0xff00 && code <= 0xff60) ||
+      (code >= 0xffe0 && code <= 0xffe6)
+    )
+  );
 }
 
 // Check if a resource is represented by terrain symbols.
@@ -221,4 +406,4 @@ function getBeastSymbol(config) {
   return '';
 }
 
-module.exports = { buildFooterLines, getBeastSymbol };
+module.exports = { buildFooterLines, buildLegendSections, getBeastSymbol };
