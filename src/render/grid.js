@@ -50,6 +50,31 @@ function normalizeRiverSymbols(raw) {
   };
 }
 
+function normalizeRoadSymbols(roadRaw, riverRaw) {
+  const road = normalizeRiverSymbols(roadRaw || {});
+  const river = normalizeRiverSymbols(riverRaw || {});
+  return {
+    horizontal: pickSymbol(road.horizontal, river.horizontal),
+    vertical: pickSymbol(road.vertical, river.vertical),
+    cornerNE: pickSymbol(road.cornerNE, river.cornerNE),
+    cornerNW: pickSymbol(road.cornerNW, river.cornerNW),
+    cornerSE: pickSymbol(road.cornerSE, river.cornerSE),
+    cornerSW: pickSymbol(road.cornerSW, river.cornerSW),
+    teeNorth: pickSymbol(road.teeNorth, river.teeNorth),
+    teeSouth: pickSymbol(road.teeSouth, river.teeSouth),
+    teeEast: pickSymbol(road.teeEast, river.teeEast),
+    teeWest: pickSymbol(road.teeWest, river.teeWest),
+    cross: pickSymbol(road.cross, river.cross),
+  };
+}
+
+function normalizeRoadSpecialSymbols(raw) {
+  return {
+    bridge: pickSymbol(raw && raw.bridge, "="),
+    ford: pickSymbol(raw && raw.ford, ":"),
+  };
+}
+
 function buildRiverConnections(terrainConfig) {
   const raw = terrainConfig && terrainConfig.riverConnectsTo;
   const list = Array.isArray(raw) ? raw : ["river"];
@@ -63,6 +88,62 @@ function buildRiverConnections(terrainConfig) {
     set.add("river");
   }
   return set;
+}
+
+function isRoadType(value) {
+  return value === "road" || value === "bridge" || value === "ford";
+}
+
+function getRoadSymbol(roads, roadSymbols, x, y, fallback) {
+  if (!roads || !roads.types || !roads.types[y]) {
+    return fallback;
+  }
+  const has = (dx, dy) => {
+    const row = roads.types[y + dy];
+    if (!row) {
+      return false;
+    }
+    return isRoadType(row[x + dx]);
+  };
+  const north = has(0, -1);
+  const south = has(0, 1);
+  const west = has(-1, 0);
+  const east = has(1, 0);
+  const key =
+    (north ? 1 : 0) +
+    (south ? 2 : 0) +
+    (west ? 4 : 0) +
+    (east ? 8 : 0);
+  switch (key) {
+    case 1:
+    case 2:
+    case 3:
+      return roadSymbols.vertical;
+    case 4:
+    case 8:
+    case 12:
+      return roadSymbols.horizontal;
+    case 5:
+      return roadSymbols.cornerNW;
+    case 6:
+      return roadSymbols.cornerSW;
+    case 9:
+      return roadSymbols.cornerNE;
+    case 10:
+      return roadSymbols.cornerSE;
+    case 7:
+      return roadSymbols.teeWest;
+    case 11:
+      return roadSymbols.teeEast;
+    case 13:
+      return roadSymbols.teeNorth;
+    case 14:
+      return roadSymbols.teeSouth;
+    case 15:
+      return roadSymbols.cross;
+    default:
+      return fallback;
+  }
 }
 
 function randomFromSeed(seed, x, y) {
@@ -540,14 +621,29 @@ function buildGridBase(state, config, runtime, colors, emptySymbol) {
   const display = (config && config.display) || {};
   const terrainConfig = display.terrain || {};
   const terrain = state.terrain;
+  const roadsConfig = config.roads || {};
+  const roads = state.roads;
   const terrainEnabled =
     terrainConfig.enabled !== false &&
     terrain &&
     terrain.types &&
     terrain.width === width &&
     terrain.height === height;
+  const roadsEnabled =
+    roadsConfig.enabled !== false &&
+    roads &&
+    roads.types &&
+    roads.width === width &&
+    roads.height === height;
   const riverSymbols = normalizeRiverSymbols(terrainConfig.riverSymbols || {});
   const riverConnections = buildRiverConnections(terrainConfig);
+  const roadSymbols = normalizeRoadSymbols(
+    terrainConfig.roadSymbols || {},
+    terrainConfig.riverSymbols || {},
+  );
+  const roadSpecialSymbols = normalizeRoadSpecialSymbols(
+    terrainConfig.roadSpecialSymbols || {},
+  );
   const seasonalContext = buildSeasonalColorContext(
     state,
     config,
@@ -642,6 +738,36 @@ function buildGridBase(state, config, runtime, colors, emptySymbol) {
         if (colorType === "pasture" && isPastureDepleted(state, x, y)) {
           if (colors && colors.map && colors.map.terrain_pasture_depleted) {
             colorKey = "terrain_pasture_depleted";
+          }
+        }
+        if (roadsEnabled && roads.types[y]) {
+          const roadType = roads.types[y][x];
+          if (roadType) {
+            if (roadType === "bridge") {
+              symbol = roadSpecialSymbols.bridge;
+              colorKey =
+                colors && colors.map && colors.map.terrain_bridge
+                  ? "terrain_bridge"
+                  : "terrain_road";
+            } else if (roadType === "ford") {
+              symbol = roadSpecialSymbols.ford;
+              colorKey =
+                colors && colors.map && colors.map.terrain_ford
+                  ? "terrain_ford"
+                  : "terrain_road";
+            } else {
+              symbol = getRoadSymbol(
+                roads,
+                roadSymbols,
+                x,
+                y,
+                roadSymbols.horizontal,
+              );
+              colorKey =
+                colors && colors.map && colors.map.terrain_road
+                  ? "terrain_road"
+                  : null;
+            }
           }
         }
         grid[y][x] = colorKey ? applyColor(symbol, colorKey, colors) : symbol;

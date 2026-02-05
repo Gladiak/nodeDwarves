@@ -308,11 +308,23 @@ function shouldPrioritizeMine(state, config, runtime) {
     return false;
   }
   const mineConfig = (config.structures && config.structures.mine) || {};
-  if (mineConfig.buildWhenNoMine === false) {
+  const structures = state.structures || [];
+  const mines = structures.filter((structure) => structure.type === "mine");
+  const mineCount = mines.length;
+  if (mineCount > 0) {
     return false;
   }
-  const structures = state.structures || [];
-  if (structures.some((structure) => structure.type === "mine")) {
+  const maxCount = Math.max(0, Number(mineConfig.maxCount ?? 0));
+  if (maxCount > 0 && mineCount >= maxCount) {
+    return false;
+  }
+  const queuedMines = state.jobs
+    ? state.jobs.filter((job) => job.type === "build" && job.structureType === "mine").length
+    : 0;
+  if (maxCount > 0 && mineCount + queuedMines >= maxCount) {
+    return false;
+  }
+  if (mineConfig.buildWhenNoMine === false && mineCount > 0) {
     return false;
   }
   const buildCost = mineConfig.buildCost || {};
@@ -321,6 +333,42 @@ function shouldPrioritizeMine(state, config, runtime) {
   }
   const target = findMineBuildSpot(state, runtime, mineConfig, null);
   return Boolean(target);
+}
+
+// Prefer extra mines before the village count reaches a threshold (soft guardrail).
+function shouldPreferExtraMine(state, config) {
+  const mineConfig = (config.structures && config.structures.mine) || {};
+  const preferBeforeVillageCount = Math.max(
+    0,
+    Math.floor(Number(mineConfig.preferBeforeVillageCount ?? 0)),
+  );
+  if (preferBeforeVillageCount <= 0) {
+    return false;
+  }
+  const villageCount = Array.isArray(state.villages) ? state.villages.length : 0;
+  if (villageCount >= preferBeforeVillageCount) {
+    return false;
+  }
+  const structures = state.structures || [];
+  const mineCount = structures.filter((structure) => structure.type === "mine").length;
+  if (mineCount <= 0) {
+    return false;
+  }
+  const maxCount = Math.max(0, Number(mineConfig.maxCount ?? 0));
+  if (maxCount > 0 && mineCount >= maxCount) {
+    return false;
+  }
+  const queuedMines = state.jobs
+    ? state.jobs.filter((job) => job.type === "build" && job.structureType === "mine").length
+    : 0;
+  if (maxCount > 0 && mineCount + queuedMines >= maxCount) {
+    return false;
+  }
+  const buildCost = mineConfig.buildCost || {};
+  if (Object.keys(buildCost).length > 0 && !hasInputs(state.stockpile, buildCost)) {
+    return false;
+  }
+  return true;
 }
 
 // Assign build jobs for managed structures (wells, fields, watchtowers).
@@ -396,6 +444,8 @@ function assignBuildJobIfNeeded(
     (upgradeMinHouses <= 0 || houses.length >= upgradeMinHouses);
   const managerMode = Boolean(managerActive);
 
+  const preferExtraMine = shouldPreferExtraMine(state, config);
+
   while (idleDwarves.length > 0 && buildQueue.remaining > 0) {
     let buildJob = null;
     if (prioritizeMine) {
@@ -404,6 +454,10 @@ function assignBuildJobIfNeeded(
       buildJob =
         createWellBuildJob(state, config, runtime, buildQueue.reservedPositions) ||
         createFieldBuildJob(state, config, runtime, buildQueue.reservedPositions);
+    }
+
+    if (!buildJob && preferExtraMine) {
+      buildJob = createMineBuildJob(state, config, runtime, buildQueue.reservedPositions);
     }
 
     if (!buildJob && housingNeed.needed) {

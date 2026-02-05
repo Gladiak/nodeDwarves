@@ -110,6 +110,7 @@ function createInitialState(config, runtime) {
   const myths = createMythsState(config);
   const festival = createFestivalState(config);
   const wildlife = createWildlifeState(config);
+  const roads = createRoadState(config, runtime);
 
   return {
     tick: 0,
@@ -129,6 +130,7 @@ function createInitialState(config, runtime) {
     pasture,
     wildlife,
     terrain,
+    roads,
     stockpile: buildInitialStockpile(config, mapScaleContext),
     resourceTargets: scaledTargets,
     villages: null,
@@ -195,6 +197,32 @@ function createInitialState(config, runtime) {
       blockedLowStockpile: 0,
       blockedChance: 0,
     },
+  };
+}
+
+// Build a blank road state sized to the runtime grid.
+function createRoadState(config, runtime) {
+  const roadsConfig = (config && config.roads) || {};
+  if (roadsConfig.enabled === false) {
+    return null;
+  }
+  if (!runtime || runtime.gridWidth <= 0 || runtime.gridHeight <= 0) {
+    return null;
+  }
+  const width = Math.max(0, Number(runtime.gridWidth || 0));
+  const height = Math.max(0, Number(runtime.gridHeight || 0));
+  return {
+    width,
+    height,
+    types: Array.from({ length: height }, () => new Array(width).fill(null)),
+    queue: [],
+    queueIndex: 0,
+    planned: {},
+    links: {},
+    tileLinks: {},
+    failedLinks: {},
+    primaryMineLinkKey: null,
+    nextBuildTick: 0,
   };
 }
 
@@ -751,6 +779,7 @@ function syncTerrainToGrid(state, runtime, config) {
       state.villageCounter = 0;
       state.villageBuildCursor = null;
       state.terrainIndex = null;
+      state.roads = null;
     }
     return;
   }
@@ -767,6 +796,7 @@ function syncTerrainToGrid(state, runtime, config) {
       state.villageCounter = 0;
       state.villageBuildCursor = null;
       state.terrainIndex = null;
+      state.roads = createRoadState(config, runtime);
     }
   }
 }

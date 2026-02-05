@@ -18,6 +18,7 @@
     "ai:regression:record": "node scripts/regression.js --record --profile standard",
     "start": "node app.js",
     "map:export": "node scripts/export_map.js",
+    "map:export:seasons": "node scripts/export_map.js --season=all",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {

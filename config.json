@@ -226,6 +226,23 @@
         "teeWest": "┤",
         "cross": "┼"
       },
+      "roadSymbols": {
+        "horizontal": "─",
+        "vertical": "│",
+        "cornerNE": "└",
+        "cornerNW": "┘",
+        "cornerSE": "┌",
+        "cornerSW": "┐",
+        "teeNorth": "┴",
+        "teeSouth": "┬",
+        "teeEast": "├",
+        "teeWest": "┤",
+        "cross": "┼"
+      },
+      "roadSpecialSymbols": {
+        "bridge": "=",
+        "ford": ":"
+      },
       "riverConnectsTo": ["river", "lake"]
     },
     "dwarves": {
@@ -238,6 +255,9 @@
         "frame": "\u001b[90m",
         "terrain_river": "\u001b[34m",
         "terrain_lake": "\u001b[36m",
+        "terrain_road": "\u001b[37m",
+        "terrain_bridge": "\u001b[97m",
+        "terrain_ford": "\u001b[37m",
         "terrain_mountain": "\u001b[97m",
         "terrain_mountain_medium": "\u001b[37m",
         "terrain_mountain_high": "\u001b[97m",
@@ -1647,15 +1667,15 @@
       "outputPerTick": {
         "wood": 0.35
       },
-      "levelMax": 10,
+      "levelMax": 20,
       "levelBonusMin": 0.02,
-      "levelBonusMax": 0.15,
+      "levelBonusMax": 0.35,
       "levelBonusExponent": 2,
-      "upgradeTicks": 40,
-      "upgradeCostScale": 1.25,
+      "upgradeTicks": 55,
+      "upgradeCostScale": 1.35,
       "upgradeBaseCost": {
-        "stone": 6,
-        "iron": 3
+        "stone": 10,
+        "iron": 6
       }
     },
     "workshop": {
@@ -1718,49 +1738,57 @@
         "iron": 12,
         "mithril": 4
       },
-      "levelMax": 5,
+      "levelMax": 20,
       "levelBonusMin": 0.1,
-      "levelBonusMax": 1,
+      "levelBonusMax": 1.6,
       "levelBonusExponent": 2,
+      "upgradeTicks": 180,
+      "upgradeCostScale": 1.35,
+      "upgradeBaseCost": {
+        "wood": 35,
+        "stone": 28,
+        "iron": 18,
+        "mithril": 8
+      },
       "levels": {
         "2": {
-          "upgradeTicks": 160,
+          "upgradeTicks": 200,
           "upgradeCost": {
-            "wood": 40,
-            "stone": 30,
-            "iron": 18,
-            "mithril": 10
+            "wood": 50,
+            "stone": 38,
+            "iron": 24,
+            "mithril": 12
           }
         },
         "3": {
-          "upgradeTicks": 220,
+          "upgradeTicks": 280,
           "upgradeCost": {
-            "wood": 60,
-            "stone": 45,
-            "iron": 26,
-            "mithril": 18
+            "wood": 80,
+            "stone": 60,
+            "iron": 34,
+            "mithril": 24
           }
         },
         "4": {
-          "upgradeTicks": 320,
+          "upgradeTicks": 400,
           "upgradeCost": {
-            "wood": 90,
-            "stone": 70,
-            "iron": 36,
-            "mithril": 28,
-            "adamantio": 8,
-            "mana_crystal": 4
+            "wood": 115,
+            "stone": 90,
+            "iron": 45,
+            "mithril": 35,
+            "adamantio": 10,
+            "mana_crystal": 5
           }
         },
         "5": {
-          "upgradeTicks": 440,
+          "upgradeTicks": 560,
           "upgradeCost": {
-            "wood": 130,
-            "stone": 100,
-            "iron": 50,
-            "mithril": 40,
-            "adamantio": 18,
-            "mana_crystal": 10
+            "wood": 165,
+            "stone": 125,
+            "iron": 65,
+            "mithril": 50,
+            "adamantio": 22,
+            "mana_crystal": 12
           }
         }
       }
@@ -1782,18 +1810,18 @@
       },
       "foodCostPerTick": 0.06,
       "pauseWhenFoodRatioBelow": 0.45,
-      "levelMax": 10,
+      "levelMax": 20,
       "levelBonusMin": 0.05,
-      "levelBonusMax": 0.35,
+      "levelBonusMax": 0.55,
       "levelBonusExponent": 2,
       "foodCostReductionMin": 0,
-      "foodCostReductionMax": 0.25,
+      "foodCostReductionMax": 0.35,
       "foodCostReductionExponent": 2,
-      "upgradeTicks": 45,
-      "upgradeCostScale": 1.25,
+      "upgradeTicks": 55,
+      "upgradeCostScale": 1.35,
       "upgradeBaseCost": {
-        "wood": 6,
-        "stone": 4
+        "wood": 9,
+        "stone": 7
       },
       "brewmasterInitial": 4,
       "brewmasterMin": 4,
@@ -1802,7 +1830,10 @@
     "mine": {
       "count": 1,
       "capacity": 1,
+      "maxCount": 2,
       "minersPerMine": 4,
+      "buildWhenNoMine": false,
+      "preferBeforeVillageCount": 2,
       "buildMinRadius": 4,
       "buildOuterBuffer": 2,
       "buildTerrain": ["mountain", "stone"],
@@ -1815,15 +1846,15 @@
         "iron": 0.06,
         "stone": 0.12
       },
-      "levelMax": 10,
+      "levelMax": 20,
       "levelBonusMin": 0.02,
-      "levelBonusMax": 0.15,
+      "levelBonusMax": 0.25,
       "levelBonusExponent": 2,
-      "upgradeTicks": 50,
-      "upgradeCostScale": 1.25,
+      "upgradeTicks": 70,
+      "upgradeCostScale": 1.4,
       "upgradeBaseCost": {
-        "stone": 8,
-        "iron": 4
+        "stone": 12,
+        "iron": 8
       },
       "rareDrops": {
         "mithril": {
@@ -2131,17 +2162,17 @@
   },
   "tools": {
     "initialLevel": 1,
-    "maxLevel": 10,
+    "maxLevel": 30,
     "bonusMin": 0.003,
-    "bonusMax": 0.06,
+    "bonusMax": 0.09,
     "bonusExponent": 2,
-    "upgradeTicks": 45,
+    "upgradeTicks": 60,
     "upgradeBaseCost": {
-      "wood": 6,
-      "stone": 6,
-      "iron": 4
+      "wood": 10,
+      "stone": 10,
+      "iron": 8
     },
-    "upgradeCostScale": 1.25,
+    "upgradeCostScale": 1.35,
     "applyTo": [
       "food",
       "water",
@@ -2294,6 +2325,33 @@
     "structureRadius": 12,
     "expandStructures": ["house", "well", "field"]
   },
+  "roads": {
+    "enabled": true,
+    "buildEveryTicks": 10,
+    "buildMinResources": {
+      "food": 0.5,
+      "water": 0.5
+    },
+    "avoidTerrain": ["mountain", "lake", "water", "shore"],
+    "connectVillages": true,
+    "connectMines": true,
+    "crossings": {
+      "village": "bridge",
+      "mine": "ford"
+    },
+    "cost": {
+      "road": {
+        "wood": 1
+      },
+      "bridge": {
+        "wood": 2,
+        "stone": 1
+      },
+      "ford": {
+        "wood": 1
+      }
+    }
+  },
   "clans": {
     "enabled": true,
     "list": ["abyssborn", "khorg_embers", "threshold_wardens", "deep_lantern"],
@@ -2391,8 +2449,8 @@
     },
     "minCostRatio": 2.5,
     "effects": {
-      "needDecay": 0.9,
-      "gatherYield": 1.25
+      "needDecay": 0.85,
+      "gatherYield": 1.45
     },
     "ai": {
       "enabled": true,

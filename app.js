@@ -1,5 +1,7 @@
 'use strict';
 
+const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const { spawn } = require('child_process');
 
@@ -249,7 +251,7 @@ function openSaveMap(state, config, message) {
 }
 
 // Function: triggerMapExport.
-function triggerMapExport(state, config, runtime) {
+function triggerMapExport(state, config, runtime, options = {}) {
   ensureSaveMapState(state);
   ensureInspectState(state);
   ensureLegendState(state);
@@ -267,7 +269,24 @@ function triggerMapExport(state, config, runtime) {
   state.ui.legend.open = false;
   closeSaveMap(state);
 
-  const args = buildMapExportArgs(state, runtime);
+  let snapshotPath = null;
+  if (options.includeStructures) {
+    try {
+      snapshotPath = writeMapExportSnapshot(state);
+    } catch (err) {
+      state.ui.saveMap.busy = false;
+      const message = err && err.message
+        ? `Map export failed (${err.message}).`
+        : 'Map export failed.';
+      openSaveMap(state, config, message);
+      return;
+    }
+  }
+
+  const args = buildMapExportArgs(state, runtime, {
+    includeStructures: options.includeStructures === true,
+    snapshotPath,
+  });
   const scriptPath = path.join(__dirname, 'scripts', 'export_map.js');
   args.unshift(scriptPath);
 
@@ -284,13 +303,21 @@ function triggerMapExport(state, config, runtime) {
   child.stderr.on('data', (data) => {
     errorOutput += data.toString();
   });
+  const cleanupSnapshot = () => {
+    if (snapshotPath) {
+      fs.unlink(snapshotPath, () => {});
+    }
+  };
+
   child.on('error', (err) => {
     state.ui.saveMap.busy = false;
+    cleanupSnapshot();
     const message = err && err.message ? `Map export failed (${err.message}).` : 'Map export failed.';
     openSaveMap(state, config, message);
   });
   child.on('close', (code) => {
     state.ui.saveMap.busy = false;
+    cleanupSnapshot();
     const message = code === 0
       ? buildSaveMessage(output)
       : buildFailureMessage(code, errorOutput);
@@ -299,7 +326,7 @@ function triggerMapExport(state, config, runtime) {
 }
 
 // Function: buildMapExportArgs.
-function buildMapExportArgs(state, runtime) {
+function buildMapExportArgs(state, runtime, options = {}) {
   const args = [];
   const width = Math.max(0, Number(runtime.gridWidth || 0));
   const height = Math.max(0, Number(runtime.gridHeight || 0));
@@ -319,7 +346,49 @@ function buildMapExportArgs(state, runtime) {
     args.push(`--seed=${Math.floor(seed)}`);
   }
 
+  if (options.snapshotPath) {
+    args.push(`--state=${options.snapshotPath}`);
+  }
+  if (options.includeStructures) {
+    args.push('--includeStructures');
+  }
+
   return args;
+}
+
+// Function: buildMapExportSnapshot.
+function buildMapExportSnapshot(state) {
+  const structures = Array.isArray(state.structures)
+    ? state.structures
+      .filter((structure) => structure && typeof structure === 'object')
+      .map((structure) => ({
+        id: structure.id,
+        type: structure.type,
+        x: Number(structure.x || 0),
+        y: Number(structure.y || 0),
+        symbol: structure.symbol,
+        level: structure.level,
+        capacity: structure.capacity,
+      }))
+    : [];
+  const roads = state.roads && state.roads.types
+    ? {
+      width: state.roads.width,
+      height: state.roads.height,
+      types: state.roads.types,
+    }
+    : null;
+
+  return { structures, roads };
+}
+
+// Function: writeMapExportSnapshot.
+function writeMapExportSnapshot(state) {
+  const snapshot = buildMapExportSnapshot(state);
+  const fileName = `node_dwarves_map_${Date.now()}_${Math.floor(Math.random() * 1000000)}.json`;
+  const filePath = path.join(os.tmpdir(), fileName);
+  fs.writeFileSync(filePath, JSON.stringify(snapshot));
+  return filePath;
 }
 
 // Function: buildSaveMessage.
@@ -374,8 +443,13 @@ function handleInput(text) {
       i += 1;
       continue;
     }
-    if (char === 'm' || char === 'M') {
+    if (char === 'm') {
       triggerMapExport(state, config, runtime);
+      i += 1;
+      continue;
+    }
+    if (char === 'M') {
+      triggerMapExport(state, config, runtime, { includeStructures: true });
       i += 1;
       continue;
     }

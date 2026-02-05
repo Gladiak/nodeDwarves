@@ -113,6 +113,9 @@ function buildLegendSections(config, options = {}) {
     const forestSymbols = terrainConfig.forestSymbols || {};
     const hillSymbols = terrainConfig.hillSymbols || {};
     const mountainSymbols = terrainConfig.mountainSymbols || {};
+    const roadSymbols = terrainConfig.roadSymbols || {};
+    const roadSpecialSymbols = terrainConfig.roadSpecialSymbols || {};
+    const roadsConfig = config.roads || {};
 
     const pushTerrain = (symbol, label, colorKey) => {
       if (!symbol) {
@@ -123,6 +126,16 @@ function buildLegendSections(config, options = {}) {
 
     pushTerrain(terrainSymbols.river, 'river', 'terrain_river');
     pushTerrain(terrainSymbols.lake, 'lake', 'terrain_lake');
+    if (roadsConfig.enabled !== false) {
+      const roadSymbol = pickSymbol(roadSymbols.horizontal, null);
+      pushTerrain(roadSymbol, 'road', 'terrain_road');
+      if (roadSpecialSymbols.bridge) {
+        pushTerrain(roadSpecialSymbols.bridge, 'bridge', 'terrain_bridge');
+      }
+      if (roadSpecialSymbols.ford) {
+        pushTerrain(roadSpecialSymbols.ford, 'ford', 'terrain_ford');
+      }
+    }
 
     const mountainMedium = pickSymbol(mountainSymbols.medium, terrainSymbols.mountain);
     const mountainHigh = pickSymbol(mountainSymbols.high, mountainMedium);
@@ -174,9 +187,9 @@ function buildFooterLines(config, runtime) {
     'COMMANDS',
   ], innerWidth);
   const controlsText = pickFitting([
-    'ᚠ [SPACE] PAUSE ᚱ [l] LEGEND ᚨ [i] DWARF INFO ᛗ [m] MAP SAVE ᚾ',
-    '[SPACE] PAUSE  ::  [l] LEGEND  ::  [i] DWARF INFO  ::  [m] MAP SAVE',
-    '[SPACE] PAUSE  [l] LEGEND  [i] DWARF INFO  [m] MAP SAVE',
+    'ᚠ [SPACE] PAUSE ᚱ [l] LEGEND ᚨ [i] DWARF INFO ᛗ [m] MAP SAVE ᛗ [M] MAP+STRUCT ᚾ',
+    '[SPACE] PAUSE  ::  [l] LEGEND  ::  [i] DWARF INFO  ::  [m] MAP SAVE  ::  [M] MAP+STRUCT',
+    '[SPACE] PAUSE  [l] LEGEND  [i] DWARF INFO  [m] MAP SAVE  [M] MAP+STRUCT',
   ], innerWidth);
   const mottoText = pickFitting(buildTitleOptions(simTitle), innerWidth);
 

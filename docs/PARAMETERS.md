@@ -158,14 +158,30 @@ Display and layout:
 - `display.terrain.riverSymbols.teeEast`: symbol for river tee connecting east + north + south.
 - `display.terrain.riverSymbols.teeWest`: symbol for river tee connecting west + north + south.
 - `display.terrain.riverSymbols.cross`: symbol for river crossings connecting all four directions.
+- `display.terrain.roadSymbols.horizontal`: symbol for horizontal road segments.
+- `display.terrain.roadSymbols.vertical`: symbol for vertical road segments.
+- `display.terrain.roadSymbols.cornerNE`: symbol for road corner connecting north + east.
+- `display.terrain.roadSymbols.cornerNW`: symbol for road corner connecting north + west.
+- `display.terrain.roadSymbols.cornerSE`: symbol for road corner connecting south + east.
+- `display.terrain.roadSymbols.cornerSW`: symbol for road corner connecting south + west.
+- `display.terrain.roadSymbols.teeNorth`: symbol for road tee connecting north + east + west.
+- `display.terrain.roadSymbols.teeSouth`: symbol for road tee connecting south + east + west.
+- `display.terrain.roadSymbols.teeEast`: symbol for road tee connecting east + north + south.
+- `display.terrain.roadSymbols.teeWest`: symbol for road tee connecting west + north + south.
+- `display.terrain.roadSymbols.cross`: symbol for road crossings connecting all four directions.
+- `display.terrain.roadSpecialSymbols.bridge`: symbol for bridge road tiles.
+- `display.terrain.roadSpecialSymbols.ford`: symbol for ford road tiles.
 - `display.terrain.riverConnectsTo`: list of terrain types treated as connected to rivers (defaults to `["river"]`).
 - `display.dwarves.maxVisible`: max dwarves to render on the map (0 = show all).
 - `display.colors.enabled`: enable ANSI colors in the render.
 - `display.colors.reset`: ANSI reset sequence (defaults to `\u001b[0m`).
 - `display.colors.map.<key>`: ANSI color for an entity key (e.g. `dwarf`, `merchant`, `house`, `food`, `hud_header`).
 - `display.colors.map.weather_<type>`: ANSI color for HUD weather labels (e.g. `weather_rain`).
-- `display.colors.map.terrain_<type>`: ANSI color for terrain tiles (`terrain_river`, `terrain_lake`, `terrain_mountain`, `terrain_hill`, `terrain_plain`, `terrain_fertile`, `terrain_food`, `terrain_forest`, `terrain_stone`).
+- `display.colors.map.terrain_<type>`: ANSI color for terrain tiles (`terrain_river`, `terrain_lake`, `terrain_road`, `terrain_bridge`, `terrain_ford`, `terrain_mountain`, `terrain_hill`, `terrain_plain`, `terrain_fertile`, `terrain_food`, `terrain_forest`, `terrain_stone`).
 - `display.colors.map.herd`: ANSI color for wildlife herds on the map.
+- `display.colors.map.terrain_road`: ANSI color for road tiles.
+- `display.colors.map.terrain_bridge`: ANSI color for bridge tiles.
+- `display.colors.map.terrain_ford`: ANSI color for ford tiles.
 - `display.colors.map.terrain_mountain_medium`: ANSI color for medium mountain tiles.
 - `display.colors.map.terrain_mountain_high`: ANSI color for high mountain tiles.
 - `display.colors.map.terrain_hill_pronounced`: ANSI color for pronounced hill tiles (used with the pronounced hill symbol).
@@ -445,6 +461,20 @@ Villages:
 - `villages.structureRadius`: radius used to spread new builds across village centers (tiles).
 - `villages.expandStructures`: structure types allowed to use non-primary village centers.
 
+Roads:
+
+- `roads.enabled`: enable automatic road building.
+- `roads.buildEveryTicks`: ticks between each road tile placement.
+- `roads.buildMinResources.<resource>`: minimum stockpile ratio required to place a road tile (0..1).
+- `roads.avoidTerrain`: terrain types treated as blocked for road pathfinding.
+- `roads.connectVillages`: connect new villages to the nearest existing village.
+- `roads.connectMines`: connect mines to the nearest village.
+- `roads.crossings.village`: road tile type for village links on rivers (`bridge` or `ford`).
+- `roads.crossings.mine`: road tile type for mine links on rivers (`bridge` or `ford`).
+- `roads.cost.road.<resource>`: stockpile cost to place a road tile.
+- `roads.cost.bridge.<resource>`: stockpile cost to place a bridge tile.
+- `roads.cost.ford.<resource>`: stockpile cost to place a ford tile.
+
 Clans:
 
 - `clans.enabled`: enable clan culture system.
@@ -582,6 +612,9 @@ Structures (mithril forge):
 - `structures.mithril_forge.levelBonusMin`: bonus at level 1 (fraction).
 - `structures.mithril_forge.levelBonusMax`: bonus at max level (fraction).
 - `structures.mithril_forge.levelBonusExponent`: curve exponent for level bonuses.
+- `structures.mithril_forge.upgradeTicks`: default ticks per upgrade when no explicit level config exists.
+- `structures.mithril_forge.upgradeCostScale`: exponential cost multiplier per level.
+- `structures.mithril_forge.upgradeBaseCost.<resource>`: base upgrade costs when no explicit level config exists.
 - `structures.mithril_forge.levels.<level>.upgradeTicks`: ticks required to upgrade to this level.
 - `structures.mithril_forge.levels.<level>.upgradeCost.<resource>`: resource costs for this level.
 
@@ -633,6 +666,8 @@ Structures (mines):
 
 - `structures.mine.count`: initial mine count (spawned on allowed terrain when possible).
 - `structures.mine.maxCount`: maximum number of mines allowed.
+- `structures.mine.buildWhenNoMine`: when true, only build a mine if none exist.
+- `structures.mine.preferBeforeVillageCount`: prefer extra mine builds while village count is below this value.
 - `structures.mine.minersPerMine`: number of miners assigned per mine.
 - `structures.mine.buildMinRadius`: minimum Manhattan radius from village center.
 - `structures.mine.buildOuterBuffer`: extra distance beyond the current village perimeter (houses).
@@ -702,7 +737,7 @@ Ruins exploration:
 Tools:
 
 - `tools.initialLevel`: starting tool level.
-- `tools.maxLevel`: maximum tool level.
+- `tools.maxLevel`: maximum tool level (default 30).
 - `tools.bonusMin`: minimum gathering bonus at level 1 (fraction).
 - `tools.bonusMax`: maximum gathering bonus at max level (fraction).
 - `tools.bonusExponent`: curve exponent for bonus progression.
