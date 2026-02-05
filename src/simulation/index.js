@@ -28,6 +28,7 @@ const { updateRuins } = require('./ruins');
 const { updateEndgameDifficulty, maybeHandleEndgameReset } = require('./endgame');
 const { updateMyths, getMythMultiplier } = require('./myths');
 const { updateVillages } = require('./villages');
+const { updateRoads } = require('./roads');
 
 // Advance the simulation by one tick.
 function stepState(state, config, runtime, action) {
@@ -80,6 +81,7 @@ function stepState(state, config, runtime, action) {
   cohouseCouples(state, config);
   handleReproduction(state, config);
   updateVillages(state, config, runtime);
+  updateRoads(state, config, runtime);
 
   assignJobs(state, config, runtime, action);
 

@@ -229,6 +229,18 @@ Notes:
   - New centers must be far enough from existing villages and near required resources.
   - Stockpile remains shared; village centers influence well/field/house placement.
 
+### Roads
+
+- `roads.js`
+  - Builds road overlays that connect villages and mines over time.
+  - Road tiles are placed every `roads.buildEveryTicks` if `roads.buildMinResources` guardrails are met.
+  - Paths avoid `roads.avoidTerrain` and cross rivers as `bridge` or `ford` tiles via `roads.crossings.*`.
+  - Rendering uses `display.terrain.roadSymbols` plus `display.terrain.roadSpecialSymbols`.
+  - Roads are currently visual-only and do not change movement speed.
+  - Road planning is limited to V1 -> mine, V1 -> V2, and V3 -> nearest of V1/V2 (no further village links).
+  - Village links are planned only after the primary mine connection is completed.
+  - Additional mines link to the nearest village when they appear.
+
 ### Roles
 
 - `roles.js`
@@ -667,8 +679,17 @@ npm run ai:play
 
 ### Export a map PNG
 
+During gameplay, press `m` to export the current season map. Press `Shift+M`
+to include built structures and roads (dwarves are excluded).
+
 ```bash
 npm run map:export -- --width=120 --height=40 --season=spring
+```
+
+All seasons with the same seed:
+
+```bash
+npm run map:export:seasons -- --width=120 --height=40 --seed=12345
 ```
 
 Notes:
@@ -686,6 +707,9 @@ Notes:
   install unless configured) and picks mid-season ticks to avoid transition
   palettes.
 - `--seasonProgress` lets you pick a progress value in `0..1`.
+- `--season=all` or `--allSeasons` exports all seasons with the same seed.
 - `--count` exports multiple images; with `--seed` it increments from that
   base, otherwise seeds are random.
 - When `--name` is used with `--count`, a numeric suffix is appended.
+- `--includeStructures` keeps all structures and roads from a snapshot.
+- `--state` provides the JSON snapshot file (used by `Shift+M`).

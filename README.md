@@ -9,6 +9,7 @@ alive while you watch the chaos unfold in ASCII.
 - 🧠 Fully autonomous simulation with a real-time ASCII renderer.
 - 🧺 Resource economy with food, water, beer, wood, stone, iron, expedition kits, mithril, adamantium, and mana crystal.
 - 🏘️ Village growth: houses (beds), wells (water nodes), fields (food nodes), breweries (beer), sawmills (wood), workshops (tools), armories (expedition kits), mithril forges (global output boost), mines (iron/stone + rare drops).
+- 🛣️ Roads connect villages and mines over time, with bridges/ford crossings on rivers.
 - 🗝️ End-game ruins expeditions with artifacts, set bonuses, and guardian threats.
 - 🔁 End-game cycles: once all artifacts are found and a cooldown window passes, the sim restarts on a new map, tracks completed runs, and can scale difficulty per cycle.
 - ❄️ Seasons + housing effects (bonding, winter penalties).
@@ -31,7 +32,6 @@ Have a wild idea? Jump in and ship it — pick one of these and make the colony 
 - Caravan contracts: periodic trade requests with rewards and reputation effects.
 - Village security upgrades (winter shelters, gatehouses, patrol routes).
 - Canals and aqueducts: buildable water routing that extends fertile zones and irrigates distant fields, with upkeep costs.
-- Road building and path upkeep: faster movement and less congestion along roads; implement as buildable terrain overlays with movement multipliers and decay/maintenance.
 - Cisterns and reservoirs: buffer water during droughts and smooth well usage; implement as structures with storage capacity, rain fill rates, and draw rules.
 - Soil fertility and crop rotation: fields gain fatigue over time and recover when fallow; yield scales with per-field fertility.
 - Tool wear and maintenance: tool levels slowly decay with use; workshop jobs repair/upgrade using wood and iron.
@@ -80,6 +80,7 @@ Have a wild idea? Jump in and ship it — pick one of these and make the colony 
 - 🧳 A roaming merchant visits periodically, trades surplus for scarce resources, then leaves (food/water can be excluded from offers).
 - 🚰 Wells and 🌾 fields use Poisson-style spacing across the map, respecting terrain and distance from the core.
 - 🏘️ Villages can be founded at population thresholds, adding new build centers (shared stockpile; max 3 villages).
+- 🛣️ Roads connect villages and mines, building one tile every few ticks with bridges/ford crossings on rivers.
 - 🏛️ Ruins spawn in mountainous terrain; expeditions consume kits, face guardians, and unlock artifact bonuses (repeatable in the final room for completion).
 - 📊 HUD shows averages, bars, priorities, clan totals, and structure breakdowns.
 - 🖼️ The map renders with a framed border for clearer navigation.
@@ -89,7 +90,7 @@ Have a wild idea? Jump in and ship it — pick one of these and make the colony 
 - ⏳ Terrain gathering cooldowns can be bypassed during critical shortages.
 - ⏸️ Dwarf inspect panel (press `i`, works live or paused) with epic lore, clan details, and saga snippets.
 - 🗂️ Legend overlay panel (press `l`) for a clean, two-section key.
-- 🗺️ Map export (press `m`) using the current season styling.
+- 🗺️ Map export (press `m`) using the current season styling. Press `Shift+M` to include structures and roads.
 
 ## Clan culture 🛡️
 
@@ -353,16 +354,25 @@ change the terminal size or HUD width.
 
 Generate a colored PNG of the terrain map only (no HUD or active entities; static structures like mines/ruins are included; frame follows `display.frame.enabled`).
 
-During gameplay, press `m` to export the current season map into `maps/`.
+During gameplay, press `m` to export the current season map into `maps/`. Press `Shift+M` to include built structures and roads (dwarves are still excluded).
 
 ```bash
 npm run map:export -- --width=120 --height=40 --season=spring
 ```
 
+Export the same seed in all four seasons:
+
+```bash
+npm run map:export:seasons -- --width=120 --height=40 --seed=12345
+```
+
 Options:
 - `--width`, `--height`: map size in columns/rows.
-- `--season`: season name (`spring`, `summer`, `autumn`, `winter`).
+- `--season`: season name (`spring`, `summer`, `autumn`, `winter`), or `all`.
 - `--seasonProgress`: season progress in `0..1` (default `0.5`).
+- `--allSeasons`: export all seasons (same as `--season=all`).
+- `--includeStructures`: include all structures/roads from a snapshot (no dwarves).
+- `--state`: JSON snapshot file with structures/roads (used by `Shift+M`).
 - `--seed`: override the terrain seed (number).
 - `--scale`: render scale multiplier (default 2).
 - `--fontSize`: base font size in px (default 14).
@@ -510,6 +520,7 @@ The footer now focuses on control hints instead of map/legend symbols.
     │   ├── movement.js
     │   ├── population.js
     │   ├── raids.js
+    │   ├── roads.js
     │   ├── random.js
     │   ├── resources.js
     │   ├── roles.js

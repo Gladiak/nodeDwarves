@@ -121,92 +121,114 @@ async function main() {
     },
   );
   const seasonInput = args.season ? String(args.season).toLowerCase() : null;
+  const allSeasons =
+    args.allSeasons === true
+    || String(args.seasons || "").toLowerCase() === "all"
+    || seasonInput === "all";
   const seasonProgress =
     args.seasonProgress !== undefined ? Number(args.seasonProgress) : 0.5;
+  const snapshot = loadExportSnapshot(args.state);
+  const includeStructures =
+    args.includeStructures === true
+    || (snapshot && (Array.isArray(snapshot.structures) || snapshot.roads));
   const seedOverride = args.seed !== undefined ? Number(args.seed) : null;
   const seeds = buildSeedList(count, seedOverride);
+  const seasonList = resolveSeasonList(config, seasonInput, allSeasons);
+  const totalExports = Math.max(1, seeds.length * seasonList.length);
+  let exportIndex = 0;
 
   for (let index = 0; index < seeds.length; index += 1) {
-    const exportConfig = buildExportConfig(config, {
-      width,
-      height,
-      seedOverride: seeds[index],
-    });
+    for (const seasonName of seasonList) {
+      const exportConfig = buildExportConfig(config, {
+        width,
+        height,
+        seedOverride: seeds[index],
+      });
 
-    const runtime = buildRuntime(exportConfig.display, {
-      columns: exportConfig.display.width,
-      rows: exportConfig.display.height,
-    });
-    const outputWidth = runtime.totalWidth;
-    const outputHeight = runtime.totalHeight;
+      const runtime = buildRuntime(exportConfig.display, {
+        columns: exportConfig.display.width,
+        rows: exportConfig.display.height,
+      });
+      const outputWidth = runtime.totalWidth;
+      const outputHeight = runtime.totalHeight;
 
-    const state = createInitialState(exportConfig, runtime);
+      const state = createInitialState(exportConfig, runtime);
 
-    const seasonInfo = resolveSeasonTick(
-      exportConfig,
-      seasonInput,
-      seasonProgress,
-    );
-    state.tick = seasonInfo.tick;
-    updateSeason(state, exportConfig);
+      const seasonInfo = resolveSeasonTick(
+        exportConfig,
+        seasonName,
+        seasonProgress,
+      );
+      state.tick = seasonInfo.tick;
+      updateSeason(state, exportConfig);
 
-    stripNonMapEntities(state);
+      if (snapshot) {
+        applyExportSnapshot(state, snapshot, exportConfig.symbols || {});
+      }
 
-    const frame = renderFrame(state, exportConfig, runtime);
-    const lines = normalizeFrameLines(frame, outputHeight);
+      stripNonMapEntities(state, { includeStructures });
 
-    const parsed = parseAnsiLines(lines, {
-      defaultColor: foreground,
-      width: outputWidth,
-    });
+      const frame = renderFrame(state, exportConfig, runtime);
+      const lines = normalizeFrameLines(frame, outputHeight);
 
-    const image = await renderToPng(parsed, {
-      width,
-      height,
-      scale,
-      baseFontSize,
-      lineHeightRatio,
-      fontFamily,
-      background,
-      foreground,
-    });
+      const parsed = parseAnsiLines(lines, {
+        defaultColor: foreground,
+        width: outputWidth,
+      });
 
-    const terrainSummary = summarizeTerrain(state.terrain);
-    const metadata = buildMetadata({
-      width,
-      height,
-      season: state.season,
-      terrain: state.terrain,
-      terrainSummary,
-      config: exportConfig,
-      tick: state.tick,
-      render: {
+      const image = await renderToPng(parsed, {
+        width,
+        height,
         scale,
-        fontSize: baseFontSize,
-        lineHeight: lineHeightRatio,
+        baseFontSize,
+        lineHeightRatio,
         fontFamily,
-        background: background.css,
-        foreground: foreground.css,
-      },
-    });
+        background,
+        foreground,
+      });
 
-    const withMeta = insertTextChunk(
-      image,
-      "NodeDwarves",
-      JSON.stringify(metadata),
-    );
-    const outputName = buildBatchName(args.name, index, seeds.length);
-    const outputPath = writeOutput(withMeta, outputDir, outputName, {
-      width,
-      height,
-      season: seasonInfo.name,
-      seed: state.terrain ? state.terrain.seed : 0,
-    });
+      const terrainSummary = summarizeTerrain(state.terrain);
+      const metadata = buildMetadata({
+        width,
+        height,
+        season: state.season,
+        terrain: state.terrain,
+        terrainSummary,
+        config: exportConfig,
+        tick: state.tick,
+        render: {
+          scale,
+          fontSize: baseFontSize,
+          lineHeight: lineHeightRatio,
+          fontFamily,
+          background: background.css,
+          foreground: foreground.css,
+        },
+      });
 
-    const prefix =
-      seeds.length > 1 ? `[${index + 1}/${seeds.length}] ` : "";
-    console.log(`${prefix}Map exported to ${outputPath}`);
-    console.log(`${prefix}Signature: ${metadata.signature}`);
+      const withMeta = insertTextChunk(
+        image,
+        "NodeDwarves",
+        JSON.stringify(metadata),
+      );
+      const outputName = buildSeasonalName(
+        buildBatchName(args.name, exportIndex, totalExports),
+        seasonInfo.name,
+        seasonList.length,
+      );
+      const outputPath = writeOutput(withMeta, outputDir, outputName, {
+        width,
+        height,
+        season: seasonInfo.name,
+        seed: state.terrain ? state.terrain.seed : 0,
+      });
+
+      exportIndex += 1;
+      const prefix =
+        totalExports > 1 ? `[${exportIndex}/${totalExports}] ` : "";
+      console.log(`${prefix}Map exported to ${outputPath}`);
+      console.log(`${prefix}Signature: ${metadata.signature}`);
+    }
   }
 }
 
@@ -234,7 +256,13 @@ function printUsage() {
   console.log(
     "  --season            Season name (spring, summer, autumn, winter).",
   );
+  console.log("                    Use --season=all to export all seasons.");
   console.log("  --seasonProgress    Season progress (0..1, default 0.5).");
+  console.log("  --allSeasons        Export all seasons (same as --season=all).");
+  console.log(
+    "  --includeStructures Include structures/roads from a snapshot (no dwarves).",
+  );
+  console.log("  --state             JSON snapshot with structures/roads.");
   console.log("  --seed              Override terrain seed (number).");
   console.log("  --scale             Render scale multiplier (default 2).");
   console.log("  --fontSize          Base font size in px (default 14).");
@@ -358,6 +386,20 @@ function buildBatchName(name, index, total) {
   return ext ? `${base}_${suffix}${ext}` : `${base}_${suffix}`;
 }
 
+// Function: buildSeasonalName.
+function buildSeasonalName(name, season, seasonCount) {
+  if (!name || seasonCount <= 1) {
+    return name;
+  }
+  const ext = path.extname(name);
+  const base = ext ? name.slice(0, -ext.length) : name;
+  const suffix = String(season || "").toLowerCase();
+  if (!suffix) {
+    return name;
+  }
+  return ext ? `${base}_${suffix}${ext}` : `${base}_${suffix}`;
+}
+
 // Function: buildExportConfig.
 function buildExportConfig(source, options) {
   const cloned = JSON.parse(JSON.stringify(source));
@@ -428,13 +470,140 @@ function resolveSeasonTick(currentConfig, seasonName, seasonProgress) {
   return { name: picked, index, duration, tick, progress, tickInSeason };
 }
 
+// Function: resolveSeasonList.
+function resolveSeasonList(currentConfig, seasonName, allSeasons) {
+  const seasons = currentConfig.seasons || {};
+  const order =
+    Array.isArray(seasons.order) && seasons.order.length > 0
+      ? seasons.order.map((name) => String(name).toLowerCase())
+      : ["spring", "summer", "autumn", "winter"];
+  if (allSeasons) {
+    return order;
+  }
+  if (!seasonName) {
+    return [order[0]];
+  }
+  const picked = String(seasonName).toLowerCase();
+  if (!order.includes(picked)) {
+    throw new Error(`Unknown season "${seasonName}". Available: ${order.join(", ")}`);
+  }
+  return [picked];
+}
+
+// Function: loadExportSnapshot.
+function loadExportSnapshot(value) {
+  if (!value) {
+    return null;
+  }
+  const filePath = path.resolve(String(value));
+  let raw = null;
+  try {
+    raw = fs.readFileSync(filePath, "utf8");
+  } catch (err) {
+    throw new Error(`Failed to read export snapshot: ${err.message}`);
+  }
+  let parsed = null;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    throw new Error(`Invalid export snapshot JSON: ${err.message}`);
+  }
+  if (!parsed || typeof parsed !== "object") {
+    throw new Error("Export snapshot must be a JSON object.");
+  }
+  return parsed;
+}
+
+// Function: applyExportSnapshot.
+function applyExportSnapshot(state, snapshot, symbols) {
+  if (!snapshot || typeof snapshot !== "object") {
+    return;
+  }
+  if (Array.isArray(snapshot.structures)) {
+    const normalized = snapshot.structures
+      .map((structure) => normalizeSnapshotStructure(structure, symbols))
+      .filter((value) => value !== null);
+    state.structures = normalized;
+  }
+  if (snapshot.roads && snapshot.roads.types) {
+    const normalized = normalizeSnapshotRoads(snapshot.roads);
+    if (normalized) {
+      state.roads = normalized;
+    }
+  }
+}
+
+// Function: normalizeSnapshotStructure.
+function normalizeSnapshotStructure(structure, symbols) {
+  if (!structure || typeof structure !== "object") {
+    return null;
+  }
+  const type = String(structure.type || "");
+  if (!type) {
+    return null;
+  }
+  const x = Number(structure.x);
+  const y = Number(structure.y);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    return null;
+  }
+  const symbol = resolveSnapshotSymbol(structure, symbols, type);
+  return {
+    id: structure.id,
+    type,
+    x: Math.floor(x),
+    y: Math.floor(y),
+    symbol,
+    level: structure.level,
+    capacity: structure.capacity,
+  };
+}
+
+// Function: resolveSnapshotSymbol.
+function resolveSnapshotSymbol(structure, symbols, type) {
+  if (structure && typeof structure.symbol === "string" && structure.symbol) {
+    return structure.symbol;
+  }
+  if (symbols && typeof symbols === "object") {
+    if (symbols[type]) {
+      return symbols[type];
+    }
+    if (type === "house" && symbols.house) {
+      return symbols.house;
+    }
+  }
+  return "?";
+}
+
+// Function: normalizeSnapshotRoads.
+function normalizeSnapshotRoads(roads) {
+  if (!roads || typeof roads !== "object" || !Array.isArray(roads.types)) {
+    return null;
+  }
+  const types = roads.types.map((row) => (Array.isArray(row) ? row.slice() : []));
+  const inferredHeight = types.length;
+  const inferredWidth = types.reduce((max, row) => Math.max(max, row.length), 0);
+  const width = Number.isFinite(Number(roads.width))
+    ? Math.floor(Number(roads.width))
+    : inferredWidth;
+  const height = Number.isFinite(Number(roads.height))
+    ? Math.floor(Number(roads.height))
+    : inferredHeight;
+  return { width, height, types };
+}
+
 // Function: stripNonMapEntities.
-function stripNonMapEntities(state) {
+function stripNonMapEntities(state, options = {}) {
+  const includeStructures = options.includeStructures === true;
   state.nodes = [];
-  const keepStructures = new Set(["mine", "ruins"]);
-  state.structures = Array.isArray(state.structures)
-    ? state.structures.filter((structure) => keepStructures.has(structure.type))
-    : [];
+  if (!includeStructures) {
+    const keepStructures = new Set(["mine", "ruins"]);
+    state.structures = Array.isArray(state.structures)
+      ? state.structures.filter((structure) => keepStructures.has(structure.type))
+      : [];
+  } else if (!Array.isArray(state.structures)) {
+    state.structures = [];
+  }
   state.dwarves = [];
   state.wildlife = null;
   state.raid = null;
