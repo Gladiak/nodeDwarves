@@ -58,10 +58,15 @@ function buildLegendLines(legendParts, terrainParts, width, height) {
   const content = [];
 
   const legendLines = buildColumns(legendParts, width, 2, 2);
-  pushSection(content, 'LEGEND', width, legendLines.length > 0 ? legendLines : [{ text: 'None', spans: [] }]);
+  const sectionSlots = Math.max(0, maxContent - 1);
+  const sectionHeight = Math.floor(sectionSlots / 2);
+  const entriesPerSection = Math.max(0, sectionHeight - 2);
+  const legendEntries = fitSectionEntries(legendLines, entriesPerSection);
 
   const terrainLines = buildColumns(terrainParts, width, 2, 2);
-  pushSection(content, 'MAP', width, terrainLines.length > 0 ? terrainLines : [{ text: 'None', spans: [] }]);
+  const terrainEntries = fitSectionEntries(terrainLines, entriesPerSection);
+  pushSection(content, 'LEGEND', width, legendEntries);
+  pushSection(content, 'MAP', width, terrainEntries);
 
   const trimmed = content.slice(0, maxContent);
   while (trimmed.length < maxContent) {
@@ -78,6 +83,29 @@ function buildLegendLines(legendParts, terrainParts, width, height) {
       separator: entry.separator,
     };
   });
+}
+
+// Fit legend/map entries to a fixed section height (excluding header + spacer).
+function fitSectionEntries(entries, slots) {
+  const limit = Math.max(0, Number(slots || 0));
+  if (limit === 0) {
+    return [];
+  }
+  const list = Array.isArray(entries) ? entries.filter((entry) => entry) : [];
+  const result = [];
+  if (list.length === 0) {
+    result.push({ text: 'None', spans: [] });
+  }
+  for (const entry of list) {
+    if (result.length >= limit) {
+      break;
+    }
+    result.push(entry);
+  }
+  while (result.length < limit) {
+    result.push({ text: '', spans: [] });
+  }
+  return result;
 }
 
 // Push a section with a colored header and separator.
