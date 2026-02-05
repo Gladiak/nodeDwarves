@@ -47,6 +47,11 @@
       "height": 7,
       "autoCloseMs": 3000
     },
+    "transition_panel": {
+      "enabled": true,
+      "width": 72,
+      "height": 9
+    },
     "terrain": {
       "enabled": true,
       "seed": 0,
@@ -256,7 +261,7 @@
         "terrain_river": "\u001b[34m",
         "terrain_lake": "\u001b[36m",
         "terrain_road": "\u001b[37m",
-        "terrain_bridge": "\u001b[97m",
+        "terrain_bridge": "\u001b[38;5;130m",
         "terrain_ford": "\u001b[37m",
         "terrain_mountain": "\u001b[97m",
         "terrain_mountain_medium": "\u001b[37m",
@@ -1354,6 +1359,20 @@
     "enabled": true,
     "resetPopulation": 30,
     "minTicksAfterArtifacts": 1000,
+    "transition": {
+      "enabled": true,
+      "fadeOutTicks": 80,
+      "holdTicks": 40,
+      "fadeInTicks": 80,
+      "randomizeSeed": true,
+      "messages": [
+        "With relics secured, the halls grow quiet. A new caravan departs to found a distant hold.",
+        "The forge embers fade, yet the clan marches on. A fresh settlement rises beyond the rim.",
+        "Songs are packed and banners lifted. The dwarves set forth to carve a new home in stone.",
+        "When the last rune is sealed, a new road opens. The colony journeys toward another mountain.",
+        "The ancient cycle turns once more. A new outpost is sworn beneath a far-off peak."
+      ]
+    },
     "difficulty": {
       "enabled": true,
       "perCycle": 0.08,
@@ -1836,11 +1855,17 @@
       "preferBeforeVillageCount": 2,
       "buildMinRadius": 4,
       "buildOuterBuffer": 2,
+      "ignorePeripheralRadius": true,
       "buildTerrain": ["mountain", "stone"],
       "buildTicks": 55,
+      "buildTicksExtra": 45,
       "buildCost": {
         "wood": 10,
         "stone": 10
+      },
+      "buildCostExtra": {
+        "wood": 6,
+        "stone": 6
       },
       "outputPerTick": {
         "iron": 0.06,
@@ -2332,7 +2357,15 @@
       "food": 0.5,
       "water": 0.5
     },
-    "avoidTerrain": ["mountain", "lake", "water", "shore"],
+    "avoidTerrain": [],
+    "softAvoidTerrain": ["lake", "water", "shore", "hill", "mountain"],
+    "waterTerrain": ["lake", "water", "shore"],
+    "anchorRadius": 3,
+    "parallelAvoidRadius": 1,
+    "parallelRelaxRadius": 0,
+    "parallelRelaxOnFail": true,
+    "retryFailedEveryTicks": 400,
+    "allowWaterFallback": true,
     "connectVillages": true,
     "connectMines": true,
     "crossings": {
@@ -2607,6 +2640,10 @@
     "buildQueue": {
       "maxConcurrent": 2,
       "maxPerTick": 2
+    },
+    "mineQueue": {
+      "maxConcurrent": 1,
+      "maxPerTick": 1
     }
   },
   "symbols": {

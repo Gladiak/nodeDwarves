@@ -91,6 +91,7 @@ Have a wild idea? Jump in and ship it — pick one of these and make the colony 
 - ⏸️ Dwarf inspect panel (press `i`, works live or paused) with epic lore, clan details, and saga snippets.
 - 🗂️ Legend overlay panel (press `l`) for a clean, two-section key.
 - 🗺️ Map export (press `m`) using the current season styling. Press `Shift+M` to include structures and roads.
+- 🔁 Endgame cycles fade to black with an epic transition panel before a new map appears.
 
 ## Clan culture 🛡️
 
@@ -201,6 +202,8 @@ When the reset fires:
 - Population resets to `endgame.resetPopulation` (if set).
 - Cycle stats are updated and shown in the HUD (`Cycles`, `Last cycle Ticks`).
 - Optional difficulty scaling applies per completed cycle (`endgame.difficulty`).
+- If `endgame.transition.enabled` is true, a diagonal fade-out/in and story panel
+  are shown during the cycle handoff; the panel closes after the fade-in.
 
 ## Job system and priorities ⚙️
 
@@ -217,6 +220,7 @@ When the reset fires:
 - 🔥 Mithril forges provide a global output multiplier that scales by level; late-game upgrades require rare minerals.
 - ⛏️ Mines and 🪚 sawmills can be upgraded to level 10 for higher output (exponential cost/bonus).
 - ⛏️ Mines are built on mountain terrain when none exist, and miners output iron + stone per tick plus rare minerals from level 5+.
+- ⛏️ Mine placement respects `buildMinRadius`/`buildOuterBuffer` unless `structures.mine.ignorePeripheralRadius` is enabled.
 - 🧑‍🏭 Roles (builder/gatherer) can be enabled to keep building stable during shortages.
 - 🧱 Manager builders handle watchtowers, wells, and fields using stockpile-based thresholds.
 - 🧭 Idle dwarves take short waypoint strolls around home (or their current spot) with brief pauses.
@@ -506,7 +510,8 @@ The footer now focuses on control hints instead of map/legend symbols.
     │   ├── legend.js
     │   ├── legend_panel.js
     │   ├── save_panel.js
-    │   └── seasonal_colors.js
+    │   ├── seasonal_colors.js
+    │   └── transition.js
     ├── render.js                 # ASCII renderer + HUD (wrapper)
     ├── runtime.js                # Terminal sizing and layout
     ├── simulation                # Simulation modules

@@ -41,6 +41,7 @@ function assignJobs(state, config, runtime, action) {
   }
 
   const buildQueue = createBuildQueueState(state, config);
+  const mineQueue = createMineQueueState(state, config, buildQueue);
   const brewingPaused = shouldPauseBrewing(state, config);
   if (!brewingPaused) {
     const brewers = idleDwarves.filter((dwarf) => dwarf.role === "brewmaster");
@@ -69,6 +70,19 @@ function assignJobs(state, config, runtime, action) {
         return;
       }
     }
+  }
+
+  assignExtraMineJobIfNeeded(
+    state,
+    config,
+    runtime,
+    idleDwarves,
+    roleConfig,
+    mineQueue,
+    buildQueue,
+  );
+  if (idleDwarves.length === 0) {
+    return;
   }
 
   assignBuildJobIfNeeded(
@@ -264,6 +278,27 @@ function getBuildQueueConfig(config) {
   return { maxConcurrent, maxPerTick };
 }
 
+// Resolve mine queue limits for extra mine builds.
+function getMineQueueConfig(config) {
+  const jobsConfig = (config && config.jobs) || {};
+  const queue = jobsConfig.mineQueue || {};
+  const maxConcurrentRaw = Number(queue.maxConcurrent ?? 1);
+  const maxConcurrent = Math.max(1, Math.floor(maxConcurrentRaw));
+  const maxPerTickRaw = Number(queue.maxPerTick ?? maxConcurrent);
+  const maxPerTick = Math.max(1, Math.floor(maxPerTickRaw));
+  return { maxConcurrent, maxPerTick };
+}
+
+function buildReservedPositionsFromJobs(jobs) {
+  const reserved = new Set();
+  for (const job of jobs) {
+    if ((job.type === "build" || job.type === "upgrade") && job.target) {
+      reserved.add(`${job.target.x},${job.target.y}`);
+    }
+  }
+  return reserved;
+}
+
 // Initialize the build queue state for the current tick.
 function createBuildQueueState(state, config) {
   const jobs = (state && Array.isArray(state.jobs)) ? state.jobs : [];
@@ -271,12 +306,9 @@ function createBuildQueueState(state, config) {
   const active = jobs.filter((job) => job.type === "build" || job.type === "upgrade").length;
   const remainingTotal = Math.max(0, maxConcurrent - active);
   const remaining = Math.max(0, Math.min(maxPerTick, remainingTotal));
-  const reservedPositions = new Set();
+  const reservedPositions = buildReservedPositionsFromJobs(jobs);
   const reservedStructures = new Set();
   for (const job of jobs) {
-    if ((job.type === "build" || job.type === "upgrade") && job.target) {
-      reservedPositions.add(`${job.target.x},${job.target.y}`);
-    }
     if (job.type === "upgrade" && job.structureId) {
       reservedStructures.add(job.structureId);
     }
@@ -285,6 +317,20 @@ function createBuildQueueState(state, config) {
     remaining,
     reservedPositions,
     reservedStructures,
+  };
+}
+
+// Initialize the extra mine queue state for the current tick.
+function createMineQueueState(state, config, buildQueue) {
+  const jobs = (state && Array.isArray(state.jobs)) ? state.jobs : [];
+  const { maxConcurrent, maxPerTick } = getMineQueueConfig(config);
+  const active = jobs.filter((job) => job.type === "build" && job.structureType === "mine").length;
+  const remainingTotal = Math.max(0, maxConcurrent - active);
+  const remaining = Math.max(0, Math.min(maxPerTick, remainingTotal));
+  const reservedPositions = buildQueue ? buildQueue.reservedPositions : buildReservedPositionsFromJobs(jobs);
+  return {
+    remaining,
+    reservedPositions,
   };
 }
 
@@ -299,6 +345,19 @@ function reserveBuildQueue(buildQueue, buildJob) {
   }
   if (buildJob && buildJob.type === "upgrade" && buildJob.structureId) {
     buildQueue.reservedStructures.add(buildJob.structureId);
+  }
+}
+
+function reserveMineQueue(mineQueue, buildJob, buildQueue) {
+  if (!mineQueue) {
+    return;
+  }
+  mineQueue.remaining = Math.max(0, Number(mineQueue.remaining || 0) - 1);
+  if (buildJob && buildJob.target) {
+    mineQueue.reservedPositions.add(`${buildJob.target.x},${buildJob.target.y}`);
+    if (buildQueue && buildQueue.reservedPositions) {
+      buildQueue.reservedPositions.add(`${buildJob.target.x},${buildJob.target.y}`);
+    }
   }
 }
 
@@ -335,6 +394,35 @@ function shouldPrioritizeMine(state, config, runtime) {
   return Boolean(target);
 }
 
+// Decide whether an extra mine should be forced via the mine queue.
+function shouldForceExtraMine(state, config, runtime) {
+  if (!runtime || runtime.gridWidth <= 0 || runtime.gridHeight <= 0) {
+    return false;
+  }
+  const mineConfig = (config.structures && config.structures.mine) || {};
+  const structures = state.structures || [];
+  const mineCount = structures.filter((structure) => structure.type === "mine").length;
+  if (mineCount <= 0) {
+    return false;
+  }
+  const maxCount = Math.max(0, Number(mineConfig.maxCount ?? 0));
+  if (maxCount > 0 && mineCount >= maxCount) {
+    return false;
+  }
+  const queuedMines = state.jobs
+    ? state.jobs.filter((job) => job.type === "build" && job.structureType === "mine").length
+    : 0;
+  if (maxCount > 0 && mineCount + queuedMines >= maxCount) {
+    return false;
+  }
+  const buildCost = mineConfig.buildCostExtra || mineConfig.buildCost || {};
+  if (Object.keys(buildCost).length > 0 && !hasInputs(state.stockpile, buildCost)) {
+    return false;
+  }
+  const target = findMineBuildSpot(state, runtime, mineConfig, null);
+  return Boolean(target);
+}
+
 // Prefer extra mines before the village count reaches a threshold (soft guardrail).
 function shouldPreferExtraMine(state, config) {
   const mineConfig = (config.structures && config.structures.mine) || {};
@@ -364,7 +452,7 @@ function shouldPreferExtraMine(state, config) {
   if (maxCount > 0 && mineCount + queuedMines >= maxCount) {
     return false;
   }
-  const buildCost = mineConfig.buildCost || {};
+  const buildCost = mineConfig.buildCostExtra || mineConfig.buildCost || {};
   if (Object.keys(buildCost).length > 0 && !hasInputs(state.stockpile, buildCost)) {
     return false;
   }
@@ -502,6 +590,48 @@ function assignBuildJobIfNeeded(
     dwarf.job = buildJob;
     state.jobs.push(buildJob);
     reserveBuildQueue(buildQueue, buildJob);
+  }
+}
+
+function assignExtraMineJobIfNeeded(
+  state,
+  config,
+  runtime,
+  idleDwarves,
+  roleConfig,
+  mineQueue,
+  buildQueue,
+) {
+  if (!runtime || runtime.gridWidth <= 0 || runtime.gridHeight <= 0) {
+    return;
+  }
+  if (!mineQueue || mineQueue.remaining <= 0) {
+    return;
+  }
+  if (idleDwarves.length === 0) {
+    return;
+  }
+  if (!shouldForceExtraMine(state, config, runtime)) {
+    return;
+  }
+
+  while (idleDwarves.length > 0 && mineQueue.remaining > 0) {
+    const buildJob = createMineBuildJob(state, config, runtime, mineQueue.reservedPositions);
+    if (!buildJob) {
+      return;
+    }
+    const preferred = roleConfig && roleConfig.enabled
+      ? takeIdleDwarf(idleDwarves, "builder")
+      : null;
+    const dwarf = preferred || takeIdleDwarf(idleDwarves);
+    if (!dwarf) {
+      return;
+    }
+    buildJob.dwarfId = dwarf.id;
+    applyClanBuildTicks(buildJob, dwarf, config);
+    dwarf.job = buildJob;
+    state.jobs.push(buildJob);
+    reserveMineQueue(mineQueue, buildJob, buildQueue);
   }
 }
 

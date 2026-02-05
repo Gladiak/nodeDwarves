@@ -10,6 +10,7 @@ const { getColorConfig, applyColor } = require('./colors');
 const { formatMapLine } = require('./format');
 const { buildInspectPanel, applyInspectPanel } = require('./inspect');
 const { buildSavePanel, applySavePanel } = require('./save_panel');
+const { applyTransitionMask, buildTransitionPanel, applyTransitionPanel } = require('./transition');
 
 // Render a full frame including map, HUD, header, and footer.
 function renderFrame(state, config, runtime) {
@@ -93,6 +94,8 @@ function renderFrame(state, config, runtime) {
     }
   }
 
+  applyTransitionMask(grid, state.ui ? state.ui.transition : null, runtime);
+
   const legendPanel = buildLegendPanel(state, config, runtime);
   if (legendPanel) {
     applyLegendPanel(grid, legendPanel, colors);
@@ -106,6 +109,11 @@ function renderFrame(state, config, runtime) {
   const savePanel = buildSavePanel(state, config, runtime);
   if (savePanel) {
     applySavePanel(grid, savePanel, colors);
+  }
+
+  const transitionPanel = buildTransitionPanel(state, config, runtime);
+  if (transitionPanel) {
+    applyTransitionPanel(grid, transitionPanel, colors);
   }
 
   const hudLines = runtime.hudEnabled ? buildHudLines(state, config, runtime) : [];

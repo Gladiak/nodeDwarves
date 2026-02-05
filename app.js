@@ -13,6 +13,7 @@ const { renderFrame } = require('./src/render');
 const { clearScreen, moveCursorHome, hideCursor, showCursor } = require('./src/terminal');
 const { loadPolicy, selectAction } = require('./src/ai_policy');
 const { getSpawnOrderedIds } = require('./src/dwarf_lore');
+const { shouldTriggerEndgameReset, runEndgameReset } = require('./src/simulation/endgame');
 
 const config = loadConfig();
 let runtime = buildRuntime(config.display, getTerminalSize(config.display));
@@ -27,6 +28,14 @@ const tickMs = Number(config.display.tickMs || 200);
 const maxTicks = Number(config.simulation.maxTicks || 0);
 
 let running = true;
+
+const DEFAULT_ENDGAME_MESSAGES = [
+  'With relics secured, the halls grow quiet. A new caravan departs to found a distant hold.',
+  'The forge embers fade, yet the clan marches on. A fresh settlement rises beyond the rim.',
+  'Songs are packed and banners lifted. The dwarves set forth to carve a new home in stone.',
+  'When the last rune is sealed, a new road opens. The colony journeys toward another mountain.',
+  'The ancient cycle turns once more. A new outpost is sworn beneath a far-off peak.',
+];
 
 process.on('SIGINT', () => {
   running = false;
@@ -52,13 +61,19 @@ function loop() {
 
   updateUiTimers(state, config);
 
-  if (!paused) {
+  const transitionState = getTransitionState(state);
+  if (transitionState && transitionState.active) {
+    advanceEndgameTransition(state, config, runtime);
+  } else if (!paused) {
     if (policy && state.tick >= nextActionTick) {
       currentAction = selectAction(state, config, policy);
       nextActionTick = state.tick + getActionTicks(config);
     }
 
-    stepState(state, config, runtime, currentAction);
+    stepState(state, config, runtime, currentAction, { suppressEndgameReset: true });
+    if (shouldTriggerEndgameReset(state, config)) {
+      startEndgameTransition(state, config, runtime);
+    }
   }
 
   const frame = renderFrame(state, config, runtime);
@@ -403,6 +418,155 @@ function buildSaveMessage(output) {
   return `Map saved to ${displayPath}`;
 }
 
+// Function: getTransitionState.
+function getTransitionState(state) {
+  if (!state || !state.ui) {
+    return null;
+  }
+  return state.ui.transition || null;
+}
+
+// Function: ensureTransitionState.
+function ensureTransitionState(state) {
+  if (!state.ui) {
+    state.ui = {};
+  }
+  if (!state.ui.transition) {
+    state.ui.transition = {
+      active: false,
+      phase: 'idle',
+      phaseTick: 0,
+      progress: 0,
+      showPanel: false,
+      fadeOutTicks: 0,
+      holdTicks: 0,
+      fadeInTicks: 0,
+      message: '',
+    };
+  }
+  return state.ui.transition;
+}
+
+// Function: getTransitionConfig.
+function getTransitionConfig(config) {
+  const endgame = (config && config.endgame) || {};
+  const transition = endgame.transition || {};
+  const fadeOutTicks = Math.max(0, Math.floor(Number(transition.fadeOutTicks ?? 80)));
+  const holdTicks = Math.max(0, Math.floor(Number(transition.holdTicks ?? 40)));
+  const fadeInTicks = Math.max(0, Math.floor(Number(transition.fadeInTicks ?? 80)));
+  const messages = Array.isArray(transition.messages)
+    ? transition.messages.map((value) => String(value))
+    : [];
+  return {
+    enabled: transition.enabled !== false,
+    fadeOutTicks,
+    holdTicks,
+    fadeInTicks,
+    messages,
+  };
+}
+
+// Function: pickTransitionMessage.
+function pickTransitionMessage(messages, state) {
+  const pool = Array.isArray(messages) && messages.length > 0
+    ? messages
+    : DEFAULT_ENDGAME_MESSAGES;
+  const cycleCount = state && state.cycleStats ? Number(state.cycleStats.count || 0) : 0;
+  const seed = state && state.terrain && Number.isFinite(state.terrain.seed)
+    ? Math.floor(state.terrain.seed)
+    : 0;
+  const index = Math.abs(seed + cycleCount * 11) % pool.length;
+  return pool[index];
+}
+
+// Function: startEndgameTransition.
+function startEndgameTransition(state, config, runtime) {
+  const transitionConfig = getTransitionConfig(config);
+  if (transitionConfig.enabled === false) {
+    currentAction = null;
+    nextActionTick = 0;
+    runEndgameReset(state, config, runtime);
+    return;
+  }
+  const transition = ensureTransitionState(state);
+  if (transition.active) {
+    return;
+  }
+  ensureInspectState(state);
+  ensureLegendState(state);
+  ensureSaveMapState(state);
+  transition.active = true;
+  transition.phase = 'fadeOut';
+  transition.phaseTick = 0;
+  transition.progress = 0;
+  transition.showPanel = false;
+  transition.fadeOutTicks = transitionConfig.fadeOutTicks;
+  transition.holdTicks = transitionConfig.holdTicks;
+  transition.fadeInTicks = transitionConfig.fadeInTicks;
+  transition.message = pickTransitionMessage(transitionConfig.messages, state);
+  state.ui.inspect.open = false;
+  state.ui.legend.open = false;
+  closeSaveMap(state);
+  currentAction = null;
+  nextActionTick = 0;
+  paused = false;
+}
+
+// Function: advanceEndgameTransition.
+function advanceEndgameTransition(state, config, runtime) {
+  const transition = getTransitionState(state);
+  if (!transition || !transition.active) {
+    return;
+  }
+
+  const phase = transition.phase;
+  transition.phaseTick += 1;
+
+  if (phase === 'fadeOut') {
+    const duration = Math.max(1, Number(transition.fadeOutTicks || 0));
+    transition.progress = clampUnit(transition.phaseTick / duration);
+    transition.showPanel = false;
+    if (transition.phaseTick >= duration) {
+      transition.phase = 'hold';
+      transition.phaseTick = 0;
+      transition.progress = 1;
+    }
+    return;
+  }
+
+  if (phase === 'hold') {
+    const duration = Math.max(0, Number(transition.holdTicks || 0));
+    transition.progress = 1;
+    transition.showPanel = true;
+    if (duration === 0 || transition.phaseTick >= duration) {
+      const nextTransition = {
+        ...transition,
+        phase: 'fadeIn',
+        phaseTick: 0,
+        progress: 0,
+        showPanel: true,
+        active: true,
+      };
+      runEndgameReset(state, config, runtime, {
+        preserveUi: { transition: nextTransition },
+      });
+    }
+    return;
+  }
+
+  if (phase === 'fadeIn') {
+    const duration = Math.max(1, Number(transition.fadeInTicks || 0));
+    transition.progress = clampUnit(transition.phaseTick / duration);
+    transition.showPanel = true;
+    if (transition.phaseTick >= duration) {
+      transition.active = false;
+      transition.showPanel = false;
+      transition.phase = 'done';
+      transition.progress = 1;
+    }
+  }
+}
+
 // Function: buildFailureMessage.
 function buildFailureMessage(code, errorOutput) {
   const firstLine = errorOutput.trim().split('\n')[0];
@@ -423,10 +587,15 @@ function handleInput(text) {
   let i = 0;
   while (i < text.length) {
     const char = text[i];
+    const transitionActive = Boolean(getTransitionState(state)?.active);
     if (char === '\u0003') {
       running = false;
       shutdown();
       return;
+    }
+    if (transitionActive) {
+      i += 1;
+      continue;
     }
     if (char === ' ') {
       paused = !paused;

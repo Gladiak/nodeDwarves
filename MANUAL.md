@@ -219,6 +219,7 @@ Notes:
   - Wells/fields spawn resource nodes and respect max counts and spacing rules.
   - Watchtowers provide raid defense and per-tick attacks.
   - Mines/sawmills/breweries scale output by level with exponential upgrade costs.
+  - Mine placement respects `buildMinRadius`/`buildOuterBuffer` unless `structures.mine.ignorePeripheralRadius` is enabled.
   - Guardrails are **ratio-based** (important for stability).
 
 ### Villages
@@ -235,6 +236,12 @@ Notes:
   - Builds road overlays that connect villages and mines over time.
   - Road tiles are placed every `roads.buildEveryTicks` if `roads.buildMinResources` guardrails are met.
   - Paths avoid `roads.avoidTerrain` and cross rivers as `bridge` or `ford` tiles via `roads.crossings.*`.
+  - Tiles in `roads.softAvoidTerrain` (water, hills, mountains) are avoided when possible; if no land route exists, roads can path through them.
+  - Tiles in `roads.waterTerrain` render as bridge tiles when a fallback path traverses them.
+  - New links will snap to existing road tiles within `roads.anchorRadius` near villages/mines to avoid duplicate parallel roads.
+  - `roads.parallelAvoidRadius` blocks new road tiles from being placed adjacent to existing roads, keeping a single main line.
+  - If no path exists, `roads.parallelRelaxOnFail` retries with `roads.parallelRelaxRadius` to avoid deadlocks.
+  - Failed links can be retried after `roads.retryFailedEveryTicks` ticks.
   - Rendering uses `display.terrain.roadSymbols` plus `display.terrain.roadSpecialSymbols`.
   - Roads are currently visual-only and do not change movement speed.
   - Road planning is limited to V1 -> mine, V1 -> V2, and V3 -> nearest of V1/V2 (no further village links).
@@ -299,6 +306,8 @@ Notes:
   - Tracks completed cycles and last cycle ticks in `cycleStats`.
   - Difficulty can scale per cycle via `endgame.difficulty.*`.
   - Myths are cleared, but traditions persist across cycles within the same run.
+  - Optional endgame transitions fade the map to black and show a story panel
+    before fading in the new map (`endgame.transition.*`).
 
 ### Ruins and expeditions
 

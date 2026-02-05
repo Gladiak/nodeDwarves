@@ -21,7 +21,18 @@ function getRoadsConfig(config) {
     : null;
   const avoidTerrain = Array.isArray(raw.avoidTerrain) && raw.avoidTerrain.length > 0
     ? raw.avoidTerrain.map((value) => String(value))
-    : ['mountain', 'lake', 'water', 'shore'];
+    : [];
+  const waterTerrain = Array.isArray(raw.waterTerrain) && raw.waterTerrain.length > 0
+    ? raw.waterTerrain.map((value) => String(value))
+    : ['lake', 'water', 'shore'];
+  const softAvoidTerrain = Array.isArray(raw.softAvoidTerrain) && raw.softAvoidTerrain.length > 0
+    ? raw.softAvoidTerrain.map((value) => String(value))
+    : waterTerrain.slice();
+  const anchorRadius = Math.max(0, Math.floor(Number(raw.anchorRadius ?? 1)));
+  const parallelAvoidRadius = Math.max(0, Math.floor(Number(raw.parallelAvoidRadius ?? 1)));
+  const parallelRelaxRadius = Math.max(0, Math.floor(Number(raw.parallelRelaxRadius ?? 0)));
+  const parallelRelaxOnFail = raw.parallelRelaxOnFail !== false;
+  const allowWaterFallback = raw.allowWaterFallback !== false;
   const crossings = raw.crossings || {};
   const cost = raw.cost || {};
   return {
@@ -29,6 +40,13 @@ function getRoadsConfig(config) {
     buildEveryTicks,
     buildMinResources,
     avoidTerrain,
+    waterTerrain,
+    softAvoidTerrain,
+    anchorRadius,
+    parallelAvoidRadius,
+    parallelRelaxRadius,
+    parallelRelaxOnFail,
+    allowWaterFallback,
     connectVillages: raw.connectVillages !== false,
     connectMines: raw.connectMines !== false,
     crossings: {
@@ -53,6 +71,7 @@ function createRoadState(width, height) {
     failedLinks: {},
     primaryMineLinkKey: null,
     nextBuildTick: 0,
+    retryLinks: {},
   };
 }
 
@@ -91,9 +110,12 @@ function updateRoads(state, config, runtime) {
   if (!roads) {
     return;
   }
+  updateRetryLinks(roads, roadsConfig);
 
   const primaryMineKey = planMineLinks(state, roads, roadsConfig, runtime, config);
-  if (!primaryMineKey || isLinkCompleted(roads, primaryMineKey)) {
+  if (!primaryMineKey
+    || isLinkCompleted(roads, primaryMineKey)
+    || roads.failedLinks[primaryMineKey]) {
     planVillageLinks(state, roads, roadsConfig, runtime, config);
   }
 
@@ -296,12 +318,16 @@ function selectNearestMine(center, mines, roads) {
 // Plan a road link and enqueue tiles to build.
 function planRoadLink(state, roads, roadsConfig, runtime, config, linkKey, kind, start, goal) {
   if (!start || !goal) {
-    roads.failedLinks[linkKey] = true;
+    markLinkFailed(roads, linkKey, roadsConfig);
     return;
   }
-  const path = findRoadPath(state, runtime, roadsConfig, start, goal);
+  const anchorStart = findRoadAnchor(roads, runtime, start, roadsConfig.anchorRadius, goal);
+  const anchorGoal = findRoadAnchor(roads, runtime, goal, roadsConfig.anchorRadius, start);
+  const from = anchorStart || start;
+  const to = anchorGoal || goal;
+  const path = findRoadPath(state, roads, runtime, roadsConfig, from, to);
   if (!path || path.length === 0) {
-    roads.failedLinks[linkKey] = true;
+    markLinkFailed(roads, linkKey, roadsConfig);
     return;
   }
 
@@ -309,6 +335,10 @@ function planRoadLink(state, roads, roadsConfig, runtime, config, linkKey, kind,
   let pending = 0;
   for (const pos of path) {
     const key = `${pos.x},${pos.y}`;
+    const tileType = resolveRoadTileType(state, pos.x, pos.y, crossingType, roadsConfig);
+    if (!tileType) {
+      continue;
+    }
     if (roads.types[pos.y] && roads.types[pos.y][pos.x]) {
       continue;
     }
@@ -317,7 +347,7 @@ function planRoadLink(state, roads, roadsConfig, runtime, config, linkKey, kind,
       roads.queue.push({
         x: pos.x,
         y: pos.y,
-        type: resolveRoadTileType(state, pos.x, pos.y, crossingType),
+        type: tileType,
       });
       roads.planned[key] = true;
     }
@@ -330,8 +360,8 @@ function planRoadLink(state, roads, roadsConfig, runtime, config, linkKey, kind,
   roads.links[linkKey] = {
     key: linkKey,
     kind,
-    from: { x: start.x, y: start.y },
-    to: { x: goal.x, y: goal.y },
+    from: { x: from.x, y: from.y },
+    to: { x: to.x, y: to.y },
     pending,
     completed: pending === 0,
   };
@@ -351,8 +381,11 @@ function resolveCrossingType(roadsConfig, kind) {
   return roadsConfig.crossings.village || 'bridge';
 }
 
-function resolveRoadTileType(state, x, y, crossingType) {
+function resolveRoadTileType(state, x, y, crossingType, roadsConfig) {
   const terrainType = getTerrainTypeAt(state, x, y);
+  if (isWaterTerrain(roadsConfig, terrainType)) {
+    return 'bridge';
+  }
   if (terrainType === 'river') {
     return crossingType === 'ford' ? 'ford' : 'bridge';
   }
@@ -360,7 +393,7 @@ function resolveRoadTileType(state, x, y, crossingType) {
 }
 
 // Find a Manhattan path avoiding blocked terrain types.
-function findRoadPath(state, runtime, roadsConfig, start, goal) {
+function findRoadPath(state, roads, runtime, roadsConfig, start, goal) {
   const width = Math.max(0, Number(runtime.gridWidth || 0));
   const height = Math.max(0, Number(runtime.gridHeight || 0));
   const startX = clamp(Number(start.x || 0), 0, width - 1);
@@ -371,13 +404,164 @@ function findRoadPath(state, runtime, roadsConfig, start, goal) {
     return [{ x: startX, y: startY }];
   }
 
-  const avoid = new Set(roadsConfig.avoidTerrain || []);
+  const avoid = Array.isArray(roadsConfig.avoidTerrain) ? roadsConfig.avoidTerrain : [];
+  const softAvoid = Array.isArray(roadsConfig.softAvoidTerrain) ? roadsConfig.softAvoidTerrain : [];
+  const parallelAvoidRadius = Math.max(0, Number(roadsConfig.parallelAvoidRadius || 0));
+  const parallelBuffer = Math.max(0, Number(roadsConfig.anchorRadius || 0));
+  const parallelRelaxRadius = Math.max(0, Number(roadsConfig.parallelRelaxRadius || 0));
+  const parallelRelaxOnFail = roadsConfig.parallelRelaxOnFail !== false;
+  const hardAvoid = new Set(avoid);
+  const avoidWithSoft = new Set([...hardAvoid, ...softAvoid]);
+
+  const primary = findRoadPathWithAvoid(
+    state,
+    roads,
+    width,
+    height,
+    startX,
+    startY,
+    goalX,
+    goalY,
+    avoidWithSoft,
+    parallelAvoidRadius,
+    parallelBuffer,
+  );
+  if (primary) {
+    return primary;
+  }
+  if (roadsConfig.allowWaterFallback === false) {
+    if (parallelRelaxOnFail && parallelAvoidRadius > parallelRelaxRadius) {
+      return findRoadPathWithAvoid(
+        state,
+        roads,
+        width,
+        height,
+        startX,
+        startY,
+        goalX,
+        goalY,
+        avoidWithSoft,
+        parallelRelaxRadius,
+        parallelBuffer,
+      );
+    }
+    return null;
+  }
+  const fallback = findRoadPathWithAvoid(
+    state,
+    roads,
+    width,
+    height,
+    startX,
+    startY,
+    goalX,
+    goalY,
+    hardAvoid,
+    parallelAvoidRadius,
+    parallelBuffer,
+  );
+  if (fallback) {
+    return fallback;
+  }
+  if (parallelRelaxOnFail && parallelAvoidRadius > parallelRelaxRadius) {
+    const relaxedPrimary = findRoadPathWithAvoid(
+      state,
+      roads,
+      width,
+      height,
+      startX,
+      startY,
+      goalX,
+      goalY,
+      avoidWithSoft,
+      parallelRelaxRadius,
+      parallelBuffer,
+    );
+    if (relaxedPrimary) {
+      return relaxedPrimary;
+    }
+    return findRoadPathWithAvoid(
+      state,
+      roads,
+      width,
+      height,
+      startX,
+      startY,
+      goalX,
+      goalY,
+      hardAvoid,
+      parallelRelaxRadius,
+      parallelBuffer,
+    );
+  }
+  return null;
+}
+
+function findRoadPathWithAvoid(
+  state,
+  roads,
+  width,
+  height,
+  startX,
+  startY,
+  goalX,
+  goalY,
+  avoidSet,
+  parallelAvoidRadius,
+  parallelBuffer,
+) {
+  const isRoadTile = (x, y) => {
+    if (roads && roads.types && roads.types[y] && roads.types[y][x]) {
+      return true;
+    }
+    if (roads && roads.planned && roads.planned[`${x},${y}`]) {
+      return true;
+    }
+    return false;
+  };
+  const isNearRoad = (x, y, radius) => {
+    if (!roads || radius <= 0) {
+      return false;
+    }
+    for (let dy = -radius; dy <= radius; dy += 1) {
+      const ny = y + dy;
+      if (ny < 0 || ny >= height) {
+        continue;
+      }
+      for (let dx = -radius; dx <= radius; dx += 1) {
+        const nx = x + dx;
+        if (nx < 0 || nx >= width) {
+          continue;
+        }
+        if (nx === x && ny === y) {
+          continue;
+        }
+        if (isRoadTile(nx, ny)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  };
   const isPassable = (x, y) => {
     if (x === goalX && y === goalY) {
       return true;
     }
+    if (isRoadTile(x, y)) {
+      return true;
+    }
+    if (parallelAvoidRadius > 0
+      && !(x === startX && y === startY)
+      && !(x === goalX && y === goalY)
+      && isNearRoad(x, y, parallelAvoidRadius)) {
+      const distStart = Math.abs(x - startX) + Math.abs(y - startY);
+      const distGoal = Math.abs(x - goalX) + Math.abs(y - goalY);
+      if (distStart > parallelBuffer && distGoal > parallelBuffer) {
+        return false;
+      }
+    }
     const type = getTerrainTypeAt(state, x, y);
-    return !(type && avoid.has(type));
+    return !(type && avoidSet.has(type));
   };
 
   const size = width * height;
@@ -434,12 +618,85 @@ function findRoadPath(state, runtime, roadsConfig, start, goal) {
   return path;
 }
 
+function isWaterTerrain(roadsConfig, terrainType) {
+  if (!terrainType || !roadsConfig || !Array.isArray(roadsConfig.waterTerrain)) {
+    return false;
+  }
+  return roadsConfig.waterTerrain.includes(terrainType);
+}
+
+function findRoadAnchor(roads, runtime, pos, radius, target) {
+  if (!roads || !roads.types || !pos || radius <= 0) {
+    return null;
+  }
+  const width = Math.max(0, Number(runtime.gridWidth || 0));
+  const height = Math.max(0, Number(runtime.gridHeight || 0));
+  const startX = clamp(Number(pos.x || 0), 0, width - 1);
+  const startY = clamp(Number(pos.y || 0), 0, height - 1);
+  const targetX = target && Number.isFinite(target.x) ? Math.floor(Number(target.x)) : null;
+  const targetY = target && Number.isFinite(target.y) ? Math.floor(Number(target.y)) : null;
+  const isRoad = (x, y) => {
+    if (roads.types[y] && roads.types[y][x]) {
+      return true;
+    }
+    if (roads.planned && roads.planned[`${x},${y}`]) {
+      return true;
+    }
+    return false;
+  };
+
+  if (isRoad(startX, startY)) {
+    return { x: startX, y: startY };
+  }
+
+  const maxRadius = Math.max(1, Math.floor(radius));
+  let best = null;
+  let bestTargetDist = Infinity;
+  let bestSelfDist = Infinity;
+  for (let r = 1; r <= maxRadius; r += 1) {
+    for (let dx = -r; dx <= r; dx += 1) {
+      const dy = r - Math.abs(dx);
+      const x1 = startX + dx;
+      const y1 = startY + dy;
+      if (x1 >= 0 && y1 >= 0 && x1 < width && y1 < height && isRoad(x1, y1)) {
+        const selfDist = Math.abs(x1 - startX) + Math.abs(y1 - startY);
+        const targetDist = targetX === null ? 0 : Math.abs(x1 - targetX) + Math.abs(y1 - targetY);
+        if (targetDist < bestTargetDist || (targetDist === bestTargetDist && selfDist < bestSelfDist)) {
+          best = { x: x1, y: y1 };
+          bestTargetDist = targetDist;
+          bestSelfDist = selfDist;
+        }
+      }
+      if (dy !== 0) {
+        const x2 = startX + dx;
+        const y2 = startY - dy;
+        if (x2 >= 0 && y2 >= 0 && x2 < width && y2 < height && isRoad(x2, y2)) {
+          const selfDist = Math.abs(x2 - startX) + Math.abs(y2 - startY);
+          const targetDist = targetX === null ? 0 : Math.abs(x2 - targetX) + Math.abs(y2 - targetY);
+          if (targetDist < bestTargetDist || (targetDist === bestTargetDist && selfDist < bestSelfDist)) {
+            best = { x: x2, y: y2 };
+            bestTargetDist = targetDist;
+            bestSelfDist = selfDist;
+          }
+        }
+      }
+    }
+    if (best) {
+      return best;
+    }
+  }
+  return best;
+}
+
 // Attempt to build the next queued road tile.
 function buildNextRoadTile(state, roads, roadsConfig, config) {
-  while (roads.queueIndex < roads.queue.length) {
+  const remaining = Math.max(0, roads.queue.length - roads.queueIndex);
+  let attempts = 0;
+  while (roads.queueIndex < roads.queue.length && attempts < remaining) {
     const entry = roads.queue[roads.queueIndex];
     if (!entry) {
       roads.queueIndex += 1;
+      attempts += 1;
       continue;
     }
     const x = entry.x;
@@ -450,6 +707,7 @@ function buildNextRoadTile(state, roads, roadsConfig, config) {
         delete roads.planned[key];
       }
       roads.queueIndex += 1;
+      attempts += 1;
       continue;
     }
 
@@ -459,12 +717,17 @@ function buildNextRoadTile(state, roads, roadsConfig, config) {
 
     const cost = getRoadCost(roadsConfig, entry.type);
     if (!hasInputs(state.stockpile, cost)) {
-      return false;
+      roads.queue[roads.queueIndex] = null;
+      roads.queue.push(entry);
+      roads.queueIndex += 1;
+      attempts += 1;
+      continue;
     }
     consumeInputs(state.stockpile, cost);
 
     roads.types[y][x] = entry.type;
     roads.queueIndex += 1;
+    attempts += 1;
     const key = `${x},${y}`;
     if (roads.planned[key]) {
       delete roads.planned[key];
@@ -485,7 +748,7 @@ function buildNextRoadTile(state, roads, roadsConfig, config) {
     }
     return true;
   }
-  return null;
+  return remaining > 0 ? false : null;
 }
 
 function getRoadCost(roadsConfig, type) {
@@ -531,6 +794,38 @@ function buildRoadCompleteMessage(linkKey, kind) {
     }
   }
   return `Road completed: ${linkKey}`;
+}
+
+function markLinkFailed(roads, linkKey, roadsConfig) {
+  if (!roads || !linkKey) {
+    return;
+  }
+  const cooldown = Math.max(0, Number(roadsConfig.retryFailedEveryTicks || 0));
+  if (cooldown > 0) {
+    roads.retryLinks[linkKey] = cooldown;
+  }
+  roads.failedLinks[linkKey] = true;
+}
+
+function updateRetryLinks(roads, roadsConfig) {
+  if (!roads || !roads.retryLinks) {
+    return;
+  }
+  const cooldown = Math.max(0, Number(roadsConfig.retryFailedEveryTicks || 0));
+  if (cooldown <= 0) {
+    return;
+  }
+  for (const [key, remainingRaw] of Object.entries(roads.retryLinks)) {
+    const remaining = Math.max(0, Number(remainingRaw || 0) - 1);
+    if (remaining <= 0) {
+      delete roads.retryLinks[key];
+      if (roads.failedLinks[key]) {
+        delete roads.failedLinks[key];
+      }
+    } else {
+      roads.retryLinks[key] = remaining;
+    }
+  }
 }
 
 module.exports = { updateRoads, ensureRoadState };

@@ -31,7 +31,7 @@ const { updateVillages } = require('./villages');
 const { updateRoads } = require('./roads');
 
 // Advance the simulation by one tick.
-function stepState(state, config, runtime, action) {
+function stepState(state, config, runtime, action, options = {}) {
   state.lastConfig = config;
   state.tick += 1;
   const endgameDifficulty = updateEndgameDifficulty(state, config);
@@ -98,7 +98,9 @@ function stepState(state, config, runtime, action) {
   updateWildlifeTick(state, config, runtime);
   updatePastureBirths(state, config);
   updateMyths(state, config);
-  maybeHandleEndgameReset(state, config, runtime);
+  if (!options.suppressEndgameReset) {
+    maybeHandleEndgameReset(state, config, runtime);
+  }
 }
 
 module.exports = { stepState };

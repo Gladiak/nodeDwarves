@@ -681,7 +681,7 @@ function createSawmillBuildJob(state, config, runtime, reservedPositions) {
   };
 }
 
-// Create a mine build job when no mines are available.
+// Create a mine build job.
 function createMineBuildJob(state, config, runtime, reservedPositions) {
   const mineConfig = (config.structures && config.structures.mine) || {};
   const maxCount = Number(mineConfig.maxCount ?? 0);
@@ -696,7 +696,8 @@ function createMineBuildJob(state, config, runtime, reservedPositions) {
     return null;
   }
 
-  const buildCost = mineConfig.buildCost || {};
+  const isExtraMine = existingMines + queuedMines > 0;
+  const buildCost = (isExtraMine && mineConfig.buildCostExtra) || mineConfig.buildCost || {};
   if (Object.keys(buildCost).length > 0 && !hasInputs(state.stockpile, buildCost)) {
     return null;
   }
@@ -710,7 +711,10 @@ function createMineBuildJob(state, config, runtime, reservedPositions) {
     consumeInputs(state.stockpile, buildCost);
   }
 
-  const buildTicks = Math.max(1, Number(mineConfig.buildTicks || 55));
+  const buildTicksRaw = isExtraMine && Number.isFinite(mineConfig.buildTicksExtra)
+    ? mineConfig.buildTicksExtra
+    : mineConfig.buildTicks;
+  const buildTicks = Math.max(1, Number(buildTicksRaw || 55));
   return {
     id: `job_${state.jobCounter++}`,
     type: 'build',
@@ -2014,7 +2018,10 @@ function findFertileBuildSpot(state, runtime, structureConfig, reservedPositions
 
 // Find a build spot on mining terrain.
 function findMineBuildSpot(state, runtime, structureConfig, reservedPositions, centerOverride) {
-  const minRadius = getPeripheralBuildRadius(state, runtime, structureConfig, centerOverride);
+  const ignoreRadius = Boolean(structureConfig && structureConfig.ignorePeripheralRadius);
+  const minRadius = ignoreRadius
+    ? 0
+    : getPeripheralBuildRadius(state, runtime, structureConfig, centerOverride);
   const allowed = getMineTerrainTypes(structureConfig);
   return findVillageBuildSpotFromRadius(state, runtime, minRadius, (x, y) => {
     if (!allowed || allowed.length === 0) {

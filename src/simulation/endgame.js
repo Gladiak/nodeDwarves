@@ -8,6 +8,13 @@ function getEndgameConfig(config) {
   return (config && config.endgame) || {};
 }
 
+function getTransitionConfig(endgame) {
+  if (!endgame || typeof endgame !== 'object') {
+    return {};
+  }
+  return endgame.transition || {};
+}
+
 function getEndgameMinTicks(endgame) {
   if (!endgame || typeof endgame !== 'object') {
     return 0;
@@ -69,6 +76,36 @@ function clearArtifactsCompletionTick(state) {
   state.endgameArtifactsTick = null;
 }
 
+function buildRandomSeed() {
+  return Math.floor(Math.random() * 2147483647);
+}
+
+function buildResetConfig(config) {
+  const endgame = getEndgameConfig(config);
+  const transition = getTransitionConfig(endgame);
+  const resetPopulation = Math.max(0, Math.floor(Number(endgame.resetPopulation || 0)));
+  let configOverride = resetPopulation > 0
+    ? {
+      ...config,
+      dwarves: {
+        ...(config.dwarves || {}),
+        count: resetPopulation,
+      },
+    }
+    : config;
+
+  const randomizeSeed = transition.randomizeSeed !== false;
+  if (randomizeSeed) {
+    const display = { ...(configOverride.display || {}) };
+    const terrain = { ...(display.terrain || {}) };
+    terrain.seed = buildRandomSeed();
+    display.terrain = terrain;
+    configOverride = { ...configOverride, display };
+  }
+
+  return configOverride;
+}
+
 function computeEndgameDifficultyMultiplier(state, config) {
   const endgame = getEndgameConfig(config);
   const difficulty = endgame.difficulty || {};
@@ -116,19 +153,8 @@ function resetStateInPlace(state, nextState) {
   Object.assign(state, nextState);
 }
 
-function runEndgameReset(state, config, runtime) {
-  const endgame = getEndgameConfig(config);
-  const resetPopulation = Math.max(0, Math.floor(Number(endgame.resetPopulation || 0)));
-  const configOverride = resetPopulation > 0
-    ? {
-      ...config,
-      dwarves: {
-        ...(config.dwarves || {}),
-        count: resetPopulation,
-      },
-    }
-    : config;
-
+function runEndgameReset(state, config, runtime, options = {}) {
+  const configOverride = buildResetConfig(config);
   const nextState = createInitialState(configOverride, runtime);
   const stats = getCycleStats(state);
   carryMythsAcrossCycle(state, nextState, config);
@@ -140,6 +166,12 @@ function runEndgameReset(state, config, runtime) {
   nextState.endgameArtifactsTick = null;
   updateEndgameDifficulty(nextState, config);
   resetStateInPlace(state, nextState);
+  if (options && options.preserveUi && typeof options.preserveUi === 'object') {
+    state.ui = state.ui || {};
+    for (const [key, value] of Object.entries(options.preserveUi)) {
+      state.ui[key] = value;
+    }
+  }
 }
 
 function maybeHandleEndgameReset(state, config, runtime) {
@@ -153,5 +185,7 @@ function maybeHandleEndgameReset(state, config, runtime) {
 module.exports = {
   computeEndgameDifficultyMultiplier,
   updateEndgameDifficulty,
+  shouldTriggerEndgameReset,
+  runEndgameReset,
   maybeHandleEndgameReset,
 };

@@ -119,6 +119,12 @@ Endgame cycles:
 - `endgame.enabled`: enable or disable endgame cycle resets.
 - `endgame.resetPopulation`: dwarf count for the new cycle after reset.
 - `endgame.minTicksAfterArtifacts`: ticks that must pass after all artifacts are found before triggering a cycle.
+- `endgame.transition.enabled`: enable or disable the endgame fade transition.
+- `endgame.transition.fadeOutTicks`: ticks for the fade-out from bottom-right to top-left.
+- `endgame.transition.holdTicks`: ticks to hold on a black map before fade-in.
+- `endgame.transition.fadeInTicks`: ticks for the fade-in from top-left to bottom-right.
+- `endgame.transition.randomizeSeed`: randomize the map seed on each cycle.
+- `endgame.transition.messages`: array of story messages used during the transition.
 - `endgame.difficulty.enabled`: enable difficulty scaling per completed cycle.
 - `endgame.difficulty.perCycle`: difficulty multiplier added per completed cycle.
 - `endgame.difficulty.maxMultiplier`: cap for the difficulty multiplier.

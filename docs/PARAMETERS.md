@@ -35,6 +35,9 @@ Display and layout:
 - `display.save_panel.width`: save panel width in characters.
 - `display.save_panel.height`: save panel height in lines.
 - `display.save_panel.autoCloseMs`: auto-close delay for the save panel in milliseconds.
+- `display.transition_panel.enabled`: enable the endgame transition panel overlay.
+- `display.transition_panel.width`: transition panel width in characters.
+- `display.transition_panel.height`: transition panel height in lines.
 - `display.terrain.enabled`: enable randomized valley terrain background for the map.
 - `display.terrain.seed`: seed for terrain generation (`0` = random each run).
 - `display.terrain.scale`: noise scale (lower = larger blobs).
@@ -254,6 +257,12 @@ Endgame cycles:
 - `endgame.enabled`: enable endgame cycle resets.
 - `endgame.resetPopulation`: dwarf count for the new cycle after a reset.
 - `endgame.minTicksAfterArtifacts`: ticks that must pass after all artifacts are found before triggering a cycle.
+- `endgame.transition.enabled`: enable the endgame fade transition + story panel.
+- `endgame.transition.fadeOutTicks`: ticks for the fade-out from bottom-right to top-left.
+- `endgame.transition.holdTicks`: ticks to hold on a black map with the story panel.
+- `endgame.transition.fadeInTicks`: ticks for the fade-in from top-left to bottom-right.
+- `endgame.transition.randomizeSeed`: force a new random terrain seed on each cycle.
+- `endgame.transition.messages`: array of epic transition messages (pick one per cycle).
 - `endgame.difficulty.enabled`: enable difficulty scaling per completed cycle.
 - `endgame.difficulty.perCycle`: difficulty multiplier added per completed cycle.
 - `endgame.difficulty.maxMultiplier`: cap for the difficulty multiplier.
@@ -318,6 +327,8 @@ Jobs:
 
 - `jobs.buildQueue.maxConcurrent`: maximum concurrent build/house-upgrade jobs.
 - `jobs.buildQueue.maxPerTick`: maximum new build/house-upgrade jobs spawned per tick.
+- `jobs.mineQueue.maxConcurrent`: maximum concurrent mine build jobs spawned outside the main build queue.
+- `jobs.mineQueue.maxPerTick`: maximum extra mine build jobs spawned per tick.
 - `jobs.gatherTriggerRatio`: multiplier applied to stockpile targets when computing shortages (number or object).
 - `jobs.gatherTriggerRatio.default`: fallback multiplier for all resources.
 - `jobs.gatherTriggerRatio.<resource>`: per-resource multiplier (values >1 start gathering earlier).
@@ -467,6 +478,14 @@ Roads:
 - `roads.buildEveryTicks`: ticks between each road tile placement.
 - `roads.buildMinResources.<resource>`: minimum stockpile ratio required to place a road tile (0..1).
 - `roads.avoidTerrain`: terrain types treated as blocked for road pathfinding.
+- `roads.softAvoidTerrain`: terrain types avoided when possible; if no other route exists the path can traverse them.
+- `roads.waterTerrain`: terrain types rendered as bridges when a path must traverse them.
+- `roads.anchorRadius`: radius (in tiles) to snap a new road link to an existing road near a village or mine.
+- `roads.parallelAvoidRadius`: radius (in tiles) that blocks placing new road tiles alongside existing roads.
+- `roads.parallelRelaxRadius`: fallback parallel radius used when no path exists (0 disables the anti-parallel rule in fallback).
+- `roads.parallelRelaxOnFail`: allow retrying pathfinding with the relaxed parallel radius.
+- `roads.retryFailedEveryTicks`: ticks to wait before retrying a failed road link (0 disables retries).
+- `roads.allowWaterFallback`: allow fallback pathing through `roads.softAvoidTerrain` when no other route exists.
 - `roads.connectVillages`: connect new villages to the nearest existing village.
 - `roads.connectMines`: connect mines to the nearest village.
 - `roads.crossings.village`: road tile type for village links on rivers (`bridge` or `ford`).
@@ -671,9 +690,12 @@ Structures (mines):
 - `structures.mine.minersPerMine`: number of miners assigned per mine.
 - `structures.mine.buildMinRadius`: minimum Manhattan radius from village center.
 - `structures.mine.buildOuterBuffer`: extra distance beyond the current village perimeter (houses).
+- `structures.mine.ignorePeripheralRadius`: ignore the peripheral radius when placing mines (useful for extra mines).
 - `structures.mine.buildTerrain`: allowed terrain types for mine placement.
 - `structures.mine.buildTicks`: ticks required to build a mine.
+- `structures.mine.buildTicksExtra`: ticks required to build extra mines beyond the first.
 - `structures.mine.buildCost.<resource>`: resource costs to build a mine.
+- `structures.mine.buildCostExtra.<resource>`: resource costs to build extra mines beyond the first.
 - `structures.mine.outputPerTick.<resource>`: per-miner output applied each tick while mining.
 - `structures.mine.levelMax`: maximum mine level.
 - `structures.mine.levelBonusMin`: bonus at level 1 (fraction).
