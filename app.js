@@ -408,13 +408,31 @@ function writeMapExportSnapshot(state) {
 
 // Function: buildSaveMessage.
 function buildSaveMessage(output) {
-  const match = output.match(/Map exported to ([^\n\r]+)/);
-  if (!match) {
+  const matches = [];
+  const regex = /Map exported to ([^\n\r]+)/g;
+  let match = null;
+  while ((match = regex.exec(output)) !== null) {
+    matches.push(match[1].trim());
+  }
+  if (matches.length === 0) {
     return 'Map saved.';
   }
-  const rawPath = match[1].trim();
+  const pickByExtension = (ext) => {
+    for (let i = matches.length - 1; i >= 0; i -= 1) {
+      if (matches[i].toLowerCase().endsWith(ext)) {
+        return matches[i];
+      }
+    }
+    return null;
+  };
+  const pngPath = pickByExtension('.png');
+  const svgPath = pickByExtension('.svg');
+  const rawPath = pngPath || matches[matches.length - 1];
   const relative = path.relative(process.cwd(), rawPath);
   const displayPath = relative && !relative.startsWith('..') ? relative : rawPath;
+  if (pngPath && svgPath) {
+    return `Map saved to ${displayPath} (+ svg).`;
+  }
   return `Map saved to ${displayPath}`;
 }
 

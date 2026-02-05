@@ -90,7 +90,7 @@ Have a wild idea? Jump in and ship it — pick one of these and make the colony 
 - ⏳ Terrain gathering cooldowns can be bypassed during critical shortages.
 - ⏸️ Dwarf inspect panel (press `i`, works live or paused) with epic lore, clan details, and saga snippets.
 - 🗂️ Legend overlay panel (press `l`) for a clean, two-section key.
-- 🗺️ Map export (press `m`) using the current season styling. Press `Shift+M` to include structures and roads.
+- 🗺️ Map export (press `m`) to PNG + SVG using the current season styling. Press `Shift+M` to include structures and roads.
 - 🔁 Endgame cycles fade to black with an epic transition panel before a new map appears.
 
 ## Clan culture 🛡️
@@ -234,7 +234,7 @@ npm install
 npm start
 ```
 
-Press `Space` to pause/resume the simulation. Press `l` for the legend panel, `i` for dwarf info, and `m` to export a map.
+Press `Space` to pause/resume the simulation. Press `l` for the legend panel, `i` for dwarf info, and `m` to export a map (PNG + SVG).
 
 ## AI mode (Python) 🤖
 
@@ -354,11 +354,11 @@ optionally, node counts/targets) based on the runtime grid area. Use
 `baselineWidth`/`baselineHeight` to define the map (grid) size baseline when you
 change the terminal size or HUD width.
 
-## Map export (PNG) 🗺️
+## Map export (PNG + SVG) 🗺️
 
-Generate a colored PNG of the terrain map only (no HUD or active entities; static structures like mines/ruins are included; frame follows `display.frame.enabled`).
+Generate colored PNG + SVG exports of the terrain map only (no HUD or active entities; static structures like mines/ruins are included; frame follows `display.frame.enabled`).
 
-During gameplay, press `m` to export the current season map into `maps/`. Press `Shift+M` to include built structures and roads (dwarves are still excluded).
+During gameplay, press `m` to export the current season map into `maps/png` and `maps/svg`. Press `Shift+M` to include built structures and roads (dwarves are still excluded).
 
 ```bash
 npm run map:export -- --width=120 --height=40 --season=spring
@@ -378,7 +378,7 @@ Options:
 - `--includeStructures`: include all structures/roads from a snapshot (no dwarves).
 - `--state`: JSON snapshot file with structures/roads (used by `Shift+M`).
 - `--seed`: override the terrain seed (number).
-- `--scale`: render scale multiplier (default 2).
+- `--scale`: render scale multiplier (default 2; PNG only).
 - `--fontSize`: base font size in px (default 14).
 - `--lineHeight`: line height ratio (default 1.2).
 - `--font`: font family list (CSS format).
@@ -387,20 +387,23 @@ Options:
 - `--count`: number of images to export (default 1). If `--seed` is set, seeds
   increment from that base; otherwise random seeds are used.
 - `--outDir`: output folder (default `maps`).
-- `--name`: output filename (optional, `.png` appended). When combined with
+- `--name`: output filename base (optional). When combined with
   `--count`, a numeric suffix is appended.
+- Output goes to `<outDir>/png` and `<outDir>/svg` (defaults to `maps/png` and `maps/svg`).
 
 Map exports use fixed terrain and ANSI palettes defined in
 `scripts/export_map.js` so terminal colors remain unchanged. If
 `display.frame.enabled` is true, the export includes the frame; `--width` and
 `--height` still refer to the inner map size (the output grows by 2 rows/cols).
 
-The export uses Puppeteer (headless Chromium) to render the map.
+The export uses Puppeteer (headless Chromium) to render the PNG and measure
+font metrics for the SVG.
 `npm install` will download a Chromium build unless you configure Puppeteer to
 use a system browser.
 The PNG embeds a `tEXt` metadata chunk named `NodeDwarves` with JSON containing
 the terrain seed, season info, terrain tile counts, hashes, render options, and
-a SHA-256 `signature` so each image can be uniquely identified later.
+a SHA-256 `signature` so each image can be uniquely identified later. The SVG
+embeds the same JSON in a `<metadata>` block.
 Season exports default to mid-season ticks to avoid transitional palettes.
 Large exports can consume significant RAM; reduce `fontSize`, `lineHeight`, or
 `scale` if you hit memory limits.

@@ -88,7 +88,7 @@ Notes:
   - Space toggles pause/resume during the live simulation.
   - Press `i` to open/close the dwarf inspect panel (works during pause or live); use `←`/`→` to browse spawn order.
   - Press `l` to toggle the legend overlay panel (works during pause or live).
-  - Press `m` to export a map snapshot using the current season styling.
+  - Press `m` to export a map snapshot (PNG + SVG) using the current season styling.
 - `src/config.js`
   - Thin JSON loader for configuration.
 - `src/runtime.js`
@@ -686,7 +686,7 @@ npm run ai:play
 
 (See `README.md` for full command variants.)
 
-### Export a map PNG
+### Export a map PNG + SVG
 
 During gameplay, press `m` to export the current season map. Press `Shift+M`
 to include built structures and roads (dwarves are excluded).
@@ -703,18 +703,20 @@ npm run map:export:seasons -- --width=120 --height=40 --seed=12345
 
 Notes:
 - Renders the terrain map only (no HUD or active entities; includes static structures like mines/ruins; frame follows `display.frame.enabled`).
-- Outputs to `maps/` by default.
+- Outputs to `maps/png` and `maps/svg` by default.
 - Uses a fixed terrain palette defined in `scripts/export_map.js` so terminal
   colors remain unchanged.
 - If `display.frame.enabled` is true, the export includes the frame; `--width`
   and `--height` still refer to the inner map size (output grows by 2).
 - Default export background/foreground are `#24273a` / `#cad3f5` (override with
   `--background`/`--foreground`).
+- `--scale` affects PNG output only; SVG is vector.
 - Stores metadata in a PNG `tEXt` chunk named `NodeDwarves` with JSON containing
-  seed, season info, terrain counts, hashes, and a SHA-256 signature.
-- Uses Puppeteer (headless Chromium) for rendering (Chromium is downloaded on
-  install unless configured) and picks mid-season ticks to avoid transition
-  palettes.
+  seed, season info, terrain counts, hashes, and a SHA-256 signature. The SVG
+  embeds the same JSON in a `<metadata>` block.
+- Uses Puppeteer (headless Chromium) for PNG rendering and SVG font metrics
+  (Chromium is downloaded on install unless configured) and picks mid-season
+  ticks to avoid transition palettes.
 - `--seasonProgress` lets you pick a progress value in `0..1`.
 - `--season=all` or `--allSeasons` exports all seasons with the same seed.
 - `--count` exports multiple images; with `--seed` it increments from that

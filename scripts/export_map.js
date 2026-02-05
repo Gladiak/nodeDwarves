@@ -176,7 +176,7 @@ async function main() {
         width: outputWidth,
       });
 
-      const image = await renderToPng(parsed, {
+      const pngResult = await renderToPng(parsed, {
         width,
         height,
         scale,
@@ -185,6 +185,8 @@ async function main() {
         fontFamily,
         background,
         foreground,
+        columns: outputWidth,
+        rows: outputHeight,
       });
 
       const terrainSummary = summarizeTerrain(state.terrain);
@@ -207,26 +209,46 @@ async function main() {
       });
 
       const withMeta = insertTextChunk(
-        image,
+        pngResult.buffer,
         "NodeDwarves",
         JSON.stringify(metadata),
       );
+      const svg = renderToSvg(parsed, {
+        columns: outputWidth,
+        rows: outputHeight,
+        baseFontSize,
+        lineHeightRatio,
+        fontFamily,
+        background,
+        foreground,
+        metrics: pngResult.metrics,
+        metadata,
+      });
       const outputName = buildSeasonalName(
         buildBatchName(args.name, exportIndex, totalExports),
         seasonInfo.name,
         seasonList.length,
       );
-      const outputPath = writeOutput(withMeta, outputDir, outputName, {
+      const pngPath = writeOutput(withMeta, outputDir, outputName, {
         width,
         height,
         season: seasonInfo.name,
         seed: state.terrain ? state.terrain.seed : 0,
+        format: "png",
+      });
+      const svgPath = writeOutput(svg, outputDir, outputName, {
+        width,
+        height,
+        season: seasonInfo.name,
+        seed: state.terrain ? state.terrain.seed : 0,
+        format: "svg",
       });
 
       exportIndex += 1;
       const prefix =
         totalExports > 1 ? `[${exportIndex}/${totalExports}] ` : "";
-      console.log(`${prefix}Map exported to ${outputPath}`);
+      console.log(`${prefix}Map exported to ${pngPath}`);
+      console.log(`${prefix}Map exported to ${svgPath}`);
       console.log(`${prefix}Signature: ${metadata.signature}`);
     }
   }
@@ -264,7 +286,7 @@ function printUsage() {
   );
   console.log("  --state             JSON snapshot with structures/roads.");
   console.log("  --seed              Override terrain seed (number).");
-  console.log("  --scale             Render scale multiplier (default 2).");
+  console.log("  --scale             Render scale multiplier (default 2; PNG only).");
   console.log("  --fontSize          Base font size in px (default 14).");
   console.log("  --lineHeight        Line height ratio (default 1.2).");
   console.log("  --font              Font family list (CSS format).");
@@ -277,9 +299,12 @@ function printUsage() {
   );
   console.log("  --outDir            Output folder (default maps).");
   console.log(
-    "  --name              Output filename (optional, .png appended).",
+    "  --name              Output filename base (optional).",
   );
   console.log("  --help              Show help.");
+  console.log(
+    "Outputs PNG + SVG into <outDir>/png and <outDir>/svg (default maps/png, maps/svg).",
+  );
 }
 
 // Function: normalizeDimension.
@@ -770,16 +795,130 @@ async function renderToPng(rows, options) {
       deviceScaleFactor: options.scale,
     });
     await page.evaluate(() => new Promise(requestAnimationFrame));
+    const metrics = await page.evaluate((columns, rows) => {
+      const map = document.getElementById("map");
+      if (!map) {
+        return null;
+      }
+      const rect = map.getBoundingClientRect();
+      return {
+        width: Math.max(1, Math.ceil(rect.width)),
+        height: Math.max(1, Math.ceil(rect.height)),
+        cellWidth: rect.width / Math.max(1, columns),
+        cellHeight: rect.height / Math.max(1, rows),
+      };
+    }, options.columns, options.rows);
+    if (!metrics) {
+      throw new Error("Failed to measure map metrics for export.");
+    }
     const mapHandle = await page.$("#map");
     if (!mapHandle) {
       throw new Error("Failed to locate map element for export.");
     }
-    return await mapHandle.screenshot({ type: "png" });
+    const buffer = await mapHandle.screenshot({ type: "png" });
+    return { buffer, metrics };
   } finally {
     if (browser) {
       await browser.close();
     }
   }
+}
+
+// Function: renderToSvg.
+function renderToSvg(rows, options) {
+  const metrics = options.metrics || {};
+  const fallbackCellWidth = Number(options.baseFontSize || 14) * 0.6;
+  const fallbackCellHeight =
+    Number(options.baseFontSize || 14) * Number(options.lineHeightRatio || 1.2);
+  const cellWidth = Number.isFinite(metrics.cellWidth)
+    ? metrics.cellWidth
+    : fallbackCellWidth;
+  const cellHeight = Number.isFinite(metrics.cellHeight)
+    ? metrics.cellHeight
+    : fallbackCellHeight;
+  const width = Number.isFinite(metrics.width)
+    ? metrics.width
+    : cellWidth * Math.max(1, Number(options.columns || 0));
+  const height = Number.isFinite(metrics.height)
+    ? metrics.height
+    : cellHeight * Math.max(1, Number(options.rows || 0));
+  return buildSvg(rows, {
+    width,
+    height,
+    cellWidth,
+    cellHeight,
+    baseFontSize: options.baseFontSize,
+    fontFamily: options.fontFamily,
+    background: options.background,
+    foreground: options.foreground,
+    metadata: options.metadata,
+  });
+}
+
+// Function: buildSvg.
+function buildSvg(rows, options) {
+  const widthValue = Number(options.width || 0);
+  const heightValue = Number(options.height || 0);
+  const fontSize = Number(options.baseFontSize || 14);
+  const cellWidth = Number(options.cellWidth || 0);
+  const fallbackCellWidth = fontSize * 0.6;
+  const safeCellWidth = Number.isFinite(cellWidth) && cellWidth > 0
+    ? cellWidth
+    : fallbackCellWidth;
+  const pad = Math.max(0, Math.ceil(safeCellWidth * 0.5));
+  const width = formatSvgNumber(widthValue + pad * 2);
+  const height = formatSvgNumber(heightValue + pad * 2);
+  const background = options.background
+    ? options.background.css
+    : "rgb(0, 0, 0)";
+  const foreground = options.foreground
+    ? options.foreground.css
+    : "rgb(255, 255, 255)";
+  const fontFamily = String(options.fontFamily || "monospace");
+  const cellHeight = Number(options.cellHeight || fontSize);
+  const style = escapeXml(
+    `font-family: ${fontFamily}; font-size: ${fontSize}px; font-variant-ligatures: none; font-feature-settings: 'liga' 0; letter-spacing: 0;`,
+  );
+  const metadata = options.metadata
+    ? `<metadata id="NodeDwarves">${escapeXml(JSON.stringify(options.metadata))}</metadata>`
+    : "";
+  const lines = rows.map((row, index) => {
+    const y = formatSvgNumber(pad + cellHeight * (index + 1));
+    const content = buildSvgLine(row, foreground);
+    return `<text x="${formatSvgNumber(pad)}" y="${y}" xml:space="preserve" dominant-baseline="text-after-edge">${content}</text>`;
+  });
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" overflow="visible">\n  <rect width="100%" height="100%" fill="${escapeXml(background)}" />\n  ${metadata}\n  <g id="map" style="${style}">\n    ${lines.join("\n    ")}\n  </g>\n</svg>\n`;
+}
+
+// Function: buildSvgLine.
+function buildSvgLine(row, defaultColor) {
+  if (!row || row.length === 0) {
+    return "";
+  }
+  let output = "";
+  let buffer = "";
+  let current = null;
+  const flush = () => {
+    if (!buffer) {
+      return;
+    }
+    const color = current && current.css ? current.css : defaultColor;
+    output += `<tspan fill="${escapeXml(color)}">${escapeXml(buffer)}</tspan>`;
+    buffer = "";
+  };
+  for (const cell of row) {
+    const next = cell && cell.color ? cell.color : null;
+    const char = cell ? cell.char : " ";
+    if (current && next && current.css === next.css) {
+      buffer += char;
+      continue;
+    }
+    flush();
+    current = next;
+    buffer += char;
+  }
+  flush();
+  return output;
 }
 
 // Function: buildHtml.
@@ -859,6 +998,31 @@ function buildHtmlLine(row, defaultColor) {
   }
   flush();
   return output;
+}
+
+// Function: escapeXml.
+function escapeXml(value) {
+  const raw = String(value);
+  if (raw === "&") return "&amp;";
+  if (raw === "<") return "&lt;";
+  if (raw === ">") return "&gt;";
+  if (raw === '"') return "&quot;";
+  if (raw === "'") return "&apos;";
+  return raw
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+// Function: formatSvgNumber.
+function formatSvgNumber(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return "0";
+  }
+  return numeric.toFixed(3).replace(/\.?0+$/, "");
 }
 
 // Function: escapeHtml.
@@ -966,32 +1130,40 @@ function writeOutput(buffer, outDir, name, options) {
   const resolvedDir = path.isAbsolute(outDir)
     ? outDir
     : path.join(process.cwd(), outDir);
-  fs.mkdirSync(resolvedDir, { recursive: true });
-  const filename = name
-    ? sanitizeFilename(String(name))
-    : buildFilename(
+  const format = String(options.format || "png").toLowerCase();
+  const outputDir = path.join(resolvedDir, format);
+  fs.mkdirSync(outputDir, { recursive: true });
+  const filenameBase = name
+    ? sanitizeFilename(stripKnownExtension(String(name)))
+    : buildFilenameBase(
         options.width,
         options.height,
         options.season,
         options.seed,
       );
-  const outputPath = path.join(
-    resolvedDir,
-    filename.endsWith(".png") ? filename : `${filename}.png`,
-  );
+  const outputPath = path.join(outputDir, `${filenameBase}.${format}`);
   fs.writeFileSync(outputPath, buffer);
   return outputPath;
 }
 
-// Function: buildFilename.
-function buildFilename(width, height, season, seed) {
+// Function: buildFilenameBase.
+function buildFilenameBase(width, height, season, seed) {
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-  return `map_${width}x${height}_${season}_${seed}_${stamp}.png`;
+  return `map_${width}x${height}_${season}_${seed}_${stamp}`;
 }
 
 // Function: sanitizeFilename.
 function sanitizeFilename(value) {
   return value.replace(/[^a-zA-Z0-9._-]/g, "_");
+}
+
+// Function: stripKnownExtension.
+function stripKnownExtension(value) {
+  const ext = path.extname(value).toLowerCase();
+  if (ext === ".png" || ext === ".svg") {
+    return value.slice(0, -ext.length);
+  }
+  return value;
 }
 
 // Function: insertTextChunk.
