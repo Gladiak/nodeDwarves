@@ -49,6 +49,16 @@ Display and layout:
 - `display.terrain.valley.domain_warp.enabled`: enable domain warp for more organic terrain.
 - `display.terrain.valley.domain_warp.strength`: warp strength in tiles.
 - `display.terrain.valley.domain_warp.scale`: noise scale for the warp field.
+- `display.terrain.valley.biome_noise.enabled`: enable a biome noise mask to break up straight biome boundaries.
+- `display.terrain.valley.biome_noise.scale`: noise scale for the biome mask (lower = larger regions).
+- `display.terrain.valley.biome_noise.octaves`: noise layers for the biome mask.
+- `display.terrain.valley.biome_noise.persistence`: amplitude decay per octave (0..1).
+- `display.terrain.valley.biome_noise.lacunarity`: frequency multiplier per octave.
+- `display.terrain.valley.biome_noise.seed_offset`: seed offset for the biome mask noise.
+- `display.terrain.valley.biome_noise.use_domain_warp`: reuse valley domain warp for the biome mask.
+- `display.terrain.valley.biome_noise.height_strength`: height bias added during mountain/hill/fertile classification (0..1).
+- `display.terrain.valley.biome_noise.distance_strength`: distance bias applied to water-distance (tiles).
+- `display.terrain.valley.biome_noise.noise_threshold_strength`: offset applied to forest/food/pasture noise thresholds (0..1).
 - `display.terrain.valley.mountainHeight`: height threshold for mountains (0..1).
 - `display.terrain.valley.hillHeight`: height threshold for hills (0..1).
 - `display.terrain.valley.fertileHeight`: height threshold for fertile ground (0..1).
@@ -252,6 +262,37 @@ Merchant:
 - `merchant.tradeRate.<resource>`: per-resource trade rate override.
 - `merchant.neverGive`: resource ids the colony will never give to the merchant (can still receive them).
 
+Contracts:
+
+- `contracts.enabled`: enable caravan contracts.
+- `contracts.spawnRangeTicks.min`: minimum ticks between contract offers.
+- `contracts.spawnRangeTicks.max`: maximum ticks between contract offers.
+- `contracts.expiryTicks`: ticks before an active contract expires.
+- `contracts.requestCount.min`: minimum number of resources requested per contract.
+- `contracts.requestCount.max`: maximum number of resources requested per contract.
+- `contracts.requestRatio.min`: minimum request ratio applied to the target stockpile.
+- `contracts.requestRatio.max`: maximum request ratio applied to the target stockpile.
+- `contracts.targetBoost`: multiplier applied to stockpile targets for requested resources while the contract is active.
+- `contracts.allowedResources`: resource ids eligible for contract requests.
+- `contracts.requestTargets.<resource>`: base targets for contract requests (used when a resource has no stockpile target).
+- `contracts.requestTargetsPerCapita.<resource>`: per-dwarf add-on applied to contract request targets.
+- `contracts.reputation.min`: minimum reputation value per faction.
+- `contracts.reputation.max`: maximum reputation value per faction.
+- `contracts.reputation.successDelta`: reputation change applied on contract success.
+- `contracts.reputation.failureDelta`: reputation change applied on contract failure.
+- `contracts.rewards.base.<resource>`: base reward amounts granted on success.
+- `contracts.rewards.scalePerResource`: extra reward scaling per requested resource.
+- `contracts.rewards.mineralThresholds[]`: reputation thresholds that grant faction minerals.
+- `contracts.rewards.mineralThresholds[].minReputation`: minimum reputation for the threshold.
+- `contracts.rewards.mineralThresholds[].amount`: mineral amount granted at the threshold.
+- `contracts.buffs.durationTicks`: duration for contract boons in ticks.
+- `contracts.buffs.production.outputBonus`: output bonus applied during production boons.
+- `contracts.buffs.war.raidDeathRateReduction`: raid death rate reduction during war boons.
+- `contracts.buffs.war.ruinsCombatBonus`: combat bonus applied during ruins expeditions during war boons.
+- `contracts.factions.<id>.label`: display label for the faction.
+- `contracts.factions.<id>.role`: `production` or `war` (determines the boon type).
+- `contracts.factions.<id>.mineral`: mineral reward id granted at high reputation.
+
 Endgame cycles:
 
 - `endgame.enabled`: enable endgame cycle resets.
@@ -269,7 +310,7 @@ Endgame cycles:
 
 Resources:
 
-- `resources.stockpile.<resource>`: initial stockpile amounts (e.g. `food`, `water`, `beer`, `wood`, `stone`, `iron`, `expedition_kit`, `mithril`, `adamantio`, `mana_crystal`).
+- `resources.stockpile.<resource>`: initial stockpile amounts (e.g. `food`, `water`, `beer`, `wood`, `stone`, `iron`, `expedition_kit`, `mithril`, `adamantio`, `mana_crystal`, `embersteel`, `ironshade`).
 - `resources.targets.<resource>`: target stockpile amounts used for shortages and stockpile ratios.
 - `resources.targetsPerCapita.<resource>`: per-dwarf target add-on (added to `resources.targets`) for scaling shortages and ratios.
 - `resources.mapScale.enabled`: enable scaling of initial resources based on map area.

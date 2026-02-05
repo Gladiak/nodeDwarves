@@ -6,6 +6,7 @@ const { getSeasonModifier } = require('./season');
 const { getWeatherModifier } = require('./weather');
 const { getMythMultiplier } = require('./myths');
 const { getFestivalModifier } = require('./festivals');
+const { getContractTargetBoost, getContractProductionBonus } = require('./contracts');
 const { getTerrainResourceRatio, pickTerrainResourceTarget } = require('./terrain');
 
 // Regenerate resource nodes based on config, season, and weather multipliers.
@@ -103,11 +104,12 @@ function getStockpileTarget(state, config, resourceId, fallbackTargets) {
   const baseTarget = Math.max(0, Number(targets[resourceId] || 0));
   const perCapitaConfig = resources.targetsPerCapita || {};
   const perCapita = Math.max(0, Number(perCapitaConfig[resourceId] || 0));
+  const boost = getContractTargetBoost(state, resourceId);
   if (perCapita <= 0) {
-    return baseTarget;
+    return Math.max(0, baseTarget * boost);
   }
   const population = Array.isArray(state && state.dwarves) ? state.dwarves.length : 0;
-  return Math.max(0, baseTarget + perCapita * population);
+  return Math.max(0, (baseTarget + perCapita * population) * boost);
 }
 
 // Check whether brewery jobs should pause due to low food ratio.
@@ -460,9 +462,10 @@ function getGatherYield(config, resourceId, node, state) {
   const toolMultiplier = getToolMultiplier(state, config, resourceId);
   const forgeMultiplier = getForgeMultiplier(state, config);
   const beerMultiplier = getBeerProductionMultiplier(state, config, resourceId);
+  const contractMultiplier = 1 + getContractProductionBonus(state);
   const scaledYield = Math.max(
     1,
-    Math.round(baseYield * multiplier * toolMultiplier * forgeMultiplier * beerMultiplier),
+    Math.round(baseYield * multiplier * toolMultiplier * forgeMultiplier * beerMultiplier * contractMultiplier),
   );
   if (!node) {
     return scaledYield;
@@ -562,12 +565,13 @@ function consumeInputs(stockpile, inputs) {
 // Apply output resources to the stockpile.
 function applyOutputs(stockpile, outputs, state, config) {
   const forgeMultiplier = getForgeMultiplier(state, config);
+  const contractMultiplier = 1 + getContractProductionBonus(state);
   for (const [resource, amount] of Object.entries(outputs)) {
     const beerMultiplier = getBeerProductionMultiplier(state, config, resource);
     const ruinsMultiplier = getRuinsOutputMultiplier(state, config, resource);
     stockpile[resource] =
       Number(stockpile[resource] || 0)
-      + Number(amount || 0) * forgeMultiplier * beerMultiplier * ruinsMultiplier;
+      + Number(amount || 0) * forgeMultiplier * beerMultiplier * ruinsMultiplier * contractMultiplier;
   }
 }
 

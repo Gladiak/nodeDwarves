@@ -4,6 +4,7 @@ const { clamp } = require('../utils');
 const { getClanEffects, getClanList, getClanShare } = require('../clans');
 const { pushEvent } = require('./events');
 const { getMythMultiplier } = require('./myths');
+const { getContractRaidDeathRateReduction } = require('./contracts');
 const { shuffleInPlace } = require('./random');
 const { isAdult } = require('./population');
 const { moveDwarf, findEdgeWalkablePosition, findAnyWalkablePosition } = require('./movement');
@@ -186,8 +187,12 @@ function finishRaid(state, config, raidState) {
   const deathMin = clamp(Number(deathConfig.min ?? 0), 0, 1);
   const deathMax = clamp(Number(deathConfig.max ?? deathMin), 0, 1);
   const mythDeathMultiplier = getMythMultiplier(state, config, 'raidDeathRate', 1);
+  const contractReduction = clamp(getContractRaidDeathRateReduction(state), 0, 0.95);
   const deathRate = clamp(
-    lerp(deathMin, deathMax, difficulty) * (1 - totalDefense) * mythDeathMultiplier,
+    lerp(deathMin, deathMax, difficulty)
+      * (1 - totalDefense)
+      * mythDeathMultiplier
+      * (1 - contractReduction),
     0,
     1,
   );

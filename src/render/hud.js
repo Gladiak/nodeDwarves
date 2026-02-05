@@ -206,6 +206,14 @@ function buildHudColumns(state, config, columnWidth, options = {}) {
   }
   left.push(`Event: ${lastEvent}`);
   left.push(`Merchant: ${formatMerchantStatus(state.merchant)}`);
+  const contractStatus = formatContractStatus(state, config, columnWidth);
+  if (contractStatus) {
+    left.push(contractStatus);
+  }
+  const contractReputation = formatContractReputation(state, config, columnWidth);
+  if (contractReputation) {
+    left.push(contractReputation);
+  }
   pushSection(left, "Population");
   left.push(
     `Pop: ${dwarves.length} (C:${stageCounts.child}/A:${stageCounts.adult}/E:${stageCounts.elder})`,
@@ -757,6 +765,71 @@ function formatMerchantStatus(merchant) {
     return "trading";
   }
   return String(merchant.phase);
+}
+
+// Format the current contract status line.
+function formatContractStatus(state, config, width) {
+  const contractsConfig = (config && config.contracts) || {};
+  if (contractsConfig.enabled === false) {
+    return "";
+  }
+  const contracts = state && state.contracts ? state.contracts : null;
+  if (!contracts || !contracts.active) {
+    return fitLine("Contract: -", width);
+  }
+  const active = contracts.active;
+  const label = shortenContractLabel(active.factionLabel || active.factionId || "Contract");
+  const expiresAt = Number(active.expiresAt || 0);
+  const tick = Number(state.tick || 0);
+  const ticksLeft = Math.max(0, Math.round(expiresAt - tick));
+  return fitLine(`Contract: ${label} ${ticksLeft}t`, width);
+}
+
+// Format the contract reputation summary line.
+function formatContractReputation(state, config, width) {
+  const contractsConfig = (config && config.contracts) || {};
+  if (contractsConfig.enabled === false) {
+    return "";
+  }
+  const factions = contractsConfig.factions || {};
+  const entries = Object.entries(factions);
+  if (entries.length === 0) {
+    return "";
+  }
+  const contracts = state && state.contracts ? state.contracts : null;
+  if (!contracts || !contracts.reputations) {
+    return "";
+  }
+  const parts = entries.map(([factionId, faction]) => {
+    const label = faction && faction.label ? faction.label : factionId;
+    const abbrev = buildFactionAbbrev(label);
+    const value = Number(contracts.reputations[factionId] || 0);
+    return `${abbrev}:${value.toFixed(2)}`;
+  });
+  return fitLine(`Rep ${parts.join(" ")}`, width);
+}
+
+// Shorten long faction labels for the HUD.
+function shortenContractLabel(label) {
+  const text = String(label || "").trim();
+  if (!text) {
+    return "-";
+  }
+  const parts = text.split(/\s+/);
+  return parts[0] || text;
+}
+
+// Build a two-letter or initials abbreviation for a faction label.
+function buildFactionAbbrev(label) {
+  const text = String(label || "").trim();
+  if (!text) {
+    return "--";
+  }
+  const parts = text.split(/\s+/).filter((part) => part.length > 0);
+  if (parts.length === 1) {
+    return parts[0].slice(0, 2).toUpperCase();
+  }
+  return parts.map((part) => part[0]).join("").toUpperCase();
 }
 
 // Format weather label with color and remaining ticks.

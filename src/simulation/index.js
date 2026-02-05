@@ -6,6 +6,7 @@ const { updateRaidStart, updateRaidTick } = require('./raids');
 const { updateFestivals, getFestivalModifier } = require('./festivals');
 const { updateWildlifeStart, updateWildlifeTick, updatePastureBirths } = require('./wildlife');
 const { getClanEffects } = require('../clans');
+const { updateContracts } = require('./contracts');
 const {
   advanceAge,
   applyNeedDecay,
@@ -39,6 +40,7 @@ function stepState(state, config, runtime, action, options = {}) {
   updateWeather(state, config);
   updateRaidStart(state, config, runtime);
   updateFestivals(state, config, runtime, action);
+  updateContracts(state, config, runtime);
   updateWildlifeStart(state, config, runtime);
   const housingPenalty = getWinterHousingPenalty(state, config);
   const weatherNeedMultiplier = getWeatherModifier(state, config, 'needDecay', 1);

@@ -5,6 +5,7 @@ const { getClanEffects, getClanList, getClanShareByIds } = require('../clans');
 const { getStockpileRatio, hasInputs, consumeInputs } = require('./resources');
 const { pushEvent } = require('./events');
 const { getMythMultiplier } = require('./myths');
+const { getContractRuinsCombatBonus } = require('./contracts');
 const { isAdult } = require('./population');
 
 // Resolve a weighted clan bonus for an expedition effect key.
@@ -309,7 +310,8 @@ function resolveExpedition(state, config, ruinsConfig, rooms, expedition) {
       ? Math.max(0, Number((ruinsConfig.mithrilReinforcement || {}).powerBonus || 0))
       : 0;
     const clanCombatBonus = getClanExpeditionBonus(state, config, expedition, 'ruins_combat_bonus');
-    const combatBonus = Math.max(0, Number(bonuses.combatBonus || 0) + clanCombatBonus);
+    const contractCombatBonus = getContractRuinsCombatBonus(state);
+    const combatBonus = Math.max(0, Number(bonuses.combatBonus || 0) + clanCombatBonus + contractCombatBonus);
     const power = partySize * (1 + kitPowerBonus + mithrilPowerBonus + combatBonus);
     if (power >= guardianPower) {
       guardianDefeated = true;
