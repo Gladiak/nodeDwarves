@@ -67,6 +67,18 @@
           "strength": 1.4,
           "scale": 0.08
         },
+        "biome_noise": {
+          "enabled": true,
+          "scale": 0.05,
+          "octaves": 2,
+          "persistence": 0.5,
+          "lacunarity": 2.0,
+          "seed_offset": 613,
+          "use_domain_warp": true,
+          "height_strength": 0.03,
+          "distance_strength": 1,
+          "noise_threshold_strength": 0.05
+        },
         "mountainHeight": 0.74,
         "hillHeight": 0.6,
         "fertileHeight": 0.44,
@@ -291,7 +303,7 @@
         "terrain_forest_dense_spring": "\u001b[38;5;65m",
         "terrain_forest_dense_summer": "\u001b[38;5;65m",
         "terrain_forest_dense_autumn": "\u001b[38;5;137m",
-        "terrain_forest_dense_winter": "\u001b[90m",
+        "terrain_forest_dense_winter": "\u001b[38;5;247m",
         "terrain_food_spring": "\u001b[92m",
         "terrain_food_summer": "\u001b[93m",
         "terrain_food_autumn": "\u001b[38;5;180m",
@@ -318,6 +330,8 @@
         "iron": "\u001b[37m",
         "expedition_kit": "\u001b[93m",
         "beer": "\u001b[33m",
+        "embersteel": "\u001b[38;5;208m",
+        "ironshade": "\u001b[38;5;245m",
         "clan_abyssborn": "\u001b[94m",
         "clan_khorg_embers": "\u001b[91m",
         "clan_threshold_wardens": "\u001b[92m",
@@ -673,10 +687,10 @@
         },
         "jobs": {
           "gatherYield": {
-            "food": 2,
-            "water": 2,
-            "wood": 1,
-            "stone": 1
+            "food": 2.3,
+            "water": 2.3,
+            "wood": 1.15,
+            "stone": 1.15
           }
         },
         "resources": {
@@ -1393,7 +1407,9 @@
       "expedition_kit": 0,
       "mithril": 0,
       "adamantio": 0,
-      "mana_crystal": 0
+      "mana_crystal": 0,
+      "embersteel": 0,
+      "ironshade": 0
     },
     "targets": {
       "food": 60,
@@ -1448,7 +1464,9 @@
       "expedition_kit": "ExpKit",
       "mithril": "Mithril",
       "adamantio": "Adamantium",
-      "mana_crystal": "ManaCrystal"
+      "mana_crystal": "ManaCrystal",
+      "embersteel": "Embersteel",
+      "ironshade": "Ironshade"
     },
     "terrainAllowed": {
       "food": ["food", "pasture"],
@@ -1684,7 +1702,7 @@
         "iron": 6
       },
       "outputPerTick": {
-        "wood": 0.35
+        "wood": 0.4025
       },
       "levelMax": 20,
       "levelBonusMin": 0.02,
@@ -1730,7 +1748,7 @@
       },
       "workersPerArmory": 2,
       "kitTicks": 24,
-      "kitOutput": 1,
+      "kitOutput": 1.15,
       "kitMax": 25,
       "kitCost": {
         "iron": 2,
@@ -1825,7 +1843,7 @@
         "stone": 12
       },
       "outputPerTick": {
-        "beer": 1
+        "beer": 1.15
       },
       "foodCostPerTick": 0.06,
       "pauseWhenFoodRatioBelow": 0.45,
@@ -1868,8 +1886,8 @@
         "stone": 6
       },
       "outputPerTick": {
-        "iron": 0.06,
-        "stone": 0.12
+        "iron": 0.069,
+        "stone": 0.138
       },
       "levelMax": 20,
       "levelBonusMin": 0.02,
@@ -1894,6 +1912,16 @@
         },
         "mana_crystal": {
           "minLevel": 9,
+          "chance": 0.002,
+          "amount": 1
+        },
+        "embersteel": {
+          "minLevel": 10,
+          "chance": 0.0025,
+          "amount": 1
+        },
+        "ironshade": {
+          "minLevel": 12,
           "chance": 0.002,
           "amount": 1
         }
@@ -2206,7 +2234,9 @@
       "iron",
       "mithril",
       "adamantio",
-      "mana_crystal"
+      "mana_crystal",
+      "embersteel",
+      "ironshade"
     ]
   },
   "merchant": {
@@ -2222,6 +2252,78 @@
     "tradeRate": {
       "give": 1,
       "receive": 1
+    }
+  },
+  "contracts": {
+    "enabled": true,
+    "spawnRangeTicks": {
+      "min": 160,
+      "max": 220
+    },
+    "expiryTicks": 200,
+    "requestCount": {
+      "min": 1,
+      "max": 2
+    },
+    "requestRatio": {
+      "min": 0.25,
+      "max": 0.45
+    },
+    "targetBoost": 1.2,
+    "allowedResources": ["wood", "stone", "iron", "beer"],
+    "requestTargets": {
+      "iron": 12,
+      "beer": 18
+    },
+    "requestTargetsPerCapita": {
+      "iron": 0.08,
+      "beer": 0.12
+    },
+    "reputation": {
+      "min": -1,
+      "max": 1,
+      "successDelta": 0.12,
+      "failureDelta": -0.15
+    },
+    "rewards": {
+      "base": {
+        "wood": 2,
+        "stone": 2,
+        "iron": 1
+      },
+      "scalePerResource": 0.5,
+      "mineralThresholds": [
+        {
+          "minReputation": 0.9,
+          "amount": 2
+        },
+        {
+          "minReputation": 0.75,
+          "amount": 1
+        }
+      ]
+    },
+    "buffs": {
+      "durationTicks": 300,
+      "production": {
+        "outputBonus": 0.05
+      },
+      "war": {
+        "raidDeathRateReduction": 0.06,
+        "ruinsCombatBonus": 0.08
+      }
+    },
+    "factions": {
+      "thronesteel_concord": {
+        "label": "Thronesteel Concord",
+        "role": "production",
+        "mineral": "embersteel"
+      },
+      "shadowdeep_vanguard": {
+        "label": "Shadowdeep Vanguard",
+        "role": "war",
+        "mineral": "ironshade"
+      }
     }
   },
   "population": {
@@ -2605,7 +2707,9 @@
       "iron",
       "mithril",
       "adamantio",
-      "mana_crystal"
+      "mana_crystal",
+      "embersteel",
+      "ironshade"
     ]
   },
   "morale": {
@@ -2620,7 +2724,7 @@
   },
   "jobs": {
     "defaultGatherTicks": 6,
-    "defaultGatherYield": 1,
+    "defaultGatherYield": 1.15,
     "gatherTicks": {
       "food": 4,
       "water": 2,
@@ -2628,10 +2732,10 @@
       "stone": 7
     },
     "gatherYield": {
-      "food": 2,
-      "water": 2,
-      "wood": 1,
-      "stone": 1
+      "food": 2.3,
+      "water": 2.3,
+      "wood": 1.15,
+      "stone": 1.15
     },
     "gatherTriggerRatio": {
       "food": 1.15,
@@ -2661,6 +2765,8 @@
     "mithril": "Ω",
     "adamantio": "Θ",
     "mana_crystal": "Φ",
+    "embersteel": "E",
+    "ironshade": "I",
     "beer": "±",
     "house": "Ω",
     "well": "°",

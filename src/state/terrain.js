@@ -28,6 +28,18 @@ function createValleyTerrain(runtime, settings, seed, config) {
   const valley = settings.valley;
   const warp = buildDomainWarp(valley.domainWarp, seed);
   const rng = createTerrainRng(seed + 17);
+  const biomeNoise = buildBiomeNoiseMask(
+    width,
+    height,
+    valley.biomeNoise,
+    seed,
+    warp,
+  );
+  const biomeMask = biomeNoise ? biomeNoise.mask : null;
+  const biomeHeightStrength = biomeNoise ? biomeNoise.heightStrength : 0;
+  const biomeThresholdStrength = biomeNoise
+    ? biomeNoise.noiseThresholdStrength
+    : 0;
   const heightMap = Array.from({ length: height }, (_, y) => {
     return Array.from({ length: width }, (_, x) => {
       const warped = applyDomainWarp(x, y, warp);
@@ -62,7 +74,8 @@ function createValleyTerrain(runtime, settings, seed, config) {
     height,
     valley.waterDistanceDiagonalWeight,
   );
-  const dist = applyDistanceJitter(baseDist, valley, seed);
+  let dist = applyDistanceJitter(baseDist, valley, seed);
+  dist = applyBiomeNoiseToDistance(dist, biomeNoise);
   const lakeDist = computeDistanceToWater(
     lakeSet,
     width,
@@ -83,7 +96,8 @@ function createValleyTerrain(runtime, settings, seed, config) {
         baseTypes[y][x] = lakeSet.has(key) ? "lake" : "river";
         continue;
       }
-      const h = carved[y][x];
+      const heightBias = biomeMask ? biomeMask[y][x] * biomeHeightStrength : 0;
+      const h = clamp(carved[y][x] + heightBias, 0, 1);
       if (h >= valley.mountainHeight) {
         baseTypes[y][x] = "mountain";
       } else if (h >= valley.hillHeight) {
@@ -127,7 +141,9 @@ function createValleyTerrain(runtime, settings, seed, config) {
       if (type === "river" || type === "lake" || type === "mountain") {
         continue;
       }
-      if (carved[y][x] > forestConfig.heightMax) {
+      const heightBias = biomeMask ? biomeMask[y][x] * biomeHeightStrength : 0;
+      const effectiveHeight = clamp(carved[y][x] + heightBias, 0, 1);
+      if (effectiveHeight > forestConfig.heightMax) {
         continue;
       }
       const waterDist = dist[y][x];
@@ -159,7 +175,15 @@ function createValleyTerrain(runtime, settings, seed, config) {
         0.5,
         2.0,
       );
-      if (noise > forestConfig.noiseThreshold) {
+      const thresholdBias = biomeMask
+        ? biomeMask[y][x] * biomeThresholdStrength
+        : 0;
+      const threshold = clamp(
+        forestConfig.noiseThreshold + thresholdBias,
+        0,
+        1,
+      );
+      if (noise > threshold) {
         forest[y][x] = true;
       }
     }
@@ -209,6 +233,7 @@ function createValleyTerrain(runtime, settings, seed, config) {
     valley,
     seed,
     warp,
+    biomeNoise,
   );
   const pastureEnabled = !(config && config.pasture && config.pasture.enabled === false);
   const pasture = pastureEnabled
@@ -223,6 +248,7 @@ function createValleyTerrain(runtime, settings, seed, config) {
         valley,
         seed,
         warp,
+        biomeNoise,
       )
     : Array.from({ length: height }, () => new Array(width).fill(false));
 
@@ -1203,6 +1229,58 @@ function normalizeValleySettings(raw, defaults) {
   const domainWarpScale = Number.isFinite(domainWarpScaleRaw)
     ? Math.max(0, domainWarpScaleRaw)
     : 0;
+  const biomeNoise = raw.biome_noise || raw.biomeNoise || {};
+  const biomeNoiseEnabled = biomeNoise.enabled !== false;
+  const biomeNoiseScaleRaw = Number(biomeNoise.scale ?? 0.05);
+  const biomeNoiseScale = Number.isFinite(biomeNoiseScaleRaw)
+    ? Math.max(0.001, biomeNoiseScaleRaw)
+    : 0.05;
+  const biomeNoiseOctavesRaw = Number(biomeNoise.octaves ?? 2);
+  const biomeNoiseOctaves = Number.isFinite(biomeNoiseOctavesRaw)
+    ? clamp(Math.floor(biomeNoiseOctavesRaw), 1, 8)
+    : 2;
+  const biomeNoisePersistenceRaw = Number(biomeNoise.persistence ?? 0.5);
+  const biomeNoisePersistence = Number.isFinite(biomeNoisePersistenceRaw)
+    ? clamp(biomeNoisePersistenceRaw, 0, 1)
+    : 0.5;
+  const biomeNoiseLacunarityRaw = Number(biomeNoise.lacunarity ?? 2.0);
+  const biomeNoiseLacunarity =
+    Number.isFinite(biomeNoiseLacunarityRaw) && biomeNoiseLacunarityRaw > 0
+      ? biomeNoiseLacunarityRaw
+      : 2.0;
+  const biomeNoiseSeedOffsetRaw = Number(
+    biomeNoise.seed_offset ?? biomeNoise.seedOffset ?? 0,
+  );
+  const biomeNoiseSeedOffset = Number.isFinite(biomeNoiseSeedOffsetRaw)
+    ? Math.floor(biomeNoiseSeedOffsetRaw)
+    : 0;
+  const biomeNoiseUseDomainWarp =
+    biomeNoise.use_domain_warp === false ||
+    biomeNoise.useDomainWarp === false
+      ? false
+      : true;
+  const biomeNoiseHeightStrengthRaw = Number(
+    biomeNoise.height_strength ?? biomeNoise.heightStrength ?? 0,
+  );
+  const biomeNoiseHeightStrength = Number.isFinite(biomeNoiseHeightStrengthRaw)
+    ? clamp(biomeNoiseHeightStrengthRaw, 0, 0.25)
+    : 0;
+  const biomeNoiseDistanceStrengthRaw = Number(
+    biomeNoise.distance_strength ?? biomeNoise.distanceStrength ?? 0,
+  );
+  const biomeNoiseDistanceStrength = Number.isFinite(
+    biomeNoiseDistanceStrengthRaw,
+  )
+    ? clamp(biomeNoiseDistanceStrengthRaw, 0, 12)
+    : 0;
+  const biomeNoiseThresholdStrengthRaw = Number(
+    biomeNoise.noise_threshold_strength ?? biomeNoise.noiseThresholdStrength ?? 0,
+  );
+  const biomeNoiseThresholdStrength = Number.isFinite(
+    biomeNoiseThresholdStrengthRaw,
+  )
+    ? clamp(biomeNoiseThresholdStrengthRaw, 0, 0.4)
+    : 0;
   const mountainHeight = clamp(Number(raw.mountainHeight ?? 0.8), 0, 1);
   const hillHeight = clamp(Number(raw.hillHeight ?? 0.66), 0, 1);
   const fertileHeight = clamp(Number(raw.fertileHeight ?? 0.46), 0, 1);
@@ -1356,6 +1434,18 @@ function normalizeValleySettings(raw, defaults) {
       enabled: domainWarpEnabled,
       strength: domainWarpStrength,
       scale: domainWarpScale,
+    },
+    biomeNoise: {
+      enabled: biomeNoiseEnabled,
+      scale: biomeNoiseScale,
+      octaves: biomeNoiseOctaves,
+      persistence: biomeNoisePersistence,
+      lacunarity: biomeNoiseLacunarity,
+      seedOffset: biomeNoiseSeedOffset,
+      useDomainWarp: biomeNoiseUseDomainWarp,
+      heightStrength: biomeNoiseHeightStrength,
+      distanceStrength: biomeNoiseDistanceStrength,
+      noiseThresholdStrength: biomeNoiseThresholdStrength,
     },
     mountainHeight: Math.max(hillHeight, mountainHeight),
     hillHeight: Math.min(hillHeight, mountainHeight),
@@ -1959,6 +2049,98 @@ function applyDistanceJitter(dist, valley, seed) {
   return jittered;
 }
 
+// Function: buildBiomeNoiseMask.
+function buildBiomeNoiseMask(width, height, settings, seed, warp) {
+  if (!settings || settings.enabled === false) {
+    return null;
+  }
+  const heightStrength = Math.max(0, Number(settings.heightStrength ?? 0));
+  const distanceStrength = Math.max(0, Number(settings.distanceStrength ?? 0));
+  const thresholdStrength = Math.max(
+    0,
+    Number(settings.noiseThresholdStrength ?? 0),
+  );
+  if (heightStrength <= 0 && distanceStrength <= 0 && thresholdStrength <= 0) {
+    return null;
+  }
+
+  const scaleRaw = Number(settings.scale ?? 0.05);
+  const scale = Number.isFinite(scaleRaw) ? Math.max(0.001, scaleRaw) : 0.05;
+  const octavesRaw = Number(settings.octaves ?? 2);
+  const octaves = Number.isFinite(octavesRaw)
+    ? clamp(Math.floor(octavesRaw), 1, 8)
+    : 2;
+  const persistenceRaw = Number(settings.persistence ?? 0.5);
+  const persistence = Number.isFinite(persistenceRaw)
+    ? clamp(persistenceRaw, 0, 1)
+    : 0.5;
+  const lacunarityRaw = Number(settings.lacunarity ?? 2.0);
+  const lacunarity =
+    Number.isFinite(lacunarityRaw) && lacunarityRaw > 0
+      ? lacunarityRaw
+      : 2.0;
+  const seedOffsetRaw = Number(settings.seedOffset ?? 0);
+  const seedOffset = Number.isFinite(seedOffsetRaw) ? Math.floor(seedOffsetRaw) : 0;
+  const useWarp = settings.useDomainWarp !== false && warp && warp.enabled;
+
+  const mask = Array.from({ length: height }, () => new Array(width).fill(0));
+  const baseSeed = Number(seed || 0) + seedOffset;
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const warped = useWarp ? applyDomainWarp(x, y, warp) : { x, y };
+      const noise = fractalNoise(
+        warped.x * scale,
+        warped.y * scale,
+        baseSeed,
+        octaves,
+        persistence,
+        lacunarity,
+      );
+      mask[y][x] = (noise - 0.5) * 2;
+    }
+  }
+
+  return {
+    mask,
+    heightStrength,
+    distanceStrength,
+    noiseThresholdStrength: thresholdStrength,
+  };
+}
+
+// Function: applyBiomeNoiseToDistance.
+function applyBiomeNoiseToDistance(dist, biomeNoise) {
+  if (!dist || dist.length === 0) {
+    return dist;
+  }
+  if (!biomeNoise || !biomeNoise.mask || biomeNoise.distanceStrength <= 0) {
+    return dist;
+  }
+  const height = dist.length;
+  const width = height > 0 ? dist[0].length : 0;
+  const adjusted = Array.from({ length: height }, () =>
+    new Array(width).fill(0),
+  );
+  const strength = biomeNoise.distanceStrength;
+  const mask = biomeNoise.mask;
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const base = dist[y][x];
+      if (!Number.isFinite(base)) {
+        adjusted[y][x] = base;
+        continue;
+      }
+      if (base <= 0) {
+        adjusted[y][x] = 0;
+        continue;
+      }
+      const offset = mask[y][x] * strength;
+      adjusted[y][x] = Math.max(0, base + offset);
+    }
+  }
+  return adjusted;
+}
+
 // Function: computeDistanceToWater.
 function computeDistanceToWater(waterSet, width, height, diagonalWeight) {
   const dist = Array.from({ length: height }, () =>
@@ -2458,11 +2640,14 @@ function buildValleyFoodMask(
   valley,
   seed,
   warp,
+  biomeNoise,
 ) {
   const food = Array.from({ length: height }, () =>
     new Array(width).fill(false),
   );
   const settings = valley.food || {};
+  const biomeMask = biomeNoise ? biomeNoise.mask : null;
+  const thresholdStrength = biomeNoise ? biomeNoise.noiseThresholdStrength : 0;
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
       const base = baseTypes[y][x];
@@ -2487,7 +2672,13 @@ function buildValleyFoodMask(
         0.5,
         2.0,
       );
-      if (noise > settings.noiseThreshold) {
+      const thresholdBias = biomeMask ? biomeMask[y][x] * thresholdStrength : 0;
+      const threshold = clamp(
+        settings.noiseThreshold + thresholdBias,
+        0,
+        1,
+      );
+      if (noise > threshold) {
         food[y][x] = true;
       }
     }
@@ -2522,12 +2713,15 @@ function buildValleyPastureMask(
   valley,
   seed,
   warp,
+  biomeNoise,
 ) {
   const pasture = Array.from({ length: height }, () =>
     new Array(width).fill(false),
   );
   const settings = valley.pasture || {};
   const patches = settings.patches || {};
+  const biomeMask = biomeNoise ? biomeNoise.mask : null;
+  const thresholdStrength = biomeNoise ? biomeNoise.noiseThresholdStrength : 0;
   const patchCount = Math.max(0, Math.floor(Number(patches.count || 0)));
   const randomBetweenRng = (rng, min, max) => {
     const low = Number.isFinite(min) ? Number(min) : 0;
@@ -2600,7 +2794,13 @@ function buildValleyPastureMask(
           0.5,
           2.0,
         );
-        if (noise > settings.noiseThreshold) {
+        const thresholdBias = biomeMask ? biomeMask[y][x] * thresholdStrength : 0;
+        const threshold = clamp(
+          settings.noiseThreshold + thresholdBias,
+          0,
+          1,
+        );
+        if (noise > threshold) {
           pasture[y][x] = true;
         }
       }

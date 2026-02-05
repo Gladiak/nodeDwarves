@@ -101,6 +101,7 @@ function createInitialState(config, runtime) {
   const pasture = createPastureState(config, terrain);
   const merchant = createMerchantState(config);
   const merchantStats = createMerchantStats();
+  const contracts = createContractsState(config);
   const weather = createWeatherState(config);
   const houseStorage = createHouseStorageState(config);
   const raid = createRaidState(config);
@@ -119,6 +120,7 @@ function createInitialState(config, runtime) {
     structures,
     merchant,
     merchantStats,
+    contracts,
     weather,
     houseStorage,
     raid,
@@ -899,6 +901,34 @@ function createMerchantStats() {
     trades: 0,
     given: {},
     received: {},
+  };
+}
+
+// Create the initial contracts state.
+function createContractsState(config) {
+  const contractsConfig = (config && config.contracts) || {};
+  if (contractsConfig.enabled === false) {
+    return null;
+  }
+  const spawnRange = contractsConfig.spawnRangeTicks || {};
+  const minSpawn = Number(spawnRange.min ?? 200);
+  const maxSpawn = Number(spawnRange.max ?? minSpawn);
+  const nextSpawnTick = randomBetween(minSpawn, maxSpawn);
+  const factions = contractsConfig.factions || {};
+  const reputations = {};
+  for (const factionId of Object.keys(factions)) {
+    reputations[factionId] = 0;
+  }
+  return {
+    active: null,
+    activeBuff: null,
+    reputations,
+    nextSpawnTick,
+    stats: {
+      successes: 0,
+      failures: 0,
+    },
+    counter: 1,
   };
 }
 

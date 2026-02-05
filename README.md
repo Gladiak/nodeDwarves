@@ -7,9 +7,10 @@ alive while you watch the chaos unfold in ASCII.
 ## Highlights ✨
 
 - 🧠 Fully autonomous simulation with a real-time ASCII renderer.
-- 🧺 Resource economy with food, water, beer, wood, stone, iron, expedition kits, mithril, adamantium, and mana crystal.
+- 🧺 Resource economy with food, water, beer, wood, stone, iron, expedition kits, mithril, adamantium, mana crystal, embersteel, and ironshade.
 - 🏘️ Village growth: houses (beds), wells (water nodes), fields (food nodes), breweries (beer), sawmills (wood), workshops (tools), armories (expedition kits), mithril forges (global output boost), mines (iron/stone + rare drops).
 - 🛣️ Roads connect villages and mines over time, with bridges/ford crossings on rivers.
+- 📜 Caravan contracts with faction reputation, mineral rewards, and temporary boons.
 - 🗝️ End-game ruins expeditions with artifacts, set bonuses, and guardian threats.
 - 🔁 End-game cycles: once all artifacts are found and a cooldown window passes, the sim restarts on a new map, tracks completed runs, and can scale difficulty per cycle.
 - ❄️ Seasons + housing effects (bonding, winter penalties).
@@ -29,7 +30,6 @@ Have a wild idea? Jump in and ship it — pick one of these and make the colony 
 - Refugees and deserters: population waves triggered by morale, housing, and raid safety; handled as deterministic events with caps.
 - Mining hazards and supports: deeper mines boost rare drops but add cave-in risk; support structures mitigate danger.
 - Fire hazards and firefighting: rare events that damage structures during storms/droughts; implement as event rolls, fire status ticks, and a dedicated job priority.
-- Caravan contracts: periodic trade requests with rewards and reputation effects.
 - Village security upgrades (winter shelters, gatehouses, patrol routes).
 - Canals and aqueducts: buildable water routing that extends fertile zones and irrigates distant fields, with upkeep costs.
 - Cisterns and reservoirs: buffer water during droughts and smooth well usage; implement as structures with storage capacity, rain fill rates, and draw rules.
@@ -49,7 +49,7 @@ Have a wild idea? Jump in and ship it — pick one of these and make the colony 
 ## Simulation overview 🗺️
 
 - 🗺️ The world is a fixed-size ASCII grid with resource nodes, structures, and dwarves.
-- 🌍 The map renders a randomized valley terrain backdrop with CP437-friendly symbols, plus rivers, lakes, and ponds; domain warp and water-distance jitter reduce geometric patterns, and lake/pond edges can be jittered or stretched via config.
+- 🌍 The map renders a randomized valley terrain backdrop with CP437-friendly symbols, plus rivers, lakes, and ponds; domain warp, water-distance jitter, and a biome noise mask reduce geometric patterns, and lake/pond edges can be jittered or stretched via config.
 - 🌊 River tiles render with curved box-drawing symbols and can originate from multiple map edges.
 - 🌲 Forest patches spread beyond water corridors via humidity diffusion, with jittered edges for more organic shorelines.
 - 🌾 Plains render as a weighted mix of CP437 glyphs for subtle texture.
@@ -78,6 +78,8 @@ Have a wild idea? Jump in and ship it — pick one of these and make the colony 
 - 🪵🪨 Wood and stone build clustered villages (center-out placement).
 - 🛏️ Housing provides beds; insufficient shelter slows bonding and makes winter harsher.
 - 🧳 A roaming merchant visits periodically, trades surplus for scarce resources, then leaves (food/water can be excluded from offers).
+- 📜 Caravan contracts: timed faction requests that boost stockpile targets; high reputation unlocks embersteel/ironshade rewards and temporary boons.
+- ⛏️ Embersteel and Ironshade are rare mine drops reserved for alchemy (future lab).
 - 🚰 Wells and 🌾 fields use Poisson-style spacing across the map, respecting terrain and distance from the core.
 - 🏘️ Villages can be founded at population thresholds, adding new build centers (shared stockpile; max 3 villages).
 - 🛣️ Roads connect villages and mines, building one tile every few ticks with bridges/ford crossings on rivers.
@@ -114,6 +116,26 @@ The Clans section lists clan totals with per-clan HUD colors. The layout assumes
 a 190x60 terminal (columns x rows) with the default HUD width/columns; smaller
 terminals will clip, so adjust `display.hud.width` or `display.hud.columns` if
 you need more space.
+
+## Caravan contracts 📜
+
+Caravan contracts are timed faction requests that automatically complete once the
+stockpile meets the requirements. Each active contract temporarily boosts the
+requested stockpile targets, nudging gather priorities without changing the AI.
+
+Key points:
+
+- Contracts request 1-2 resources from `wood`, `stone`, `iron`, and `beer`
+  (food/water are excluded).
+- On success, faction reputation increases; on expiry, it decreases.
+- At high reputation thresholds, contracts reward faction minerals:
+  - **Thronesteel Concord** → **Embersteel** (production-aligned).
+  - **Shadowdeep Vanguard** → **Ironshade** (raid/ruins-aligned).
+- Success also grants a temporary boon (300 ticks by default):
+  - **Production boon**: +5% output.
+  - **War boon**: -6% raid death rate and +8% ruins combat power.
+
+All contract tuning lives in `config.json` under `contracts.*`.
 
 ## Ancient dwarven ruins 🗝️
 
@@ -259,34 +281,32 @@ npm run ai:train -- --episodes 5000
 
 npm run ai:train:fast:quality
 
-npm run ai:train:fast:endgame
+npm run ai:train:endgame
 
 ```
 
 You can stop training with Ctrl+C to terminate the run.
 
-Google Colab notebook: `colab/nodeDwarves_training.ipynb` automates clone/pull,
-branch checkout, Torch/Numpy checks, runs `npm run ai:train:python:fresh`, and
-saves training output to Google Drive. Open it in Colab and adjust `BRANCH`
-and `DRIVE_DIR` as needed.
-
 `ai:train` (alias of `ai:train:fast`) runs a fast baseline training loop tuned
 for a sub-5-minute run on a typical 8-core laptop: 8 workers, 200 episodes,
 max_steps=1600, step_ticks=2, and a difficulty ramp that reaches 1.0 by episode
-120. Eval runs every 50 episodes at difficulty 1.0 so the best model and meta
-are saved during the run.
+120. Eval runs every 20 episodes at difficulty 1.0 so the best model and meta
+are saved during the run, followed by a post-run promotion check that compares
+the latest policy against the current best using the same eval settings.
 
 `ai:train:fast:quality` runs the fast phase above followed by a short `--full-sim`
 finetune pass (40 episodes, max_steps=1800, difficulty fixed to 1.0) with eval
-enabled.
+enabled (20-episode cadence for the fast phase, 10-episode cadence for finetune),
+and it runs the same promotion check after each phase.
 
-`ai:train:fast:endgame` runs full-sim training at max difficulty with a shorter
-stress pass (80 episodes, max_steps=2400, step_ticks=2) to probe late-game
-survival.
+`ai:train:endgame` runs full-sim training with endgame enabled and a longer
+episode budget (120 episodes, max_steps=6000, step_ticks=2) so the policy
+experiences late-game cycles and transitions. Eval runs every 20 episodes and
+the promotion check runs at the end.
 
 All presets save the best model to `models/policy_best.json` (meta at
 `models/policy_best.meta.json`) and resume from it by default unless `--fresh`
-is provided.
+is provided. Use `npm run ai:promote:best` to run the promotion check manually.
 
 To force a fresh start, use the dedicated script or add `--fresh` to the fast phase:
 
@@ -487,6 +507,7 @@ The footer now focuses on control hints instead of map/legend symbols.
 ├── python
 │   ├── agent.py                  # Example Python agent
 │   ├── bootstrap.py              # venv bootstrap
+│   ├── promote_best.py           # Compare latest vs best policy
 │   └── train.py                  # PPO training loop (PyTorch)
 ├── scripts
 │   ├── bonding_study.js
@@ -522,6 +543,7 @@ The footer now focuses on control hints instead of map/legend symbols.
     │   ├── endgame.js
     │   ├── events.js
     │   ├── festivals.js
+    │   ├── contracts.js
     │   ├── index.js
     │   ├── jobs.js
     │   ├── merchant.js

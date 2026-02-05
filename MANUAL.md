@@ -31,20 +31,21 @@ The tick order in code lives in `src/simulation/index.js`.
 2. Update **weather** (`weather.js`).
 3. Check raid start conditions (`raids.js`).
 4. Update festivals (`festivals.js`).
-5. For each dwarf:
+5. Update contracts (`contracts.js`).
+6. For each dwarf:
    - Age + life stage updates (`population.js`).
    - Needs decay (season/weather modifiers).
    - Consume resources from stockpile when thresholds hit.
-6. Handle deaths, roles, housing, relationships, reproduction (`population.js`, `roles.js`).
-7. Village founding checks (`villages.js`).
-8. Assign jobs (`jobs.js`).
-9. Move and perform actions (`dwarf_actions.js`).
-10. Merchant update (`merchant.js`).
-11. Stockpile decay + terrain cooldown tick (`resources.js`, `terrain.js`).
-12. House storage + node regen (`resources.js`).
-13. Raid tick update (`raids.js`).
-14. Myth update (`myths.js`).
-15. Endgame cycle check (`endgame.js`).
+7. Handle deaths, roles, housing, relationships, reproduction (`population.js`, `roles.js`).
+8. Village founding checks (`villages.js`).
+9. Assign jobs (`jobs.js`).
+10. Move and perform actions (`dwarf_actions.js`).
+11. Merchant update (`merchant.js`).
+12. Stockpile decay + terrain cooldown tick (`resources.js`, `terrain.js`).
+13. House storage + node regen (`resources.js`).
+14. Raid tick update (`raids.js`).
+15. Myth update (`myths.js`).
+16. Endgame cycle check (`endgame.js`).
 
 **Tick flow diagram**
 
@@ -54,19 +55,20 @@ flowchart TD
   B --> C[Weather update]
   C --> D[Raid start check]
   D --> E[Festival update]
-  E --> F[Per-dwarf: age + needs + consume]
-  F --> G[Population systems: deaths, roles, housing, relationships, reproduction]
-  G --> H[Village founding]
-  H --> I[Assign jobs]
-  I --> J[Process dwarf actions]
-  J --> K[Merchant update]
-  K --> L[Stockpile decay + terrain cooldown]
-  L --> M[House storage + node regen]
-  M --> N[Raid tick update]
-  N --> O[Myth update]
-  O --> P[Endgame cycle check]
-  P --> Q[Render frame]
-  Q --> R[Wait tickMs, next tick]
+  E --> F[Contracts update]
+  F --> G[Per-dwarf: age + needs + consume]
+  G --> H[Population systems: deaths, roles, housing, relationships, reproduction]
+  H --> I[Village founding]
+  I --> J[Assign jobs]
+  J --> K[Process dwarf actions]
+  K --> L[Merchant update]
+  L --> M[Stockpile decay + terrain cooldown]
+  M --> N[House storage + node regen]
+  N --> O[Raid tick update]
+  O --> P[Myth update]
+  P --> Q[Endgame cycle check]
+  Q --> R[Render frame]
+  R --> S[Wait tickMs, next tick]
 ```
 
 Notes:
@@ -120,7 +122,8 @@ Notes:
     - `walkable` map
     - `spawnable` map
   - Valley mode can sprinkle extra ponds (`display.terrain.valley.ponds`) that count as lake water for humidity and gathering.
-  - Domain warp and water-distance jitter can break up geometric patterns (`display.terrain.valley.domain_warp`, `display.terrain.valley.water_distance_*`).
+  - Domain warp, water-distance jitter, and the biome noise mask can break up geometric patterns (`display.terrain.valley.domain_warp`, `display.terrain.valley.water_distance_*`, `display.terrain.valley.biome_noise`).
+  - The biome noise mask is a low-frequency field that biases height thresholds, water-distance, and biome noise thresholds so forests/food/pasture do not follow perfectly smooth contours; tune `display.terrain.valley.biome_noise.*`.
   - Forest edges near lakes can be softened with distance jitter and shoreline edge noise via `display.terrain.valley.forest`.
   - Valley ponds/fallback lakes can use jagged edges or edge stretch via the `edge_*` lake/pond settings.
   - Pasture patches can be generated via `display.terrain.valley.pasture` and get their own symbol/color.
@@ -208,7 +211,7 @@ Notes:
   - Pasture stock regrows on a global birth interval via `pasture.birth.*`.
   - House storage buffers use `structures.house.storage.*` (capacity per level, transfer, decay).
   - Stockpile decay per tick uses `resources.decayPerTick`.
-  - Output multipliers stack from tools, mithril forge, beer morale, and ruins bonuses.
+  - Output multipliers stack from tools, mithril forge, beer morale, contract boons, and ruins bonuses.
 
 ### Structures and building
 
@@ -369,6 +372,19 @@ Notes:
   - Trades are chosen from stockpile ratios vs targets, respecting `merchant.reserveRatio`.
   - Trade rates come from `merchant.tradeRate` (default + per-resource overrides).
   - `merchant.neverGive` prevents key resources from being traded away.
+
+### Contracts
+
+- `contracts.js`
+  - Spawns timed caravan contracts that request 1-2 resources (wood/stone/iron/beer).
+  - Spawn cadence uses `contracts.spawnRangeTicks.min/max`; expiry uses `contracts.expiryTicks`.
+  - Requested resources temporarily boost stockpile targets to steer gather priorities.
+  - Success/failure updates per-faction reputation (`contracts.reputation`).
+  - High reputation thresholds grant faction minerals (embersteel/ironshade).
+  - Embersteel and Ironshade are stockpile-only reagents reserved for alchemy.
+  - Success triggers a temporary boon:
+    - `production`: output bonus for all production.
+    - `war`: raid death rate reduction + ruins combat bonus.
 
 ### Terrain helpers
 
@@ -532,10 +548,11 @@ Important rule: if you change **resource lists** or **observation features**, yo
 
 Training presets:
 
-- `ai:train` (alias of `ai:train:fast`) runs a fast baseline loop tuned for sub-5-minute runs (8 workers, 200 episodes, max_steps=1600, step_ticks=2). The difficulty ramp reaches 1.0 by episode 120 and eval runs every 50 episodes at difficulty 1.0.
+- `ai:train` (alias of `ai:train:fast`) runs a fast baseline loop tuned for sub-5-minute runs (8 workers, 200 episodes, max_steps=1600, step_ticks=2). The difficulty ramp reaches 1.0 by episode 120 and eval runs every 20 episodes at difficulty 1.0, followed by a post-run promotion check comparing the latest policy to the best snapshot.
 - `ai:train:fresh` runs the same fast preset but clears existing policy and best-eval snapshots first.
-- `ai:train:fast:quality` runs the fast phase plus a short full-sim finetune at max difficulty (40 episodes, max_steps=1800).
-- `ai:train:fast:endgame` runs full-sim at fixed max difficulty with a shorter stress setup (80 episodes, max_steps=2400).
+- `ai:train:fast:quality` runs the fast phase plus a short full-sim finetune at max difficulty (40 episodes, max_steps=1800). Eval cadence is 20 episodes in the fast phase and 10 episodes in finetune, with the promotion check after each phase.
+- `ai:train:endgame` runs full-sim training with endgame enabled and longer episodes (120 episodes, max_steps=6000) to exercise late-game transitions. Eval runs every 20 episodes and a promotion check follows.
+- `ai:promote:best` runs just the promotion check manually.
 - All presets save the best model to `models/policy_best.json` (with meta in `models/policy_best.meta.json`) and resume from it unless `--fresh` is used.
 
 
@@ -673,10 +690,6 @@ npm start
 ```bash
 npm run ai:train
 ```
-
-For Colab-based runs, use `colab/nodeDwarves_training.ipynb` to clone/pull,
-check Torch/Numpy, run `npm run ai:train:python:fresh`, and save outputs to
-Google Drive.
 
 ### Run trained policy
 
