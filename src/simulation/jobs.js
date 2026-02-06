@@ -20,6 +20,7 @@ const {
   createSawmillBuildJob,
   createWorkshopBuildJob,
   createArmoryBuildJob,
+  createAlchemyLabBuildJob,
   createMithrilForgeBuildJob,
   createBreweryBuildJob,
   createMineBuildJob,
@@ -577,6 +578,9 @@ function assignBuildJobIfNeeded(
     }
     if (!buildJob) {
       buildJob = createArmoryBuildJob(state, config, runtime, buildQueue.reservedPositions);
+    }
+    if (!buildJob) {
+      buildJob = createAlchemyLabBuildJob(state, config, runtime, buildQueue.reservedPositions);
     }
     if (!buildJob) {
       return;

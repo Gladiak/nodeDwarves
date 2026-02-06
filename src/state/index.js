@@ -109,6 +109,7 @@ function createInitialState(config, runtime) {
   const tools = createToolsState(config);
   const ruins = createRuinsState(config);
   const myths = createMythsState(config);
+  const alchemy = createAlchemyState(config);
   const festival = createFestivalState(config);
   const wildlife = createWildlifeState(config);
   const roads = createRoadState(config, runtime);
@@ -128,6 +129,7 @@ function createInitialState(config, runtime) {
     tools,
     ruins,
     myths,
+    alchemy,
     festival,
     pasture,
     wildlife,
@@ -412,6 +414,25 @@ function createMythsState(config) {
     counters: {},
     lastTriggerTicks: {},
     lastProcessed: {},
+  };
+}
+
+// Create the initial alchemy state.
+function createAlchemyState(config) {
+  const alchemyConfig = (config && config.alchemy) || {};
+  if (alchemyConfig.enabled === false) {
+    return null;
+  }
+  return {
+    active: null,
+    backlash: null,
+    cooldownTicks: 0,
+    history: [],
+    stats: {
+      activations: 0,
+      stableCompletions: 0,
+      backlashes: 0,
+    },
   };
 }
 

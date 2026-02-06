@@ -33,6 +33,12 @@ Runtime controls: `Space` pause/resume, `l` legend panel, `i` dwarf inspect pane
 npm run ai:train
 ```
 
+Pass extra trainer flags safely through any profile command (for example):
+
+```bash
+npm run ai:train:fast -- --fresh
+```
+
 ### Run trained policy 🧠
 
 ```bash
@@ -110,20 +116,22 @@ The tick order in code lives in `src/simulation/index.js` and is the execution c
 3. Check raid start conditions (`raids.js`).
 4. Update festivals (`festivals.js`).
 5. Update contracts (`contracts.js`).
-6. For each dwarf:
+6. Update alchemy rites and backlash (`alchemy.js`).
+7. Update wildlife season spawns (`wildlife.js`).
+8. For each dwarf:
    - Age + life stage updates (`population.js`).
-   - Needs decay (season/weather modifiers).
+   - Needs decay (season/weather/myth/alchemy/festival modifiers).
    - Consume resources from stockpile when thresholds hit.
-7. Handle deaths, roles, housing, relationships, reproduction (`population.js`, `roles.js`).
-8. Village founding checks (`villages.js`).
-9. Assign jobs (`jobs.js`).
-10. Move and perform actions (`dwarf_actions.js`).
-11. Merchant update (`merchant.js`).
-12. Stockpile decay + terrain cooldown tick (`resources.js`, `terrain.js`).
-13. House storage + node regen (`resources.js`).
-14. Raid tick update (`raids.js`).
-15. Myth update (`myths.js`).
-16. Endgame cycle check (`endgame.js`).
+9. Handle deaths, roles, ruins, housing, relationships, reproduction (`population.js`, `roles.js`, `ruins.js`).
+10. Village and road updates (`villages.js`, `roads.js`).
+11. Assign jobs (`jobs.js`).
+12. Move and perform actions (`dwarf_actions.js`).
+13. Merchant update (`merchant.js`).
+14. Stockpile decay + terrain cooldown tick (`resources.js`, `terrain.js`).
+15. House storage + node regen (`resources.js`).
+16. Raid tick + wildlife tick + pasture births (`raids.js`, `wildlife.js`).
+17. Myth update (`myths.js`).
+18. Endgame cycle check (`endgame.js`).
 
 **Tick flow diagram**
 
@@ -134,19 +142,21 @@ flowchart TD
   C --> D[Raid start check]
   D --> E[Festival update]
   E --> F[Contracts update]
-  F --> G[Per-dwarf: age + needs + consume]
-  G --> H[Population systems: deaths, roles, housing, relationships, reproduction]
-  H --> I[Village founding]
-  I --> J[Assign jobs]
-  J --> K[Process dwarf actions]
-  K --> L[Merchant update]
-  L --> M[Stockpile decay + terrain cooldown]
-  M --> N[House storage + node regen]
-  N --> O[Raid tick update]
-  O --> P[Myth update]
-  P --> Q[Endgame cycle check]
-  Q --> R[Render frame]
-  R --> S[Wait tickMs, next tick]
+  F --> G[Alchemy update]
+  G --> H[Wildlife season start]
+  H --> I[Per-dwarf: age + needs + consume]
+  I --> J[Population + ruins + relationships]
+  J --> K[Village and road updates]
+  K --> L[Assign jobs]
+  L --> M[Process dwarf actions]
+  M --> N[Merchant update]
+  N --> O[Stockpile decay + terrain cooldown]
+  O --> P[House storage + node regen]
+  P --> Q[Raid tick + wildlife tick + pasture births]
+  Q --> R[Myth update]
+  R --> S[Endgame cycle check]
+  S --> T[Render frame]
+  T --> U[Wait tickMs, next tick]
 ```
 
 Notes:
@@ -187,7 +197,7 @@ Notes:
     - `stockpile` initialized from `config.resources.stockpile`.
     - Initial stockpiles (and optional node counts) can scale with map size via `resources.mapScale`
       using the map grid dimensions as a baseline.
-    - Counters and stats used by AI, raids, ruins, myths, and endgame cycles.
+    - Counters and stats used by AI, raids, ruins, myths, alchemy, and endgame cycles.
   - `fitStateToGrid(...)` repositions entities after resize and keeps everything in-bounds.
 
 ### Terrain generation 🗺️
@@ -240,30 +250,73 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
 
 ### Clan culture 🛡️
 
-- `clans` config + `src/clans.js` provide clan IDs, labels, and weighted distributions.
-  - `clans.enabled` toggles the system; `clans.list` declares available clans.
-  - Distribution is weighted by `clans.distribution.<id>` when spawning dwarves.
-  - Inheritance uses `clans.inheritance.mode` (parent or random).
-- Clan effects are per-dwarf and applied across systems:
-  - Gathering/building/mine output or tick modifiers.
-  - Raid defense and raid kill caps scaled by adult share.
-  - Ruins combat/hazard bonuses scaled by expedition party share.
-  - Storm/cold need decay bonuses during harsh weather.
-- Build cost penalties (stone/iron) are applied when a build/upgrade job completes and stockpile can cover the extra cost.
-- HUD shows clan totals in a dedicated Clans block using `clans.labels` for short names.
+- `clans.js` is the canonical clan utility layer (ids, labels, weighted picks, effects, and share helpers).
+  - `clans.enabled=false` hard-disables clan assignment and clan effects.
+  - `clans.list` defines valid ids; `clans.labels` only affects display.
+  - Spawn distribution is weighted by `clans.distribution.<id>`; if weights are invalid/empty, fallback is uniform.
+- Newborn inheritance is deterministic-by-rule, stochastic-by-branch (`population.js`):
+  - `clans.inheritance.mode=parent` (default): if both parents have clans, child inherits one parent clan (50/50 when mixed).
+  - `clans.inheritance.mode=random`: newborn ignores parents and rolls distribution again.
+  - Missing parent clan data falls back to weighted random pick.
+- Effects are local to dwarves but consumed by multiple global systems:
+  - `jobs.js`: build speed adjustments (`build_ticks_bonus`) before job execution.
+  - `dwarf_actions.js`: gather/mine/sawmill output/tick penalties and mine rare-drop chance bonus.
+  - `dwarf_actions.js`: build completion can apply extra stone/iron costs (`build_cost_penalty`) if stockpile can pay.
+  - `index.js`: storm/cold need-decay mitigation (`storm_cold_need_decay_bonus`) during harsh weather.
+  - `raids.js`: adult-population clan share contributes to defense and watchtower kill cap.
+  - `ruins.js`: expedition party clan share contributes to hazard reduction and combat power.
+- Aggregation model is explicit:
+  - Raid modifiers are weighted by adult clan share (`getClanShare`).
+  - Ruins modifiers are weighted by expedition party share (`getClanShareByIds`).
+  - This keeps effects continuous and avoids hard binary breakpoints.
+- Social synergy note:
+  - Relationship bonding can receive same-clan bonus via `population.relationships.sameClanBondGainBonus` (config-driven, outside `clans.effects`).
+- Visibility and AI:
+  - HUD clans block shows per-clan counts with labels.
+  - AI observation includes `clanShare_<id>` features, so policy training can adapt to composition changes.
 
 ### Jobs and economy 📦
 
-- `jobs.js`
-  - Computes **shortages** by comparing stockpile vs targets.
-  - Shortages use `resources.targets` (+ `resources.targetsPerCapita`) with optional `jobs.gatherTriggerRatio`.
-  - Creates gather/build/craft/upgrade jobs based on shortages and guardrails.
-  - When wildlife is enabled, food shortages can spawn **hunt** jobs targeting roaming herds.
-  - Build jobs are rate-limited by `jobs.buildQueue.maxConcurrent/maxPerTick`.
-  - Managed structures (wells/fields/watchtowers) spawn build jobs using stockpile/node ratio thresholds.
-  - Housing builds and upgrades respect `population.housing.buildTargetRatio` and `structures.house.upgrade*` rules.
-  - Supports role-based scheduling (builder/gatherer/manager/brewmaster).
-  - Optional AI action weights can bias priority order and resource focus.
+- `jobs.js` is a staged scheduler with strict early exits (first failing gate stops that branch, not the whole tick).
+- Worker pool creation:
+  - Eligible workers are idle adults and not on expedition.
+  - Brewmasters are handled first (unless brewery is paused by food emergency).
+- High-level assignment pipeline (in order):
+  1. Brewmaster staffing/build.
+  2. Manager-managed builds (well/field/watchtower) when manager mode is active.
+  3. Forced extra mine queue (if configured and eligible).
+  4. General build/upgrade queue (housing, workshops, mines, armory, alchemy lab, etc.).
+  5. Continuous structure work slots (mine, sawmill).
+  6. Tool upgrade and structure upgrade jobs.
+  7. Armory kit production jobs.
+  8. Shortage-driven gather/craft/hunt jobs.
+- Queue guardrails are explicit and independent:
+  - `jobs.buildQueue.maxConcurrent/maxPerTick` for build+upgrade.
+  - `jobs.mineQueue.maxConcurrent/maxPerTick` for extra mine expansion.
+  - Reserved build positions/structure ids prevent duplicate build/upgrade targeting in the same tick.
+- Emergency behavior:
+  - Role emergency mode suppresses non-critical build/craft branches.
+  - Mines/sawmills/armory/brewery can pause on emergency depending on per-structure flags.
+- Shortage scoring model:
+  - Target source: `resources.targets` (+ `targetsPerCapita` scaling).
+  - Trigger threshold: `effectiveTarget = target * jobs.gatherTriggerRatio`.
+  - Missing amount drives base urgency; final priority is `score = shortageRatio * weight`.
+  - Weight source: AI action weights (or defaults), with optional dynamic low-stock boosts (`ai.priorityBoosts`).
+- Shortage execution model:
+  - If resource has active nodes/terrain source -> gather job.
+  - If resource is `food` and hunting is enabled/eligible -> hunt job can replace gather.
+  - If no direct source and recipe exists -> craft job at available workshop capacity.
+- Role-aware assignment:
+  - Ordering prefers gatherers first for shortage flow; builders/managers are consumed by earlier branches.
+  - `takeIdleDwarf` enforces role preference but gracefully degrades to any idle worker.
+- Crafting and kit production:
+  - Inputs are reserved at job creation time (not at completion), reducing race conditions.
+  - Workshop capacity is tracked from active craft jobs to avoid overbooking.
+  - Armory kit output obeys `kitMax`, `kitTicks`, and `kitCost`.
+- Integration with other systems:
+  - Build costs and ratio guardrails are structure-config-driven (`structures.js` helpers).
+  - Gather work/yield also inherits season/weather/myth/morale multipliers via `resources.js`.
+  - Job priorities from AI directly steer runtime economy through `action.weights`.
 
 ### Dwarf actions ⛏️
 
@@ -304,7 +357,7 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - Pasture stock regrows on a global birth interval via `pasture.birth.*`.
   - House storage buffers use `structures.house.storage.*` (capacity per level, transfer, decay).
   - Stockpile decay per tick uses `resources.decayPerTick`.
-  - Output multipliers stack from tools, mithril forge, beer morale, contract boons, and ruins bonuses.
+  - Output multipliers stack from tools, mithril forge, beer morale, contract boons, ruins bonuses, and alchemy rites/backlash.
 
 ### Structures and building 🏗️
 
@@ -316,6 +369,7 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - Industrial buildings can use `structures.<type>.placement.mode = poisson` with `placement.district.*` and `placement.roadAffinity.*` for sampled peripheral placement that also follows organic sectors and road frontage.
   - `placement.nearbySearchRadius` can be lowered for more micro-variation or raised for smoother, cleaner district outlines.
   - Watchtowers provide raid defense and per-tick attacks.
+  - Alchemy labs unlock high-risk global rite formulas fueled by rare minerals.
   - Mines/sawmills/breweries scale output by level with exponential upgrade costs.
   - Mine placement respects `buildMinRadius`/`buildOuterBuffer` unless `structures.mine.ignorePeripheralRadius` is enabled.
   - Extra mine builds can be prioritized via `structures.mine.preferExtraAlways`.
@@ -331,24 +385,54 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
 
 ### Roads 🛣️
 
-- `roads.js`
-  - Builds road overlays that connect villages and mines over time.
-  - Road tiles are placed every `roads.buildEveryTicks` if `roads.buildMinResources` guardrails are met.
-  - Paths use weighted A* (`roads.pathStyle.*`) so terrain cost, turning, straight-run penalties, and deterministic low-frequency noise reduce highway-like straight lines.
-  - `roads.pathStyle.profile` offers two baseline styles: `pragmatic` (more direct) and `scenic` (more organic/meandering).
-  - Long links can optionally route through scenic waypoint candidates (`roads.pathStyle.longLinkWaypoint.*`) when the direct segment is very long, with detour and line-deviation guardrails.
-  - Paths avoid `roads.avoidTerrain` and cross rivers as `bridge` or `ford` tiles via `roads.crossings.*`.
-  - Tiles in `roads.softAvoidTerrain` (water, hills, mountains) are strictly avoided in the primary pass and allowed only in fallback, with extra weighted penalties.
-  - Tiles in `roads.waterTerrain` render as bridge tiles when a fallback path traverses them.
-  - New links will snap to existing road tiles within `roads.anchorRadius` near villages/mines to avoid duplicate parallel roads.
-  - `roads.parallelAvoidRadius` blocks new road tiles from being placed adjacent to existing roads, keeping a single main line.
-  - If no path exists, `roads.parallelRelaxOnFail` retries with `roads.parallelRelaxRadius` to avoid deadlocks.
-  - Failed links can be retried after `roads.retryFailedEveryTicks` ticks.
-  - Rendering uses `display.terrain.roadSymbols` plus `display.terrain.roadSpecialSymbols`.
-  - Roads are currently visual-only and do not change movement speed.
-  - Road planning is limited to V1 -> mine, V1 -> V2, and V3 -> nearest of V1/V2 (no further village links).
-  - Village links are planned only after the primary mine connection is completed.
-  - Additional mines link to the nearest village when they appear.
+- `roads.js` runs as a planner + builder pipeline, not an instant path painter.
+- Runtime state (`state.roads`) tracks:
+  - built tile map (`types`), pending queue (`queue`, `queueIndex`, `planned`)
+  - per-link progress (`links`, `tileLinks`, `pending`, `completed`)
+  - failure/retry bookkeeping (`failedLinks`, `retryLinks`)
+  - primary mine lock (`primaryMineLinkKey`) and build cadence (`nextBuildTick`)
+- Planning order is intentionally staged for stable growth:
+  1. Plan the primary mine link from V1 to nearest mine.
+  2. Until that link is completed (or failed), village inter-links are blocked.
+  3. After primary completion, plan `V1 <-> V2`.
+  4. If V3 exists, plan `V3 -> nearest(V1,V2)`.
+  5. Additional mines link to nearest village center.
+- Link construction is incremental:
+  - Each successful path is converted into queued tiles with per-tile link ownership.
+  - `buildNextRoadTile` consumes one tile at cadence `roads.buildEveryTicks`.
+  - Tile build requires both stockpile ratio gate (`roads.buildMinResources`) and tile material cost (`roads.cost.<tileType>`).
+  - If tile cost is temporarily unaffordable, tile is requeued instead of abandoning the whole link.
+- Pathfinding strategy is multi-pass and deterministic-by-seed:
+  - Preferred mode: weighted A* with terrain penalties and style noise (`roads.pathStyle.enabled=true`).
+  - Fallback mode: strict BFS if style pathing is disabled.
+  - Search passes:
+    - primary: hard avoid + soft-avoid treated as blocked
+    - fallback: hard avoid only, soft-avoid becomes weighted penalty
+    - relaxed: same two modes with smaller parallel-avoid radius when enabled
+- Shape controls (`roads.pathStyle.*`):
+  - `profile`: `pragmatic` vs `scenic` default bundles.
+  - `turnPenalty`, `straightStepThreshold/straightStepPenalty` tune corridor curvature.
+  - `noiseScale/noiseWeight` add deterministic low-frequency route variance.
+  - `terrainPenalty` adds per-terrain weighted costs.
+  - `softAvoidPenalty` discourages but does not hard-block fallback terrains.
+- Long-link waypoint system:
+  - For long Manhattan distances, candidates are generated near a perpendicular offset corridor.
+  - Candidate path must satisfy detour bounds (`maxDetourRatio`, `maxDirectRatio`) and segment minima.
+  - Final pick is based on path score and optional curvature/deviation gains (`minTurnGain`, `minLineDeviationGain`, `turnReward`).
+- Topology hygiene rules:
+  - Anchor snapping (`anchorRadius`) reuses nearby road endpoints near villages/mines.
+  - Parallel suppression (`parallelAvoidRadius`) blocks path tiles near existing roads except near start/goal buffers.
+  - Optional relax-on-fail (`parallelRelaxOnFail`, `parallelRelaxRadius`) avoids deadlocks in dense maps.
+- Terrain and crossings:
+  - `avoidTerrain` is always blocked.
+  - `softAvoidTerrain` is blocked in primary pass, penalized in fallback.
+  - River/water crossings resolve into `bridge`/`ford` by link kind and `roads.crossings.*`.
+  - `waterTerrain` forces bridge tile typing when fallback passes through water-like tiles.
+- Failure handling:
+  - Failed links are marked in `failedLinks` and optionally re-armed via `retryFailedEveryTicks`.
+  - Completion pushes an event (`Road completed: ...`) and unlocks dependent planning branches.
+- Gameplay note:
+  - Roads are currently overlay/visual infrastructure only; movement speed/path costs for dwarves do not yet consume road state directly.
 
 ### Roles 👤
 
@@ -361,55 +445,169 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
 
 ### Seasons and weather 🌦️
 
-- `season.js`
-  - Cycles seasons using `seasons.order` and `seasons.durationTicks`.
-  - Per-season modifiers live in `seasons.modifiers.<season>` (needs, gathering, regen, reproduction, fields).
-- `festivals.js`
-  - AI-triggered seasonal festivals that consume stockpile costs for short-term boosts.
-  - Eligibility uses `festivals.seasonWindowTicks`, `festivals.seasonNames`, and guardrails.
-  - Effects are multiplier-based (`festivals.effects.needDecay`, `festivals.effects.gatherYield`).
-- `weather.js`
-  - Picks weather types by weighted probability + `weather.seasonBias`.
-  - Duration is controlled by `weather.durationTicks` or per-state overrides.
-  - Weather modifiers affect needs, gathering, node regen, irrigation, and per-need decay.
-  - Weather transitions log events for the HUD.
+- `season.js` is deterministic and tick-index driven:
+  - Season is computed from `state.tick`, `seasons.durationTicks`, and `seasons.order`.
+  - No hidden timers: `season.globalIndex`, `season.tickInSeason`, and `season.duration` are recomputed each tick.
+  - Modifier access is explicit via `getSeasonModifier(state, key, fallback)`.
+- Season modifiers are multiplicative inputs for multiple systems:
+  - need decay, gather ticks/yield, craft ticks, node/field regen, reproduction factors.
+  - The active season payload is copied into `state.season.modifiers` for cheap lookup.
+- `weather.js` is a state machine with weighted resampling:
+  - If `ticksRemaining > 0`, weather just counts down.
+  - When timer hits 0, next weather type is sampled from `weather.states.*.weight` plus optional `weather.seasonBias.<season>`.
+  - Duration is sampled from per-state `durationTicks` or global fallback.
+  - Every transition emits an event (`Weather: <Type>`).
+- Weather multipliers are split by granularity:
+  - scalar modifiers via `getWeatherModifier(..., key, fallback)`.
+  - per-need map via `needDecayByNeed` for asymmetric stress (e.g. thirst vs hunger).
+- `festivals.js` is season-coupled and AI-intent driven:
+  - Trigger source is `action.festivalIntent` normalized against AI weight range.
+  - Activation requires all gates: season allowed, window open, cooldown seasons passed, stockpile ratio guardrails, full cost affordability, optional raid lock.
+  - Costs are paid up-front once at start (`festivals.costs`).
+  - Active festivals apply temporary `effects.*` multipliers until `durationTicks` expires.
+  - Start/end events are pushed for HUD observability.
+- Festival eligibility is exposed to AI:
+  - observation contains `festivalActive`, `festivalTimeLeft`, `festivalEligible`, `festivalCostRatio`.
+  - This allows policy to time activation near seasonal windows instead of random triggering.
+- Stacking order in the simulation loop:
+  - season and weather update first, festival update runs before per-dwarf needs.
+  - final need decay multiplier stacks season * weather * housing * endgame difficulty * clan * myths * alchemy * festival.
 
 ### Myths (global modifiers) 🗿
 
-- `myths.js`
-  - Tracks global cultural modifiers triggered by repeated crises or successes.
-  - Trigger types include resource crises, raid losses, ruins success streaks, and drought/water crises.
-  - Effects apply as multipliers on existing systems (needs, gathering, raids, ruins, reproduction).
-  - Caps and cooldowns are config-driven (`myths.maxActive`, `myths.minGapTicks`).
-  - Myths expire after `durationTicks`; expired myths can become **traditions**.
-  - Traditions are weaker, persist across endgame cycles within the same run, and are capped by `myths.maxTraditions`.
-  - HUD lists active myths + traditions. A separate "Myth bonuses" line summarizes combined
-    deltas and wraps automatically (capped to 2-3 lines depending on HUD width). AI
-    observations include myth flags and severity.
+- `myths.js` manages a full lifecycle state: `active`, `history`, `traditions`, `counters`, and per-myth cooldown bookkeeping.
+- Update sequence per tick:
+  1. Expire active myths whose `endsTick` passed.
+  2. Convert eligible expired myths into traditions (if enabled/capped).
+  3. Evaluate trigger definitions.
+  4. Activate newly triggered myths if slot/cooldown constraints pass.
+- Trigger families currently supported:
+  - `resource_crisis`: low stockpile ratio sustained by ticks and/or repeated season-window hits.
+  - `raid_deaths`: per-raid deaths and rolling recent-raid death windows.
+  - `ruins_success`: success streak tracking plus optional artifact-immediate trigger.
+  - `drought_or_water_crisis`: drought-season hits and/or prolonged low-water ratio.
+- Activation guardrails:
+  - `myths.maxActive` limits concurrent active myths.
+  - `myths.minGapTicks` enforces per-myth retrigger cooldown via `lastTriggerTicks`.
+  - Already-active myths never reactivate until expired.
+- Effects model:
+  - Active myth multipliers come from `definitions.<id>.effects`.
+  - Tradition multipliers come from `definitions.<id>.traditionEffects`.
+  - `getMythMultiplier` multiplies active and tradition contributions together with caller fallback.
+- Expiry and tradition behavior:
+  - Myth duration is `durationTicks` (0 means no auto-expiry timer).
+  - On expiry, history entry gets `endedTick`; tradition may be added/refreshed.
+  - Traditions are capped by `myths.maxTraditions`; oldest is evicted when full.
+- Endgame interaction:
+  - Active myths and trigger counters are reset on cycle reset.
+  - Traditions and bounded history are carried across cycles (`carryMythsAcrossCycle`).
+- Observability:
+  - Events: `Myth awakened`, `Myth faded`, `Tradition formed`.
+  - HUD renders active myths + traditions and an aggregate bonuses line.
+  - AI observation includes myth flags and severity metrics, so policy can react to long-tail global states.
+
+### Alchemy lab and pacts ⚗️
+
+- `alchemy.js`
+  - Uses a single-slot deterministic state machine: only one rite can be active at a time, then optional backlash, then cooldown (`active -> backlash? -> cooldown -> ready`).
+  - Tick order matters: alchemy updates before per-dwarf need decay and before ruins/raid resolution in the same tick, so modifiers apply immediately once a rite starts.
+  - Formula selection is deterministic: formulas are sorted by `priority` (desc) then formula id (asc), and the first eligible formula is activated.
+  - Eligibility gates are strict and all must pass:
+    - required structures (`requiredStructures`, default fallback requires `alchemy_lab`)
+    - minimum population (`minPopulation`)
+    - optional unresolved-artifact gate (`requiresUnfoundArtifacts`)
+    - raid lock (`blockDuringRaid`, default-on unless explicitly `false`)
+    - input stockpile availability (`inputs`)
+    - stockpile ratio guardrails (`minStockpileRatios.<resource>`)
+  - Rite inputs are consumed up-front when activation happens (`inputs` are paid once at start, not per tick).
+  - Active modifiers are global and stack multiplicatively with other systems (season/weather/myths/contracts/etc.) through `effects.*`, plus an additive production term via `outputBonus`.
+  - Effect keys currently wired:
+    - `needDecay` -> per-dwarf need decay
+    - `mineRareChance` -> rare mine drop probability
+    - `ruinsHazard`, `ruinsArtifactChance` -> expedition failure/artifact roll odds
+    - `raidDeathRate`, `raidResourceLoss` -> raid casualties and stockpile loot loss
+    - `outputBonus` -> additive contribution to production multiplier (`1 + totalBonus`, clamped)
+  - Backlash trigger logic is intentionally delayed: ruins failures are counted during the active window, but backlash is evaluated only when the rite expires (`failuresSinceStart >= failureThreshold`).
+  - Backlash phase can do two things:
+    - immediate stockpile burn (`resourceLossRatio` over `lossResources`)
+    - temporary negative/positive global modifiers (`backlash.effects.*`, `backlash.outputBonus`)
+  - Cooldown starts only after the active rite ends, and it ticks down only when no active rite/backlash is running.
+  - History/stats are persisted in `state.alchemy`:
+    - `stats.activations`, `stats.stableCompletions`, `stats.backlashes`
+    - bounded history via `alchemy.historyLimit` (0 = unlimited)
+  - HUD status (`src/render/hud.js`) exposes runtime intent clearly:
+    - `Alchemy: <label> <ticksLeft>t F<failures>/<threshold>` while active
+    - `Alchemy: <backlashLabel> <ticksLeft>t` during backlash
+    - `Alchemy: cooldown <ticksLeft>t` during cooldown
+  - Endgame reset behavior: alchemy state is recreated on cycle reset (no pact/backlash carry-over between cycles).
+  - Build-path note: `structures.js` auto-queues an `alchemy_lab` build only after its own structure and stockpile guardrails are met (`structures.alchemy_lab.requiresStructures`, `buildMinResources`, `buildCost`).
+  - Current default epic formula: **Stone Abyss Pact** (`alchemy.formulas.stone_abyss_pact`):
+    - active window `220` ticks, cooldown `260` ticks
+    - requires `alchemy_lab + mithril_forge + armory + ruins`, `minPopulation=42`, and at least one unfound artifact
+    - consumes `mithril 8`, `adamantio 4`, `mana_crystal 4`, `embersteel 2`, `ironshade 2`, `beer 120`
+    - active upside: `outputBonus +0.20`, `mineRareChance x1.70`, `ruinsArtifactChance x1.35`
+    - active risk: `ruinsHazard x1.18`, `needDecay x1.06`, `raidDeathRate x1.08`, `raidResourceLoss x1.12`
+    - backlash trigger: `2` ruins failures during active phase
+    - backlash penalty: `280` ticks, immediate `22%` loss on configured resources, `outputBonus -0.35`, harsher needs/raids/ruins, and reduced rare mining (`mineRareChance x0.75`)
 
 ### Raids 🐺
 
-- `raids.js`
-  - Seasonal wildlife raids (optional, config-driven).
-  - Start conditions use `raids.seasonNames`, `raids.minTick`, `raids.minPopulation`, and `raids.minSeasonsBetween`.
-  - Trigger chance is `raids.chance.min/max`, scaled by difficulty.
-  - Beasts are spawned for visuals using `raids.beasts.*`.
-  - Defense combines adult ratio, watchtowers, and clan bonuses.
-  - Deaths and loot loss scale with difficulty and defense (`raids.deathRate`, `raids.resourceLoss`).
-  - Outcomes update raid stats and push HUD events.
+- `raids.js` has two phases: `updateRaidStart` (season-edge trigger) and `updateRaidTick` (active raid loop + resolution).
+- Start trigger is intentionally narrow:
+  - raids only roll on `season.tickInSeason === 1` for allowed `raids.seasonNames`.
+  - requires `minTick`, `minPopulation`, and `minSeasonsBetween` since previous raid.
+  - final chance is lerped from `raids.chance.min/max` by difficulty.
+- Difficulty source:
+  - base from `ai.difficulty` (`0..1`), multiplied by `state.endgameDifficulty`, then clamped.
+  - This keeps raid pressure scaling with long-cycle progression.
+- Active raid state tracks:
+  - timer (`ticksRemaining`, `duration`), seasonal metadata, and visual beast positions.
+  - beasts move each tick and can be thinned by watchtower attacks.
+- Watchtower mitigation (`applyWatchtowerAttacks`):
+  - each tower searches nearest beast in range.
+  - per-tower hit rolls use `watchtower.raid.hitChance`.
+  - max kills per tick is capped and can be increased by clan bonus.
+- Raid resolution at timer end:
+  - unsheltered dwarves are computed via exact house-position shelter check.
+  - deaths are sampled from exposed dwarves only.
+  - resource losses are applied by weighted stockpile loss map.
+- Casualty/loss formulas are multiplicative stacks:
+  - death rate uses difficulty, defense, myths, alchemy, and contract war reduction.
+  - loot loss uses difficulty, defense, myths, and alchemy.
+  - defense combines adult ratio, tower defense, and clan defense share.
+- Stats and events:
+  - cumulative: raid count, deaths, and loot totals.
+  - per-last-raid: `lastRaidDeaths`, `lastRaidTick`.
+  - events include raid start and a compact outcome summary (`slain`, `loot ...`).
+- Integration points:
+  - myths/alchemy/contract buffs all hook raid formulas through explicit multipliers/reductions.
+  - housing quality indirectly drives raid survivability by reducing exposed population.
 
 ### Endgame cycles 🔁
 
-- `endgame.js`
-  - Resets the simulation after all artifacts are collected and a configurable delay has passed.
-  - Trigger uses `endgame.minTicksAfterArtifacts` since the last artifact completion.
-  - Resets map, terrain, nodes, structures, and stockpiles.
-  - Population resets to `endgame.resetPopulation` if set.
-  - Tracks completed cycles and last cycle ticks in `cycleStats`.
-  - Difficulty can scale per cycle via `endgame.difficulty.*`.
-  - Myths are cleared, but traditions persist across cycles within the same run.
-  - Optional endgame transitions fade the map to black and show a story panel
-    before fading in the new map (`endgame.transition.*`).
+- `endgame.js` handles cycle resets as a controlled state replacement, not an incremental cleanup.
+- Trigger contract:
+  - all configured ruin artifacts must be found.
+  - once complete, `endgameArtifactsTick` is latched.
+  - reset fires when `tick - endgameArtifactsTick >= minTicksAfterArtifacts` (or immediately if 0).
+- Reset execution (`runEndgameReset`):
+  - builds a fresh state via `createInitialState`.
+  - optionally overrides starting dwarf count with `endgame.resetPopulation`.
+  - optionally randomizes terrain seed when transition config requests it.
+  - swaps old state in-place with new state object.
+- Persisted vs reset data:
+  - persisted: `cycleStats.count`, `cycleStats.lastTicks`, myth traditions/history carry-over.
+  - reset: terrain, nodes, structures, stockpile, jobs, raid/weather/alchemy/festival runtime state.
+  - `endgameArtifactsTick` is cleared after reset.
+- Difficulty scaling:
+  - per-cycle multiplier from `endgame.difficulty.perCycle`, capped by `maxMultiplier`.
+  - cached to `state.endgameDifficulty` each tick and consumed by raid/needs pressure.
+- Safety behavior:
+  - if artifact condition becomes false before threshold is reached, completion tick is cleared (no stale trigger).
+  - reset path is deterministic given config + selected seed policy.
+- Transition/UI note:
+  - fade/story presentation is configured under `endgame.transition.*` in runtime/render flow.
+  - simulation reset logic itself remains isolated in `endgame.js`.
 
 ### Ruins and expeditions 🗝️
 
@@ -464,26 +662,69 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
 
 ### Merchant 🧳
 
-- `merchant.js`
-  - A simple state machine: idle → entering → trading → exiting.
-  - Spawn cadence uses `merchant.spawnRangeTicks.min/max`.
-  - Visit duration is `merchant.stayTicks`, capped by `merchant.maxTradesPerVisit`.
-  - Trades are chosen from stockpile ratios vs targets, respecting `merchant.reserveRatio`.
-  - Trade rates come from `merchant.tradeRate` (default + per-resource overrides).
-  - `merchant.neverGive` prevents key resources from being traded away.
+- `merchant.js` is a four-phase state machine with explicit state persistence:
+  - `idle -> entering -> trading -> exiting -> idle`.
+  - Spawn timing is pre-scheduled (`nextSpawnTick`) using `merchant.spawnRangeTicks`.
+- Spawn/route behavior:
+  - Merchant spawns from a random edge side and receives an independent exit side.
+  - Stop target prefers a tile adjacent to random house, then falls back to village build spot.
+  - Entry/exit movement reuses standard movement helpers (walkable constraints still apply).
+- Trading behavior:
+  - Trading lasts until `stayTicks` or `tradesRemaining` reaches zero.
+  - Each tick in trading phase attempts at most one trade opportunity.
+  - Trade search is shortage-aware:
+    - pick most under-target resource as `receiveResource`.
+    - pick most over-reserve resource (excluding `neverGive`) as `giveResource`.
+- Trade sizing:
+  - Uses target ratios from `resources.targets`/`targetsPerCapita`.
+  - `reserveRatio` blocks giving away resources that are not safely above target.
+  - `tradeRate` (default or per-resource) determines give/receive amounts.
+  - Minimum transfer quantity is clamped to at least 1 on both sides.
+- Accounting and observability:
+  - Visit-level trade log tracks pair counts (`A->B xN`) and is summarized on departure.
+  - Global stats track total ticks, trade count, cumulative `given`, cumulative `received`.
+  - Events announce arrival/departure and short trade summary.
+- Design intent:
+  - Merchant acts as a soft rebalancer for overstock/shortage cycles without bypassing target logic.
+  - `neverGive` protects strategic resources from accidental depletion.
 
 ### Contracts 📜
 
-- `contracts.js`
-  - Spawns timed caravan contracts that request 1-2 resources (wood/stone/iron/beer).
-  - Spawn cadence uses `contracts.spawnRangeTicks.min/max`; expiry uses `contracts.expiryTicks`.
-  - Requested resources temporarily boost stockpile targets to steer gather priorities.
-  - Success/failure updates per-faction reputation (`contracts.reputation`).
-  - High reputation thresholds grant faction minerals (embersteel/ironshade).
-  - Embersteel and Ironshade are stockpile-only reagents reserved for alchemy.
-  - Success triggers a temporary boon:
-    - `production`: output bonus for all production.
-    - `war`: raid death rate reduction + ruins combat bonus.
+- `contracts.js` runs a timed single-active-contract loop with faction reputation and temporary boons.
+- Lifecycle:
+  - if active contract exists: check instant fulfillment first, then expiry fail check.
+  - if none active and spawn timer elapsed: roll/create next offer.
+  - next spawn tick is always rescheduled on completion/failure/no-offer.
+- Offer generation:
+  - picks one random faction from `contracts.factions`.
+  - request resources sampled from `allowedResources`.
+  - request count comes from `requestCount.min/max`.
+  - per-resource amount is derived from target * sampled `requestRatio`.
+  - contract carries `expiresAt`, `requested` map, and per-resource `targetBoosts`.
+- Active steering effect:
+  - while active, `getContractTargetBoost` inflates stockpile targets for requested resources.
+  - this feeds directly into shortage computation/jobs, pushing economy toward fulfillment.
+- Completion path:
+  - requested resources are consumed immediately.
+  - faction reputation increases (`reputation.successDelta`, clamped to min/max).
+  - base rewards apply, plus optional faction mineral reward at reputation thresholds.
+  - role-based temporary buff is activated (`production` or `war`) for configured duration.
+- Failure path:
+  - reputation decreases (`reputation.failureDelta`, clamped).
+  - no reward and no new buff.
+- Buff model:
+  - `production` buff -> global output bonus.
+  - `war` buff -> raid death-rate reduction + ruins combat bonus.
+  - buff expiry is tick-based and checked every update.
+- Integration points:
+  - jobs/resources consume `targetBoost` while contract is active.
+  - production bonus feeds output multipliers in `resources.js`.
+  - war bonus is consumed in raid and ruins resolution.
+  - high-rep minerals (for example `embersteel`/`ironshade`) feed late-game alchemy recipes.
+- Events and UX:
+  - offer event summarizes top requested resources.
+  - completion/failure events include faction label.
+  - boon event prints compact effect summary with remaining ticks.
 
 ### Terrain helpers 🧰
 
@@ -616,6 +857,7 @@ Clan dynamics add heterogeneity and longer-horizon trade-offs. To keep PPO stabl
 - `merchant`: spawn cadence and trade behavior (including `neverGive` exclusions).
 - `ai`: runtime policy + training defaults.
 - `myths`: global modifier definitions, triggers, caps, and traditions.
+- `alchemy`: rite formulas, global modifiers, backlash, and cooldown pacing.
 
 See `docs/PARAMETERS.md` for a full reference.
 
@@ -659,6 +901,7 @@ Training presets:
 - `ai:promote:best` runs just the promotion check manually.
 - Presets generate a run-specific config in `debug/run_<timestamp>/`, align `ai.training.*Overrides.ai.maxTicks` with `max_steps * step_ticks`, and reuse that same config for `promote_best`.
 - All presets save the best model to `models/policy_best.json` (with meta in `models/policy_best.meta.json`) and resume from it unless `--fresh` is used.
+- Best-checkpoint writes are explicit in logs: `train.py` prints a colored `[BEST SAVED]` line on eval improvement, and `promote_best.py` prints the same marker when latest is promoted.
 
 
 ### Rendering 🖼️
@@ -772,13 +1015,25 @@ Quick checklist:
 ## 12) Project layout cheatsheet 🗂️
 
 - `app.js` → main terminal simulation
+- `config.json` → single source of truth for gameplay and training tunables
 - `ai_server.js` → JSON bridge for Python training
+- `src/config.js` → runtime config loader
 - `src/`
+  - `simulation.js` / `state.js` / `render.js` / `ai_policy.js` → stable wrappers
   - `simulation/` → game logic
+    - `simulation/alchemy.js` → alchemy rite lifecycle and modifiers
+    - `simulation/contracts.js` → contract offers, reputations, and boons
+    - `simulation/roads.js` → road planning/build queue/pathing
+    - `simulation/ruins.js` → expeditions, artifacts, and set bonuses
   - `state/` → initial state + terrain generation
   - `render/` → ASCII output
   - `ai/` → observation + policy
   - `runtime.js`, `terminal.js`, `utils.js` → support
-- `python/` → PPO training + agent example
-- `docs/` → config parameter reference and training override docs
-- `models/` → JSON policy checkpoints
+- `scripts/train_wrapper.js` → unified safe wrapper for `ai:train:*` profiles
+- `scripts/regression.js` → AI regression harness and profile recording
+- `scripts/export_map.js` → map export pipeline (PNG + SVG)
+- `python/train.py` → PPO trainer and best-checkpoint updates
+- `python/promote_best.py` → post-train promotion check (latest vs best)
+- `python/bootstrap.py` / `python/agent.py` → venv bootstrap + sample agent
+- `docs/PARAMETERS.md` / `docs/TRAINING_OVERRIDES.md` → config and training override references
+- `models/` → `policy.json`, `policy_best.json`, `policy_best.meta.json`

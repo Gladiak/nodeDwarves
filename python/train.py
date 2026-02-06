@@ -60,6 +60,16 @@ def tint(text, color, enabled=USE_COLOR):
     return f"{color}{text}{COLOR_RESET}" if enabled else text
 
 
+def print_best_saved_line(episode, score, avg_reward, model_path, meta_path):
+    if not TRAINING_LOGS_ENABLED:
+        return
+    line = (
+        f"[BEST SAVED] episode={episode} score={score:.3f} avg_reward={avg_reward:.2f} "
+        f"model={model_path} meta={meta_path}"
+    )
+    print(tint(line, BEST_EVAL_COLOR))
+
+
 def send(proc, payload):
     proc.stdin.write(json.dumps(payload) + "\n")
     proc.stdin.flush()
@@ -2633,12 +2643,14 @@ def main():
                                 eval_score,
                                 args.eval_score,
                             )
-                            line = (
-                                f"best eval episode={next_expected} score={best_eval:.3f} "
-                                f"avg_reward={stats['avg_reward']:.2f} saved={args.best_model_path}"
+                            print_best_saved_line(
+                                next_expected,
+                                best_eval,
+                                stats["avg_reward"],
+                                args.best_model_path,
+                                args.best_model_meta_path,
                             )
                             if TRAINING_LOGS_ENABLED:
-                                print(tint(line, BEST_EVAL_COLOR))
                                 pending_detail_events.append(f"best_eval={best_eval:.2f}")
 
                 next_expected += 1

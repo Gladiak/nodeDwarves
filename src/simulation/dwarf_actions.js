@@ -29,6 +29,7 @@ const {
   consumeInputs,
   applyOutputs,
 } = require('./resources');
+const { getAlchemyMultiplier } = require('./alchemy');
 const { findHerdById } = require('./wildlife');
 
 // Process the dwarf's per-tick action (panic, job, or idle).
@@ -770,6 +771,7 @@ function getMineRareOutputs(state, config, structure, structureMultiplier, rareB
   if (!rareDrops || typeof rareDrops !== 'object') {
     return null;
   }
+  const alchemyRareMultiplier = getAlchemyMultiplier(state, config, 'mineRareChance', 1);
 
   const level = Math.max(1, Number(structure && structure.level || 1));
   const output = {};
@@ -783,7 +785,11 @@ function getMineRareOutputs(state, config, structure, structureMultiplier, rareB
       continue;
     }
     const baseChance = clamp(Number(definition.chance || 0), 0, 1);
-    const chance = clamp(baseChance + Math.max(0, Number(rareBonus || 0)), 0, 1);
+    const chance = clamp(
+      (baseChance + Math.max(0, Number(rareBonus || 0))) * alchemyRareMultiplier,
+      0,
+      1,
+    );
     if (chance <= 0 || Math.random() >= chance) {
       continue;
     }

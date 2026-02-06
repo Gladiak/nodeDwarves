@@ -7,6 +7,8 @@ import sys
 
 import train
 
+BEST_SAVE_COLOR = getattr(train, "BEST_EVAL_COLOR", "\033[96m")
+
 
 # Function: load_policy_payload.
 def load_policy_payload(path):
@@ -152,6 +154,39 @@ def parse_args():
     return parser.parse_args()
 
 
+# Function: print_best_saved_line.
+def print_best_saved_line(reason, score, model_path, meta_path):
+    line = (
+        f"[BEST SAVED] reason={reason} score={score:.4f} "
+        f"model={model_path} meta={meta_path}"
+    )
+    print(train.tint(line, BEST_SAVE_COLOR))
+
+
+# Function: promote_latest_to_best.
+def promote_latest_to_best(args, latest_stats, latest_score, eval_score_mode, reason):
+    print(
+        f"Promoting latest policy (score={latest_score:.4f}) to best: {args.best_model_path}"
+    )
+    best_dir = os.path.dirname(args.best_model_path)
+    if best_dir:
+        os.makedirs(best_dir, exist_ok=True)
+    shutil.copyfile(args.model_path, args.best_model_path)
+    train.save_best_meta(
+        args.best_model_meta_path,
+        latest_stats,
+        0,
+        latest_score,
+        eval_score_mode,
+    )
+    print_best_saved_line(
+        reason,
+        latest_score,
+        args.best_model_path,
+        args.best_model_meta_path,
+    )
+
+
 # Function: main.
 def main():
     args = parse_args()
@@ -271,17 +306,12 @@ def main():
             )
 
         if best_score is None:
-            print(
-                f"Promoting latest policy (score={latest_score:.4f}) to best: {args.best_model_path}"
-            )
-            os.makedirs(os.path.dirname(args.best_model_path), exist_ok=True)
-            shutil.copyfile(args.model_path, args.best_model_path)
-            train.save_best_meta(
-                args.best_model_meta_path,
+            promote_latest_to_best(
+                args,
                 latest_stats,
-                0,
                 latest_score,
                 eval_score_mode,
+                "best_missing",
             )
             return
 
@@ -292,17 +322,12 @@ def main():
             f"delta={delta:.4f} min_improve={args.min_improve:.4f}"
         )
         if delta >= args.min_improve:
-            print(
-                f"Promoting latest policy (score={latest_score:.4f}) to best: {args.best_model_path}"
-            )
-            os.makedirs(os.path.dirname(args.best_model_path), exist_ok=True)
-            shutil.copyfile(args.model_path, args.best_model_path)
-            train.save_best_meta(
-                args.best_model_meta_path,
+            promote_latest_to_best(
+                args,
                 latest_stats,
-                0,
                 latest_score,
                 eval_score_mode,
+                "score_improved",
             )
         else:
             print("Best policy retained.")

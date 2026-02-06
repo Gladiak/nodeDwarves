@@ -439,6 +439,7 @@
         "ruins": "\u001b[37m",
         "workshop": "\u001b[36m",
         "armory": "\u001b[31m",
+        "alchemy_lab": "\u001b[38;5;171m",
         "mithril_forge": "\u001b[95m",
         "sawmill": "\u001b[33m",
         "watchtower": "\u001b[37m",
@@ -688,6 +689,62 @@
           "seasonWindow": 3,
           "waterRatioThreshold": 0.25,
           "ticksRequired": 60
+        }
+      }
+    }
+  },
+  "alchemy": {
+    "enabled": true,
+    "historyLimit": 20,
+    "formulas": {
+      "stone_abyss_pact": {
+        "enabled": true,
+        "priority": 100,
+        "label": "Stone Abyss Pact",
+        "durationTicks": 220,
+        "cooldownTicks": 260,
+        "requiredStructures": ["alchemy_lab", "mithril_forge", "armory", "ruins"],
+        "minPopulation": 42,
+        "requiresUnfoundArtifacts": true,
+        "blockDuringRaid": true,
+        "minStockpileRatios": {
+          "food": 0.95,
+          "water": 0.95,
+          "wood": 0.85,
+          "stone": 0.85
+        },
+        "inputs": {
+          "mithril": 8,
+          "adamantio": 4,
+          "mana_crystal": 4,
+          "embersteel": 2,
+          "ironshade": 2,
+          "beer": 120
+        },
+        "outputBonus": 0.2,
+        "effects": {
+          "mineRareChance": 1.7,
+          "ruinsArtifactChance": 1.35,
+          "ruinsHazard": 1.18,
+          "needDecay": 1.06,
+          "raidDeathRate": 1.08,
+          "raidResourceLoss": 1.12
+        },
+        "backlash": {
+          "id": "stone_abyss_debt",
+          "label": "Debt of the Stone Abyss",
+          "failureThreshold": 2,
+          "durationTicks": 280,
+          "resourceLossRatio": 0.22,
+          "lossResources": ["food", "water", "wood", "stone", "iron", "beer", "mithril"],
+          "outputBonus": -0.35,
+          "effects": {
+            "needDecay": 1.16,
+            "raidDeathRate": 1.2,
+            "raidResourceLoss": 1.28,
+            "ruinsHazard": 1.3,
+            "mineRareChance": 0.75
+          }
         }
       }
     }
@@ -2066,6 +2123,53 @@
         }
       }
     },
+    "alchemy_lab": {
+      "count": 0,
+      "capacity": 1,
+      "maxCount": 1,
+      "buildMinRadius": 2,
+      "buildOuterBuffer": 1,
+      "placement": {
+        "mode": "poisson",
+        "minDistanceFromCenter": 5,
+        "maxDistanceFromCenter": 12,
+        "nearbySearchRadius": 4,
+        "minDistanceBetween": 2,
+        "minStructureDistance": 3,
+        "maxAttempts": 700,
+        "avoidTerrain": ["river", "lake", "mountain", "stone"],
+        "district": {
+          "enabled": true,
+          "autoAngle": true,
+          "angleOffsetDegrees": -155,
+          "arcDegrees": 95,
+          "weight": 0.44,
+          "radiusBias": 0.2
+        },
+        "roadAffinity": {
+          "enabled": true,
+          "preferredDistance": 2,
+          "maxDistance": 7,
+          "weight": 0.2,
+          "avoidRoadTiles": true
+        }
+      },
+      "requiresStructures": ["mithril_forge", "armory"],
+      "buildMinResources": {
+        "food": 0.92,
+        "water": 0.92,
+        "wood": 0.85,
+        "stone": 0.85
+      },
+      "buildTicks": 160,
+      "buildCost": {
+        "wood": 30,
+        "stone": 24,
+        "iron": 18,
+        "mithril": 6,
+        "mana_crystal": 2
+      }
+    },
     "brewery": {
       "count": 0,
       "capacity": 1,
@@ -3064,6 +3168,7 @@
     "ruins": "∩",
     "workshop": "╦",
     "armory": "A",
+    "alchemy_lab": "Ψ",
     "brewery": "ß",
     "mithril_forge": "Σ",
     "sawmill": "╫",

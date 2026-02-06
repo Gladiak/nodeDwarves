@@ -16,12 +16,13 @@ This file defines how to implement new features in a consistent, stable way.
 - README.md tone: technical but playful (nerd-friendly). Use emojis.
 - MANUAL.md is the technical manual and operational runbook (systems, formulas, workflows, implementation behavior). Tone: technical-nerd and precise. Use emojis.
 - Keep MANUAL.md section order stable for discoverability: Scope, Operations, Mental model, Tick flow, Runtime, State generation, Simulation systems, Rendering, AI/training, Configuration, Role guide, Deep dives, Project layout.
-- When new files are added, update the Project layout sections in README.md and MANUAL.md.
+- Always keep project structure documentation up to date: update AGENTS.md, README.md (Project layout), and MANUAL.md (Project layout cheatsheet) whenever files or folders are added, renamed, moved, or removed.
 - For substantial implementations, update documentation with a clear, high-detail explanation (README, MANUAL, and relevant docs).
 - Always write documentation in English.
 
 ## Project structure
 
+- Keep this section always aligned with the real repository layout.
 - `app.js`: entrypoint and main loop.
 - `config.json`: single source of truth for tunables.
 - `docs/PARAMETERS.md`: config parameter reference.

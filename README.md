@@ -19,6 +19,7 @@ trade-offs emerge from shortages, weather, raids, and long-term growth pressure.
 - 🌦️ Seasons, weather, festivals, and wildlife that shift priorities (raids optional).
 - 📜 Merchant trading, caravan contracts, and faction reputation.
 - 🗝️ Endgame ruins expeditions with artifacts, set bonuses, and cycle resets.
+- ⚗️ Alchemy Lab rites: burn rare minerals for powerful global buffs, then survive the backlash.
 - 🛡️ Clan culture traits that create trade-offs without micromanagement.
 - 🤖 AI training in Python (PPO) with JS-only inference.
 - 🧩 Modular architecture (simulation, state, render, AI) for sane iteration.
@@ -62,6 +63,10 @@ npm run ai:play
 For training presets, evaluation, and overrides, see `MANUAL.md` and
 `docs/TRAINING_OVERRIDES.md`.
 
+Training now highlights every best-checkpoint save with a colored `[BEST SAVED]`
+line and keeps both `models/policy_best.json` and `models/policy_best.meta.json`
+in sync. 🧠
+
 ## Four runs to try ⚡
 
 1. `Vanilla sim`: `npm start`
@@ -80,7 +85,6 @@ For training presets, evaluation, and overrides, see `MANUAL.md` and
 
 - 🛰️ Fog-of-war + scouting: unlock map intel with explorers, towers, and rumors.
 - 🧬 Lineages and legacy perks: clan bloodlines evolve traits across cycles.
-- 🧪 Alchemy lab: convert rare minerals into powerful, risky global modifiers.
 - 🏗️ Megaprojects: multi-stage wonders with unique mechanics and prestige scores.
 - ⚖️ Dynamic laws: policy toggles that trade safety, productivity, and morale.
 - 🔥 Disaster arcs: drought → fire → recovery chain with emergent priorities.
@@ -94,6 +98,8 @@ For training presets, evaluation, and overrides, see `MANUAL.md` and
 - `app.js`: entrypoint and main loop.
 - `config.json`: single source of truth for tunables.
 - `src/`: simulation, state, rendering, AI.
+- `src/simulation/alchemy.js`: alchemy rites, pact lifecycle, and backlash logic.
+- `scripts/train_wrapper.js`: safe unified wrapper for all `ai:train:*` profiles.
 - `python/`: PPO training + agent example.
 - `docs/`: parameter reference and training overrides.
 - `models/`: policy checkpoints.

@@ -279,7 +279,7 @@ Display and layout:
 - `display.dwarves.maxVisible`: max dwarves to render on the map (0 = show all).
 - `display.colors.enabled`: enable ANSI colors in the render.
 - `display.colors.reset`: ANSI reset sequence (defaults to `\u001b[0m`).
-- `display.colors.map.<key>`: ANSI color for an entity key (e.g. `dwarf`, `merchant`, `house`, `food`, `hud_header`).
+- `display.colors.map.<key>`: ANSI color for an entity key (e.g. `dwarf`, `merchant`, `house`, `alchemy_lab`, `food`, `hud_header`).
 - `display.colors.map.weather_<type>`: ANSI color for HUD weather labels (e.g. `weather_rain`).
 - `display.colors.map.terrain_<type>`: ANSI color for terrain tiles (`terrain_river`, `terrain_lake`, `terrain_road`, `terrain_bridge`, `terrain_ford`, `terrain_mountain`, `terrain_hill`, `terrain_plain`, `terrain_fertile`, `terrain_food`, `terrain_forest`, `terrain_stone`).
 - `display.colors.map.herd`: ANSI color for wildlife herds on the map.
@@ -530,6 +530,32 @@ Myths:
 - `myths.definitions.<id>.trigger.successStreak`: consecutive ruins successes needed.
 - `myths.definitions.<id>.trigger.droughtCount`: drought seasons required for trigger.
 - `myths.definitions.<id>.trigger.waterRatioThreshold`: water ratio threshold for drought crisis.
+
+Alchemy:
+
+- `alchemy.enabled`: enable alchemy rite processing and alchemy HUD state.
+- `alchemy.historyLimit`: max alchemy history entries retained (0 = unlimited).
+- `alchemy.formulas.<id>.enabled`: enable/disable a specific rite formula.
+- `alchemy.formulas.<id>.priority`: formula selection priority (higher runs first when multiple are eligible).
+- `alchemy.formulas.<id>.label`: HUD/event label for the rite.
+- `alchemy.formulas.<id>.durationTicks`: active duration of the rite.
+- `alchemy.formulas.<id>.cooldownTicks`: cooldown applied after rite completion.
+- `alchemy.formulas.<id>.requiredStructures`: structures required before the formula can activate.
+- `alchemy.formulas.<id>.minPopulation`: minimum population required for activation.
+- `alchemy.formulas.<id>.requiresUnfoundArtifacts`: require at least one unfound ruin artifact before activation.
+- `alchemy.formulas.<id>.blockDuringRaid`: block activation while raids are active.
+- `alchemy.formulas.<id>.minStockpileRatios.<resource>`: minimum stockpile ratios required for activation.
+- `alchemy.formulas.<id>.inputs.<resource>`: stockpile resources consumed when the rite starts.
+- `alchemy.formulas.<id>.outputBonus`: additive production bonus while active (`0.2` = +20%).
+- `alchemy.formulas.<id>.effects.<key>`: multiplicative modifiers while active (`needDecay`, `ruinsArtifactChance`, `ruinsHazard`, `raidDeathRate`, `raidResourceLoss`, `mineRareChance`).
+- `alchemy.formulas.<id>.backlash.id`: id of the backlash state used in history/debug.
+- `alchemy.formulas.<id>.backlash.label`: HUD/event label for the backlash phase.
+- `alchemy.formulas.<id>.backlash.failureThreshold`: ruins failures during the rite required to trigger backlash.
+- `alchemy.formulas.<id>.backlash.durationTicks`: duration of the backlash phase.
+- `alchemy.formulas.<id>.backlash.resourceLossRatio`: immediate stockpile loss ratio applied when backlash starts.
+- `alchemy.formulas.<id>.backlash.lossResources`: resource ids eligible for backlash stockpile loss.
+- `alchemy.formulas.<id>.backlash.outputBonus`: additive production bonus/penalty during backlash.
+- `alchemy.formulas.<id>.backlash.effects.<key>`: multiplicative modifiers applied during backlash.
 
 Population roles:
 
@@ -824,6 +850,36 @@ Structures (armory):
 - `structures.armory.kitCost.<resource>`: resource costs per kit.
 - `structures.armory.pauseOnEmergency`: pause armory jobs during emergency gathering.
 
+Structures (alchemy lab):
+
+- `structures.alchemy_lab.count`: initial alchemy lab count.
+- `structures.alchemy_lab.maxCount`: maximum alchemy labs allowed.
+- `structures.alchemy_lab.buildMinRadius`: minimum Manhattan radius from village center.
+- `structures.alchemy_lab.buildOuterBuffer`: extra distance beyond the current village perimeter (houses).
+- `structures.alchemy_lab.placement.mode`: placement mode (`poisson` enables sampled organic placement; omit for legacy ring scan).
+- `structures.alchemy_lab.placement.minDistanceFromCenter`: minimum Manhattan distance from village center.
+- `structures.alchemy_lab.placement.maxDistanceFromCenter`: maximum Manhattan distance from village center (0 = no cap).
+- `structures.alchemy_lab.placement.nearbySearchRadius`: local search radius around each random Poisson sample (0 = exact sample point; higher = smoother but less random).
+- `structures.alchemy_lab.placement.minDistanceBetween`: minimum Manhattan distance between alchemy labs.
+- `structures.alchemy_lab.placement.minStructureDistance`: minimum Manhattan distance from any structure.
+- `structures.alchemy_lab.placement.maxAttempts`: random samples per build attempt.
+- `structures.alchemy_lab.placement.avoidTerrain`: terrain types where alchemy labs cannot be placed.
+- `structures.alchemy_lab.placement.district.enabled`: enable district-aware angular bias around the village center.
+- `structures.alchemy_lab.placement.district.autoAngle`: derive the district base angle deterministically from map seed + structure type.
+- `structures.alchemy_lab.placement.district.angleOffsetDegrees`: rotate the district sector relative to the base angle.
+- `structures.alchemy_lab.placement.district.arcDegrees`: district sector width in degrees.
+- `structures.alchemy_lab.placement.district.weight`: district bias strength added to placement scoring.
+- `structures.alchemy_lab.placement.district.radiusBias`: radial bias inside the allowed ring (`-1..1`, negative = inner ring, positive = outer ring).
+- `structures.alchemy_lab.placement.roadAffinity.enabled`: enable road-distance scoring for alchemy lab placement.
+- `structures.alchemy_lab.placement.roadAffinity.preferredDistance`: preferred Manhattan distance from existing road tiles.
+- `structures.alchemy_lab.placement.roadAffinity.maxDistance`: max Manhattan distance from roads considered by road affinity.
+- `structures.alchemy_lab.placement.roadAffinity.weight`: road-affinity scoring strength.
+- `structures.alchemy_lab.placement.roadAffinity.avoidRoadTiles`: disallow building directly on road/bridge/ford overlay tiles.
+- `structures.alchemy_lab.requiresStructures`: structure ids required before building can start.
+- `structures.alchemy_lab.buildMinResources.<resource>`: minimum stockpile ratios before building.
+- `structures.alchemy_lab.buildTicks`: ticks required to build an alchemy lab.
+- `structures.alchemy_lab.buildCost.<resource>`: resource costs to build an alchemy lab.
+
 Structures (mithril forge):
 
 - `structures.mithril_forge.count`: initial mithril forge count.
@@ -979,6 +1035,11 @@ Structures (ruins):
 - `structures.ruins.count`: initial ruins count (typically 1, always placed at start).
 - `structures.ruins.spawnTerrain`: terrain types allowed for initial ruins placement.
 - `structures.ruins.minSpawnTiles`: minimum number of spawn terrain tiles reserved for ruins.
+
+Symbols:
+
+- `symbols.<entity>`: map and legend symbol for entities/resources/structures.
+- `symbols.alchemy_lab`: symbol used for the alchemy lab structure.
 
 Ruins exploration:
 

@@ -69,6 +69,7 @@ function buildLegendSections(config, options = {}) {
     'field',
     'workshop',
     'armory',
+    'alchemy_lab',
     'mithril_forge',
     'brewery',
     'sawmill',

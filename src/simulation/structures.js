@@ -570,6 +570,80 @@ function createArmoryBuildJob(state, config, runtime, reservedPositions) {
   };
 }
 
+// Create an alchemy lab build job when none exists.
+function createAlchemyLabBuildJob(state, config, runtime, reservedPositions) {
+  const alchemyConfig = (config && config.alchemy) || {};
+  if (alchemyConfig.enabled === false) {
+    return null;
+  }
+  const labConfig = (config.structures && config.structures.alchemy_lab) || {};
+  const maxCount = Number(labConfig.maxCount ?? 0);
+  const existing = (state.structures || []).filter((structure) => structure.type === 'alchemy_lab').length;
+  const queued = countQueuedBuildJobs(state, 'alchemy_lab');
+  if (maxCount > 0 && existing + queued >= maxCount) {
+    return null;
+  }
+  if (existing + queued > 0) {
+    return null;
+  }
+
+  const requiredStructures = Array.isArray(labConfig.requiresStructures)
+    ? labConfig.requiresStructures
+    : ['mithril_forge'];
+  for (const structureType of requiredStructures) {
+    const hasRequired = (state.structures || []).some((structure) => structure.type === structureType);
+    if (!hasRequired) {
+      return null;
+    }
+  }
+
+  const minResources = labConfig.buildMinResources;
+  if (minResources && typeof minResources === 'object') {
+    for (const [resource, minRatioRaw] of Object.entries(minResources)) {
+      const minRatio = Number(minRatioRaw);
+      if (!Number.isFinite(minRatio) || minRatio <= 0) {
+        continue;
+      }
+      const ratio = getStockpileRatio(state, config, resource);
+      if (ratio < minRatio) {
+        return null;
+      }
+    }
+  }
+
+  const buildCost = labConfig.buildCost || {};
+  if (Object.keys(buildCost).length > 0 && !hasInputs(state.stockpile, buildCost)) {
+    return null;
+  }
+
+  const target = findPeripheralBuildSpot(
+    state,
+    runtime,
+    labConfig,
+    reservedPositions,
+    null,
+    { structureType: 'alchemy_lab' },
+  );
+  if (!target) {
+    return null;
+  }
+
+  if (Object.keys(buildCost).length > 0) {
+    consumeInputs(state.stockpile, buildCost);
+  }
+
+  const buildTicks = Math.max(1, Number(labConfig.buildTicks || 120));
+  return {
+    id: `job_${state.jobCounter++}`,
+    type: 'build',
+    structureType: 'alchemy_lab',
+    target,
+    workRemaining: buildTicks,
+    dwarfId: null,
+    cost: cloneCost(buildCost),
+  };
+}
+
 // Create a mithril forge build job when none exists.
 function createMithrilForgeBuildJob(state, config, runtime, reservedPositions) {
   const forgeConfig = (config.structures && config.structures.mithril_forge) || {};
@@ -2977,6 +3051,7 @@ module.exports = {
   createSawmillBuildJob,
   createWorkshopBuildJob,
   createArmoryBuildJob,
+  createAlchemyLabBuildJob,
   createMithrilForgeBuildJob,
   createBreweryBuildJob,
   createMineBuildJob,

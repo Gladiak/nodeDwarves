@@ -28,6 +28,7 @@ const { tickTerrainCooldowns } = require('./terrain');
 const { updateRuins } = require('./ruins');
 const { updateEndgameDifficulty, maybeHandleEndgameReset } = require('./endgame');
 const { updateMyths, getMythMultiplier } = require('./myths');
+const { updateAlchemy, getAlchemyMultiplier } = require('./alchemy');
 const { updateVillages } = require('./villages');
 const { updateRoads } = require('./roads');
 
@@ -41,11 +42,13 @@ function stepState(state, config, runtime, action, options = {}) {
   updateRaidStart(state, config, runtime);
   updateFestivals(state, config, runtime, action);
   updateContracts(state, config, runtime);
+  updateAlchemy(state, config);
   updateWildlifeStart(state, config, runtime);
   const housingPenalty = getWinterHousingPenalty(state, config);
   const weatherNeedMultiplier = getWeatherModifier(state, config, 'needDecay', 1);
   const weatherNeedByNeed = getWeatherNeedMultipliers(state, config);
   const mythNeedMultiplier = getMythMultiplier(state, config, 'needDecay', 1);
+  const alchemyNeedMultiplier = getAlchemyMultiplier(state, config, 'needDecay', 1);
   const festivalNeedMultiplier = getFestivalModifier(state, 'needDecay', 1);
   const stormColdActive = state.weather
     ? state.weather.type === 'storm' || state.weather.type === 'cold'
@@ -67,6 +70,7 @@ function stepState(state, config, runtime, action, options = {}) {
         * endgameDifficulty
         * clanNeedMultiplier
         * mythNeedMultiplier
+        * alchemyNeedMultiplier
         * festivalNeedMultiplier,
       weatherNeedByNeed,
     );

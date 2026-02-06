@@ -4,6 +4,7 @@ const { clamp, padRight } = require("../utils");
 const { getClanLabel, getClanList, countClans } = require("../clans");
 const { getStockpileTarget } = require("../simulation/resources");
 const { getFestivalStatus } = require("../simulation/festivals");
+const { getAlchemyStatus } = require("../simulation/alchemy");
 const { getColorConfig, applyColor } = require("./colors");
 const { fitLine, wrapLine } = require("./format");
 
@@ -116,6 +117,9 @@ function buildHudColumns(state, config, columnWidth, options = {}) {
   const forgeCount = structures.filter(
     (structure) => structure.type === "mithril_forge",
   ).length;
+  const alchemyLabCount = structures.filter(
+    (structure) => structure.type === "alchemy_lab",
+  ).length;
   const ruinsCount = structures.filter(
     (structure) => structure.type === "ruins",
   ).length;
@@ -214,6 +218,10 @@ function buildHudColumns(state, config, columnWidth, options = {}) {
   if (contractReputation) {
     left.push(contractReputation);
   }
+  const alchemyStatus = formatAlchemyStatus(state, config, columnWidth);
+  if (alchemyStatus) {
+    left.push(alchemyStatus);
+  }
   pushSection(left, "Population");
   left.push(
     `Pop: ${dwarves.length} (C:${stageCounts.child}/A:${stageCounts.adult}/E:${stageCounts.elder})`,
@@ -272,7 +280,9 @@ function buildHudColumns(state, config, columnWidth, options = {}) {
   right.push(
     fitLine(`Forge: ${forgeCount}  Armory: ${armoryCount}`, columnWidth),
   );
-  right.push(fitLine(`Ruins: ${ruinsCount}`, columnWidth));
+  right.push(
+    fitLine(`Alchemy: ${alchemyLabCount}  Ruins: ${ruinsCount}`, columnWidth),
+  );
   if (state.tools) {
     const maxLevel = Math.max(1, Number(state.tools.maxLevel || 1));
     const level = Math.min(
@@ -807,6 +817,38 @@ function formatContractReputation(state, config, width) {
     return `${abbrev}:${value.toFixed(2)}`;
   });
   return fitLine(`Rep ${parts.join(" ")}`, width);
+}
+
+// Format the alchemy rite status line.
+function formatAlchemyStatus(state, config, width) {
+  const alchemyConfig = (config && config.alchemy) || {};
+  if (alchemyConfig.enabled === false) {
+    return "";
+  }
+  const status = getAlchemyStatus(state, config);
+  if (!status) {
+    return "";
+  }
+  if (status.mode === "active") {
+    const label = shortenContractLabel(status.label || "Rite");
+    const threshold = Math.max(0, Number(status.failureThreshold || 0));
+    if (threshold > 0) {
+      const failures = Math.max(0, Number(status.failures || 0));
+      return fitLine(
+        `Alchemy: ${label} ${status.ticksLeft}t F${failures}/${threshold}`,
+        width,
+      );
+    }
+    return fitLine(`Alchemy: ${label} ${status.ticksLeft}t`, width);
+  }
+  if (status.mode === "backlash") {
+    const label = shortenContractLabel(status.label || "Backlash");
+    return fitLine(`Alchemy: ${label} ${status.ticksLeft}t`, width);
+  }
+  if (status.mode === "cooldown") {
+    return fitLine(`Alchemy: cooldown ${status.ticksLeft}t`, width);
+  }
+  return "";
 }
 
 // Shorten long faction labels for the HUD.

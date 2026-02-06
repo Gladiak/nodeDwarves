@@ -5,6 +5,7 @@ const { getClanEffects, getClanList, getClanShareByIds } = require('../clans');
 const { getStockpileRatio, hasInputs, consumeInputs } = require('./resources');
 const { pushEvent } = require('./events');
 const { getMythMultiplier } = require('./myths');
+const { getAlchemyMultiplier } = require('./alchemy');
 const { getContractRuinsCombatBonus } = require('./contracts');
 const { isAdult } = require('./population');
 
@@ -296,7 +297,8 @@ function resolveExpedition(state, config, ruinsConfig, rooms, expedition) {
   const clanHazardReduction = getClanExpeditionBonus(state, config, expedition, 'ruins_hazard_reduction');
   const hazardReduction = clamp(Number(bonuses.hazardReduction || 0) + clanHazardReduction, 0, 0.95);
   const mythHazard = getMythMultiplier(state, config, 'ruinsHazard', 1);
-  const hazardChance = clamp(Number(room.hazardChance || 0), 0, 1) * (1 - hazardReduction) * mythHazard;
+  const alchemyHazard = getAlchemyMultiplier(state, config, 'ruinsHazard', 1);
+  const hazardChance = clamp(Number(room.hazardChance || 0), 0, 1) * (1 - hazardReduction) * mythHazard * alchemyHazard;
 
   let guardianSpawned = false;
   let guardianDefeated = false;
@@ -348,7 +350,8 @@ function finishExpedition(state, config, ruinsConfig, expedition, success, reaso
         : 0;
       const bonusChance = Math.max(0, Number((state.ruins.bonuses || {}).artifactChanceBonus || 0));
       const mythArtifact = getMythMultiplier(state, config, 'ruinsArtifactChance', 1);
-      const totalChance = clamp((baseChance + guardianBonus + bonusChance) * mythArtifact, 0, 1);
+      const alchemyArtifact = getAlchemyMultiplier(state, config, 'ruinsArtifactChance', 1);
+      const totalChance = clamp((baseChance + guardianBonus + bonusChance) * mythArtifact * alchemyArtifact, 0, 1);
       const rolls = Math.max(1, Math.floor(Number(room.artifactRolls || 1)));
       let foundAny = false;
       for (let roll = 0; roll < rolls; roll += 1) {
