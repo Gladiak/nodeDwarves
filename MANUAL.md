@@ -1,11 +1,89 @@
-# NodeDwarves Development Manual
+# NodeDwarves Technical Manual ⚙️
 
-Welcome to the codebase my lovely Dwarven Lovers!
-This guide explains the architecture, simulation logic, and the most common extension paths.
+This is the technical and gameplay manual for NodeDwarves. `README.md` is a high-level
+product overview; this document is the operational runbook for system behavior, execution
+flow, and implementation references, with a deterministic-chaos engineering mindset.
 
-## 1) Mental model (big picture)
+## 0) Scope and navigation 🧭
 
-NodeDwarves is a fully autonomous colony simulation that runs in the terminal. Each tick:
+- For running the simulation, controls, and export workflows, see "Operations and workflows".
+- For system architecture and execution pipeline order, see "Mental model" and "Tick flow".
+- For detailed system behavior (economy, structures, raids, ruins, myths), see "Simulation systems".
+- For rendering internals and view-layer constraints, see "Rendering system".
+- For policy inference and PPO training details, see "AI and training".
+- For config control-plane reference, see "Configuration".
+- For deep dives and checklists, see "Adding a new resource" and "Project layout cheatsheet".
+
+## 1) Operations and workflows 🛠️
+
+Use this as the runtime runbook for local dev loops and exports.
+
+### Run the simulation ▶️
+
+```bash
+npm start
+```
+
+Runtime controls: `Space` pause/resume, `l` legend panel, `i` dwarf inspect panel,
+`m` export current map (PNG + SVG), `Shift+M` export map with structures/roads.
+
+### Run training 🏋️
+
+```bash
+npm run ai:train
+```
+
+### Run trained policy 🧠
+
+```bash
+npm run ai:play
+```
+
+See "AI and training" below for preset details and evaluation notes.
+
+### Export a map PNG + SVG 🗺️
+
+During gameplay, press `m` to export the current season map. Press `Shift+M`
+to include built structures and roads (dwarves are excluded).
+
+```bash
+npm run map:export -- --width=120 --height=40 --season=spring
+```
+
+All seasons with the same seed:
+
+```bash
+npm run map:export:seasons -- --width=120 --height=40 --seed=12345
+```
+
+Notes:
+- Renders the terrain map only (no HUD or active entities; includes static structures like mines/ruins; frame follows `display.frame.enabled`).
+- Outputs to `maps/png` and `maps/svg` by default.
+- Uses a fixed terrain palette defined in `scripts/export_map.js` so terminal
+  colors remain unchanged.
+- If `display.frame.enabled` is true, the export includes the frame; `--width`
+  and `--height` still refer to the inner map size (output grows by 2).
+- Default export background/foreground are `#24273a` / `#cad3f5` (override with
+  `--background`/`--foreground`).
+- `--scale` affects PNG output only; SVG is vector.
+- Stores metadata in a PNG `tEXt` chunk named `NodeDwarves` with JSON containing
+  seed, season info, terrain counts, hashes, and a SHA-256 signature. The SVG
+  embeds the same JSON in a `<metadata>` block.
+- Uses Puppeteer (headless Chromium) for PNG rendering and SVG font metrics
+  (Chromium is downloaded on install unless configured) and picks mid-season
+  ticks to avoid transition palettes.
+- `--seasonProgress` lets you pick a progress value in `0..1`.
+- `--season=all` or `--allSeasons` exports all seasons with the same seed.
+- `--count` exports multiple images; with `--seed` it increments from that
+  base, otherwise seeds are random.
+- When `--name` is used with `--count`, a numeric suffix is appended.
+- `--includeStructures` keeps all structures and roads from a snapshot.
+- `--state` provides the JSON snapshot file (used by `Shift+M`).
+
+## 2) Mental model (big picture) 🧠
+
+NodeDwarves is a fully autonomous colony simulation that runs in the terminal.
+Think of it as a configurable state machine with an ASCII renderer on top. Each tick:
 
 1. The **state** is updated (season, weather, raids, population, jobs, movement, etc.).
 2. The **renderer** turns state into ASCII + optional colors.
@@ -15,15 +93,15 @@ Everything important is **config-driven** via `config.json`.
 
 Key concepts:
 
-- **State-first**: the entire simulation is a single JS state object updated each tick.
-- **Config-first**: all tunables live in `config.json` (with training overrides layered on top).
-- **Shortage-driven economy**: stockpile ratios drive priorities, builds, and guardrails.
-- **Soft modifiers**: seasons, weather, clans, ruins, and myths apply multipliers instead of new actions.
+- **State-first**: the simulation has one authoritative JS world state updated each tick.
+- **Config-first**: tunables live in `config.json` (training overrides act as a controlled overlay).
+- **Shortage-driven economy**: stockpile ratios behave like a feedback controller for priorities and builds.
+- **Soft modifiers**: seasons, weather, clans, ruins, and myths stack as multiplicative layers.
 - **Deterministic core**: randomness is localized (weather, raids, ruins) to keep runs comparable for training.
 
-## 2) Tick flow (diagram + order)
+## 3) Tick flow (diagram + order) ⏱️
 
-The tick order in code lives in `src/simulation/index.js`.
+The tick order in code lives in `src/simulation/index.js` and is the execution contract.
 
 **Tick order (short list)**
 
@@ -77,12 +155,12 @@ Notes:
 - AI actions are sampled in `app.js` every `ai.stepTicks` and passed into the simulation for
   job priorities and festival intent.
 - Endgame resets replace the state in place; active myths are cleared, traditions persist.
-- When you add new systems, decide where they fit in this order and which modifiers they should respect.
+- When adding new systems, place them intentionally in this order and define which modifiers they must respect.
 
-## 3) Entry points and runtime
+## 4) Entry points and runtime 🖥️
 
 - `app.js`
-  - Main CLI entrypoint.
+  - Main CLI orchestrator and simulation control loop.
   - Loads `config.json`, builds the terminal runtime, creates initial state, and starts the tick loop.
   - Optionally loads an AI policy when `--ai <path>` or env `AI_POLICY` is provided.
   - Tick pacing uses `display.tickMs`; hard stop uses `simulation.maxTicks`.
@@ -92,19 +170,19 @@ Notes:
   - Press `l` to toggle the legend overlay panel (works during pause or live).
   - Press `m` to export a map snapshot (PNG + SVG) using the current season styling.
 - `src/config.js`
-  - Thin JSON loader for configuration.
+  - Zero-magic JSON loader for configuration.
 - `src/runtime.js`
-  - Calculates grid size, HUD space, frame sizes, and handles terminal resize.
+  - Computes grid/HUD/frame layout and handles terminal resize.
 - `src/terminal.js`
-  - Low-level terminal helpers (clear screen, move cursor, hide/show cursor).
-  - Responsible for screen clearing and cursor control during live rendering.
+  - Low-level terminal I/O helpers (clear screen, move cursor, hide/show cursor).
+  - Handles screen clearing and cursor control during live rendering.
 
-## 4) State creation and world generation
+## 5) State creation and world generation 🌍
 
-### Core state builder
+### Core state builder 🧱
 
 - `src/state/index.js`
-  - `createInitialState(config, runtime)` builds the state object:
+  - `createInitialState(config, runtime)` builds the authoritative world state:
     - `dwarves`, `nodes`, `structures`, `merchant`, `weather`, `raid`, `tools`, etc.
     - `stockpile` initialized from `config.resources.stockpile`.
     - Initial stockpiles (and optional node counts) can scale with map size via `resources.mapScale`
@@ -112,7 +190,7 @@ Notes:
     - Counters and stats used by AI, raids, ruins, myths, and endgame cycles.
   - `fitStateToGrid(...)` repositions entities after resize and keeps everything in-bounds.
 
-### Terrain generation
+### Terrain generation 🗺️
 
 - `src/state/terrain.js`
   - Generates terrain using noise and rules.
@@ -124,6 +202,16 @@ Notes:
   - Valley mode can sprinkle extra ponds (`display.terrain.valley.ponds`) that count as lake water for humidity and gathering.
   - Domain warp, water-distance jitter, and the biome noise mask can break up geometric patterns (`display.terrain.valley.domain_warp`, `display.terrain.valley.water_distance_*`, `display.terrain.valley.biome_noise`).
   - The biome noise mask is a low-frequency field that biases height thresholds, water-distance, and biome noise thresholds so forests/food/pasture do not follow perfectly smooth contours; tune `display.terrain.valley.biome_noise.*`.
+  - Macro climate zones add broad wet/dry and rough/soft regions so thresholds vary per area instead of globally (`display.terrain.valley.macro_zones.*`).
+  - A curved world spine can raise a long relief band for more iconic mountain/hill silhouettes (`display.terrain.valley.world_spine.*`).
+  - Water coverage can be capped with a global budget so rivers stay readable and optional lakes/ponds do not dominate (`display.terrain.valley.water_budget.*`).
+  - Forest/food/pasture borders can be lightly eroded/expanded with noise to avoid clean geometric edges (`display.terrain.valley.biome_edge_jitter.*`).
+  - Optional `display.terrain.valley.fantasyPreset` applies curated terrain art-direction presets; `natural_epic` is balanced/organic, while `heroic_contrast` pushes stronger landmark silhouettes.
+  - Landmark guides can shape a stronger fantasy composition: `landmarks.river_spine` nudges river tracing along an organic corridor, while `landmarks.ridge_mask` lifts and reinforces a mountainous band.
+  - `display.terrain.valley.landmark_first` can shift terrain generation to a landmark-led composition pass so rivers/ridges define macro relief before local noise.
+  - Default `landmark_first` and `landmark_suitability` values are intentionally moderate to keep maps evocative without destabilizing biome balance.
+  - Forest/food/pasture suitability can also consume those landmark masks through `landmark_suitability`, so biome placement follows story landmarks instead of only local noise.
+  - `display.terrain.valley.forest.natural_spread` adds a low-frequency inland mask so forests can form organic groves away from water instead of hugging only river/lake corridors.
   - Forest edges near lakes can be softened with distance jitter and shoreline edge noise via `display.terrain.valley.forest`.
   - Valley ponds/fallback lakes can use jagged edges or edge stretch via the `edge_*` lake/pond settings.
   - Pasture patches can be generated via `display.terrain.valley.pasture` and get their own symbol/color.
@@ -133,9 +221,11 @@ Notes:
   - Terrain resources can be harvested directly when `resources.useTerrainTiles` is enabled.
   - Terrain walkability and movement delays are controlled by `display.terrain.walkable.*` and `display.terrain.movementDelay.*`.
 
-## 5) Simulation systems (what lives in `src/simulation/`)
+## 6) Simulation systems (what lives in `src/simulation/`) ⚙️
 
-### Population and life cycle
+These modules are the simulation hot path. Keep logic explicit and complexity predictable.
+
+### Population and life cycle 👥
 
 - `population.js`
   - Ages and life stages from `population.aging` (adult age, fertile range, old age start, max age).
@@ -148,7 +238,7 @@ Notes:
     plus optional same-clan bond gain bonuses.
   - Reproduction uses `population.reproduction.*` (base chance, soft cap, gestation, cooldown, stockpile gates, birth cost).
 
-### Clan culture
+### Clan culture 🛡️
 
 - `clans` config + `src/clans.js` provide clan IDs, labels, and weighted distributions.
   - `clans.enabled` toggles the system; `clans.list` declares available clans.
@@ -162,7 +252,7 @@ Notes:
 - Build cost penalties (stone/iron) are applied when a build/upgrade job completes and stockpile can cover the extra cost.
 - HUD shows clan totals in a dedicated Clans block using `clans.labels` for short names.
 
-### Jobs and economy
+### Jobs and economy 📦
 
 - `jobs.js`
   - Computes **shortages** by comparing stockpile vs targets.
@@ -175,7 +265,7 @@ Notes:
   - Supports role-based scheduling (builder/gatherer/manager/brewmaster).
   - Optional AI action weights can bias priority order and resource focus.
 
-### Dwarf actions
+### Dwarf actions ⛏️
 
 - `dwarf_actions.js`
   - Executes a dwarf's job: move, gather, build, upgrade, craft.
@@ -187,7 +277,7 @@ Notes:
   - Idle behavior returns home or wanders around the anchor.
   - Panic logic during raids (run to home or flee).
 
-### Movement and pathing
+### Movement and pathing 🧭
 
 - `movement.js`
   - Grid-based movement with cooldowns.
@@ -196,9 +286,12 @@ Notes:
   - Field mode builds distance fields (`field.radius`) cached for `field.ttlTicks`.
   - Field step costs weight terrain delay and crowding (`field.terrainWeight`, `field.crowdWeight`),
     plus inertia and stay penalty.
+  - Field pathing can optionally bias medium/long trips toward road overlays via
+    `population.pathing.field.roadAffinity.*`.
+  - Road affinity supports `pragmatic` and `scenic` profiles for lighter vs stronger corridor-following.
   - Terrain movement delays come from `display.terrain.movementDelay.<type>`.
 
-### Resources and stockpile
+### Resources and stockpile 📊
 
 - `resources.js`
   - Stockpile target calculation (with per-capita options).
@@ -213,19 +306,22 @@ Notes:
   - Stockpile decay per tick uses `resources.decayPerTick`.
   - Output multipliers stack from tools, mithril forge, beer morale, contract boons, and ruins bonuses.
 
-### Structures and building
+### Structures and building 🏗️
 
 - `structures.js`
   - Structure creation, build jobs, upgrade jobs, placement rules.
   - Build costs/ticks live in `structures.<type>.buildCost/buildTicks` (plus upgrade variants).
   - Houses have levels with per-level capacity and optional storage buffers.
   - Wells/fields spawn resource nodes and respect max counts and spacing rules.
+  - Industrial buildings can use `structures.<type>.placement.mode = poisson` with `placement.district.*` and `placement.roadAffinity.*` for sampled peripheral placement that also follows organic sectors and road frontage.
+  - `placement.nearbySearchRadius` can be lowered for more micro-variation or raised for smoother, cleaner district outlines.
   - Watchtowers provide raid defense and per-tick attacks.
   - Mines/sawmills/breweries scale output by level with exponential upgrade costs.
   - Mine placement respects `buildMinRadius`/`buildOuterBuffer` unless `structures.mine.ignorePeripheralRadius` is enabled.
+  - Extra mine builds can be prioritized via `structures.mine.preferExtraAlways`.
   - Guardrails are **ratio-based** (important for stability).
 
-### Villages
+### Villages 🏘️
 
 - `villages.js`
   - Tracks village centers and founding triggers.
@@ -233,13 +329,16 @@ Notes:
   - New centers must be far enough from existing villages and near required resources.
   - Stockpile remains shared; village centers influence well/field/house placement.
 
-### Roads
+### Roads 🛣️
 
 - `roads.js`
   - Builds road overlays that connect villages and mines over time.
   - Road tiles are placed every `roads.buildEveryTicks` if `roads.buildMinResources` guardrails are met.
+  - Paths use weighted A* (`roads.pathStyle.*`) so terrain cost, turning, straight-run penalties, and deterministic low-frequency noise reduce highway-like straight lines.
+  - `roads.pathStyle.profile` offers two baseline styles: `pragmatic` (more direct) and `scenic` (more organic/meandering).
+  - Long links can optionally route through scenic waypoint candidates (`roads.pathStyle.longLinkWaypoint.*`) when the direct segment is very long, with detour and line-deviation guardrails.
   - Paths avoid `roads.avoidTerrain` and cross rivers as `bridge` or `ford` tiles via `roads.crossings.*`.
-  - Tiles in `roads.softAvoidTerrain` (water, hills, mountains) are avoided when possible; if no land route exists, roads can path through them.
+  - Tiles in `roads.softAvoidTerrain` (water, hills, mountains) are strictly avoided in the primary pass and allowed only in fallback, with extra weighted penalties.
   - Tiles in `roads.waterTerrain` render as bridge tiles when a fallback path traverses them.
   - New links will snap to existing road tiles within `roads.anchorRadius` near villages/mines to avoid duplicate parallel roads.
   - `roads.parallelAvoidRadius` blocks new road tiles from being placed adjacent to existing roads, keeping a single main line.
@@ -251,7 +350,7 @@ Notes:
   - Village links are planned only after the primary mine connection is completed.
   - Additional mines link to the nearest village when they appear.
 
-### Roles
+### Roles 👤
 
 - `roles.js`
   - Assigns adult dwarves into roles based on `population.roles.*`.
@@ -260,7 +359,7 @@ Notes:
     `population.roles.emergencyResources`.
   - Special handling for brewmaster counts via `structures.brewery.brewmaster*`.
 
-### Seasons and weather
+### Seasons and weather 🌦️
 
 - `season.js`
   - Cycles seasons using `seasons.order` and `seasons.durationTicks`.
@@ -275,7 +374,7 @@ Notes:
   - Weather modifiers affect needs, gathering, node regen, irrigation, and per-need decay.
   - Weather transitions log events for the HUD.
 
-### Myths (global modifiers)
+### Myths (global modifiers) 🗿
 
 - `myths.js`
   - Tracks global cultural modifiers triggered by repeated crises or successes.
@@ -288,7 +387,7 @@ Notes:
     deltas and wraps automatically (capped to 2-3 lines depending on HUD width). AI
     observations include myth flags and severity.
 
-### Raids
+### Raids 🐺
 
 - `raids.js`
   - Seasonal wildlife raids (optional, config-driven).
@@ -299,7 +398,7 @@ Notes:
   - Deaths and loot loss scale with difficulty and defense (`raids.deathRate`, `raids.resourceLoss`).
   - Outcomes update raid stats and push HUD events.
 
-### Endgame cycles
+### Endgame cycles 🔁
 
 - `endgame.js`
   - Resets the simulation after all artifacts are collected and a configurable delay has passed.
@@ -312,7 +411,7 @@ Notes:
   - Optional endgame transitions fade the map to black and show a story panel
     before fading in the new map (`endgame.transition.*`).
 
-### Ruins and expeditions
+### Ruins and expeditions 🗝️
 
 - `ruins.js`
   - Drives the ruins expedition loop (rooms, hazards, guardians, rewards).
@@ -363,7 +462,7 @@ Notes:
   - Base loss range is `ruins.expedition.failureLossMin/Max`.
   - Losses are reduced by `casualtyReduction` bonuses (from artifacts/combos).
 
-### Merchant
+### Merchant 🧳
 
 - `merchant.js`
   - A simple state machine: idle → entering → trading → exiting.
@@ -373,7 +472,7 @@ Notes:
   - Trade rates come from `merchant.tradeRate` (default + per-resource overrides).
   - `merchant.neverGive` prevents key resources from being traded away.
 
-### Contracts
+### Contracts 📜
 
 - `contracts.js`
   - Spawns timed caravan contracts that request 1-2 resources (wood/stone/iron/beer).
@@ -386,7 +485,7 @@ Notes:
     - `production`: output bonus for all production.
     - `war`: raid death rate reduction + ruins combat bonus.
 
-### Terrain helpers
+### Terrain helpers 🧰
 
 - `terrain.js`
   - Walkable/spawnable checks for placement and movement.
@@ -395,16 +494,16 @@ Notes:
   - Resource ratio calculations when terrain tiles are used as sources.
   - Terrain movement delay lookups used by pathing.
 
-### Events + randomness
+### Events + randomness 🎲
 
 - `events.js` tracks event log lines for the HUD (`events.maxEntries`).
   - Systems push concise strings for weather, raids, ruins, builds, and myth changes.
 - `random.js` provides random helpers (ranges, shuffling) used across systems.
   - Training/eval can override randomness through scenario config and seed control.
 
-## 6) Rendering system (ASCII + HUD)
+## 7) Rendering system (ASCII + HUD) 🎨
 
-Everything under `src/render/` is pure rendering: no simulation changes.
+Everything under `src/render/` is view-layer only: no simulation state mutations.
 
 - `render/index.js`
   - Composes header, grid, HUD, footer, and optional frame.
@@ -455,10 +554,13 @@ Everything under `src/render/` is pure rendering: no simulation changes.
 - `render/colors.js` and `render/seasonal_colors.js`
   - Optional ANSI color mapping (`display.colors.map`) and seasonal palettes.
   - Seasonal palettes can be per-terrain and per-season with patchy noise transitions.
+  - Named seasonal presets can override palette entries at runtime via `display.colors.seasonal.preset` (for example `ice_fantasy` for softer, low-contrast winter tones).
+  - Default spring/summer/autumn terrain colors are tuned to softer fantasy shades for readability and reduced eye strain in long runs.
+  - Include `food`, `river`, and `lake` in `display.colors.seasonal.types` so winter presets remain coherent across resources and water; hills/mountains/stone are intentionally fixed across seasons.
 
-## 7) AI and training 🤖
+## 8) AI and training 🤖
 
-### JS inference
+### JS inference 🧠
 
 - `src/ai/observation.js`
   - Converts state to observation features (stockpile ratios, node ratios, needs, weather, raids, housing, ruins, myths, festivals).
@@ -469,7 +571,7 @@ Everything under `src/render/` is pure rendering: no simulation changes.
 - `src/ai_policy.js`
   - Thin wrapper used by `app.js`.
 
-### Training bridge
+### Training bridge 🌉
 
 - `ai_server.js`
   - Runs a simulation instance that communicates over stdin/stdout JSON lines.
@@ -477,7 +579,7 @@ Everything under `src/render/` is pure rendering: no simulation changes.
   - Handles scenario overrides, seeded randomness, rewards, and debug payloads.
   - Supports training overrides and eval overrides (see `docs/TRAINING_OVERRIDES.md`).
 
-### Python side
+### Python side 🐍
 
 - `python/train.py`
   - PPO training loop (2x128 MLP), logs, checkpoints, and evals.
@@ -489,7 +591,7 @@ Everything under `src/render/` is pure rendering: no simulation changes.
 
 Policies are saved as JSON in `models/` so JS inference stays dependency-free.
 
-### Training notes (clans + ruins)
+### Training notes (clans + ruins) 🧪
 
 Clan dynamics add heterogeneity and longer-horizon trade-offs. To keep PPO stable:
 
@@ -500,9 +602,9 @@ Clan dynamics add heterogeneity and longer-horizon trade-offs. To keep PPO stabl
 - Observations include clan shares and ruins status (active, cooldown, progress, artifacts); retrain with `--fresh` if you change them.
 - Reward shaping can emphasize ruins outcomes via `ai.reward.ruinsSuccess`, `ai.reward.ruinsArtifact`, `ai.reward.ruinsFailure`, and `ai.reward.ruinsRoomClear`, plus festivals via `ai.reward.festival_active`, `ai.reward.festival_start`, and `ai.reward.festival_intent`.
 
-## 8) Configuration (single source of truth)
+## 9) Configuration (single source of truth) ⚙️
 
-`config.json` is the master tuning file. Main sections:
+`config.json` is the master control-plane file. Main sections:
 
 - `display`: grid size, HUD, frame, terrain, colors.
 - `resources`: stockpile targets, node counts/capacity, regen rates, crafting inputs.
@@ -517,9 +619,11 @@ Clan dynamics add heterogeneity and longer-horizon trade-offs. To keep PPO stabl
 
 See `docs/PARAMETERS.md` for a full reference.
 
-## 9) Role-based guide (choose your lane) 🧭
+## 10) Role-based guide (choose your lane) 🧭
 
-### Gameplay and features
+Use this section to keep your change-set scoped and avoid cross-system regressions.
+
+### Gameplay and features 🎮
 
 If you are adding new mechanics, resources, or balancing gameplay:
 
@@ -535,7 +639,7 @@ Suggested starting files:
 - `src/simulation/index.js`, `src/simulation/jobs.js`, `src/simulation/resources.js`
 - `src/state/index.js`, `src/state/terrain.js`
 
-### AI training
+### AI training 🤖
 
 If you work on the policy or training loop:
 
@@ -551,12 +655,13 @@ Training presets:
 - `ai:train` (alias of `ai:train:fast`) runs a fast baseline loop tuned for sub-5-minute runs (8 workers, 200 episodes, max_steps=1600, step_ticks=2). The difficulty ramp reaches 1.0 by episode 120 and eval runs every 20 episodes at difficulty 1.0, followed by a post-run promotion check comparing the latest policy to the best snapshot.
 - `ai:train:fresh` runs the same fast preset but clears existing policy and best-eval snapshots first.
 - `ai:train:fast:quality` runs the fast phase plus a short full-sim finetune at max difficulty (40 episodes, max_steps=1800). Eval cadence is 20 episodes in the fast phase and 10 episodes in finetune, with the promotion check after each phase.
-- `ai:train:endgame` runs full-sim training with endgame enabled and longer episodes (120 episodes, max_steps=6000) to exercise late-game transitions. Eval runs every 20 episodes and a promotion check follows.
+- `ai:train:endgame` runs an intermediate endgame-enabled pass (8 episodes, max_steps=2400) with a single eval at the end. It is tuned to improve late-game quality signal while staying much faster than the older 120-episode endgame run.
 - `ai:promote:best` runs just the promotion check manually.
+- Presets generate a run-specific config in `debug/run_<timestamp>/`, align `ai.training.*Overrides.ai.maxTicks` with `max_steps * step_ticks`, and reuse that same config for `promote_best`.
 - All presets save the best model to `models/policy_best.json` (with meta in `models/policy_best.meta.json`) and resume from it unless `--fresh` is used.
 
 
-### Rendering
+### Rendering 🖼️
 
 If you work on the UI/UX in the terminal:
 
@@ -567,16 +672,17 @@ If you work on the UI/UX in the terminal:
 
 Keep HUD lines short (respect `display.hud.width`) and update legend symbols when adding new entities.
 
-## 10) Adding a new resource (deep dive) ✅
+## 11) Adding a new resource (deep dive) ✅
 
-This section is intentionally detailed so adding resources is painless.
+This section is intentionally detailed so resource additions stay deterministic and
+do not break training contracts.
 
-### A) Decide the resource ID
+### A) Decide the resource ID 🏷️
 
 - Use `snake_case` (example: `mana_crystal`).
 - Keep it consistent across config, simulation, and rendering.
 
-### B) Config changes (required)
+### B) Config changes (required) ⚙️
 
 **Core resource config** (`config.json`):
 
@@ -610,7 +716,7 @@ This section is intentionally detailed so adding resources is painless.
 - `symbols.<id>`: symbol used for nodes/legend.
 - `display.colors.map.<id>`: ANSI color for the resource symbol in the map and legend (if colors enabled).
 
-### C) Simulation logic (verify impact)
+### C) Simulation logic (verify impact) 🔍
 
 Most resource logic is generic, but check these spots:
 
@@ -625,14 +731,14 @@ Most resource logic is generic, but check these spots:
 - `src/simulation/population.js`
   - If the new resource is **consumed** (like food/water/beer), update `consumeResources(...)`.
 
-### D) Rendering & UX
+### D) Rendering & UX 🖼️
 
 - `src/render/legend.js` uses `resources.nodes` keys for resource legend entries.
   - If your resource is **terrain-based** and mapped to a terrain symbol, it may be omitted from the node legend.
 - `src/render/hud.js` lists everything in `state.stockpile`, so adding to `resources.stockpile` is enough to show it.
 - If you want special HUD formatting, add it explicitly.
 
-### E) AI and training impact
+### E) AI and training impact 🤖
 
 Training reads resources from:
 
@@ -645,7 +751,7 @@ So adding a new resource **changes observation/action sizes**. This means:
 - update any saved policy files in `models/`
 - keep `ai.training.trainer.featureNames` stable unless you intentionally add new features
 
-### F) Docs and checklist
+### F) Docs and checklist 📝
 
 Update docs every time you add a resource:
 
@@ -663,7 +769,7 @@ Quick checklist:
 - [ ] `consumeResources(...)` if it should be edible/drinkable
 - [ ] Update docs and retrain AI if needed
 
-## 11) Project layout cheatsheet
+## 12) Project layout cheatsheet 🗂️
 
 - `app.js` → main terminal simulation
 - `ai_server.js` → JSON bridge for Python training
@@ -676,64 +782,3 @@ Quick checklist:
 - `python/` → PPO training + agent example
 - `docs/` → config parameter reference and training override docs
 - `models/` → JSON policy checkpoints
-
-## 12) Common workflows
-
-### Run the simulation
-
-```bash
-npm start
-```
-
-### Run training
-
-```bash
-npm run ai:train
-```
-
-### Run trained policy
-
-```bash
-npm run ai:play
-```
-
-(See `README.md` for full command variants.)
-
-### Export a map PNG + SVG
-
-During gameplay, press `m` to export the current season map. Press `Shift+M`
-to include built structures and roads (dwarves are excluded).
-
-```bash
-npm run map:export -- --width=120 --height=40 --season=spring
-```
-
-All seasons with the same seed:
-
-```bash
-npm run map:export:seasons -- --width=120 --height=40 --seed=12345
-```
-
-Notes:
-- Renders the terrain map only (no HUD or active entities; includes static structures like mines/ruins; frame follows `display.frame.enabled`).
-- Outputs to `maps/png` and `maps/svg` by default.
-- Uses a fixed terrain palette defined in `scripts/export_map.js` so terminal
-  colors remain unchanged.
-- If `display.frame.enabled` is true, the export includes the frame; `--width`
-  and `--height` still refer to the inner map size (output grows by 2).
-- Default export background/foreground are `#24273a` / `#cad3f5` (override with
-  `--background`/`--foreground`).
-- `--scale` affects PNG output only; SVG is vector.
-- Stores metadata in a PNG `tEXt` chunk named `NodeDwarves` with JSON containing
-  seed, season info, terrain counts, hashes, and a SHA-256 signature. The SVG
-  embeds the same JSON in a `<metadata>` block.
-- Uses Puppeteer (headless Chromium) for PNG rendering and SVG font metrics
-  (Chromium is downloaded on install unless configured) and picks mid-season
-  ticks to avoid transition palettes.
-- `--seasonProgress` lets you pick a progress value in `0..1`.
-- `--season=all` or `--allSeasons` exports all seasons with the same seed.
-- `--count` exports multiple images; with `--seed` it increments from that
-  base, otherwise seeds are random.
-- When `--name` is used with `--count`, a numeric suffix is appended.
-- `--includeStructures` keeps all structures and roads from a snapshot.
-- `--state` provides the JSON snapshot file (used by `Shift+M`).

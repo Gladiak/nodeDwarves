@@ -478,7 +478,14 @@ function createWorkshopBuildJob(state, config, runtime, reservedPositions) {
     return null;
   }
 
-  const target = findPeripheralBuildSpot(state, runtime, workshopConfig, reservedPositions);
+  const target = findPeripheralBuildSpot(
+    state,
+    runtime,
+    workshopConfig,
+    reservedPositions,
+    null,
+    { structureType: 'workshop' },
+  );
   if (!target) {
     return null;
   }
@@ -535,7 +542,14 @@ function createArmoryBuildJob(state, config, runtime, reservedPositions) {
     return null;
   }
 
-  const target = findPeripheralBuildSpot(state, runtime, armoryConfig, reservedPositions);
+  const target = findPeripheralBuildSpot(
+    state,
+    runtime,
+    armoryConfig,
+    reservedPositions,
+    null,
+    { structureType: 'armory' },
+  );
   if (!target) {
     return null;
   }
@@ -588,7 +602,14 @@ function createMithrilForgeBuildJob(state, config, runtime, reservedPositions) {
     return null;
   }
 
-  const target = findPeripheralBuildSpot(state, runtime, forgeConfig, reservedPositions);
+  const target = findPeripheralBuildSpot(
+    state,
+    runtime,
+    forgeConfig,
+    reservedPositions,
+    null,
+    { structureType: 'mithril_forge' },
+  );
   if (!target) {
     return null;
   }
@@ -624,7 +645,14 @@ function createBreweryBuildJob(state, config, runtime, reservedPositions) {
     return null;
   }
 
-  const target = findPeripheralBuildSpot(state, runtime, breweryConfig, reservedPositions);
+  const target = findPeripheralBuildSpot(
+    state,
+    runtime,
+    breweryConfig,
+    reservedPositions,
+    null,
+    { structureType: 'brewery' },
+  );
   if (!target) {
     return null;
   }
@@ -660,7 +688,14 @@ function createSawmillBuildJob(state, config, runtime, reservedPositions) {
     return null;
   }
 
-  const target = findPeripheralBuildSpot(state, runtime, sawmillConfig, reservedPositions);
+  const target = findPeripheralBuildSpot(
+    state,
+    runtime,
+    sawmillConfig,
+    reservedPositions,
+    null,
+    { structureType: 'sawmill' },
+  );
   if (!target) {
     return null;
   }
@@ -777,9 +812,52 @@ function getPlacementConfig(structureConfig) {
   const minDistanceBetween = Math.max(0, Math.floor(Number(placement.minDistanceBetween ?? 0)));
   const minStructureDistance = Math.max(0, Math.floor(Number(placement.minStructureDistance ?? 0)));
   const maxAttempts = Math.max(1, Math.floor(Number(placement.maxAttempts ?? 0)));
+  const hasNearbySearchRadius = Object.prototype.hasOwnProperty.call(
+    placement,
+    'nearbySearchRadius',
+  ) || Object.prototype.hasOwnProperty.call(
+    placement,
+    'nearby_search_radius',
+  );
+  const nearbySearchRadius = hasNearbySearchRadius
+    ? Math.max(
+      0,
+      Math.floor(
+        Number(placement.nearbySearchRadius ?? placement.nearby_search_radius ?? 0),
+      ),
+    )
+    : null;
   const avoidTerrain = Array.isArray(placement.avoidTerrain)
     ? placement.avoidTerrain.map((entry) => String(entry))
     : [];
+  const districtRaw = placement.district && typeof placement.district === 'object'
+    ? placement.district
+    : {};
+  const districtAngleRaw = Number(
+    districtRaw.angleDegrees ?? districtRaw.angle_degrees ?? districtRaw.angle ?? NaN,
+  );
+  const districtArcRaw = Number(districtRaw.arcDegrees ?? districtRaw.arc_degrees ?? 130);
+  const districtWeightRaw = Number(districtRaw.weight ?? 0.35);
+  const districtOffsetRaw = Number(
+    districtRaw.angleOffsetDegrees ?? districtRaw.angle_offset_degrees ?? 0,
+  );
+  const districtRadiusBiasRaw = Number(districtRaw.radiusBias ?? districtRaw.radius_bias ?? 0);
+
+  const roadAffinityRaw =
+    (placement.roadAffinity && typeof placement.roadAffinity === 'object')
+      ? placement.roadAffinity
+      : ((placement.road_affinity && typeof placement.road_affinity === 'object')
+        ? placement.road_affinity
+        : {});
+  const roadPreferredRaw = Number(
+    roadAffinityRaw.preferredDistance ?? roadAffinityRaw.preferred_distance ?? 2,
+  );
+  const roadMaxRaw = Number(roadAffinityRaw.maxDistance ?? roadAffinityRaw.max_distance ?? 8);
+  let roadPreferred = Math.max(0, Math.floor(roadPreferredRaw || 0));
+  let roadMax = Math.max(0, Math.floor(roadMaxRaw || 0));
+  if (roadMax > 0 && roadPreferred > roadMax) {
+    roadPreferred = roadMax;
+  }
   return {
     mode,
     hasMinDistanceFromCenter,
@@ -789,7 +867,40 @@ function getPlacementConfig(structureConfig) {
     minDistanceBetween,
     minStructureDistance,
     maxAttempts,
+    hasNearbySearchRadius,
+    nearbySearchRadius,
     avoidTerrain,
+    district: {
+      enabled: districtRaw.enabled === true,
+      autoAngle: districtRaw.autoAngle !== false && districtRaw.auto_angle !== false,
+      angleDegrees: Number.isFinite(districtAngleRaw)
+        ? normalizeAngleDegrees(districtAngleRaw)
+        : null,
+      angleOffsetDegrees: Number.isFinite(districtOffsetRaw)
+        ? clamp(districtOffsetRaw, -180, 180)
+        : 0,
+      arcDegrees: Number.isFinite(districtArcRaw)
+        ? clamp(districtArcRaw, 20, 360)
+        : 130,
+      weight: Number.isFinite(districtWeightRaw)
+        ? clamp(districtWeightRaw, 0, 2)
+        : 0.35,
+      radiusBias: Number.isFinite(districtRadiusBiasRaw)
+        ? clamp(districtRadiusBiasRaw, -1, 1)
+        : 0,
+    },
+    roadAffinity: {
+      enabled: roadAffinityRaw.enabled === true,
+      preferredDistance: roadPreferred,
+      maxDistance: roadMax,
+      weight: clamp(
+        Number(roadAffinityRaw.weight ?? 0.2),
+        0,
+        2,
+      ),
+      avoidRoadTiles:
+        roadAffinityRaw.avoidRoadTiles !== false && roadAffinityRaw.avoid_road_tiles !== false,
+    },
   };
 }
 
@@ -825,6 +936,12 @@ function isPlacementCandidate({
     return false;
   }
   if (!isPlacementTerrainAllowed(state, x, y, placement, allowTerrain, allowForest)) {
+    return false;
+  }
+  if (placement.roadAffinity
+    && placement.roadAffinity.enabled
+    && placement.roadAffinity.avoidRoadTiles
+    && isRoadTileAt(state, x, y)) {
     return false;
   }
 
@@ -912,6 +1029,188 @@ function minDistanceToStructures(position, structures, ignoreTypes) {
     }
   }
   return minDistance;
+}
+
+// Normalize an angle in degrees into the [0, 360) interval.
+function normalizeAngleDegrees(value) {
+  const angle = Number(value || 0);
+  if (!Number.isFinite(angle)) {
+    return 0;
+  }
+  let normalized = angle % 360;
+  if (normalized < 0) {
+    normalized += 360;
+  }
+  return normalized;
+}
+
+// Compute the shortest absolute angular delta in degrees between two bearings.
+function angularDeltaDegrees(a, b) {
+  const angleA = normalizeAngleDegrees(a);
+  const angleB = normalizeAngleDegrees(b);
+  let delta = Math.abs(angleA - angleB);
+  if (delta > 180) {
+    delta = 360 - delta;
+  }
+  return delta;
+}
+
+// Check whether the given tile currently contains a road/bridge/ford overlay.
+function isRoadTileAt(state, x, y) {
+  const roads = state && state.roads;
+  if (!roads || !Array.isArray(roads.types)) {
+    return false;
+  }
+  const row = roads.types[y];
+  if (!row) {
+    return false;
+  }
+  const type = row[x];
+  return type === 'road' || type === 'bridge' || type === 'ford';
+}
+
+// Build a flat list of road tile positions for proximity scoring.
+function buildRoadPositionList(state) {
+  const roads = state && state.roads;
+  if (!roads || !Array.isArray(roads.types) || roads.types.length === 0) {
+    return [];
+  }
+  const list = [];
+  const height = roads.types.length;
+  const width = roads.types[0] ? roads.types[0].length : 0;
+  for (let y = 0; y < height; y += 1) {
+    const row = roads.types[y];
+    if (!row) {
+      continue;
+    }
+    for (let x = 0; x < width; x += 1) {
+      const type = row[x];
+      if (type === 'road' || type === 'bridge' || type === 'ford') {
+        list.push({ x, y });
+      }
+    }
+  }
+  return list;
+}
+
+// Return the Manhattan distance to the nearest road tile.
+function minDistanceToRoad(position, roadPositions) {
+  if (!roadPositions || roadPositions.length === 0) {
+    return Infinity;
+  }
+  let minDistance = Infinity;
+  for (const road of roadPositions) {
+    const dist = Math.abs(position.x - road.x) + Math.abs(position.y - road.y);
+    if (dist < minDistance) {
+      minDistance = dist;
+      if (minDistance === 0) {
+        break;
+      }
+    }
+  }
+  return minDistance;
+}
+
+// Hash a structure key into a deterministic 32-bit integer.
+function hashPlacementString(value) {
+  const text = String(value || '');
+  let hash = 2166136261;
+  for (let i = 0; i < text.length; i += 1) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+// Resolve district scoring inputs for a structure placement run.
+function resolveDistrictPlacementProfile(state, placement, structureType) {
+  const district = placement && placement.district ? placement.district : null;
+  if (!district || district.enabled !== true) {
+    return null;
+  }
+  let targetAngle = Number.isFinite(district.angleDegrees) ? district.angleDegrees : null;
+  if (targetAngle === null && district.autoAngle && structureType) {
+    const terrainSeed = state && state.terrain && Number.isFinite(state.terrain.seed)
+      ? Math.floor(Number(state.terrain.seed))
+      : 0;
+    const hash = hashPlacementString(structureType);
+    targetAngle = normalizeAngleDegrees((terrainSeed + hash) % 360);
+  }
+  if (targetAngle === null) {
+    return null;
+  }
+  targetAngle = normalizeAngleDegrees(targetAngle + Number(district.angleOffsetDegrees || 0));
+  return {
+    targetAngle,
+    arcDegrees: Number(district.arcDegrees || 130),
+    weight: Number(district.weight || 0),
+    radiusBias: Number(district.radiusBias || 0),
+  };
+}
+
+// Score spacing so higher values prefer better structural separation.
+function scorePlacementSpacing(distanceToSame, distanceToAll, width, height) {
+  const raw = Math.min(distanceToSame, distanceToAll);
+  const capped = Number.isFinite(raw) ? raw : (width + height);
+  const normalizer = Math.max(1, width + height);
+  return clamp(capped / normalizer, 0, 1);
+}
+
+// Score candidate against a directional district profile around the village center.
+function scoreDistrictPlacementCandidate(
+  candidate,
+  center,
+  districtProfile,
+  minDistanceFromCenter,
+  maxDistanceFromCenter,
+) {
+  if (!districtProfile) {
+    return 0;
+  }
+  const dx = candidate.x - center.x;
+  const dy = candidate.y - center.y;
+  const candidateAngle = normalizeAngleDegrees(Math.atan2(dy, dx) * 180 / Math.PI);
+  const halfArc = Math.max(10, Number(districtProfile.arcDegrees || 130)) / 2;
+  const delta = angularDeltaDegrees(candidateAngle, districtProfile.targetAngle);
+  const angleScore = delta <= halfArc ? (1 - (delta / halfArc)) : 0;
+
+  const radius = Math.abs(dx) + Math.abs(dy);
+  const minRadius = Math.max(0, Number(minDistanceFromCenter || 0));
+  const fallbackMax = minRadius + 12;
+  const maxRadius = maxDistanceFromCenter > 0
+    ? Math.max(minRadius, Number(maxDistanceFromCenter))
+    : fallbackMax;
+  const radiusSpan = Math.max(1, maxRadius - minRadius);
+  const radiusTargetRatio = clamp(0.5 + Number(districtProfile.radiusBias || 0) * 0.35, 0, 1);
+  const radiusTarget = minRadius + radiusSpan * radiusTargetRatio;
+  const radiusTolerance = Math.max(2, radiusSpan * 0.7);
+  const radiusScore = 1 - clamp(Math.abs(radius - radiusTarget) / radiusTolerance, 0, 1);
+
+  const composite = angleScore * 0.7 + radiusScore * 0.3;
+  return composite * clamp(Number(districtProfile.weight || 0), 0, 2);
+}
+
+// Score candidate against current roads to encourage believable frontage.
+function scoreRoadAffinityCandidate(candidate, roadPositions, roadAffinity) {
+  if (!roadAffinity || roadAffinity.enabled !== true || !roadPositions || roadPositions.length === 0) {
+    return 0;
+  }
+  const maxDistance = Math.max(0, Number(roadAffinity.maxDistance || 0));
+  if (maxDistance <= 0) {
+    return 0;
+  }
+  const preferredDistance = clamp(
+    Number(roadAffinity.preferredDistance || 0),
+    0,
+    maxDistance,
+  );
+  const distance = minDistanceToRoad(candidate, roadPositions);
+  if (!Number.isFinite(distance) || distance > maxDistance) {
+    return 0;
+  }
+  const spread = Math.max(1, maxDistance);
+  const score = 1 - Math.abs(distance - preferredDistance) / spread;
+  return clamp(score, 0, 1) * clamp(Number(roadAffinity.weight || 0), 0, 2);
 }
 
 // Check whether a terrain tile is allowed for a field cluster.
@@ -1860,7 +2159,12 @@ function findPoissonBuildSpot(state, runtime, structureConfig, reservedPositions
     return null;
   }
 
-  const center = getVillageCenter(state, runtime);
+  const centerOverride = options && options.center ? options.center : null;
+  const centerRaw = centerOverride || getVillageCenter(state, runtime);
+  const center = {
+    x: clamp(Math.floor(Number(centerRaw.x || 0)), 0, width - 1),
+    y: clamp(Math.floor(Number(centerRaw.y || 0)), 0, height - 1),
+  };
   const fallbackMin = getPeripheralBuildRadius(state, runtime, structureConfig, center);
   const minDistanceFromCenter = placement.hasMinDistanceFromCenter
     ? placement.minDistanceFromCenter
@@ -1880,16 +2184,26 @@ function findPoissonBuildSpot(state, runtime, structureConfig, reservedPositions
   const allowForest = Boolean(options && options.allowForest);
   const nearbySearchRadius = Math.max(
     0,
-    Math.floor(Number(placement.nearbySearchRadius ?? placement.maxDistanceFromCenter ?? 0)),
+    Math.floor(
+      Number(
+        placement.hasNearbySearchRadius
+          ? placement.nearbySearchRadius
+          : (placement.maxDistanceFromCenter ?? 0),
+      ),
+    ),
   );
 
   const structurePositions = buildStructurePositions(state.structures || []);
   const sameTypeStructures = structureType
     ? structurePositions.filter((structure) => structure.type === structureType)
     : [];
+  const districtProfile = resolveDistrictPlacementProfile(state, placement, structureType);
+  const roadPositions = placement.roadAffinity && placement.roadAffinity.enabled
+    ? buildRoadPositionList(state)
+    : [];
 
   let best = null;
-  let bestScore = -1;
+  let bestScore = Number.NEGATIVE_INFINITY;
 
   for (let i = 0; i < maxAttempts; i += 1) {
     const x = randomBetween(0, width - 1);
@@ -1924,10 +2238,22 @@ function findPoissonBuildSpot(state, runtime, structureConfig, reservedPositions
 
     const distanceToSame = minDistanceToStructures(candidate, sameTypeStructures);
     const distanceToAll = minDistanceToStructures(candidate, structurePositions);
-    const score = Math.min(distanceToSame, distanceToAll);
-    const normalized = Number.isFinite(score) ? score : width + height;
-    if (normalized > bestScore) {
-      bestScore = normalized;
+    const spacingScore = scorePlacementSpacing(distanceToSame, distanceToAll, width, height);
+    const districtScore = scoreDistrictPlacementCandidate(
+      candidate,
+      center,
+      districtProfile,
+      minDistanceFromCenter,
+      maxDistanceFromCenter,
+    );
+    const roadScore = scoreRoadAffinityCandidate(
+      candidate,
+      roadPositions,
+      placement.roadAffinity,
+    );
+    const combinedScore = spacingScore + districtScore + roadScore;
+    if (combinedScore > bestScore) {
+      bestScore = combinedScore;
       best = candidate;
     }
   }
@@ -1992,7 +2318,24 @@ function findPoissonBuildSpot(state, runtime, structureConfig, reservedPositions
 }
 
 // Find a build spot outside the core village radius.
-function findPeripheralBuildSpot(state, runtime, structureConfig, reservedPositions, centerOverride) {
+function findPeripheralBuildSpot(
+  state,
+  runtime,
+  structureConfig,
+  reservedPositions,
+  centerOverride,
+  options,
+) {
+  const placementOptions = options && typeof options === 'object' ? options : {};
+  const poissonSpot = findPoissonBuildSpot(state, runtime, structureConfig, reservedPositions, {
+    structureType: placementOptions.structureType || null,
+    allowTerrain: placementOptions.allowTerrain || null,
+    allowForest: Boolean(placementOptions.allowForest),
+    center: centerOverride || placementOptions.center || null,
+  });
+  if (poissonSpot) {
+    return poissonSpot;
+  }
   const minRadius = getPeripheralBuildRadius(state, runtime, structureConfig, centerOverride);
   const spot = findVillageBuildSpotFromRadius(
     state,

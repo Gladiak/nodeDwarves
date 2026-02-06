@@ -4,6 +4,38 @@ const { clamp } = require('../utils');
 const { randomBetween } = require('./random');
 const { getTerrainMoveDelay, isWalkableTile, isSpawnableTile } = require('./terrain');
 
+const DWARF_ROAD_AFFINITY_PROFILES = {
+  pragmatic: {
+    minTargetDistance: 10,
+    onRoadBonus: 0.16,
+    offRoadPenalty: 0.05,
+    offRoadGraceDistance: 2,
+    maxDistancePenalty: 2,
+  },
+  scenic: {
+    minTargetDistance: 6,
+    onRoadBonus: 0.3,
+    offRoadPenalty: 0.1,
+    offRoadGraceDistance: 1,
+    maxDistancePenalty: 4,
+  },
+};
+
+// Resolve the road-affinity profile name and default values.
+function resolveRoadAffinityProfile(rawValue) {
+  const profileRaw = String(rawValue || 'pragmatic').toLowerCase();
+  if (profileRaw === 'scenic') {
+    return {
+      name: 'scenic',
+      values: DWARF_ROAD_AFFINITY_PROFILES.scenic,
+    };
+  }
+  return {
+    name: 'pragmatic',
+    values: DWARF_ROAD_AFFINITY_PROFILES.pragmatic,
+  };
+}
+
 // Move an entity toward a target, respecting movement cooldowns.
 function moveTowards(entity, target, runtime, state, config) {
   if (runtime.gridWidth <= 0 || runtime.gridHeight <= 0) {
@@ -238,6 +270,14 @@ function moveWithFieldStep(entity, targetX, targetY, runtime, state, config, fie
   }
 
   const occupancy = fieldConfig.crowdWeight > 0 ? ensureOccupancyMap(state, runtime) : null;
+  const currentTargetDistance = getTargetDistance(field, targetX, targetY, entity.x, entity.y);
+  const roadAffinity = fieldConfig.roadAffinity || null;
+  const useRoadAffinity = Boolean(
+    roadAffinity
+      && roadAffinity.enabled
+      && currentTargetDistance >= roadAffinity.minTargetDistance,
+  );
+  const roadDistanceMap = useRoadAffinity ? ensureRoadDistanceMap(state, runtime) : null;
   const scored = [];
   let bestCost = Infinity;
 
@@ -254,6 +294,25 @@ function moveWithFieldStep(entity, targetX, targetY, runtime, state, config, fie
       const crowd = getOccupancyCount(occupancy, pos.x, pos.y, entity);
       if (crowd > 0) {
         cost += fieldConfig.crowdWeight * crowd;
+      }
+    }
+
+    if (roadDistanceMap && roadDistanceMap.hasRoad && roadAffinity) {
+      const roadType = getRoadOverlayType(state, pos.x, pos.y);
+      if (roadType) {
+        cost -= roadAffinity.onRoadBonus;
+      } else if (roadAffinity.offRoadPenalty > 0) {
+        const roadDistance = getRoadDistance(roadDistanceMap, pos.x, pos.y);
+        if (roadDistance !== null) {
+          const overflow = Math.max(
+            0,
+            roadDistance - roadAffinity.offRoadGraceDistance,
+          );
+          if (overflow > 0) {
+            const capped = Math.min(overflow, roadAffinity.maxDistancePenalty);
+            cost += roadAffinity.offRoadPenalty * capped;
+          }
+        }
       }
     }
 
@@ -346,6 +405,18 @@ function pickMoveWithInertia(entity, candidates, targetX, targetY, currentDistan
 // Resolve field pathing parameters with safe defaults.
 function getFieldConfig(pathing) {
   const field = pathing && pathing.field ? pathing.field : {};
+  const roadAffinityRaw =
+    (field.road_affinity && typeof field.road_affinity === 'object')
+      ? field.road_affinity
+      : (field.roadAffinity && typeof field.roadAffinity === 'object')
+        ? field.roadAffinity
+        : {};
+  const roadAffinityProfile = resolveRoadAffinityProfile(
+    roadAffinityRaw.profile
+      ?? roadAffinityRaw.road_profile
+      ?? roadAffinityRaw.mode,
+  );
+  const roadAffinityDefaults = roadAffinityProfile.values || {};
   const radius = Math.max(0, Math.floor(Number(field.radius ?? 0)));
   const ttlTicks = Math.max(0, Math.floor(Number(field.ttlTicks ?? 6)));
   const temperature = clamp(Number(field.temperature ?? 0.25), 0, 1);
@@ -353,6 +424,61 @@ function getFieldConfig(pathing) {
   const crowdWeight = clamp(Number(field.crowdWeight ?? 0.2), 0, 1);
   const inertiaWeight = clamp(Number(field.inertiaWeight ?? 0.2), 0, 1);
   const stayPenalty = clamp(Number(field.stayPenalty ?? 0.3), 0, 1);
+  const hasRoadAffinityConfig = Object.keys(roadAffinityRaw).length > 0;
+  const roadAffinityEnabled = hasRoadAffinityConfig && roadAffinityRaw.enabled !== false;
+  const roadAffinityMinTargetDistance = Math.max(
+    0,
+    Math.floor(
+      Number(
+        roadAffinityRaw.minTargetDistance
+          ?? roadAffinityRaw.min_target_distance
+          ?? roadAffinityDefaults.minTargetDistance
+          ?? 8,
+      ),
+    ),
+  );
+  const roadAffinityOnRoadBonus = clamp(
+    Number(
+      roadAffinityRaw.onRoadBonus
+        ?? roadAffinityRaw.on_road_bonus
+        ?? roadAffinityDefaults.onRoadBonus
+        ?? 0.2,
+    ),
+    0,
+    2,
+  );
+  const roadAffinityOffRoadPenalty = clamp(
+    Number(
+      roadAffinityRaw.offRoadPenalty
+        ?? roadAffinityRaw.off_road_penalty
+        ?? roadAffinityDefaults.offRoadPenalty
+        ?? 0.08,
+    ),
+    0,
+    2,
+  );
+  const roadAffinityOffRoadGraceDistance = Math.max(
+    0,
+    Math.floor(
+      Number(
+        roadAffinityRaw.offRoadGraceDistance
+          ?? roadAffinityRaw.off_road_grace_distance
+          ?? roadAffinityDefaults.offRoadGraceDistance
+          ?? 1,
+      ),
+    ),
+  );
+  const roadAffinityMaxDistancePenalty = Math.max(
+    0,
+    Math.floor(
+      Number(
+        roadAffinityRaw.maxDistancePenalty
+          ?? roadAffinityRaw.max_distance_penalty
+          ?? roadAffinityDefaults.maxDistancePenalty
+          ?? 3,
+      ),
+    ),
+  );
   return {
     radius,
     ttlTicks,
@@ -361,6 +487,15 @@ function getFieldConfig(pathing) {
     crowdWeight,
     inertiaWeight,
     stayPenalty,
+    roadAffinity: {
+      enabled: roadAffinityEnabled,
+      profile: roadAffinityProfile.name,
+      minTargetDistance: roadAffinityMinTargetDistance,
+      onRoadBonus: roadAffinityOnRoadBonus,
+      offRoadPenalty: roadAffinityOffRoadPenalty,
+      offRoadGraceDistance: roadAffinityOffRoadGraceDistance,
+      maxDistancePenalty: roadAffinityMaxDistancePenalty,
+    },
   };
 }
 
@@ -523,12 +658,15 @@ function getFieldDistance(field, x, y) {
 // Ensure pathing state container exists.
 function ensurePathingState(state) {
   if (!state) {
-    return { fields: {} };
+    return { fields: {}, occupancy: null, roadDistance: null };
   }
   if (!state.pathing) {
-    state.pathing = { fields: {}, occupancy: null };
+    state.pathing = { fields: {}, occupancy: null, roadDistance: null };
   } else if (!state.pathing.fields) {
     state.pathing.fields = {};
+  }
+  if (state.pathing.roadDistance === undefined) {
+    state.pathing.roadDistance = null;
   }
   return state.pathing;
 }
@@ -632,6 +770,114 @@ function updateOccupancyOnMove(state, fromX, fromY, toX, toY) {
     const toIndex = toY * width + toX;
     occupancy.counts[toIndex] = Number(occupancy.counts[toIndex] || 0) + 1;
   }
+}
+
+// Return the road overlay type at a tile, if any.
+function getRoadOverlayType(state, x, y) {
+  const roads = state && state.roads;
+  if (!roads || !Array.isArray(roads.types)) {
+    return null;
+  }
+  const row = roads.types[y];
+  if (!row) {
+    return null;
+  }
+  const type = row[x];
+  if (type === 'road' || type === 'bridge' || type === 'ford') {
+    return type;
+  }
+  return null;
+}
+
+// Build or reuse a per-tick road-distance map used by movement road affinity.
+function ensureRoadDistanceMap(state, runtime) {
+  if (!state || !runtime) {
+    return null;
+  }
+  const width = runtime.gridWidth;
+  const height = runtime.gridHeight;
+  if (width <= 0 || height <= 0) {
+    return null;
+  }
+
+  const tick = Number(state.tick || 0);
+  const pathing = ensurePathingState(state);
+  const existing = pathing.roadDistance;
+  if (existing && existing.tick === tick && existing.width === width && existing.height === height) {
+    return existing;
+  }
+
+  const total = width * height;
+  const distances = new Array(total).fill(-1);
+  const queue = new Int32Array(total);
+  let head = 0;
+  let tail = 0;
+  let hasRoad = false;
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      if (!getRoadOverlayType(state, x, y)) {
+        continue;
+      }
+      const index = y * width + x;
+      if (distances[index] !== -1) {
+        continue;
+      }
+      distances[index] = 0;
+      queue[tail++] = index;
+      hasRoad = true;
+    }
+  }
+
+  while (head < tail) {
+    const index = queue[head++];
+    const x = index % width;
+    const y = Math.floor(index / width);
+    const nextDistance = distances[index] + 1;
+    const neighbors = [
+      { x: x + 1, y },
+      { x: x - 1, y },
+      { x, y: y + 1 },
+      { x, y: y - 1 },
+    ];
+    for (const next of neighbors) {
+      if (next.x < 0 || next.y < 0 || next.x >= width || next.y >= height) {
+        continue;
+      }
+      const nextIndex = next.y * width + next.x;
+      if (distances[nextIndex] !== -1) {
+        continue;
+      }
+      distances[nextIndex] = nextDistance;
+      queue[tail++] = nextIndex;
+    }
+  }
+
+  const roadDistance = {
+    tick,
+    width,
+    height,
+    hasRoad,
+    distances,
+  };
+  pathing.roadDistance = roadDistance;
+  return roadDistance;
+}
+
+// Read the Manhattan distance from a tile to the nearest road tile.
+function getRoadDistance(roadDistance, x, y) {
+  if (!roadDistance || roadDistance.hasRoad !== true) {
+    return null;
+  }
+  if (x < 0 || y < 0 || x >= roadDistance.width || y >= roadDistance.height) {
+    return null;
+  }
+  const index = y * roadDistance.width + x;
+  const value = Number(roadDistance.distances[index]);
+  if (!Number.isFinite(value) || value < 0) {
+    return null;
+  }
+  return value;
 }
 
 // Run a local BFS to find a nearby path step.

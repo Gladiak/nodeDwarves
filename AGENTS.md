@@ -12,7 +12,11 @@ This file defines how to implement new features in a consistent, stable way.
 - Continuously improve model intelligence and learning capability in measured, stable steps.
 - When implementation details are unclear, ask for clarifications before coding changes.
 - Always update README.md and MANUAL.md after new implementations or tweaks, if needed.
-- When new files are added, update the Project layout section in README.md.
+- README.md is a general product feature overview; avoid deep implementation details, formulas, and low-level file-by-file behavior.
+- README.md tone: technical but playful (nerd-friendly). Use emojis.
+- MANUAL.md is the technical manual and operational runbook (systems, formulas, workflows, implementation behavior). Tone: technical-nerd and precise. Use emojis.
+- Keep MANUAL.md section order stable for discoverability: Scope, Operations, Mental model, Tick flow, Runtime, State generation, Simulation systems, Rendering, AI/training, Configuration, Role guide, Deep dives, Project layout.
+- When new files are added, update the Project layout sections in README.md and MANUAL.md.
 - For substantial implementations, update documentation with a clear, high-detail explanation (README, MANUAL, and relevant docs).
 - Always write documentation in English.
 
@@ -36,8 +40,11 @@ This file defines how to implement new features in a consistent, stable way.
 - `src/terminal.js`: terminal helpers.
 - `src/ai/`: AI modules (policy and observation).
 - `src/ai_policy.js`: thin wrapper for `src/ai/policy.js`.
+- `src/clans.js`: clan helpers and weighted clan distribution.
+- `src/dwarf_lore.js`: deterministic lore generation for inspect panel.
 - `src/utils.js`: shared helpers.
 - `ai_server.js`: JS inference bridge for training.
+- `scripts/export_map.js`: CLI map export pipeline (PNG + SVG).
 - `python/bootstrap.py`: venv bootstrap.
 - `python/train.py`: PPO training loop and logging.
 - `python/agent.py`: example Python agent.
@@ -45,8 +52,8 @@ This file defines how to implement new features in a consistent, stable way.
 ## Config-first changes
 
 - Add new parameters to `config.json` with sensible defaults.
-- Document new parameters in `docs/PARAMETERS.md` (and `README.md` for high-level behavior changes).
-- Avoid comments in JSON; use docs/README for explanations.
+- Document new parameters in `docs/PARAMETERS.md`, then reflect behavior in `MANUAL.md` and only high-level impact in `README.md`.
+- Avoid comments in JSON; use docs/MANUAL/README for explanations.
 - Keep ratios in [0, 1] where possible to simplify tuning.
 - If training overrides or scenario knobs change, update `docs/TRAINING_OVERRIDES.md`.
 
@@ -54,15 +61,15 @@ This file defines how to implement new features in a consistent, stable way.
 
 - New resources must update:
   - `config.json` (`resources.*`, `jobs.*`, `symbols.*`, `display.colors.map` when colors are enabled)
-  - `src/state.js` (initial stockpile and nodes)
-  - `src/simulation.js` (gathering, regen, consumption)
-  - `src/render.js` (legend + HUD)
-  - `docs/PARAMETERS.md` (parameter reference) + `README.md` (gameplay notes)
+  - `src/state/` (initial stockpile, nodes, terrain source constraints)
+  - `src/simulation/` (gathering, regen, consumption, shortages/jobs)
+  - `src/render/` (legend, HUD, symbols/colors usage)
+  - `docs/PARAMETERS.md` (parameter reference) + `MANUAL.md` (operational behavior) + `README.md` (high-level player-facing mention only if relevant)
 - New structures must update:
   - `config.json` (`structures.*`, costs, build ticks, guardrails, `symbols.*`, `display.colors.map` when colors are enabled)
-  - `src/simulation.js` (build jobs, placement, effects)
-  - `src/render.js` (symbols + HUD counts)
-  - `docs/PARAMETERS.md` (parameters) + `README.md` (gameplay notes)
+  - `src/simulation/` (build jobs, placement, upgrades/effects)
+  - `src/render/` (symbols, legend, HUD counts)
+  - `docs/PARAMETERS.md` (parameters) + `MANUAL.md` (operational behavior) + `README.md` (high-level player-facing mention only if relevant)
 - Guardrails should use stockpile ratios, not absolute counts.
 
 ## Modularization and refactoring
