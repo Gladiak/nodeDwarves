@@ -130,6 +130,14 @@ Endgame cycles:
 - `endgame.difficulty.perCycle`: difficulty multiplier added per completed cycle.
 - `endgame.difficulty.maxMultiplier`: cap for the difficulty multiplier.
 
+Prestige:
+
+- `prestige.enabled`: enable prestige scoring/rank tracking.
+- `prestige.cycleResetBonus`: prestige granted on each completed endgame reset.
+- `prestige.tiers[]`: rank thresholds used for HUD prestige labels.
+- `prestige.tiers[].name`: rank label.
+- `prestige.tiers[].min`: minimum prestige required for the rank.
+
 Resources and economy:
 
 - `resources.stockpile.<resource>`: initial stockpile per resource.
@@ -202,6 +210,24 @@ Structures:
 - `structures.brewery.brewmasterMin`: minimum brewmaster count maintained over time.
 - `structures.brewery.brewmasterPerCapita`: per-dwarf brewmaster target scaling with population.
 - `structures.brewery.pauseWhenFoodRatioBelow`: pause brewery jobs when food stockpile ratio falls below this.
+- `structures.temple_of_ancestors.enabled`: enable temple stage progression.
+- `structures.temple_of_ancestors.startStage`: initial completed stage at episode start.
+- `structures.temple_of_ancestors.buildMinPopulation`: minimum population gate for temple stages.
+- `structures.temple_of_ancestors.buildMinCycles`: minimum completed cycles gate for temple stages.
+- `structures.temple_of_ancestors.buildMinIdleAdults`: minimum idle adults gate for temple stages.
+- `structures.temple_of_ancestors.buildMinResources.<resource>`: stockpile ratio gates for temple stage jobs.
+- `structures.temple_of_ancestors.minArtifactCompletionRatio`: ruins artifact progress gate for temple stages.
+- `structures.temple_of_ancestors.outputApplyTo`: resource ids affected by temple output bonuses.
+- `structures.temple_of_ancestors.finalCompletionPrestige`: one-time prestige award on final stage completion.
+- `structures.temple_of_ancestors.stages`: override stage list for shorter/longer temple progression.
+- `structures.temple_of_ancestors.stages[].radius`: per-stage map footprint radius.
+- `structures.temple_of_ancestors.stages[].buildTicks`: per-stage build duration.
+- `structures.temple_of_ancestors.stages[].buildCost.<resource>`: per-stage build costs.
+- `structures.temple_of_ancestors.stages[].prestige`: prestige gain on stage completion.
+- `structures.temple_of_ancestors.stages[].prestigePerTick`: passive prestige gain per tick while the stage is active.
+- `structures.temple_of_ancestors.stages[].effects.outputBonus`: output multiplier add-on for the stage.
+- `structures.temple_of_ancestors.stages[].effects.needDecayReduction`: need-decay reduction for the stage.
+- `structures.temple_of_ancestors.stages[].effects.raidDefenseBonus`: raid-defense bonus for the stage.
 
 Seasons:
 
@@ -290,3 +316,5 @@ Symbols:
 - `symbols.house`: house symbol.
 - `symbols.well`: well symbol.
 - `symbols.field`: field symbol.
+- `symbols.temple_of_ancestors`: temple center symbol.
+- `symbols.temple_of_ancestors_outline`: temple footprint symbol.

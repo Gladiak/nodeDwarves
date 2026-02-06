@@ -3,6 +3,7 @@
 const { clamp } = require('../utils');
 const { createInitialState } = require('../state');
 const { carryMythsAcrossCycle } = require('./myths');
+const { carryTemplePrestigeAcrossCycle } = require('./temple');
 
 function getEndgameConfig(config) {
   return (config && config.endgame) || {};
@@ -158,6 +159,7 @@ function runEndgameReset(state, config, runtime, options = {}) {
   const nextState = createInitialState(configOverride, runtime);
   const stats = getCycleStats(state);
   carryMythsAcrossCycle(state, nextState, config);
+  carryTemplePrestigeAcrossCycle(state, nextState, config);
   nextState.cycleStats = {
     count: stats.count + 1,
     lastTicks: Math.max(0, Number(state.tick || 0)),

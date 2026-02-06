@@ -1,11 +1,11 @@
 {
-  "bestReward": 34566.24656921544,
-  "bestScore": 3.600650684293275,
+  "bestReward": 34403.323395900115,
+  "bestScore": 3.583679520406262,
   "scoreMode": "rpt",
-  "bestEpisode": 120,
+  "bestEpisode": 180,
   "avgSteps": 4800.0,
   "avgTicks": 9600.0,
-  "avgBirths": 436.0,
-  "avgDeaths": 41.5,
-  "savedAt": 1770382723
+  "avgBirths": 441.0,
+  "avgDeaths": 37.0,
+  "savedAt": 1770394174
 }

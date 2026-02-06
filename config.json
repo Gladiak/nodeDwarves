@@ -443,6 +443,7 @@
         "mithril_forge": "\u001b[95m",
         "sawmill": "\u001b[33m",
         "watchtower": "\u001b[37m",
+        "temple_of_ancestors": "\u001b[38;5;220m",
         "brewery": "\u001b[35m",
         "beast": "\u001b[91m",
         "herd": "\u001b[38;2;160;134;121m",
@@ -1607,6 +1608,32 @@
       "maxMultiplier": 1.6
     }
   },
+  "prestige": {
+    "enabled": true,
+    "cycleResetBonus": 120,
+    "tiers": [
+      {
+        "name": "Unproven",
+        "min": 0
+      },
+      {
+        "name": "Stonebound",
+        "min": 250
+      },
+      {
+        "name": "Hallkeeper",
+        "min": 700
+      },
+      {
+        "name": "Ancestor Voice",
+        "min": 1500
+      },
+      {
+        "name": "Eternal Citadel",
+        "min": 3000
+      }
+    ]
+  },
   "dwarves": {
     "count": 12
   },
@@ -2354,6 +2381,124 @@
         "defensePerTower": 0.02,
         "defenseMax": 0.2
       }
+    },
+    "temple_of_ancestors": {
+      "enabled": true,
+      "count": 0,
+      "startStage": 0,
+      "buildMinPopulation": 28,
+      "buildMinCycles": 0,
+      "buildMinIdleAdults": 3,
+      "buildMinResources": {
+        "food": 0.9,
+        "water": 0.9,
+        "wood": 0.85,
+        "stone": 0.85
+      },
+      "minArtifactCompletionRatio": 0.35,
+      "reserveMaxFootprint": true,
+      "outputApplyTo": ["wood", "stone", "iron", "mithril", "adamantio", "mana_crystal"],
+      "footprintShape": "square",
+      "site": {
+        "preferTerrain": ["mountain", "hill", "stone"],
+        "highlandTerrain": ["mountain", "hill", "stone"],
+        "avoidTerrain": ["river", "lake"],
+        "waterTerrain": ["river", "lake"],
+        "searchPadding": 3,
+        "minDistanceFromVillage": 6,
+        "maxDistanceFromVillage": 40,
+        "targetDistanceFromVillage": 18,
+        "waterDistanceTarget": 8,
+        "terrainWeight": 0.55,
+        "highlandWeight": 0.35,
+        "waterWeight": 0.2,
+        "centerWeight": 0.08,
+        "villageWeight": 0.3
+      },
+      "finalCompletionPrestige": 900,
+      "stages": [
+        {
+          "id": 1,
+          "name": "Foundation",
+          "radius": 0,
+          "buildTicks": 160,
+          "buildCost": {
+            "wood": 40,
+            "stone": 45,
+            "iron": 10
+          },
+          "prestige": 120,
+          "prestigePerTick": 0.015,
+          "effects": {
+            "outputBonus": 0.02,
+            "needDecayReduction": 0.01,
+            "raidDefenseBonus": 0.015
+          }
+        },
+        {
+          "id": 2,
+          "name": "Sanctum Hall",
+          "radius": 1,
+          "buildTicks": 220,
+          "buildCost": {
+            "wood": 70,
+            "stone": 90,
+            "iron": 24,
+            "mithril": 4
+          },
+          "prestige": 260,
+          "prestigePerTick": 0.03,
+          "effects": {
+            "outputBonus": 0.035,
+            "needDecayReduction": 0.015,
+            "raidDefenseBonus": 0.03
+          }
+        },
+        {
+          "id": 3,
+          "name": "Rune Basilica",
+          "radius": 2,
+          "buildTicks": 320,
+          "buildCost": {
+            "wood": 110,
+            "stone": 130,
+            "iron": 35,
+            "mithril": 12,
+            "adamantio": 4,
+            "mana_crystal": 3
+          },
+          "prestige": 420,
+          "prestigePerTick": 0.05,
+          "effects": {
+            "outputBonus": 0.05,
+            "needDecayReduction": 0.025,
+            "raidDefenseBonus": 0.045
+          }
+        },
+        {
+          "id": 4,
+          "name": "Ancestor Crown",
+          "radius": 3,
+          "buildTicks": 440,
+          "buildCost": {
+            "wood": 170,
+            "stone": 190,
+            "iron": 50,
+            "mithril": 24,
+            "adamantio": 10,
+            "mana_crystal": 8,
+            "embersteel": 4,
+            "ironshade": 4
+          },
+          "prestige": 780,
+          "prestigePerTick": 0.08,
+          "effects": {
+            "outputBonus": 0.08,
+            "needDecayReduction": 0.04,
+            "raidDefenseBonus": 0.07
+          }
+        }
+      ]
     }
   },
   "ruins": {
@@ -3193,6 +3338,8 @@
     "brewery": "ß",
     "mithril_forge": "Σ",
     "sawmill": "╫",
-    "watchtower": "┼"
+    "watchtower": "┼",
+    "temple_of_ancestors": "A",
+    "temple_of_ancestors_outline": "+"
   }
 }

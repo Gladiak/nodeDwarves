@@ -393,8 +393,23 @@ function buildMapExportSnapshot(state) {
       types: state.roads.types,
     }
     : null;
+  const temple = state.temple && typeof state.temple === 'object'
+    ? {
+      enabled: state.temple.enabled !== false,
+      stage: Math.max(0, Math.floor(Number(state.temple.stage || 0))),
+      maxStage: Math.max(0, Math.floor(Number(state.temple.maxStage || 0))),
+      site: state.temple.site && Number.isFinite(Number(state.temple.site.x)) && Number.isFinite(Number(state.temple.site.y))
+        ? {
+          x: Math.floor(Number(state.temple.site.x)),
+          y: Math.floor(Number(state.temple.site.y)),
+          terrainType: state.temple.site.terrainType || null,
+        }
+        : null,
+      completedAtTick: state.temple.completedAtTick,
+    }
+    : null;
 
-  return { structures, roads };
+  return { structures, roads, temple };
 }
 
 // Function: writeMapExportSnapshot.

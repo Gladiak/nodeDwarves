@@ -30,6 +30,7 @@ This file defines how to implement new features in a consistent, stable way.
 - `src/config.js`: config loader.
 - `src/simulation/`: simulation systems split by theme.
 - `src/simulation/index.js`: simulation orchestrator.
+- `src/simulation/temple.js`: Temple of Ancestors stages, site selection, bonuses, and prestige.
 - `src/simulation.js`: thin wrapper for `src/simulation/index.js`.
 - `src/state/`: state creation and terrain generation.
 - `src/state/index.js`: state orchestrator.

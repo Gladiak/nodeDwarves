@@ -76,6 +76,7 @@ function buildLegendSections(config, options = {}) {
     'mine',
     'ruins',
     'watchtower',
+    'temple_of_ancestors',
   ]);
   for (const [type, definition] of Object.entries(structureConfig)) {
     if (type === 'house' && houseLegend) {

@@ -11,6 +11,7 @@ const { formatMapLine } = require('./format');
 const { buildInspectPanel, applyInspectPanel } = require('./inspect');
 const { buildSavePanel, applySavePanel } = require('./save_panel');
 const { applyTransitionMask, buildTransitionPanel, applyTransitionPanel } = require('./transition');
+const { getTempleRenderTiles } = require('../simulation/temple');
 
 // Render a full frame including map, HUD, header, and footer.
 function renderFrame(state, config, runtime) {
@@ -46,6 +47,15 @@ function renderFrame(state, config, runtime) {
       grid[structure.y][structure.x] = applyColor(symbol, colorKey, colors);
       structurePositions.add(`${structure.x},${structure.y}`);
     }
+  }
+
+  const templeTiles = getTempleRenderTiles(state, config, runtime);
+  for (const tile of templeTiles) {
+    if (!tile || grid[tile.y] === undefined || grid[tile.y][tile.x] === undefined) {
+      continue;
+    }
+    grid[tile.y][tile.x] = applyColor(tile.symbol, tile.colorKey || 'temple_of_ancestors', colors);
+    structurePositions.add(`${tile.x},${tile.y}`);
   }
 
   const visibleDwarves = selectVisibleDwarves(state, config, runtime);

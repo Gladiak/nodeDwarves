@@ -7,6 +7,7 @@ const {
   isSpawnableTile,
 } = require('./terrain');
 const { randomBetween } = require('./random');
+const { isTempleFootprintCell } = require('./temple');
 const {
   getResourceNodeRatio,
   getStockpileRatio,
@@ -3017,6 +3018,10 @@ function isBetterSettlementCandidate(candidate, currentBest) {
 // Check if a cell can be built on considering terrain and occupancy.
 function isBuildableCell(state, runtime, x, y) {
   if (x < 0 || y < 0 || x >= runtime.gridWidth || y >= runtime.gridHeight) {
+    return false;
+  }
+  const lastConfig = state && state.lastConfig ? state.lastConfig : {};
+  if (isTempleFootprintCell(state, lastConfig, x, y)) {
     return false;
   }
   if (!isSpawnableTile(state, x, y)) {

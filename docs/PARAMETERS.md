@@ -283,6 +283,7 @@ Display and layout:
 - `display.colors.map.weather_<type>`: ANSI color for HUD weather labels (e.g. `weather_rain`).
 - `display.colors.map.terrain_<type>`: ANSI color for terrain tiles (`terrain_river`, `terrain_lake`, `terrain_road`, `terrain_bridge`, `terrain_ford`, `terrain_mountain`, `terrain_hill`, `terrain_plain`, `terrain_fertile`, `terrain_food`, `terrain_forest`, `terrain_stone`).
 - `display.colors.map.herd`: ANSI color for wildlife herds on the map.
+- `display.colors.map.temple_of_ancestors`: ANSI color for temple footprint/core tiles.
 - `display.colors.map.terrain_road`: ANSI color for road tiles.
 - `display.colors.map.terrain_bridge`: ANSI color for bridge tiles.
 - `display.colors.map.terrain_ford`: ANSI color for ford tiles.
@@ -402,6 +403,14 @@ Endgame cycles:
 - `endgame.difficulty.enabled`: enable difficulty scaling per completed cycle.
 - `endgame.difficulty.perCycle`: difficulty multiplier added per completed cycle.
 - `endgame.difficulty.maxMultiplier`: cap for the difficulty multiplier.
+
+Prestige:
+
+- `prestige.enabled`: enable prestige scoring/rank tracking.
+- `prestige.cycleResetBonus`: prestige granted automatically when an endgame cycle reset completes.
+- `prestige.tiers[]`: ordered rank thresholds used for HUD rank labels.
+- `prestige.tiers[].name`: rank label.
+- `prestige.tiers[].min`: minimum prestige required for that rank.
 
 Resources:
 
@@ -739,6 +748,46 @@ Structures (watchtowers):
 - `structures.watchtower.raid.defensePerTower`: defense gained per watchtower (0..1).
 - `structures.watchtower.raid.defenseMax`: maximum defense contribution from watchtowers (0..1).
 
+Structures (temple of ancestors):
+
+- `structures.temple_of_ancestors.enabled`: enable the temple progression system.
+- `structures.temple_of_ancestors.count`: initial placed count (kept at 0; built via staged jobs).
+- `structures.temple_of_ancestors.startStage`: initial completed stage at game start.
+- `structures.temple_of_ancestors.buildMinPopulation`: minimum population required to start any stage.
+- `structures.temple_of_ancestors.buildMinCycles`: minimum completed endgame cycles required to start stages.
+- `structures.temple_of_ancestors.buildMinIdleAdults`: minimum idle adults required before queuing a temple stage.
+- `structures.temple_of_ancestors.buildMinResources.<resource>`: minimum stockpile ratios required to queue a stage.
+- `structures.temple_of_ancestors.minArtifactCompletionRatio`: minimum ruins artifact completion ratio required before queuing temple stages (0..1).
+- `structures.temple_of_ancestors.reserveMaxFootprint`: reserve the full final footprint from stage 0 so later stages stay buildable.
+- `structures.temple_of_ancestors.outputApplyTo[]`: resource ids affected by temple output bonus.
+- `structures.temple_of_ancestors.footprintShape`: stage footprint shape (`square` or `diamond`).
+- `structures.temple_of_ancestors.site.preferTerrain[]`: terrain priority order for candidate scoring.
+- `structures.temple_of_ancestors.site.highlandTerrain[]`: terrain ids counted for local highland-density scoring.
+- `structures.temple_of_ancestors.site.avoidTerrain[]`: terrain ids rejected for site/footprint selection.
+- `structures.temple_of_ancestors.site.waterTerrain[]`: terrain ids considered water for distance scoring.
+- `structures.temple_of_ancestors.site.searchPadding`: border padding excluded from candidate scanning.
+- `structures.temple_of_ancestors.site.minDistanceFromVillage`: minimum Manhattan distance from village center.
+- `structures.temple_of_ancestors.site.maxDistanceFromVillage`: maximum Manhattan distance from village center (0 = no cap).
+- `structures.temple_of_ancestors.site.targetDistanceFromVillage`: preferred village distance used in site score.
+- `structures.temple_of_ancestors.site.waterDistanceTarget`: preferred nearest-water distance used in site score.
+- `structures.temple_of_ancestors.site.terrainWeight`: weight of biome preference in site score.
+- `structures.temple_of_ancestors.site.highlandWeight`: weight of local highland density in site score.
+- `structures.temple_of_ancestors.site.waterWeight`: weight of water-distance fit in site score.
+- `structures.temple_of_ancestors.site.centerWeight`: weight of map-center bias in site score.
+- `structures.temple_of_ancestors.site.villageWeight`: weight of village-distance fit in site score.
+- `structures.temple_of_ancestors.finalCompletionPrestige`: one-time prestige grant when the last stage completes.
+- `structures.temple_of_ancestors.stages[]`: ordered stage definitions.
+- `structures.temple_of_ancestors.stages[].id`: stage id (1-based).
+- `structures.temple_of_ancestors.stages[].name`: stage label used in events/HUD.
+- `structures.temple_of_ancestors.stages[].radius`: render/build footprint radius for that stage.
+- `structures.temple_of_ancestors.stages[].buildTicks`: build time in ticks for the stage job.
+- `structures.temple_of_ancestors.stages[].buildCost.<resource>`: stage build cost.
+- `structures.temple_of_ancestors.stages[].prestige`: prestige granted when this stage completes.
+- `structures.temple_of_ancestors.stages[].prestigePerTick`: passive prestige gained each tick while this stage is active.
+- `structures.temple_of_ancestors.stages[].effects.outputBonus`: additive output bonus applied as multiplier (`1 + bonus`).
+- `structures.temple_of_ancestors.stages[].effects.needDecayReduction`: need-decay reduction (applied as `1 - reduction`).
+- `structures.temple_of_ancestors.stages[].effects.raidDefenseBonus`: additive raid-defense bonus.
+
 Structures (wells, fields):
 
 - `structures.well.buildMinRadius`: minimum Manhattan radius from village center.
@@ -1040,6 +1089,8 @@ Symbols:
 
 - `symbols.<entity>`: map and legend symbol for entities/resources/structures.
 - `symbols.alchemy_lab`: symbol used for the alchemy lab structure.
+- `symbols.temple_of_ancestors`: core symbol for temple center tile.
+- `symbols.temple_of_ancestors_outline`: symbol for non-center temple footprint tiles.
 
 Ruins exploration:
 

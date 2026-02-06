@@ -183,6 +183,33 @@ function buildHudColumns(state, config, columnWidth, options = {}) {
   const villageCount = Array.isArray(state.villages)
     ? state.villages.length
     : 1;
+  const templeState = state.temple && typeof state.temple === "object"
+    ? state.temple
+    : null;
+  const templeMaxStageConfig = config.structures
+    && config.structures.temple_of_ancestors
+    && Array.isArray(config.structures.temple_of_ancestors.stages)
+    ? config.structures.temple_of_ancestors.stages.length
+    : 0;
+  const templeMaxStage = Math.max(
+    templeMaxStageConfig,
+    Math.max(0, Number(templeState && templeState.maxStage || 0)),
+  );
+  const templeStage = clamp(
+    Math.floor(Number(templeState && templeState.stage || 0)),
+    0,
+    Math.max(0, templeMaxStage),
+  );
+  const templeJob = state.jobs.find(
+    (job) => job.type === "build" && job.structureType === "temple_of_ancestors",
+  ) || null;
+  const prestigeState = state.prestige && typeof state.prestige === "object"
+    ? state.prestige
+    : null;
+  const prestigeTotal = Math.max(0, Number(prestigeState && prestigeState.total || 0));
+  const prestigeRank = prestigeState && prestigeState.rank
+    ? String(prestigeState.rank)
+    : "Unproven";
 
   const left = [];
   pushSection(left, "World");
@@ -190,6 +217,12 @@ function buildHudColumns(state, config, columnWidth, options = {}) {
   left.push(`Cycles: ${cycleCount}`);
   left.push(`Villages: ${villageCount}`);
   left.push(`Last cycle Ticks: ${lastCycleTicks}`);
+  left.push(
+    fitLine(
+      `Prestige: ${formatCompactNumber(prestigeTotal)} (${prestigeRank})`,
+      columnWidth,
+    ),
+  );
   left.push(`Year ${yearLabel}, Season ${seasonLabel}`);
   left.push(`Weather: ${formatWeatherStatus(state.weather, colors)}`);
   const festivalStatus = getFestivalStatus(state, config);
@@ -283,6 +316,16 @@ function buildHudColumns(state, config, columnWidth, options = {}) {
   right.push(
     fitLine(`Alchemy: ${alchemyLabCount}  Ruins: ${ruinsCount}`, columnWidth),
   );
+  right.push(
+    fitLine(
+      formatTempleStageStatus(templeState, templeStage, templeMaxStage),
+      columnWidth,
+    ),
+  );
+  const templeProgress = formatTempleProgressStatus(templeJob, config);
+  if (templeProgress) {
+    right.push(fitLine(templeProgress, columnWidth));
+  }
   if (state.tools) {
     const maxLevel = Math.max(1, Number(state.tools.maxLevel || 1));
     const level = Math.min(
@@ -1209,6 +1252,45 @@ function getStructureLevelSummary(structures, maxWidth) {
   }
 
   return fitLine(summaries[summaries.length - 1], width);
+}
+
+// Format temple stage line for HUD display.
+function formatTempleStageStatus(templeState, stage, maxStage) {
+  if (maxStage <= 0 || !templeState || templeState.enabled === false) {
+    return "Temple: disabled";
+  }
+  if (!templeState.site) {
+    return `Temple: S${stage}/${maxStage} (site scan)`;
+  }
+  if (stage <= 0) {
+    return `Temple: S0/${maxStage} (site ready)`;
+  }
+  if (stage >= maxStage) {
+    return `Temple: S${maxStage}/${maxStage} complete`;
+  }
+  return `Temple: S${stage}/${maxStage}`;
+}
+
+// Format temple build progress line while a stage is under construction.
+function formatTempleProgressStatus(templeJob, config) {
+  if (!templeJob) {
+    return "";
+  }
+  const templeConfig = (config.structures && config.structures.temple_of_ancestors) || {};
+  const stages = Array.isArray(templeConfig.stages) ? templeConfig.stages : [];
+  const stageIndex = Math.max(0, Math.floor(Number(templeJob.templeStage || 1)) - 1);
+  const stageConfig = stages[stageIndex] || {};
+  const totalTicks = Math.max(
+    1,
+    Math.floor(Number(stageConfig.buildTicks || templeJob.workRemaining || 1)),
+  );
+  const remainingTicks = clamp(
+    Math.floor(Number(templeJob.workRemaining || 0)),
+    0,
+    totalTicks,
+  );
+  const progress = clamp((totalTicks - remainingTicks) / totalTicks, 0, 1);
+  return `Temple work: ${Math.round(progress * 100)}%`;
 }
 
 module.exports = {

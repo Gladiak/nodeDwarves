@@ -63,7 +63,7 @@ npm run map:export:seasons -- --width=120 --height=40 --seed=12345
 ```
 
 Notes:
-- Renders the terrain map only (no HUD or active entities; includes static structures like mines/ruins; frame follows `display.frame.enabled`).
+- Renders the terrain map only (no HUD or active entities; includes static structures like mines/ruins and, when present in snapshot, temple footprint stages; frame follows `display.frame.enabled`).
 - Outputs to `maps/png` and `maps/svg` by default.
 - Uses a fixed terrain palette defined in `scripts/export_map.js` so terminal
   colors remain unchanged.
@@ -117,21 +117,22 @@ The tick order in code lives in `src/simulation/index.js` and is the execution c
 4. Update festivals (`festivals.js`).
 5. Update contracts (`contracts.js`).
 6. Update alchemy rites and backlash (`alchemy.js`).
-7. Update wildlife season spawns (`wildlife.js`).
-8. For each dwarf:
+7. Update temple site/effects/prestige tick (`temple.js`).
+8. Update wildlife season spawns (`wildlife.js`).
+9. For each dwarf:
    - Age + life stage updates (`population.js`).
    - Needs decay (season/weather/myth/alchemy/festival modifiers).
    - Consume resources from stockpile when thresholds hit.
-9. Handle deaths, roles, ruins, housing, relationships, reproduction (`population.js`, `roles.js`, `ruins.js`).
-10. Village and road updates (`villages.js`, `roads.js`).
-11. Assign jobs (`jobs.js`).
-12. Move and perform actions (`dwarf_actions.js`).
-13. Merchant update (`merchant.js`).
-14. Stockpile decay + terrain cooldown tick (`resources.js`, `terrain.js`).
-15. House storage + node regen (`resources.js`).
-16. Raid tick + wildlife tick + pasture births (`raids.js`, `wildlife.js`).
-17. Myth update (`myths.js`).
-18. Endgame cycle check (`endgame.js`).
+10. Handle deaths, roles, ruins, housing, relationships, reproduction (`population.js`, `roles.js`, `ruins.js`).
+11. Village and road updates (`villages.js`, `roads.js`).
+12. Assign jobs (`jobs.js`).
+13. Move and perform actions (`dwarf_actions.js`).
+14. Merchant update (`merchant.js`).
+15. Stockpile decay + terrain cooldown tick (`resources.js`, `terrain.js`).
+16. House storage + node regen (`resources.js`).
+17. Raid tick + wildlife tick + pasture births (`raids.js`, `wildlife.js`).
+18. Myth update (`myths.js`).
+19. Endgame cycle check (`endgame.js`).
 
 **Tick flow diagram**
 
@@ -143,20 +144,21 @@ flowchart TD
   D --> E[Festival update]
   E --> F[Contracts update]
   F --> G[Alchemy update]
-  G --> H[Wildlife season start]
-  H --> I[Per-dwarf: age + needs + consume]
-  I --> J[Population + ruins + relationships]
-  J --> K[Village and road updates]
-  K --> L[Assign jobs]
-  L --> M[Process dwarf actions]
-  M --> N[Merchant update]
-  N --> O[Stockpile decay + terrain cooldown]
-  O --> P[House storage + node regen]
-  P --> Q[Raid tick + wildlife tick + pasture births]
-  Q --> R[Myth update]
-  R --> S[Endgame cycle check]
-  S --> T[Render frame]
-  T --> U[Wait tickMs, next tick]
+  G --> H[Temple update + passive prestige]
+  H --> I[Wildlife season start]
+  I --> J[Per-dwarf: age + needs + consume]
+  J --> K[Population + ruins + relationships]
+  K --> L[Village and road updates]
+  L --> M[Assign jobs]
+  M --> N[Process dwarf actions]
+  N --> O[Merchant update]
+  O --> P[Stockpile decay + terrain cooldown]
+  P --> Q[House storage + node regen]
+  Q --> R[Raid tick + wildlife tick + pasture births]
+  R --> S[Myth update]
+  S --> T[Endgame cycle check]
+  T --> U[Render frame]
+  U --> V[Wait tickMs, next tick]
 ```
 
 Notes:
@@ -194,6 +196,7 @@ Notes:
 - `src/state/index.js`
   - `createInitialState(config, runtime)` builds the authoritative world state:
     - `dwarves`, `nodes`, `structures`, `merchant`, `weather`, `raid`, `tools`, etc.
+    - `temple` and `prestige` meta-state for Temple of Ancestors progression.
     - `stockpile` initialized from `config.resources.stockpile`.
     - Initial stockpiles (and optional node counts) can scale with map size via `resources.mapScale`
       using the map grid dimensions as a baseline.
@@ -612,6 +615,29 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - fade/story presentation is configured under `endgame.transition.*` in runtime/render flow.
   - simulation reset logic itself remains isolated in `endgame.js`.
 
+### Temple of Ancestors and prestige 🏛️
+
+- `temple.js`
+  - Owns the **Dwarf Temple of Ancestors** lifecycle: site selection, staged construction, passive prestige, and live bonuses.
+- Site selection:
+  - Deterministic scoring over terrain topology/biomes (`preferTerrain`, highland density, water distance, village distance, center bias).
+  - Rejects invalid footprints (terrain forbidden, occupied by structures/nodes, out of map bounds).
+  - Can reserve the full final footprint (`reserveMaxFootprint`) so later stages are not blocked by new buildings.
+- Construction model:
+  - Each stage is config-driven (`structures.temple_of_ancestors.stages[]`) with `radius`, `buildTicks`, `buildCost`, `effects`, and prestige rewards.
+  - Jobs are normal build jobs (`structureType=temple_of_ancestors`) so they respect the existing build queue and builder flow.
+  - Guardrails before scheduling: `buildMinPopulation`, `buildMinCycles`, `buildMinIdleAdults`,
+    stockpile ratio gates (`buildMinResources`), and optional artifact progress gate (`minArtifactCompletionRatio`).
+- Runtime effects:
+  - Need decay reduction stacks multiplicatively in the main needs pipeline.
+  - Output bonus applies to gather yield and crafted/structure outputs (filtered by `outputApplyTo` when configured).
+  - Raid defense bonus is added to the final defense stack in `raids.js`.
+- Prestige system:
+  - Stage completion and passive per-tick gain contribute to `state.prestige.total`.
+  - Rank is derived from `prestige.tiers`.
+  - Endgame reset carries prestige forward and can add `prestige.cycleResetBonus`.
+  - Temple stage progress itself resets per cycle; prestige does not.
+
 ### Ruins and expeditions 🗝️
 
 - `ruins.js`
@@ -754,7 +780,7 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
   - Layout sizing uses `display.hud.*`, `display.header.*`, `display.footer.*`, and frame settings.
   - Default layout assumes a 190x60 terminal (columns x rows); adjust `display.width`/`display.height`
     and HUD width if you target a different size.
-  - Places nodes, structures, dwarves, merchant, and raid beasts on the grid.
+  - Places nodes, structures, temple footprint overlay, dwarves, merchant, and raid beasts on the grid.
   - Selects a stable subset of dwarves to keep the map readable (`display.dwarves.maxVisible`; set `< 0` to skip dwarf rendering).
   - Applies the dwarf inspect overlay when `display.inspect_panel.enabled` is true.
   - Applies the map-save confirmation overlay when `display.save_panel.enabled` is true.
@@ -853,6 +879,8 @@ Clan dynamics add heterogeneity and longer-horizon trade-offs. To keep PPO stabl
 - `display`: grid size, HUD, frame, terrain, colors.
 - `resources`: stockpile targets, node counts/capacity, regen rates, crafting inputs.
 - `structures`: build costs, build ticks, upgrade rules, capacities.
+- `structures.temple_of_ancestors`: staged temple progression, topology-based site tuning, costs/effects.
+- `prestige`: rank thresholds and cycle bonus for long-term progression.
 - `population`: needs decay, aging, housing rules, reproduction, roles, pathing.
 - `clans`: clan IDs, distributions, inheritance, and per-clan effects.
 - `seasons` + `weather`: cycle durations and modifiers.
@@ -1027,6 +1055,7 @@ Quick checklist:
     - `simulation/alchemy.js` → alchemy rite lifecycle and modifiers
     - `simulation/contracts.js` → contract offers, reputations, and boons
     - `simulation/roads.js` → road planning/build queue/pathing
+    - `simulation/temple.js` → Temple of Ancestors progression, effects, and prestige
     - `simulation/ruins.js` → expeditions, artifacts, and set bonuses
   - `state/` → initial state + terrain generation
   - `render/` → ASCII output

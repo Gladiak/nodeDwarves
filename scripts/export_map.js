@@ -556,6 +556,12 @@ function applyExportSnapshot(state, snapshot, symbols) {
       state.roads = normalized;
     }
   }
+  if (snapshot.temple && typeof snapshot.temple === "object") {
+    const normalizedTemple = normalizeSnapshotTemple(snapshot.temple, state);
+    if (normalizedTemple) {
+      state.temple = normalizedTemple;
+    }
+  }
 }
 
 // Function: normalizeSnapshotStructure.
@@ -617,10 +623,57 @@ function normalizeSnapshotRoads(roads) {
   return { width, height, types };
 }
 
+// Function: normalizeSnapshotTemple.
+function normalizeSnapshotTemple(temple, state) {
+  if (!temple || typeof temple !== "object") {
+    return null;
+  }
+  const width = Number(state && state.terrain && state.terrain.width || 0);
+  const height = Number(state && state.terrain && state.terrain.height || 0);
+  const stage = Math.max(0, Math.floor(Number(temple.stage || 0)));
+  const maxStage = Math.max(stage, Math.floor(Number(temple.maxStage || stage)));
+  let site = null;
+  if (
+    temple.site
+    && Number.isFinite(Number(temple.site.x))
+    && Number.isFinite(Number(temple.site.y))
+  ) {
+    let x = Math.floor(Number(temple.site.x));
+    let y = Math.floor(Number(temple.site.y));
+    if (width > 0) {
+      x = Math.max(0, Math.min(width - 1, x));
+    }
+    if (height > 0) {
+      y = Math.max(0, Math.min(height - 1, y));
+    }
+    site = {
+      x,
+      y,
+      terrainType: temple.site.terrainType || null,
+    };
+  }
+  return {
+    enabled: temple.enabled !== false,
+    stage,
+    maxStage,
+    site,
+    blockedReason: null,
+    lastBuildTick: null,
+    completedAtTick: Number.isFinite(Number(temple.completedAtTick))
+      ? Number(temple.completedAtTick)
+      : null,
+    history: [],
+  };
+}
+
 // Function: stripNonMapEntities.
 function stripNonMapEntities(state, options = {}) {
   const includeStructures = options.includeStructures === true;
   state.nodes = [];
+  if (!includeStructures && state.temple && typeof state.temple === "object") {
+    state.temple.stage = 0;
+    state.temple.site = null;
+  }
   if (!includeStructures) {
     const keepStructures = new Set(["mine", "ruins"]);
     state.structures = Array.isArray(state.structures)

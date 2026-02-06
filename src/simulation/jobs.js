@@ -31,6 +31,7 @@ const {
   createManagedWatchtowerBuildJob,
   findMineBuildSpot,
 } = require("./structures");
+const { createTempleBuildJob } = require("./temple");
 
 // Assign jobs to idle dwarves based on shortages and build needs.
 function assignJobs(state, config, runtime, action) {
@@ -581,6 +582,9 @@ function assignBuildJobIfNeeded(
     }
     if (!buildJob) {
       buildJob = createAlchemyLabBuildJob(state, config, runtime, buildQueue.reservedPositions);
+    }
+    if (!buildJob) {
+      buildJob = createTempleBuildJob(state, config, runtime, buildQueue.reservedPositions);
     }
     if (!buildJob) {
       return;

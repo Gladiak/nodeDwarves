@@ -8,6 +8,7 @@ const { getMythMultiplier } = require('./myths');
 const { getAlchemyOutputBonus } = require('./alchemy');
 const { getFestivalModifier } = require('./festivals');
 const { getContractTargetBoost, getContractProductionBonus } = require('./contracts');
+const { getTempleOutputMultiplier } = require('./temple');
 const { getTerrainResourceRatio, pickTerrainResourceTarget } = require('./terrain');
 
 // Regenerate resource nodes based on config, season, and weather multipliers.
@@ -464,9 +465,18 @@ function getGatherYield(config, resourceId, node, state) {
   const forgeMultiplier = getForgeMultiplier(state, config);
   const beerMultiplier = getBeerProductionMultiplier(state, config, resourceId);
   const contractMultiplier = 1 + getContractProductionBonus(state);
+  const templeMultiplier = getTempleOutputMultiplier(state, config, resourceId);
   const scaledYield = Math.max(
     1,
-    Math.round(baseYield * multiplier * toolMultiplier * forgeMultiplier * beerMultiplier * contractMultiplier),
+    Math.round(
+      baseYield
+      * multiplier
+      * toolMultiplier
+      * forgeMultiplier
+      * beerMultiplier
+      * contractMultiplier
+      * templeMultiplier,
+    ),
   );
   if (!node) {
     return scaledYield;
@@ -572,9 +582,16 @@ function applyOutputs(stockpile, outputs, state, config) {
   for (const [resource, amount] of Object.entries(outputs)) {
     const beerMultiplier = getBeerProductionMultiplier(state, config, resource);
     const ruinsMultiplier = getRuinsOutputMultiplier(state, config, resource);
+    const templeMultiplier = getTempleOutputMultiplier(state, config, resource);
     stockpile[resource] =
       Number(stockpile[resource] || 0)
-      + Number(amount || 0) * forgeMultiplier * beerMultiplier * ruinsMultiplier * contractMultiplier * alchemyMultiplier;
+      + Number(amount || 0)
+      * forgeMultiplier
+      * beerMultiplier
+      * ruinsMultiplier
+      * contractMultiplier
+      * alchemyMultiplier
+      * templeMultiplier;
   }
 }
 

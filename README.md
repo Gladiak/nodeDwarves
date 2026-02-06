@@ -19,6 +19,7 @@ trade-offs emerge from shortages, weather, raids, and long-term growth pressure.
 - 🌦️ Seasons, weather, festivals, and wildlife that shift priorities (raids optional).
 - 📜 Merchant trading, caravan contracts, and faction reputation.
 - 🗝️ Endgame ruins expeditions with artifacts, set bonuses, and cycle resets.
+- 🏛️ Dwarf Temple of Ancestors: biome-aware multi-stage final work with prestige growth.
 - ⚗️ Alchemy Lab rites: burn rare minerals for powerful global buffs, then survive the backlash.
 - 🛡️ Clan culture traits that create trade-offs without micromanagement.
 - 🤖 AI training in Python (PPO) with JS-only inference.
@@ -87,13 +88,13 @@ in sync. 🧠
 
 - 🛰️ Fog-of-war + scouting: unlock map intel with explorers, towers, and rumors.
 - 🧬 Lineages and legacy perks: clan bloodlines evolve traits across cycles.
-- 🏗️ Dwarf Temple of Ancestors: the final multi-stage wonder with unique mechanics and prestige score.
 - ⚖️ Dynamic laws: policy toggles that trade safety, productivity, and morale.
 - 🔥 Disaster arcs: drought → fire → recovery chain with emergent priorities.
 - 🧭 World events: traveling bards, rival caravans, and time-limited opportunities.
 - 🧭 Multi-village specialization: assign production roles per settlement.
 - 🗺️ Expedition map: alternate tactical layer for ruins parties and outcomes.
 - 🧠 AI governors: trainable sub-policies for jobs, trade, and building.
+- 🕳️ Underrealm Front: start with one chamber, then expand into a full depth-layer as a second strategic dimension.
 
 ## Project layout (high level) 🧱
 
@@ -101,6 +102,7 @@ in sync. 🧠
 - `config.json`: single source of truth for tunables.
 - `src/`: simulation, state, rendering, AI.
 - `src/simulation/alchemy.js`: alchemy rites, pact lifecycle, and backlash logic.
+- `src/simulation/temple.js`: Temple of Ancestors stages, map footprint, and prestige system.
 - `scripts/train_wrapper.js`: safe unified wrapper for all `ai:train:*` profiles.
 - `python/`: PPO training + agent example.
 - `docs/`: parameter reference and training overrides.

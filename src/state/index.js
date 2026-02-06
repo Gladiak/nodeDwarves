@@ -2,6 +2,7 @@
 
 const { clamp } = require('../utils');
 const { pickClanId } = require('../clans');
+const { createTempleState, createPrestigeState } = require('../simulation/temple');
 const {
   createTerrain,
   getTerrainSpawnPredicate,
@@ -113,9 +114,12 @@ function createInitialState(config, runtime) {
   const festival = createFestivalState(config);
   const wildlife = createWildlifeState(config);
   const roads = createRoadState(config, runtime);
+  const temple = createTempleState(config);
+  const prestige = createPrestigeState(config);
 
   return {
     tick: 0,
+    lastConfig: config,
     dwarves,
     nodes,
     structures,
@@ -135,6 +139,8 @@ function createInitialState(config, runtime) {
     wildlife,
     terrain,
     roads,
+    temple,
+    prestige,
     stockpile: buildInitialStockpile(config, mapScaleContext),
     resourceTargets: scaledTargets,
     villages: null,
@@ -816,6 +822,10 @@ function syncTerrainToGrid(state, runtime, config) {
       state.villageBuildCursor = null;
       state.terrainIndex = null;
       state.roads = null;
+      if (state.temple && typeof state.temple === 'object') {
+        state.temple.site = null;
+        state.temple.blockedReason = null;
+      }
     }
     return;
   }
@@ -833,6 +843,10 @@ function syncTerrainToGrid(state, runtime, config) {
       state.villageBuildCursor = null;
       state.terrainIndex = null;
       state.roads = createRoadState(config, runtime);
+      if (state.temple && typeof state.temple === 'object') {
+        state.temple.site = null;
+        state.temple.blockedReason = null;
+      }
     }
   }
 }

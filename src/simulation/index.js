@@ -29,6 +29,7 @@ const { updateRuins } = require('./ruins');
 const { updateEndgameDifficulty, maybeHandleEndgameReset } = require('./endgame');
 const { updateMyths, getMythMultiplier } = require('./myths');
 const { updateAlchemy, getAlchemyMultiplier } = require('./alchemy');
+const { updateTemple, getTempleNeedDecayMultiplier } = require('./temple');
 const { updateVillages } = require('./villages');
 const { updateRoads } = require('./roads');
 
@@ -43,6 +44,7 @@ function stepState(state, config, runtime, action, options = {}) {
   updateFestivals(state, config, runtime, action);
   updateContracts(state, config, runtime);
   updateAlchemy(state, config);
+  updateTemple(state, config, runtime);
   updateWildlifeStart(state, config, runtime);
   const housingPenalty = getWinterHousingPenalty(state, config);
   const weatherNeedMultiplier = getWeatherModifier(state, config, 'needDecay', 1);
@@ -50,6 +52,7 @@ function stepState(state, config, runtime, action, options = {}) {
   const mythNeedMultiplier = getMythMultiplier(state, config, 'needDecay', 1);
   const alchemyNeedMultiplier = getAlchemyMultiplier(state, config, 'needDecay', 1);
   const festivalNeedMultiplier = getFestivalModifier(state, 'needDecay', 1);
+  const templeNeedMultiplier = getTempleNeedDecayMultiplier(state, config);
   const stormColdActive = state.weather
     ? state.weather.type === 'storm' || state.weather.type === 'cold'
     : false;
@@ -71,7 +74,8 @@ function stepState(state, config, runtime, action, options = {}) {
         * clanNeedMultiplier
         * mythNeedMultiplier
         * alchemyNeedMultiplier
-        * festivalNeedMultiplier,
+        * festivalNeedMultiplier
+        * templeNeedMultiplier,
       weatherNeedByNeed,
     );
     consumeResources(dwarf, state, config);

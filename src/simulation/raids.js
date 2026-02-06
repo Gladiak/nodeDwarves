@@ -6,6 +6,7 @@ const { pushEvent } = require('./events');
 const { getMythMultiplier } = require('./myths');
 const { getAlchemyMultiplier } = require('./alchemy');
 const { getContractRaidDeathRateReduction } = require('./contracts');
+const { getTempleRaidDefenseBonus } = require('./temple');
 const { shuffleInPlace } = require('./random');
 const { isAdult } = require('./population');
 const { moveDwarf, findEdgeWalkablePosition, findAnyWalkablePosition } = require('./movement');
@@ -181,7 +182,8 @@ function finishRaid(state, config, raidState) {
   const towerDefenseMax = clamp(Number(towerRaid.defenseMax ?? 0), 0, 1);
   const towerDefense = clamp(towerCount * towerDefensePer, 0, towerDefenseMax);
   const clanDefenseBonus = getClanRaidBonus(state, config, 'raid_defense_bonus');
-  const totalDefense = clamp(defense + towerDefense + clanDefenseBonus, 0, 1);
+  const templeDefenseBonus = getTempleRaidDefenseBonus(state, config);
+  const totalDefense = clamp(defense + towerDefense + clanDefenseBonus + templeDefenseBonus, 0, 1);
 
   const difficulty = getRaidDifficulty(config, state);
   const deathConfig = raidConfig.deathRate || {};

@@ -31,6 +31,7 @@ const {
 } = require('./resources');
 const { getAlchemyMultiplier } = require('./alchemy');
 const { findHerdById } = require('./wildlife');
+const { completeTempleStageBuild } = require('./temple');
 
 // Process the dwarf's per-tick action (panic, job, or idle).
 function processDwarfAction(dwarf, state, config, runtime) {
@@ -218,7 +219,8 @@ function processDwarfJob(dwarf, state, config, runtime) {
   let targetStructure = null;
 
   if (job.type === 'build') {
-    if (!isBuildableCell(state, runtime, targetX, targetY)) {
+    const isTempleBuild = job.structureType === 'temple_of_ancestors';
+    if (!isTempleBuild && !isBuildableCell(state, runtime, targetX, targetY)) {
       removeJob(state, job.id);
       dwarf.job = null;
       return;
@@ -446,6 +448,27 @@ function processDwarfJob(dwarf, state, config, runtime) {
   }
   if (job.type === 'build') {
     const type = job.structureType || 'house';
+    if (type === 'temple_of_ancestors') {
+      const result = completeTempleStageBuild(state, config, job);
+      if (result && result.completed) {
+        const stageLabel = result.stageName
+          ? `Temple: Stage ${result.stage}/${result.maxStage} ${result.stageName}`
+          : `Temple: Stage ${result.stage}/${result.maxStage}`;
+        pushEvent(state, config, stageLabel);
+        if (result.fullyCompleted) {
+          const prestige = Math.round(Number(result.completionPrestige || 0));
+          if (prestige > 0) {
+            pushEvent(state, config, `Temple complete: +${prestige} prestige`);
+          } else {
+            pushEvent(state, config, 'Temple complete: Ancestors honored');
+          }
+        }
+      }
+      applyClanBuildCostPenalty(dwarf, state, config, job);
+      removeJob(state, job.id);
+      dwarf.job = null;
+      return;
+    }
     const structure = createStructure(state, config, type, targetX, targetY);
     state.structures.push(structure);
     if (type === 'well' || type === 'field') {
