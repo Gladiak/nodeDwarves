@@ -468,7 +468,15 @@
       "seasonal": {
         "enabled": true,
         "preset": "ice_fantasy",
-        "types": ["plain", "fertile", "forest", "food", "grass", "river", "lake"],
+        "types": [
+          "plain",
+          "fertile",
+          "forest",
+          "food",
+          "grass",
+          "river",
+          "lake"
+        ],
         "palettes": {
           "spring": {
             "plain": "terrain_plain_spring",
@@ -703,7 +711,12 @@
         "label": "Stone Abyss Pact",
         "durationTicks": 220,
         "cooldownTicks": 260,
-        "requiredStructures": ["alchemy_lab", "mithril_forge", "armory", "ruins"],
+        "requiredStructures": [
+          "alchemy_lab",
+          "mithril_forge",
+          "armory",
+          "ruins"
+        ],
         "minPopulation": 42,
         "requiresUnfoundArtifacts": true,
         "blockDuringRaid": true,
@@ -736,7 +749,15 @@
           "failureThreshold": 2,
           "durationTicks": 280,
           "resourceLossRatio": 0.22,
-          "lossResources": ["food", "water", "wood", "stone", "iron", "beer", "mithril"],
+          "lossResources": [
+            "food",
+            "water",
+            "wood",
+            "stone",
+            "iron",
+            "beer",
+            "mithril"
+          ],
           "outputBonus": -0.35,
           "effects": {
             "needDecay": 1.16,
@@ -2758,7 +2779,7 @@
         "inertiaWeight": 0.28,
         "stayPenalty": 0.25,
         "roadAffinity": {
-          "enabled": true,
+          "enabled": false,
           "profile": "scenic",
           "minTargetDistance": 7,
           "onRoadBonus": 0.28,

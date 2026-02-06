@@ -53,7 +53,7 @@ function handleRaidPanic(dwarf, state, config, runtime) {
   }
 
   if (dwarf.homeId) {
-    const house = findStructureById(state.structures, dwarf.homeId);
+    const house = findStructureById(state, dwarf.homeId);
     if (house && house.type === 'house') {
       if (dwarf.x !== house.x || dwarf.y !== house.y) {
         moveTowards(dwarf, { x: house.x, y: house.y }, runtime, state, config);
@@ -269,7 +269,7 @@ function processDwarfJob(dwarf, state, config, runtime) {
     job.target = { x: targetX, y: targetY };
   }
   if (job.type === 'craft') {
-    targetWorkshop = findStructureById(state.structures, job.workshopId);
+    targetWorkshop = findStructureById(state, job.workshopId);
     if (!targetWorkshop) {
       removeJob(state, job.id);
       dwarf.job = null;
@@ -281,7 +281,7 @@ function processDwarfJob(dwarf, state, config, runtime) {
     job.target = { x: targetX, y: targetY };
   }
   if (job.type === 'upgrade') {
-    targetStructure = findStructureById(state.structures, job.structureId);
+    targetStructure = findStructureById(state, job.structureId);
     if (!targetStructure || targetStructure.type !== 'house') {
       removeJob(state, job.id);
       dwarf.job = null;
@@ -293,7 +293,7 @@ function processDwarfJob(dwarf, state, config, runtime) {
     job.target = { x: targetX, y: targetY };
   }
   if (job.type === 'upgrade_tools') {
-    targetWorkshop = findStructureById(state.structures, job.workshopId);
+    targetWorkshop = findStructureById(state, job.workshopId);
     if (!targetWorkshop || targetWorkshop.type !== 'workshop') {
       removeJob(state, job.id);
       dwarf.job = null;
@@ -305,7 +305,7 @@ function processDwarfJob(dwarf, state, config, runtime) {
     job.target = { x: targetX, y: targetY };
   }
   if (job.type === 'upgrade_structure') {
-    targetStructure = findStructureById(state.structures, job.structureId);
+    targetStructure = findStructureById(state, job.structureId);
     if (!targetStructure || targetStructure.type !== job.structureType) {
       removeJob(state, job.id);
       dwarf.job = null;
@@ -317,7 +317,7 @@ function processDwarfJob(dwarf, state, config, runtime) {
     job.target = { x: targetX, y: targetY };
   }
   if (job.type === 'mine') {
-    targetStructure = findStructureById(state.structures, job.structureId);
+    targetStructure = findStructureById(state, job.structureId);
     if (!targetStructure || targetStructure.type !== 'mine') {
       removeJob(state, job.id);
       dwarf.job = null;
@@ -329,7 +329,7 @@ function processDwarfJob(dwarf, state, config, runtime) {
     job.target = { x: targetX, y: targetY };
   }
   if (job.type === 'sawmill') {
-    targetStructure = findStructureById(state.structures, job.structureId);
+    targetStructure = findStructureById(state, job.structureId);
     if (!targetStructure || targetStructure.type !== 'sawmill') {
       removeJob(state, job.id);
       dwarf.job = null;
@@ -341,7 +341,7 @@ function processDwarfJob(dwarf, state, config, runtime) {
     job.target = { x: targetX, y: targetY };
   }
   if (job.type === 'brewery') {
-    targetStructure = findStructureById(state.structures, job.structureId);
+    targetStructure = findStructureById(state, job.structureId);
     if (!targetStructure || targetStructure.type !== 'brewery') {
       removeJob(state, job.id);
       dwarf.job = null;
@@ -353,7 +353,7 @@ function processDwarfJob(dwarf, state, config, runtime) {
     job.target = { x: targetX, y: targetY };
   }
   if (job.type === 'armory') {
-    targetStructure = findStructureById(state.structures, job.structureId);
+    targetStructure = findStructureById(state, job.structureId);
     if (!targetStructure || targetStructure.type !== 'armory') {
       removeJob(state, job.id);
       dwarf.job = null;
@@ -372,6 +372,7 @@ function processDwarfJob(dwarf, state, config, runtime) {
   }
 
   if (dwarf.x !== targetX || dwarf.y !== targetY) {
+    const pathKey = resolveJobPathKey(job, targetX, targetY);
     moveWithDetour(
       dwarf,
       targetX,
@@ -379,7 +380,7 @@ function processDwarfJob(dwarf, state, config, runtime) {
       runtime,
       state,
       config,
-      `job:${job.id}`,
+      pathKey,
     );
     return;
   }
@@ -469,7 +470,7 @@ function processDwarfJob(dwarf, state, config, runtime) {
     return;
   }
   if (job.type === 'upgrade') {
-    const house = targetStructure || findStructureById(state.structures, job.structureId);
+    const house = targetStructure || findStructureById(state, job.structureId);
     if (!house) {
       removeJob(state, job.id);
       dwarf.job = null;
@@ -510,7 +511,7 @@ function processDwarfJob(dwarf, state, config, runtime) {
     return;
   }
   if (job.type === 'upgrade_structure') {
-    const structure = targetStructure || findStructureById(state.structures, job.structureId);
+    const structure = targetStructure || findStructureById(state, job.structureId);
     if (!structure) {
       removeJob(state, job.id);
       dwarf.job = null;
@@ -657,17 +658,85 @@ function applyHuntDeath(state, dwarf) {
   state.jobs = state.jobs.filter((job) => job.dwarfId !== dwarf.id);
 }
 
+// Resolve a stable path key per job target to improve field-cache reuse.
+function resolveJobPathKey(job, targetX, targetY) {
+  if (!job || !job.type) {
+    return `job:unknown:${targetX},${targetY}`;
+  }
+  if (job.type === 'gather') {
+    if (job.nodeId) {
+      return `job:gather:node:${job.nodeId}`;
+    }
+    return `job:gather:tile:${targetX},${targetY}`;
+  }
+  if (job.type === 'hunt' && job.herdId) {
+    return `job:hunt:herd:${job.herdId}`;
+  }
+  if ((job.type === 'craft' || job.type === 'upgrade_tools') && job.workshopId) {
+    return `job:${job.type}:workshop:${job.workshopId}`;
+  }
+  if (
+    (
+      job.type === 'upgrade'
+      || job.type === 'upgrade_structure'
+      || job.type === 'mine'
+      || job.type === 'sawmill'
+      || job.type === 'brewery'
+      || job.type === 'armory'
+    )
+    && job.structureId
+  ) {
+    return `job:${job.type}:structure:${job.structureId}`;
+  }
+  if (job.type === 'build' && job.structureType) {
+    return `job:build:${job.structureType}:${targetX},${targetY}`;
+  }
+  return `job:${job.type}:${targetX},${targetY}`;
+}
+
 // Find a resource node by its node id.
 function findNodeById(nodes, nodeId) {
   return nodes.find((node) => node.nodeId === nodeId) || null;
 }
 
-// Find a structure by its id.
-function findStructureById(structures, structureId) {
-  if (!Array.isArray(structures)) {
+// Build or reuse a per-tick structure lookup map.
+function getStructureIndex(state) {
+  if (!state || !Array.isArray(state.structures)) {
     return null;
   }
-  return structures.find((structure) => structure.id === structureId) || null;
+  const tick = Number(state.tick || 0);
+  const length = state.structures.length;
+  const counter = Number(state.structureCounter || 0);
+  const cache = state.structureIndex;
+  if (
+    cache
+    && cache.tick === tick
+    && cache.length === length
+    && cache.counter === counter
+    && cache.map instanceof Map
+  ) {
+    return cache.map;
+  }
+  const map = new Map();
+  for (const structure of state.structures) {
+    if (structure && structure.id) {
+      map.set(structure.id, structure);
+    }
+  }
+  state.structureIndex = { tick, length, counter, map };
+  return map;
+}
+
+// Find a structure by its id.
+function findStructureById(state, structureId) {
+  if (!state || !Array.isArray(state.structures)) {
+    return null;
+  }
+  const index = getStructureIndex(state);
+  if (!index) {
+    return null;
+  }
+  return index.get(structureId) || null;
 }
 
 // Resolve the current home position for a dwarf.
@@ -675,7 +744,7 @@ function getDwarfHomePosition(dwarf, state) {
   if (!dwarf || !dwarf.homeId) {
     return null;
   }
-  const house = findStructureById(state.structures, dwarf.homeId);
+  const house = findStructureById(state, dwarf.homeId);
   if (!house || house.type !== 'house') {
     return null;
   }

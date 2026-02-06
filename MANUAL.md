@@ -329,6 +329,7 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - Craft/armory jobs apply outputs on completion (after paying inputs).
   - Idle behavior returns home or wanders around the anchor.
   - Panic logic during raids (run to home or flee).
+  - Job movement path keys are target-based (not per-job id) to increase path-field cache reuse at large populations.
 
 ### Movement and pathing 🧭
 
@@ -337,11 +338,13 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - Pathing mode from `population.pathing.mode`: `detour` or `field`.
   - Detour mode uses stall detection (`stallThreshold`), detour ticks, and local BFS (`bfsRadius`).
   - Field mode builds distance fields (`field.radius`) cached for `field.ttlTicks`.
+  - Path-field pruning runs once per tick and enforces a bounded cache size to avoid late-game cache bloat.
   - Field step costs weight terrain delay and crowding (`field.terrainWeight`, `field.crowdWeight`),
     plus inertia and stay penalty.
   - Field pathing can optionally bias medium/long trips toward road overlays via
     `population.pathing.field.roadAffinity.*`.
   - Road affinity supports `pragmatic` and `scenic` profiles for lighter vs stronger corridor-following.
+  - Road-distance maps for affinity are cached by road overlay version and rebuilt only when roads actually change.
   - Terrain movement delays come from `display.terrain.movementDelay.<type>`.
 
 ### Resources and stockpile 📊
@@ -752,7 +755,7 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
   - Default layout assumes a 190x60 terminal (columns x rows); adjust `display.width`/`display.height`
     and HUD width if you target a different size.
   - Places nodes, structures, dwarves, merchant, and raid beasts on the grid.
-  - Selects a stable subset of dwarves to keep the map readable (`display.dwarves.maxVisible`).
+  - Selects a stable subset of dwarves to keep the map readable (`display.dwarves.maxVisible`; set `< 0` to skip dwarf rendering).
   - Applies the dwarf inspect overlay when `display.inspect_panel.enabled` is true.
   - Applies the map-save confirmation overlay when `display.save_panel.enabled` is true.
 

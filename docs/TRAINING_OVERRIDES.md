@@ -20,6 +20,7 @@ Display:
 - `display.height`: fixed render height used by the training runtime.
 - `display.maxWidth`: cap width when `display.autoSize` is enabled.
 - `display.maxHeight`: cap height when `display.autoSize` is enabled.
+- `display.dwarves.maxVisible`: max dwarves rendered on the map (`0` = show all, `< 0` = hide all).
 
 Merchant:
 

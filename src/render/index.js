@@ -168,7 +168,11 @@ function renderFrame(state, config, runtime) {
 function selectVisibleDwarves(state, config, runtime) {
   const dwarves = state.dwarves || [];
   const display = (config.display && config.display.dwarves) || {};
-  const maxVisible = Math.max(0, Number(display.maxVisible ?? 0));
+  const maxVisibleRaw = Number(display.maxVisible ?? 0);
+  if (Number.isFinite(maxVisibleRaw) && maxVisibleRaw < 0) {
+    return [];
+  }
+  const maxVisible = Math.max(0, maxVisibleRaw);
   if (!maxVisible || dwarves.length <= maxVisible) {
     return dwarves;
   }

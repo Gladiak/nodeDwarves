@@ -276,7 +276,7 @@ Display and layout:
 - `display.terrain.roadSpecialSymbols.bridge`: symbol for bridge road tiles.
 - `display.terrain.roadSpecialSymbols.ford`: symbol for ford road tiles.
 - `display.terrain.riverConnectsTo`: list of terrain types treated as connected to rivers (defaults to `["river"]`).
-- `display.dwarves.maxVisible`: max dwarves to render on the map (0 = show all).
+- `display.dwarves.maxVisible`: max dwarves to render on the map (`0` = show all, `< 0` = hide all).
 - `display.colors.enabled`: enable ANSI colors in the render.
 - `display.colors.reset`: ANSI reset sequence (defaults to `\u001b[0m`).
 - `display.colors.map.<key>`: ANSI color for an entity key (e.g. `dwarf`, `merchant`, `house`, `alchemy_lab`, `food`, `hud_header`).

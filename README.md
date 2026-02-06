@@ -23,6 +23,8 @@ trade-offs emerge from shortages, weather, raids, and long-term growth pressure.
 - 🛡️ Clan culture traits that create trade-offs without micromanagement.
 - 🤖 AI training in Python (PPO) with JS-only inference.
 - 🧩 Modular architecture (simulation, state, render, AI) for sane iteration.
+- ⚡ Late-game pathing cache optimizations for smoother high-population ticks.
+- 🔧 Configurable performance knobs for heavy profiling runs.
 
 ## Why it feels good to run 🧪
 
@@ -85,7 +87,7 @@ in sync. 🧠
 
 - 🛰️ Fog-of-war + scouting: unlock map intel with explorers, towers, and rumors.
 - 🧬 Lineages and legacy perks: clan bloodlines evolve traits across cycles.
-- 🏗️ Megaprojects: multi-stage wonders with unique mechanics and prestige scores.
+- 🏗️ Dwarf Temple of Ancestors: the final multi-stage wonder with unique mechanics and prestige score.
 - ⚖️ Dynamic laws: policy toggles that trade safety, productivity, and morale.
 - 🔥 Disaster arcs: drought → fire → recovery chain with emergent priorities.
 - 🧭 World events: traveling bards, rival caravans, and time-limited opportunities.

@@ -20,6 +20,7 @@ const DWARF_ROAD_AFFINITY_PROFILES = {
     maxDistancePenalty: 4,
   },
 };
+const MAX_PATH_FIELD_CACHE_ENTRIES = 256;
 
 // Resolve the road-affinity profile name and default values.
 function resolveRoadAffinityProfile(rawValue) {
@@ -535,7 +536,10 @@ function getPathField(state, runtime, targetX, targetY, key, fieldConfig) {
   built.builtTick = tick;
   built.lastUsed = tick;
   fields[key] = built;
-  prunePathFields(fields, tick, ttlTicks);
+  if (pathing.lastFieldPruneTick !== tick) {
+    prunePathFields(fields, tick, ttlTicks);
+    pathing.lastFieldPruneTick = tick;
+  }
   return built;
 }
 
@@ -554,6 +558,19 @@ function prunePathFields(fields, tick, ttlTicks) {
       delete fields[key];
     }
   }
+  const keys = Object.keys(fields);
+  if (keys.length <= MAX_PATH_FIELD_CACHE_ENTRIES) {
+    return;
+  }
+  keys
+    .sort(
+      (a, b) => Number((fields[a] && fields[a].lastUsed) || 0)
+        - Number((fields[b] && fields[b].lastUsed) || 0),
+    )
+    .slice(0, keys.length - MAX_PATH_FIELD_CACHE_ENTRIES)
+    .forEach((key) => {
+      delete fields[key];
+    });
 }
 
 // Build a BFS distance field centered on the target.
@@ -658,15 +675,28 @@ function getFieldDistance(field, x, y) {
 // Ensure pathing state container exists.
 function ensurePathingState(state) {
   if (!state) {
-    return { fields: {}, occupancy: null, roadDistance: null };
+    return {
+      fields: {},
+      occupancy: null,
+      roadDistance: null,
+      lastFieldPruneTick: Number.NaN,
+    };
   }
   if (!state.pathing) {
-    state.pathing = { fields: {}, occupancy: null, roadDistance: null };
+    state.pathing = {
+      fields: {},
+      occupancy: null,
+      roadDistance: null,
+      lastFieldPruneTick: Number.NaN,
+    };
   } else if (!state.pathing.fields) {
     state.pathing.fields = {};
   }
   if (state.pathing.roadDistance === undefined) {
     state.pathing.roadDistance = null;
+  }
+  if (state.pathing.lastFieldPruneTick === undefined) {
+    state.pathing.lastFieldPruneTick = Number.NaN;
   }
   return state.pathing;
 }
@@ -789,7 +819,7 @@ function getRoadOverlayType(state, x, y) {
   return null;
 }
 
-// Build or reuse a per-tick road-distance map used by movement road affinity.
+// Build or reuse a road-distance map used by movement road affinity.
 function ensureRoadDistanceMap(state, runtime) {
   if (!state || !runtime) {
     return null;
@@ -800,11 +830,36 @@ function ensureRoadDistanceMap(state, runtime) {
     return null;
   }
 
-  const tick = Number(state.tick || 0);
   const pathing = ensurePathingState(state);
   const existing = pathing.roadDistance;
-  if (existing && existing.tick === tick && existing.width === width && existing.height === height) {
+  const roads = state.roads;
+  const hasRoadOverlay = Boolean(
+    roads
+      && Array.isArray(roads.types)
+      && roads.width === width
+      && roads.height === height,
+  );
+  const roadVersion = hasRoadOverlay
+    ? Math.max(0, Number(roads.version || 0))
+    : -1;
+  if (
+    existing
+    && existing.width === width
+    && existing.height === height
+    && Number(existing.roadVersion) === roadVersion
+  ) {
     return existing;
+  }
+  if (!hasRoadOverlay) {
+    const emptyRoadDistance = {
+      width,
+      height,
+      hasRoad: false,
+      distances: null,
+      roadVersion,
+    };
+    pathing.roadDistance = emptyRoadDistance;
+    return emptyRoadDistance;
   }
 
   const total = width * height;
@@ -854,11 +909,11 @@ function ensureRoadDistanceMap(state, runtime) {
   }
 
   const roadDistance = {
-    tick,
     width,
     height,
     hasRoad,
     distances,
+    roadVersion,
   };
   pathing.roadDistance = roadDistance;
   return roadDistance;

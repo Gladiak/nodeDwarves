@@ -229,6 +229,7 @@ function createRoadState(config, runtime) {
   return {
     width,
     height,
+    version: 0,
     types: Array.from({ length: height }, () => new Array(width).fill(null)),
     queue: [],
     queueIndex: 0,
@@ -238,6 +239,7 @@ function createRoadState(config, runtime) {
     failedLinks: {},
     primaryMineLinkKey: null,
     nextBuildTick: 0,
+    retryLinks: {},
   };
 }
 

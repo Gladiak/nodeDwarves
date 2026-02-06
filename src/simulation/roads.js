@@ -358,6 +358,7 @@ function createRoadState(width, height) {
   return {
     width,
     height,
+    version: 0,
     types: Array.from({ length: height }, () => new Array(width).fill(null)),
     queue: [],
     queueIndex: 0,
@@ -1624,6 +1625,7 @@ function buildNextRoadTile(state, roads, roadsConfig, config) {
     consumeInputs(state.stockpile, cost);
 
     roads.types[y][x] = entry.type;
+    roads.version = Math.max(0, Number(roads.version || 0)) + 1;
     roads.queueIndex += 1;
     attempts += 1;
     const key = `${x},${y}`;
