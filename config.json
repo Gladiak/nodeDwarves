@@ -62,6 +62,7 @@
       "valley": {
         "bowlStrength": 0.24,
         "smoothingPasses": 2,
+        "fantasyPreset": "natural_epic",
         "domain_warp": {
           "enabled": true,
           "strength": 1.4,
@@ -78,6 +79,87 @@
           "height_strength": 0.03,
           "distance_strength": 1,
           "noise_threshold_strength": 0.05
+        },
+        "macro_zones": {
+          "enabled": true,
+          "zone_count": 3,
+          "scale": 0.016,
+          "octaves": 2,
+          "persistence": 0.52,
+          "lacunarity": 2.0,
+          "seed_offset": 1181,
+          "use_domain_warp": true,
+          "softness": 0.45,
+          "smoothing_passes": 1,
+          "mountain_height_shift": 0.05,
+          "hill_height_shift": 0.04,
+          "fertile_height_shift": 0.04,
+          "fertile_distance_shift": 2,
+          "humidity_shift": 0.1,
+          "water_distance_shift": 1.4,
+          "biome_threshold_shift": 0.06
+        },
+        "world_spine": {
+          "enabled": true,
+          "orientation": "horizontal",
+          "width_ratio": 0.24,
+          "curve_scale": 0.045,
+          "curve_strength": 0.2,
+          "relief_strength": 0.11,
+          "seed_offset": 1549,
+          "use_domain_warp": true
+        },
+        "water_budget": {
+          "enabled": true,
+          "max_ratio": 0.14,
+          "preserve_river": true
+        },
+        "biome_edge_jitter": {
+          "enabled": true,
+          "passes": 1,
+          "strength": 0.18,
+          "noise_scale": 0.28,
+          "seed_offset": 1723,
+          "types": ["forest", "food", "pasture"]
+        },
+        "landmarks": {
+          "enabled": true,
+          "river_spine": {
+            "enabled": true,
+            "orientation": "auto",
+            "width_ratio": 0.2,
+            "curve_scale": 0.05,
+            "curve_strength": 0.24,
+            "seed_offset": 2191,
+            "use_domain_warp": true,
+            "weight": 0.12,
+            "backtrack_penalty": 0.03
+          },
+          "ridge_mask": {
+            "enabled": true,
+            "orientation": "auto",
+            "width_ratio": 0.19,
+            "curve_scale": 0.04,
+            "curve_strength": 0.22,
+            "strength": 0.09,
+            "mountain_threshold_shift": 0.08,
+            "hill_threshold_shift": 0.06,
+            "seed_offset": 2609,
+            "use_domain_warp": true
+          }
+        },
+        "landmark_first": {
+          "enabled": true,
+          "height_blend": 0.65,
+          "spine_height_boost": 0.12,
+          "ridge_height_boost": 0.2,
+          "river_carve_strength": 0.18,
+          "mountain_threshold_shift": 0.08,
+          "hill_threshold_shift": 0.06,
+          "river_mountain_suppression": 0.1,
+          "river_hill_suppression": 0.08,
+          "fertile_height_boost": 0.05,
+          "fertile_distance_boost": 2
         },
         "mountainHeight": 0.74,
         "hillHeight": 0.6,
@@ -131,7 +213,24 @@
           "edge_noise_scale": 0.22,
           "noiseScale": 0.12,
           "noiseThreshold": 0.32,
-          "clusterPasses": 4
+          "clusterPasses": 4,
+          "natural_spread": {
+            "enabled": true,
+            "noise_scale": 0.045,
+            "noise_threshold": 0.58,
+            "max_extra_distance": 6,
+            "humidity_relax": 0.05,
+            "humidity_floor": 0.2,
+            "noise_threshold_boost": 0.1
+          },
+          "landmark_suitability": {
+            "enabled": true,
+            "river_spine_affinity": -0.41,
+            "ridge_affinity": 0.46,
+            "water_distance_shift": 1.95,
+            "humidity_shift": 0.07,
+            "noise_threshold_shift": -0.05
+          }
         },
         "pasture": {
           "humidityMin": 0.3,
@@ -139,6 +238,14 @@
           "noiseScale": 0.1,
           "noiseThreshold": 0.64,
           "clusterPasses": 1,
+          "landmark_suitability": {
+            "enabled": true,
+            "river_spine_affinity": 0.24,
+            "ridge_affinity": -0.18,
+            "water_distance_shift": 1.3,
+            "humidity_shift": 0.055,
+            "noise_threshold_shift": -0.035
+          },
           "patches": {
             "count": 8,
             "radiusMin": 2,
@@ -153,7 +260,15 @@
           "minTilesWaterDistanceMax": 6,
           "noiseScale": 0.12,
           "noiseThreshold": 0.68,
-          "clusterPasses": 2
+          "clusterPasses": 2,
+          "landmark_suitability": {
+            "enabled": true,
+            "river_spine_affinity": 0.58,
+            "ridge_affinity": -0.34,
+            "water_distance_shift": 1.95,
+            "humidity_shift": 0.08,
+            "noise_threshold_shift": -0.06
+          }
         },
         "stone": {
           "heightMin": 0.56,
@@ -271,9 +386,11 @@
       "map": {
         "frame": "\u001b[90m",
         "terrain_river": "\u001b[34m",
+        "terrain_river_winter_ice": "\u001b[38;2;99;131;148m",
         "terrain_lake": "\u001b[36m",
+        "terrain_lake_winter_ice": "\u001b[38;2;115;146;160m",
         "terrain_road": "\u001b[37m",
-        "terrain_bridge": "\u001b[38;5;130m",
+        "terrain_bridge": "\u001b[38;2;145;124;103m",
         "terrain_ford": "\u001b[37m",
         "terrain_mountain": "\u001b[97m",
         "terrain_mountain_medium": "\u001b[37m",
@@ -288,27 +405,32 @@
         "terrain_forest": "\u001b[32m",
         "terrain_forest_dense": "\u001b[38;5;22m",
         "terrain_stone": "\u001b[37m",
-        "terrain_plain_spring": "\u001b[32m",
-        "terrain_plain_summer": "\u001b[92m",
-        "terrain_plain_autumn": "\u001b[38;5;187m",
+        "terrain_plain_spring": "\u001b[38;2;122;150;126m",
+        "terrain_plain_summer": "\u001b[38;2;132;157;121m",
+        "terrain_plain_autumn": "\u001b[38;2;169;149;116m",
         "terrain_plain_winter": "\u001b[38;2;219;244;231m",
-        "terrain_fertile_spring": "\u001b[32m",
-        "terrain_fertile_summer": "\u001b[92m",
-        "terrain_fertile_autumn": "\u001b[38;5;180m",
+        "terrain_plain_winter_ice": "\u001b[38;2;152;181;191m",
+        "terrain_fertile_spring": "\u001b[38;2;142;170;145m",
+        "terrain_fertile_summer": "\u001b[38;2;150;176;136m",
+        "terrain_fertile_autumn": "\u001b[38;2;157;138;106m",
         "terrain_fertile_winter": "\u001b[97m",
-        "terrain_forest_spring": "\u001b[32m",
-        "terrain_forest_summer": "\u001b[38;5;107m",
-        "terrain_forest_autumn": "\u001b[38;5;180m",
+        "terrain_fertile_winter_ice": "\u001b[38;2;126;156;167m",
+        "terrain_forest_spring": "\u001b[38;2;88;118;99m",
+        "terrain_forest_summer": "\u001b[38;2;78;110;88m",
+        "terrain_forest_autumn": "\u001b[38;2;106;110;80m",
         "terrain_forest_winter": "\u001b[97m",
-        "terrain_forest_dense_spring": "\u001b[38;5;65m",
-        "terrain_forest_dense_summer": "\u001b[38;5;65m",
-        "terrain_forest_dense_autumn": "\u001b[38;5;137m",
+        "terrain_forest_winter_ice": "\u001b[38;2;104;135;148m",
+        "terrain_forest_dense_spring": "\u001b[38;2;62;90;75m",
+        "terrain_forest_dense_summer": "\u001b[38;2;54;84;67m",
+        "terrain_forest_dense_autumn": "\u001b[38;2;76;82;60m",
         "terrain_forest_dense_winter": "\u001b[38;5;247m",
-        "terrain_food_spring": "\u001b[92m",
-        "terrain_food_summer": "\u001b[93m",
-        "terrain_food_autumn": "\u001b[38;5;180m",
+        "terrain_forest_dense_winter_ice": "\u001b[38;2;73;102;116m",
+        "terrain_food_spring": "\u001b[38;2;164;186;151m",
+        "terrain_food_summer": "\u001b[38;2;172;161;116m",
+        "terrain_food_autumn": "\u001b[38;2;184;160;108m",
         "terrain_food_winter": "\u001b[97m",
-        "terrain_cherry": "\u001b[95m",
+        "terrain_food_winter_ice": "\u001b[38;2;178;198;209m",
+        "terrain_cherry": "\u001b[38;2;182;154;176m",
         "dwarf": "\u001b[93m",
         "merchant": "\u001b[96m",
         "hud_header": "\u001b[96m",
@@ -344,7 +466,8 @@
       },
       "seasonal": {
         "enabled": true,
-        "types": ["plain", "fertile", "forest", "grass"],
+        "preset": "ice_fantasy",
+        "types": ["plain", "fertile", "forest", "food", "grass", "river", "lake"],
         "palettes": {
           "spring": {
             "plain": "terrain_plain_spring",
@@ -374,6 +497,19 @@
             "forest": "terrain_forest_winter",
             "food": "terrain_food_winter",
             "grass": "terrain_plain_winter"
+          }
+        },
+        "presets": {
+          "ice_fantasy": {
+            "winter": {
+              "plain": "terrain_plain_winter_ice",
+              "fertile": "terrain_fertile_winter_ice",
+              "forest": "terrain_forest_winter_ice",
+              "food": "terrain_food_winter_ice",
+              "grass": "terrain_plain_winter_ice",
+              "river": "terrain_river_winter_ice",
+              "lake": "terrain_lake_winter_ice"
+            }
           }
         },
         "patchy": {
@@ -1696,6 +1832,31 @@
       "maxCount": 2,
       "buildMinRadius": 3,
       "buildOuterBuffer": 1,
+      "placement": {
+        "mode": "poisson",
+        "minDistanceFromCenter": 4,
+        "maxDistanceFromCenter": 13,
+        "nearbySearchRadius": 4,
+        "minDistanceBetween": 4,
+        "minStructureDistance": 3,
+        "maxAttempts": 700,
+        "avoidTerrain": ["river", "lake", "mountain", "stone"],
+        "district": {
+          "enabled": true,
+          "autoAngle": true,
+          "angleOffsetDegrees": -140,
+          "arcDegrees": 140,
+          "weight": 0.3,
+          "radiusBias": 0.2
+        },
+        "roadAffinity": {
+          "enabled": true,
+          "preferredDistance": 3,
+          "maxDistance": 9,
+          "weight": 0.12,
+          "avoidRoadTiles": true
+        }
+      },
       "buildTicks": 55,
       "buildCost": {
         "stone": 10,
@@ -1721,6 +1882,31 @@
       "maxCount": 1,
       "buildMinRadius": 2,
       "buildOuterBuffer": 1,
+      "placement": {
+        "mode": "poisson",
+        "minDistanceFromCenter": 3,
+        "maxDistanceFromCenter": 10,
+        "nearbySearchRadius": 3,
+        "minDistanceBetween": 2,
+        "minStructureDistance": 2,
+        "maxAttempts": 600,
+        "avoidTerrain": ["river", "lake", "mountain", "stone"],
+        "district": {
+          "enabled": true,
+          "autoAngle": true,
+          "angleOffsetDegrees": 0,
+          "arcDegrees": 150,
+          "weight": 0.36,
+          "radiusBias": -0.2
+        },
+        "roadAffinity": {
+          "enabled": true,
+          "preferredDistance": 2,
+          "maxDistance": 8,
+          "weight": 0.2,
+          "avoidRoadTiles": true
+        }
+      },
       "buildTicks": 60,
       "buildCost": {
         "wood": 12,
@@ -1734,6 +1920,31 @@
       "maxCount": 1,
       "buildMinRadius": 2,
       "buildOuterBuffer": 1,
+      "placement": {
+        "mode": "poisson",
+        "minDistanceFromCenter": 4,
+        "maxDistanceFromCenter": 11,
+        "nearbySearchRadius": 3,
+        "minDistanceBetween": 2,
+        "minStructureDistance": 2,
+        "maxAttempts": 600,
+        "avoidTerrain": ["river", "lake", "mountain", "stone"],
+        "district": {
+          "enabled": true,
+          "autoAngle": true,
+          "angleOffsetDegrees": 90,
+          "arcDegrees": 120,
+          "weight": 0.34,
+          "radiusBias": 0
+        },
+        "roadAffinity": {
+          "enabled": true,
+          "preferredDistance": 2,
+          "maxDistance": 8,
+          "weight": 0.18,
+          "avoidRoadTiles": true
+        }
+      },
       "buildMinResources": {
         "food": 0.8,
         "water": 0.8,
@@ -1762,6 +1973,31 @@
       "maxCount": 1,
       "buildMinRadius": 2,
       "buildOuterBuffer": 1,
+      "placement": {
+        "mode": "poisson",
+        "minDistanceFromCenter": 5,
+        "maxDistanceFromCenter": 12,
+        "nearbySearchRadius": 4,
+        "minDistanceBetween": 2,
+        "minStructureDistance": 3,
+        "maxAttempts": 700,
+        "avoidTerrain": ["river", "lake", "mountain", "stone"],
+        "district": {
+          "enabled": true,
+          "autoAngle": true,
+          "angleOffsetDegrees": 150,
+          "arcDegrees": 110,
+          "weight": 0.42,
+          "radiusBias": 0.15
+        },
+        "roadAffinity": {
+          "enabled": true,
+          "preferredDistance": 2,
+          "maxDistance": 7,
+          "weight": 0.16,
+          "avoidRoadTiles": true
+        }
+      },
       "buildMinResources": {
         "food": 0.9,
         "water": 0.9,
@@ -1837,6 +2073,31 @@
       "maxCount": 3,
       "buildMinRadius": 2,
       "buildOuterBuffer": 1,
+      "placement": {
+        "mode": "poisson",
+        "minDistanceFromCenter": 3,
+        "maxDistanceFromCenter": 11,
+        "nearbySearchRadius": 3,
+        "minDistanceBetween": 3,
+        "minStructureDistance": 2,
+        "maxAttempts": 700,
+        "avoidTerrain": ["river", "lake", "mountain", "stone"],
+        "district": {
+          "enabled": true,
+          "autoAngle": true,
+          "angleOffsetDegrees": -70,
+          "arcDegrees": 130,
+          "weight": 0.32,
+          "radiusBias": -0.05
+        },
+        "roadAffinity": {
+          "enabled": true,
+          "preferredDistance": 2,
+          "maxDistance": 8,
+          "weight": 0.2,
+          "avoidRoadTiles": true
+        }
+      },
       "buildTicks": 70,
       "buildCost": {
         "wood": 16,
@@ -1871,6 +2132,7 @@
       "minersPerMine": 4,
       "buildWhenNoMine": false,
       "preferBeforeVillageCount": 2,
+      "preferExtraAlways": true,
       "buildMinRadius": 4,
       "buildOuterBuffer": 2,
       "ignorePeripheralRadius": true,
@@ -2386,11 +2648,20 @@
       "field": {
         "radius": 18,
         "ttlTicks": 6,
-        "temperature": 0.35,
+        "temperature": 0.25,
         "terrainWeight": 0.3,
         "crowdWeight": 0.25,
-        "inertiaWeight": 0.2,
-        "stayPenalty": 0.25
+        "inertiaWeight": 0.28,
+        "stayPenalty": 0.25,
+        "roadAffinity": {
+          "enabled": true,
+          "profile": "scenic",
+          "minTargetDistance": 7,
+          "onRoadBonus": 0.28,
+          "offRoadPenalty": 0.09,
+          "offRoadGraceDistance": 1,
+          "maxDistancePenalty": 4
+        }
       }
     },
     "housing": {
@@ -2462,6 +2733,24 @@
     "avoidTerrain": [],
     "softAvoidTerrain": ["lake", "water", "shore", "hill", "mountain"],
     "waterTerrain": ["lake", "water", "shore"],
+    "pathStyle": {
+      "enabled": true,
+      "profile": "scenic",
+      "terrainPenalty": {
+        "plain": 0,
+        "fertile": 0.04,
+        "food": 0.08,
+        "pasture": 0.07,
+        "forest": 0.16,
+        "hill": 0.45,
+        "mountain": 1.2,
+        "stone": 0.8,
+        "river": 0.9,
+        "lake": 1.2,
+        "shore": 0.7,
+        "water": 1.4
+      }
+    },
     "anchorRadius": 3,
     "parallelAvoidRadius": 1,
     "parallelRelaxRadius": 0,

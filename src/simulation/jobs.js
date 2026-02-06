@@ -426,16 +426,19 @@ function shouldForceExtraMine(state, config, runtime) {
 // Prefer extra mines before the village count reaches a threshold (soft guardrail).
 function shouldPreferExtraMine(state, config) {
   const mineConfig = (config.structures && config.structures.mine) || {};
+  const preferExtraAlways = mineConfig.preferExtraAlways === true;
   const preferBeforeVillageCount = Math.max(
     0,
     Math.floor(Number(mineConfig.preferBeforeVillageCount ?? 0)),
   );
-  if (preferBeforeVillageCount <= 0) {
-    return false;
-  }
   const villageCount = Array.isArray(state.villages) ? state.villages.length : 0;
-  if (villageCount >= preferBeforeVillageCount) {
-    return false;
+  if (!preferExtraAlways) {
+    if (preferBeforeVillageCount <= 0) {
+      return false;
+    }
+    if (villageCount >= preferBeforeVillageCount) {
+      return false;
+    }
   }
   const structures = state.structures || [];
   const mineCount = structures.filter((structure) => structure.type === "mine").length;

@@ -11,6 +11,83 @@ const NEIGHBOR_STEPS = [
   { dx: 0, dy: 1 },
   { dx: 0, dy: -1 },
 ];
+const ROAD_TERRAIN_PENALTY_DEFAULTS = {
+  plain: 0,
+  fertile: 0.04,
+  food: 0.08,
+  pasture: 0.07,
+  forest: 0.16,
+  hill: 0.45,
+  mountain: 1.2,
+  stone: 0.8,
+  river: 0.9,
+  lake: 1.2,
+  shore: 0.7,
+  water: 1.4,
+};
+const ROAD_PATH_STYLE_PROFILES = {
+  pragmatic: {
+    heuristicWeight: 1.25,
+    turnPenalty: 0.2,
+    straightStepThreshold: 7,
+    straightStepPenalty: 0.02,
+    noiseScale: 0.14,
+    noiseWeight: 0.08,
+    softAvoidPenalty: 4.2,
+    longLinkWaypoint: {
+      enabled: true,
+      minDistance: 42,
+      candidateCount: 6,
+      offsetMin: 3,
+      offsetMax: 9,
+      alongJitterRatio: 0.12,
+      minSegmentDistance: 10,
+      maxDetourRatio: 1.3,
+      maxDirectRatio: 1.12,
+      minTurnGain: 3,
+      minLineDeviationGain: 1.4,
+      turnReward: 0.12,
+    },
+  },
+  scenic: {
+    heuristicWeight: 0.95,
+    turnPenalty: 0.08,
+    straightStepThreshold: 4,
+    straightStepPenalty: 0.08,
+    noiseScale: 0.18,
+    noiseWeight: 0.28,
+    softAvoidPenalty: 2.8,
+    longLinkWaypoint: {
+      enabled: true,
+      minDistance: 26,
+      candidateCount: 12,
+      offsetMin: 5,
+      offsetMax: 16,
+      alongJitterRatio: 0.26,
+      minSegmentDistance: 7,
+      maxDetourRatio: 1.65,
+      maxDirectRatio: 1.4,
+      minTurnGain: 1,
+      minLineDeviationGain: 0.4,
+      turnReward: 0.26,
+    },
+  },
+};
+
+// Resolve the road path style profile name and defaults.
+function resolveRoadPathStyleProfile(rawValue) {
+  const profileRaw = String(rawValue || "pragmatic").toLowerCase();
+  if (profileRaw === "scenic") {
+    return {
+      name: "scenic",
+      values: ROAD_PATH_STYLE_PROFILES.scenic,
+    };
+  }
+  return {
+    name: "pragmatic",
+    values: ROAD_PATH_STYLE_PROFILES.pragmatic,
+  };
+}
 
 // Normalize roads config with safe defaults.
 function getRoadsConfig(config) {
@@ -35,6 +112,24 @@ function getRoadsConfig(config) {
   const allowWaterFallback = raw.allowWaterFallback !== false;
   const crossings = raw.crossings || {};
   const cost = raw.cost || {};
+  const pathStyleRaw = raw.path_style || raw.pathStyle || {};
+  const pathStyleProfile = resolveRoadPathStyleProfile(
+    pathStyleRaw.profile ?? pathStyleRaw.path_profile ?? pathStyleRaw.mode,
+  );
+  const pathStyleDefaults = pathStyleProfile.values || {};
+  const longLinkWaypointRaw =
+    pathStyleRaw.long_link_waypoint || pathStyleRaw.longLinkWaypoint || {};
+  const longLinkWaypointDefaults = pathStyleDefaults.longLinkWaypoint || {};
+  const pathTerrainPenaltyRaw =
+    pathStyleRaw.terrain_penalty || pathStyleRaw.terrainPenalty || {};
+  const pathTerrainPenalty = {};
+  for (const [type, penaltyRaw] of Object.entries(pathTerrainPenaltyRaw)) {
+    const penalty = Number(penaltyRaw);
+    if (!Number.isFinite(penalty)) {
+      continue;
+    }
+    pathTerrainPenalty[String(type)] = Math.max(0, penalty);
+  }
   return {
     enabled: raw.enabled !== false,
     buildEveryTicks,
@@ -52,6 +147,207 @@ function getRoadsConfig(config) {
     crossings: {
       village: String(crossings.village || 'bridge'),
       mine: String(crossings.mine || 'ford'),
+    },
+    pathStyle: {
+      enabled: pathStyleRaw.enabled !== false,
+      profile: pathStyleProfile.name,
+      heuristicWeight: clamp(
+        Number(
+          pathStyleRaw.heuristicWeight ??
+            pathStyleRaw.heuristic_weight ??
+            pathStyleDefaults.heuristicWeight ??
+            1,
+        ),
+        0,
+        5,
+      ),
+      turnPenalty: clamp(
+        Number(
+          pathStyleRaw.turnPenalty ??
+            pathStyleRaw.turn_penalty ??
+            pathStyleDefaults.turnPenalty ??
+            0.14,
+        ),
+        0,
+        3,
+      ),
+      straightStepThreshold: clamp(
+        Math.floor(
+          Number(
+            pathStyleRaw.straightStepThreshold ??
+              pathStyleRaw.straight_step_threshold ??
+              pathStyleDefaults.straightStepThreshold ??
+              5,
+          ),
+        ),
+        1,
+        32,
+      ),
+      straightStepPenalty: clamp(
+        Number(
+          pathStyleRaw.straightStepPenalty ??
+            pathStyleRaw.straight_step_penalty ??
+            pathStyleDefaults.straightStepPenalty ??
+            0.04,
+        ),
+        0,
+        2,
+      ),
+      noiseScale: Math.max(
+        0.001,
+        Number(
+          pathStyleRaw.noiseScale ??
+            pathStyleRaw.noise_scale ??
+            pathStyleDefaults.noiseScale ??
+            0.16,
+        ),
+      ),
+      noiseWeight: clamp(
+        Number(
+          pathStyleRaw.noiseWeight ??
+            pathStyleRaw.noise_weight ??
+            pathStyleDefaults.noiseWeight ??
+            0.18,
+        ),
+        0,
+        2,
+      ),
+      softAvoidPenalty: clamp(
+        Number(
+          pathStyleRaw.softAvoidPenalty ??
+            pathStyleRaw.soft_avoid_penalty ??
+            pathStyleDefaults.softAvoidPenalty ??
+            3.5,
+        ),
+        0,
+        25,
+      ),
+      seedOffset: Math.floor(
+        Number(pathStyleRaw.seedOffset ?? pathStyleRaw.seed_offset ?? 991),
+      ),
+      longLinkWaypoint: {
+        enabled: longLinkWaypointRaw.enabled !== false
+          && longLinkWaypointDefaults.enabled !== false,
+        minDistance: clamp(
+          Math.floor(
+            Number(
+              longLinkWaypointRaw.minDistance ??
+                longLinkWaypointRaw.min_distance ??
+                longLinkWaypointDefaults.minDistance ??
+                34,
+            ),
+          ),
+          8,
+          400,
+        ),
+        candidateCount: clamp(
+          Math.floor(
+            Number(
+              longLinkWaypointRaw.candidateCount ??
+                longLinkWaypointRaw.candidate_count ??
+                longLinkWaypointDefaults.candidateCount ??
+                8,
+            ),
+          ),
+          2,
+          24,
+        ),
+        offsetMin: clamp(
+          Number(
+            longLinkWaypointRaw.offsetMin ??
+              longLinkWaypointRaw.offset_min ??
+              longLinkWaypointDefaults.offsetMin ??
+              4,
+          ),
+          1,
+          40,
+        ),
+        offsetMax: clamp(
+          Number(
+            longLinkWaypointRaw.offsetMax ??
+              longLinkWaypointRaw.offset_max ??
+              longLinkWaypointDefaults.offsetMax ??
+              12,
+          ),
+          1,
+          60,
+        ),
+        alongJitterRatio: clamp(
+          Number(
+            longLinkWaypointRaw.alongJitterRatio ??
+              longLinkWaypointRaw.along_jitter_ratio ??
+              longLinkWaypointDefaults.alongJitterRatio ??
+              0.18,
+          ),
+          0,
+          0.6,
+        ),
+        minSegmentDistance: clamp(
+          Math.floor(
+            Number(
+              longLinkWaypointRaw.minSegmentDistance ??
+                longLinkWaypointRaw.min_segment_distance ??
+                longLinkWaypointDefaults.minSegmentDistance ??
+                8,
+            ),
+          ),
+          2,
+          100,
+        ),
+        maxDetourRatio: clamp(
+          Number(
+            longLinkWaypointRaw.maxDetourRatio ??
+              longLinkWaypointRaw.max_detour_ratio ??
+              longLinkWaypointDefaults.maxDetourRatio ??
+              1.45,
+          ),
+          1,
+          3,
+        ),
+        maxDirectRatio: clamp(
+          Number(
+            longLinkWaypointRaw.maxDirectRatio ??
+              longLinkWaypointRaw.max_direct_ratio ??
+              longLinkWaypointDefaults.maxDirectRatio ??
+              1.25,
+          ),
+          1,
+          2,
+        ),
+        minTurnGain: clamp(
+          Math.floor(
+            Number(
+              longLinkWaypointRaw.minTurnGain ??
+                longLinkWaypointRaw.min_turn_gain ??
+                longLinkWaypointDefaults.minTurnGain ??
+                2,
+            ),
+          ),
+          0,
+          12,
+        ),
+        minLineDeviationGain: clamp(
+          Number(
+            longLinkWaypointRaw.minLineDeviationGain ??
+              longLinkWaypointRaw.min_line_deviation_gain ??
+              longLinkWaypointDefaults.minLineDeviationGain ??
+              0.9,
+          ),
+          0,
+          20,
+        ),
+        turnReward: clamp(
+          Number(
+            longLinkWaypointRaw.turnReward ??
+              longLinkWaypointRaw.turn_reward ??
+              longLinkWaypointDefaults.turnReward ??
+              0.18,
+          ),
+          0,
+          2,
+        ),
+      },
+      terrainPenalty: { ...ROAD_TERRAIN_PENALTY_DEFAULTS, ...pathTerrainPenalty },
     },
     cost,
   };
@@ -325,7 +621,7 @@ function planRoadLink(state, roads, roadsConfig, runtime, config, linkKey, kind,
   const anchorGoal = findRoadAnchor(roads, runtime, goal, roadsConfig.anchorRadius, start);
   const from = anchorStart || start;
   const to = anchorGoal || goal;
-  const path = findRoadPath(state, roads, runtime, roadsConfig, from, to);
+  const path = findRoadPath(state, roads, runtime, roadsConfig, from, to, linkKey);
   if (!path || path.length === 0) {
     markLinkFailed(roads, linkKey, roadsConfig);
     return;
@@ -393,7 +689,7 @@ function resolveRoadTileType(state, x, y, crossingType, roadsConfig) {
 }
 
 // Find a Manhattan path avoiding blocked terrain types.
-function findRoadPath(state, roads, runtime, roadsConfig, start, goal) {
+function findRoadPath(state, roads, runtime, roadsConfig, start, goal, linkKey) {
   const width = Math.max(0, Number(runtime.gridWidth || 0));
   const height = Math.max(0, Number(runtime.gridHeight || 0));
   const startX = clamp(Number(start.x || 0), 0, width - 1);
@@ -410,94 +706,400 @@ function findRoadPath(state, roads, runtime, roadsConfig, start, goal) {
   const parallelBuffer = Math.max(0, Number(roadsConfig.anchorRadius || 0));
   const parallelRelaxRadius = Math.max(0, Number(roadsConfig.parallelRelaxRadius || 0));
   const parallelRelaxOnFail = roadsConfig.parallelRelaxOnFail !== false;
+  const pathStyle = roadsConfig.pathStyle || {};
   const hardAvoid = new Set(avoid);
-  const avoidWithSoft = new Set([...hardAvoid, ...softAvoid]);
-
-  const primary = findRoadPathWithAvoid(
-    state,
-    roads,
-    width,
-    height,
-    startX,
-    startY,
-    goalX,
-    goalY,
-    avoidWithSoft,
-    parallelAvoidRadius,
-    parallelBuffer,
+  const softAvoidSet = new Set(
+    softAvoid.filter((type) => type && !hardAvoid.has(type)),
   );
-  if (primary) {
-    return primary;
-  }
-  if (roadsConfig.allowWaterFallback === false) {
-    if (parallelRelaxOnFail && parallelAvoidRadius > parallelRelaxRadius) {
-      return findRoadPathWithAvoid(
+  const avoidWithSoft = new Set([...hardAvoid, ...softAvoidSet]);
+  const baseSearchSeed = buildRoadSearchSeed(state, linkKey, pathStyle.seedOffset);
+  const manhattanDistance = Math.abs(startX - goalX) + Math.abs(startY - goalY);
+  const longLinkWaypoint = pathStyle.longLinkWaypoint || {};
+  const canUseLongLinkWaypoint =
+    pathStyle.enabled !== false &&
+    longLinkWaypoint.enabled !== false &&
+    manhattanDistance >= Number(longLinkWaypoint.minDistance || 0);
+  const runPathSearch = (
+    sx,
+    sy,
+    gx,
+    gy,
+    blockedSet,
+    softPenaltySet,
+    parallelRadius,
+    seedSuffix,
+  ) => {
+    const searchSeed = baseSearchSeed + hashRoadString(String(seedSuffix || ""));
+    if (pathStyle.enabled === false) {
+      return findRoadPathWithAvoidBfs(
         state,
         roads,
         width,
         height,
-        startX,
-        startY,
-        goalX,
-        goalY,
-        avoidWithSoft,
-        parallelRelaxRadius,
+        sx,
+        sy,
+        gx,
+        gy,
+        blockedSet,
+        parallelRadius,
         parallelBuffer,
       );
     }
-    return null;
-  }
-  const fallback = findRoadPathWithAvoid(
-    state,
-    roads,
-    width,
-    height,
-    startX,
-    startY,
-    goalX,
-    goalY,
-    hardAvoid,
-    parallelAvoidRadius,
-    parallelBuffer,
-  );
-  if (fallback) {
-    return fallback;
-  }
-  if (parallelRelaxOnFail && parallelAvoidRadius > parallelRelaxRadius) {
-    const relaxedPrimary = findRoadPathWithAvoid(
+    return findRoadPathWithAvoidWeighted(
       state,
       roads,
+      width,
+      height,
+      sx,
+      sy,
+      gx,
+      gy,
+      blockedSet,
+      softPenaltySet,
+      parallelRadius,
+      parallelBuffer,
+      pathStyle,
+      searchSeed,
+    );
+  };
+  const tryPathMode = (
+    modeKey,
+    blockedSet,
+    softPenaltySet,
+    parallelRadius,
+  ) => {
+    const segmentSearch = (sx, sy, gx, gy, seedSuffix) => {
+      return runPathSearch(
+        sx,
+        sy,
+        gx,
+        gy,
+        blockedSet,
+        softPenaltySet,
+        parallelRadius,
+        seedSuffix,
+      );
+    };
+    const directPath = runPathSearch(
+      startX,
+      startY,
+      goalX,
+      goalY,
+      blockedSet,
+      softPenaltySet,
+      parallelRadius,
+      `${modeKey}:direct`,
+    );
+    if (!canUseLongLinkWaypoint) {
+      return directPath;
+    }
+    const waypointPath = findRoadPathViaLongWaypoint(
+      state,
       width,
       height,
       startX,
       startY,
       goalX,
       goalY,
+      blockedSet,
+      longLinkWaypoint,
+      baseSearchSeed + hashRoadString(`${modeKey}:waypoint`),
+      segmentSearch,
+      modeKey,
+    );
+    if (!waypointPath) {
+      return directPath;
+    }
+    if (!directPath) {
+      return waypointPath;
+    }
+    return selectPreferredLongLinkPath(
+      directPath,
+      waypointPath,
+      longLinkWaypoint,
+    );
+  };
+
+  const primary = tryPathMode(
+    "primary",
+    avoidWithSoft,
+    null,
+    parallelAvoidRadius,
+  );
+  if (primary) {
+    return primary;
+  }
+  if (roadsConfig.allowWaterFallback !== false) {
+    const fallback = tryPathMode(
+      "fallback",
+      hardAvoid,
+      softAvoidSet,
+      parallelAvoidRadius,
+    );
+    if (fallback) {
+      return fallback;
+    }
+  }
+  if (parallelRelaxOnFail && parallelAvoidRadius > parallelRelaxRadius) {
+    const relaxedPrimary = tryPathMode(
+      "relaxed-primary",
       avoidWithSoft,
+      null,
       parallelRelaxRadius,
-      parallelBuffer,
     );
     if (relaxedPrimary) {
       return relaxedPrimary;
     }
-    return findRoadPathWithAvoid(
-      state,
-      roads,
-      width,
-      height,
-      startX,
-      startY,
-      goalX,
-      goalY,
-      hardAvoid,
-      parallelRelaxRadius,
-      parallelBuffer,
-    );
+    if (roadsConfig.allowWaterFallback !== false) {
+      return tryPathMode(
+        "relaxed-fallback",
+        hardAvoid,
+        softAvoidSet,
+        parallelRelaxRadius,
+      );
+    }
   }
   return null;
 }
 
-function findRoadPathWithAvoid(
+// Try splitting long links through a scenic midpoint waypoint.
+function findRoadPathViaLongWaypoint(
+  state,
+  width,
+  height,
+  startX,
+  startY,
+  goalX,
+  goalY,
+  blockedSet,
+  settings,
+  seed,
+  searchFn,
+  modeKey,
+) {
+  if (!settings || typeof searchFn !== "function") {
+    return null;
+  }
+  const candidates = buildLongLinkWaypointCandidates(
+    startX,
+    startY,
+    goalX,
+    goalY,
+    width,
+    height,
+    settings,
+    seed,
+  );
+  if (candidates.length === 0) {
+    return null;
+  }
+  const baseDistance = Math.abs(startX - goalX) + Math.abs(startY - goalY) + 1;
+  const maxDetourRatio = Math.max(1, Number(settings.maxDetourRatio || 1));
+  const maxPathLength = Math.max(baseDistance, Math.ceil(baseDistance * maxDetourRatio));
+  const turnReward = Math.max(0, Number(settings.turnReward || 0));
+  let bestPath = null;
+  let bestScore = Number.POSITIVE_INFINITY;
+  for (let i = 0; i < candidates.length; i += 1) {
+    const waypoint = candidates[i];
+    const terrainType = getTerrainTypeAt(state, waypoint.x, waypoint.y);
+    if (terrainType && blockedSet && blockedSet.has(terrainType)) {
+      continue;
+    }
+    const pathA = searchFn(
+      startX,
+      startY,
+      waypoint.x,
+      waypoint.y,
+      `${modeKey}:wp:${i}:a`,
+    );
+    if (!pathA || pathA.length < 2) {
+      continue;
+    }
+    const pathB = searchFn(
+      waypoint.x,
+      waypoint.y,
+      goalX,
+      goalY,
+      `${modeKey}:wp:${i}:b`,
+    );
+    if (!pathB || pathB.length < 2) {
+      continue;
+    }
+    const combined = pathA.concat(pathB.slice(1));
+    if (combined.length > maxPathLength) {
+      continue;
+    }
+    const turns = countRoadPathTurns(combined);
+    const score = combined.length - turns * turnReward;
+    if (score < bestScore) {
+      bestScore = score;
+      bestPath = combined;
+    }
+  }
+  return bestPath;
+}
+
+// Build deterministic waypoint candidates around the center of a long link.
+function buildLongLinkWaypointCandidates(
+  startX,
+  startY,
+  goalX,
+  goalY,
+  width,
+  height,
+  settings,
+  seed,
+) {
+  const dx = goalX - startX;
+  const dy = goalY - startY;
+  const euclidean = Math.sqrt(dx * dx + dy * dy);
+  if (!Number.isFinite(euclidean) || euclidean < 2) {
+    return [];
+  }
+  const ux = dx / euclidean;
+  const uy = dy / euclidean;
+  const px = -uy;
+  const py = ux;
+  const centerX = (startX + goalX) / 2;
+  const centerY = (startY + goalY) / 2;
+  const candidateCount = Math.max(1, Math.floor(Number(settings.candidateCount || 1)));
+  const offsetLow = Math.max(
+    1,
+    Math.min(
+      Number(settings.offsetMin || 0),
+      Number(settings.offsetMax || Number(settings.offsetMin || 0)),
+    ),
+  );
+  const offsetHigh = Math.max(
+    offsetLow,
+    Number(settings.offsetMax || offsetLow),
+  );
+  const alongJitterRatio = Math.max(0, Number(settings.alongJitterRatio || 0));
+  const alongJitter = euclidean * alongJitterRatio;
+  const minSegmentDistance = Math.max(
+    1,
+    Math.floor(Number(settings.minSegmentDistance || 1)),
+  );
+  const candidates = [];
+  const seen = new Set();
+  const maxAttempts = Math.max(candidateCount * 6, 12);
+  let attempts = 0;
+  while (candidates.length < candidateCount && attempts < maxAttempts) {
+    const sideNoise = hashRoadNoise(attempts + 19, 7, seed + 13);
+    const side = sideNoise < 0.5 ? -1 : 1;
+    const offsetNoise = hashRoadNoise(attempts + 71, 29, seed + 37);
+    const alongNoise = hashRoadNoise(attempts + 101, 43, seed + 59);
+    const offset = offsetLow + (offsetHigh - offsetLow) * offsetNoise;
+    const along = (alongNoise - 0.5) * 2 * alongJitter;
+    const rawX = centerX + ux * along + px * offset * side;
+    const rawY = centerY + uy * along + py * offset * side;
+    const x = clamp(Math.round(rawX), 0, width - 1);
+    const y = clamp(Math.round(rawY), 0, height - 1);
+    attempts += 1;
+    if ((x === startX && y === startY) || (x === goalX && y === goalY)) {
+      continue;
+    }
+    const distStart = Math.abs(x - startX) + Math.abs(y - startY);
+    const distGoal = Math.abs(x - goalX) + Math.abs(y - goalY);
+    if (distStart < minSegmentDistance || distGoal < minSegmentDistance) {
+      continue;
+    }
+    const key = `${x},${y}`;
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    candidates.push({ x, y });
+  }
+  return candidates;
+}
+
+// Select between direct and waypoint path using bounded detour + curvature gain.
+function selectPreferredLongLinkPath(directPath, waypointPath, settings) {
+  if (!Array.isArray(directPath) || directPath.length === 0) {
+    return waypointPath;
+  }
+  if (!Array.isArray(waypointPath) || waypointPath.length === 0) {
+    return directPath;
+  }
+  const maxDirectRatio = Math.max(1, Number(settings.maxDirectRatio || 1));
+  if (waypointPath.length > Math.ceil(directPath.length * maxDirectRatio)) {
+    return directPath;
+  }
+  const minLineDeviationGain = Math.max(
+    0,
+    Number(settings.minLineDeviationGain || 0),
+  );
+  if (minLineDeviationGain > 0) {
+    const directLineDeviation = getRoadPathMaxLineDeviation(directPath);
+    const waypointLineDeviation = getRoadPathMaxLineDeviation(waypointPath);
+    if (waypointLineDeviation >= directLineDeviation + minLineDeviationGain) {
+      return waypointPath;
+    }
+  }
+  const directTurns = countRoadPathTurns(directPath);
+  const waypointTurns = countRoadPathTurns(waypointPath);
+  const minTurnGain = Math.max(0, Math.floor(Number(settings.minTurnGain || 0)));
+  if (waypointTurns >= directTurns + minTurnGain) {
+    return waypointPath;
+  }
+  const turnReward = Math.max(0, Number(settings.turnReward || 0));
+  const directScore = directPath.length - directTurns * turnReward;
+  const waypointScore = waypointPath.length - waypointTurns * turnReward;
+  return waypointScore <= directScore ? waypointPath : directPath;
+}
+
+// Count direction changes along a path.
+function countRoadPathTurns(path) {
+  if (!Array.isArray(path) || path.length < 3) {
+    return 0;
+  }
+  let turns = 0;
+  let prevDx = null;
+  let prevDy = null;
+  for (let i = 1; i < path.length; i += 1) {
+    const dx = Math.sign(Number(path[i].x || 0) - Number(path[i - 1].x || 0));
+    const dy = Math.sign(Number(path[i].y || 0) - Number(path[i - 1].y || 0));
+    if (prevDx !== null && prevDy !== null && (dx !== prevDx || dy !== prevDy)) {
+      turns += 1;
+    }
+    prevDx = dx;
+    prevDy = dy;
+  }
+  return turns;
+}
+
+// Measure maximum perpendicular deviation from the link baseline.
+function getRoadPathMaxLineDeviation(path) {
+  if (!Array.isArray(path) || path.length < 2) {
+    return 0;
+  }
+  const start = path[0];
+  const end = path[path.length - 1];
+  const x1 = Number(start.x || 0);
+  const y1 = Number(start.y || 0);
+  const x2 = Number(end.x || 0);
+  const y2 = Number(end.y || 0);
+  const denominator = Math.hypot(x2 - x1, y2 - y1);
+  if (!Number.isFinite(denominator) || denominator <= 0) {
+    return 0;
+  }
+  let maxDeviation = 0;
+  for (const point of path) {
+    const x = Number(point.x || 0);
+    const y = Number(point.y || 0);
+    const distance =
+      Math.abs((y2 - y1) * x - (x2 - x1) * y + x2 * y1 - y2 * x1) /
+      denominator;
+    if (distance > maxDeviation) {
+      maxDeviation = distance;
+    }
+  }
+  return maxDeviation;
+}
+
+// Find a path with plain BFS (legacy mode, no weighted style costs).
+function findRoadPathWithAvoidBfs(
   state,
   roads,
   width,
@@ -616,6 +1218,302 @@ function findRoadPathWithAvoid(
   path.push({ x: startX, y: startY });
   path.reverse();
   return path;
+}
+
+// Find a weighted path with terrain/style costs for more organic road lines.
+function findRoadPathWithAvoidWeighted(
+  state,
+  roads,
+  width,
+  height,
+  startX,
+  startY,
+  goalX,
+  goalY,
+  blockedSet,
+  softPenaltySet,
+  parallelAvoidRadius,
+  parallelBuffer,
+  pathStyle,
+  searchSeed,
+) {
+  const isRoadTile = (x, y) => {
+    if (roads && roads.types && roads.types[y] && roads.types[y][x]) {
+      return true;
+    }
+    if (roads && roads.planned && roads.planned[`${x},${y}`]) {
+      return true;
+    }
+    return false;
+  };
+  const isNearRoad = (x, y, radius) => {
+    if (!roads || radius <= 0) {
+      return false;
+    }
+    for (let dy = -radius; dy <= radius; dy += 1) {
+      const ny = y + dy;
+      if (ny < 0 || ny >= height) {
+        continue;
+      }
+      for (let dx = -radius; dx <= radius; dx += 1) {
+        const nx = x + dx;
+        if (nx < 0 || nx >= width) {
+          continue;
+        }
+        if (nx === x && ny === y) {
+          continue;
+        }
+        if (isRoadTile(nx, ny)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  };
+  const isPassable = (x, y) => {
+    if (x === goalX && y === goalY) {
+      return true;
+    }
+    if (isRoadTile(x, y)) {
+      return true;
+    }
+    if (parallelAvoidRadius > 0
+      && !(x === startX && y === startY)
+      && !(x === goalX && y === goalY)
+      && isNearRoad(x, y, parallelAvoidRadius)) {
+      const distStart = Math.abs(x - startX) + Math.abs(y - startY);
+      const distGoal = Math.abs(x - goalX) + Math.abs(y - goalY);
+      if (distStart > parallelBuffer && distGoal > parallelBuffer) {
+        return false;
+      }
+    }
+    const type = getTerrainTypeAt(state, x, y);
+    return !(type && blockedSet && blockedSet.has(type));
+  };
+
+  const size = width * height;
+  const prev = new Int32Array(size);
+  const prevDir = new Int8Array(size);
+  const straightRun = new Uint16Array(size);
+  const gScore = new Float64Array(size);
+  const fScore = new Float64Array(size);
+  for (let i = 0; i < size; i += 1) {
+    prev[i] = -1;
+    prevDir[i] = -1;
+    straightRun[i] = 0;
+    gScore[i] = Number.POSITIVE_INFINITY;
+    fScore[i] = Number.POSITIVE_INFINITY;
+  }
+
+  const startIndex = startY * width + startX;
+  const goalIndex = goalY * width + goalX;
+  gScore[startIndex] = 0;
+  fScore[startIndex] =
+    pathStyle.heuristicWeight
+    * (Math.abs(startX - goalX) + Math.abs(startY - goalY));
+  const heap = [];
+  pushRoadQueue(heap, { index: startIndex, score: fScore[startIndex] });
+
+  while (heap.length > 0) {
+    const current = popRoadQueue(heap);
+    if (!current) {
+      break;
+    }
+    const index = current.index;
+    if (current.score > fScore[index]) {
+      continue;
+    }
+    if (index === goalIndex) {
+      break;
+    }
+    const x = index % width;
+    const y = Math.floor(index / width);
+    const incomingDir = prevDir[index];
+    for (let stepIndex = 0; stepIndex < NEIGHBOR_STEPS.length; stepIndex += 1) {
+      const step = NEIGHBOR_STEPS[stepIndex];
+      const nx = x + step.dx;
+      const ny = y + step.dy;
+      if (nx < 0 || ny < 0 || nx >= width || ny >= height) {
+        continue;
+      }
+      if (!isPassable(nx, ny)) {
+        continue;
+      }
+      const nextIndex = ny * width + nx;
+      const terrainType = getTerrainTypeAt(state, nx, ny);
+      let stepCost = 1 + getRoadTerrainPenalty(pathStyle, terrainType);
+      if (terrainType && softPenaltySet && softPenaltySet.has(terrainType)) {
+        stepCost += Number(pathStyle.softAvoidPenalty || 0);
+      }
+      if (pathStyle.noiseWeight > 0) {
+        const noise = sampleRoadPathNoise(
+          nx,
+          ny,
+          Number(pathStyle.noiseScale || 0.16),
+          searchSeed,
+        );
+        stepCost += noise * pathStyle.noiseWeight;
+      }
+
+      let nextStraightRun = 1;
+      if (incomingDir >= 0) {
+        if (incomingDir === stepIndex) {
+          nextStraightRun = Number(straightRun[index] || 0) + 1;
+          if (
+            nextStraightRun > pathStyle.straightStepThreshold
+            && pathStyle.straightStepPenalty > 0
+          ) {
+            stepCost +=
+              (nextStraightRun - pathStyle.straightStepThreshold)
+              * pathStyle.straightStepPenalty;
+          }
+        } else if (pathStyle.turnPenalty > 0) {
+          stepCost += pathStyle.turnPenalty;
+        }
+      }
+
+      const tentative = gScore[index] + stepCost;
+      if (tentative >= gScore[nextIndex]) {
+        continue;
+      }
+      prev[nextIndex] = index;
+      prevDir[nextIndex] = stepIndex;
+      straightRun[nextIndex] = nextStraightRun;
+      gScore[nextIndex] = tentative;
+      const heuristic = pathStyle.heuristicWeight
+        * (Math.abs(nx - goalX) + Math.abs(ny - goalY));
+      const score = tentative + heuristic;
+      fScore[nextIndex] = score;
+      pushRoadQueue(heap, { index: nextIndex, score });
+    }
+  }
+
+  if (prev[goalIndex] === -1) {
+    return null;
+  }
+  const path = [];
+  let current = goalIndex;
+  while (current !== startIndex) {
+    const cx = current % width;
+    const cy = Math.floor(current / width);
+    path.push({ x: cx, y: cy });
+    current = prev[current];
+  }
+  path.push({ x: startX, y: startY });
+  path.reverse();
+  return path;
+}
+
+// Return terrain penalty for weighted road pathing.
+function getRoadTerrainPenalty(pathStyle, terrainType) {
+  if (!terrainType || !pathStyle || !pathStyle.terrainPenalty) {
+    return 0;
+  }
+  const value = Number(pathStyle.terrainPenalty[terrainType] || 0);
+  return Number.isFinite(value) ? Math.max(0, value) : 0;
+}
+
+// Build a deterministic seed for road path variation.
+function buildRoadSearchSeed(state, linkKey, seedOffset) {
+  const terrainSeed = state && state.terrain && Number.isFinite(state.terrain.seed)
+    ? Math.floor(Number(state.terrain.seed))
+    : 0;
+  return terrainSeed + hashRoadString(String(linkKey || 'road')) + Math.floor(Number(seedOffset || 0));
+}
+
+// Sample smooth deterministic noise for road cost variation.
+function sampleRoadPathNoise(x, y, scale, seed) {
+  const fx = x * Math.max(0.001, Number(scale || 0.16));
+  const fy = y * Math.max(0.001, Number(scale || 0.16));
+  const x0 = Math.floor(fx);
+  const y0 = Math.floor(fy);
+  const tx = smoothStep(fx - x0);
+  const ty = smoothStep(fy - y0);
+  const n00 = hashRoadNoise(x0, y0, seed);
+  const n10 = hashRoadNoise(x0 + 1, y0, seed);
+  const n01 = hashRoadNoise(x0, y0 + 1, seed);
+  const n11 = hashRoadNoise(x0 + 1, y0 + 1, seed);
+  const nx0 = n00 + (n10 - n00) * tx;
+  const nx1 = n01 + (n11 - n01) * tx;
+  const value = nx0 + (nx1 - nx0) * ty;
+  return clamp(value, 0, 1);
+}
+
+// Smooth interpolation curve for value-noise blending.
+function smoothStep(t) {
+  const x = clamp(Number(t || 0), 0, 1);
+  return x * x * (3 - 2 * x);
+}
+
+// Hash integer coordinates to a deterministic [0,1] value.
+function hashRoadNoise(x, y, seed) {
+  let h = Math.floor(Number(seed || 0)) | 0;
+  h ^= Math.imul((x | 0) + 0x9e3779b9, 0x85ebca6b);
+  h ^= Math.imul((y | 0) + 0x7f4a7c15, 0xc2b2ae35);
+  h ^= h >>> 13;
+  h = Math.imul(h, 0x27d4eb2d);
+  h ^= h >>> 15;
+  return (h >>> 0) / 4294967295;
+}
+
+// Hash a string key to a deterministic 32-bit integer.
+function hashRoadString(value) {
+  let hash = 2166136261;
+  const text = String(value || '');
+  for (let i = 0; i < text.length; i += 1) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+// Push a node into the min-heap queue used by weighted path search.
+function pushRoadQueue(heap, node) {
+  heap.push(node);
+  let i = heap.length - 1;
+  while (i > 0) {
+    const parent = Math.floor((i - 1) / 2);
+    if (heap[parent].score <= heap[i].score) {
+      break;
+    }
+    const tmp = heap[parent];
+    heap[parent] = heap[i];
+    heap[i] = tmp;
+    i = parent;
+  }
+}
+
+// Pop the node with the smallest score from the min-heap queue.
+function popRoadQueue(heap) {
+  if (!Array.isArray(heap) || heap.length === 0) {
+    return null;
+  }
+  const root = heap[0];
+  const tail = heap.pop();
+  if (heap.length === 0 || !tail) {
+    return root;
+  }
+  heap[0] = tail;
+  let i = 0;
+  while (true) {
+    const left = i * 2 + 1;
+    const right = i * 2 + 2;
+    let smallest = i;
+    if (left < heap.length && heap[left].score < heap[smallest].score) {
+      smallest = left;
+    }
+    if (right < heap.length && heap[right].score < heap[smallest].score) {
+      smallest = right;
+    }
+    if (smallest === i) {
+      break;
+    }
+    const tmp = heap[i];
+    heap[i] = heap[smallest];
+    heap[smallest] = tmp;
+    i = smallest;
+  }
+  return root;
 }
 
 function isWaterTerrain(roadsConfig, terrainType) {

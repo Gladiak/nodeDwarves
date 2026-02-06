@@ -27,7 +27,45 @@ function createValleyTerrain(runtime, settings, seed, config) {
   const height = Math.max(0, Number(runtime.gridHeight || 0));
   const valley = settings.valley;
   const warp = buildDomainWarp(valley.domainWarp, seed);
+  const landmarks = buildLandmarkProfiles(
+    width,
+    height,
+    valley.landmarks,
+    seed,
+    warp,
+    valley,
+  );
+  const ridgeMaskMap = landmarks ? landmarks.ridgeMaskMap : null;
+  const riverSpineGuide = landmarks ? landmarks.riverSpineGuide : null;
+  const worldSpine = buildWorldSpineProfile(
+    width,
+    height,
+    valley.worldSpine,
+    seed,
+    warp,
+  );
   const rng = createTerrainRng(seed + 17);
+  const macroClimate = buildMacroClimateMaps(
+    width,
+    height,
+    valley.macroZones,
+    seed,
+    warp,
+  );
+  const macroRelief = macroClimate ? macroClimate.reliefMap : null;
+  const macroMoisture = macroClimate ? macroClimate.moistureMap : null;
+  const landmarkSuitability = buildLandmarkSuitabilityContext(
+    width,
+    height,
+    riverSpineGuide,
+    ridgeMaskMap,
+    warp,
+  );
+  const riverCorridorMap = landmarkSuitability
+    ? landmarkSuitability.riverAffinityMap
+    : null;
+  const landmarkFirst = valley.landmarkFirst || {};
+  const landmarkFirstEnabled = landmarkFirst.enabled === true;
   const biomeNoise = buildBiomeNoiseMask(
     width,
     height,
@@ -53,20 +91,46 @@ function createValleyTerrain(runtime, settings, seed, config) {
       );
       const mid = (height - 1) / 2;
       const gradient = mid > 0 ? Math.abs((y - mid) / mid) : 0;
-      return base * (1 - valley.bowlStrength) + gradient * valley.bowlStrength;
+      const spineLift = sampleWorldSpineMask(worldSpine, x, y, warp);
+      const ridgeLift = ridgeMaskMap ? ridgeMaskMap[y][x] : 0;
+      const riverCorridor = riverCorridorMap ? riverCorridorMap[y][x] : 0;
+      const legacyHeight = (
+        base * (1 - valley.bowlStrength) +
+        gradient * valley.bowlStrength +
+        spineLift * worldSpine.reliefStrength +
+        ridgeLift * valley.landmarks.ridgeMask.strength
+      );
+      if (!landmarkFirstEnabled) {
+        return legacyHeight;
+      }
+      const landmarkFirstHeight =
+        base * (1 - valley.bowlStrength) +
+        gradient * valley.bowlStrength +
+        spineLift * landmarkFirst.spineHeightBoost +
+        ridgeLift * landmarkFirst.ridgeHeightBoost -
+        riverCorridor * landmarkFirst.riverCarveStrength;
+      return lerp(legacyHeight, landmarkFirstHeight, landmarkFirst.heightBlend);
     });
   });
 
   let smooth = smoothHeightMap(heightMap, valley.smoothingPasses);
   smooth = normalizeHeightMap(smooth);
-  const riverInfo = buildValleyRivers(smooth, valley, seed);
+  const riverInfo = buildValleyRivers(smooth, valley, seed, riverSpineGuide, warp);
   const carved = carveRiverValley(smooth, riverInfo.river, valley);
   const ponds = buildValleyPonds(carved, riverInfo, valley, rng);
-  const lakeSet = new Set([...riverInfo.lakes, ...ponds]);
-  const waterSet = new Set([...lakeSet]);
+  const riverSet = new Set();
   for (const cell of riverInfo.river) {
-    waterSet.add(`${cell.x},${cell.y}`);
+    riverSet.add(`${cell.x},${cell.y}`);
   }
+  let lakeSet = new Set([...riverInfo.lakes, ...ponds]);
+  lakeSet = applyWaterBudget(
+    lakeSet,
+    riverSet,
+    carved,
+    valley.waterBudget,
+    seed,
+  );
+  const waterSet = new Set([...lakeSet, ...riverSet]);
 
   const baseDist = computeDistanceToWater(
     waterSet,
@@ -96,15 +160,63 @@ function createValleyTerrain(runtime, settings, seed, config) {
         baseTypes[y][x] = lakeSet.has(key) ? "lake" : "river";
         continue;
       }
+      const reliefFactor = macroRelief ? macroRelief[y][x] : 0;
+      const moistureFactor = macroMoisture ? macroMoisture[y][x] : 0;
+      const ridgeFactor = ridgeMaskMap ? ridgeMaskMap[y][x] : 0;
+      const riverFactor = riverCorridorMap ? riverCorridorMap[y][x] : 0;
       const heightBias = biomeMask ? biomeMask[y][x] * biomeHeightStrength : 0;
       const h = clamp(carved[y][x] + heightBias, 0, 1);
-      if (h >= valley.mountainHeight) {
+      const mountainThreshold = clamp(
+        valley.mountainHeight -
+          reliefFactor * valley.macroZones.mountainHeightShift -
+          ridgeFactor * valley.landmarks.ridgeMask.mountainThresholdShift -
+          ridgeFactor *
+            (landmarkFirstEnabled ? landmarkFirst.mountainThresholdShift : 0) +
+          riverFactor *
+            (landmarkFirstEnabled
+              ? landmarkFirst.riverMountainSuppression
+              : 0),
+        0,
+        1,
+      );
+      const hillThreshold = clamp(
+        valley.hillHeight -
+          reliefFactor * valley.macroZones.hillHeightShift -
+          ridgeFactor * valley.landmarks.ridgeMask.hillThresholdShift -
+          ridgeFactor *
+            (landmarkFirstEnabled ? landmarkFirst.hillThresholdShift : 0) +
+          riverFactor *
+            (landmarkFirstEnabled ? landmarkFirst.riverHillSuppression : 0),
+        0,
+        mountainThreshold,
+      );
+      const fertileHeightThreshold = clamp(
+        valley.fertileHeight +
+          moistureFactor * valley.macroZones.fertileHeightShift +
+          riverFactor *
+            (landmarkFirstEnabled ? landmarkFirst.fertileHeightBoost : 0),
+        0,
+        1,
+      );
+      const fertileDistance = clamp(
+        Math.floor(
+          valley.fertileDistance +
+            moistureFactor * valley.macroZones.fertileDistanceShift +
+            riverFactor *
+              (landmarkFirstEnabled
+                ? landmarkFirst.fertileDistanceBoost
+                : 0),
+        ),
+        0,
+        16,
+      );
+      if (h >= mountainThreshold) {
         baseTypes[y][x] = "mountain";
-      } else if (h >= valley.hillHeight) {
+      } else if (h >= hillThreshold) {
         baseTypes[y][x] = "hill";
       } else if (
-        h <= valley.fertileHeight &&
-        dist[y][x] <= valley.fertileDistance
+        h <= fertileHeightThreshold &&
+        dist[y][x] <= fertileDistance
       ) {
         baseTypes[y][x] = "fertile";
       } else {
@@ -132,11 +244,77 @@ function createValleyTerrain(runtime, settings, seed, config) {
       forestConfig.waterDistanceNoiseScale ?? forestConfig.noiseScale ?? 0.11,
     ),
   );
+  const forestNaturalSpread = forestConfig.naturalSpread || {};
+  const forestNaturalSpreadEnabled = forestNaturalSpread.enabled !== false;
+  const forestNaturalSpreadNoiseScale = Math.max(
+    0.001,
+    Number(forestNaturalSpread.noiseScale ?? 0.045),
+  );
+  const forestNaturalSpreadNoiseThreshold = clamp(
+    Number(forestNaturalSpread.noiseThreshold ?? 0.6),
+    0,
+    1,
+  );
+  const forestNaturalSpreadMaxExtraDistance = Math.max(
+    0,
+    Number(forestNaturalSpread.maxExtraDistance ?? 5),
+  );
+  const forestNaturalSpreadHumidityRelax = clamp(
+    Number(forestNaturalSpread.humidityRelax ?? 0.05),
+    0,
+    0.35,
+  );
+  const forestNaturalSpreadHumidityFloor = clamp(
+    Number(forestNaturalSpread.humidityFloor ?? 0.2),
+    0,
+    1,
+  );
+  const forestNaturalSpreadThresholdBoost = clamp(
+    Number(forestNaturalSpread.noiseThresholdBoost ?? 0.1),
+    0,
+    0.35,
+  );
+  const forestSpreadMap =
+    forestNaturalSpreadEnabled && forestNaturalSpreadMaxExtraDistance > 0
+      ? Array.from({ length: height }, () => new Array(width).fill(0))
+      : null;
+  if (forestSpreadMap) {
+    const spreadThresholdDenominator = Math.max(
+      0.0001,
+      1 - forestNaturalSpreadNoiseThreshold,
+    );
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        const warped = applyDomainWarp(x, y, warp);
+        const spreadNoise = fractalNoise(
+          warped.x * forestNaturalSpreadNoiseScale,
+          warped.y * forestNaturalSpreadNoiseScale,
+          seed + 711,
+          2,
+          0.55,
+          2.0,
+        );
+        const spreadFactor =
+          spreadNoise > forestNaturalSpreadNoiseThreshold
+            ? (spreadNoise - forestNaturalSpreadNoiseThreshold) /
+              spreadThresholdDenominator
+            : 0;
+        forestSpreadMap[y][x] = clamp(spreadFactor, 0, 1);
+      }
+    }
+  }
   const forest = Array.from({ length: height }, () =>
     new Array(width).fill(false),
   );
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
+      const moistureFactor = macroMoisture ? macroMoisture[y][x] : 0;
+      const landmarkEffects = computeBiomeLandmarkEffects(
+        landmarkSuitability,
+        forestConfig.landmarkSuitability,
+        x,
+        y,
+      );
       const type = baseTypes[y][x];
       if (type === "river" || type === "lake" || type === "mountain") {
         continue;
@@ -146,6 +324,15 @@ function createValleyTerrain(runtime, settings, seed, config) {
       if (effectiveHeight > forestConfig.heightMax) {
         continue;
       }
+      const effectiveMaxDistance = Math.max(
+        forestWaterDistanceMin + 0.25,
+        forestWaterDistanceMax +
+          moistureFactor * valley.macroZones.waterDistanceShift +
+          landmarkEffects.waterDistanceShift,
+      );
+      const spreadFactor = forestSpreadMap ? forestSpreadMap[y][x] : 0;
+      const spreadDistanceAllowance =
+        spreadFactor * forestNaturalSpreadMaxExtraDistance;
       const waterDist = dist[y][x];
       if (waterDist <= forestWaterDistanceMin) {
         continue;
@@ -160,10 +347,32 @@ function createValleyTerrain(runtime, settings, seed, config) {
         effectiveDist =
           waterDist + (noise - 0.5) * 2 * forestWaterDistanceJitter;
       }
-      if (effectiveDist > forestWaterDistanceMax) {
+      const effectiveMaxDistanceWithSpread =
+        effectiveMaxDistance + spreadDistanceAllowance;
+      if (effectiveDist > effectiveMaxDistanceWithSpread) {
         continue;
       }
-      if (humidity[y][x] < forestConfig.humidityMin) {
+      const inlandDistance = Math.max(0, effectiveDist - effectiveMaxDistance);
+      const inlandPenalty =
+        spreadDistanceAllowance > 0
+          ? clamp(inlandDistance / Math.max(0.25, spreadDistanceAllowance), 0, 1)
+          : 0;
+      const effectiveHumidity = clamp(
+        humidity[y][x] +
+          moistureFactor * valley.macroZones.humidityShift +
+          landmarkEffects.humidityShift,
+        0,
+        1,
+      );
+      const humidityMin =
+        spreadFactor > 0
+          ? Math.max(
+              forestNaturalSpreadHumidityFloor,
+              forestConfig.humidityMin -
+                spreadFactor * forestNaturalSpreadHumidityRelax,
+            )
+          : forestConfig.humidityMin;
+      if (effectiveHumidity < humidityMin) {
         continue;
       }
       const warped = applyDomainWarp(x, y, warp);
@@ -178,8 +387,18 @@ function createValleyTerrain(runtime, settings, seed, config) {
       const thresholdBias = biomeMask
         ? biomeMask[y][x] * biomeThresholdStrength
         : 0;
+      const macroThresholdBias =
+        -moistureFactor * valley.macroZones.biomeThresholdShift;
+      const spreadThresholdShift =
+        spreadFactor *
+        (1 - inlandPenalty) *
+        forestNaturalSpreadThresholdBoost;
       const threshold = clamp(
-        forestConfig.noiseThreshold + thresholdBias,
+        forestConfig.noiseThreshold +
+          thresholdBias +
+          macroThresholdBias +
+          landmarkEffects.noiseThresholdShift -
+          spreadThresholdShift,
         0,
         1,
       );
@@ -189,8 +408,101 @@ function createValleyTerrain(runtime, settings, seed, config) {
     }
   }
   for (let pass = 0; pass < forestConfig.clusterPasses; pass += 1) {
-    smoothClusterMap(forest, baseTypes, (x, y) => humidity[y][x] > 0.4);
+    smoothClusterMap(forest, baseTypes, (x, y) => {
+      const type = baseTypes[y][x];
+      if (type === "river" || type === "lake" || type === "mountain") {
+        return false;
+      }
+      const moistureFactor = macroMoisture ? macroMoisture[y][x] : 0;
+      const landmarkEffects = computeBiomeLandmarkEffects(
+        landmarkSuitability,
+        forestConfig.landmarkSuitability,
+        x,
+        y,
+      );
+      const effectiveMaxDistance = Math.max(
+        forestWaterDistanceMin + 0.25,
+        forestWaterDistanceMax +
+          moistureFactor * valley.macroZones.waterDistanceShift +
+          landmarkEffects.waterDistanceShift,
+      );
+      const spreadFactor = forestSpreadMap ? forestSpreadMap[y][x] : 0;
+      const spreadDistanceAllowance =
+        spreadFactor * forestNaturalSpreadMaxExtraDistance;
+      const effectiveMaxDistanceWithSpread =
+        effectiveMaxDistance + spreadDistanceAllowance;
+      if (
+        dist[y][x] <= forestWaterDistanceMin ||
+        dist[y][x] > effectiveMaxDistanceWithSpread
+      ) {
+        return false;
+      }
+      const effectiveHumidity = clamp(
+        humidity[y][x] +
+          moistureFactor * valley.macroZones.humidityShift +
+          landmarkEffects.humidityShift,
+        0,
+        1,
+      );
+      const humidityMin =
+        spreadFactor > 0
+          ? Math.max(
+              forestNaturalSpreadHumidityFloor,
+              forestConfig.humidityMin -
+                spreadFactor * forestNaturalSpreadHumidityRelax,
+            )
+          : forestConfig.humidityMin;
+      const clusterHumidityMin =
+        spreadFactor > 0 ? Math.max(0.3, humidityMin) : 0.4;
+      return effectiveHumidity > clusterHumidityMin;
+    });
   }
+  applyBiomeEdgeJitter(forest, valley.biomeEdgeJitter, seed + 131, (x, y) => {
+    const type = baseTypes[y][x];
+    if (type === "river" || type === "lake" || type === "mountain") {
+      return false;
+    }
+    const moistureFactor = macroMoisture ? macroMoisture[y][x] : 0;
+    const landmarkEffects = computeBiomeLandmarkEffects(
+      landmarkSuitability,
+      forestConfig.landmarkSuitability,
+      x,
+      y,
+    );
+    const effectiveMaxDistance = Math.max(
+      forestWaterDistanceMin + 0.25,
+      forestWaterDistanceMax +
+        moistureFactor * valley.macroZones.waterDistanceShift +
+        landmarkEffects.waterDistanceShift,
+    );
+    const spreadFactor = forestSpreadMap ? forestSpreadMap[y][x] : 0;
+    const spreadDistanceAllowance =
+      spreadFactor * forestNaturalSpreadMaxExtraDistance;
+    const effectiveMaxDistanceWithSpread =
+      effectiveMaxDistance + spreadDistanceAllowance;
+    if (
+      dist[y][x] <= forestWaterDistanceMin ||
+      dist[y][x] > effectiveMaxDistanceWithSpread
+    ) {
+      return false;
+    }
+    const effectiveHumidity = clamp(
+      humidity[y][x] +
+        moistureFactor * valley.macroZones.humidityShift +
+        landmarkEffects.humidityShift,
+      0,
+      1,
+    );
+    const humidityMin =
+      spreadFactor > 0
+        ? Math.max(
+            forestNaturalSpreadHumidityFloor,
+            forestConfig.humidityMin -
+              spreadFactor * forestNaturalSpreadHumidityRelax,
+          )
+        : forestConfig.humidityMin;
+    return effectiveHumidity >= humidityMin;
+  }, "forest");
   applyForestEdgeJitter(forest, lakeDist, forestConfig, seed);
 
   const stone = Array.from({ length: height }, () =>
@@ -234,6 +546,8 @@ function createValleyTerrain(runtime, settings, seed, config) {
     seed,
     warp,
     biomeNoise,
+    macroClimate,
+    landmarkSuitability,
   );
   const pastureEnabled = !(config && config.pasture && config.pasture.enabled === false);
   const pasture = pastureEnabled
@@ -249,6 +563,8 @@ function createValleyTerrain(runtime, settings, seed, config) {
         seed,
         warp,
         biomeNoise,
+        macroClimate,
+        landmarkSuitability,
       )
     : Array.from({ length: height }, () => new Array(width).fill(false));
 
@@ -395,7 +711,20 @@ function ensureValleyTerrainCoverage(
     }
   }
 
-  if (!counts.lake) {
+  const allowFallbackLake = (() => {
+    const budget = valley && valley.waterBudget ? valley.waterBudget : null;
+    if (!budget || budget.enabled === false) {
+      return true;
+    }
+    const maxRatio = clamp(Number(budget.maxRatio ?? 1), 0, 1);
+    const total = types.length * (types[0] ? types[0].length : 0);
+    const maxWaterCells = Math.max(0, Math.floor(total * maxRatio));
+    const riverCells =
+      budget.preserveRiver === false ? 0 : Number(counts.river || 0);
+    return maxWaterCells > riverCells;
+  })();
+
+  if (!counts.lake && allowFallbackLake) {
     const riverCells = Array.isArray(riverInfo && riverInfo.river)
       ? riverInfo.river
       : [];
@@ -409,11 +738,25 @@ function ensureValleyTerrainCoverage(
             y: Math.floor(types.length / 2),
           };
     const lakePatch = valley.lakePatch || {};
-    const lakeRadius = randomBetweenWithRng(
+    let lakeRadius = randomBetweenWithRng(
       rng,
       lakePatch.radiusMin,
       lakePatch.radiusMax,
     );
+    const budget = valley && valley.waterBudget ? valley.waterBudget : null;
+    if (budget && budget.enabled !== false) {
+      const maxRatio = clamp(Number(budget.maxRatio ?? 1), 0, 1);
+      const total = types.length * (types[0] ? types[0].length : 0);
+      const maxWaterCells = Math.max(0, Math.floor(total * maxRatio));
+      const riverCells =
+        budget.preserveRiver === false ? 0 : Number(counts.river || 0);
+      const availableLakeCells = Math.max(0, maxWaterCells - riverCells);
+      const maxRadiusByBudget = Math.max(
+        1,
+        Math.floor(Math.sqrt(availableLakeCells / Math.PI)),
+      );
+      lakeRadius = Math.min(lakeRadius, maxRadiusByBudget);
+    }
     const edgeConfig = buildLakeEdgeConfig(lakePatch, rng, 433);
     placeLakePatch(types, anchor.x, anchor.y, lakeRadius, edgeConfig);
     counts.lake = 1;
@@ -1207,6 +1550,510 @@ function normalizeMinimumTiles(raw) {
   return normalized;
 }
 
+// Function: normalizeBiomeLandmarkSuitability.
+function normalizeBiomeLandmarkSuitability(raw, defaults) {
+  const source = raw && typeof raw === "object" ? raw : {};
+  const base = defaults && typeof defaults === "object" ? defaults : {};
+  const enabled = source.enabled !== false;
+  const riverSpineAffinityRaw = Number(
+    source.river_spine_affinity ??
+      source.riverSpineAffinity ??
+      base.riverSpineAffinity ??
+      0,
+  );
+  const ridgeAffinityRaw = Number(
+    source.ridge_affinity ?? source.ridgeAffinity ?? base.ridgeAffinity ?? 0,
+  );
+  const waterDistanceShiftRaw = Number(
+    source.water_distance_shift ??
+      source.waterDistanceShift ??
+      base.waterDistanceShift ??
+      0,
+  );
+  const humidityShiftRaw = Number(
+    source.humidity_shift ?? source.humidityShift ?? base.humidityShift ?? 0,
+  );
+  const noiseThresholdShiftRaw = Number(
+    source.noise_threshold_shift ??
+      source.noiseThresholdShift ??
+      base.noiseThresholdShift ??
+      0,
+  );
+  return {
+    enabled,
+    riverSpineAffinity: Number.isFinite(riverSpineAffinityRaw)
+      ? clamp(riverSpineAffinityRaw, -1, 1)
+      : 0,
+    ridgeAffinity: Number.isFinite(ridgeAffinityRaw)
+      ? clamp(ridgeAffinityRaw, -1, 1)
+      : 0,
+    waterDistanceShift: Number.isFinite(waterDistanceShiftRaw)
+      ? clamp(waterDistanceShiftRaw, -12, 12)
+      : 0,
+    humidityShift: Number.isFinite(humidityShiftRaw)
+      ? clamp(humidityShiftRaw, -0.45, 0.45)
+      : 0,
+    noiseThresholdShift: Number.isFinite(noiseThresholdShiftRaw)
+      ? clamp(noiseThresholdShiftRaw, -0.3, 0.3)
+      : 0,
+  };
+}
+
+// Function: getFantasyPresetProfile.
+function getFantasyPresetProfile(name) {
+  const preset = String(name || "none").toLowerCase();
+  if (preset === "green_realm") {
+    return {
+      bowlStrengthDelta: -0.03,
+      riverWanderDelta: 0.08,
+      macroZones: {
+        humidityShift: 0.14,
+        waterDistanceShift: 1.8,
+        biomeThresholdShift: 0.08,
+      },
+      worldSpine: {
+        reliefStrength: 0.12,
+        widthRatio: 0.26,
+      },
+      waterBudget: {
+        maxRatio: 0.12,
+      },
+      biomeEdgeJitter: {
+        strength: 0.18,
+      },
+    };
+  }
+  if (preset === "broken_crown") {
+    return {
+      bowlStrengthDelta: 0.02,
+      riverWanderDelta: -0.04,
+      macroZones: {
+        mountainHeightShift: 0.09,
+        hillHeightShift: 0.08,
+      },
+      worldSpine: {
+        reliefStrength: 0.2,
+        widthRatio: 0.2,
+      },
+      waterBudget: {
+        maxRatio: 0.08,
+      },
+      biomeEdgeJitter: {
+        strength: 0.24,
+      },
+    };
+  }
+  if (preset === "mistwater") {
+    return {
+      bowlStrengthDelta: -0.02,
+      riverWanderDelta: 0.12,
+      macroZones: {
+        humidityShift: 0.16,
+        waterDistanceShift: 2.2,
+        biomeThresholdShift: 0.1,
+      },
+      worldSpine: {
+        reliefStrength: 0.1,
+        widthRatio: 0.3,
+      },
+      waterBudget: {
+        maxRatio: 0.14,
+      },
+      biomeEdgeJitter: {
+        strength: 0.2,
+      },
+    };
+  }
+  if (preset === "high_marches") {
+    return {
+      bowlStrengthDelta: 0.03,
+      riverWanderDelta: 0.02,
+      macroZones: {
+        mountainHeightShift: 0.07,
+        hillHeightShift: 0.08,
+        fertileDistanceShift: 2,
+      },
+      worldSpine: {
+        reliefStrength: 0.16,
+        widthRatio: 0.22,
+      },
+      waterBudget: {
+        maxRatio: 0.1,
+      },
+      biomeEdgeJitter: {
+        strength: 0.22,
+      },
+    };
+  }
+  if (preset === "natural_epic") {
+    return {
+      bowlStrengthDelta: -0.01,
+      riverWanderDelta: 0.04,
+      macroZones: {
+        humidityShift: 0.06,
+        waterDistanceShift: 0.8,
+        biomeThresholdShift: 0.03,
+      },
+      worldSpine: {
+        reliefStrength: 0.03,
+        widthRatio: 0.24,
+      },
+      waterBudget: {
+        maxRatio: 0.13,
+      },
+      biomeEdgeJitter: {
+        strength: 0.18,
+      },
+      landmarkFirst: {
+        enabled: true,
+        heightBlend: 0.65,
+        spineHeightBoost: 0.12,
+        ridgeHeightBoost: 0.2,
+        riverCarveStrength: 0.18,
+        mountainThresholdShift: 0.08,
+        hillThresholdShift: 0.06,
+        riverMountainSuppression: 0.1,
+        riverHillSuppression: 0.08,
+        fertileHeightBoost: 0.05,
+        fertileDistanceBoost: 2,
+      },
+      landmarkSuitability: {
+        forest: {
+          enabled: true,
+          riverSpineAffinity: -0.41,
+          ridgeAffinity: 0.46,
+          waterDistanceShift: 1.95,
+          humidityShift: 0.07,
+          noiseThresholdShift: -0.05,
+        },
+        food: {
+          enabled: true,
+          riverSpineAffinity: 0.58,
+          ridgeAffinity: -0.34,
+          waterDistanceShift: 1.95,
+          humidityShift: 0.08,
+          noiseThresholdShift: -0.06,
+        },
+        pasture: {
+          enabled: true,
+          riverSpineAffinity: 0.24,
+          ridgeAffinity: -0.18,
+          waterDistanceShift: 1.3,
+          humidityShift: 0.055,
+          noiseThresholdShift: -0.035,
+        },
+      },
+    };
+  }
+  if (preset === "heroic_contrast") {
+    return {
+      bowlStrengthDelta: 0.03,
+      riverWanderDelta: 0.08,
+      macroZones: {
+        mountainHeightShift: 0.08,
+        hillHeightShift: 0.09,
+        fertileDistanceShift: 1,
+        humidityShift: 0.07,
+        waterDistanceShift: 1.2,
+        biomeThresholdShift: 0.04,
+      },
+      worldSpine: {
+        reliefStrength: 0.08,
+        widthRatio: 0.2,
+      },
+      waterBudget: {
+        maxRatio: 0.11,
+      },
+      biomeEdgeJitter: {
+        strength: 0.25,
+      },
+      landmarkFirst: {
+        enabled: true,
+        heightBlend: 0.8,
+        spineHeightBoost: 0.14,
+        ridgeHeightBoost: 0.27,
+        riverCarveStrength: 0.22,
+        mountainThresholdShift: 0.12,
+        hillThresholdShift: 0.1,
+        riverMountainSuppression: 0.13,
+        riverHillSuppression: 0.1,
+        fertileHeightBoost: 0.07,
+        fertileDistanceBoost: 2.5,
+      },
+      landmarkSuitability: {
+        forest: {
+          enabled: true,
+          riverSpineAffinity: -0.5,
+          ridgeAffinity: 0.62,
+          waterDistanceShift: 2.4,
+          humidityShift: 0.1,
+          noiseThresholdShift: -0.07,
+        },
+        food: {
+          enabled: true,
+          riverSpineAffinity: 0.74,
+          ridgeAffinity: -0.45,
+          waterDistanceShift: 2.3,
+          humidityShift: 0.1,
+          noiseThresholdShift: -0.08,
+        },
+        pasture: {
+          enabled: true,
+          riverSpineAffinity: 0.32,
+          ridgeAffinity: -0.24,
+          waterDistanceShift: 1.6,
+          humidityShift: 0.07,
+          noiseThresholdShift: -0.05,
+        },
+      },
+    };
+  }
+  return null;
+}
+
+// Function: applyFantasyPresetToValley.
+function applyFantasyPresetToValley(valley) {
+  if (!valley || valley.fantasyPreset === "none") {
+    return valley;
+  }
+  const profile = getFantasyPresetProfile(valley.fantasyPreset);
+  if (!profile) {
+    return valley;
+  }
+  const next = {
+    ...valley,
+    macroZones: { ...(valley.macroZones || {}) },
+    worldSpine: { ...(valley.worldSpine || {}) },
+    waterBudget: { ...(valley.waterBudget || {}) },
+    biomeEdgeJitter: { ...(valley.biomeEdgeJitter || {}) },
+    landmarkFirst: { ...(valley.landmarkFirst || {}) },
+    forest: {
+      ...(valley.forest || {}),
+      landmarkSuitability: normalizeBiomeLandmarkSuitability(
+        valley &&
+          valley.forest &&
+          valley.forest.landmarkSuitability,
+        null,
+      ),
+    },
+    food: {
+      ...(valley.food || {}),
+      landmarkSuitability: normalizeBiomeLandmarkSuitability(
+        valley &&
+          valley.food &&
+          valley.food.landmarkSuitability,
+        null,
+      ),
+    },
+    pasture: {
+      ...(valley.pasture || {}),
+      landmarkSuitability: normalizeBiomeLandmarkSuitability(
+        valley &&
+          valley.pasture &&
+          valley.pasture.landmarkSuitability,
+        null,
+      ),
+    },
+  };
+
+  if (Number.isFinite(profile.bowlStrengthDelta)) {
+    next.bowlStrength = clamp(
+      Number(next.bowlStrength || 0) + profile.bowlStrengthDelta,
+      0,
+      1,
+    );
+  }
+  if (Number.isFinite(profile.riverWanderDelta)) {
+    next.riverWander = clamp(
+      Number(next.riverWander || 0) + profile.riverWanderDelta,
+      0,
+      1,
+    );
+  }
+
+  if (profile.macroZones) {
+    if (Number.isFinite(profile.macroZones.mountainHeightShift)) {
+      next.macroZones.mountainHeightShift = clamp(
+        Number(next.macroZones.mountainHeightShift || 0) +
+          profile.macroZones.mountainHeightShift,
+        0,
+        0.25,
+      );
+    }
+    if (Number.isFinite(profile.macroZones.hillHeightShift)) {
+      next.macroZones.hillHeightShift = clamp(
+        Number(next.macroZones.hillHeightShift || 0) +
+          profile.macroZones.hillHeightShift,
+        0,
+        0.25,
+      );
+    }
+    if (Number.isFinite(profile.macroZones.fertileDistanceShift)) {
+      next.macroZones.fertileDistanceShift = clamp(
+        Number(next.macroZones.fertileDistanceShift || 0) +
+          profile.macroZones.fertileDistanceShift,
+        0,
+        8,
+      );
+    }
+    if (Number.isFinite(profile.macroZones.humidityShift)) {
+      next.macroZones.humidityShift = clamp(
+        Number(next.macroZones.humidityShift || 0) +
+          profile.macroZones.humidityShift,
+        0,
+        0.45,
+      );
+    }
+    if (Number.isFinite(profile.macroZones.waterDistanceShift)) {
+      next.macroZones.waterDistanceShift = clamp(
+        Number(next.macroZones.waterDistanceShift || 0) +
+          profile.macroZones.waterDistanceShift,
+        0,
+        8,
+      );
+    }
+    if (Number.isFinite(profile.macroZones.biomeThresholdShift)) {
+      next.macroZones.biomeThresholdShift = clamp(
+        Number(next.macroZones.biomeThresholdShift || 0) +
+          profile.macroZones.biomeThresholdShift,
+        0,
+        0.3,
+      );
+    }
+  }
+
+  if (profile.worldSpine) {
+    if (Number.isFinite(profile.worldSpine.reliefStrength)) {
+      next.worldSpine.reliefStrength = clamp(
+        Number(next.worldSpine.reliefStrength || 0) +
+          profile.worldSpine.reliefStrength,
+        0,
+        0.35,
+      );
+    }
+    if (Number.isFinite(profile.worldSpine.widthRatio)) {
+      next.worldSpine.widthRatio = clamp(
+        profile.worldSpine.widthRatio,
+        0.05,
+        0.9,
+      );
+    }
+  }
+
+  if (profile.waterBudget && Number.isFinite(profile.waterBudget.maxRatio)) {
+    next.waterBudget.maxRatio = clamp(profile.waterBudget.maxRatio, 0, 0.5);
+  }
+  if (
+    profile.biomeEdgeJitter &&
+    Number.isFinite(profile.biomeEdgeJitter.strength)
+  ) {
+    next.biomeEdgeJitter.strength = clamp(
+      profile.biomeEdgeJitter.strength,
+      0,
+      0.45,
+    );
+  }
+  if (profile.landmarkFirst) {
+    if (profile.landmarkFirst.enabled === true) {
+      next.landmarkFirst.enabled = true;
+    } else if (profile.landmarkFirst.enabled === false) {
+      next.landmarkFirst.enabled = false;
+    }
+    if (Number.isFinite(profile.landmarkFirst.heightBlend)) {
+      next.landmarkFirst.heightBlend = clamp(
+        profile.landmarkFirst.heightBlend,
+        0,
+        1,
+      );
+    }
+    if (Number.isFinite(profile.landmarkFirst.spineHeightBoost)) {
+      next.landmarkFirst.spineHeightBoost = clamp(
+        profile.landmarkFirst.spineHeightBoost,
+        0,
+        0.35,
+      );
+    }
+    if (Number.isFinite(profile.landmarkFirst.ridgeHeightBoost)) {
+      next.landmarkFirst.ridgeHeightBoost = clamp(
+        profile.landmarkFirst.ridgeHeightBoost,
+        0,
+        0.35,
+      );
+    }
+    if (Number.isFinite(profile.landmarkFirst.riverCarveStrength)) {
+      next.landmarkFirst.riverCarveStrength = clamp(
+        profile.landmarkFirst.riverCarveStrength,
+        0,
+        0.35,
+      );
+    }
+    if (Number.isFinite(profile.landmarkFirst.mountainThresholdShift)) {
+      next.landmarkFirst.mountainThresholdShift = clamp(
+        profile.landmarkFirst.mountainThresholdShift,
+        0,
+        0.25,
+      );
+    }
+    if (Number.isFinite(profile.landmarkFirst.hillThresholdShift)) {
+      next.landmarkFirst.hillThresholdShift = clamp(
+        profile.landmarkFirst.hillThresholdShift,
+        0,
+        0.25,
+      );
+    }
+    if (Number.isFinite(profile.landmarkFirst.riverMountainSuppression)) {
+      next.landmarkFirst.riverMountainSuppression = clamp(
+        profile.landmarkFirst.riverMountainSuppression,
+        0,
+        0.25,
+      );
+    }
+    if (Number.isFinite(profile.landmarkFirst.riverHillSuppression)) {
+      next.landmarkFirst.riverHillSuppression = clamp(
+        profile.landmarkFirst.riverHillSuppression,
+        0,
+        0.25,
+      );
+    }
+    if (Number.isFinite(profile.landmarkFirst.fertileHeightBoost)) {
+      next.landmarkFirst.fertileHeightBoost = clamp(
+        profile.landmarkFirst.fertileHeightBoost,
+        0,
+        0.25,
+      );
+    }
+    if (Number.isFinite(profile.landmarkFirst.fertileDistanceBoost)) {
+      next.landmarkFirst.fertileDistanceBoost = clamp(
+        profile.landmarkFirst.fertileDistanceBoost,
+        0,
+        8,
+      );
+    }
+  }
+  if (profile.landmarkSuitability) {
+    if (profile.landmarkSuitability.forest) {
+      next.forest.landmarkSuitability = normalizeBiomeLandmarkSuitability(
+        profile.landmarkSuitability.forest,
+        next.forest.landmarkSuitability,
+      );
+    }
+    if (profile.landmarkSuitability.food) {
+      next.food.landmarkSuitability = normalizeBiomeLandmarkSuitability(
+        profile.landmarkSuitability.food,
+        next.food.landmarkSuitability,
+      );
+    }
+    if (profile.landmarkSuitability.pasture) {
+      next.pasture.landmarkSuitability = normalizeBiomeLandmarkSuitability(
+        profile.landmarkSuitability.pasture,
+        next.pasture.landmarkSuitability,
+      );
+    }
+  }
+
+  return next;
+}
+
 // Function: normalizeValleySettings.
 function normalizeValleySettings(raw, defaults) {
   const scale = Number(raw.noiseScale ?? defaults.scale ?? 0.06);
@@ -1229,6 +2076,413 @@ function normalizeValleySettings(raw, defaults) {
   const domainWarpScale = Number.isFinite(domainWarpScaleRaw)
     ? Math.max(0, domainWarpScaleRaw)
     : 0;
+  const fantasyPresetRaw = String(
+    raw.fantasyPreset ?? raw.fantasy_preset ?? "none",
+  ).toLowerCase();
+  const fantasyPreset = [
+    "none",
+    "green_realm",
+    "broken_crown",
+    "mistwater",
+    "high_marches",
+    "natural_epic",
+    "heroic_contrast",
+  ].includes(fantasyPresetRaw)
+    ? fantasyPresetRaw
+    : "none";
+  const macroZones = raw.macro_zones || raw.macroZones || {};
+  const macroZonesEnabled = macroZones.enabled !== false;
+  const macroZonesCountRaw = Number(
+    macroZones.zone_count ?? macroZones.zoneCount ?? 3,
+  );
+  const macroZonesCount = Number.isFinite(macroZonesCountRaw)
+    ? clamp(Math.floor(macroZonesCountRaw), 2, 6)
+    : 3;
+  const macroZonesScaleRaw = Number(
+    macroZones.scale ?? macroZones.noiseScale ?? 0.016,
+  );
+  const macroZonesScale = Number.isFinite(macroZonesScaleRaw)
+    ? Math.max(0.001, macroZonesScaleRaw)
+    : 0.016;
+  const macroZonesOctavesRaw = Number(macroZones.octaves ?? 2);
+  const macroZonesOctaves = Number.isFinite(macroZonesOctavesRaw)
+    ? clamp(Math.floor(macroZonesOctavesRaw), 1, 6)
+    : 2;
+  const macroZonesPersistenceRaw = Number(macroZones.persistence ?? 0.52);
+  const macroZonesPersistence = Number.isFinite(macroZonesPersistenceRaw)
+    ? clamp(macroZonesPersistenceRaw, 0, 1)
+    : 0.52;
+  const macroZonesLacunarityRaw = Number(macroZones.lacunarity ?? 2.0);
+  const macroZonesLacunarity =
+    Number.isFinite(macroZonesLacunarityRaw) && macroZonesLacunarityRaw > 0
+      ? macroZonesLacunarityRaw
+      : 2.0;
+  const macroZonesSeedOffsetRaw = Number(
+    macroZones.seed_offset ?? macroZones.seedOffset ?? 1181,
+  );
+  const macroZonesSeedOffset = Number.isFinite(macroZonesSeedOffsetRaw)
+    ? Math.floor(macroZonesSeedOffsetRaw)
+    : 1181;
+  const macroZonesUseDomainWarp =
+    macroZones.use_domain_warp === false ||
+    macroZones.useDomainWarp === false
+      ? false
+      : true;
+  const macroZonesSoftnessRaw = Number(macroZones.softness ?? 0.45);
+  const macroZonesSoftness = Number.isFinite(macroZonesSoftnessRaw)
+    ? clamp(macroZonesSoftnessRaw, 0, 1)
+    : 0.45;
+  const macroZonesSmoothingPassesRaw = Number(
+    macroZones.smoothing_passes ?? macroZones.smoothingPasses ?? 1,
+  );
+  const macroZonesSmoothingPasses = Number.isFinite(
+    macroZonesSmoothingPassesRaw,
+  )
+    ? clamp(Math.floor(macroZonesSmoothingPassesRaw), 0, 4)
+    : 1;
+  const macroMountainHeightShiftRaw = Number(
+    macroZones.mountain_height_shift ?? macroZones.mountainHeightShift ?? 0.05,
+  );
+  const macroMountainHeightShift = Number.isFinite(macroMountainHeightShiftRaw)
+    ? clamp(macroMountainHeightShiftRaw, 0, 0.25)
+    : 0.05;
+  const macroHillHeightShiftRaw = Number(
+    macroZones.hill_height_shift ?? macroZones.hillHeightShift ?? 0.04,
+  );
+  const macroHillHeightShift = Number.isFinite(macroHillHeightShiftRaw)
+    ? clamp(macroHillHeightShiftRaw, 0, 0.25)
+    : 0.04;
+  const macroFertileHeightShiftRaw = Number(
+    macroZones.fertile_height_shift ?? macroZones.fertileHeightShift ?? 0.04,
+  );
+  const macroFertileHeightShift = Number.isFinite(macroFertileHeightShiftRaw)
+    ? clamp(macroFertileHeightShiftRaw, 0, 0.25)
+    : 0.04;
+  const macroFertileDistanceShiftRaw = Number(
+    macroZones.fertile_distance_shift ??
+      macroZones.fertileDistanceShift ??
+      2,
+  );
+  const macroFertileDistanceShift = Number.isFinite(
+    macroFertileDistanceShiftRaw,
+  )
+    ? clamp(macroFertileDistanceShiftRaw, 0, 8)
+    : 2;
+  const macroHumidityShiftRaw = Number(
+    macroZones.humidity_shift ?? macroZones.humidityShift ?? 0.1,
+  );
+  const macroHumidityShift = Number.isFinite(macroHumidityShiftRaw)
+    ? clamp(macroHumidityShiftRaw, 0, 0.45)
+    : 0.1;
+  const macroWaterDistanceShiftRaw = Number(
+    macroZones.water_distance_shift ?? macroZones.waterDistanceShift ?? 1.4,
+  );
+  const macroWaterDistanceShift = Number.isFinite(macroWaterDistanceShiftRaw)
+    ? clamp(macroWaterDistanceShiftRaw, 0, 8)
+    : 1.4;
+  const macroBiomeThresholdShiftRaw = Number(
+    macroZones.biome_threshold_shift ??
+      macroZones.biomeThresholdShift ??
+      0.06,
+  );
+  const macroBiomeThresholdShift = Number.isFinite(macroBiomeThresholdShiftRaw)
+    ? clamp(macroBiomeThresholdShiftRaw, 0, 0.3)
+    : 0.06;
+  const worldSpine = raw.world_spine || raw.worldSpine || {};
+  const worldSpineEnabled = worldSpine.enabled !== false;
+  const worldSpineOrientationRaw = String(
+    worldSpine.orientation ?? "horizontal",
+  ).toLowerCase();
+  const worldSpineOrientation =
+    worldSpineOrientationRaw === "vertical" ? "vertical" : "horizontal";
+  const worldSpineWidthRatioRaw = Number(
+    worldSpine.width_ratio ?? worldSpine.widthRatio ?? 0.24,
+  );
+  const worldSpineWidthRatio = Number.isFinite(worldSpineWidthRatioRaw)
+    ? clamp(worldSpineWidthRatioRaw, 0.05, 0.9)
+    : 0.24;
+  const worldSpineCurveScaleRaw = Number(
+    worldSpine.curve_scale ?? worldSpine.curveScale ?? 0.045,
+  );
+  const worldSpineCurveScale = Number.isFinite(worldSpineCurveScaleRaw)
+    ? Math.max(0.001, worldSpineCurveScaleRaw)
+    : 0.045;
+  const worldSpineCurveStrengthRaw = Number(
+    worldSpine.curve_strength ?? worldSpine.curveStrength ?? 0.2,
+  );
+  const worldSpineCurveStrength = Number.isFinite(worldSpineCurveStrengthRaw)
+    ? clamp(worldSpineCurveStrengthRaw, 0, 0.45)
+    : 0.2;
+  const worldSpineReliefStrengthRaw = Number(
+    worldSpine.relief_strength ?? worldSpine.reliefStrength ?? 0.11,
+  );
+  const worldSpineReliefStrength = Number.isFinite(worldSpineReliefStrengthRaw)
+    ? clamp(worldSpineReliefStrengthRaw, 0, 0.35)
+    : 0.11;
+  const worldSpineSeedOffsetRaw = Number(
+    worldSpine.seed_offset ?? worldSpine.seedOffset ?? 1549,
+  );
+  const worldSpineSeedOffset = Number.isFinite(worldSpineSeedOffsetRaw)
+    ? Math.floor(worldSpineSeedOffsetRaw)
+    : 1549;
+  const worldSpineUseDomainWarp =
+    worldSpine.use_domain_warp === false || worldSpine.useDomainWarp === false
+      ? false
+      : true;
+  const waterBudget = raw.water_budget || raw.waterBudget || {};
+  const waterBudgetEnabled = waterBudget.enabled !== false;
+  const waterBudgetMaxRatioRaw = Number(
+    waterBudget.max_ratio ?? waterBudget.maxRatio ?? 0.14,
+  );
+  const waterBudgetMaxRatio = Number.isFinite(waterBudgetMaxRatioRaw)
+    ? clamp(waterBudgetMaxRatioRaw, 0, 0.5)
+    : 0.14;
+  const waterBudgetPreserveRiver =
+    waterBudget.preserve_river === false || waterBudget.preserveRiver === false
+      ? false
+      : true;
+  const biomeEdgeJitter = raw.biome_edge_jitter || raw.biomeEdgeJitter || {};
+  const biomeEdgeJitterEnabled = biomeEdgeJitter.enabled !== false;
+  const biomeEdgeJitterPassesRaw = Number(biomeEdgeJitter.passes ?? 1);
+  const biomeEdgeJitterPasses = Number.isFinite(biomeEdgeJitterPassesRaw)
+    ? clamp(Math.floor(biomeEdgeJitterPassesRaw), 0, 4)
+    : 1;
+  const biomeEdgeJitterStrengthRaw = Number(biomeEdgeJitter.strength ?? 0.18);
+  const biomeEdgeJitterStrength = Number.isFinite(biomeEdgeJitterStrengthRaw)
+    ? clamp(biomeEdgeJitterStrengthRaw, 0, 0.45)
+    : 0.18;
+  const biomeEdgeJitterNoiseScaleRaw = Number(
+    biomeEdgeJitter.noise_scale ?? biomeEdgeJitter.noiseScale ?? 0.28,
+  );
+  const biomeEdgeJitterNoiseScale = Number.isFinite(
+    biomeEdgeJitterNoiseScaleRaw,
+  )
+    ? Math.max(0.001, biomeEdgeJitterNoiseScaleRaw)
+    : 0.28;
+  const biomeEdgeJitterSeedOffsetRaw = Number(
+    biomeEdgeJitter.seed_offset ?? biomeEdgeJitter.seedOffset ?? 1723,
+  );
+  const biomeEdgeJitterSeedOffset = Number.isFinite(biomeEdgeJitterSeedOffsetRaw)
+    ? Math.floor(biomeEdgeJitterSeedOffsetRaw)
+    : 1723;
+  const biomeEdgeJitterTypesRaw = Array.isArray(
+    biomeEdgeJitter.types,
+  )
+    ? biomeEdgeJitter.types
+    : ["forest", "food", "pasture"];
+  const biomeEdgeJitterTypes = biomeEdgeJitterTypesRaw
+    .map((type) => String(type || "").toLowerCase())
+    .filter((type) => ["forest", "food", "pasture"].includes(type));
+  const landmarks = raw.landmarks || {};
+  const landmarksEnabled = landmarks.enabled !== false;
+  const riverSpine = landmarks.river_spine || landmarks.riverSpine || {};
+  const riverSpineEnabled = riverSpine.enabled !== false;
+  const riverSpineOrientationRaw = String(
+    riverSpine.orientation ?? "auto",
+  ).toLowerCase();
+  const riverSpineOrientation = ["auto", "horizontal", "vertical"].includes(
+    riverSpineOrientationRaw,
+  )
+    ? riverSpineOrientationRaw
+    : "auto";
+  const riverSpineWidthRatioRaw = Number(
+    riverSpine.width_ratio ?? riverSpine.widthRatio ?? 0.2,
+  );
+  const riverSpineWidthRatio = Number.isFinite(riverSpineWidthRatioRaw)
+    ? clamp(riverSpineWidthRatioRaw, 0.05, 0.9)
+    : 0.2;
+  const riverSpineCurveScaleRaw = Number(
+    riverSpine.curve_scale ?? riverSpine.curveScale ?? 0.05,
+  );
+  const riverSpineCurveScale = Number.isFinite(riverSpineCurveScaleRaw)
+    ? Math.max(0.001, riverSpineCurveScaleRaw)
+    : 0.05;
+  const riverSpineCurveStrengthRaw = Number(
+    riverSpine.curve_strength ?? riverSpine.curveStrength ?? 0.24,
+  );
+  const riverSpineCurveStrength = Number.isFinite(riverSpineCurveStrengthRaw)
+    ? clamp(riverSpineCurveStrengthRaw, 0, 0.45)
+    : 0.24;
+  const riverSpineSeedOffsetRaw = Number(
+    riverSpine.seed_offset ?? riverSpine.seedOffset ?? 2191,
+  );
+  const riverSpineSeedOffset = Number.isFinite(riverSpineSeedOffsetRaw)
+    ? Math.floor(riverSpineSeedOffsetRaw)
+    : 2191;
+  const riverSpineUseDomainWarp =
+    riverSpine.use_domain_warp === false || riverSpine.useDomainWarp === false
+      ? false
+      : true;
+  const riverSpineWeightRaw = Number(riverSpine.weight ?? 0.12);
+  const riverSpineWeight = Number.isFinite(riverSpineWeightRaw)
+    ? clamp(riverSpineWeightRaw, 0, 1)
+    : 0.12;
+  const riverSpineBacktrackPenaltyRaw = Number(
+    riverSpine.backtrack_penalty ?? riverSpine.backtrackPenalty ?? 0.03,
+  );
+  const riverSpineBacktrackPenalty = Number.isFinite(
+    riverSpineBacktrackPenaltyRaw,
+  )
+    ? clamp(riverSpineBacktrackPenaltyRaw, 0, 0.2)
+    : 0.03;
+  const ridgeMask = landmarks.ridge_mask || landmarks.ridgeMask || {};
+  const ridgeMaskEnabled = ridgeMask.enabled !== false;
+  const ridgeMaskOrientationRaw = String(
+    ridgeMask.orientation ?? "auto",
+  ).toLowerCase();
+  const ridgeMaskOrientation = ["auto", "horizontal", "vertical"].includes(
+    ridgeMaskOrientationRaw,
+  )
+    ? ridgeMaskOrientationRaw
+    : "auto";
+  const ridgeMaskWidthRatioRaw = Number(
+    ridgeMask.width_ratio ?? ridgeMask.widthRatio ?? 0.19,
+  );
+  const ridgeMaskWidthRatio = Number.isFinite(ridgeMaskWidthRatioRaw)
+    ? clamp(ridgeMaskWidthRatioRaw, 0.05, 0.9)
+    : 0.19;
+  const ridgeMaskCurveScaleRaw = Number(
+    ridgeMask.curve_scale ?? ridgeMask.curveScale ?? 0.04,
+  );
+  const ridgeMaskCurveScale = Number.isFinite(ridgeMaskCurveScaleRaw)
+    ? Math.max(0.001, ridgeMaskCurveScaleRaw)
+    : 0.04;
+  const ridgeMaskCurveStrengthRaw = Number(
+    ridgeMask.curve_strength ?? ridgeMask.curveStrength ?? 0.22,
+  );
+  const ridgeMaskCurveStrength = Number.isFinite(ridgeMaskCurveStrengthRaw)
+    ? clamp(ridgeMaskCurveStrengthRaw, 0, 0.45)
+    : 0.22;
+  const ridgeMaskStrengthRaw = Number(ridgeMask.strength ?? 0.09);
+  const ridgeMaskStrength = Number.isFinite(ridgeMaskStrengthRaw)
+    ? clamp(ridgeMaskStrengthRaw, 0, 0.35)
+    : 0.09;
+  const ridgeMaskMountainThresholdShiftRaw = Number(
+    ridgeMask.mountain_threshold_shift ??
+      ridgeMask.mountainThresholdShift ??
+      0.08,
+  );
+  const ridgeMaskMountainThresholdShift = Number.isFinite(
+    ridgeMaskMountainThresholdShiftRaw,
+  )
+    ? clamp(ridgeMaskMountainThresholdShiftRaw, 0, 0.25)
+    : 0.08;
+  const ridgeMaskHillThresholdShiftRaw = Number(
+    ridgeMask.hill_threshold_shift ?? ridgeMask.hillThresholdShift ?? 0.06,
+  );
+  const ridgeMaskHillThresholdShift = Number.isFinite(
+    ridgeMaskHillThresholdShiftRaw,
+  )
+    ? clamp(ridgeMaskHillThresholdShiftRaw, 0, 0.25)
+    : 0.06;
+  const ridgeMaskSeedOffsetRaw = Number(
+    ridgeMask.seed_offset ?? ridgeMask.seedOffset ?? 2609,
+  );
+  const ridgeMaskSeedOffset = Number.isFinite(ridgeMaskSeedOffsetRaw)
+    ? Math.floor(ridgeMaskSeedOffsetRaw)
+    : 2609;
+  const ridgeMaskUseDomainWarp =
+    ridgeMask.use_domain_warp === false || ridgeMask.useDomainWarp === false
+      ? false
+      : true;
+  const landmarkFirst = raw.landmark_first || raw.landmarkFirst || {};
+  const landmarkFirstEnabled = landmarkFirst.enabled === true;
+  const landmarkFirstHeightBlendRaw = Number(
+    landmarkFirst.height_blend ?? landmarkFirst.heightBlend ?? 0.65,
+  );
+  const landmarkFirstHeightBlend = Number.isFinite(landmarkFirstHeightBlendRaw)
+    ? clamp(landmarkFirstHeightBlendRaw, 0, 1)
+    : 0.65;
+  const landmarkFirstSpineHeightBoostRaw = Number(
+    landmarkFirst.spine_height_boost ??
+      landmarkFirst.spineHeightBoost ??
+      0.12,
+  );
+  const landmarkFirstSpineHeightBoost = Number.isFinite(
+    landmarkFirstSpineHeightBoostRaw,
+  )
+    ? clamp(landmarkFirstSpineHeightBoostRaw, 0, 0.35)
+    : 0.12;
+  const landmarkFirstRidgeHeightBoostRaw = Number(
+    landmarkFirst.ridge_height_boost ??
+      landmarkFirst.ridgeHeightBoost ??
+      0.2,
+  );
+  const landmarkFirstRidgeHeightBoost = Number.isFinite(
+    landmarkFirstRidgeHeightBoostRaw,
+  )
+    ? clamp(landmarkFirstRidgeHeightBoostRaw, 0, 0.35)
+    : 0.2;
+  const landmarkFirstRiverCarveStrengthRaw = Number(
+    landmarkFirst.river_carve_strength ??
+      landmarkFirst.riverCarveStrength ??
+      0.18,
+  );
+  const landmarkFirstRiverCarveStrength = Number.isFinite(
+    landmarkFirstRiverCarveStrengthRaw,
+  )
+    ? clamp(landmarkFirstRiverCarveStrengthRaw, 0, 0.35)
+    : 0.18;
+  const landmarkFirstMountainThresholdShiftRaw = Number(
+    landmarkFirst.mountain_threshold_shift ??
+      landmarkFirst.mountainThresholdShift ??
+      0.08,
+  );
+  const landmarkFirstMountainThresholdShift = Number.isFinite(
+    landmarkFirstMountainThresholdShiftRaw,
+  )
+    ? clamp(landmarkFirstMountainThresholdShiftRaw, 0, 0.25)
+    : 0.08;
+  const landmarkFirstHillThresholdShiftRaw = Number(
+    landmarkFirst.hill_threshold_shift ??
+      landmarkFirst.hillThresholdShift ??
+      0.06,
+  );
+  const landmarkFirstHillThresholdShift = Number.isFinite(
+    landmarkFirstHillThresholdShiftRaw,
+  )
+    ? clamp(landmarkFirstHillThresholdShiftRaw, 0, 0.25)
+    : 0.06;
+  const landmarkFirstRiverMountainSuppressionRaw = Number(
+    landmarkFirst.river_mountain_suppression ??
+      landmarkFirst.riverMountainSuppression ??
+      0.1,
+  );
+  const landmarkFirstRiverMountainSuppression = Number.isFinite(
+    landmarkFirstRiverMountainSuppressionRaw,
+  )
+    ? clamp(landmarkFirstRiverMountainSuppressionRaw, 0, 0.25)
+    : 0.1;
+  const landmarkFirstRiverHillSuppressionRaw = Number(
+    landmarkFirst.river_hill_suppression ??
+      landmarkFirst.riverHillSuppression ??
+      0.08,
+  );
+  const landmarkFirstRiverHillSuppression = Number.isFinite(
+    landmarkFirstRiverHillSuppressionRaw,
+  )
+    ? clamp(landmarkFirstRiverHillSuppressionRaw, 0, 0.25)
+    : 0.08;
+  const landmarkFirstFertileHeightBoostRaw = Number(
+    landmarkFirst.fertile_height_boost ??
+      landmarkFirst.fertileHeightBoost ??
+      0.05,
+  );
+  const landmarkFirstFertileHeightBoost = Number.isFinite(
+    landmarkFirstFertileHeightBoostRaw,
+  )
+    ? clamp(landmarkFirstFertileHeightBoostRaw, 0, 0.25)
+    : 0.05;
+  const landmarkFirstFertileDistanceBoostRaw = Number(
+    landmarkFirst.fertile_distance_boost ??
+      landmarkFirst.fertileDistanceBoost ??
+      2,
+  );
+  const landmarkFirstFertileDistanceBoost = Number.isFinite(
+    landmarkFirstFertileDistanceBoostRaw,
+  )
+    ? clamp(landmarkFirstFertileDistanceBoostRaw, 0, 8)
+    : 2;
   const biomeNoise = raw.biome_noise || raw.biomeNoise || {};
   const biomeNoiseEnabled = biomeNoise.enabled !== false;
   const biomeNoiseScaleRaw = Number(biomeNoise.scale ?? 0.05);
@@ -1417,23 +2671,201 @@ function normalizeValleySettings(raw, defaults) {
   const forestEdgeNoiseScale = Number.isFinite(forestEdgeNoiseScaleRaw)
     ? Math.max(0.001, forestEdgeNoiseScaleRaw)
     : forestNoiseScale;
+  const forestNaturalSpread =
+    forest.natural_spread || forest.naturalSpread || {};
+  const forestNaturalSpreadNoiseScaleRaw = Number(
+    forestNaturalSpread.noise_scale ??
+      forestNaturalSpread.noiseScale ??
+      0.045,
+  );
+  const forestNaturalSpreadNoiseThresholdRaw = Number(
+    forestNaturalSpread.noise_threshold ??
+      forestNaturalSpread.noiseThreshold ??
+      0.6,
+  );
+  const forestNaturalSpreadMaxExtraDistanceRaw = Number(
+    forestNaturalSpread.max_extra_distance ??
+      forestNaturalSpread.maxExtraDistance ??
+      5,
+  );
+  const forestNaturalSpreadHumidityRelaxRaw = Number(
+    forestNaturalSpread.humidity_relax ??
+      forestNaturalSpread.humidityRelax ??
+      0.05,
+  );
+  const forestNaturalSpreadHumidityFloorRaw = Number(
+    forestNaturalSpread.humidity_floor ??
+      forestNaturalSpread.humidityFloor ??
+      0.2,
+  );
+  const forestNaturalSpreadThresholdBoostRaw = Number(
+    forestNaturalSpread.noise_threshold_boost ??
+      forestNaturalSpread.noiseThresholdBoost ??
+      0.1,
+  );
+  const forestNaturalSpreadEnabled = forestNaturalSpread.enabled !== false;
+  const forestNaturalSpreadNoiseScale = Number.isFinite(
+    forestNaturalSpreadNoiseScaleRaw,
+  )
+    ? Math.max(0.001, forestNaturalSpreadNoiseScaleRaw)
+    : 0.045;
+  const forestNaturalSpreadNoiseThreshold = Number.isFinite(
+    forestNaturalSpreadNoiseThresholdRaw,
+  )
+    ? clamp(forestNaturalSpreadNoiseThresholdRaw, 0, 1)
+    : 0.6;
+  const forestNaturalSpreadMaxExtraDistance = Number.isFinite(
+    forestNaturalSpreadMaxExtraDistanceRaw,
+  )
+    ? clamp(forestNaturalSpreadMaxExtraDistanceRaw, 0, 20)
+    : 5;
+  const forestNaturalSpreadHumidityRelax = Number.isFinite(
+    forestNaturalSpreadHumidityRelaxRaw,
+  )
+    ? clamp(forestNaturalSpreadHumidityRelaxRaw, 0, 0.35)
+    : 0.05;
+  const forestNaturalSpreadHumidityFloor = Number.isFinite(
+    forestNaturalSpreadHumidityFloorRaw,
+  )
+    ? clamp(forestNaturalSpreadHumidityFloorRaw, 0, 1)
+    : 0.2;
+  const forestNaturalSpreadThresholdBoost = Number.isFinite(
+    forestNaturalSpreadThresholdBoostRaw,
+  )
+    ? clamp(forestNaturalSpreadThresholdBoostRaw, 0, 0.35)
+    : 0.1;
   const stone = raw.stone || {};
   const food = raw.food || {};
   const pasture = raw.pasture || {};
   const pasturePatches = pasture.patches || {};
+  const forestLandmarkSuitability = normalizeBiomeLandmarkSuitability(
+    forest.landmark_suitability ?? forest.landmarkSuitability,
+    {
+      riverSpineAffinity: -0.38,
+      ridgeAffinity: 0.42,
+      waterDistanceShift: 1.8,
+      humidityShift: 0.06,
+      noiseThresholdShift: -0.04,
+    },
+  );
+  const foodLandmarkSuitability = normalizeBiomeLandmarkSuitability(
+    food.landmark_suitability ?? food.landmarkSuitability,
+    {
+      riverSpineAffinity: 0.52,
+      ridgeAffinity: -0.3,
+      waterDistanceShift: 1.8,
+      humidityShift: 0.07,
+      noiseThresholdShift: -0.05,
+    },
+  );
+  const pastureLandmarkSuitability = normalizeBiomeLandmarkSuitability(
+    pasture.landmark_suitability ?? pasture.landmarkSuitability,
+    {
+      riverSpineAffinity: 0.2,
+      ridgeAffinity: -0.15,
+      waterDistanceShift: 1.2,
+      humidityShift: 0.05,
+      noiseThresholdShift: -0.03,
+    },
+  );
 
-  return {
+  const normalizedValley = {
     noiseScale: Number.isFinite(scale) && scale > 0 ? scale : 0.06,
     octaves: Number.isFinite(octaves) ? clamp(Math.floor(octaves), 1, 8) : 4,
     persistence: Number.isFinite(persistence) ? clamp(persistence, 0, 1) : 0.5,
     lacunarity:
       Number.isFinite(lacunarity) && lacunarity > 0 ? lacunarity : 2.0,
+    fantasyPreset,
     smoothingPasses,
     bowlStrength,
     domainWarp: {
       enabled: domainWarpEnabled,
       strength: domainWarpStrength,
       scale: domainWarpScale,
+    },
+    macroZones: {
+      enabled: macroZonesEnabled,
+      zoneCount: macroZonesCount,
+      scale: macroZonesScale,
+      octaves: macroZonesOctaves,
+      persistence: macroZonesPersistence,
+      lacunarity: macroZonesLacunarity,
+      seedOffset: macroZonesSeedOffset,
+      useDomainWarp: macroZonesUseDomainWarp,
+      softness: macroZonesSoftness,
+      smoothingPasses: macroZonesSmoothingPasses,
+      mountainHeightShift: macroMountainHeightShift,
+      hillHeightShift: macroHillHeightShift,
+      fertileHeightShift: macroFertileHeightShift,
+      fertileDistanceShift: macroFertileDistanceShift,
+      humidityShift: macroHumidityShift,
+      waterDistanceShift: macroWaterDistanceShift,
+      biomeThresholdShift: macroBiomeThresholdShift,
+    },
+    worldSpine: {
+      enabled: worldSpineEnabled,
+      orientation: worldSpineOrientation,
+      widthRatio: worldSpineWidthRatio,
+      curveScale: worldSpineCurveScale,
+      curveStrength: worldSpineCurveStrength,
+      reliefStrength: worldSpineReliefStrength,
+      seedOffset: worldSpineSeedOffset,
+      useDomainWarp: worldSpineUseDomainWarp,
+    },
+    waterBudget: {
+      enabled: waterBudgetEnabled,
+      maxRatio: waterBudgetMaxRatio,
+      preserveRiver: waterBudgetPreserveRiver,
+    },
+    landmarks: {
+      enabled: landmarksEnabled,
+      riverSpine: {
+        enabled: riverSpineEnabled,
+        orientation: riverSpineOrientation,
+        widthRatio: riverSpineWidthRatio,
+        curveScale: riverSpineCurveScale,
+        curveStrength: riverSpineCurveStrength,
+        seedOffset: riverSpineSeedOffset,
+        useDomainWarp: riverSpineUseDomainWarp,
+        weight: riverSpineWeight,
+        backtrackPenalty: riverSpineBacktrackPenalty,
+      },
+      ridgeMask: {
+        enabled: ridgeMaskEnabled,
+        orientation: ridgeMaskOrientation,
+        widthRatio: ridgeMaskWidthRatio,
+        curveScale: ridgeMaskCurveScale,
+        curveStrength: ridgeMaskCurveStrength,
+        strength: ridgeMaskStrength,
+        mountainThresholdShift: ridgeMaskMountainThresholdShift,
+        hillThresholdShift: ridgeMaskHillThresholdShift,
+        seedOffset: ridgeMaskSeedOffset,
+        useDomainWarp: ridgeMaskUseDomainWarp,
+      },
+    },
+    landmarkFirst: {
+      enabled: landmarkFirstEnabled,
+      heightBlend: landmarkFirstHeightBlend,
+      spineHeightBoost: landmarkFirstSpineHeightBoost,
+      ridgeHeightBoost: landmarkFirstRidgeHeightBoost,
+      riverCarveStrength: landmarkFirstRiverCarveStrength,
+      mountainThresholdShift: landmarkFirstMountainThresholdShift,
+      hillThresholdShift: landmarkFirstHillThresholdShift,
+      riverMountainSuppression: landmarkFirstRiverMountainSuppression,
+      riverHillSuppression: landmarkFirstRiverHillSuppression,
+      fertileHeightBoost: landmarkFirstFertileHeightBoost,
+      fertileDistanceBoost: landmarkFirstFertileDistanceBoost,
+    },
+    biomeEdgeJitter: {
+      enabled: biomeEdgeJitterEnabled,
+      passes: biomeEdgeJitterPasses,
+      strength: biomeEdgeJitterStrength,
+      noiseScale: biomeEdgeJitterNoiseScale,
+      seedOffset: biomeEdgeJitterSeedOffset,
+      types:
+        biomeEdgeJitterTypes.length > 0
+          ? biomeEdgeJitterTypes
+          : ["forest", "food", "pasture"],
     },
     biomeNoise: {
       enabled: biomeNoiseEnabled,
@@ -1515,6 +2947,16 @@ function normalizeValleySettings(raw, defaults) {
       noiseScale: forestNoiseScale,
       noiseThreshold: clamp(Number(forest.noiseThreshold ?? 0.6), 0, 1),
       clusterPasses: clamp(Math.floor(Number(forest.clusterPasses ?? 2)), 0, 5),
+      naturalSpread: {
+        enabled: forestNaturalSpreadEnabled,
+        noiseScale: forestNaturalSpreadNoiseScale,
+        noiseThreshold: forestNaturalSpreadNoiseThreshold,
+        maxExtraDistance: forestNaturalSpreadMaxExtraDistance,
+        humidityRelax: forestNaturalSpreadHumidityRelax,
+        humidityFloor: forestNaturalSpreadHumidityFloor,
+        noiseThresholdBoost: forestNaturalSpreadThresholdBoost,
+      },
+      landmarkSuitability: forestLandmarkSuitability,
     },
     food: {
       humidityMin: clamp(Number(food.humidityMin ?? 0.4), 0, 1),
@@ -1530,6 +2972,7 @@ function normalizeValleySettings(raw, defaults) {
       minTilesWaterDistanceMax: Number.isFinite(food.minTilesWaterDistanceMax)
         ? clamp(Math.floor(Number(food.minTilesWaterDistanceMax)), 0, 12)
         : undefined,
+      landmarkSuitability: foodLandmarkSuitability,
     },
     pasture: {
       humidityMin: clamp(Number(pasture.humidityMin ?? 0.33), 0, 1),
@@ -1560,6 +3003,7 @@ function normalizeValleySettings(raw, defaults) {
           fill,
         };
       })(),
+      landmarkSuitability: pastureLandmarkSuitability,
     },
     stone: {
       heightMin: clamp(Number(stone.heightMin ?? 0.58), 0, 1),
@@ -1568,6 +3012,8 @@ function normalizeValleySettings(raw, defaults) {
       clusterPasses: clamp(Math.floor(Number(stone.clusterPasses ?? 1)), 0, 4),
     },
   };
+
+  return applyFantasyPresetToValley(normalizedValley);
 }
 
 // Function: normalizeWalkableSettings.
@@ -2049,6 +3495,633 @@ function applyDistanceJitter(dist, valley, seed) {
   return jittered;
 }
 
+// Function: inferRiverGuideOrientation.
+function inferRiverGuideOrientation(valley) {
+  const sides = Array.isArray(valley && valley.riverSourceSides)
+    ? valley.riverSourceSides
+    : [];
+  const sideSet = new Set(sides.map((side) => String(side || "").toLowerCase()));
+  if (
+    (sideSet.has("west") || sideSet.has("east")) &&
+    !sideSet.has("north") &&
+    !sideSet.has("south")
+  ) {
+    return "horizontal";
+  }
+  if (
+    (sideSet.has("north") || sideSet.has("south")) &&
+    !sideSet.has("west") &&
+    !sideSet.has("east")
+  ) {
+    return "vertical";
+  }
+  const bias = valley && valley.riverBias ? valley.riverBias : {};
+  const horizontalBias =
+    Math.abs(Number(bias.east || 0)) + Math.abs(Number(bias.west || 0));
+  const verticalBias =
+    Math.abs(Number(bias.north || 0)) + Math.abs(Number(bias.south || 0));
+  return horizontalBias >= verticalBias ? "horizontal" : "vertical";
+}
+
+// Function: resolveLandmarkOrientation.
+function resolveLandmarkOrientation(requested, fallback) {
+  const wanted = String(requested || "").toLowerCase();
+  if (wanted === "horizontal" || wanted === "vertical") {
+    return wanted;
+  }
+  return fallback === "vertical" ? "vertical" : "horizontal";
+}
+
+// Function: buildLandmarkProfiles.
+function buildLandmarkProfiles(width, height, settings, seed, warp, valley) {
+  if (!settings || settings.enabled === false || width <= 0 || height <= 0) {
+    return null;
+  }
+  const riverOrientation = inferRiverGuideOrientation(valley);
+  const riverSpineConfig = settings.riverSpine || {};
+  const resolvedRiverOrientation = resolveLandmarkOrientation(
+    riverSpineConfig.orientation,
+    riverOrientation,
+  );
+  const riverSpineShape = buildWorldSpineProfile(
+    width,
+    height,
+    {
+      enabled: riverSpineConfig.enabled !== false,
+      orientation: resolvedRiverOrientation,
+      widthRatio: riverSpineConfig.widthRatio,
+      curveScale: riverSpineConfig.curveScale,
+      curveStrength: riverSpineConfig.curveStrength,
+      reliefStrength: 0,
+      seedOffset: riverSpineConfig.seedOffset,
+      useDomainWarp: riverSpineConfig.useDomainWarp,
+    },
+    seed + 317,
+    warp,
+  );
+  const riverSpineGuide =
+    riverSpineShape && riverSpineShape.enabled
+      ? {
+          ...riverSpineShape,
+          enabled: true,
+          weight: clamp(Number(riverSpineConfig.weight || 0), 0, 1),
+          backtrackPenalty: clamp(
+            Number(riverSpineConfig.backtrackPenalty || 0),
+            0,
+            0.2,
+          ),
+          travelDirection: 0,
+        }
+      : null;
+
+  const ridgeConfig = settings.ridgeMask || {};
+  const ridgeFallback =
+    riverOrientation === "horizontal" ? "vertical" : "horizontal";
+  const resolvedRidgeOrientation = resolveLandmarkOrientation(
+    ridgeConfig.orientation,
+    ridgeFallback,
+  );
+  const ridgeShape = buildWorldSpineProfile(
+    width,
+    height,
+    {
+      enabled: ridgeConfig.enabled !== false,
+      orientation: resolvedRidgeOrientation,
+      widthRatio: ridgeConfig.widthRatio,
+      curveScale: ridgeConfig.curveScale,
+      curveStrength: ridgeConfig.curveStrength,
+      reliefStrength: 0,
+      seedOffset: ridgeConfig.seedOffset,
+      useDomainWarp: ridgeConfig.useDomainWarp,
+    },
+    seed + 941,
+    warp,
+  );
+  const ridgeMaskMap =
+    ridgeShape && ridgeShape.enabled
+      ? Array.from({ length: height }, (_, y) =>
+          Array.from({ length: width }, (_, x) =>
+            sampleWorldSpineMask(ridgeShape, x, y, warp),
+          ),
+        )
+      : null;
+
+  return {
+    riverSpineGuide,
+    ridgeMaskMap,
+  };
+}
+
+// Function: buildSourceRiverGuide.
+function buildSourceRiverGuide(baseGuide, source, width, height) {
+  if (!baseGuide || !baseGuide.enabled || !source) {
+    return null;
+  }
+  let direction = 0;
+  if (baseGuide.orientation === "horizontal") {
+    direction = source.x <= width / 2 ? 1 : -1;
+  } else {
+    direction = source.y <= height / 2 ? 1 : -1;
+  }
+  return {
+    ...baseGuide,
+    travelDirection: direction,
+  };
+}
+
+// Function: sampleGuidePoint.
+function sampleGuidePoint(guide, x, y, warp) {
+  if (!guide || !guide.enabled || !Array.isArray(guide.centers)) {
+    return null;
+  }
+  let sampleX = x;
+  let sampleY = y;
+  if (guide.useDomainWarp && warp && warp.enabled) {
+    const warped = applyDomainWarp(x, y, warp);
+    sampleX = warped.x;
+    sampleY = warped.y;
+  }
+  const major = guide.orientation === "horizontal" ? sampleX : sampleY;
+  const minor = guide.orientation === "horizontal" ? sampleY : sampleX;
+  const majorFloor = clamp(Math.floor(major), 0, guide.majorSize - 1);
+  const majorCeil = clamp(Math.ceil(major), 0, guide.majorSize - 1);
+  const t = clamp(major - majorFloor, 0, 1);
+  const center = lerp(guide.centers[majorFloor], guide.centers[majorCeil], t);
+  return { major, minor, center };
+}
+
+// Function: sampleGuideDistance.
+function sampleGuideDistance(guide, x, y, warp) {
+  const point = sampleGuidePoint(guide, x, y, warp);
+  if (!point) {
+    return 0;
+  }
+  return Math.abs(point.minor - point.center) / Math.max(1, guide.halfBand);
+}
+
+// Function: sampleGuideMajor.
+function sampleGuideMajor(guide, x, y, warp) {
+  const point = sampleGuidePoint(guide, x, y, warp);
+  return point ? point.major : NaN;
+}
+
+// Function: buildLandmarkSuitabilityContext.
+function buildLandmarkSuitabilityContext(
+  width,
+  height,
+  riverSpineGuide,
+  ridgeMaskMap,
+  warp,
+) {
+  const hasRidge =
+    Array.isArray(ridgeMaskMap) &&
+    ridgeMaskMap.length === height &&
+    height > 0 &&
+    Array.isArray(ridgeMaskMap[0]) &&
+    ridgeMaskMap[0].length === width;
+  const hasRiverGuide = riverSpineGuide && riverSpineGuide.enabled;
+  if (!hasRidge && !hasRiverGuide) {
+    return null;
+  }
+  const riverAffinityMap = hasRiverGuide
+    ? Array.from({ length: height }, (_, y) =>
+        Array.from({ length: width }, (_, x) =>
+          sampleLandmarkGuideAffinity(riverSpineGuide, x, y, warp),
+        ),
+      )
+    : null;
+  return {
+    ridgeMaskMap: hasRidge ? ridgeMaskMap : null,
+    riverAffinityMap,
+  };
+}
+
+// Function: sampleLandmarkGuideAffinity.
+function sampleLandmarkGuideAffinity(guide, x, y, warp) {
+  if (!guide || !guide.enabled) {
+    return 0;
+  }
+  const distance = sampleGuideDistance(guide, x, y, warp);
+  const closeness = clamp(1 - distance, 0, 1);
+  return closeness * closeness * (3 - 2 * closeness);
+}
+
+// Function: computeBiomeLandmarkEffects.
+function computeBiomeLandmarkEffects(context, settings, x, y) {
+  if (!context || !settings || settings.enabled === false) {
+    return {
+      bias: 0,
+      waterDistanceShift: 0,
+      humidityShift: 0,
+      noiseThresholdShift: 0,
+    };
+  }
+  let bias = 0;
+  const hasRiverMap =
+    Array.isArray(context.riverAffinityMap) &&
+    context.riverAffinityMap[y] &&
+    Number.isFinite(context.riverAffinityMap[y][x]);
+  if (hasRiverMap) {
+    const centeredRiver = clamp(context.riverAffinityMap[y][x], 0, 1) * 2 - 1;
+    bias += centeredRiver * Number(settings.riverSpineAffinity || 0);
+  }
+  const hasRidgeMap =
+    Array.isArray(context.ridgeMaskMap) &&
+    context.ridgeMaskMap[y] &&
+    Number.isFinite(context.ridgeMaskMap[y][x]);
+  if (hasRidgeMap) {
+    const centeredRidge = clamp(context.ridgeMaskMap[y][x], 0, 1) * 2 - 1;
+    bias += centeredRidge * Number(settings.ridgeAffinity || 0);
+  }
+  const clampedBias = clamp(bias, -1, 1);
+  return {
+    bias: clampedBias,
+    waterDistanceShift: clampedBias * Number(settings.waterDistanceShift || 0),
+    humidityShift: clampedBias * Number(settings.humidityShift || 0),
+    noiseThresholdShift: clampedBias * Number(settings.noiseThresholdShift || 0),
+  };
+}
+
+// Function: buildWorldSpineProfile.
+function buildWorldSpineProfile(width, height, settings, seed, warp) {
+  if (!settings || settings.enabled === false || width <= 0 || height <= 0) {
+    return { enabled: false, reliefStrength: 0 };
+  }
+  const orientation = settings.orientation === "vertical" ? "vertical" : "horizontal";
+  const majorSize = orientation === "horizontal" ? width : height;
+  const minorSize = orientation === "horizontal" ? height : width;
+  const halfBand = Math.max(1, (minorSize * settings.widthRatio) / 2);
+  const curveScale = Math.max(0.001, Number(settings.curveScale || 0.04));
+  const curveStrength = clamp(Number(settings.curveStrength || 0), 0, 0.45);
+  const useWarp = settings.useDomainWarp !== false && warp && warp.enabled;
+  const centers = new Array(majorSize).fill(minorSize / 2);
+  const baseSeed = Number(seed || 0) + Number(settings.seedOffset || 0);
+  const curveAmplitude = minorSize * curveStrength;
+  for (let i = 0; i < majorSize; i += 1) {
+    let sx = orientation === "horizontal" ? i : minorSize / 2;
+    let sy = orientation === "horizontal" ? minorSize / 2 : i;
+    if (useWarp) {
+      const warped = applyDomainWarp(sx, sy, warp);
+      sx = warped.x;
+      sy = warped.y;
+    }
+    const noise = fractalNoise(sx * curveScale, sy * curveScale, baseSeed, 3, 0.5, 2.0);
+    const offset = (noise - 0.5) * 2 * curveAmplitude;
+    centers[i] = minorSize / 2 + offset;
+  }
+  return {
+    enabled: true,
+    orientation,
+    majorSize,
+    halfBand,
+    useDomainWarp: useWarp,
+    centers,
+    reliefStrength: clamp(Number(settings.reliefStrength || 0), 0, 0.35),
+  };
+}
+
+// Function: sampleWorldSpineMask.
+function sampleWorldSpineMask(profile, x, y, warp) {
+  if (!profile || !profile.enabled || !Array.isArray(profile.centers)) {
+    return 0;
+  }
+  let sampleX = x;
+  let sampleY = y;
+  if (profile.useDomainWarp && warp && warp.enabled) {
+    const warped = applyDomainWarp(x, y, warp);
+    sampleX = warped.x;
+    sampleY = warped.y;
+  }
+  const major = profile.orientation === "horizontal" ? sampleX : sampleY;
+  const minor = profile.orientation === "horizontal" ? sampleY : sampleX;
+  const majorFloor = clamp(Math.floor(major), 0, profile.majorSize - 1);
+  const majorCeil = clamp(Math.ceil(major), 0, profile.majorSize - 1);
+  const t = clamp(major - majorFloor, 0, 1);
+  const center = lerp(profile.centers[majorFloor], profile.centers[majorCeil], t);
+  const distance = Math.abs(minor - center);
+  const normalized = clamp(1 - distance / profile.halfBand, 0, 1);
+  return normalized * normalized * (3 - 2 * normalized);
+}
+
+// Function: buildMacroClimateMaps.
+function buildMacroClimateMaps(width, height, settings, seed, warp) {
+  if (!settings || settings.enabled === false || width <= 0 || height <= 0) {
+    return null;
+  }
+  const usedShifts =
+    Number(settings.mountainHeightShift || 0) +
+    Number(settings.hillHeightShift || 0) +
+    Number(settings.fertileHeightShift || 0) +
+    Number(settings.fertileDistanceShift || 0) +
+    Number(settings.humidityShift || 0) +
+    Number(settings.waterDistanceShift || 0) +
+    Number(settings.biomeThresholdShift || 0);
+  if (usedShifts <= 0) {
+    return null;
+  }
+  const reliefMap = buildMacroZoneMap(
+    width,
+    height,
+    settings,
+    Number(seed || 0) + Number(settings.seedOffset || 0),
+    warp,
+  );
+  const moistureMap = buildMacroZoneMap(
+    width,
+    height,
+    settings,
+    Number(seed || 0) + Number(settings.seedOffset || 0) + 911,
+    warp,
+  );
+  return {
+    reliefMap,
+    moistureMap,
+    settings,
+  };
+}
+
+// Function: buildMacroZoneMap.
+function buildMacroZoneMap(width, height, settings, seed, warp) {
+  const zoneCount = Math.max(2, Math.floor(Number(settings.zoneCount || 3)));
+  const scale = Math.max(0.001, Number(settings.scale || 0.016));
+  const octaves = clamp(Math.floor(Number(settings.octaves || 2)), 1, 6);
+  const persistence = clamp(Number(settings.persistence || 0.5), 0, 1);
+  const lacunarity = Math.max(0.001, Number(settings.lacunarity || 2.0));
+  const softness = clamp(Number(settings.softness || 0), 0, 1);
+  const useWarp = settings.useDomainWarp !== false && warp && warp.enabled;
+  let map = Array.from({ length: height }, () => new Array(width).fill(0));
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const sample = useWarp ? applyDomainWarp(x, y, warp) : { x, y };
+      const noise = fractalNoise(
+        sample.x * scale,
+        sample.y * scale,
+        seed,
+        octaves,
+        persistence,
+        lacunarity,
+      );
+      const quantized =
+        zoneCount > 1
+          ? Math.round(noise * (zoneCount - 1)) / (zoneCount - 1)
+          : noise;
+      const blended = lerp(quantized, noise, softness);
+      map[y][x] = (blended - 0.5) * 2;
+    }
+  }
+  map = smoothFloatMap(map, Number(settings.smoothingPasses || 0));
+  return map;
+}
+
+// Function: smoothFloatMap.
+function smoothFloatMap(map, passes) {
+  const iterations = Math.max(0, Math.floor(Number(passes || 0)));
+  if (iterations <= 0) {
+    return map;
+  }
+  const height = map.length;
+  const width = height > 0 ? map[0].length : 0;
+  let current = map;
+  for (let p = 0; p < iterations; p += 1) {
+    const next = Array.from({ length: height }, () => new Array(width).fill(0));
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        let sum = 0;
+        let count = 0;
+        for (let dy = -1; dy <= 1; dy += 1) {
+          for (let dx = -1; dx <= 1; dx += 1) {
+            const ny = y + dy;
+            const nx = x + dx;
+            if (ny < 0 || nx < 0 || ny >= height || nx >= width) {
+              continue;
+            }
+            sum += current[ny][nx];
+            count += 1;
+          }
+        }
+        next[y][x] = count > 0 ? sum / count : current[y][x];
+      }
+    }
+    current = next;
+  }
+  return current;
+}
+
+// Function: applyWaterBudget.
+function applyWaterBudget(lakeSet, riverSet, heightMap, settings, seed) {
+  if (!lakeSet || lakeSet.size === 0) {
+    return lakeSet || new Set();
+  }
+  if (!settings || settings.enabled === false || !heightMap || heightMap.length === 0) {
+    return lakeSet;
+  }
+  const height = heightMap.length;
+  const width = height > 0 ? heightMap[0].length : 0;
+  const totalCells = width * height;
+  if (totalCells <= 0) {
+    return lakeSet;
+  }
+  const maxRatio = clamp(Number(settings.maxRatio ?? 1), 0, 1);
+  const maxWaterCells = Math.max(0, Math.floor(totalCells * maxRatio));
+  const riverCells =
+    settings.preserveRiver === false ? 0 : Math.max(0, Number((riverSet && riverSet.size) || 0));
+  const allowedLakeCells = Math.max(0, maxWaterCells - riverCells);
+  if (lakeSet.size <= allowedLakeCells) {
+    return lakeSet;
+  }
+  if (allowedLakeCells <= 0) {
+    return new Set();
+  }
+  const components = collectWaterComponents(lakeSet, width, height, heightMap);
+  if (components.length === 0) {
+    return new Set();
+  }
+  const random = createTerrainRng(Number(seed || 0) + 1981);
+  components.sort((a, b) => {
+    if (Math.abs(b.score - a.score) > 0.00001) {
+      return b.score - a.score;
+    }
+    return b.cells.length - a.cells.length;
+  });
+  const kept = new Set();
+  for (const component of components) {
+    if (kept.size >= allowedLakeCells) {
+      break;
+    }
+    const remaining = allowedLakeCells - kept.size;
+    if (component.cells.length <= remaining) {
+      for (const cell of component.cells) {
+        kept.add(cell.key);
+      }
+      continue;
+    }
+    const sorted = component.cells.slice();
+    sorted.sort((a, b) => {
+      if (Math.abs(a.height - b.height) > 0.00001) {
+        return a.height - b.height;
+      }
+      return random() < 0.5 ? -1 : 1;
+    });
+    for (let i = 0; i < remaining; i += 1) {
+      kept.add(sorted[i].key);
+    }
+  }
+  return kept;
+}
+
+// Function: collectWaterComponents.
+function collectWaterComponents(waterSet, width, height, heightMap) {
+  const remaining = new Set(waterSet);
+  const components = [];
+  const dirs = [
+    { dx: 1, dy: 0 },
+    { dx: -1, dy: 0 },
+    { dx: 0, dy: 1 },
+    { dx: 0, dy: -1 },
+  ];
+  while (remaining.size > 0) {
+    const iter = remaining.values().next();
+    if (iter.done) {
+      break;
+    }
+    const start = iter.value;
+    remaining.delete(start);
+    const queue = [start];
+    const cells = [];
+    let depthScore = 0;
+    while (queue.length > 0) {
+      const key = queue.pop();
+      const point = parseCellKey(key);
+      if (!point) {
+        continue;
+      }
+      const cellHeight =
+        heightMap &&
+        heightMap[point.y] &&
+        Number.isFinite(heightMap[point.y][point.x])
+          ? Number(heightMap[point.y][point.x])
+          : 1;
+      cells.push({ key, height: cellHeight });
+      depthScore += 1 - clamp(cellHeight, 0, 1);
+      for (const dir of dirs) {
+        const nx = point.x + dir.dx;
+        const ny = point.y + dir.dy;
+        if (nx < 0 || ny < 0 || nx >= width || ny >= height) {
+          continue;
+        }
+        const neighborKey = `${nx},${ny}`;
+        if (!remaining.has(neighborKey)) {
+          continue;
+        }
+        remaining.delete(neighborKey);
+        queue.push(neighborKey);
+      }
+    }
+    if (cells.length === 0) {
+      continue;
+    }
+    const avgDepth = depthScore / cells.length;
+    const sizeFactor = Math.min(1, cells.length / 64);
+    components.push({
+      cells,
+      score: avgDepth * 0.75 + sizeFactor * 0.25,
+    });
+  }
+  return components;
+}
+
+// Function: parseCellKey.
+function parseCellKey(key) {
+  if (!key || typeof key !== "string") {
+    return null;
+  }
+  const parts = key.split(",");
+  if (parts.length !== 2) {
+    return null;
+  }
+  const x = Number(parts[0]);
+  const y = Number(parts[1]);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    return null;
+  }
+  return { x, y };
+}
+
+// Function: applyBiomeEdgeJitter.
+function applyBiomeEdgeJitter(mask, settings, seed, eligibleFn, biomeType) {
+  if (!mask || !settings || settings.enabled === false) {
+    return;
+  }
+  const types = Array.isArray(settings.types) ? settings.types : [];
+  if (biomeType && types.length > 0 && !types.includes(biomeType)) {
+    return;
+  }
+  const passes = Math.max(0, Math.floor(Number(settings.passes || 0)));
+  const strength = clamp(Number(settings.strength || 0), 0, 0.45);
+  const noiseScale = Math.max(0.001, Number(settings.noiseScale || 0.28));
+  if (passes <= 0 || strength <= 0) {
+    return;
+  }
+  const height = mask.length;
+  const width = height > 0 ? mask[0].length : 0;
+  const baseSeed = Number(seed || 0) + Number(settings.seedOffset || 0);
+  for (let pass = 0; pass < passes; pass += 1) {
+    const next = mask.map((row) => row.slice());
+    const noiseSeed = baseSeed + pass * 53;
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        if (eligibleFn && !eligibleFn(x, y)) {
+          next[y][x] = false;
+          continue;
+        }
+        const neighbors = countMaskNeighbors(mask, x, y);
+        if (neighbors <= 0 || neighbors >= 8) {
+          continue;
+        }
+        const noise = smoothValueNoise(x * noiseScale, y * noiseScale, noiseSeed);
+        const centered = (noise - 0.5) * 2;
+        if (mask[y][x]) {
+          if (neighbors <= 2 && centered < -strength) {
+            next[y][x] = false;
+          }
+          continue;
+        }
+        if (neighbors >= 5 && centered > strength && hasNearbyCluster(mask, x, y)) {
+          next[y][x] = true;
+        }
+      }
+    }
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        mask[y][x] = next[y][x];
+      }
+    }
+  }
+}
+
+// Function: countMaskNeighbors.
+function countMaskNeighbors(mask, x, y) {
+  const height = mask.length;
+  const width = height > 0 ? mask[0].length : 0;
+  let count = 0;
+  for (let dy = -1; dy <= 1; dy += 1) {
+    for (let dx = -1; dx <= 1; dx += 1) {
+      if (dx === 0 && dy === 0) {
+        continue;
+      }
+      const nx = x + dx;
+      const ny = y + dy;
+      if (nx < 0 || ny < 0 || nx >= width || ny >= height) {
+        continue;
+      }
+      if (mask[ny][nx]) {
+        count += 1;
+      }
+    }
+  }
+  return count;
+}
+
 // Function: buildBiomeNoiseMask.
 function buildBiomeNoiseMask(width, height, settings, seed, warp) {
   if (!settings || settings.enabled === false) {
@@ -2274,7 +4347,9 @@ function heapPop(heap) {
 }
 
 // Function: buildValleyRiver.
-function buildValleyRivers(heightMap, valley, seed) {
+function buildValleyRivers(heightMap, valley, seed, riverSpineGuide, warp) {
+  const height = heightMap.length;
+  const width = height > 0 ? heightMap[0].length : 0;
   const count = clamp(Math.floor(Number(valley.riverCount ?? 1)), 1, 4);
   const minDistance = Math.max(
     0,
@@ -2287,6 +4362,20 @@ function buildValleyRivers(heightMap, valley, seed) {
     valley.riverSourceSides,
     createTerrainRng(Number(seed || 0) + 91),
   );
+  const baseMaxSteps = Math.max(1, width * height);
+  let maxStepsPerRiver = baseMaxSteps;
+  const waterBudget = valley && valley.waterBudget ? valley.waterBudget : null;
+  if (waterBudget && waterBudget.enabled !== false && waterBudget.preserveRiver !== false) {
+    const maxRatio = clamp(Number(waterBudget.maxRatio ?? 1), 0, 1);
+    const maxWaterCells = Math.max(0, Math.floor(width * height * maxRatio));
+    if (maxWaterCells > 0) {
+      maxStepsPerRiver = Math.max(
+        24,
+        Math.floor(maxWaterCells / Math.max(1, count)),
+      );
+    }
+  }
+  maxStepsPerRiver = clamp(maxStepsPerRiver, 24, baseMaxSteps);
   const river = [];
   const riverSet = new Set();
   const lakes = new Set();
@@ -2294,7 +4383,21 @@ function buildValleyRivers(heightMap, valley, seed) {
   let index = 0;
   for (const source of sources) {
     const rng = createTerrainRng(Number(seed || 0) + 221 + index * 29);
-    const result = traceValleyRiver(heightMap, valley, source, rng);
+    const sourceGuide = buildSourceRiverGuide(
+      riverSpineGuide,
+      source,
+      width,
+      height,
+    );
+    const result = traceValleyRiver(
+      heightMap,
+      valley,
+      source,
+      rng,
+      maxStepsPerRiver,
+      sourceGuide,
+      warp,
+    );
     for (const cell of result.river) {
       const key = `${cell.x},${cell.y}`;
       if (riverSet.has(key)) {
@@ -2312,7 +4415,15 @@ function buildValleyRivers(heightMap, valley, seed) {
   return { river, lakes };
 }
 
-function traceValleyRiver(heightMap, valley, source, rng) {
+function traceValleyRiver(
+  heightMap,
+  valley,
+  source,
+  rng,
+  stepLimit,
+  riverGuide,
+  warp,
+) {
   const height = heightMap.length;
   const width = height > 0 ? heightMap[0].length : 0;
   const river = [];
@@ -2321,7 +4432,11 @@ function traceValleyRiver(heightMap, valley, source, rng) {
   let x = source.x;
   let y = source.y;
   let previous = null;
-  const maxSteps = width * height;
+  const maxSteps = clamp(
+    Math.floor(Number(stepLimit ?? width * height)),
+    24,
+    Math.max(24, width * height),
+  );
   const wander = clamp(Number(valley.riverWander ?? 0.25), 0, 1);
 
   for (let step = 0; step < maxSteps; step += 1) {
@@ -2356,12 +4471,39 @@ function traceValleyRiver(heightMap, valley, source, rng) {
     let best = null;
     let bestScore = Infinity;
     const scored = [];
+    const currentGuideMajor = sampleGuideMajor(riverGuide, x, y, warp);
     for (const candidate of neighbors) {
       const noise = (rng ? rng() : Math.random()) - 0.5;
-      const score =
+      let score =
         heightMap[candidate.y][candidate.x] +
         candidate.bias +
         noise * wander * 0.08;
+      if (riverGuide && riverGuide.enabled) {
+        const guideDistance = sampleGuideDistance(
+          riverGuide,
+          candidate.x,
+          candidate.y,
+          warp,
+        );
+        score += guideDistance * riverGuide.weight;
+        const candidateMajor = sampleGuideMajor(
+          riverGuide,
+          candidate.x,
+          candidate.y,
+          warp,
+        );
+        if (
+          riverGuide.travelDirection !== 0 &&
+          Number.isFinite(currentGuideMajor) &&
+          Number.isFinite(candidateMajor)
+        ) {
+          const deltaMajor =
+            (candidateMajor - currentGuideMajor) * riverGuide.travelDirection;
+          if (deltaMajor < -0.05) {
+            score += riverGuide.backtrackPenalty;
+          }
+        }
+      }
       scored.push({ candidate, score });
     }
     if (scored.length === 0) {
@@ -2405,9 +4547,15 @@ function traceValleyRiver(heightMap, valley, source, rng) {
   return { river, lakes };
 }
 
+// Function: pickRiverSources.
 function pickRiverSources(heightMap, count, minDistance, sides, rng) {
   const height = heightMap.length;
   const width = height > 0 ? heightMap[0].length : 0;
+  const random = typeof rng === "function" ? rng : Math.random;
+  const avoidCorners = width > 2 && height > 2;
+  const isCorner = (x, y) => {
+    return (x === 0 || x === width - 1) && (y === 0 || y === height - 1);
+  };
   const sideList =
     Array.isArray(sides) && sides.length > 0
       ? sides
@@ -2425,29 +4573,43 @@ function pickRiverSources(heightMap, count, minDistance, sides, rng) {
 
   if (sideList.includes("north")) {
     for (let x = 0; x < width; x += 1) {
-      candidatesBySide.north.push({ x, y: 0, h: heightMap[0][x] });
+      if (avoidCorners && isCorner(x, 0)) {
+        continue;
+      }
+      candidatesBySide.north.push({ x, y: 0, h: heightMap[0][x], side: "north" });
     }
   }
   if (sideList.includes("south")) {
     for (let x = 0; x < width; x += 1) {
+      if (avoidCorners && isCorner(x, height - 1)) {
+        continue;
+      }
       candidatesBySide.south.push({
         x,
         y: height - 1,
         h: heightMap[height - 1][x],
+        side: "south",
       });
     }
   }
   if (sideList.includes("west")) {
     for (let y = 0; y < height; y += 1) {
-      candidatesBySide.west.push({ x: 0, y, h: heightMap[y][0] });
+      if (avoidCorners && isCorner(0, y)) {
+        continue;
+      }
+      candidatesBySide.west.push({ x: 0, y, h: heightMap[y][0], side: "west" });
     }
   }
   if (sideList.includes("east")) {
     for (let y = 0; y < height; y += 1) {
+      if (avoidCorners && isCorner(width - 1, y)) {
+        continue;
+      }
       candidatesBySide.east.push({
         x: width - 1,
         y,
         h: heightMap[y][width - 1],
+        side: "east",
       });
     }
   }
@@ -2464,56 +4626,104 @@ function pickRiverSources(heightMap, count, minDistance, sides, rng) {
   }
 
   const cycleSides =
-    sideList.length > 0 ? sideList : ["north", "south", "east", "west"];
+    sideList.length > 0 ? sideList.slice() : ["north", "south", "east", "west"];
+  shuffleInPlace(cycleSides, random);
+  const sideUsage = {};
+  for (const side of cycleSides) {
+    sideUsage[side] = 0;
+  }
   const sources = [];
 
-  for (let i = 0; i < count; i += 1) {
-    const side = cycleSides[i % cycleSides.length];
-    let picked = null;
-    const list = candidatesBySide[side] || [];
-    for (const candidate of list) {
-      const key = `${candidate.x},${candidate.y}`;
-      if (seen.has(key)) {
-        continue;
-      }
-      if (
-        minDistance > 0 &&
-        sources.some(
-          (source) => manhattanDistance(source, candidate) < minDistance,
-        )
-      ) {
-        continue;
-      }
-      picked = candidate;
-      break;
+  const canUseCandidate = (candidate) => {
+    if (!candidate) {
+      return false;
     }
-    if (!picked) {
-      for (const candidate of candidates) {
-        const key = `${candidate.x},${candidate.y}`;
-        if (seen.has(key)) {
-          continue;
-        }
-        if (
-          minDistance > 0 &&
-          sources.some(
-            (source) => manhattanDistance(source, candidate) < minDistance,
-          )
-        ) {
-          continue;
-        }
-        picked = candidate;
+    const key = `${candidate.x},${candidate.y}`;
+    if (seen.has(key)) {
+      return false;
+    }
+    if (
+      minDistance > 0 &&
+      sources.some(
+        (source) => manhattanDistance(source, candidate) < minDistance,
+      )
+    ) {
+      return false;
+    }
+    return true;
+  };
+
+  const pickFromSortedList = (list) => {
+    if (!Array.isArray(list) || list.length === 0) {
+      return null;
+    }
+    const available = [];
+    for (const candidate of list) {
+      if (!canUseCandidate(candidate)) {
+        continue;
+      }
+      available.push(candidate);
+    }
+    if (available.length === 0) {
+      return null;
+    }
+    const topBandSize = Math.max(
+      1,
+      Math.min(6, Math.floor(available.length * 0.2)),
+    );
+    const pickRange = Math.min(available.length, topBandSize);
+    const pickIndex = Math.min(
+      pickRange - 1,
+      Math.floor(Math.pow(random(), 1.8) * pickRange),
+    );
+    return available[pickIndex];
+  };
+
+  for (let i = 0; i < count; i += 1) {
+    let picked = null;
+    let pickedSide = null;
+    const minUsage = cycleSides.reduce((min, side) => {
+      return Math.min(min, Number(sideUsage[side] || 0));
+    }, Infinity);
+
+    for (const side of cycleSides) {
+      if (Number(sideUsage[side] || 0) !== minUsage) {
+        continue;
+      }
+      picked = pickFromSortedList(candidatesBySide[side]);
+      if (picked) {
+        pickedSide = side;
         break;
       }
     }
+
+    if (!picked) {
+      for (const side of cycleSides) {
+        if (Number(sideUsage[side] || 0) === minUsage) {
+          continue;
+        }
+        picked = pickFromSortedList(candidatesBySide[side]);
+        if (picked) {
+          pickedSide = side;
+          break;
+        }
+      }
+    }
+
+    if (!picked) {
+      picked = pickFromSortedList(candidates);
+      pickedSide = picked ? picked.side : null;
+    }
     if (!picked && candidates.length > 0) {
-      picked =
-        candidates[
-          Math.floor((rng ? rng() : Math.random()) * candidates.length)
-        ];
+      picked = candidates[Math.floor(random() * candidates.length)];
+      pickedSide = picked ? picked.side : null;
     }
     if (picked) {
       sources.push({ x: picked.x, y: picked.y });
       seen.add(`${picked.x},${picked.y}`);
+      if (pickedSide && sideUsage[pickedSide] !== undefined) {
+        sideUsage[pickedSide] += 1;
+      }
     }
   }
 
@@ -2532,7 +4742,7 @@ function pickRiverSources(heightMap, count, minDistance, sides, rng) {
   }
 
   if (sources.length === 0) {
-    const fallback = pickRiverSource(heightMap);
+    const fallback = pickRiverSource(heightMap, sideList, random);
     sources.push({ x: fallback.x, y: fallback.y });
   }
 
@@ -2544,23 +4754,70 @@ function manhattanDistance(a, b) {
 }
 
 // Function: pickRiverSource.
-function pickRiverSource(heightMap) {
+function pickRiverSource(heightMap, sides, rng) {
   const height = heightMap.length;
   const width = height > 0 ? heightMap[0].length : 0;
-  let best = { x: 0, y: 0, h: -1 };
-  for (let y = 0; y < height; y += 1) {
-    const h = heightMap[y][0];
-    if (h > best.h) {
-      best = { x: 0, y, h };
+  const random = typeof rng === "function" ? rng : Math.random;
+  const avoidCorners = width > 2 && height > 2;
+  const isCorner = (x, y) => {
+    return (x === 0 || x === width - 1) && (y === 0 || y === height - 1);
+  };
+  const sideList =
+    Array.isArray(sides) && sides.length > 0
+      ? sides
+          .map((side) => String(side || "").toLowerCase())
+          .filter((side) => ["north", "south", "east", "west"].includes(side))
+      : ["north", "south", "east", "west"];
+  const candidates = [];
+
+  if (sideList.includes("north")) {
+    for (let x = 0; x < width; x += 1) {
+      if (avoidCorners && isCorner(x, 0)) {
+        continue;
+      }
+      candidates.push({ x, y: 0, h: heightMap[0][x] });
     }
   }
-  for (let x = 0; x < width; x += 1) {
-    const h = heightMap[0][x];
-    if (h > best.h) {
-      best = { x, y: 0, h };
+  if (sideList.includes("south")) {
+    for (let x = 0; x < width; x += 1) {
+      if (avoidCorners && isCorner(x, height - 1)) {
+        continue;
+      }
+      candidates.push({ x, y: height - 1, h: heightMap[height - 1][x] });
     }
   }
-  return best;
+  if (sideList.includes("west")) {
+    for (let y = 0; y < height; y += 1) {
+      if (avoidCorners && isCorner(0, y)) {
+        continue;
+      }
+      candidates.push({ x: 0, y, h: heightMap[y][0] });
+    }
+  }
+  if (sideList.includes("east")) {
+    for (let y = 0; y < height; y += 1) {
+      if (avoidCorners && isCorner(width - 1, y)) {
+        continue;
+      }
+      candidates.push({ x: width - 1, y, h: heightMap[y][width - 1] });
+    }
+  }
+  if (candidates.length === 0) {
+    return { x: 0, y: 0 };
+  }
+
+  let best = candidates[0];
+  for (let i = 1; i < candidates.length; i += 1) {
+    const candidate = candidates[i];
+    if (candidate.h > best.h) {
+      best = candidate;
+      continue;
+    }
+    if (Math.abs(candidate.h - best.h) < 0.000001 && random() < 0.5) {
+      best = candidate;
+    }
+  }
+  return { x: best.x, y: best.y };
 }
 
 // Function: carveRiverValley.
@@ -2641,6 +4898,8 @@ function buildValleyFoodMask(
   seed,
   warp,
   biomeNoise,
+  macroClimate,
+  landmarkContext,
 ) {
   const food = Array.from({ length: height }, () =>
     new Array(width).fill(false),
@@ -2648,8 +4907,17 @@ function buildValleyFoodMask(
   const settings = valley.food || {};
   const biomeMask = biomeNoise ? biomeNoise.mask : null;
   const thresholdStrength = biomeNoise ? biomeNoise.noiseThresholdStrength : 0;
+  const moistureMap = macroClimate ? macroClimate.moistureMap : null;
+  const macroSettings = macroClimate ? macroClimate.settings : null;
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
+      const moistureFactor = moistureMap ? moistureMap[y][x] : 0;
+      const landmarkEffects = computeBiomeLandmarkEffects(
+        landmarkContext,
+        settings.landmarkSuitability,
+        x,
+        y,
+      );
       const base = baseTypes[y][x];
       if (base !== "fertile" && base !== "plain") {
         continue;
@@ -2657,10 +4925,24 @@ function buildValleyFoodMask(
       if (forest[y][x]) {
         continue;
       }
-      if (dist[y][x] > settings.waterDistanceMax) {
+      const waterDistanceMax = Math.max(
+        0,
+        settings.waterDistanceMax +
+          moistureFactor *
+            (macroSettings ? macroSettings.waterDistanceShift : 0) +
+          landmarkEffects.waterDistanceShift,
+      );
+      if (dist[y][x] > waterDistanceMax) {
         continue;
       }
-      if (humidity[y][x] < settings.humidityMin) {
+      const effectiveHumidity = clamp(
+        humidity[y][x] +
+          moistureFactor * (macroSettings ? macroSettings.humidityShift : 0) +
+          landmarkEffects.humidityShift,
+        0,
+        1,
+      );
+      if (effectiveHumidity < settings.humidityMin) {
         continue;
       }
       const warped = applyDomainWarp(x, y, warp);
@@ -2673,8 +4955,14 @@ function buildValleyFoodMask(
         2.0,
       );
       const thresholdBias = biomeMask ? biomeMask[y][x] * thresholdStrength : 0;
+      const macroThresholdBias =
+        -moistureFactor *
+        (macroSettings ? macroSettings.biomeThresholdShift : 0);
       const threshold = clamp(
-        settings.noiseThreshold + thresholdBias,
+        settings.noiseThreshold +
+          thresholdBias +
+          macroThresholdBias +
+          landmarkEffects.noiseThresholdShift,
         0,
         1,
       );
@@ -2685,6 +4973,13 @@ function buildValleyFoodMask(
   }
   for (let pass = 0; pass < settings.clusterPasses; pass += 1) {
     smoothClusterMap(food, baseTypes, (x, y) => {
+      const moistureFactor = moistureMap ? moistureMap[y][x] : 0;
+      const landmarkEffects = computeBiomeLandmarkEffects(
+        landmarkContext,
+        settings.landmarkSuitability,
+        x,
+        y,
+      );
       const base = baseTypes[y][x];
       if (base !== "fertile" && base !== "plain") {
         return false;
@@ -2692,12 +4987,59 @@ function buildValleyFoodMask(
       if (forest[y][x]) {
         return false;
       }
-      if (dist[y][x] > settings.waterDistanceMax) {
+      const waterDistanceMax = Math.max(
+        0,
+        settings.waterDistanceMax +
+          moistureFactor *
+            (macroSettings ? macroSettings.waterDistanceShift : 0) +
+          landmarkEffects.waterDistanceShift,
+      );
+      if (dist[y][x] > waterDistanceMax) {
         return false;
       }
-      return humidity[y][x] >= settings.humidityMin;
+      const effectiveHumidity = clamp(
+        humidity[y][x] +
+          moistureFactor * (macroSettings ? macroSettings.humidityShift : 0) +
+          landmarkEffects.humidityShift,
+        0,
+        1,
+      );
+      return effectiveHumidity >= settings.humidityMin;
     });
   }
+  applyBiomeEdgeJitter(food, valley.biomeEdgeJitter, seed + 173, (x, y) => {
+    const moistureFactor = moistureMap ? moistureMap[y][x] : 0;
+    const landmarkEffects = computeBiomeLandmarkEffects(
+      landmarkContext,
+      settings.landmarkSuitability,
+      x,
+      y,
+    );
+    const base = baseTypes[y][x];
+    if (base !== "fertile" && base !== "plain") {
+      return false;
+    }
+    if (forest[y][x]) {
+      return false;
+    }
+    const waterDistanceMax = Math.max(
+      0,
+      settings.waterDistanceMax +
+        moistureFactor * (macroSettings ? macroSettings.waterDistanceShift : 0) +
+        landmarkEffects.waterDistanceShift,
+    );
+    if (dist[y][x] > waterDistanceMax) {
+      return false;
+    }
+    const effectiveHumidity = clamp(
+      humidity[y][x] +
+        moistureFactor * (macroSettings ? macroSettings.humidityShift : 0) +
+        landmarkEffects.humidityShift,
+      0,
+      1,
+    );
+    return effectiveHumidity >= settings.humidityMin;
+  }, "food");
   return food;
 }
 
@@ -2714,6 +5056,8 @@ function buildValleyPastureMask(
   seed,
   warp,
   biomeNoise,
+  macroClimate,
+  landmarkContext,
 ) {
   const pasture = Array.from({ length: height }, () =>
     new Array(width).fill(false),
@@ -2722,6 +5066,8 @@ function buildValleyPastureMask(
   const patches = settings.patches || {};
   const biomeMask = biomeNoise ? biomeNoise.mask : null;
   const thresholdStrength = biomeNoise ? biomeNoise.noiseThresholdStrength : 0;
+  const moistureMap = macroClimate ? macroClimate.moistureMap : null;
+  const macroSettings = macroClimate ? macroClimate.settings : null;
   const patchCount = Math.max(0, Math.floor(Number(patches.count || 0)));
   const randomBetweenRng = (rng, min, max) => {
     const low = Number.isFinite(min) ? Number(min) : 0;
@@ -2732,6 +5078,13 @@ function buildValleyPastureMask(
     return Math.floor(rng() * (high - low + 1)) + low;
   };
   const isEligible = (x, y) => {
+    const moistureFactor = moistureMap ? moistureMap[y][x] : 0;
+    const landmarkEffects = computeBiomeLandmarkEffects(
+      landmarkContext,
+      settings.landmarkSuitability,
+      x,
+      y,
+    );
     const base = baseTypes[y][x];
     if (base !== "fertile" && base !== "plain") {
       return false;
@@ -2739,10 +5092,23 @@ function buildValleyPastureMask(
     if (forest[y][x] || (food && food[y][x])) {
       return false;
     }
-    if (dist[y][x] > settings.waterDistanceMax) {
+    const waterDistanceMax = Math.max(
+      0,
+      settings.waterDistanceMax +
+        moistureFactor * (macroSettings ? macroSettings.waterDistanceShift : 0) +
+        landmarkEffects.waterDistanceShift,
+    );
+    if (dist[y][x] > waterDistanceMax) {
       return false;
     }
-    return humidity[y][x] >= settings.humidityMin;
+    const effectiveHumidity = clamp(
+      humidity[y][x] +
+        moistureFactor * (macroSettings ? macroSettings.humidityShift : 0) +
+        landmarkEffects.humidityShift,
+      0,
+      1,
+    );
+    return effectiveHumidity >= settings.humidityMin;
   };
 
   if (patchCount > 0) {
@@ -2794,9 +5160,22 @@ function buildValleyPastureMask(
           0.5,
           2.0,
         );
+        const moistureFactor = moistureMap ? moistureMap[y][x] : 0;
+        const landmarkEffects = computeBiomeLandmarkEffects(
+          landmarkContext,
+          settings.landmarkSuitability,
+          x,
+          y,
+        );
         const thresholdBias = biomeMask ? biomeMask[y][x] * thresholdStrength : 0;
+        const macroThresholdBias =
+          -moistureFactor *
+          (macroSettings ? macroSettings.biomeThresholdShift : 0);
         const threshold = clamp(
-          settings.noiseThreshold + thresholdBias,
+          settings.noiseThreshold +
+            thresholdBias +
+            macroThresholdBias +
+            landmarkEffects.noiseThresholdShift,
           0,
           1,
         );
@@ -2811,6 +5190,15 @@ function buildValleyPastureMask(
       return isEligible(x, y);
     });
   }
+  applyBiomeEdgeJitter(
+    pasture,
+    valley.biomeEdgeJitter,
+    seed + 211,
+    (x, y) => {
+      return isEligible(x, y);
+    },
+    "pasture",
+  );
   return pasture;
 }
 

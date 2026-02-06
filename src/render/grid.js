@@ -524,16 +524,13 @@ function resolveDenseForestColorKey(baseKey, colors) {
   if (!baseKey || !colors || !colors.map) {
     return baseKey;
   }
-  const denseMap = {
-    terrain_forest: "terrain_forest_dense",
-    terrain_forest_spring: "terrain_forest_dense_spring",
-    terrain_forest_summer: "terrain_forest_dense_summer",
-    terrain_forest_autumn: "terrain_forest_dense_autumn",
-    terrain_forest_winter: "terrain_forest_dense_winter",
-  };
-  const denseKey = denseMap[baseKey];
-  if (denseKey && colors.map[denseKey]) {
-    return denseKey;
+  const prefix = "terrain_forest";
+  if (baseKey === prefix || baseKey.startsWith(`${prefix}_`)) {
+    const suffix = baseKey.slice(prefix.length);
+    const denseKey = `terrain_forest_dense${suffix}`;
+    if (colors.map[denseKey]) {
+      return denseKey;
+    }
   }
   return baseKey;
 }
@@ -542,8 +539,13 @@ function resolvePronouncedHillColorKey(baseKey, colors) {
   if (!baseKey || !colors || !colors.map) {
     return baseKey;
   }
-  if (baseKey === "terrain_hill" && colors.map.terrain_hill_pronounced) {
-    return "terrain_hill_pronounced";
+  const prefix = "terrain_hill";
+  if (baseKey === prefix || baseKey.startsWith(`${prefix}_`)) {
+    const suffix = baseKey.slice(prefix.length);
+    const pronouncedKey = `terrain_hill_pronounced${suffix}`;
+    if (colors.map[pronouncedKey]) {
+      return pronouncedKey;
+    }
   }
   return baseKey;
 }
@@ -552,14 +554,18 @@ function resolveMountainColorKey(baseKey, colors, isHigh) {
   if (!baseKey || !colors || !colors.map) {
     return baseKey;
   }
-  if (baseKey !== "terrain_mountain") {
+  const prefix = "terrain_mountain";
+  if (!(baseKey === prefix || baseKey.startsWith(`${prefix}_`))) {
     return baseKey;
   }
-  if (isHigh && colors.map.terrain_mountain_high) {
-    return "terrain_mountain_high";
+  const suffix = baseKey.slice(prefix.length);
+  const highKey = `terrain_mountain_high${suffix}`;
+  const mediumKey = `terrain_mountain_medium${suffix}`;
+  if (isHigh && colors.map[highKey]) {
+    return highKey;
   }
-  if (!isHigh && colors.map.terrain_mountain_medium) {
-    return "terrain_mountain_medium";
+  if (!isHigh && colors.map[mediumKey]) {
+    return mediumKey;
   }
   return baseKey;
 }
@@ -717,14 +723,17 @@ function buildGridBase(state, config, runtime, colors, emptySymbol) {
         }
         const colorType = type === "stone" ? "mountain" : type;
         const baseColorKey = colorType ? `terrain_${colorType}` : null;
+        const seasonalLocked = colorType === "hill" || colorType === "mountain";
         let colorKey = baseColorKey
-          ? resolveSeasonalTerrainColorKey(
-              seasonalContext,
-              colorType,
-              x,
-              y,
-              baseColorKey,
-            )
+          ? (seasonalLocked
+              ? baseColorKey
+              : resolveSeasonalTerrainColorKey(
+                seasonalContext,
+                colorType,
+                x,
+                y,
+                baseColorKey,
+              ))
           : null;
         if (forestDense) {
           colorKey = resolveDenseForestColorKey(colorKey, colors);

@@ -49,6 +49,7 @@ Display and layout:
 - `display.terrain.valley.domain_warp.enabled`: enable domain warp for more organic terrain.
 - `display.terrain.valley.domain_warp.strength`: warp strength in tiles.
 - `display.terrain.valley.domain_warp.scale`: noise scale for the warp field.
+- `display.terrain.valley.fantasyPreset`: optional terrain art-direction preset (`none`, `green_realm`, `broken_crown`, `mistwater`, `high_marches`, `natural_epic`, `heroic_contrast`).
 - `display.terrain.valley.biome_noise.enabled`: enable a biome noise mask to break up straight biome boundaries.
 - `display.terrain.valley.biome_noise.scale`: noise scale for the biome mask (lower = larger regions).
 - `display.terrain.valley.biome_noise.octaves`: noise layers for the biome mask.
@@ -59,6 +60,71 @@ Display and layout:
 - `display.terrain.valley.biome_noise.height_strength`: height bias added during mountain/hill/fertile classification (0..1).
 - `display.terrain.valley.biome_noise.distance_strength`: distance bias applied to water-distance (tiles).
 - `display.terrain.valley.biome_noise.noise_threshold_strength`: offset applied to forest/food/pasture noise thresholds (0..1).
+- `display.terrain.valley.macro_zones.enabled`: enable macro climate zones for local biome variation.
+- `display.terrain.valley.macro_zones.zone_count`: number of macro climate bands (2..6).
+- `display.terrain.valley.macro_zones.scale`: noise scale for macro climate zones.
+- `display.terrain.valley.macro_zones.octaves`: octave count for macro climate noise.
+- `display.terrain.valley.macro_zones.persistence`: amplitude decay for macro climate noise (0..1).
+- `display.terrain.valley.macro_zones.lacunarity`: frequency multiplier for macro climate noise.
+- `display.terrain.valley.macro_zones.seed_offset`: seed offset for macro climate noise.
+- `display.terrain.valley.macro_zones.use_domain_warp`: apply domain warp to macro climate sampling.
+- `display.terrain.valley.macro_zones.softness`: blend between quantized zones and smooth noise (0..1).
+- `display.terrain.valley.macro_zones.smoothing_passes`: smoothing passes for macro climate fields.
+- `display.terrain.valley.macro_zones.mountain_height_shift`: local mountain-threshold shift strength (0..1).
+- `display.terrain.valley.macro_zones.hill_height_shift`: local hill-threshold shift strength (0..1).
+- `display.terrain.valley.macro_zones.fertile_height_shift`: local fertile-height shift strength (0..1).
+- `display.terrain.valley.macro_zones.fertile_distance_shift`: local fertile-distance shift in tiles.
+- `display.terrain.valley.macro_zones.humidity_shift`: local humidity bias applied to vegetation checks (0..1).
+- `display.terrain.valley.macro_zones.water_distance_shift`: local water-distance cap shift in tiles.
+- `display.terrain.valley.macro_zones.biome_threshold_shift`: local threshold shift for forest/food/pasture noise (0..1).
+- `display.terrain.valley.world_spine.enabled`: enable a curved world spine that boosts terrain relief.
+- `display.terrain.valley.world_spine.orientation`: spine orientation (`horizontal` or `vertical`).
+- `display.terrain.valley.world_spine.width_ratio`: relative spine width across the minor map axis (0..1).
+- `display.terrain.valley.world_spine.curve_scale`: noise scale controlling spine bends.
+- `display.terrain.valley.world_spine.curve_strength`: bend amplitude for the spine path (0..1).
+- `display.terrain.valley.world_spine.relief_strength`: height lift applied near the spine (0..1).
+- `display.terrain.valley.world_spine.seed_offset`: seed offset for spine path generation.
+- `display.terrain.valley.world_spine.use_domain_warp`: apply domain warp when sampling the spine path.
+- `display.terrain.valley.water_budget.enabled`: enable a global water coverage budget.
+- `display.terrain.valley.water_budget.max_ratio`: max map coverage ratio allowed for water tiles (0..1).
+- `display.terrain.valley.water_budget.preserve_river`: keep river tiles fixed while trimming optional water.
+- `display.terrain.valley.biome_edge_jitter.enabled`: enable light morphological jitter on biome borders.
+- `display.terrain.valley.biome_edge_jitter.passes`: number of jitter passes.
+- `display.terrain.valley.biome_edge_jitter.strength`: jitter threshold strength (0..1).
+- `display.terrain.valley.biome_edge_jitter.noise_scale`: noise scale used to perturb biome edges.
+- `display.terrain.valley.biome_edge_jitter.seed_offset`: seed offset for biome edge jitter.
+- `display.terrain.valley.biome_edge_jitter.types`: biome masks eligible for edge jitter (`forest`, `food`, `pasture`).
+- `display.terrain.valley.landmarks.enabled`: enable landmark guidance systems for river and mountain composition.
+- `display.terrain.valley.landmarks.river_spine.enabled`: enable an invisible guide corridor for river tracing.
+- `display.terrain.valley.landmarks.river_spine.orientation`: guide orientation (`auto`, `horizontal`, `vertical`).
+- `display.terrain.valley.landmarks.river_spine.width_ratio`: corridor width ratio across the minor axis (0..1).
+- `display.terrain.valley.landmarks.river_spine.curve_scale`: noise scale for river guide bends.
+- `display.terrain.valley.landmarks.river_spine.curve_strength`: river guide bend amplitude (0..1).
+- `display.terrain.valley.landmarks.river_spine.seed_offset`: seed offset for river guide generation.
+- `display.terrain.valley.landmarks.river_spine.use_domain_warp`: apply domain warp to river guide sampling.
+- `display.terrain.valley.landmarks.river_spine.weight`: penalty weight for drifting away from the guide.
+- `display.terrain.valley.landmarks.river_spine.backtrack_penalty`: extra score penalty for moving opposite to guide travel direction.
+- `display.terrain.valley.landmarks.ridge_mask.enabled`: enable a landmark ridge mask.
+- `display.terrain.valley.landmarks.ridge_mask.orientation`: ridge orientation (`auto`, `horizontal`, `vertical`).
+- `display.terrain.valley.landmarks.ridge_mask.width_ratio`: ridge band width ratio across the minor axis (0..1).
+- `display.terrain.valley.landmarks.ridge_mask.curve_scale`: noise scale for ridge curvature.
+- `display.terrain.valley.landmarks.ridge_mask.curve_strength`: ridge curve amplitude (0..1).
+- `display.terrain.valley.landmarks.ridge_mask.strength`: base height lift strength near the ridge (0..1).
+- `display.terrain.valley.landmarks.ridge_mask.mountain_threshold_shift`: local mountain threshold reduction near ridge bands (0..1).
+- `display.terrain.valley.landmarks.ridge_mask.hill_threshold_shift`: local hill threshold reduction near ridge bands (0..1).
+- `display.terrain.valley.landmarks.ridge_mask.seed_offset`: seed offset for ridge generation.
+- `display.terrain.valley.landmarks.ridge_mask.use_domain_warp`: apply domain warp to ridge sampling.
+- `display.terrain.valley.landmark_first.enabled`: enable landmark-first composition pass (river/ridge guide the macro shape before fine noise).
+- `display.terrain.valley.landmark_first.height_blend`: blend factor from legacy terrain composition to landmark-first shaping (0..1).
+- `display.terrain.valley.landmark_first.spine_height_boost`: height lift near world spine in landmark-first mode (0..1).
+- `display.terrain.valley.landmark_first.ridge_height_boost`: height lift near ridge masks in landmark-first mode (0..1).
+- `display.terrain.valley.landmark_first.river_carve_strength`: base height carve strength near river spine corridor (0..1).
+- `display.terrain.valley.landmark_first.mountain_threshold_shift`: additional mountain threshold reduction near ridges (0..1).
+- `display.terrain.valley.landmark_first.hill_threshold_shift`: additional hill threshold reduction near ridges (0..1).
+- `display.terrain.valley.landmark_first.river_mountain_suppression`: mountain suppression near river corridor (0..1).
+- `display.terrain.valley.landmark_first.river_hill_suppression`: hill suppression near river corridor (0..1).
+- `display.terrain.valley.landmark_first.fertile_height_boost`: fertile-height boost near river corridor (0..1).
+- `display.terrain.valley.landmark_first.fertile_distance_boost`: fertile-distance boost near river corridor (tiles).
 - `display.terrain.valley.mountainHeight`: height threshold for mountains (0..1).
 - `display.terrain.valley.hillHeight`: height threshold for hills (0..1).
 - `display.terrain.valley.fertileHeight`: height threshold for fertile ground (0..1).
@@ -102,11 +168,30 @@ Display and layout:
 - `display.terrain.valley.forest.noiseScale`: forest noise scale.
 - `display.terrain.valley.forest.noiseThreshold`: forest noise threshold.
 - `display.terrain.valley.forest.clusterPasses`: forest clustering passes.
+- `display.terrain.valley.forest.natural_spread.enabled`: enable inland forest spread mask beyond the base water-distance corridor.
+- `display.terrain.valley.forest.natural_spread.noise_scale`: low-frequency noise scale used to shape inland forest patches.
+- `display.terrain.valley.forest.natural_spread.noise_threshold`: threshold for inland spread islands (0..1, higher = fewer inland patches).
+- `display.terrain.valley.forest.natural_spread.max_extra_distance`: max extra distance from water granted by inland spread patches (tiles).
+- `display.terrain.valley.forest.natural_spread.humidity_relax`: humidity requirement reduction inside inland spread patches.
+- `display.terrain.valley.forest.natural_spread.humidity_floor`: lower humidity floor clamp while applying inland spread (0..1).
+- `display.terrain.valley.forest.natural_spread.noise_threshold_boost`: extra lowering of forest noise threshold inside inland spread cores (0..1).
+- `display.terrain.valley.forest.landmark_suitability.enabled`: enable landmark-aware suitability for forests.
+- `display.terrain.valley.forest.landmark_suitability.river_spine_affinity`: forest affinity to river spine (`-1..1`; positive = closer to spine, negative = farther).
+- `display.terrain.valley.forest.landmark_suitability.ridge_affinity`: forest affinity to ridge mask (`-1..1`; positive = closer to ridge, negative = farther).
+- `display.terrain.valley.forest.landmark_suitability.water_distance_shift`: max water-distance shift from landmark bias (tiles).
+- `display.terrain.valley.forest.landmark_suitability.humidity_shift`: humidity shift from landmark bias.
+- `display.terrain.valley.forest.landmark_suitability.noise_threshold_shift`: forest noise-threshold shift from landmark bias.
 - `display.terrain.valley.pasture.humidityMin`: minimum humidity to spawn pasture tiles.
 - `display.terrain.valley.pasture.waterDistanceMax`: maximum distance from water to spawn pasture tiles (tiles).
 - `display.terrain.valley.pasture.noiseScale`: pasture noise scale.
 - `display.terrain.valley.pasture.noiseThreshold`: pasture noise threshold.
 - `display.terrain.valley.pasture.clusterPasses`: pasture clustering passes.
+- `display.terrain.valley.pasture.landmark_suitability.enabled`: enable landmark-aware suitability for pastures.
+- `display.terrain.valley.pasture.landmark_suitability.river_spine_affinity`: pasture affinity to river spine (`-1..1`; positive = closer to spine, negative = farther).
+- `display.terrain.valley.pasture.landmark_suitability.ridge_affinity`: pasture affinity to ridge mask (`-1..1`; positive = closer to ridge, negative = farther).
+- `display.terrain.valley.pasture.landmark_suitability.water_distance_shift`: max water-distance shift from landmark bias (tiles).
+- `display.terrain.valley.pasture.landmark_suitability.humidity_shift`: humidity shift from landmark bias.
+- `display.terrain.valley.pasture.landmark_suitability.noise_threshold_shift`: pasture noise-threshold shift from landmark bias.
 - `display.terrain.valley.pasture.patches.count`: number of pasture clusters to seed (0 = disabled).
 - `display.terrain.valley.pasture.patches.radiusMin`: minimum radius for a pasture cluster.
 - `display.terrain.valley.pasture.patches.radiusMax`: maximum radius for a pasture cluster.
@@ -118,6 +203,12 @@ Display and layout:
 - `display.terrain.valley.food.noiseScale`: food noise scale.
 - `display.terrain.valley.food.noiseThreshold`: food noise threshold.
 - `display.terrain.valley.food.clusterPasses`: food clustering passes.
+- `display.terrain.valley.food.landmark_suitability.enabled`: enable landmark-aware suitability for food patches.
+- `display.terrain.valley.food.landmark_suitability.river_spine_affinity`: food affinity to river spine (`-1..1`; positive = closer to spine, negative = farther).
+- `display.terrain.valley.food.landmark_suitability.ridge_affinity`: food affinity to ridge mask (`-1..1`; positive = closer to ridge, negative = farther).
+- `display.terrain.valley.food.landmark_suitability.water_distance_shift`: max water-distance shift from landmark bias (tiles).
+- `display.terrain.valley.food.landmark_suitability.humidity_shift`: humidity shift from landmark bias.
+- `display.terrain.valley.food.landmark_suitability.noise_threshold_shift`: food noise-threshold shift from landmark bias.
 - `display.terrain.valley.stone.heightMin`: minimum height for stone clusters.
 - `display.terrain.valley.stone.noiseScale`: stone noise scale.
 - `display.terrain.valley.stone.noiseThreshold`: stone noise threshold.
@@ -200,12 +291,16 @@ Display and layout:
 - `display.colors.map.terrain_hill_pronounced`: ANSI color for pronounced hill tiles (used with the pronounced hill symbol).
 - `display.colors.map.terrain_forest_dense`: ANSI color for dense forest tiles (used with the dense forest symbol).
 - `display.colors.map.terrain_forest_dense_<season>`: seasonal overrides for dense forests (`spring`, `summer`, `autumn`, `winter`).
+- `display.colors.map.terrain_<type>_winter_ice`: optional colder/darker winter variants used by the `ice_fantasy` preset (for example `terrain_plain_winter_ice`, `terrain_forest_winter_ice`, `terrain_river_winter_ice`, `terrain_lake_winter_ice`).
 - `display.colors.map.terrain_pasture`: ANSI color for pasture tiles.
 - `display.colors.map.terrain_pasture_depleted`: ANSI color for depleted pasture tiles.
 - `display.colors.seasonal.enabled`: enable seasonal terrain color transitions.
-- `display.colors.seasonal.types`: terrain types that should use seasonal palettes (e.g. `plain`, `fertile`, `forest`, `food`, `grass`).
+- `display.colors.seasonal.preset`: optional named seasonal palette preset (for example `ice_fantasy`, currently tuned to a softer winter look).
+- `display.colors.seasonal.types`: terrain types that should use seasonal palettes (e.g. `plain`, `fertile`, `forest`, `food`, `grass`, `river`, `lake`; hills/mountains/stone remain fixed across seasons).
 - `display.colors.seasonal.palettes.<season>.<type>`: color map key for a terrain type in a season (uses `display.colors.map` keys).
 - `display.colors.seasonal.palettes.<season>.cherry`: optional color map key for cherry blossom tiles in a season.
+- `display.colors.seasonal.presets.<name>.<season>.<type>`: per-season palette overrides for a named preset (merged over `seasonal.palettes` when `seasonal.preset` matches `<name>`).
+- `display.colors.seasonal.presets.<name>.palettes.<season>.<type>`: alternative nested form equivalent to the line above.
 - `display.colors.seasonal.patchy.enabled`: enable patchy noise transitions instead of per-tile randomness.
 - `display.colors.seasonal.patchy.scale`: noise scale for patch size (lower = larger patches).
 - `display.colors.seasonal.patchy.octaves`: noise octaves used for patch detail.
@@ -487,6 +582,13 @@ Population relationships:
 - `population.pathing.field.crowdWeight`: weight for avoiding occupied tiles (0..1).
 - `population.pathing.field.inertiaWeight`: bias to continue the previous direction (0..1).
 - `population.pathing.field.stayPenalty`: penalty for staying in place when pathing (0..1).
+- `population.pathing.field.roadAffinity.enabled`: enable road-aware scoring for field pathing.
+- `population.pathing.field.roadAffinity.profile`: road-affinity profile (`pragmatic` = milder bias, `scenic` = stronger road preference and meanders).
+- `population.pathing.field.roadAffinity.minTargetDistance`: only apply road affinity when current distance to target is at least this value (tiles).
+- `population.pathing.field.roadAffinity.onRoadBonus`: cost bonus applied to `road`/`bridge`/`ford` tiles when road affinity is active.
+- `population.pathing.field.roadAffinity.offRoadPenalty`: per-tile cost penalty applied when moving far from the nearest road while road affinity is active.
+- `population.pathing.field.roadAffinity.offRoadGraceDistance`: distance from nearest road before off-road penalty starts (tiles).
+- `population.pathing.field.roadAffinity.maxDistancePenalty`: cap for off-road distance contribution to the penalty (tiles).
 
 Population reproduction:
 
@@ -521,6 +623,31 @@ Roads:
 - `roads.avoidTerrain`: terrain types treated as blocked for road pathfinding.
 - `roads.softAvoidTerrain`: terrain types avoided when possible; if no other route exists the path can traverse them.
 - `roads.waterTerrain`: terrain types rendered as bridges when a path must traverse them.
+- `roads.pathStyle.enabled`: enable weighted road pathfinding (A* with style costs).
+- `roads.pathStyle.profile`: road style profile (`pragmatic`, `scenic`) controlling baseline deviation behavior.
+- `roads.pathStyle.profile=pragmatic`: favors direct routes, lower detour tolerance, stricter long-link waypoint guardrails.
+- `roads.pathStyle.profile=scenic`: allows broader meanders, stronger noise/curvature, and more permissive long-link waypoints.
+- `roads.pathStyle.heuristicWeight`: A* heuristic multiplier (higher = more direct, lower = more exploratory).
+- `roads.pathStyle.turnPenalty`: additive cost for changing direction between adjacent road steps.
+- `roads.pathStyle.straightStepThreshold`: straight-run length before extra straightness penalty starts.
+- `roads.pathStyle.straightStepPenalty`: additive per-step penalty for long straight runs beyond the threshold.
+- `roads.pathStyle.noiseScale`: low-frequency deterministic noise scale used to vary path costs.
+- `roads.pathStyle.noiseWeight`: weight of deterministic noise contribution to tile traversal cost.
+- `roads.pathStyle.softAvoidPenalty`: additive penalty applied when fallback uses `roads.softAvoidTerrain`.
+- `roads.pathStyle.seedOffset`: seed offset for deterministic road-style noise.
+- `roads.pathStyle.longLinkWaypoint.enabled`: enable midpoint waypoint routing for long links.
+- `roads.pathStyle.longLinkWaypoint.minDistance`: minimum Manhattan distance required to enable long-link waypoint routing.
+- `roads.pathStyle.longLinkWaypoint.candidateCount`: number of deterministic waypoint candidates sampled per long link.
+- `roads.pathStyle.longLinkWaypoint.offsetMin`: minimum perpendicular offset (tiles) from the link centerline.
+- `roads.pathStyle.longLinkWaypoint.offsetMax`: maximum perpendicular offset (tiles) from the link centerline.
+- `roads.pathStyle.longLinkWaypoint.alongJitterRatio`: along-axis jitter ratio for waypoint sampling (fraction of link length).
+- `roads.pathStyle.longLinkWaypoint.minSegmentDistance`: minimum Manhattan distance from waypoint to each endpoint.
+- `roads.pathStyle.longLinkWaypoint.maxDetourRatio`: hard cap ratio versus straight Manhattan path length when evaluating waypoint routes.
+- `roads.pathStyle.longLinkWaypoint.maxDirectRatio`: max accepted ratio versus direct route length when choosing waypoint over direct.
+- `roads.pathStyle.longLinkWaypoint.minTurnGain`: minimum extra turns required to prefer a waypoint route over direct.
+- `roads.pathStyle.longLinkWaypoint.minLineDeviationGain`: minimum gain in max perpendicular line deviation required to prefer waypoint routing.
+- `roads.pathStyle.longLinkWaypoint.turnReward`: turn reward used to score candidate waypoint routes.
+- `roads.pathStyle.terrainPenalty.<type>`: additive traversal penalty per terrain type during weighted road pathfinding.
 - `roads.anchorRadius`: radius (in tiles) to snap a new road link to an existing road near a village or mine.
 - `roads.parallelAvoidRadius`: radius (in tiles) that blocks placing new road tiles alongside existing roads.
 - `roads.parallelRelaxRadius`: fallback parallel radius used when no path exists (0 disables the anti-parallel rule in fallback).
@@ -640,6 +767,25 @@ Structures (workshop):
 - `structures.workshop.maxCount`: maximum workshops allowed.
 - `structures.workshop.buildMinRadius`: minimum Manhattan radius from village center.
 - `structures.workshop.buildOuterBuffer`: extra distance beyond the current village perimeter (houses).
+- `structures.workshop.placement.mode`: placement mode (`poisson` enables sampled organic placement; omit for legacy ring scan).
+- `structures.workshop.placement.minDistanceFromCenter`: minimum Manhattan distance from village center.
+- `structures.workshop.placement.maxDistanceFromCenter`: maximum Manhattan distance from village center (0 = no cap).
+- `structures.workshop.placement.nearbySearchRadius`: local search radius around each random Poisson sample (0 = exact sample point; higher = smoother but less random).
+- `structures.workshop.placement.minDistanceBetween`: minimum Manhattan distance between workshops.
+- `structures.workshop.placement.minStructureDistance`: minimum Manhattan distance from any structure.
+- `structures.workshop.placement.maxAttempts`: random samples per build attempt.
+- `structures.workshop.placement.avoidTerrain`: terrain types where workshops cannot be placed.
+- `structures.workshop.placement.district.enabled`: enable district-aware angular bias around the village center.
+- `structures.workshop.placement.district.autoAngle`: derive the district base angle deterministically from map seed + structure type.
+- `structures.workshop.placement.district.angleOffsetDegrees`: rotate the district sector relative to the base angle.
+- `structures.workshop.placement.district.arcDegrees`: district sector width in degrees.
+- `structures.workshop.placement.district.weight`: district bias strength added to placement scoring.
+- `structures.workshop.placement.district.radiusBias`: radial bias inside the allowed ring (`-1..1`, negative = inner ring, positive = outer ring).
+- `structures.workshop.placement.roadAffinity.enabled`: enable road-distance scoring for workshop placement.
+- `structures.workshop.placement.roadAffinity.preferredDistance`: preferred Manhattan distance from existing road tiles.
+- `structures.workshop.placement.roadAffinity.maxDistance`: max Manhattan distance from roads considered by road affinity.
+- `structures.workshop.placement.roadAffinity.weight`: road-affinity scoring strength.
+- `structures.workshop.placement.roadAffinity.avoidRoadTiles`: disallow building directly on road/bridge/ford overlay tiles.
 - `structures.workshop.buildTicks`: ticks required to build a workshop.
 - `structures.workshop.buildCost.<resource>`: resource costs to build a workshop.
 
@@ -649,6 +795,25 @@ Structures (armory):
 - `structures.armory.maxCount`: maximum armories allowed.
 - `structures.armory.buildMinRadius`: minimum Manhattan radius from village center.
 - `structures.armory.buildOuterBuffer`: extra distance beyond the current village perimeter (houses).
+- `structures.armory.placement.mode`: placement mode (`poisson` enables sampled organic placement; omit for legacy ring scan).
+- `structures.armory.placement.minDistanceFromCenter`: minimum Manhattan distance from village center.
+- `structures.armory.placement.maxDistanceFromCenter`: maximum Manhattan distance from village center (0 = no cap).
+- `structures.armory.placement.nearbySearchRadius`: local search radius around each random Poisson sample (0 = exact sample point; higher = smoother but less random).
+- `structures.armory.placement.minDistanceBetween`: minimum Manhattan distance between armories.
+- `structures.armory.placement.minStructureDistance`: minimum Manhattan distance from any structure.
+- `structures.armory.placement.maxAttempts`: random samples per build attempt.
+- `structures.armory.placement.avoidTerrain`: terrain types where armories cannot be placed.
+- `structures.armory.placement.district.enabled`: enable district-aware angular bias around the village center.
+- `structures.armory.placement.district.autoAngle`: derive the district base angle deterministically from map seed + structure type.
+- `structures.armory.placement.district.angleOffsetDegrees`: rotate the district sector relative to the base angle.
+- `structures.armory.placement.district.arcDegrees`: district sector width in degrees.
+- `structures.armory.placement.district.weight`: district bias strength added to placement scoring.
+- `structures.armory.placement.district.radiusBias`: radial bias inside the allowed ring (`-1..1`, negative = inner ring, positive = outer ring).
+- `structures.armory.placement.roadAffinity.enabled`: enable road-distance scoring for armory placement.
+- `structures.armory.placement.roadAffinity.preferredDistance`: preferred Manhattan distance from existing road tiles.
+- `structures.armory.placement.roadAffinity.maxDistance`: max Manhattan distance from roads considered by road affinity.
+- `structures.armory.placement.roadAffinity.weight`: road-affinity scoring strength.
+- `structures.armory.placement.roadAffinity.avoidRoadTiles`: disallow building directly on road/bridge/ford overlay tiles.
 - `structures.armory.buildMinResources.<resource>`: minimum stockpile ratios before building.
 - `structures.armory.buildTicks`: ticks required to build an armory.
 - `structures.armory.buildCost.<resource>`: resource costs to build an armory.
@@ -665,6 +830,25 @@ Structures (mithril forge):
 - `structures.mithril_forge.maxCount`: maximum mithril forges allowed.
 - `structures.mithril_forge.buildMinRadius`: minimum Manhattan radius from village center.
 - `structures.mithril_forge.buildOuterBuffer`: extra distance beyond the current village perimeter (houses).
+- `structures.mithril_forge.placement.mode`: placement mode (`poisson` enables sampled organic placement; omit for legacy ring scan).
+- `structures.mithril_forge.placement.minDistanceFromCenter`: minimum Manhattan distance from village center.
+- `structures.mithril_forge.placement.maxDistanceFromCenter`: maximum Manhattan distance from village center (0 = no cap).
+- `structures.mithril_forge.placement.nearbySearchRadius`: local search radius around each random Poisson sample (0 = exact sample point; higher = smoother but less random).
+- `structures.mithril_forge.placement.minDistanceBetween`: minimum Manhattan distance between mithril forges.
+- `structures.mithril_forge.placement.minStructureDistance`: minimum Manhattan distance from any structure.
+- `structures.mithril_forge.placement.maxAttempts`: random samples per build attempt.
+- `structures.mithril_forge.placement.avoidTerrain`: terrain types where mithril forges cannot be placed.
+- `structures.mithril_forge.placement.district.enabled`: enable district-aware angular bias around the village center.
+- `structures.mithril_forge.placement.district.autoAngle`: derive the district base angle deterministically from map seed + structure type.
+- `structures.mithril_forge.placement.district.angleOffsetDegrees`: rotate the district sector relative to the base angle.
+- `structures.mithril_forge.placement.district.arcDegrees`: district sector width in degrees.
+- `structures.mithril_forge.placement.district.weight`: district bias strength added to placement scoring.
+- `structures.mithril_forge.placement.district.radiusBias`: radial bias inside the allowed ring (`-1..1`, negative = inner ring, positive = outer ring).
+- `structures.mithril_forge.placement.roadAffinity.enabled`: enable road-distance scoring for mithril forge placement.
+- `structures.mithril_forge.placement.roadAffinity.preferredDistance`: preferred Manhattan distance from existing road tiles.
+- `structures.mithril_forge.placement.roadAffinity.maxDistance`: max Manhattan distance from roads considered by road affinity.
+- `structures.mithril_forge.placement.roadAffinity.weight`: road-affinity scoring strength.
+- `structures.mithril_forge.placement.roadAffinity.avoidRoadTiles`: disallow building directly on road/bridge/ford overlay tiles.
 - `structures.mithril_forge.buildMinResources.<resource>`: minimum stockpile ratios before building.
 - `structures.mithril_forge.buildTicks`: ticks required to build a mithril forge.
 - `structures.mithril_forge.buildCost.<resource>`: resource costs to build a mithril forge.
@@ -685,6 +869,25 @@ Structures (brewery):
 - `structures.brewery.workersPerBrewery`: workers assigned per brewery.
 - `structures.brewery.buildMinRadius`: minimum Manhattan radius from village center.
 - `structures.brewery.buildOuterBuffer`: extra distance beyond the current village perimeter (houses).
+- `structures.brewery.placement.mode`: placement mode (`poisson` enables sampled organic placement; omit for legacy ring scan).
+- `structures.brewery.placement.minDistanceFromCenter`: minimum Manhattan distance from village center.
+- `structures.brewery.placement.maxDistanceFromCenter`: maximum Manhattan distance from village center (0 = no cap).
+- `structures.brewery.placement.nearbySearchRadius`: local search radius around each random Poisson sample (0 = exact sample point; higher = smoother but less random).
+- `structures.brewery.placement.minDistanceBetween`: minimum Manhattan distance between breweries.
+- `structures.brewery.placement.minStructureDistance`: minimum Manhattan distance from any structure.
+- `structures.brewery.placement.maxAttempts`: random samples per build attempt.
+- `structures.brewery.placement.avoidTerrain`: terrain types where breweries cannot be placed.
+- `structures.brewery.placement.district.enabled`: enable district-aware angular bias around the village center.
+- `structures.brewery.placement.district.autoAngle`: derive the district base angle deterministically from map seed + structure type.
+- `structures.brewery.placement.district.angleOffsetDegrees`: rotate the district sector relative to the base angle.
+- `structures.brewery.placement.district.arcDegrees`: district sector width in degrees.
+- `structures.brewery.placement.district.weight`: district bias strength added to placement scoring.
+- `structures.brewery.placement.district.radiusBias`: radial bias inside the allowed ring (`-1..1`, negative = inner ring, positive = outer ring).
+- `structures.brewery.placement.roadAffinity.enabled`: enable road-distance scoring for brewery placement.
+- `structures.brewery.placement.roadAffinity.preferredDistance`: preferred Manhattan distance from existing road tiles.
+- `structures.brewery.placement.roadAffinity.maxDistance`: max Manhattan distance from roads considered by road affinity.
+- `structures.brewery.placement.roadAffinity.weight`: road-affinity scoring strength.
+- `structures.brewery.placement.roadAffinity.avoidRoadTiles`: disallow building directly on road/bridge/ford overlay tiles.
 - `structures.brewery.buildTicks`: ticks required to build a brewery.
 - `structures.brewery.buildCost.<resource>`: resource costs to build a brewery.
 - `structures.brewery.outputPerTick.<resource>`: per-worker output applied each tick while brewing.
@@ -711,6 +914,25 @@ Structures (sawmill):
 - `structures.sawmill.workersPerSawmill`: workers assigned per sawmill.
 - `structures.sawmill.buildMinRadius`: minimum Manhattan radius from village center.
 - `structures.sawmill.buildOuterBuffer`: extra distance beyond the current village perimeter (houses).
+- `structures.sawmill.placement.mode`: placement mode (`poisson` enables sampled organic placement; omit for legacy ring scan).
+- `structures.sawmill.placement.minDistanceFromCenter`: minimum Manhattan distance from village center.
+- `structures.sawmill.placement.maxDistanceFromCenter`: maximum Manhattan distance from village center (0 = no cap).
+- `structures.sawmill.placement.nearbySearchRadius`: local search radius around each random Poisson sample (0 = exact sample point; higher = smoother but less random).
+- `structures.sawmill.placement.minDistanceBetween`: minimum Manhattan distance between sawmills.
+- `structures.sawmill.placement.minStructureDistance`: minimum Manhattan distance from any structure.
+- `structures.sawmill.placement.maxAttempts`: random samples per build attempt.
+- `structures.sawmill.placement.avoidTerrain`: terrain types where sawmills cannot be placed.
+- `structures.sawmill.placement.district.enabled`: enable district-aware angular bias around the village center.
+- `structures.sawmill.placement.district.autoAngle`: derive the district base angle deterministically from map seed + structure type.
+- `structures.sawmill.placement.district.angleOffsetDegrees`: rotate the district sector relative to the base angle.
+- `structures.sawmill.placement.district.arcDegrees`: district sector width in degrees.
+- `structures.sawmill.placement.district.weight`: district bias strength added to placement scoring.
+- `structures.sawmill.placement.district.radiusBias`: radial bias inside the allowed ring (`-1..1`, negative = inner ring, positive = outer ring).
+- `structures.sawmill.placement.roadAffinity.enabled`: enable road-distance scoring for sawmill placement.
+- `structures.sawmill.placement.roadAffinity.preferredDistance`: preferred Manhattan distance from existing road tiles.
+- `structures.sawmill.placement.roadAffinity.maxDistance`: max Manhattan distance from roads considered by road affinity.
+- `structures.sawmill.placement.roadAffinity.weight`: road-affinity scoring strength.
+- `structures.sawmill.placement.roadAffinity.avoidRoadTiles`: disallow building directly on road/bridge/ford overlay tiles.
 - `structures.sawmill.buildTicks`: ticks required to build a sawmill.
 - `structures.sawmill.buildCost.<resource>`: resource costs to build a sawmill.
 - `structures.sawmill.outputPerTick.<resource>`: per-worker output applied each tick while operating.
@@ -728,6 +950,7 @@ Structures (mines):
 - `structures.mine.maxCount`: maximum number of mines allowed.
 - `structures.mine.buildWhenNoMine`: when true, only build a mine if none exist.
 - `structures.mine.preferBeforeVillageCount`: prefer extra mine builds while village count is below this value.
+- `structures.mine.preferExtraAlways`: when true, prefer extra mine builds regardless of village count.
 - `structures.mine.minersPerMine`: number of miners assigned per mine.
 - `structures.mine.buildMinRadius`: minimum Manhattan radius from village center.
 - `structures.mine.buildOuterBuffer`: extra distance beyond the current village perimeter (houses).

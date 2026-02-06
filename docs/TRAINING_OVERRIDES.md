@@ -153,6 +153,7 @@ Structures:
 - `structures.<type>.capacity`: capacity for the structure (beds for houses).
 - `structures.<type>.buildCost.<resource>`: resources consumed to build.
 - `structures.<type>.buildTicks`: time in ticks to build.
+- `structures.mine.preferExtraAlways`: prefer extra mine builds regardless of village count.
 - `structures.house.levels.<level>.capacity`: house bed capacity by level (1..5).
 - `structures.house.levels.<level>.upgradeCost.<resource>`: resources consumed to upgrade to that level.
 - `structures.house.levels.<level>.upgradeTicks`: time in ticks to upgrade to that level.

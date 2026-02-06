@@ -34,8 +34,21 @@ function buildSeasonalColorContext(state, config, terrain, colors) {
   const prevName = order[(index - 1 + order.length) % order.length];
 
   const palettes = seasonal.palettes && typeof seasonal.palettes === 'object' ? seasonal.palettes : {};
-  const fromPalette = palettes[prevName] && typeof palettes[prevName] === 'object' ? palettes[prevName] : {};
-  const toPalette = palettes[currentName] && typeof palettes[currentName] === 'object' ? palettes[currentName] : {};
+  const presetPalettes = resolveSeasonalPresetPalettes(seasonal);
+  const fromPaletteBase =
+    palettes[prevName] && typeof palettes[prevName] === 'object' ? palettes[prevName] : {};
+  const toPaletteBase =
+    palettes[currentName] && typeof palettes[currentName] === 'object' ? palettes[currentName] : {};
+  const fromPalettePreset =
+    presetPalettes[prevName] && typeof presetPalettes[prevName] === 'object'
+      ? presetPalettes[prevName]
+      : {};
+  const toPalettePreset =
+    presetPalettes[currentName] && typeof presetPalettes[currentName] === 'object'
+      ? presetPalettes[currentName]
+      : {};
+  const fromPalette = { ...fromPaletteBase, ...fromPalettePreset };
+  const toPalette = { ...toPaletteBase, ...toPalettePreset };
   const typesList = Array.isArray(seasonal.types) && seasonal.types.length > 0
     ? seasonal.types
     : Object.keys({ ...fromPalette, ...toPalette });
@@ -93,6 +106,28 @@ function buildSeasonalColorContext(state, config, terrain, colors) {
     },
     colorMap: colors && colors.map ? colors.map : {},
   };
+}
+
+// Resolve seasonal palette overrides from an optional named preset.
+function resolveSeasonalPresetPalettes(seasonal) {
+  if (!seasonal || typeof seasonal !== 'object') {
+    return {};
+  }
+  const presetName = String(seasonal.preset || '').trim();
+  if (!presetName) {
+    return {};
+  }
+  const presets = seasonal.presets && typeof seasonal.presets === 'object'
+    ? seasonal.presets
+    : {};
+  const preset = presets[presetName];
+  if (!preset || typeof preset !== 'object') {
+    return {};
+  }
+  const withPalettes = preset.palettes && typeof preset.palettes === 'object'
+    ? preset.palettes
+    : null;
+  return withPalettes || preset;
 }
 
 // Resolve the seasonal terrain color key for a specific tile.
