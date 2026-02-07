@@ -32,6 +32,7 @@ const { updateAlchemy, getAlchemyMultiplier } = require('./alchemy');
 const { updateTemple, getTempleNeedDecayMultiplier } = require('./temple');
 const { updateVillages } = require('./villages');
 const { updateRoads } = require('./roads');
+const { updateUnderrealm } = require('./underrealm');
 
 // Advance the simulation by one tick.
 function stepState(state, config, runtime, action, options = {}) {
@@ -85,6 +86,7 @@ function stepState(state, config, runtime, action, options = {}) {
   handleDeaths(state, config);
   updateBrewmasters(state, config);
   updateRoles(state, config);
+  updateUnderrealm(state, config);
   updateRuins(state, config, runtime);
   assignHousing(state, config);
   updateRelationships(state, config);

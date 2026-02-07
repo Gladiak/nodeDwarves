@@ -75,6 +75,22 @@ function normalizeRoadSpecialSymbols(raw) {
   };
 }
 
+function normalizeUnderrealmCorridorSymbols(raw) {
+  return {
+    horizontal: pickSymbol(raw && raw.horizontal, "\u2550"),
+    vertical: pickSymbol(raw && raw.vertical, "\u2551"),
+    cornerNE: pickSymbol(raw && raw.cornerNE, "\u255a"),
+    cornerNW: pickSymbol(raw && raw.cornerNW, "\u255d"),
+    cornerSE: pickSymbol(raw && raw.cornerSE, "\u2554"),
+    cornerSW: pickSymbol(raw && raw.cornerSW, "\u2557"),
+    teeNorth: pickSymbol(raw && raw.teeNorth, "\u2569"),
+    teeSouth: pickSymbol(raw && raw.teeSouth, "\u2566"),
+    teeEast: pickSymbol(raw && raw.teeEast, "\u2560"),
+    teeWest: pickSymbol(raw && raw.teeWest, "\u2563"),
+    cross: pickSymbol(raw && raw.cross, "\u256c"),
+  };
+}
+
 function buildRiverConnections(terrainConfig) {
   const raw = terrainConfig && terrainConfig.riverConnectsTo;
   const list = Array.isArray(raw) ? raw : ["river"];
@@ -88,6 +104,58 @@ function buildRiverConnections(terrainConfig) {
     set.add("river");
   }
   return set;
+}
+
+function getUnderrealmCorridorSymbol(terrain, corridorSymbols, x, y, fallback) {
+  if (!terrain || !terrain.types || !terrain.types[y] || terrain.types[y][x] !== "corridor") {
+    return fallback;
+  }
+  const has = (dx, dy) => {
+    const row = terrain.types[y + dy];
+    if (!row) {
+      return false;
+    }
+    return row[x + dx] === "corridor";
+  };
+  const north = has(0, -1);
+  const south = has(0, 1);
+  const west = has(-1, 0);
+  const east = has(1, 0);
+  const key =
+    (north ? 1 : 0) +
+    (south ? 2 : 0) +
+    (west ? 4 : 0) +
+    (east ? 8 : 0);
+  switch (key) {
+    case 1:
+    case 2:
+    case 3:
+      return corridorSymbols.vertical;
+    case 4:
+    case 8:
+    case 12:
+      return corridorSymbols.horizontal;
+    case 5:
+      return corridorSymbols.cornerNW;
+    case 6:
+      return corridorSymbols.cornerSW;
+    case 9:
+      return corridorSymbols.cornerNE;
+    case 10:
+      return corridorSymbols.cornerSE;
+    case 7:
+      return corridorSymbols.teeWest;
+    case 11:
+      return corridorSymbols.teeEast;
+    case 13:
+      return corridorSymbols.teeNorth;
+    case 14:
+      return corridorSymbols.teeSouth;
+    case 15:
+      return corridorSymbols.cross;
+    default:
+      return fallback;
+  }
 }
 
 function isRoadType(value) {
@@ -520,6 +588,49 @@ function getTerrainType(terrain, x, y) {
   return terrain.types[y][x] || null;
 }
 
+function getActiveUnderrealmDepth(state) {
+  const underrealm = state && state.underrealm;
+  if (!underrealm || underrealm.enabled === false) {
+    return 0;
+  }
+  const maxUnlockedDepth = Math.max(
+    0,
+    Math.floor(Number(underrealm.maxUnlockedDepth || 0)),
+  );
+  const activeDepth = Math.max(0, Math.floor(Number(underrealm.activeDepth || 0)));
+  return clamp(activeDepth, 0, maxUnlockedDepth);
+}
+
+function resolveRenderTerrain(state) {
+  const activeDepth = getActiveUnderrealmDepth(state);
+  if (activeDepth <= 0) {
+    return state.terrain;
+  }
+  const underrealm = state && state.underrealm;
+  const layers = underrealm && Array.isArray(underrealm.layers)
+    ? underrealm.layers
+    : [];
+  const layer = layers.find((entry) => Number(entry && entry.depth) === activeDepth);
+  if (layer && layer.terrain) {
+    return layer.terrain;
+  }
+  return state.terrain;
+}
+
+function resolveTerrainViewport(runtime, terrain) {
+  const gridWidth = Math.max(0, Number(runtime && runtime.gridWidth || 0));
+  const gridHeight = Math.max(0, Number(runtime && runtime.gridHeight || 0));
+  const terrainWidth = Math.max(0, Number(terrain && terrain.width || 0));
+  const terrainHeight = Math.max(0, Number(terrain && terrain.height || 0));
+  const offsetX = terrainWidth < gridWidth
+    ? Math.floor((gridWidth - terrainWidth) / 2)
+    : 0;
+  const offsetY = terrainHeight < gridHeight
+    ? Math.floor((gridHeight - terrainHeight) / 2)
+    : 0;
+  return { offsetX, offsetY };
+}
+
 function resolveDenseForestColorKey(baseKey, colors) {
   if (!baseKey || !colors || !colors.map) {
     return baseKey;
@@ -626,16 +737,18 @@ function buildGridBase(state, config, runtime, colors, emptySymbol) {
   const grid = Array.from({ length: height }, () => new Array(width));
   const display = (config && config.display) || {};
   const terrainConfig = display.terrain || {};
-  const terrain = state.terrain;
+  const terrain = resolveRenderTerrain(state);
   const roadsConfig = config.roads || {};
   const roads = state.roads;
+  const activeUnderrealmDepth = getActiveUnderrealmDepth(state);
+  const underrealmViewActive = activeUnderrealmDepth > 0;
+  const viewport = resolveTerrainViewport(runtime, terrain);
   const terrainEnabled =
     terrainConfig.enabled !== false &&
     terrain &&
-    terrain.types &&
-    terrain.width === width &&
-    terrain.height === height;
+    terrain.types;
   const roadsEnabled =
+    !underrealmViewActive &&
     roadsConfig.enabled !== false &&
     roads &&
     roads.types &&
@@ -650,17 +763,38 @@ function buildGridBase(state, config, runtime, colors, emptySymbol) {
   const roadSpecialSymbols = normalizeRoadSpecialSymbols(
     terrainConfig.roadSpecialSymbols || {},
   );
-  const seasonalContext = buildSeasonalColorContext(
-    state,
-    config,
-    terrain,
-    colors,
+  const underrealmTerrainConfig = (config && config.underrealm && config.underrealm.terrain) || {};
+  const underrealmCorridorSymbols = normalizeUnderrealmCorridorSymbols(
+    underrealmTerrainConfig.corridor_symbols || {},
   );
+  const underrealmVoidSymbol = underrealmViewActive
+    ? pickSymbol(underrealmTerrainConfig.void_symbol, " ")
+    : emptySymbol;
+  const underrealmVoidColorKey = underrealmViewActive
+    && typeof underrealmTerrainConfig.void_color_key === "string"
+    && underrealmTerrainConfig.void_color_key.length > 0
+    ? underrealmTerrainConfig.void_color_key
+    : null;
+  const seasonalContext = underrealmViewActive
+    ? null
+    : buildSeasonalColorContext(
+      state,
+      config,
+      terrain,
+      colors,
+    );
 
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
-      if (terrainEnabled) {
-        const type = terrain.types[y] ? terrain.types[y][x] : null;
+      const terrainX = x - viewport.offsetX;
+      const terrainY = y - viewport.offsetY;
+      const inTerrainBounds = terrainEnabled
+        && terrainY >= 0
+        && terrainY < terrain.height
+        && terrainX >= 0
+        && terrainX < terrain.width;
+      if (inTerrainBounds) {
+        const type = terrain.types[terrainY] ? terrain.types[terrainY][terrainX] : null;
         const baseSymbol =
           type && terrain.symbols && terrain.symbols[type]
             ? terrain.symbols[type]
@@ -674,18 +808,24 @@ function buildGridBase(state, config, runtime, colors, emptySymbol) {
             terrain,
             riverSymbols,
             riverConnections,
-            x,
-            y,
+            terrainX,
+            terrainY,
             baseSymbol,
           );
         } else if (type === "plain" || type === "grass") {
-          symbol = getPlainSymbol(terrainConfig, terrain, x, y, baseSymbol);
+          symbol = getPlainSymbol(
+            terrainConfig,
+            terrain,
+            terrainX,
+            terrainY,
+            baseSymbol,
+          );
         } else if (type === "forest") {
           const forestData = getForestSymbolData(
             terrainConfig,
             terrain,
-            x,
-            y,
+            terrainX,
+            terrainY,
             baseSymbol,
           );
           symbol = forestData.symbol;
@@ -694,8 +834,8 @@ function buildGridBase(state, config, runtime, colors, emptySymbol) {
           const mountainData = getMountainSymbolData(
             terrainConfig,
             terrain,
-            x,
-            y,
+            terrainX,
+            terrainY,
             baseSymbol,
           );
           symbol = mountainData.symbol;
@@ -704,8 +844,8 @@ function buildGridBase(state, config, runtime, colors, emptySymbol) {
           const stoneData = getStoneSymbolData(
             terrainConfig,
             terrain,
-            x,
-            y,
+            terrainX,
+            terrainY,
             baseSymbol,
           );
           symbol = stoneData.symbol;
@@ -714,12 +854,20 @@ function buildGridBase(state, config, runtime, colors, emptySymbol) {
           const hillData = getHillSymbolData(
             terrainConfig,
             terrain,
-            x,
-            y,
+            terrainX,
+            terrainY,
             baseSymbol,
           );
           symbol = hillData.symbol;
           hillPronounced = hillData.pronounced;
+        } else if (underrealmViewActive && type === "corridor") {
+          symbol = getUnderrealmCorridorSymbol(
+            terrain,
+            underrealmCorridorSymbols,
+            terrainX,
+            terrainY,
+            baseSymbol,
+          );
         }
         const colorType = type === "stone" ? "mountain" : type;
         const baseColorKey = colorType ? `terrain_${colorType}` : null;
@@ -730,8 +878,8 @@ function buildGridBase(state, config, runtime, colors, emptySymbol) {
               : resolveSeasonalTerrainColorKey(
                 seasonalContext,
                 colorType,
-                x,
-                y,
+                terrainX,
+                terrainY,
                 baseColorKey,
               ))
           : null;
@@ -744,7 +892,9 @@ function buildGridBase(state, config, runtime, colors, emptySymbol) {
         if (hillPronounced) {
           colorKey = resolvePronouncedHillColorKey(colorKey, colors);
         }
-        if (colorType === "pasture" && isPastureDepleted(state, x, y)) {
+        if (colorType === "pasture"
+            && terrain === state.terrain
+            && isPastureDepleted(state, terrainX, terrainY)) {
           if (colors && colors.map && colors.map.terrain_pasture_depleted) {
             colorKey = "terrain_pasture_depleted";
           }
@@ -781,7 +931,11 @@ function buildGridBase(state, config, runtime, colors, emptySymbol) {
         }
         grid[y][x] = colorKey ? applyColor(symbol, colorKey, colors) : symbol;
       } else {
-        grid[y][x] = emptySymbol;
+        if (underrealmVoidColorKey && colors && colors.map && colors.map[underrealmVoidColorKey]) {
+          grid[y][x] = applyColor(underrealmVoidSymbol, underrealmVoidColorKey, colors);
+        } else {
+          grid[y][x] = underrealmVoidSymbol;
+        }
       }
     }
   }

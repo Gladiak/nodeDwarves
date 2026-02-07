@@ -25,7 +25,9 @@ npm start
 ```
 
 Runtime controls: `Space` pause/resume, `l` legend panel, `i` dwarf inspect panel,
-`m` export current map (PNG + SVG), `Shift+M` export map with structures/roads.
+`↑`/`↓` switch between surface and unlocked underrealm depths, `m` export all
+currently unlocked layers (PNG + SVG), `Shift+M` export all unlocked layers
+with structures/roads.
 
 ### Run training 🏋️
 
@@ -49,8 +51,10 @@ See "AI and training" below for preset details and evaluation notes.
 
 ### Export a map PNG + SVG 🗺️
 
-During gameplay, press `m` to export the current season map. Press `Shift+M`
-to include built structures and roads (dwarves are excluded).
+During gameplay, press `m` to export all currently unlocked layers (surface +
+underrealm depths) for the current season styling. Press `Shift+M` to include
+built structures and roads (dwarves are excluded). While export is running, the
+save panel shows an in-progress summary with layers and output formats.
 
 ```bash
 npm run map:export -- --width=120 --height=40 --season=spring
@@ -85,6 +89,9 @@ Notes:
 - When `--name` is used with `--count`, a numeric suffix is appended.
 - `--includeStructures` keeps all structures and roads from a snapshot.
 - `--state` provides the JSON snapshot file (used by `Shift+M`).
+- `--layers` selects exported planes (`surface,d1,d2`, `unlocked`, or `all`).
+- `--underrealmUnlockedDepth` forces unlocked depth for CLI exports.
+- `--underrealmMaxDepth` clamps max underrealm depth considered by `--layers`.
 
 ## 2) Mental model (big picture) 🧠
 
@@ -179,8 +186,9 @@ Notes:
   - AI action cadence uses `ai.stepTicks` to throttle policy calls.
   - Space toggles pause/resume during the live simulation.
   - Press `i` to open/close the dwarf inspect panel (works during pause or live); use `←`/`→` to browse spawn order.
+  - Press `↑` / `↓` to switch map view between surface and unlocked underrealm depths.
   - Press `l` to toggle the legend overlay panel (works during pause or live).
-  - Press `m` to export a map snapshot (PNG + SVG) using the current season styling.
+  - Press `m` to export all currently unlocked layers (PNG + SVG) using current season styling.
 - `src/config.js`
   - Zero-magic JSON loader for configuration.
 - `src/runtime.js`
@@ -197,6 +205,7 @@ Notes:
   - `createInitialState(config, runtime)` builds the authoritative world state:
     - `dwarves`, `nodes`, `structures`, `merchant`, `weather`, `raid`, `tools`, etc.
     - `temple` and `prestige` meta-state for Temple of Ancestors progression.
+    - `underrealm` depth metadata (active depth, unlocked depths, full-size layer terrains), plus deep economy/faction runtime.
     - `stockpile` initialized from `config.resources.stockpile`.
     - Initial stockpiles (and optional node counts) can scale with map size via `resources.mapScale`
       using the map grid dimensions as a baseline.
@@ -233,6 +242,11 @@ Notes:
   - Terrain affects movement, spawn rules, and (optionally) resource gathering.
   - Terrain resources can be harvested directly when `resources.useTerrainTiles` is enabled.
   - Terrain walkability and movement delays are controlled by `display.terrain.walkable.*` and `display.terrain.movementDelay.*`.
+  - Underrealm layers use a dedicated cave generator in `src/state/index.js`: deterministic wall fill + smoothing, chamber carving, tunnel linking graph (MST + loop links), and disconnected-cave pruning.
+  - The generator carves tunnels as cave tiles (no dedicated corridor tile output) and injects wall pillars inside broad caverns to reduce oversized open rooms and keep topology legible.
+  - Underrealm feature tiles (`chasm`, `crystal`, `magma`, `shrine`) are depth-scaled via `underrealm.terrain.*`; magma/shrine can be gated to deep layers only (`magma_min_depth`, `shrine_min_depth`) before walkable/spawnable conversion.
+  - Underrealm generation is biome-free and season-free by design: no surface biome masks or seasonal terrain palettes are applied.
+  - Underrealm layers preserve runtime economy snapshots across terrain resync (`layer.economy`, `underrealm.deepFaction`) so resize does not wipe deep progression.
 
 ## 6) Simulation systems (what lives in `src/simulation/`) ⚙️
 
@@ -282,7 +296,7 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
 
 - `jobs.js` is a staged scheduler with strict early exits (first failing gate stops that branch, not the whole tick).
 - Worker pool creation:
-  - Eligible workers are idle adults and not on expedition.
+  - Eligible workers are idle adults, not on expedition, and not assigned to active Underrealm duty.
   - Brewmasters are handled first (unless brewery is paused by food emergency).
 - High-level assignment pipeline (in order):
   1. Brewmaster staffing/build.
@@ -530,8 +544,10 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - Effect keys currently wired:
     - `needDecay` -> per-dwarf need decay
     - `mineRareChance` -> rare mine drop probability
+    - `mineOutput`, `gatherTicks`, `buildTicks` -> mine yield, gather cadence, build cadence
     - `ruinsHazard`, `ruinsArtifactChance` -> expedition failure/artifact roll odds
     - `raidDeathRate`, `raidResourceLoss` -> raid casualties and stockpile loot loss
+    - `underrealmRaidStrength`, `underrealmRaidLoss`, `underrealmRareDrop` -> deep raid pressure and deep rare extraction
     - `outputBonus` -> additive contribution to production multiplier (`1 + totalBonus`, clamped)
   - Backlash trigger logic is intentionally delayed: ruins failures are counted during the active window, but backlash is evaluated only when the rite expires (`failuresSinceStart >= failureThreshold`).
   - Backlash phase can do two things:
@@ -555,6 +571,10 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
     - active risk: `ruinsHazard x1.18`, `needDecay x1.06`, `raidDeathRate x1.08`, `raidResourceLoss x1.12`
     - backlash trigger: `2` ruins failures during active phase
     - backlash penalty: `280` ticks, immediate `22%` loss on configured resources, `outputBonus -0.35`, harsher needs/raids/ruins, and reduced rare mining (`mineRareChance x0.75`)
+  - Underrealm-focused formulas:
+    - **Basalt Ward Draught** (`alchemy.formulas.basalt_ward_draught`): lowers deep raid strength/loss and boosts deep rare extraction.
+    - **Emberforge Elixir** (`alchemy.formulas.emberforge_elixir`): speeds gather/build pipelines and increases mine output.
+    - **Aegis of Khazad** (`alchemy.formulas.aegis_of_khazad`): premium late-epoch rite consuming deep reagents (`void_shard`, `ember_resin`) for strong deep-defense and rare-drop pressure.
 
 ### Raids 🐺
 
@@ -589,6 +609,168 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - myths/alchemy/contract buffs all hook raid formulas through explicit multipliers/reductions.
   - housing quality indirectly drives raid survivability by reducing exposed population.
 
+### Underrealm operations 🕳️
+
+- Runtime placement and activation:
+  - `updateUnderrealm(state, config)` is called every simulation tick from `simulation/index.js`, after role assignment and before ruins/housing/job scheduling.
+  - If `underrealm.enabled=false` (or underrealm state is missing), all `underrealmDuty` flags are cleared and no deep logic runs.
+  - Underrealm gameplay state is active regardless of current map view depth (`activeDepth` is a view selector, not a simulation gate).
+- First-depth discovery gate (`underrealm.discovery.*`):
+  - Depth `1` is no longer required to be unlocked at start; default run begins with `start_unlocked_depth=0`.
+  - Discovery timer starts only after colony population reaches a deterministic threshold (`population_min_for_timer..population_max_for_timer`).
+  - Once the threshold is reached, a deterministic delay (`min_tick..max_tick`, seeded) starts and unlocks depth `1` when it expires.
+  - Once discovered, event stream announces the gate and a dedicated surface gate tile is rendered using `underrealm.discovery.symbol` / `underrealm.discovery.color_key`.
+  - Discovery state (`populationThreshold`, `timerStartedTick`, `targetTick`, `found`, `foundTick`, `surfaceGate`) is persisted across runtime resync/resize.
+- Crew assignment model (`miner` / `hauler` / `guard`):
+  - Crew assignment is discovery-gated: no delver assignment occurs before depth `1` is discovered.
+  - Candidate pool = adults only, not on expedition, sorted by spawn order for stable assignment.
+  - Two hard guardrails control extraction pressure:
+    - `surface_reserve_ratio`: minimum adult share reserved for surface economy.
+    - `max_underrealm_ratio`: maximum adult share allowed for deep duty.
+  - Assignable delvers are distributed across unlocked depths using weighted depth ramp (`depth_weight_growth`), biasing deeper layers.
+  - Per-depth role counts are derived from `underrealm.crew.roles.*` (normalized as weights, then split to counts).
+  - Assigned delvers get `dwarf.underrealmDuty={ active, depth, role }`, are removed from surface jobs immediately, and are excluded from:
+    - surface job scheduler (`jobs.js`)
+    - surface role planners (`roles.js`)
+    - ruins expedition idle pools (`ruins.js`)
+    - surface action loop (`dwarf_actions.js`)
+- Deep economy loop (`underrealm.economy.*`):
+  - Each unlocked depth owns an economy snapshot (`layer.economy`) with node pools, gathered totals, rare-drop totals, and exploration progress.
+  - Node pools are deterministic at generation time:
+    - seeded from depth terrain seed
+    - resource templates from `underrealm.economy.nodes.<resource>`
+    - candidates sampled from non-blocked cave cells (excluding `wall/chasm/magma`)
+  - Extraction cadence is `tick_interval`:
+    - work units = `miners + floor(haulers * gather_efficiency_per_hauler)`
+    - active deep raid on that depth applies extraction penalty (`~40%` reduction via work-unit scaling)
+    - per-work-unit yield uses node yield range with depth output multiplier (`depth_output_bonus`)
+  - Rare drops are independent rolls over `underrealm.economy.rare_drops.*`:
+    - chance scales with depth layer multiplier and guard bonus (`rare_drop_guard_bonus`)
+    - chance is further affected by alchemy key `underrealmRareDrop`
+    - rewards are written directly to stockpile and tracked in deep economy stats
+  - Node regeneration runs on `node_regen_interval` by restoring a fraction of capacity (`node_regen_ratio`).
+- Shrine command systems (`underrealm.shrines.*`):
+  - Runtime state is persisted in `underrealm.shrines`:
+    - `wardChargesByDepth`, `oathByDepth`, and cumulative shrine stats.
+  - Ward charges (`underrealm.shrines.ward.*`):
+    - generated on `charge_interval` only when a depth has both delvers and shrine tiles.
+    - generation scales with shrine count and guard count, then consumes `resource_cost_per_charge`.
+    - charges are capped by `max_charges_per_depth`.
+    - when a deep raid starts, charges are auto-spent (`consume_on_raid_start`, capped by `consume_max_per_raid`) to reduce:
+      - raid strength (`strength_reduction_per_charge`)
+      - raid stockpile theft (`loss_reduction_per_charge`)
+  - Delver oath cycle (`underrealm.shrines.oath.*`):
+    - every `tick_interval`, eligible depths can run a shrine oath ritual.
+    - eligibility requires minimum crew and shrine presence (`min_crew`, `min_shrines_per_depth`).
+    - if ritual costs are available, oath becomes active for `duration_ticks`.
+    - if costs are missing, unrest penalty applies for `failure_penalty_ticks`.
+    - active oath effects:
+      - exploration boost (`exploration_multiplier`)
+      - per-tick delver morale gain + stress reduction (`morale_tick_bonus`, `stress_tick_reduction`)
+    - unrest effects:
+      - exploration penalty (`failure_exploration_multiplier`)
+      - per-tick morale drain (`failure_morale_tick_penalty`)
+  - Shrine prospection (`underrealm.shrines.prospection.*`):
+    - enables terrain-linked rare extraction tied to crew activity.
+    - `rift_drop` rolls from Abyssal Rift presence; default reagent: `void_shard`.
+    - `magma_drop` rolls from Emberflow presence; default reagent: `ember_resin`.
+    - chance scales with miner/guard intensity (`miner_bonus_per_unit`, `guard_bonus_per_unit`) and alchemy `underrealmRareDrop`.
+    - prospection rewards are added to stockpile and tracked in shrine stats.
+- Unlocking deeper planes (exploration + Deep Lift project):
+  - Every unlocked depth accumulates survey progress from assigned miners/guards:
+    - miners contribute `exploration_progress_per_miner`
+    - guards contribute `exploration_progress_per_guard`
+    - gain is reduced by depth difficulty multiplier
+  - Survey alone does not unlock the next depth anymore; it marks the frontier as eligible.
+  - Frontier unlock now requires a `Deep Lift` build project (`underrealm.progression.*`) with explicit gates:
+    - minimum survey ratio (`required_survey_ratio`)
+    - minimum frontier miners (`min_frontier_miners`)
+    - optional no-active-raid gate (`require_no_active_raid`)
+    - stockpile construction cost (`stockpile_cost_base` + per-depth scaling)
+    - mined-in-frontier requirement (`mined_cost_base` + per-depth scaling, validated against `layer.economy.totalGathered`)
+    - build duration (`build_ticks_base` + per-depth scaling)
+  - When all gates pass:
+    - stockpile cost is consumed once
+    - Deep Lift enters active build state (`underrealm.lift`) and advances only while miner/raid gates stay valid
+    - on completion, next depth unlocks and layer economy is initialized
+  - Unlock threshold formula:
+    - `unlock_threshold_base + unlock_threshold_per_depth * (depth-1)`
+  - Depth quick reference (default config values):
+    - Scope:
+      - `max_depth=5`, `difficulty_per_depth=0.08`, `rare_drop_per_depth=0.10`, `depth_output_bonus=0.08`.
+      - D2+ unlocks require `required_survey_ratio=100%`, `min_frontier_miners=2`, and no active frontier raid (`require_no_active_raid=true`).
+      - `Deep Lift` costs are from `base + per_depth * (depth-1)` on the frontier depth.
+
+  | Depth | Unlock requirement | Bonuses (default) | Maluses / risk (default) | Distinct elements (default) |
+  | --- | --- | --- | --- | --- |
+  | D1 | Secret gate discovered on surface (`discovery` gate after population threshold + delay). | `diff x1.00`, `rare x1.00`, gather output `x1.00`. | Chasm ratio `2.0%`; hostile base term per check `~1.1% * crewFactor` (checked every `16` ticks). | Core caves, crystal fields (`1.5%`), no magma, no shrines. |
+  | D2 | From D1 frontier: survey target `95`; Deep Lift build `220` ticks; stockpile cost `stone 44, iron 16`; mined-in-depth requirement `stone 70, iron 26`. | `diff x1.08`, `rare x1.10`, gather output `x1.08`; new depth nodes include `mana_crystal`; rare tables start unlocking (`mana_crystal`, `mithril`). | Chasm ratio `3.0%`; hostile base term `~2.2% * crewFactor`. | More crystal (`2.3%`) and first ancestor shrines for ward/oath loops. |
+  | D3 | From D2 frontier: survey target `160`; Deep Lift build `360` ticks; stockpile cost `stone 74, iron 30`; mined requirement `stone 114, iron 48`. | `diff x1.16`, `rare x1.20`, gather output `x1.16`; `mithril` nodes active; `adamantio` rare drops can start. | Chasm ratio `4.0%`; hostile base term `~3.3% * crewFactor`. | First magma pockets and `ember_resin` prospection potential. |
+  | D4 | From D3 frontier: survey target `225`; Deep Lift build `500` ticks; stockpile cost `stone 104, iron 44`; mined requirement `stone 158, iron 70`. | `diff x1.24`, `rare x1.30`, gather output `x1.24`; `adamantio` + `embersteel` nodes/rare layers begin. | Chasm ratio `5.0%`; magma ratio `2.0%` (non-walkable); hostile base term `~4.4% * crewFactor`. | Denser shrine network and stronger ward charge throughput. |
+  | D5 | From D4 frontier: survey target `290`; Deep Lift build `640` ticks; stockpile cost `stone 134, iron 58`; mined requirement `stone 202, iron 92`. | `diff x1.32`, `rare x1.40`, gather output `x1.32`; `ironshade` nodes/rare layers active. | Chasm ratio `6.0%`; magma ratio `2.5%`; hostile base term `~5.5% * crewFactor`. | Densest deep hazards with max shrine/prospection pressure. |
+
+  - Notes on table values:
+    - `crewFactor` in hostile spawn = `(1 + assignedDelvers/24)` and is multiplied after the listed base term.
+    - Hostile spawn chance is clamped to `0.95`.
+    - Shrine count and feature ratios are generation targets; final topology can vary by deterministic terrain seed.
+- Hostile deep faction pressure (`underrealm.hostiles.*`):
+  - Raid checks run per unlocked depth on `check_interval` ticks.
+  - Spawn prerequisites:
+    - no active raid on that depth
+    - no cooldown on that depth
+    - assigned delvers on that depth >= `min_crew_for_spawn`
+  - Spawn chance scales with:
+    - base + per-depth chance
+    - layer difficulty multiplier
+    - local assigned delver count
+  - Active raids apply two pressure channels:
+    - casualties among assigned delvers (mitigated by guards)
+    - weighted stockpile theft on `stockpile_loss_tick_interval`
+  - Raid pressure multipliers stack from:
+    - alchemy `underrealmRaidStrength` (raid strength scalar)
+    - alchemy `underrealmRaidLoss` (stockpile theft scalar)
+    - shrine ward charge mitigation consumed at raid start
+  - Guard mitigation reduces both casualty and theft intensity (`guard_mitigation_per_guard`, clamped).
+  - Raid identities are weighted factions (`hostiles.factions.*`) for event flavor and telemetry.
+  - On raid end:
+    - depth cooldown starts (`cooldown_ticks`)
+    - resolution stats/events are updated (`raidsStarted`, `raidsResolved`, deep losses, deaths)
+  - Rendering hook:
+    - underrealm depth view overlays active delvers and hostile markers only on walkable deep tiles.
+    - underrealm markers keep per-actor persistent positions and move with local tile-to-tile steps (no full-map teleport jitter).
+    - underrealm depth view also renders vertical lift markers (`up`, `down`, `locked`, `active build`) so progression between layers is visible at a glance.
+    - hostile glyph defaults to `☠` via `symbols.underrealm_hostile` (CP437-friendly).
+- Colony-wide impact and balancing consequences:
+  - Surface throughput drops when more adults are committed below ground (real workforce subtraction, not virtual modifiers).
+  - Deep extraction adds strategic minerals to the shared stockpile and can offset late-game shortages if crew is protected.
+  - Higher depth increases potential returns and hostile pressure simultaneously (risk/reward ramp by design).
+  - Deep-raid deaths are tracked separately in `deathsByCause.deepRaid` for diagnostics/regression profiling.
+- Population soft-cap coupling:
+  - Reproduction crowding uses a dynamic soft-cap:
+    - `base reproduction.softCap`
+    - `+ unlock_population_bonus_per_depth * unlockedDepths`
+    - `+ population_bonus_per_assigned * assignedDelvers`
+  - This allows stable long runs with dedicated delver crews without collapsing surface labor entirely.
+- HUD and control observability:
+  - HUD exposes:
+    - realm/depth status (`Surface` vs `Underrealm Dn`)
+    - hidden gate status (population gate / search countdown / discovered)
+    - layer dimensions and difficulty/rare multipliers
+    - depth stock ratio and frontier survey progress
+    - Deep Lift progress while active
+    - delver doctrine ratios (`Delver oath M/H/G`)
+    - assigned delvers vs surface adults
+    - ward charges on active depth
+    - shrine oath status (`active` vs `unrest`)
+    - active deep threat count
+  - Input controls:
+    - `↑` / `↓` changes active viewed depth (`0 = surface`, `1..maxUnlockedDepth = underrealm planes`)
+  - Event stream logs key milestones: depth unlocks, rare finds, raid starts, casualties, raid resolution summaries.
+  - Underrealm map readability:
+    - delvers use dedicated map color `underrealm_delver` (fallback `dwarf`).
+    - deep hostiles use `underrealm_hostile` (fallback `beast`).
+    - lift markers use `underrealm_lift_up|down|active|locked` color keys.
+
 ### Endgame cycles 🔁
 
 - `endgame.js` handles cycle resets as a controlled state replacement, not an incremental cleanup.
@@ -596,6 +778,7 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - all configured ruin artifacts must be found.
   - once complete, `endgameArtifactsTick` is latched.
   - reset fires when `tick - endgameArtifactsTick >= minTicksAfterArtifacts` (or immediately if 0).
+  - default pacing is intentionally long (`minTicksAfterArtifacts=1800`) to keep late underrealm loops relevant before cycle reset.
 - Reset execution (`runEndgameReset`):
   - builds a fresh state via `createInitialState`.
   - optionally overrides starting dwarf count with `endgame.resetPopulation`.
@@ -781,6 +964,7 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
   - Default layout assumes a 190x60 terminal (columns x rows); adjust `display.width`/`display.height`
     and HUD width if you target a different size.
   - Places nodes, structures, temple footprint overlay, dwarves, merchant, and raid beasts on the grid.
+  - When underrealm depth view is active, it renders the selected depth terrain layer and hides surface entities.
   - Selects a stable subset of dwarves to keep the map readable (`display.dwarves.maxVisible`; set `< 0` to skip dwarf rendering).
   - Applies the dwarf inspect overlay when `display.inspect_panel.enabled` is true.
   - Applies the map-save confirmation overlay when `display.save_panel.enabled` is true.
@@ -800,6 +984,9 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
 
 - `render/grid.js`
   - Builds the base grid from terrain symbols.
+  - Uses full-size underrealm terrain layers (same dimensions as surface runtime) when depth view is active.
+  - Cells outside underrealm layer bounds are rendered as configurable void (`underrealm.terrain.void_symbol`, `underrealm.terrain.void_color_key`) when viewport and layer dimensions differ.
+  - Underrealm layout is rendered as unified cave/tunnel topology to avoid artificial corridor banding.
   - River connections use box-drawing symbols and `display.terrain.riverSymbols.*`.
   - Terrain symbol set comes from `display.terrain.symbols.*`.
   - Forest tiles can use a dense symbol for interior tiles, with optional patchy noise via `display.terrain.forestSymbols.*`.
@@ -808,16 +995,18 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
   - Stone tiles reuse the mountain glyphs and colors in the map render.
   - Dense forest colors are driven by `display.colors.map.terrain_forest_dense*`.
   - Optional seasonal color overrides via `display.colors.seasonal.*`.
+  - Seasonal color palettes are disabled automatically while viewing underrealm depth layers.
 
 - `render/hud.js`
-  - Builds a multi-column HUD: world, population, clans, housing, defense, structures, stockpile bars.
+  - Builds a multi-column HUD: world, population, clans, housing, underrealm, structures, stockpile bars.
   - Column layout uses `display.hud.columns` and `display.hud.columnGap`.
   - Stockpile bars scale with `display.hud.stockBarMax` or resource targets.
+  - Dedicated Underrealm HUD includes active depth, layer size, crew assignment summary, depth stock ratio, survey progress, and deep threat count.
   - World HUD includes event stream (`events.maxEntries`) and myth/ruins overlays.
   - World HUD includes the current village count.
 
 - `render/legend.js`
-  - Footer controls are built for `Space`, `l`, `i`, and `m`.
+  - Footer controls are built for `Space`, `l`, `i`, `↑/↓`, and `m`.
   - Legend/map entries are built from `config.json` symbols and resource nodes for the overlay panel.
   - Uses `symbols.*` and `resources.labels.*` for readable names.
 
@@ -827,6 +1016,9 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
   - Named seasonal presets can override palette entries at runtime via `display.colors.seasonal.preset` (for example `ice_fantasy` for softer, low-contrast winter tones).
   - Default spring/summer/autumn terrain colors are tuned to softer fantasy shades for readability and reduced eye strain in long runs.
   - Include `food`, `river`, and `lake` in `display.colors.seasonal.types` so winter presets remain coherent across resources and water; hills/mountains/stone are intentionally fixed across seasons.
+  - Underrealm terrain uses dedicated fixed keys (`terrain_wall`, `terrain_cave`, `terrain_chasm`, `terrain_crystal`, `terrain_magma`, `terrain_shrine`) and does not consume seasonal palettes.
+  - Default underrealm colors are tuned to a dwarven-fantasy palette (obsidian-black walls, dim-cyan caverns, arcane cyan crystals, ember-orange magma, gold shrines) with strong contrast between caverns, hazards, and landmarks.
+  - `terrain_void` can be mapped to a near-black background to mask out-of-layer cells when viewport and layer bounds differ.
 
 ## 8) AI and training 🤖
 
@@ -877,6 +1069,7 @@ Clan dynamics add heterogeneity and longer-horizon trade-offs. To keep PPO stabl
 `config.json` is the master control-plane file. Main sections:
 
 - `display`: grid size, HUD, frame, terrain, colors.
+- `underrealm`: multi-depth full-size generation, cave topology tuning, dedicated crew planning, deep extraction economy, exploration unlock pacing, and hostile deep-faction raids.
 - `resources`: stockpile targets, node counts/capacity, regen rates, crafting inputs.
 - `structures`: build costs, build ticks, upgrade rules, capacities.
 - `structures.temple_of_ancestors`: staged temple progression, topology-based site tuning, costs/effects.
@@ -1055,6 +1248,7 @@ Quick checklist:
     - `simulation/alchemy.js` → alchemy rite lifecycle and modifiers
     - `simulation/contracts.js` → contract offers, reputations, and boons
     - `simulation/roads.js` → road planning/build queue/pathing
+    - `simulation/underrealm.js` → crew assignment, deep economy/exploration, and hostile deep raids
     - `simulation/temple.js` → Temple of Ancestors progression, effects, and prestige
     - `simulation/ruins.js` → expeditions, artifacts, and set bonuses
   - `state/` → initial state + terrain generation

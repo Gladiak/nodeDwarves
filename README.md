@@ -22,10 +22,19 @@ trade-offs emerge from shortages, weather, raids, and long-term growth pressure.
 - 🏛️ Dwarf Temple of Ancestors: biome-aware multi-stage final work with prestige growth.
 - ⚗️ Alchemy Lab rites: burn rare minerals for powerful global buffs, then survive the backlash.
 - 🛡️ Clan culture traits that create trade-offs without micromanagement.
+- 🕳️ Underrealm Front (phase 1): depth layers with engineered dwarven halls and dense stone-hewn caverns.
+- 🧬 Underrealm Front (phase 3): population-triggered secret gate discovery, slower Deep Lift progression for lower depths, visible lift markers per depth, dedicated delver crews, and deep-hostile incursions on walkable tiles (`☠`).
+- 🛡️ Underrealm Front (phase 4): Ancestor Shrines now power ward charges, delver oath cycles, and deep prospection drops (`VoidShard`, `EmberResin`) for new alchemy rites.
+- 📊 HUD readability: Underrealm telemetry has its own dedicated HUD block for depth operations.
 - 🤖 AI training in Python (PPO) with JS-only inference.
 - 🧩 Modular architecture (simulation, state, render, AI) for sane iteration.
 - ⚡ Late-game pathing cache optimizations for smoother high-population ticks.
 - 🔧 Configurable performance knobs for heavy profiling runs.
+
+## Render charset 🧱
+
+- Core map rendering is ASCII-first, with CP437-friendly symbols for enhanced readability in terminal fonts.
+- Underrealm markers follow the same charset logic (`☻` delvers, `☠` deep hostiles), so terminal fallback stays consistent.
 
 ## Why it feels good to run 🧪
 
@@ -52,8 +61,9 @@ npm run ai:play
 - `Space`: pause/resume
 - `l`: legend panel
 - `i`: dwarf inspect panel
-- `m`: export current map (PNG + SVG)
-- `Shift+M`: export map with structures/roads
+- `↑` / `↓`: switch map view between surface and unlocked underrealm depths
+- `m`: export all currently unlocked layers (surface + underrealm) as PNG + SVG
+- `Shift+M`: export all currently unlocked layers with structures/roads
 
 ## AI training (optional) 🤖
 
@@ -74,8 +84,8 @@ in sync. 🧠
 
 1. `Vanilla sim`: `npm start`
 2. `Train then watch`: `npm run ai:train` then `npm run ai:play`
-3. `Capture the world`: during runtime press `m` (or `Shift+M`) for map export
-4. `CLI map export`: `npm run map:export -- --width=120 --height=40 --season=spring`
+3. `Capture the world`: during runtime press `m` (or `Shift+M`) to export all unlocked layers
+4. `CLI map export`: `npm run map:export -- --width=120 --height=40 --season=spring --layers=surface,d1,d2 --underrealmUnlockedDepth=2`
 
 ## Documentation 📚
 
@@ -94,13 +104,14 @@ in sync. 🧠
 - 🧭 Multi-village specialization: assign production roles per settlement.
 - 🗺️ Expedition map: alternate tactical layer for ruins parties and outcomes.
 - 🧠 AI governors: trainable sub-policies for jobs, trade, and building.
-- 🕳️ Underrealm Front: start with one chamber, then expand into a full depth-layer as a second strategic dimension.
+- 🕳️ Underrealm Front expansion: shaft logistics networks, deep strongholds, and faction boss arcs.
 
 ## Project layout (high level) 🧱
 
 - `app.js`: entrypoint and main loop.
 - `config.json`: single source of truth for tunables.
 - `src/`: simulation, state, rendering, AI.
+- `src/simulation/underrealm.js`: Underrealm crew, shrine doctrine, deep economy, exploration unlocks, and hostile faction pressure.
 - `src/simulation/alchemy.js`: alchemy rites, pact lifecycle, and backlash logic.
 - `src/simulation/temple.js`: Temple of Ancestors stages, map footprint, and prestige system.
 - `scripts/train_wrapper.js`: safe unified wrapper for all `ai:train:*` profiles.

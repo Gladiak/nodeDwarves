@@ -378,7 +378,7 @@
       "riverConnectsTo": ["river", "lake"]
     },
     "dwarves": {
-      "maxVisible": 30
+      "maxVisible": 60
     },
     "colors": {
       "enabled": true,
@@ -404,6 +404,19 @@
         "terrain_food": "\u001b[93m",
         "terrain_forest": "\u001b[32m",
         "terrain_forest_dense": "\u001b[38;5;22m",
+        "terrain_wall": "\u001b[38;2;18;18;18m",
+        "terrain_cave": "\u001b[38;2;90;90;90m",
+        "terrain_corridor": "\u001b[38;2;232;188;92m",
+        "terrain_chasm": "\u001b[38;2;95;59;133m",
+        "terrain_crystal": "\u001b[38;2;79;182;194m",
+        "terrain_magma": "\u001b[38;2;177;74;0m",
+        "terrain_shrine": "\u001b[38;2;168;140;45m",
+        "underrealm_gate": "\u001b[38;2;255;208;122m",
+        "underrealm_lift_up": "\u001b[38;2;112;214;255m",
+        "underrealm_lift_down": "\u001b[38;2;122;255;178m",
+        "underrealm_lift_active": "\u001b[38;2;255;198;94m",
+        "underrealm_lift_locked": "\u001b[38;2;199;170;120m",
+        "terrain_void": "\u001b[48;2;9;10;15m\u001b[38;2;9;10;15m",
         "terrain_stone": "\u001b[37m",
         "terrain_plain_spring": "\u001b[38;2;122;150;126m",
         "terrain_plain_summer": "\u001b[38;2;132;157;121m",
@@ -432,6 +445,8 @@
         "terrain_food_winter_ice": "\u001b[38;2;178;198;209m",
         "terrain_cherry": "\u001b[38;2;182;154;176m",
         "dwarf": "\u001b[93m",
+        "underrealm_delver": "\u001b[38;2;180;212;188m",
+        "underrealm_hostile": "\u001b[38;2;198;92;168m",
         "merchant": "\u001b[96m",
         "hud_header": "\u001b[96m",
         "house": "\u001b[90m",
@@ -456,6 +471,8 @@
         "beer": "\u001b[33m",
         "embersteel": "\u001b[38;5;208m",
         "ironshade": "\u001b[38;5;245m",
+        "void_shard": "\u001b[38;2;120;103;153m",
+        "ember_resin": "\u001b[38;2;186;89;28m",
         "clan_abyssborn": "\u001b[94m",
         "clan_khorg_embers": "\u001b[91m",
         "clan_threshold_wardens": "\u001b[92m",
@@ -590,17 +607,17 @@
     "seasonNames": ["spring", "autumn"],
     "durationTicks": 100,
     "chance": {
-      "min": 0.22,
-      "max": 0.45
+      "min": 0.16,
+      "max": 0.3
     },
-    "minPopulation": 10,
-    "minTick": 400,
+    "minPopulation": 16,
+    "minTick": 520,
     "minSeasonsBetween": 1,
-    "defenseAdults": 30,
+    "defenseAdults": 24,
     "defenseMax": 0.6,
     "deathRate": {
-      "min": 0.4,
-      "max": 0.7
+      "min": 0.25,
+      "max": 0.48
     },
     "resourceLoss": {
       "min": 0.04,
@@ -766,6 +783,164 @@
             "raidResourceLoss": 1.28,
             "ruinsHazard": 1.3,
             "mineRareChance": 0.75
+          }
+        }
+      },
+      "basalt_ward_draught": {
+        "enabled": true,
+        "priority": 96,
+        "label": "Basalt Ward Draught",
+        "durationTicks": 180,
+        "cooldownTicks": 210,
+        "requiredStructures": [
+          "alchemy_lab",
+          "armory"
+        ],
+        "minPopulation": 72,
+        "blockDuringRaid": false,
+        "minStockpileRatios": {
+          "food": 0.85,
+          "water": 0.85,
+          "stone": 0.7
+        },
+        "inputs": {
+          "void_shard": 2,
+          "mana_crystal": 2,
+          "beer": 60
+        },
+        "outputBonus": 0.08,
+        "effects": {
+          "underrealmRaidStrength": 0.8,
+          "underrealmRaidLoss": 0.78,
+          "underrealmRareDrop": 1.15,
+          "needDecay": 1.03
+        },
+        "backlash": {
+          "id": "basalt_ward_fracture",
+          "label": "Fractured Basalt Ward",
+          "failureThreshold": 2,
+          "durationTicks": 160,
+          "resourceLossRatio": 0.12,
+          "lossResources": [
+            "stone",
+            "iron",
+            "mana_crystal",
+            "beer"
+          ],
+          "outputBonus": -0.14,
+          "effects": {
+            "underrealmRaidStrength": 1.12,
+            "underrealmRaidLoss": 1.15,
+            "needDecay": 1.09
+          }
+        }
+      },
+      "emberforge_elixir": {
+        "enabled": true,
+        "priority": 92,
+        "label": "Emberforge Elixir",
+        "durationTicks": 200,
+        "cooldownTicks": 230,
+        "requiredStructures": [
+          "alchemy_lab",
+          "mithril_forge"
+        ],
+        "minPopulation": 80,
+        "blockDuringRaid": true,
+        "minStockpileRatios": {
+          "food": 0.9,
+          "water": 0.9,
+          "iron": 0.7
+        },
+        "inputs": {
+          "ember_resin": 2,
+          "embersteel": 2,
+          "iron": 70,
+          "beer": 40
+        },
+        "outputBonus": 0.1,
+        "effects": {
+          "gatherTicks": 0.92,
+          "buildTicks": 0.86,
+          "mineOutput": 1.22,
+          "mineRareChance": 1.1
+        },
+        "backlash": {
+          "id": "emberforge_overburn",
+          "label": "Emberforge Overburn",
+          "failureThreshold": 2,
+          "durationTicks": 170,
+          "resourceLossRatio": 0.1,
+          "lossResources": [
+            "wood",
+            "stone",
+            "iron",
+            "beer"
+          ],
+          "outputBonus": -0.18,
+          "effects": {
+            "gatherTicks": 1.08,
+            "buildTicks": 1.12,
+            "mineOutput": 0.85,
+            "needDecay": 1.05
+          }
+        }
+      },
+      "aegis_of_khazad": {
+        "enabled": true,
+        "priority": 122,
+        "label": "Aegis of Khazad",
+        "durationTicks": 230,
+        "cooldownTicks": 280,
+        "requiredStructures": [
+          "alchemy_lab",
+          "mithril_forge",
+          "armory",
+          "temple_of_ancestors"
+        ],
+        "minPopulation": 110,
+        "blockDuringRaid": false,
+        "minStockpileRatios": {
+          "food": 0.95,
+          "water": 0.95,
+          "stone": 0.85,
+          "iron": 0.85
+        },
+        "inputs": {
+          "void_shard": 3,
+          "ember_resin": 3,
+          "mana_crystal": 5,
+          "mithril": 3,
+          "beer": 120
+        },
+        "outputBonus": 0.14,
+        "effects": {
+          "underrealmRaidStrength": 0.66,
+          "underrealmRaidLoss": 0.58,
+          "underrealmRareDrop": 1.32,
+          "mineRareChance": 1.2,
+          "needDecay": 1.04
+        },
+        "backlash": {
+          "id": "aegis_shatter",
+          "label": "Shattered Aegis",
+          "failureThreshold": 3,
+          "durationTicks": 220,
+          "resourceLossRatio": 0.18,
+          "lossResources": [
+            "stone",
+            "iron",
+            "mithril",
+            "mana_crystal",
+            "void_shard",
+            "ember_resin"
+          ],
+          "outputBonus": -0.3,
+          "effects": {
+            "underrealmRaidStrength": 1.2,
+            "underrealmRaidLoss": 1.24,
+            "underrealmRareDrop": 0.75,
+            "needDecay": 1.12
           }
         }
       }
@@ -1587,7 +1762,7 @@
   "endgame": {
     "enabled": true,
     "resetPopulation": 30,
-    "minTicksAfterArtifacts": 1000,
+    "minTicksAfterArtifacts": 1800,
     "transition": {
       "enabled": true,
       "fadeOutTicks": 80,
@@ -1637,10 +1812,348 @@
   "dwarves": {
     "count": 12
   },
+  "underrealm": {
+    "enabled": true,
+    "max_depth": 5,
+    "start_unlocked_depth": 0,
+    "start_active_depth": 0,
+    "seed_offset": 7001,
+    "seed_step": 97,
+    "difficulty_per_depth": 0.08,
+    "rare_drop_per_depth": 0.1,
+    "discovery": {
+      "enabled": true,
+      "min_tick": 140,
+      "max_tick": 340,
+      "population_min_for_timer": 100,
+      "population_max_for_timer": 150,
+      "seed_offset": 911,
+      "symbol": "@",
+      "color_key": "underrealm_gate"
+    },
+    "progression": {
+      "enabled": true,
+      "required_survey_ratio": 1,
+      "min_frontier_miners": 2,
+      "require_no_active_raid": true,
+      "build_ticks_base": 220,
+      "build_ticks_per_depth": 140,
+      "stockpile_cost_base": {
+        "stone": 44,
+        "iron": 16
+      },
+      "stockpile_cost_per_depth": {
+        "stone": 30,
+        "iron": 14
+      },
+      "mined_cost_base": {
+        "stone": 70,
+        "iron": 26
+      },
+      "mined_cost_per_depth": {
+        "stone": 44,
+        "iron": 22
+      }
+    },
+    "economy": {
+      "enabled": true,
+      "tick_interval": 6,
+      "node_regen_interval": 30,
+      "node_regen_ratio": 0.02,
+      "gather_efficiency_per_hauler": 0.35,
+      "depth_output_bonus": 0.08,
+      "rare_drop_guard_bonus": 0.02,
+      "exploration_progress_per_miner": 0.85,
+      "exploration_progress_per_guard": 0.35,
+      "unlock_threshold_base": 95,
+      "unlock_threshold_per_depth": 65,
+      "nodes": {
+        "stone": {
+          "enabled": true,
+          "min_depth": 1,
+          "base_nodes": 6,
+          "nodes_per_depth": 2,
+          "capacity_min": 42,
+          "capacity_max": 88,
+          "yield_min": 1,
+          "yield_max": 3
+        },
+        "iron": {
+          "enabled": true,
+          "min_depth": 1,
+          "base_nodes": 4,
+          "nodes_per_depth": 2,
+          "capacity_min": 28,
+          "capacity_max": 64,
+          "yield_min": 1,
+          "yield_max": 2
+        },
+        "mana_crystal": {
+          "enabled": true,
+          "min_depth": 2,
+          "base_nodes": 2,
+          "nodes_per_depth": 1,
+          "capacity_min": 10,
+          "capacity_max": 26,
+          "yield_min": 1,
+          "yield_max": 2
+        },
+        "mithril": {
+          "enabled": true,
+          "min_depth": 3,
+          "base_nodes": 1,
+          "nodes_per_depth": 1,
+          "capacity_min": 8,
+          "capacity_max": 20,
+          "yield_min": 1,
+          "yield_max": 1
+        },
+        "adamantio": {
+          "enabled": true,
+          "min_depth": 4,
+          "base_nodes": 1,
+          "nodes_per_depth": 1,
+          "capacity_min": 6,
+          "capacity_max": 14,
+          "yield_min": 1,
+          "yield_max": 1
+        },
+        "embersteel": {
+          "enabled": true,
+          "min_depth": 4,
+          "base_nodes": 1,
+          "nodes_per_depth": 0,
+          "capacity_min": 4,
+          "capacity_max": 10,
+          "yield_min": 1,
+          "yield_max": 1
+        },
+        "ironshade": {
+          "enabled": true,
+          "min_depth": 5,
+          "base_nodes": 1,
+          "nodes_per_depth": 0,
+          "capacity_min": 3,
+          "capacity_max": 8,
+          "yield_min": 1,
+          "yield_max": 1
+        }
+      },
+      "rare_drops": {
+        "mithril": {
+          "min_depth": 2,
+          "chance": 0.004,
+          "amount_min": 1,
+          "amount_max": 1
+        },
+        "adamantio": {
+          "min_depth": 3,
+          "chance": 0.003,
+          "amount_min": 1,
+          "amount_max": 1
+        },
+        "mana_crystal": {
+          "min_depth": 2,
+          "chance": 0.005,
+          "amount_min": 1,
+          "amount_max": 2
+        },
+        "embersteel": {
+          "min_depth": 4,
+          "chance": 0.0025,
+          "amount_min": 1,
+          "amount_max": 1
+        },
+        "ironshade": {
+          "min_depth": 5,
+          "chance": 0.002,
+          "amount_min": 1,
+          "amount_max": 1
+        }
+      }
+    },
+    "hostiles": {
+      "enabled": true,
+      "check_interval": 16,
+      "min_crew_for_spawn": 4,
+      "base_spawn_chance": 0.008,
+      "spawn_chance_per_depth": 0.006,
+      "raid_duration_base": 30,
+      "raid_duration_per_depth": 8,
+      "strength_base": 0.16,
+      "strength_per_depth": 0.07,
+      "casualty_rate": 0.05,
+      "casualty_severity": 0.16,
+      "guard_mitigation_per_guard": 0.07,
+      "stockpile_loss_ratio_base": 0.013,
+      "stockpile_loss_ratio_per_depth": 0.006,
+      "stockpile_loss_tick_interval": 6,
+      "cooldown_ticks": 130,
+      "stockpile_loss_weights": {
+        "food": 0.12,
+        "water": 0.12,
+        "stone": 0.5,
+        "iron": 0.6,
+        "mithril": 1,
+        "adamantio": 1,
+        "mana_crystal": 1,
+        "embersteel": 1,
+        "ironshade": 1,
+        "void_shard": 1,
+        "ember_resin": 1
+      },
+      "factions": {
+        "gloomfang_brood": {
+          "label": "Gloomfang Brood",
+          "weight": 1
+        },
+        "basalt_reavers": {
+          "label": "Basalt Reavers",
+          "weight": 1
+        },
+        "shardbound_heresy": {
+          "label": "Shardbound Heresy",
+          "weight": 0.7
+        }
+      }
+    },
+    "shrines": {
+      "enabled": true,
+      "ward": {
+        "enabled": true,
+        "charge_interval": 16,
+        "charge_base": 0,
+        "charge_per_shrine": 1.2,
+        "charge_per_guard": 0.3,
+        "max_charges_per_depth": 8,
+        "consume_on_raid_start": 2,
+        "consume_max_per_raid": 4,
+        "strength_reduction_per_charge": 0.08,
+        "loss_reduction_per_charge": 0.12,
+        "resource_cost_per_charge": {
+          "stone": 3,
+          "mana_crystal": 1
+        }
+      },
+      "oath": {
+        "enabled": true,
+        "tick_interval": 30,
+        "min_shrines_per_depth": 1,
+        "min_crew": 2,
+        "duration_ticks": 130,
+        "failure_penalty_ticks": 50,
+        "exploration_multiplier": 1.22,
+        "failure_exploration_multiplier": 0.92,
+        "morale_tick_bonus": 0.004,
+        "stress_tick_reduction": 0.004,
+        "failure_morale_tick_penalty": 0.003,
+        "ritual_cost": {
+          "mana_crystal": 1,
+          "stone": 6
+        }
+      },
+      "prospection": {
+        "enabled": true,
+        "requires_shrine": true,
+        "miner_bonus_per_unit": 0.03,
+        "guard_bonus_per_unit": 0.015,
+        "rift_drop": {
+          "resource": "void_shard",
+          "min_depth": 2,
+          "chance": 0.03,
+          "amount_min": 1,
+          "amount_max": 2
+        },
+        "magma_drop": {
+          "resource": "ember_resin",
+          "min_depth": 3,
+          "chance": 0.028,
+          "amount_min": 1,
+          "amount_max": 2
+        }
+      }
+    },
+    "terrain": {
+      "wall_fill_ratio": 0.59,
+      "smooth_passes": 5,
+      "start_chamber_radius": 3,
+      "chamber_count_base": 5,
+      "chamber_count_per_depth": 1,
+      "chamber_radius_min": 2,
+      "chamber_radius_max": 4,
+      "corridor_width": 1,
+      "loop_count_base": 2,
+      "loop_count_per_depth": 1,
+      "branch_count_base": 7,
+      "branch_count_per_depth": 2,
+      "branch_length_min": 3,
+      "branch_length_max": 8,
+      "branch_turn_chance": 0.1,
+      "pillar_ratio_base": 0.09,
+      "pillar_ratio_per_depth": 0.018,
+      "pillar_open_neighbors_min": 6,
+      "chasm_ratio_base": 0.02,
+      "chasm_ratio_per_depth": 0.01,
+      "crystal_ratio_base": 0.015,
+      "crystal_ratio_per_depth": 0.008,
+      "magma_min_depth": 3,
+      "magma_ratio_base": 0.005,
+      "magma_ratio_per_depth": 0.005,
+      "shrine_min_depth": 2,
+      "shrine_count_base": 1,
+      "shrine_count_per_depth": 1,
+      "void_symbol": " ",
+      "void_color_key": "",
+      "symbols": {
+        "wall": "#",
+        "cave": "·",
+        "corridor": "=",
+        "chasm": "x",
+        "crystal": "*",
+        "magma": "~",
+        "shrine": "+"
+      },
+      "corridor_symbols": {
+        "horizontal": "═",
+        "vertical": "║",
+        "cornerNE": "╚",
+        "cornerNW": "╝",
+        "cornerSE": "╔",
+        "cornerSW": "╗",
+        "teeNorth": "╩",
+        "teeSouth": "╦",
+        "teeEast": "╠",
+        "teeWest": "╣",
+        "cross": "╬"
+      },
+      "walkable": {
+        "wall": false,
+        "cave": true,
+        "corridor": true,
+        "chasm": false,
+        "crystal": true,
+        "magma": false,
+        "shrine": true
+      }
+    },
+    "crew": {
+      "enabled": true,
+      "surface_reserve_ratio": 0.58,
+      "max_underrealm_ratio": 0.28,
+      "depth_weight_growth": 0.12,
+      "population_bonus_per_assigned": 0.24,
+      "unlock_population_bonus_per_depth": 14,
+      "roles": {
+        "miner_ratio": 0.12,
+        "hauler_ratio": 0.08,
+        "guard_ratio": 0.05
+      }
+    }
+  },
   "resources": {
     "stockpile": {
-      "food": 30,
-      "water": 40,
+      "food": 44,
+      "water": 56,
       "beer": 0,
       "wood": 8,
       "stone": 6,
@@ -1650,11 +2163,13 @@
       "adamantio": 0,
       "mana_crystal": 0,
       "embersteel": 0,
-      "ironshade": 0
+      "ironshade": 0,
+      "void_shard": 0,
+      "ember_resin": 0
     },
     "targets": {
-      "food": 60,
-      "water": 60,
+      "food": 76,
+      "water": 78,
       "wood": 8,
       "stone": 6
     },
@@ -1672,8 +2187,8 @@
       }
     },
     "targetsPerCapita": {
-      "food": 0.6,
-      "water": 0.5,
+      "food": 0.74,
+      "water": 0.68,
       "wood": 0.08,
       "stone": 0.06
     },
@@ -1692,8 +2207,8 @@
       "stone": 100
     },
     "terrainCooldownCriticalRatio": {
-      "food": 0.35,
-      "water": 0.35
+      "food": 0.45,
+      "water": 0.45
     },
     "labels": {
       "food": "Food",
@@ -1707,7 +2222,9 @@
       "adamantio": "Adamantium",
       "mana_crystal": "ManaCrystal",
       "embersteel": "Embersteel",
-      "ironshade": "Ironshade"
+      "ironshade": "Ironshade",
+      "void_shard": "VoidShard",
+      "ember_resin": "EmberResin"
     },
     "terrainAllowed": {
       "food": ["food", "pasture"],
@@ -2056,11 +2573,11 @@
         "wood": 0.7,
         "stone": 0.7
       },
-      "buildTicks": 90,
+      "buildTicks": 110,
       "buildCost": {
-        "wood": 18,
-        "stone": 14,
-        "iron": 10
+        "wood": 22,
+        "stone": 18,
+        "iron": 14
       },
       "workersPerArmory": 2,
       "kitTicks": 24,
@@ -2109,12 +2626,12 @@
         "wood": 0.8,
         "stone": 0.8
       },
-      "buildTicks": 120,
+      "buildTicks": 165,
       "buildCost": {
-        "wood": 25,
-        "stone": 20,
-        "iron": 12,
-        "mithril": 4
+        "wood": 36,
+        "stone": 30,
+        "iron": 20,
+        "mithril": 7
       },
       "levelMax": 20,
       "levelBonusMin": 0.1,
@@ -2209,13 +2726,13 @@
         "wood": 0.85,
         "stone": 0.85
       },
-      "buildTicks": 160,
+      "buildTicks": 235,
       "buildCost": {
-        "wood": 30,
-        "stone": 24,
-        "iron": 18,
-        "mithril": 6,
-        "mana_crystal": 2
+        "wood": 42,
+        "stone": 34,
+        "iron": 24,
+        "mithril": 9,
+        "mana_crystal": 4
       }
     },
     "brewery": {
@@ -2421,11 +2938,11 @@
           "id": 1,
           "name": "Foundation",
           "radius": 0,
-          "buildTicks": 160,
+          "buildTicks": 220,
           "buildCost": {
-            "wood": 40,
-            "stone": 45,
-            "iron": 10
+            "wood": 55,
+            "stone": 60,
+            "iron": 14
           },
           "prestige": 120,
           "prestigePerTick": 0.015,
@@ -2439,12 +2956,12 @@
           "id": 2,
           "name": "Sanctum Hall",
           "radius": 1,
-          "buildTicks": 220,
+          "buildTicks": 320,
           "buildCost": {
-            "wood": 70,
-            "stone": 90,
-            "iron": 24,
-            "mithril": 4
+            "wood": 95,
+            "stone": 120,
+            "iron": 32,
+            "mithril": 6
           },
           "prestige": 260,
           "prestigePerTick": 0.03,
@@ -2458,14 +2975,14 @@
           "id": 3,
           "name": "Rune Basilica",
           "radius": 2,
-          "buildTicks": 320,
+          "buildTicks": 460,
           "buildCost": {
-            "wood": 110,
-            "stone": 130,
-            "iron": 35,
-            "mithril": 12,
-            "adamantio": 4,
-            "mana_crystal": 3
+            "wood": 150,
+            "stone": 180,
+            "iron": 48,
+            "mithril": 17,
+            "adamantio": 6,
+            "mana_crystal": 5
           },
           "prestige": 420,
           "prestigePerTick": 0.05,
@@ -2479,16 +2996,16 @@
           "id": 4,
           "name": "Ancestor Crown",
           "radius": 3,
-          "buildTicks": 440,
+          "buildTicks": 640,
           "buildCost": {
-            "wood": 170,
-            "stone": 190,
-            "iron": 50,
-            "mithril": 24,
-            "adamantio": 10,
-            "mana_crystal": 8,
-            "embersteel": 4,
-            "ironshade": 4
+            "wood": 230,
+            "stone": 255,
+            "iron": 68,
+            "mithril": 34,
+            "adamantio": 14,
+            "mana_crystal": 12,
+            "embersteel": 6,
+            "ironshade": 6
           },
           "prestige": 780,
           "prestigePerTick": 0.08,
@@ -2539,7 +3056,7 @@
       {
         "id": "entry",
         "name": "Fractured Entrance",
-        "expeditionTicks": 150,
+        "expeditionTicks": 200,
         "partySize": 3,
         "cost": {
           "food": 6,
@@ -2550,13 +3067,13 @@
         "hazardChance": 0.1,
         "guardianChance": 0,
         "guardianPower": 0,
-        "artifactChance": 0.08,
+        "artifactChance": 0.05,
         "artifactRolls": 1
       },
       {
         "id": "runes",
         "name": "Rune Hall",
-        "expeditionTicks": 220,
+        "expeditionTicks": 290,
         "partySize": 4,
         "cost": {
           "food": 8,
@@ -2567,13 +3084,13 @@
         "hazardChance": 0.18,
         "guardianChance": 0.1,
         "guardianPower": 3,
-        "artifactChance": 0.18,
+        "artifactChance": 0.11,
         "artifactRolls": 1
       },
       {
         "id": "forge",
         "name": "Ancient Forge",
-        "expeditionTicks": 300,
+        "expeditionTicks": 390,
         "partySize": 5,
         "cost": {
           "food": 10,
@@ -2585,13 +3102,13 @@
         "hazardChance": 0.28,
         "guardianChance": 0.35,
         "guardianPower": 5,
-        "artifactChance": 0.3,
+        "artifactChance": 0.2,
         "artifactRolls": 1
       },
       {
         "id": "archive",
         "name": "Masters' Archive",
-        "expeditionTicks": 400,
+        "expeditionTicks": 530,
         "partySize": 6,
         "cost": {
           "food": 12,
@@ -2603,13 +3120,13 @@
         "hazardChance": 0.4,
         "guardianChance": 0.55,
         "guardianPower": 7,
-        "artifactChance": 0.4,
+        "artifactChance": 0.28,
         "artifactRolls": 1
       },
       {
         "id": "sanctum",
         "name": "Stone King's Sanctum",
-        "expeditionTicks": 520,
+        "expeditionTicks": 700,
         "partySize": 7,
         "cost": {
           "food": 14,
@@ -2621,7 +3138,7 @@
         "hazardChance": 0.55,
         "guardianChance": 0.75,
         "guardianPower": 9,
-        "artifactChance": 0.5,
+        "artifactChance": 0.36,
         "artifactRolls": 1
       }
     ],
@@ -2866,9 +3383,9 @@
     "aging": {
       "adultAge": 150,
       "fertileStart": 150,
-      "fertileEnd": 3600,
-      "oldAgeStart": 3600,
-      "maxAge": 4600
+      "fertileEnd": 5000,
+      "oldAgeStart": 5200,
+      "maxAge": 7600
     },
     "relationships": {
       "interactionsPerTick": 5,
@@ -2948,10 +3465,10 @@
     },
     "roles": {
       "enabled": true,
-      "builderRatio": 0.3,
-      "managerRatio": 0.2,
+      "builderRatio": 0.22,
+      "managerRatio": 0.12,
       "switchCooldownTicks": 200,
-      "emergencyMinRatio": 0.4,
+      "emergencyMinRatio": 0.52,
       "emergencyResources": ["food", "water"]
     },
     "reproduction": {
@@ -2960,15 +3477,15 @@
       "baseChance": 0.005,
       "cooldownTicks": 70,
       "resourcePerCapita": {
-        "food": 0.65,
-        "water": 0.65
+        "food": 0.66,
+        "water": 0.66
       },
-      "softCap": 700,
-      "crowdingMinFactor": 0.1,
+      "softCap": 620,
+      "crowdingMinFactor": 0.04,
       "moraleInfluence": 0.35,
       "birthCost": {
-        "food": 0.55,
-        "water": 0.55
+        "food": 0.54,
+        "water": 0.54
       },
       "minStockpileRatio": {
         "food": 0.6,
@@ -2978,8 +3495,8 @@
     "death": {
       "starvationThreshold": 0.9,
       "starvationTicks": 60,
-      "oldAgeChanceMin": 0.0001,
-      "oldAgeChanceMax": 0.0018
+      "oldAgeChanceMin": 0.00006,
+      "oldAgeChanceMax": 0.0012
     }
   },
   "villages": {
@@ -3119,10 +3636,10 @@
         "fieldRegen": 0.9
       },
       "winter": {
-        "needDecay": 1.08,
+        "needDecay": 1.05,
         "gatherYield": 0.95,
-        "gatherTicks": 1.1,
-        "nodeRegen": 0.7,
+        "gatherTicks": 1.06,
+        "nodeRegen": 0.78,
         "reproductionChance": 0.85,
         "fieldRegen": 0.7
       }
@@ -3182,8 +3699,8 @@
       "storm": {
         "weight": 0.3,
         "severity": 0.8,
-        "needDecay": 1.07,
-        "gatherTicks": 1.3,
+        "needDecay": 1.04,
+        "gatherTicks": 1.18,
         "gatherYield": 1,
         "nodeRegen": 1,
         "fieldRegen": 0.9,
@@ -3192,24 +3709,24 @@
       "drought": {
         "weight": 0.45,
         "severity": 1,
-        "needDecay": 1.12,
+        "needDecay": 1.08,
         "needDecayByNeed": {
-          "thirst": 1.3
+          "thirst": 1.18
         },
-        "gatherTicks": 1.15,
+        "gatherTicks": 1.1,
         "gatherYield": 1,
-        "nodeRegen": 0.6,
-        "fieldRegen": 0.7,
-        "irrigation": 0.65
+        "nodeRegen": 0.72,
+        "fieldRegen": 0.78,
+        "irrigation": 0.72
       },
       "cold": {
         "weight": 0.45,
         "severity": 0.7,
-        "needDecay": 1.12,
+        "needDecay": 1.08,
         "needDecayByNeed": {
-          "hunger": 1.25
+          "hunger": 1.16
         },
-        "gatherTicks": 1.25,
+        "gatherTicks": 1.16,
         "gatherYield": 1,
         "nodeRegen": 0.85,
         "fieldRegen": 0.95,
@@ -3237,18 +3754,18 @@
       "thirst": 0.1
     },
     "decayPerTick": {
-      "hunger": 0.002,
-      "thirst": 0.0033
+      "hunger": 0.00175,
+      "thirst": 0.0028
     }
   },
   "consumption": {
-    "hungerThreshold": 0.34,
-    "thirstThreshold": 0.26,
-    "hungerTarget": 0.3,
-    "thirstTarget": 0.2,
+    "hungerThreshold": 0.31,
+    "thirstThreshold": 0.22,
+    "hungerTarget": 0.24,
+    "thirstTarget": 0.15,
     "maxUnitsPerTick": 1,
-    "rawFoodRelief": 0.32,
-    "waterRelief": 0.32,
+    "rawFoodRelief": 0.37,
+    "waterRelief": 0.4,
     "beerRelief": 0.5,
     "beerReserveBase": 8,
     "beerReservePerCapita": 0.04,
@@ -3285,20 +3802,20 @@
     "defaultGatherTicks": 6,
     "defaultGatherYield": 1.15,
     "gatherTicks": {
-      "food": 4,
+      "food": 3,
       "water": 2,
       "wood": 6,
       "stone": 7
     },
     "gatherYield": {
-      "food": 2.3,
-      "water": 2.3,
+      "food": 2.6,
+      "water": 2.8,
       "wood": 1.15,
       "stone": 1.15
     },
     "gatherTriggerRatio": {
-      "food": 1.15,
-      "water": 1.15
+      "food": 1.28,
+      "water": 1.28
     },
     "buildQueue": {
       "maxConcurrent": 2,
@@ -3311,9 +3828,9 @@
   },
   "symbols": {
     "empty": "·",
-    "dwarf": "☺",
+    "dwarf": "☻",
     "merchant": "$",
-    "beast": "♠",
+    "beast": "☠",
     "herd": "&",
     "food": "φ",
     "water": "≈",
@@ -3326,6 +3843,8 @@
     "mana_crystal": "Φ",
     "embersteel": "E",
     "ironshade": "I",
+    "void_shard": "V",
+    "ember_resin": "R",
     "beer": "±",
     "house": "Ω",
     "well": "°",
@@ -3340,6 +3859,11 @@
     "sawmill": "╫",
     "watchtower": "┼",
     "temple_of_ancestors": "A",
-    "temple_of_ancestors_outline": "+"
+    "temple_of_ancestors_outline": "+",
+    "underrealm_gate": "@",
+    "underrealm_lift_up": "↑",
+    "underrealm_lift_down": "↓",
+    "underrealm_lift_locked": "↓",
+    "underrealm_hostile": "☠"
   }
 }

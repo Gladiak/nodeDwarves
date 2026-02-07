@@ -282,6 +282,10 @@ Display and layout:
 - `display.colors.map.<key>`: ANSI color for an entity key (e.g. `dwarf`, `merchant`, `house`, `alchemy_lab`, `food`, `hud_header`).
 - `display.colors.map.weather_<type>`: ANSI color for HUD weather labels (e.g. `weather_rain`).
 - `display.colors.map.terrain_<type>`: ANSI color for terrain tiles (`terrain_river`, `terrain_lake`, `terrain_road`, `terrain_bridge`, `terrain_ford`, `terrain_mountain`, `terrain_hill`, `terrain_plain`, `terrain_fertile`, `terrain_food`, `terrain_forest`, `terrain_stone`).
+- `display.colors.map.terrain_wall|terrain_cave|terrain_corridor|terrain_chasm|terrain_crystal|terrain_magma|terrain_shrine`: dedicated underrealm terrain colors (used when depth view is active; unaffected by seasonal palettes).
+- `display.colors.map.terrain_void`: color used for out-of-layer underrealm cells when viewport and layer bounds differ (optional near-black void mask).
+- `display.colors.map.underrealm_delver|underrealm_hostile`: optional underrealm-only unit colors for delvers and deep hostile markers (`☠`), with fallback to `dwarf`/`beast`.
+- `display.colors.map.underrealm_lift_up|underrealm_lift_down|underrealm_lift_active|underrealm_lift_locked`: underrealm elevator marker colors (upper shaft, unlocked lower shaft, active build, locked lower shaft).
 - `display.colors.map.herd`: ANSI color for wildlife herds on the map.
 - `display.colors.map.temple_of_ancestors`: ANSI color for temple footprint/core tiles.
 - `display.colors.map.terrain_road`: ANSI color for road tiles.
@@ -404,6 +408,142 @@ Endgame cycles:
 - `endgame.difficulty.perCycle`: difficulty multiplier added per completed cycle.
 - `endgame.difficulty.maxMultiplier`: cap for the difficulty multiplier.
 
+Underrealm:
+
+- `underrealm.enabled`: enable the underrealm runtime state and depth view controls.
+- `underrealm.max_depth`: total number of generated underrealm depth layers.
+- `underrealm.start_unlocked_depth`: number of unlocked depths at run start (surface is always depth `0`); defaults to `0` with discovery-driven D1 unlock.
+- `underrealm.start_active_depth`: initial view depth (`0` = surface).
+- `underrealm.seed_offset`: seed offset added to the surface seed for underrealm generation.
+- `underrealm.seed_step`: per-depth seed increment used for deterministic depth generation.
+- `underrealm.difficulty_per_depth`: additive difficulty growth per depth (used for layer metadata and balancing hooks).
+- `underrealm.rare_drop_per_depth`: additive rare-drop growth per depth (used for layer metadata and balancing hooks).
+- `underrealm.discovery.enabled`: enable discovery-driven unlock for depth 1.
+- `underrealm.discovery.population_min_for_timer|population_max_for_timer`: deterministic population window that gates discovery-timer start.
+- `underrealm.discovery.min_tick|max_tick`: deterministic random delay window (in ticks) applied after the population threshold is reached.
+- `underrealm.discovery.seed_offset`: deterministic seed offset used for discovery timing/gate placement.
+- `underrealm.discovery.symbol`: symbol used for the discovered surface gate tile.
+- `underrealm.discovery.color_key`: map color key used for the discovered surface gate tile.
+- `underrealm.progression.enabled`: enable Deep Lift depth progression logic (survey + build project + costs).
+- `underrealm.progression.required_survey_ratio`: minimum frontier survey completion ratio required before starting Deep Lift (`0..1`).
+- `underrealm.progression.min_frontier_miners`: minimum miners required on the frontier depth to start/advance Deep Lift.
+- `underrealm.progression.require_no_active_raid`: require no active deep raid on frontier depth to start/advance Deep Lift.
+- `underrealm.progression.build_ticks_base|build_ticks_per_depth`: base Deep Lift build time and additional time per frontier depth.
+- `underrealm.progression.stockpile_cost_base.<resource>`: fixed stockpile cost paid when a Deep Lift project starts.
+- `underrealm.progression.stockpile_cost_per_depth.<resource>`: additional stockpile cost per frontier depth.
+- `underrealm.progression.mined_cost_base.<resource>`: minimum amount that must have been mined on the frontier depth before starting Deep Lift.
+- `underrealm.progression.mined_cost_per_depth.<resource>`: additional frontier mined requirement per depth.
+- Underrealm depth layers currently match the active surface runtime size (`display.width` / `display.height`) at every depth.
+- `underrealm.terrain.wall_fill_ratio`: initial random wall fill ratio before cave smoothing (`0..1`).
+- `underrealm.terrain.smooth_passes`: number of cellular-automata smoothing passes for cave topology.
+- `underrealm.terrain.start_chamber_radius`: radius of the guaranteed start chamber at layer center.
+- `underrealm.terrain.chamber_count_base`: minimum number of carved chambers per depth.
+- `underrealm.terrain.chamber_count_per_depth`: extra chamber count added for each deeper depth.
+- `underrealm.terrain.chamber_radius_min`: minimum chamber radius for random chamber carving.
+- `underrealm.terrain.chamber_radius_max`: maximum chamber radius for random chamber carving.
+- `underrealm.terrain.corridor_width`: corridor brush width used for chamber linking.
+- Current default generation normalizes carved links into `cave` tiles, so dedicated `corridor` terrain cells are typically not emitted.
+- `underrealm.terrain.loop_count_base`: base number of extra chamber-to-chamber loop links added on top of the minimum spanning corridor graph.
+- `underrealm.terrain.loop_count_per_depth`: additional loop links added per deeper depth.
+- `underrealm.terrain.branch_count_base`: base number of side branches carved from caves/corridors.
+- `underrealm.terrain.branch_count_per_depth`: extra side-branch count added for each deeper depth.
+- `underrealm.terrain.branch_length_min`: minimum branch tunnel length.
+- `underrealm.terrain.branch_length_max`: maximum branch tunnel length.
+- `underrealm.terrain.branch_turn_chance`: chance to add one controlled bend in a branch shaft (`0..1`).
+- `underrealm.terrain.pillar_ratio_base`: base fraction of wide-open cave cells converted into wall pillars.
+- `underrealm.terrain.pillar_ratio_per_depth`: additive pillar fraction per deeper depth.
+- `underrealm.terrain.pillar_open_neighbors_min`: minimum open neighbors (8-way) required for a cave cell to become a pillar candidate.
+- `underrealm.terrain.chasm_ratio_base`: base ratio of cave tiles converted to chasms.
+- `underrealm.terrain.chasm_ratio_per_depth`: additive chasm ratio per deeper depth.
+- `underrealm.terrain.crystal_ratio_base`: base ratio of cave tiles converted to crystal fields.
+- `underrealm.terrain.crystal_ratio_per_depth`: additive crystal ratio per deeper depth.
+- `underrealm.terrain.magma_min_depth`: minimum depth where magma tiles can spawn.
+- `underrealm.terrain.magma_ratio_base`: base ratio of cave tiles converted to magma vents.
+- `underrealm.terrain.magma_ratio_per_depth`: additive magma ratio per deeper depth.
+- `underrealm.terrain.shrine_min_depth`: minimum depth where ancestor shrine tiles can spawn.
+- `underrealm.terrain.shrine_count_base`: base number of ancestral shrine tiles per depth.
+- `underrealm.terrain.shrine_count_per_depth`: additive shrine count per deeper depth.
+- `underrealm.terrain.void_symbol`: symbol used outside underrealm layer bounds in depth view when viewport/layer dimensions differ (defaults to space for a clean void mask).
+- `underrealm.terrain.void_color_key`: optional color-map key used for the out-of-layer underrealm void (empty/omitted = no tint, just `void_symbol`).
+- `underrealm.terrain.symbols.wall|cave|corridor|chasm|crystal|magma|shrine`: map symbols for underrealm terrain tiles.
+- `underrealm.terrain.corridor_symbols.horizontal|vertical|cornerNE|cornerNW|cornerSE|cornerSW|teeNorth|teeSouth|teeEast|teeWest|cross`: optional directional glyph set for corridor rendering; mainly useful if corridor tile output is re-enabled.
+- `underrealm.terrain.walkable.wall|cave|corridor|chasm|crystal|magma|shrine`: walkability rules by underrealm terrain tile type.
+- `underrealm.crew.enabled`: enable dedicated underrealm crew metadata.
+- `underrealm.crew.surface_reserve_ratio`: minimum population share reserved for surface duties (`0..1`).
+- `underrealm.crew.max_underrealm_ratio`: hard cap on the adult share that can be committed to deep duty (`0..1`).
+- `underrealm.crew.depth_weight_growth`: linear weight growth that biases assignment toward deeper unlocked layers.
+- `underrealm.crew.population_bonus_per_assigned`: extra reproduction soft-cap budget granted per actively assigned delver.
+- `underrealm.crew.unlock_population_bonus_per_depth`: planned population budget bonus per unlocked depth.
+- `underrealm.crew.roles.miner_ratio`: target miner share for underrealm crew planning (`0..1`).
+- `underrealm.crew.roles.hauler_ratio`: target hauler share for underrealm crew planning (`0..1`).
+- `underrealm.crew.roles.guard_ratio`: target guard share for underrealm crew planning (`0..1`).
+- `underrealm.economy.enabled`: enable deep extraction/economy ticks.
+- `underrealm.economy.tick_interval`: tick cadence for deep extraction jobs.
+- `underrealm.economy.node_regen_interval`: cadence for node regeneration in depth layers.
+- `underrealm.economy.node_regen_ratio`: fraction of node capacity restored on regen ticks (`0..1`).
+- `underrealm.economy.gather_efficiency_per_hauler`: extra work-units contributed by each assigned hauler.
+- `underrealm.economy.depth_output_bonus`: additive output scaling per depth (depth > 1).
+- `underrealm.economy.rare_drop_guard_bonus`: additive rare-drop chance bonus per guard on that depth.
+- `underrealm.economy.exploration_progress_per_miner`: survey progress generated per miner per economy tick.
+- `underrealm.economy.exploration_progress_per_guard`: survey progress generated per guard per economy tick.
+- `underrealm.economy.unlock_threshold_base`: base survey threshold required to make a frontier depth Deep-Lift-eligible.
+- `underrealm.economy.unlock_threshold_per_depth`: extra survey threshold per current depth.
+- `underrealm.economy.nodes.<resource>.enabled`: include this resource in Underrealm node generation.
+- `underrealm.economy.nodes.<resource>.min_depth`: minimum depth where this node resource can spawn.
+- `underrealm.economy.nodes.<resource>.base_nodes`: base node count generated for the resource.
+- `underrealm.economy.nodes.<resource>.nodes_per_depth`: extra node count added per depth.
+- `underrealm.economy.nodes.<resource>.capacity_min|max`: random capacity range used when node pools are generated.
+- `underrealm.economy.nodes.<resource>.yield_min|max`: extraction yield range per work unit.
+- `underrealm.economy.rare_drops.<resource>.min_depth`: minimum depth where that rare drop can roll.
+- `underrealm.economy.rare_drops.<resource>.chance`: base per-tick rare-drop chance before depth/guard multipliers.
+- `underrealm.economy.rare_drops.<resource>.amount_min|max`: random rare-drop amount range.
+- `underrealm.hostiles.enabled`: enable hostile deep-faction raids.
+- `underrealm.hostiles.check_interval`: cadence for raid spawn checks.
+- `underrealm.hostiles.min_crew_for_spawn`: minimum assigned delvers required before a depth can roll raids.
+- `underrealm.hostiles.base_spawn_chance`: base raid spawn chance.
+- `underrealm.hostiles.spawn_chance_per_depth`: additional spawn chance per depth.
+- `underrealm.hostiles.raid_duration_base|raid_duration_per_depth`: base raid duration and per-depth extension.
+- `underrealm.hostiles.strength_base|strength_per_depth`: base raid strength and per-depth growth.
+- `underrealm.hostiles.casualty_rate`: per-tick casualty pressure scalar.
+- `underrealm.hostiles.casualty_severity`: fraction of assigned crew potentially removed when a casualty hit occurs.
+- `underrealm.hostiles.guard_mitigation_per_guard`: guard contribution that reduces raid casualty/loss pressure.
+- `underrealm.hostiles.stockpile_loss_ratio_base|stockpile_loss_ratio_per_depth`: weighted theft ratio baseline and per-depth growth.
+- `underrealm.hostiles.stockpile_loss_tick_interval`: tick cadence for hostile theft while a raid is active.
+- `underrealm.hostiles.cooldown_ticks`: post-raid cooldown before new raids can spawn on that depth.
+- `underrealm.hostiles.stockpile_loss_weights.<resource>`: weighted stockpile loss contribution by resource.
+- `underrealm.hostiles.factions.<id>.label`: display label for a hostile deep faction.
+- `underrealm.hostiles.factions.<id>.weight`: weighted spawn chance of that faction.
+- `underrealm.shrines.enabled`: enable all shrine runtime systems (ward, oath, prospection).
+- `underrealm.shrines.ward.enabled`: enable shrine ward charge generation/spending.
+- `underrealm.shrines.ward.charge_interval`: tick cadence for ward charge generation.
+- `underrealm.shrines.ward.charge_base`: flat ward charge contribution per generation cycle.
+- `underrealm.shrines.ward.charge_per_shrine`: additional generated charge contribution per shrine tile.
+- `underrealm.shrines.ward.charge_per_guard`: additional generated charge contribution per assigned guard.
+- `underrealm.shrines.ward.max_charges_per_depth`: per-depth ward charge storage cap.
+- `underrealm.shrines.ward.consume_on_raid_start`: base charges auto-consumed when a deep raid starts.
+- `underrealm.shrines.ward.consume_max_per_raid`: hard cap of charges consumed at raid start.
+- `underrealm.shrines.ward.strength_reduction_per_charge`: raid strength reduction per consumed charge.
+- `underrealm.shrines.ward.loss_reduction_per_charge`: stockpile theft reduction per consumed charge.
+- `underrealm.shrines.ward.resource_cost_per_charge.<resource>`: stockpile cost paid per generated ward charge.
+- `underrealm.shrines.oath.enabled`: enable shrine oath ritual lifecycle.
+- `underrealm.shrines.oath.tick_interval`: cadence for oath ritual attempts.
+- `underrealm.shrines.oath.min_shrines_per_depth`: shrine tiles required to attempt an oath on that depth.
+- `underrealm.shrines.oath.min_crew`: minimum assigned delvers required to attempt an oath.
+- `underrealm.shrines.oath.duration_ticks`: active oath duration.
+- `underrealm.shrines.oath.failure_penalty_ticks`: unrest penalty duration when ritual costs are missing.
+- `underrealm.shrines.oath.exploration_multiplier`: exploration gain multiplier while oath is active.
+- `underrealm.shrines.oath.failure_exploration_multiplier`: exploration gain multiplier while unrest is active.
+- `underrealm.shrines.oath.morale_tick_bonus`: per-tick morale increase for assigned delvers during active oath.
+- `underrealm.shrines.oath.stress_tick_reduction`: per-tick stress reduction for assigned delvers during active oath.
+- `underrealm.shrines.oath.failure_morale_tick_penalty`: per-tick morale penalty during unrest.
+- `underrealm.shrines.oath.ritual_cost.<resource>`: stockpile resources consumed when an oath starts.
+- `underrealm.shrines.prospection.enabled`: enable shrine-linked terrain prospection drops.
+- `underrealm.shrines.prospection.requires_shrine`: require shrine presence on the depth before prospection rolls.
+- `underrealm.shrines.prospection.miner_bonus_per_unit`: per-miner additive chance multiplier contribution for prospection.
+- `underrealm.shrines.prospection.guard_bonus_per_unit`: per-guard additive chance multiplier contribution for prospection.
+- `underrealm.shrines.prospection.rift_drop.resource|min_depth|chance|amount_min|amount_max`: Abyssal Rift drop table.
+- `underrealm.shrines.prospection.magma_drop.resource|min_depth|chance|amount_min|amount_max`: Emberflow drop table.
+
 Prestige:
 
 - `prestige.enabled`: enable prestige scoring/rank tracking.
@@ -414,7 +554,7 @@ Prestige:
 
 Resources:
 
-- `resources.stockpile.<resource>`: initial stockpile amounts (e.g. `food`, `water`, `beer`, `wood`, `stone`, `iron`, `expedition_kit`, `mithril`, `adamantio`, `mana_crystal`, `embersteel`, `ironshade`).
+- `resources.stockpile.<resource>`: initial stockpile amounts (e.g. `food`, `water`, `beer`, `wood`, `stone`, `iron`, `expedition_kit`, `mithril`, `adamantio`, `mana_crystal`, `embersteel`, `ironshade`, `void_shard`, `ember_resin`).
 - `resources.targets.<resource>`: target stockpile amounts used for shortages and stockpile ratios.
 - `resources.targetsPerCapita.<resource>`: per-dwarf target add-on (added to `resources.targets`) for scaling shortages and ratios.
 - `resources.mapScale.enabled`: enable scaling of initial resources based on map area.
@@ -556,7 +696,7 @@ Alchemy:
 - `alchemy.formulas.<id>.minStockpileRatios.<resource>`: minimum stockpile ratios required for activation.
 - `alchemy.formulas.<id>.inputs.<resource>`: stockpile resources consumed when the rite starts.
 - `alchemy.formulas.<id>.outputBonus`: additive production bonus while active (`0.2` = +20%).
-- `alchemy.formulas.<id>.effects.<key>`: multiplicative modifiers while active (`needDecay`, `ruinsArtifactChance`, `ruinsHazard`, `raidDeathRate`, `raidResourceLoss`, `mineRareChance`).
+- `alchemy.formulas.<id>.effects.<key>`: multiplicative modifiers while active (`needDecay`, `ruinsArtifactChance`, `ruinsHazard`, `raidDeathRate`, `raidResourceLoss`, `mineRareChance`, `gatherTicks`, `buildTicks`, `mineOutput`, `underrealmRaidStrength`, `underrealmRaidLoss`, `underrealmRareDrop`).
 - `alchemy.formulas.<id>.backlash.id`: id of the backlash state used in history/debug.
 - `alchemy.formulas.<id>.backlash.label`: HUD/event label for the backlash phase.
 - `alchemy.formulas.<id>.backlash.failureThreshold`: ruins failures during the rite required to trigger backlash.
@@ -1091,6 +1231,8 @@ Symbols:
 - `symbols.alchemy_lab`: symbol used for the alchemy lab structure.
 - `symbols.temple_of_ancestors`: core symbol for temple center tile.
 - `symbols.temple_of_ancestors_outline`: symbol for non-center temple footprint tiles.
+- `symbols.underrealm_lift_up|underrealm_lift_down|underrealm_lift_locked`: symbols used for underrealm lift markers in depth view.
+- `symbols.underrealm_hostile`: glyph used for deep hostile overlays in underrealm depth view (default `☠`).
 
 Ruins exploration:
 

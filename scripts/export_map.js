@@ -134,7 +134,17 @@ async function main() {
   const seedOverride = args.seed !== undefined ? Number(args.seed) : null;
   const seeds = buildSeedList(count, seedOverride);
   const seasonList = resolveSeasonList(config, seasonInput, allSeasons);
-  const totalExports = Math.max(1, seeds.length * seasonList.length);
+  const underrealmOverrides = resolveUnderrealmExportOverrides(config, args, snapshot);
+  const layerSpecs = resolveLayerSpecs(
+    config,
+    args,
+    snapshot,
+    underrealmOverrides,
+  );
+  const totalExports = Math.max(
+    1,
+    seeds.length * seasonList.length * layerSpecs.length,
+  );
   let exportIndex = 0;
 
   for (let index = 0; index < seeds.length; index += 1) {
@@ -166,90 +176,110 @@ async function main() {
         applyExportSnapshot(state, snapshot, exportConfig.symbols || {});
       }
 
+      applyUnderrealmExportOverrides(state, underrealmOverrides);
       stripNonMapEntities(state, { includeStructures });
 
-      const frame = renderFrame(state, exportConfig, runtime);
-      const lines = normalizeFrameLines(frame, outputHeight);
+      for (const layerSpec of layerSpecs) {
+        applyLayerSelection(state, layerSpec);
+        const renderedTerrain = getRenderedTerrain(state, layerSpec);
+        const frame = renderFrame(state, exportConfig, runtime);
+        const lines = normalizeFrameLines(frame, outputHeight);
 
-      const parsed = parseAnsiLines(lines, {
-        defaultColor: foreground,
-        width: outputWidth,
-      });
+        const parsed = parseAnsiLines(lines, {
+          defaultColor: foreground,
+          width: outputWidth,
+        });
 
-      const pngResult = await renderToPng(parsed, {
-        width,
-        height,
-        scale,
-        baseFontSize,
-        lineHeightRatio,
-        fontFamily,
-        background,
-        foreground,
-        columns: outputWidth,
-        rows: outputHeight,
-      });
-
-      const terrainSummary = summarizeTerrain(state.terrain);
-      const metadata = buildMetadata({
-        width,
-        height,
-        season: state.season,
-        terrain: state.terrain,
-        terrainSummary,
-        config: exportConfig,
-        tick: state.tick,
-        render: {
+        const pngResult = await renderToPng(parsed, {
+          width,
+          height,
           scale,
-          fontSize: baseFontSize,
-          lineHeight: lineHeightRatio,
+          baseFontSize,
+          lineHeightRatio,
           fontFamily,
-          background: background.css,
-          foreground: foreground.css,
-        },
-      });
+          background,
+          foreground,
+          columns: outputWidth,
+          rows: outputHeight,
+        });
 
-      const withMeta = insertTextChunk(
-        pngResult.buffer,
-        "NodeDwarves",
-        JSON.stringify(metadata),
-      );
-      const svg = renderToSvg(parsed, {
-        columns: outputWidth,
-        rows: outputHeight,
-        baseFontSize,
-        lineHeightRatio,
-        fontFamily,
-        background,
-        foreground,
-        metrics: pngResult.metrics,
-        metadata,
-      });
-      const outputName = buildSeasonalName(
-        buildBatchName(args.name, exportIndex, totalExports),
-        seasonInfo.name,
-        seasonList.length,
-      );
-      const pngPath = writeOutput(withMeta, outputDir, outputName, {
-        width,
-        height,
-        season: seasonInfo.name,
-        seed: state.terrain ? state.terrain.seed : 0,
-        format: "png",
-      });
-      const svgPath = writeOutput(svg, outputDir, outputName, {
-        width,
-        height,
-        season: seasonInfo.name,
-        seed: state.terrain ? state.terrain.seed : 0,
-        format: "svg",
-      });
+        const terrainSummary = summarizeTerrain(renderedTerrain);
+        const metadata = buildMetadata({
+          width,
+          height,
+          season: state.season,
+          terrain: renderedTerrain,
+          terrainSummary,
+          config: exportConfig,
+          tick: state.tick,
+          layer: layerSpec,
+          render: {
+            scale,
+            fontSize: baseFontSize,
+            lineHeight: lineHeightRatio,
+            fontFamily,
+            background: background.css,
+            foreground: foreground.css,
+          },
+        });
 
-      exportIndex += 1;
-      const prefix =
-        totalExports > 1 ? `[${exportIndex}/${totalExports}] ` : "";
-      console.log(`${prefix}Map exported to ${pngPath}`);
-      console.log(`${prefix}Map exported to ${svgPath}`);
-      console.log(`${prefix}Signature: ${metadata.signature}`);
+        const withMeta = insertTextChunk(
+          pngResult.buffer,
+          "NodeDwarves",
+          JSON.stringify(metadata),
+        );
+        const svg = renderToSvg(parsed, {
+          columns: outputWidth,
+          rows: outputHeight,
+          baseFontSize,
+          lineHeightRatio,
+          fontFamily,
+          background,
+          foreground,
+          metrics: pngResult.metrics,
+          metadata,
+        });
+        const outputName = buildLayeredName(
+          buildSeasonalName(
+            buildBatchName(args.name, exportIndex, totalExports),
+            seasonInfo.name,
+            seasonList.length,
+          ),
+          layerSpec,
+          layerSpecs.length,
+        );
+        const layerSeed = Number.isFinite(renderedTerrain && renderedTerrain.seed)
+          ? renderedTerrain.seed
+          : (state.terrain ? state.terrain.seed : 0);
+        const layerTag = getLayerTag(layerSpec);
+        const layerTagForFile =
+          layerSpecs.length > 1 || Number(layerSpec && layerSpec.depth || 0) > 0
+            ? layerTag
+            : null;
+        const pngPath = writeOutput(withMeta, outputDir, outputName, {
+          width,
+          height,
+          season: seasonInfo.name,
+          seed: layerSeed,
+          layerTag: layerTagForFile,
+          format: "png",
+        });
+        const svgPath = writeOutput(svg, outputDir, outputName, {
+          width,
+          height,
+          season: seasonInfo.name,
+          seed: layerSeed,
+          layerTag: layerTagForFile,
+          format: "svg",
+        });
+
+        exportIndex += 1;
+        const prefix =
+          totalExports > 1 ? `[${exportIndex}/${totalExports}] ` : "";
+        console.log(`${prefix}Map exported to ${pngPath}`);
+        console.log(`${prefix}Map exported to ${svgPath}`);
+        console.log(`${prefix}Signature: ${metadata.signature}`);
+      }
     }
   }
 }
@@ -285,6 +315,15 @@ function printUsage() {
     "  --includeStructures Include structures/roads from a snapshot (no dwarves).",
   );
   console.log("  --state             JSON snapshot with structures/roads.");
+  console.log(
+    "  --layers            Comma-separated layers: surface,d1,d2 or unlocked/all.",
+  );
+  console.log(
+    "  --underrealmUnlockedDepth  Force unlocked underrealm depth for export.",
+  );
+  console.log(
+    "  --underrealmMaxDepth       Override max underrealm depth bound.",
+  );
   console.log("  --seed              Override terrain seed (number).");
   console.log("  --scale             Render scale multiplier (default 2; PNG only).");
   console.log("  --fontSize          Base font size in px (default 14).");
@@ -423,6 +462,316 @@ function buildSeasonalName(name, season, seasonCount) {
     return name;
   }
   return ext ? `${base}_${suffix}${ext}` : `${base}_${suffix}`;
+}
+
+// Function: buildLayeredName.
+function buildLayeredName(name, layerSpec, layerCount) {
+  if (!name || layerCount <= 1) {
+    return name;
+  }
+  const ext = path.extname(name);
+  const base = ext ? name.slice(0, -ext.length) : name;
+  const suffix = getLayerTag(layerSpec);
+  return ext ? `${base}_${suffix}${ext}` : `${base}_${suffix}`;
+}
+
+// Function: getLayerTag.
+function getLayerTag(layerSpec) {
+  const depth = Math.max(0, Math.floor(Number(layerSpec && layerSpec.depth || 0)));
+  if (depth <= 0) {
+    return "surface";
+  }
+  return `d${depth}`;
+}
+
+// Function: normalizeDepthNumber.
+function normalizeDepthNumber(value) {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric < 0) {
+    throw new Error(`Invalid depth value: ${value}`);
+  }
+  return Math.floor(numeric);
+}
+
+// Function: normalizeMaxDepthFromState.
+function normalizeMaxDepthFromState(state) {
+  if (!state || typeof state !== "object") {
+    return 0;
+  }
+  const underrealm = state.underrealm;
+  if (!underrealm || typeof underrealm !== "object") {
+    return 0;
+  }
+  const layerDepth = Array.isArray(underrealm.layers)
+    ? underrealm.layers.reduce(
+      (max, layer) => Math.max(max, Math.floor(Number(layer && layer.depth || 0))),
+      0,
+    )
+    : 0;
+  const configuredDepth = Math.floor(Number(underrealm.maxDepth || 0));
+  return Math.max(0, Math.max(layerDepth, configuredDepth));
+}
+
+// Function: normalizeUnlockedDepthFromState.
+function normalizeUnlockedDepthFromState(state) {
+  if (!state || typeof state !== "object") {
+    return 0;
+  }
+  const underrealm = state.underrealm;
+  if (!underrealm || typeof underrealm !== "object") {
+    return 0;
+  }
+  const value = Math.floor(Number(underrealm.maxUnlockedDepth || 0));
+  return Math.max(0, value);
+}
+
+// Function: resolveUnderrealmExportOverrides.
+function resolveUnderrealmExportOverrides(currentConfig, parsedArgs, snapshot) {
+  const underrealmConfig = (currentConfig && currentConfig.underrealm) || {};
+  const configMaxDepth = Math.max(0, Math.floor(Number(underrealmConfig.max_depth || 0)));
+  const snapshotMaxDepth = normalizeMaxDepthFromState(snapshot);
+  const snapshotUnlockedDepth = normalizeUnlockedDepthFromState(snapshot);
+  const availableMaxDepth = Math.max(configMaxDepth, snapshotMaxDepth);
+  const argMaxDepth = normalizeDepthNumber(
+    parsedArgs.underrealmMaxDepth ?? parsedArgs.maxUnderrealmDepth,
+  );
+  const argUnlockedDepth = normalizeDepthNumber(
+    parsedArgs.underrealmUnlockedDepth ?? parsedArgs.unlockedDepth,
+  );
+  const maxDepth = Math.max(
+    0,
+    argMaxDepth !== null
+      ? clampNumber(argMaxDepth, 0, availableMaxDepth)
+      : availableMaxDepth,
+  );
+  const unlockedDepth = clampNumber(
+    Math.max(
+      0,
+      argUnlockedDepth !== null ? argUnlockedDepth : snapshotUnlockedDepth,
+    ),
+    0,
+    maxDepth,
+  );
+  return {
+    enabled: maxDepth > 0,
+    maxDepth,
+    maxUnlockedDepth: unlockedDepth,
+  };
+}
+
+// Function: parseLayerDepthToken.
+function parseLayerDepthToken(token) {
+  if (!token) {
+    return null;
+  }
+  const normalized = String(token).trim().toLowerCase();
+  if (!normalized) {
+    return null;
+  }
+  if (normalized === "surface" || normalized === "s" || normalized === "0") {
+    return 0;
+  }
+  let match = normalized.match(/^d(\d+)$/);
+  if (match) {
+    return Math.max(0, Math.floor(Number(match[1])));
+  }
+  match = normalized.match(/^depth(\d+)$/);
+  if (match) {
+    return Math.max(0, Math.floor(Number(match[1])));
+  }
+  if (/^\d+$/.test(normalized)) {
+    return Math.max(0, Math.floor(Number(normalized)));
+  }
+  return null;
+}
+
+// Function: appendLayerDepth.
+function appendLayerDepth(depths, depthSet, depth) {
+  const normalized = Math.max(0, Math.floor(Number(depth || 0)));
+  if (depthSet.has(normalized)) {
+    return;
+  }
+  depthSet.add(normalized);
+  depths.push(normalized);
+}
+
+// Function: expandDepthToken.
+function expandDepthToken(depths, depthSet, token, underrealmOverrides) {
+  const normalized = String(token || "").trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+  const maxDepth = Math.max(0, Number(underrealmOverrides.maxDepth || 0));
+  const maxUnlockedDepth = Math.max(
+    0,
+    Number(underrealmOverrides.maxUnlockedDepth || 0),
+  );
+  if (normalized === "all") {
+    appendLayerDepth(depths, depthSet, 0);
+    for (let depth = 1; depth <= maxDepth; depth += 1) {
+      appendLayerDepth(depths, depthSet, depth);
+    }
+    return true;
+  }
+  if (normalized === "unlocked") {
+    appendLayerDepth(depths, depthSet, 0);
+    for (let depth = 1; depth <= maxUnlockedDepth; depth += 1) {
+      appendLayerDepth(depths, depthSet, depth);
+    }
+    return true;
+  }
+  if (normalized === "underrealm" || normalized === "deep") {
+    for (let depth = 1; depth <= maxUnlockedDepth; depth += 1) {
+      appendLayerDepth(depths, depthSet, depth);
+    }
+    return true;
+  }
+  return false;
+}
+
+// Function: resolveLayerSpecs.
+function resolveLayerSpecs(currentConfig, parsedArgs, snapshot, underrealmOverrides) {
+  const source = parsedArgs.layers ?? parsedArgs.layer;
+  if (source === undefined || source === null || String(source).trim() === "") {
+    return [{ kind: "surface", depth: 0, label: "Surface" }];
+  }
+
+  const tokens = String(source)
+    .split(",")
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0);
+  if (tokens.length === 0) {
+    return [{ kind: "surface", depth: 0, label: "Surface" }];
+  }
+
+  const depths = [];
+  const depthSet = new Set();
+  for (const token of tokens) {
+    if (expandDepthToken(depths, depthSet, token, underrealmOverrides)) {
+      continue;
+    }
+    const depth = parseLayerDepthToken(token);
+    if (depth === null) {
+      throw new Error(
+        `Invalid layer token "${token}". Use surface,d1,d2 or unlocked/all.`,
+      );
+    }
+    appendLayerDepth(depths, depthSet, depth);
+  }
+
+  if (depths.length === 0) {
+    appendLayerDepth(depths, depthSet, 0);
+  }
+
+  const requestedDepth = depths.reduce((max, depth) => Math.max(max, depth), 0);
+  const maxDepth = Math.max(0, Number(underrealmOverrides.maxDepth || 0));
+  if (requestedDepth > 0 && maxDepth <= 0) {
+    throw new Error("Underrealm layers requested, but underrealm is disabled in config.");
+  }
+  if (requestedDepth > maxDepth) {
+    throw new Error(
+      `Requested layer depth ${requestedDepth} exceeds max underrealm depth ${maxDepth}.`,
+    );
+  }
+  underrealmOverrides.maxUnlockedDepth = Math.max(
+    0,
+    Math.max(Number(underrealmOverrides.maxUnlockedDepth || 0), requestedDepth),
+  );
+
+  return depths.map((depth) => {
+    if (depth <= 0) {
+      return { kind: "surface", depth: 0, label: "Surface" };
+    }
+    return {
+      kind: "underrealm",
+      depth,
+      label: `Depth ${depth}`,
+    };
+  });
+}
+
+// Function: applyUnderrealmExportOverrides.
+function applyUnderrealmExportOverrides(state, underrealmOverrides) {
+  if (!state || !state.underrealm || underrealmOverrides.enabled !== true) {
+    return;
+  }
+  const underrealm = state.underrealm;
+  const availableDepth = Array.isArray(underrealm.layers)
+    ? underrealm.layers.reduce(
+      (max, layer) => Math.max(max, Math.floor(Number(layer && layer.depth || 0))),
+      0,
+    )
+    : 0;
+  const maxDepth = clampNumber(
+    Number(underrealmOverrides.maxDepth || 0),
+    0,
+    Math.max(0, availableDepth),
+  );
+  underrealm.maxDepth = maxDepth;
+  const unlockedDepth = clampNumber(
+    Number(underrealmOverrides.maxUnlockedDepth || 0),
+    0,
+    maxDepth,
+  );
+  underrealm.maxUnlockedDepth = unlockedDepth;
+  underrealm.activeDepth = clampNumber(
+    Number(underrealm.activeDepth || 0),
+    0,
+    unlockedDepth,
+  );
+  if (underrealm.discovery && typeof underrealm.discovery === "object") {
+    if (unlockedDepth > 0) {
+      underrealm.discovery.found = true;
+    }
+  }
+}
+
+// Function: applyLayerSelection.
+function applyLayerSelection(state, layerSpec) {
+  if (!state || !state.underrealm) {
+    return;
+  }
+  const depth = Math.max(0, Math.floor(Number(layerSpec && layerSpec.depth || 0)));
+  if (depth <= 0) {
+    state.underrealm.activeDepth = 0;
+    return;
+  }
+  const maxDepth = Math.max(
+    0,
+    Math.floor(Number(state.underrealm.maxDepth || 0)),
+  );
+  const nextUnlockedDepth = clampNumber(
+    depth,
+    0,
+    maxDepth,
+  );
+  state.underrealm.maxUnlockedDepth = Math.max(
+    Math.floor(Number(state.underrealm.maxUnlockedDepth || 0)),
+    nextUnlockedDepth,
+  );
+  state.underrealm.activeDepth = clampNumber(
+    depth,
+    0,
+    Math.floor(Number(state.underrealm.maxUnlockedDepth || 0)),
+  );
+}
+
+// Function: getRenderedTerrain.
+function getRenderedTerrain(state, layerSpec) {
+  const depth = Math.max(0, Math.floor(Number(layerSpec && layerSpec.depth || 0)));
+  if (depth <= 0 || !state || !state.underrealm || !Array.isArray(state.underrealm.layers)) {
+    return state ? state.terrain : null;
+  }
+  const layer = state.underrealm.layers.find(
+    (entry) => Math.floor(Number(entry && entry.depth || 0)) === depth,
+  );
+  if (layer && layer.terrain) {
+    return layer.terrain;
+  }
+  return state.terrain;
 }
 
 // Function: buildExportConfig.
@@ -1120,6 +1469,9 @@ function summarizeTerrain(terrain) {
 function buildMetadata(options) {
   const season = options.season || {};
   const terrain = options.terrain || {};
+  const layer = options.layer || null;
+  const layerDepth = Math.max(0, Math.floor(Number(layer && layer.depth || 0)));
+  const layerTag = layerDepth <= 0 ? "surface" : `d${layerDepth}`;
   const configHash = hashObject({
     display: options.config.display,
     symbols: options.config.symbols,
@@ -1153,6 +1505,12 @@ function buildMetadata(options) {
       width: Number.isFinite(terrain.width) ? terrain.width : null,
       height: Number.isFinite(terrain.height) ? terrain.height : null,
     },
+    layer: {
+      kind: layer && layer.kind ? String(layer.kind) : (layerDepth > 0 ? "underrealm" : "surface"),
+      depth: layerDepth,
+      tag: layerTag,
+      label: layer && layer.label ? String(layer.label) : (layerDepth > 0 ? `Depth ${layerDepth}` : "Surface"),
+    },
     terrainCounts: summary.counts,
     hashes: {
       terrain: summary.hash,
@@ -1165,6 +1523,7 @@ function buildMetadata(options) {
     tick: metadata.tick,
     season: metadata.season,
     terrain: metadata.terrain,
+    layer: metadata.layer,
     terrainCounts: metadata.terrainCounts,
     hashes: metadata.hashes,
     render: metadata.render,
@@ -1193,6 +1552,7 @@ function writeOutput(buffer, outDir, name, options) {
         options.height,
         options.season,
         options.seed,
+        options.layerTag,
       );
   const outputPath = path.join(outputDir, `${filenameBase}.${format}`);
   fs.writeFileSync(outputPath, buffer);
@@ -1200,9 +1560,10 @@ function writeOutput(buffer, outDir, name, options) {
 }
 
 // Function: buildFilenameBase.
-function buildFilenameBase(width, height, season, seed) {
+function buildFilenameBase(width, height, season, seed, layerTag) {
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-  return `map_${width}x${height}_${season}_${seed}_${stamp}`;
+  const layerPart = layerTag ? `_${sanitizeFilename(String(layerTag))}` : "";
+  return `map_${width}x${height}_${season}_${seed}${layerPart}_${stamp}`;
 }
 
 // Function: sanitizeFilename.

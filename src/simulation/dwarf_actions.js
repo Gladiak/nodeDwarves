@@ -35,6 +35,13 @@ const { completeTempleStageBuild } = require('./temple');
 
 // Process the dwarf's per-tick action (panic, job, or idle).
 function processDwarfAction(dwarf, state, config, runtime) {
+  if (dwarf && dwarf.underrealmDuty && dwarf.underrealmDuty.active !== false) {
+    if (dwarf.job && dwarf.job.id) {
+      removeJob(state, dwarf.job.id);
+      dwarf.job = null;
+    }
+    return;
+  }
   if (handleRaidPanic(dwarf, state, config, runtime)) {
     return;
   }
@@ -852,8 +859,9 @@ function getMineOutput(state, config, structure, clanEffects) {
   }
   const bonus = Math.max(0, Number(clanEffects && clanEffects.mine_output_bonus || 0));
   const penalty = Math.max(0, Number(clanEffects && clanEffects.mine_output_penalty || 0));
-  const multiplier = Math.max(0, 1 + bonus - penalty);
-  return applyOutputMultiplier(output, multiplier);
+  const clanMultiplier = Math.max(0, 1 + bonus - penalty);
+  const alchemyMultiplier = getAlchemyMultiplier(state, config, 'mineOutput', 1);
+  return applyOutputMultiplier(output, clanMultiplier * alchemyMultiplier);
 }
 
 // Resolve rare mine drops based on mine level and configured chances.

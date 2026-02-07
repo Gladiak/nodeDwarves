@@ -4,6 +4,18 @@ const { clamp } = require('../utils');
 const { isAdult } = require('./population');
 const { getStockpileRatio } = require('./resources');
 
+// Check whether a dwarf is available for surface role planning.
+function isSurfaceAdult(dwarf, config) {
+  if (!isAdult(dwarf, config)) {
+    return false;
+  }
+  if (!dwarf) {
+    return false;
+  }
+  const duty = dwarf.underrealmDuty;
+  return !(duty && duty.active !== false && Number(duty.depth || 0) > 0);
+}
+
 // Build normalized role configuration settings.
 function getRoleConfig(config) {
   const roles = config.population && config.population.roles;
@@ -49,7 +61,7 @@ function updateBrewmasters(state, config) {
     target = Math.min(target, workersPer * maxCount);
   }
 
-  const adults = state.dwarves.filter((dwarf) => isAdult(dwarf, config));
+  const adults = state.dwarves.filter((dwarf) => isSurfaceAdult(dwarf, config));
   target = Math.min(target, adults.length);
   const cooldownTicks = getRoleConfig(config).switchCooldownTicks;
 
@@ -115,7 +127,7 @@ function updateRoles(state, config) {
   if (!roleConfig.enabled) {
     return;
   }
-  const adults = state.dwarves.filter((dwarf) => isAdult(dwarf, config));
+  const adults = state.dwarves.filter((dwarf) => isSurfaceAdult(dwarf, config));
   let builderCount = adults.filter((dwarf) => dwarf.role === 'builder' || dwarf.role === 'manager').length;
   let managerCount = adults.filter((dwarf) => dwarf.role === 'manager').length;
   let totalCount = adults.filter((dwarf) => (

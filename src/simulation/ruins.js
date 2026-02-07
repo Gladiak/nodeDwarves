@@ -604,6 +604,7 @@ function getIdleAdults(state, config) {
   return state.dwarves.filter((dwarf) => (
     !dwarf.job
     && !dwarf.expedition
+    && !(dwarf.underrealmDuty && dwarf.underrealmDuty.active !== false)
     && isAdult(dwarf, config)
   ));
 }

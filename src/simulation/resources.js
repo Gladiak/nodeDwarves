@@ -5,7 +5,7 @@ const { getClanEffects } = require('../clans');
 const { getSeasonModifier } = require('./season');
 const { getWeatherModifier } = require('./weather');
 const { getMythMultiplier } = require('./myths');
-const { getAlchemyOutputBonus } = require('./alchemy');
+const { getAlchemyOutputBonus, getAlchemyMultiplier } = require('./alchemy');
 const { getFestivalModifier } = require('./festivals');
 const { getContractTargetBoost, getContractProductionBonus } = require('./contracts');
 const { getTempleOutputMultiplier } = require('./temple');
@@ -393,6 +393,7 @@ function getGatherTicks(config, resourceId, state) {
   const multiplier = getSeasonModifier(state, 'gatherTicks', 1)
     * getWeatherModifier(state, config, 'gatherTicks', 1)
     * getMythMultiplier(state, config, 'gatherTicks', 1)
+    * getAlchemyMultiplier(state, config, 'gatherTicks', 1)
     * moraleMultiplier;
   return Math.max(1, Math.round(base * multiplier));
 }
