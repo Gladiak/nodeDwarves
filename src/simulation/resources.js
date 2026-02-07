@@ -9,6 +9,7 @@ const { getAlchemyOutputBonus, getAlchemyMultiplier } = require('./alchemy');
 const { getFestivalModifier } = require('./festivals');
 const { getContractTargetBoost, getContractProductionBonus } = require('./contracts');
 const { getTempleOutputMultiplier } = require('./temple');
+const { getWorldEventModifier, getWorldEventTargetBoost } = require('./world_events');
 const { getTerrainResourceRatio, pickTerrainResourceTarget } = require('./terrain');
 
 // Regenerate resource nodes based on config, season, and weather multipliers.
@@ -106,7 +107,9 @@ function getStockpileTarget(state, config, resourceId, fallbackTargets) {
   const baseTarget = Math.max(0, Number(targets[resourceId] || 0));
   const perCapitaConfig = resources.targetsPerCapita || {};
   const perCapita = Math.max(0, Number(perCapitaConfig[resourceId] || 0));
-  const boost = getContractTargetBoost(state, resourceId);
+  const contractBoost = getContractTargetBoost(state, resourceId);
+  const worldEventBoost = getWorldEventTargetBoost(state, resourceId);
+  const boost = contractBoost * worldEventBoost;
   if (perCapita <= 0) {
     return Math.max(0, baseTarget * boost);
   }
@@ -394,6 +397,7 @@ function getGatherTicks(config, resourceId, state) {
     * getWeatherModifier(state, config, 'gatherTicks', 1)
     * getMythMultiplier(state, config, 'gatherTicks', 1)
     * getAlchemyMultiplier(state, config, 'gatherTicks', 1)
+    * getWorldEventModifier(state, 'gatherTicks', 1)
     * moraleMultiplier;
   return Math.max(1, Math.round(base * multiplier));
 }
@@ -461,6 +465,7 @@ function getGatherYield(config, resourceId, node, state) {
   const multiplier = getSeasonModifier(state, 'gatherYield', 1)
     * getWeatherModifier(state, config, 'gatherYield', 1)
     * getMythMultiplier(state, config, 'gatherYield', 1)
+    * getWorldEventModifier(state, 'gatherYield', 1)
     * getFestivalModifier(state, 'gatherYield', 1);
   const toolMultiplier = getToolMultiplier(state, config, resourceId);
   const forgeMultiplier = getForgeMultiplier(state, config);

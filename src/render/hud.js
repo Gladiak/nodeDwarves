@@ -5,6 +5,7 @@ const { getClanLabel, getClanList, countClans } = require("../clans");
 const { getStockpileTarget } = require("../simulation/resources");
 const { getFestivalStatus } = require("../simulation/festivals");
 const { getAlchemyStatus } = require("../simulation/alchemy");
+const { getWorldEventStatus } = require("../simulation/world_events");
 const { getColorConfig, applyColor } = require("./colors");
 const { fitLine, wrapLine } = require("./format");
 
@@ -222,6 +223,10 @@ function buildHudColumns(state, config, columnWidth, options = {}) {
     } else {
       left.push("Festival: -");
     }
+  }
+  const worldEventStatus = getWorldEventStatus(state, config);
+  if (worldEventStatus) {
+    left.push(fitLine(formatWorldEventStatus(worldEventStatus), columnWidth));
   }
   if (wildlifeEnabled) {
     left.push(`Wildlife: herds ${herdCount}`);
@@ -917,6 +922,23 @@ function formatLastEvent(events) {
     return "-";
   }
   return String(events[0]);
+}
+
+// Format world event status text for the HUD.
+function formatWorldEventStatus(status) {
+  if (!status || status.active !== true) {
+    return "World event: -";
+  }
+  const label = String(status.label || "Event");
+  const ticks = Math.max(0, Number(status.ticksLeft || 0));
+  if (status.phase === "offer") {
+    const request = status.requestSummary ? ` ${status.requestSummary}` : "";
+    return `World event: ${label} ${ticks}t${request}`;
+  }
+  if (status.outcome) {
+    return `World event: ${label} ${ticks}t (${status.outcome})`;
+  }
+  return `World event: ${label} ${ticks}t`;
 }
 
 // Format the merchant status string.

@@ -121,25 +121,26 @@ The tick order in code lives in `src/simulation/index.js` and is the execution c
 1. Update **season** (`season.js`).
 2. Update **weather** (`weather.js`).
 3. Check raid start conditions (`raids.js`).
-4. Update festivals (`festivals.js`).
-5. Update contracts (`contracts.js`).
-6. Update alchemy rites and backlash (`alchemy.js`).
-7. Update temple site/effects/prestige tick (`temple.js`).
-8. Update wildlife season spawns (`wildlife.js`).
-9. For each dwarf:
+4. Update world events (`world_events.js`).
+5. Update festivals (`festivals.js`).
+6. Update contracts (`contracts.js`).
+7. Update alchemy rites and backlash (`alchemy.js`).
+8. Update temple site/effects/prestige tick (`temple.js`).
+9. Update wildlife season spawns (`wildlife.js`).
+10. For each dwarf:
    - Age + life stage updates (`population.js`).
-   - Needs decay (season/weather/myth/alchemy/festival modifiers).
+   - Needs decay (season/weather/myth/alchemy/world-event/festival modifiers).
    - Consume resources from stockpile when thresholds hit.
-10. Handle deaths, roles, ruins, housing, relationships, reproduction (`population.js`, `roles.js`, `ruins.js`).
-11. Village and road updates (`villages.js`, `roads.js`).
-12. Assign jobs (`jobs.js`).
-13. Move and perform actions (`dwarf_actions.js`).
-14. Merchant update (`merchant.js`).
-15. Stockpile decay + terrain cooldown tick (`resources.js`, `terrain.js`).
-16. House storage + node regen (`resources.js`).
-17. Raid tick + wildlife tick + pasture births (`raids.js`, `wildlife.js`).
-18. Myth update (`myths.js`).
-19. Endgame cycle check (`endgame.js`).
+11. Handle deaths, roles, ruins, housing, relationships, reproduction (`population.js`, `roles.js`, `ruins.js`).
+12. Village and road updates (`villages.js`, `roads.js`).
+13. Assign jobs (`jobs.js`).
+14. Move and perform actions (`dwarf_actions.js`).
+15. Merchant update (`merchant.js`).
+16. Stockpile decay + terrain cooldown tick (`resources.js`, `terrain.js`).
+17. House storage + node regen (`resources.js`).
+18. Raid tick + wildlife tick + pasture births (`raids.js`, `wildlife.js`).
+19. Myth update (`myths.js`).
+20. Endgame cycle check (`endgame.js`).
 
 **Tick flow diagram**
 
@@ -148,24 +149,25 @@ flowchart TD
   A[Tick start] --> B[Season update]
   B --> C[Weather update]
   C --> D[Raid start check]
-  D --> E[Festival update]
-  E --> F[Contracts update]
-  F --> G[Alchemy update]
-  G --> H[Temple update + passive prestige]
-  H --> I[Wildlife season start]
-  I --> J[Per-dwarf: age + needs + consume]
-  J --> K[Population + ruins + relationships]
-  K --> L[Village and road updates]
-  L --> M[Assign jobs]
-  M --> N[Process dwarf actions]
-  N --> O[Merchant update]
-  O --> P[Stockpile decay + terrain cooldown]
-  P --> Q[House storage + node regen]
-  Q --> R[Raid tick + wildlife tick + pasture births]
-  R --> S[Myth update]
-  S --> T[Endgame cycle check]
-  T --> U[Render frame]
-  U --> V[Wait tickMs, next tick]
+  D --> E[World events update]
+  E --> F[Festival update]
+  F --> G[Contracts update]
+  G --> H[Alchemy update]
+  H --> I[Temple update + passive prestige]
+  I --> J[Wildlife season start]
+  J --> K[Per-dwarf: age + needs + consume]
+  K --> L[Population + ruins + relationships]
+  L --> M[Village and road updates]
+  M --> N[Assign jobs]
+  N --> O[Process dwarf actions]
+  O --> P[Merchant update]
+  P --> Q[Stockpile decay + terrain cooldown]
+  Q --> R[House storage + node regen]
+  R --> S[Raid tick + wildlife tick + pasture births]
+  S --> T[Myth update]
+  T --> U[Endgame cycle check]
+  U --> V[Render frame]
+  V --> W[Wait tickMs, next tick]
 ```
 
 Notes:
@@ -203,7 +205,7 @@ Notes:
 
 - `src/state/index.js`
   - `createInitialState(config, runtime)` builds the authoritative world state:
-    - `dwarves`, `nodes`, `structures`, `merchant`, `weather`, `raid`, `tools`, etc.
+    - `dwarves`, `nodes`, `structures`, `merchant`, `worldEvents`, `weather`, `raid`, `tools`, etc.
     - `temple` and `prestige` meta-state for Temple of Ancestors progression.
     - `underrealm` depth metadata (active depth, unlocked depths, full-size layer terrains), plus deep economy/faction runtime.
     - `stockpile` initialized from `config.resources.stockpile`.
@@ -491,7 +493,34 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - This allows policy to time activation near seasonal windows instead of random triggering.
 - Stacking order in the simulation loop:
   - season and weather update first, festival update runs before per-dwarf needs.
-  - final need decay multiplier stacks season * weather * housing * endgame difficulty * clan * myths * alchemy * festival.
+  - final need decay multiplier stacks season * weather * housing * endgame difficulty * clan * myths * alchemy * world-events * festival.
+
+### World events 🎭
+
+- `world_events.js` is a single-active-event state machine for short global arcs.
+- Spawn model:
+  - one active event at a time (`worldEvents.maxConcurrent` currently treated as 1 by runtime design).
+  - spawn cadence uses `worldEvents.spawnRangeTicks` with `minTick`, global cooldown, and per-type cooldown.
+  - event type is chosen by weighted config (`traveling_bards`, `rival_caravans`, `limited_opportunities`).
+- Traveling bards:
+  - ratio/population guardrails plus upfront costs.
+  - temporary global multipliers via `effects.*` (for example `needDecay`, `gatherYield`).
+- Rival caravans:
+  - temporary trade/reward pressure window.
+  - optional instant contest consumes resources when guardrails pass.
+  - applies either `effectsWin.*` or `effectsLose.*` for event duration.
+- Time-limited opportunities:
+  - spawns an offer (`request` + `reward`) with strict expiry.
+  - while active, request resources can receive target boosts (`targetBoosts`) to steer shortages/jobs.
+  - on expiry, optional stockpile penalty is applied (`failureLossRatio` over configured resources).
+- Integration points:
+  - need decay pipeline consumes `world_events` multipliers in `simulation/index.js`.
+  - gather ticks/yield and stockpile target steering consume `world_events` multipliers/boosts in `resources.js`.
+  - merchant trade sizing consumes `merchantTradeRate`; contract rewards consume `contractReward`.
+  - HUD shows active world event status (label, timer, and offer summary when relevant).
+- Observability:
+  - event stream logs start/end and opportunity completion/expiry outcomes.
+  - `state.worldEvents.stats` tracks global and per-type spawn/completion/failure/expiry counts.
 
 ### Myths (global modifiers) 🗿
 
@@ -1002,7 +1031,7 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
   - Column layout uses `display.hud.columns` and `display.hud.columnGap`.
   - Stockpile bars scale with `display.hud.stockBarMax` or resource targets.
   - Dedicated Underrealm HUD includes active depth, layer size, crew assignment summary, depth stock ratio, survey progress, and deep threat count.
-  - World HUD includes event stream (`events.maxEntries`) and myth/ruins overlays.
+  - World HUD includes event stream (`events.maxEntries`), active world-event status, and myth/ruins overlays.
   - World HUD includes the current village count.
 
 - `render/legend.js`
@@ -1079,6 +1108,7 @@ Clan dynamics add heterogeneity and longer-horizon trade-offs. To keep PPO stabl
 - `seasons` + `weather`: cycle durations and modifiers.
 - `raids`: wildlife raid settings.
 - `merchant`: spawn cadence and trade behavior (including `neverGive` exclusions).
+- `worldEvents`: global short-arc events (bards, rival caravans, and limited opportunities).
 - `ai`: runtime policy + training defaults.
 - `myths`: global modifier definitions, triggers, caps, and traditions.
 - `alchemy`: rite formulas, global modifiers, backlash, and cooldown pacing.
@@ -1247,6 +1277,7 @@ Quick checklist:
   - `simulation/` → game logic
     - `simulation/alchemy.js` → alchemy rite lifecycle and modifiers
     - `simulation/contracts.js` → contract offers, reputations, and boons
+    - `simulation/world_events.js` → global event lifecycle and temporary world modifiers
     - `simulation/roads.js` → road planning/build queue/pathing
     - `simulation/underrealm.js` → crew assignment, deep economy/exploration, and hostile deep raids
     - `simulation/temple.js` → Temple of Ancestors progression, effects, and prestige

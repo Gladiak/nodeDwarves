@@ -1278,6 +1278,7 @@ function createInitialState(config, runtime) {
   const myths = createMythsState(config);
   const alchemy = createAlchemyState(config);
   const festival = createFestivalState(config);
+  const worldEvents = createWorldEventsState(config);
   const wildlife = createWildlifeState(config);
   const roads = createRoadState(config, runtime);
   const temple = createTempleState(config);
@@ -1302,6 +1303,7 @@ function createInitialState(config, runtime) {
     myths,
     alchemy,
     festival,
+    worldEvents,
     pasture,
     wildlife,
     terrain,
@@ -1386,6 +1388,40 @@ function createInitialState(config, runtime) {
       blockedNoHousing: 0,
       blockedLowStockpile: 0,
       blockedChance: 0,
+    },
+  };
+}
+
+// Create the initial world events state.
+function createWorldEventsState(config) {
+  const worldConfig = (config && config.worldEvents) || {};
+  if (worldConfig.enabled === false) {
+    return null;
+  }
+  const spawnRange = worldConfig.spawnRangeTicks || {};
+  const minSpawn = Math.max(0, Number(spawnRange.min ?? 200));
+  const maxSpawn = Math.max(minSpawn, Number(spawnRange.max ?? minSpawn));
+  return {
+    active: null,
+    nextSpawnTick: randomBetween(minSpawn, maxSpawn),
+    cooldownUntilTick: 0,
+    cooldownByType: {
+      traveling_bards: 0,
+      rival_caravans: 0,
+      limited_opportunities: 0,
+    },
+    counter: 1,
+    history: [],
+    stats: {
+      spawned: 0,
+      completed: 0,
+      failed: 0,
+      expired: 0,
+      byType: {
+        traveling_bards: { spawned: 0, completed: 0, failed: 0, expired: 0 },
+        rival_caravans: { spawned: 0, completed: 0, failed: 0, expired: 0 },
+        limited_opportunities: { spawned: 0, completed: 0, failed: 0, expired: 0 },
+      },
     },
   };
 }

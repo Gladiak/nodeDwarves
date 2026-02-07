@@ -18,6 +18,7 @@ trade-offs emerge from shortages, weather, raids, and long-term growth pressure.
 - 🏘️ Village growth with structures, roads, and organic placement.
 - 🌦️ Seasons, weather, festivals, and wildlife that shift priorities (raids optional).
 - 📜 Merchant trading, caravan contracts, and faction reputation.
+- 🎭 World events now live: traveling bards, rival caravans, and short-deadline opportunities.
 - 🗝️ Endgame ruins expeditions with artifacts, set bonuses, and cycle resets.
 - 🏛️ Dwarf Temple of Ancestors: biome-aware multi-stage final work with prestige growth.
 - ⚗️ Alchemy Lab rites: burn rare minerals for powerful global buffs, then survive the backlash.
@@ -94,15 +95,12 @@ in sync. 🧠
 
 ## Roadmap ideas 🧭
 
-- 🛰️ Fog-of-war + scouting: unlock map intel with explorers, towers, and rumors.
 - 🧬 Lineages and legacy perks: clan bloodlines evolve traits across cycles.
 - ⚖️ Dynamic laws: policy toggles that trade safety, productivity, and morale.
 - 🔥 Disaster arcs: drought → fire → recovery chain with emergent priorities.
-- 🧭 World events: traveling bards, rival caravans, and time-limited opportunities.
 - 🧭 Multi-village specialization: assign production roles per settlement.
 - 🗺️ Expedition map: alternate tactical layer for ruins parties and outcomes.
 - 🧠 AI governors: trainable sub-policies for jobs, trade, and building.
-- 🕳️ Underrealm Front expansion: shaft logistics networks, deep strongholds, and faction boss arcs.
 
 ## Project layout (high level) 🧱
 
@@ -110,6 +108,7 @@ in sync. 🧠
 - `config.json`: single source of truth for tunables.
 - `src/`: simulation, state, rendering, AI.
 - `src/simulation/underrealm.js`: Underrealm crew, shrine doctrine, deep economy, exploration unlocks, and hostile faction pressure.
+- `src/simulation/world_events.js`: world event lifecycle for bards, rival caravans, and time-limited opportunities.
 - `src/simulation/alchemy.js`: alchemy rites, pact lifecycle, and backlash logic.
 - `src/simulation/temple.js`: Temple of Ancestors stages, map footprint, and prestige system.
 - `scripts/train_wrapper.js`: safe unified wrapper for all `ai:train:*` profiles.

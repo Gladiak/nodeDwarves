@@ -654,6 +654,52 @@ Festivals:
 - `festivals.ai.enabled`: allow AI to trigger festivals.
 - `festivals.ai.intentThreshold`: normalized threshold (0..1) for the AI festival intent.
 
+World events:
+
+- `worldEvents.enabled`: enable world events runtime and HUD status.
+- `worldEvents.minTick`: minimum tick before world event spawns can begin.
+- `worldEvents.spawnRangeTicks.min`: minimum ticks between world event spawn attempts.
+- `worldEvents.spawnRangeTicks.max`: maximum ticks between world event spawn attempts.
+- `worldEvents.maxConcurrent`: maximum active world events (`1` in current runtime behavior).
+- `worldEvents.globalCooldownTicks`: cooldown applied after any world event resolves.
+- `worldEvents.historyLimit`: max history entries retained in `state.worldEvents.history` (`0` = unlimited).
+- `worldEvents.blockDuringRaid`: block new world event spawns while raids are active.
+- `worldEvents.traveling_bards.enabled`: enable the traveling bards event type.
+- `worldEvents.traveling_bards.weight`: weighted spawn priority for bards.
+- `worldEvents.traveling_bards.label`: HUD/event label for bards.
+- `worldEvents.traveling_bards.durationTicks`: active duration in ticks.
+- `worldEvents.traveling_bards.cooldownTicks`: per-type cooldown after bards end.
+- `worldEvents.traveling_bards.minPopulation`: minimum population required to spawn bards.
+- `worldEvents.traveling_bards.minStockpileRatios.<resource>`: ratio guardrails required to start bards.
+- `worldEvents.traveling_bards.costs.<resource>`: upfront stockpile costs consumed on spawn.
+- `worldEvents.traveling_bards.minCostRatio`: required multiple of each bard cost.
+- `worldEvents.traveling_bards.effects.<key>`: multipliers applied while bards are active (for example `needDecay`, `gatherYield`).
+- `worldEvents.rival_caravans.enabled`: enable the rival caravans event type.
+- `worldEvents.rival_caravans.weight`: weighted spawn priority for rival caravans.
+- `worldEvents.rival_caravans.label`: HUD/event label for rival caravans.
+- `worldEvents.rival_caravans.durationTicks`: active duration in ticks.
+- `worldEvents.rival_caravans.cooldownTicks`: per-type cooldown after rival caravans end.
+- `worldEvents.rival_caravans.contestEnabled`: enable immediate resource contest resolution at event start.
+- `worldEvents.rival_caravans.contestCosts.<resource>`: contest costs consumed when the colony wins the contest.
+- `worldEvents.rival_caravans.contestMinStockpileRatios.<resource>`: ratio guardrails required to attempt contest costs.
+- `worldEvents.rival_caravans.contestMinCostRatio`: required multiple of each contest cost.
+- `worldEvents.rival_caravans.effectsWin.<key>`: multipliers applied when contest is won (for example `merchantTradeRate`, `contractReward`).
+- `worldEvents.rival_caravans.effectsLose.<key>`: multipliers applied when contest is lost.
+- `worldEvents.limited_opportunities.enabled`: enable time-limited opportunity offers.
+- `worldEvents.limited_opportunities.weight`: weighted spawn priority for opportunities.
+- `worldEvents.limited_opportunities.label`: fallback label for opportunities.
+- `worldEvents.limited_opportunities.cooldownTicks`: per-type cooldown after an opportunity resolves.
+- `worldEvents.limited_opportunities.expiryTicks`: ticks before an active opportunity offer expires.
+- `worldEvents.limited_opportunities.failureLossRatio`: stockpile loss ratio applied on offer expiry.
+- `worldEvents.limited_opportunities.failureLossResources[]`: resources eligible for expiry loss.
+- `worldEvents.limited_opportunities.templates[]`: weighted template list for opportunity offers.
+- `worldEvents.limited_opportunities.templates[].id`: template id stored in event metadata.
+- `worldEvents.limited_opportunities.templates[].weight`: weighted spawn priority for the template.
+- `worldEvents.limited_opportunities.templates[].label`: template-specific display label.
+- `worldEvents.limited_opportunities.templates[].request.<resource>`: stockpile required to complete the offer.
+- `worldEvents.limited_opportunities.templates[].reward.<resource>`: stockpile granted on completion.
+- `worldEvents.limited_opportunities.templates[].targetBoosts.<resource>`: temporary target boost while offer is active.
+
 Myths:
 
 - `myths.enabled`: enable global myth modifiers.

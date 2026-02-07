@@ -5,6 +5,7 @@ const { randomBetween } = require('./random');
 const { pushEvent } = require('./events');
 const { moveTowards, findEdgeSpawnPosition, getAdjacentPositions } = require('./movement');
 const { getStockpileTarget } = require('./resources');
+const { getWorldEventModifier } = require('./world_events');
 const { isBuildableCell, findVillageBuildSpot } = require('./structures');
 
 const MERCHANT_SIDES = ['north', 'south', 'west', 'east'];
@@ -308,7 +309,8 @@ function findMerchantTradeOption(state, config) {
   extras.sort((a, b) => b.ratio - a.ratio);
   const extra = extras[0];
 
-  const rate = Number(tradeRate[extra.resource] ?? tradeRate.default ?? 1);
+  const worldEventRate = Math.max(0.1, Number(getWorldEventModifier(state, 'merchantTradeRate', 1) || 1));
+  const rate = Number(tradeRate[extra.resource] ?? tradeRate.default ?? 1) * worldEventRate;
   if (!Number.isFinite(rate) || rate <= 0) {
     return null;
   }

@@ -33,6 +33,7 @@ const { updateTemple, getTempleNeedDecayMultiplier } = require('./temple');
 const { updateVillages } = require('./villages');
 const { updateRoads } = require('./roads');
 const { updateUnderrealm } = require('./underrealm');
+const { updateWorldEvents, getWorldEventModifier } = require('./world_events');
 
 // Advance the simulation by one tick.
 function stepState(state, config, runtime, action, options = {}) {
@@ -42,6 +43,7 @@ function stepState(state, config, runtime, action, options = {}) {
   updateSeason(state, config);
   updateWeather(state, config);
   updateRaidStart(state, config, runtime);
+  updateWorldEvents(state, config, runtime, action);
   updateFestivals(state, config, runtime, action);
   updateContracts(state, config, runtime);
   updateAlchemy(state, config);
@@ -52,6 +54,7 @@ function stepState(state, config, runtime, action, options = {}) {
   const weatherNeedByNeed = getWeatherNeedMultipliers(state, config);
   const mythNeedMultiplier = getMythMultiplier(state, config, 'needDecay', 1);
   const alchemyNeedMultiplier = getAlchemyMultiplier(state, config, 'needDecay', 1);
+  const worldNeedMultiplier = getWorldEventModifier(state, 'needDecay', 1);
   const festivalNeedMultiplier = getFestivalModifier(state, 'needDecay', 1);
   const templeNeedMultiplier = getTempleNeedDecayMultiplier(state, config);
   const stormColdActive = state.weather
@@ -75,6 +78,7 @@ function stepState(state, config, runtime, action, options = {}) {
         * clanNeedMultiplier
         * mythNeedMultiplier
         * alchemyNeedMultiplier
+        * worldNeedMultiplier
         * festivalNeedMultiplier
         * templeNeedMultiplier,
       weatherNeedByNeed,

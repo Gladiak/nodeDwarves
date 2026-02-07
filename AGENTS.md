@@ -11,7 +11,6 @@ This file defines how to implement new features in a consistent, stable way.
 - Keep the simulation deterministic enough for training comparison.
 - Continuously improve model intelligence and learning capability in measured, stable steps.
 - When implementation details are unclear, ask for clarifications before coding changes.
-- Never run commands defined in `package.json` scripts (`npm run ...`, `yarn ...`, `pnpm ...`) without explicit user confirmation in the same conversation step.
 - Always update README.md and MANUAL.md after new implementations or tweaks, if needed.
 - README.md is a general product feature overview; avoid deep implementation details, formulas, and low-level file-by-file behavior.
 - README.md tone: technical but playful (nerd-friendly). Use emojis.
@@ -32,6 +31,7 @@ This file defines how to implement new features in a consistent, stable way.
 - `src/simulation/`: simulation systems split by theme.
 - `src/simulation/index.js`: simulation orchestrator.
 - `src/simulation/underrealm.js`: underrealm crew assignment, deep economy, exploration unlocks, and hostile deep raids.
+- `src/simulation/world_events.js`: world event lifecycle, timed opportunities, and temporary world modifiers.
 - `src/simulation/temple.js`: Temple of Ancestors stages, site selection, bonuses, and prestige.
 - `src/simulation.js`: thin wrapper for `src/simulation/index.js`.
 - `src/state/`: state creation and terrain generation.
@@ -107,8 +107,7 @@ This file defines how to implement new features in a consistent, stable way.
 ## Validation checklist
 
 - Run `npm start` and confirm the HUD/legend renders.
-- Run `npm run ai:regression` after structural changes (use `node scripts/regression.js --record --profile <name>` when behavior changes are intentional).
-- Run `npm run ai:train:fresh` after structural changes.
+- Run headless long-run benchmarks (`createInitialState` + repeated `stepState`) to tune new defaults and validate stability before finalizing balancing changes.
 - Confirm no crashes on resize and no negative stockpile values.
 - Check that shortages drive gathering priorities as expected.
 
