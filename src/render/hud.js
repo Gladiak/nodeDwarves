@@ -73,10 +73,6 @@ function buildHudColumns(state, config, columnWidth, options = {}) {
   const idleCount = dwarves.filter(
     (dwarf) => !dwarf.job && !dwarf.expedition,
   ).length;
-  const topPriority =
-    state.lastPriorities && state.lastPriorities[0]
-      ? state.lastPriorities[0].resource
-      : "-";
   const structures = state.structures || [];
   const houseCount = structures.filter(
     (structure) => structure.type === "house",
@@ -123,9 +119,6 @@ function buildHudColumns(state, config, columnWidth, options = {}) {
   const ruinsCount = structures.filter(
     (structure) => structure.type === "ruins",
   ).length;
-  const watchtowerCount = structures.filter(
-    (structure) => structure.type === "watchtower",
-  ).length;
   const housingConfig = (config.population && config.population.housing) || {};
   const housingEnabled = housingConfig.enabled !== false;
   const bedsTotal = housingEnabled
@@ -141,15 +134,6 @@ function buildHudColumns(state, config, columnWidth, options = {}) {
       ? bedsTotal / Math.max(1, dwarves.length)
       : 0
     : 1;
-  const towerConfig = (config.structures && config.structures.watchtower) || {};
-  const towerRaid = towerConfig.raid || {};
-  const towerDefensePer = Math.max(0, Number(towerRaid.defensePerTower ?? 0));
-  const towerDefenseMax = clamp(Number(towerRaid.defenseMax ?? 0), 0, 1);
-  const towerDefense = clamp(
-    watchtowerCount * towerDefensePer,
-    0,
-    towerDefenseMax,
-  );
   const wildlifeConfig = config.wildlife || {};
   const wildlifeEnabled = wildlifeConfig.enabled === true;
   const herdCount = wildlifeEnabled && state.wildlife && Array.isArray(state.wildlife.herds)
@@ -161,6 +145,7 @@ function buildHudColumns(state, config, columnWidth, options = {}) {
   const seasonLabel = formatSeasonLabel(state.season);
   const yearLabel = formatYearLabel(state, config);
   const lastEvent = formatLastEvent(state.events);
+  const underrealmHud = getUnderrealmHudLines(state);
   const stageCounts = countLifeStages(dwarves);
   const targets =
     (config.resources &&
@@ -283,10 +268,14 @@ function buildHudColumns(state, config, columnWidth, options = {}) {
   }
   left.push(`Beds: ${bedsTotal}`);
   left.push(`Housing ratio: ${housingRatio.toFixed(2)}`);
-  pushSection(left, "Defense");
-  left.push(`Towers: ${watchtowerCount}`);
-  left.push(`Tower def: ${Math.round(towerDefense * 100)}%`);
-  left.push(`Priority: ${topPriority}`);
+  pushSection(left, "Underrealm");
+  if (underrealmHud.length > 0) {
+    for (const line of underrealmHud) {
+      left.push(fitLine(line, columnWidth));
+    }
+  } else {
+    left.push("Inactive");
+  }
 
   const right = [];
   pushSection(right, "Clans");
@@ -682,14 +671,140 @@ function buildRuinsBonusLines(ruins, columnWidth) {
   return lines;
 }
 
-// Format a small float with at most 2 decimal places.
-function formatCompactFloat(value) {
-  const numeric = Number(value || 0);
-  if (!Number.isFinite(numeric)) {
-    return "0";
+// Build compact underrealm status lines for the dedicated Underrealm HUD section.
+function getUnderrealmHudLines(state) {
+  const underrealm = state && state.underrealm;
+  if (!underrealm || underrealm.enabled === false) {
+    return [];
   }
-  const rounded = Math.round(numeric * 100) / 100;
-  return String(rounded);
+  const maxDepth = Math.max(0, Math.floor(Number(underrealm.maxDepth || 0)));
+  const maxUnlockedDepth = clamp(
+    Math.floor(Number(underrealm.maxUnlockedDepth || 0)),
+    0,
+    maxDepth,
+  );
+  const activeDepth = clamp(
+    Math.floor(Number(underrealm.activeDepth || 0)),
+    0,
+    maxUnlockedDepth,
+  );
+  const lines = [];
+  if (activeDepth <= 0) {
+    lines.push(`Realm: Surface (U${maxUnlockedDepth}/${maxDepth})`);
+  } else {
+    lines.push(`Realm: Underrealm D${activeDepth} (U${maxUnlockedDepth}/${maxDepth})`);
+  }
+  const discovery = underrealm.discovery || null;
+  if (maxUnlockedDepth <= 0 && discovery && discovery.enabled !== false && discovery.found !== true) {
+    const threshold = Math.max(1, Math.floor(Number(discovery.populationThreshold || 1)));
+    const nowPopulation = Array.isArray(state.dwarves) ? state.dwarves.length : 0;
+    const timerStartedTick = discovery.timerStartedTick;
+    const hasTimerStarted = typeof timerStartedTick === 'number'
+      && Number.isFinite(timerStartedTick);
+    if (!hasTimerStarted) {
+      lines.push(`Hidden gate: pop ${nowPopulation}/${threshold}`);
+    } else {
+      const targetTick = Math.max(0, Math.floor(Number(discovery.targetTick || 0)));
+      const eta = Math.max(0, targetTick - Math.floor(Number(state.tick || 0)));
+      lines.push(`Hidden gate search: ${eta}t`);
+    }
+  } else if (discovery && discovery.enabled !== false && discovery.found === true) {
+    lines.push('Hidden gate: discovered');
+  }
+  const layers = Array.isArray(underrealm.layers) ? underrealm.layers : [];
+  const activeLayer = layers.find((layer) => Number(layer && layer.depth) === activeDepth);
+  if (activeLayer) {
+    lines.push(
+      `Strata: ${activeLayer.width}x${activeLayer.height}`
+      + ` diff ${formatMultiplierPercent(activeLayer.difficultyMultiplier)}`
+      + ` rare ${formatMultiplierPercent(activeLayer.rareDropMultiplier)}`,
+    );
+    if (activeLayer.economy && Array.isArray(activeLayer.economy.nodes)) {
+      const nodes = activeLayer.economy.nodes;
+      let remaining = 0;
+      let capacity = 0;
+      for (const node of nodes) {
+        remaining += Math.max(0, Number(node.remaining || 0));
+        capacity += Math.max(0, Number(node.capacity || 0));
+      }
+      if (capacity > 0) {
+        const pct = Math.round((remaining / capacity) * 100);
+        lines.push(`Depth stock: ${pct}% (${formatCompactNumber(remaining)}/${formatCompactNumber(capacity)})`);
+      }
+      const progress = Math.max(0, Number(activeLayer.economy.explorationProgress || 0));
+      const target = Math.max(0, Number(activeLayer.economy.explorationTarget || 0));
+      if (target > 0 && activeDepth === maxUnlockedDepth && maxUnlockedDepth < maxDepth) {
+        lines.push(`Survey: ${Math.min(100, Math.round(progress / target * 100))}%`);
+      }
+    }
+  }
+  const crew = underrealm.crew || null;
+  if (crew && crew.enabled !== false) {
+    const roles = crew.roles || {};
+    lines.push(
+      `Delver oath M${Math.round(clamp(Number(roles.minerRatio || 0), 0, 1) * 100)}`
+      + ` H${Math.round(clamp(Number(roles.haulerRatio || 0), 0, 1) * 100)}`
+      + ` G${Math.round(clamp(Number(roles.guardRatio || 0), 0, 1) * 100)}`,
+    );
+    const assignedByDepth = crew.assignedByDepth || {};
+    let assignedTotal = 0;
+    for (const count of Object.values(assignedByDepth)) {
+      assignedTotal += Math.max(0, Number(count || 0));
+    }
+    const surfaceAdults = Math.max(0, Number(crew.surfaceAdults || 0));
+    lines.push(`Delv:${assignedTotal} | Surf:${surfaceAdults}`);
+  }
+  if (activeDepth > 0 && underrealm.shrines) {
+    const depthKey = String(activeDepth);
+    const charges = Math.max(
+      0,
+      Number(
+        underrealm.shrines.wardChargesByDepth
+        && underrealm.shrines.wardChargesByDepth[depthKey],
+      ),
+    );
+    lines.push(`Ward charges: ${Math.floor(charges)}`);
+    const oath = underrealm.shrines.oathByDepth && underrealm.shrines.oathByDepth[depthKey];
+    if (oath && Number(oath.activeTicks || 0) > 0) {
+      lines.push(`Shrine oath: active ${Math.floor(Number(oath.activeTicks || 0))}t`);
+    } else if (oath && Number(oath.penaltyTicks || 0) > 0) {
+      lines.push(`Shrine oath: unrest ${Math.floor(Number(oath.penaltyTicks || 0))}t`);
+    }
+  }
+  const deepFaction = underrealm.deepFaction || null;
+  if (deepFaction && deepFaction.activeRaidsByDepth) {
+    const activeRaids = Object.values(deepFaction.activeRaidsByDepth)
+      .filter((raid) => raid && Number(raid.ticksRemaining || 0) > 0);
+    if (activeRaids.length > 0) {
+      lines.push(`Deep threat: ${activeRaids.length} raid(s) active`);
+    }
+  }
+  if (maxUnlockedDepth > 0 && maxUnlockedDepth < maxDepth) {
+    const lift = underrealm.lift || null;
+    if (lift && lift.active === true) {
+      const totalTicks = Math.max(1, Number(lift.totalTicks || 1));
+      const remainingTicks = Math.max(0, Number(lift.ticksRemaining || 0));
+      const pct = Math.max(0, Math.min(100, Math.round((1 - remainingTicks / totalTicks) * 100)));
+      lines.push(`Deep Lift D${lift.fromDepth}->D${lift.targetDepth}: ${pct}%`);
+    }
+  }
+  return lines;
+}
+
+// Convert a multiplier (1.00 = baseline) to signed percentage.
+function formatMultiplierPercent(multiplier) {
+  const numeric = Number(multiplier || 1);
+  if (!Number.isFinite(numeric)) {
+    return "0%";
+  }
+  const deltaPct = Math.round((numeric - 1) * 100);
+  if (deltaPct > 0) {
+    return `+${deltaPct}%`;
+  }
+  if (deltaPct < 0) {
+    return `${deltaPct}%`;
+  }
+  return "0%";
 }
 
 // Format a number compactly (k/m).

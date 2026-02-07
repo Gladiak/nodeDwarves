@@ -11,6 +11,7 @@ This file defines how to implement new features in a consistent, stable way.
 - Keep the simulation deterministic enough for training comparison.
 - Continuously improve model intelligence and learning capability in measured, stable steps.
 - When implementation details are unclear, ask for clarifications before coding changes.
+- Never run commands defined in `package.json` scripts (`npm run ...`, `yarn ...`, `pnpm ...`) without explicit user confirmation in the same conversation step.
 - Always update README.md and MANUAL.md after new implementations or tweaks, if needed.
 - README.md is a general product feature overview; avoid deep implementation details, formulas, and low-level file-by-file behavior.
 - README.md tone: technical but playful (nerd-friendly). Use emojis.
@@ -30,6 +31,7 @@ This file defines how to implement new features in a consistent, stable way.
 - `src/config.js`: config loader.
 - `src/simulation/`: simulation systems split by theme.
 - `src/simulation/index.js`: simulation orchestrator.
+- `src/simulation/underrealm.js`: underrealm crew assignment, deep economy, exploration unlocks, and hostile deep raids.
 - `src/simulation/temple.js`: Temple of Ancestors stages, site selection, bonuses, and prestige.
 - `src/simulation.js`: thin wrapper for `src/simulation/index.js`.
 - `src/state/`: state creation and terrain generation.
@@ -115,6 +117,7 @@ This file defines how to implement new features in a consistent, stable way.
 - Small pure helpers over large monolithic blocks.
 - Use consistent naming: `snake_case` only for config keys, `camelCase` in code.
 - Use ASCII only unless a file already uses Unicode.
+- For terminal map readability, avoid near-black foreground colors for gameplay-critical symbols on dark consoles; prefer medium/high-contrast colors.
 - Prefer early returns and guard clauses.
 - Add short English comments above top-level functions to aid onboarding.
 - Use English for all player-facing in-game strings (HUD, events, labels, config names).

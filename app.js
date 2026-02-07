@@ -252,15 +252,16 @@ function closeSaveMap(state) {
 }
 
 // Function: openSaveMap.
-function openSaveMap(state, config, message) {
+function openSaveMap(state, config, message, options = {}) {
   ensureSaveMapState(state);
   ensureInspectState(state);
   ensureLegendState(state);
   const uiConfig = (config.display && config.display.save_panel) || {};
   const autoCloseMs = Math.max(0, Number(uiConfig.autoCloseMs || 3000));
+  const holdOpen = options.holdOpen === true;
   state.ui.saveMap.message = String(message || 'Map saved.');
   state.ui.saveMap.open = true;
-  state.ui.saveMap.closeAtMs = Date.now() + autoCloseMs;
+  state.ui.saveMap.closeAtMs = holdOpen ? 0 : Date.now() + autoCloseMs;
   state.ui.inspect.open = false;
   state.ui.legend.open = false;
 }
@@ -279,10 +280,16 @@ function triggerMapExport(state, config, runtime, options = {}) {
     openSaveMap(state, config, 'Map export unavailable.');
     return;
   }
+  const layerTags = getExportLayerTags(state);
   state.ui.saveMap.busy = true;
   state.ui.inspect.open = false;
   state.ui.legend.open = false;
-  closeSaveMap(state);
+  openSaveMap(
+    state,
+    config,
+    buildExportInProgressMessage(layerTags, options.includeStructures === true),
+    { holdOpen: true },
+  );
 
   let snapshotPath = null;
   if (options.includeStructures) {
@@ -301,6 +308,7 @@ function triggerMapExport(state, config, runtime, options = {}) {
   const args = buildMapExportArgs(state, runtime, {
     includeStructures: options.includeStructures === true,
     snapshotPath,
+    layerTags,
   });
   const scriptPath = path.join(__dirname, 'scripts', 'export_map.js');
   args.unshift(scriptPath);
@@ -346,6 +354,10 @@ function buildMapExportArgs(state, runtime, options = {}) {
   const width = Math.max(0, Number(runtime.gridWidth || 0));
   const height = Math.max(0, Number(runtime.gridHeight || 0));
   args.push(`--width=${width}`, `--height=${height}`);
+  const layerTags = Array.isArray(options.layerTags) && options.layerTags.length > 0
+    ? options.layerTags
+    : ['surface'];
+  args.push(`--layers=${layerTags.join(',')}`);
 
   const season = state.season && state.season.name ? String(state.season.name) : '';
   if (season) {
@@ -359,6 +371,11 @@ function buildMapExportArgs(state, runtime, options = {}) {
   const seed = state.terrain && Number.isFinite(state.terrain.seed) ? state.terrain.seed : null;
   if (seed !== null) {
     args.push(`--seed=${Math.floor(seed)}`);
+  }
+  const underrealmBounds = getUnderrealmDepthBounds(state);
+  if (underrealmBounds) {
+    args.push(`--underrealmMaxDepth=${underrealmBounds.maxDepth}`);
+    args.push(`--underrealmUnlockedDepth=${underrealmBounds.maxUnlockedDepth}`);
   }
 
   if (options.snapshotPath) {
@@ -408,8 +425,15 @@ function buildMapExportSnapshot(state) {
       completedAtTick: state.temple.completedAtTick,
     }
     : null;
+  const underrealm = state.underrealm && typeof state.underrealm === 'object'
+    ? {
+      maxDepth: Math.max(0, Math.floor(Number(state.underrealm.maxDepth || 0))),
+      maxUnlockedDepth: Math.max(0, Math.floor(Number(state.underrealm.maxUnlockedDepth || 0))),
+      activeDepth: Math.max(0, Math.floor(Number(state.underrealm.activeDepth || 0))),
+    }
+    : null;
 
-  return { structures, roads, temple };
+  return { structures, roads, temple, underrealm };
 }
 
 // Function: writeMapExportSnapshot.
@@ -432,23 +456,70 @@ function buildSaveMessage(output) {
   if (matches.length === 0) {
     return 'Map saved.';
   }
-  const pickByExtension = (ext) => {
-    for (let i = matches.length - 1; i >= 0; i -= 1) {
-      if (matches[i].toLowerCase().endsWith(ext)) {
-        return matches[i];
-      }
-    }
-    return null;
-  };
-  const pngPath = pickByExtension('.png');
-  const svgPath = pickByExtension('.svg');
-  const rawPath = pngPath || matches[matches.length - 1];
+  const pngPaths = matches.filter((value) => value.toLowerCase().endsWith('.png'));
+  const svgPaths = matches.filter((value) => value.toLowerCase().endsWith('.svg'));
+  const rawPath = pngPaths[0] || matches[matches.length - 1];
   const relative = path.relative(process.cwd(), rawPath);
   const displayPath = relative && !relative.startsWith('..') ? relative : rawPath;
-  if (pngPath && svgPath) {
+  const levelCount = Math.max(pngPaths.length, svgPaths.length, 1);
+  if (levelCount > 1) {
+    const pngDir = path.dirname(displayPath);
+    if (svgPaths.length > 0) {
+      return `Map export complete: ${levelCount} layers in ${pngDir} (+ svg).`;
+    }
+    return `Map export complete: ${levelCount} layers in ${pngDir}.`;
+  }
+  if (pngPaths.length > 0 && svgPaths.length > 0) {
     return `Map saved to ${displayPath} (+ svg).`;
   }
   return `Map saved to ${displayPath}`;
+}
+
+// Function: getExportLayerTags.
+function getExportLayerTags(state) {
+  const tags = ['surface'];
+  const bounds = getUnderrealmDepthBounds(state);
+  if (!bounds || bounds.maxUnlockedDepth <= 0) {
+    return tags;
+  }
+  for (let depth = 1; depth <= bounds.maxUnlockedDepth; depth += 1) {
+    tags.push(`d${depth}`);
+  }
+  return tags;
+}
+
+// Function: formatExportLayerSummary.
+function formatExportLayerSummary(layerTags) {
+  if (!Array.isArray(layerTags) || layerTags.length === 0) {
+    return 'Surface';
+  }
+  const hasSurface = layerTags.some((tag) => String(tag).toLowerCase() === 'surface');
+  const depths = layerTags
+    .map((tag) => {
+      const match = String(tag).toLowerCase().match(/^d(\d+)$/);
+      return match ? Number(match[1]) : null;
+    })
+    .filter((value) => Number.isFinite(value))
+    .sort((a, b) => a - b);
+  const depthText = depths.length > 0
+    ? depths.length <= 3
+      ? depths.map((depth) => `D${depth}`).join('+')
+      : `D${depths[0]}..D${depths[depths.length - 1]}`
+    : '';
+  if (hasSurface && depthText) {
+    return `Surface+${depthText}`;
+  }
+  if (depthText) {
+    return depthText;
+  }
+  return 'Surface';
+}
+
+// Function: buildExportInProgressMessage.
+function buildExportInProgressMessage(layerTags, includeStructures) {
+  const layers = formatExportLayerSummary(layerTags);
+  const mode = includeStructures ? 'terrain+builds' : 'terrain';
+  return `Exporting ${layers} | PNG+SVG | ${mode}`;
 }
 
 // Function: getTransitionState.
@@ -612,6 +683,41 @@ function clampUnit(value) {
   return Math.min(1, Math.max(0, Number(value || 0)));
 }
 
+// Clamp underrealm depth metadata and return active bounds.
+function getUnderrealmDepthBounds(state) {
+  const underrealm = state && state.underrealm;
+  if (!underrealm || underrealm.enabled === false) {
+    return null;
+  }
+  const maxDepth = Math.max(0, Math.floor(Number(underrealm.maxDepth || 0)));
+  const maxUnlockedDepth = Math.min(
+    maxDepth,
+    Math.max(0, Math.floor(Number(underrealm.maxUnlockedDepth || 0))),
+  );
+  return {
+    maxDepth,
+    maxUnlockedDepth,
+  };
+}
+
+// Shift active underrealm depth while staying inside unlocked bounds.
+function shiftUnderrealmDepth(state, delta) {
+  const bounds = getUnderrealmDepthBounds(state);
+  if (!bounds) {
+    return false;
+  }
+  const current = Math.max(0, Math.floor(Number(state.underrealm.activeDepth || 0)));
+  const next = Math.min(
+    bounds.maxUnlockedDepth,
+    Math.max(0, current + Math.floor(Number(delta || 0))),
+  );
+  if (next === current) {
+    return false;
+  }
+  state.underrealm.activeDepth = next;
+  return true;
+}
+
 // Function: handleInput.
 function handleInput(text) {
   if (!text) {
@@ -657,6 +763,16 @@ function handleInput(text) {
     }
     if (char === '\u001b') {
       const seq = text.slice(i, i + 3);
+      if (seq === '\u001b[A') {
+        shiftUnderrealmDepth(state, -1);
+        i += 3;
+        continue;
+      }
+      if (seq === '\u001b[B') {
+        shiftUnderrealmDepth(state, 1);
+        i += 3;
+        continue;
+      }
       if (seq === '\u001b[C') {
         moveInspect(state, 1);
         i += 3;

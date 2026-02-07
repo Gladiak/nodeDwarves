@@ -33,6 +33,7 @@ function pickSymbol(value, fallback) {
 function buildLegendSections(config, options = {}) {
   const useColor = options.color !== false;
   const detailed = options.detailed === true;
+  const underrealmActive = options.underrealmActive === true;
   const symbols = config.symbols || {};
   const colors = getColorConfig(config);
   const resourceConfig = config.resources || {};
@@ -40,6 +41,8 @@ function buildLegendSections(config, options = {}) {
   const structureConfig = config.structures || {};
   const terrainConfig = (config.display && config.display.terrain) || {};
   const terrainSymbols = terrainConfig.symbols || {};
+  const underrealmTerrainConfig = (config.underrealm && config.underrealm.terrain) || {};
+  const underrealmSymbols = underrealmTerrainConfig.symbols || {};
   const terrainEnabled = terrainConfig.enabled !== false && terrainSymbols && typeof terrainSymbols === 'object';
 
   const formatEntry = (symbol, label, key) => {
@@ -51,7 +54,21 @@ function buildLegendSections(config, options = {}) {
   };
 
   const legendParts = [];
-  legendParts.push(formatEntry(symbols.dwarf || '@', 'dwarf', 'dwarf'));
+  if (underrealmActive) {
+    const delverColorKey = colors.map && colors.map.underrealm_delver
+      ? 'underrealm_delver'
+      : 'dwarf';
+    legendParts.push(formatEntry(symbols.dwarf || '☺', 'delver crew', delverColorKey));
+    const hostilesConfig = (config.underrealm && config.underrealm.hostiles) || {};
+    if (hostilesConfig.enabled !== false) {
+      const hostileColorKey = colors.map && colors.map.underrealm_hostile
+        ? 'underrealm_hostile'
+        : 'beast';
+      legendParts.push(formatEntry(symbols.underrealm_hostile || '☻', 'deep hostiles', hostileColorKey));
+    }
+  } else {
+    legendParts.push(formatEntry(symbols.dwarf || '@', 'dwarf', 'dwarf'));
+  }
   for (const resource of Object.keys(nodeConfig)) {
     if (isTerrainMappedResource(resourceConfig, terrainSymbols, resource)) {
       continue;
@@ -93,6 +110,12 @@ function buildLegendSections(config, options = {}) {
     const symbol = symbols[type] || symbols.structure || '#';
     legendParts.push(formatEntry(symbol, type, type));
   }
+  const underrealmConfig = config.underrealm || {};
+  const discoveryConfig = underrealmConfig.discovery || {};
+  if (underrealmConfig.enabled !== false && discoveryConfig.enabled !== false) {
+    const gateSymbol = String(discoveryConfig.symbol || symbols.underrealm_gate || 'O');
+    legendParts.push(formatEntry(gateSymbol, 'underrealm gate', String(discoveryConfig.color_key || 'underrealm_gate')));
+  }
 
   const merchantConfig = config.merchant || {};
   if (merchantConfig.enabled !== false) {
@@ -112,6 +135,24 @@ function buildLegendSections(config, options = {}) {
 
   const terrainParts = [];
   if (terrainEnabled) {
+    if (underrealmActive && underrealmSymbols && typeof underrealmSymbols === 'object') {
+      const pushTerrain = (symbol, label, colorKey) => {
+        if (!symbol) {
+          return;
+        }
+        terrainParts.push(formatEntry(symbol, label, colorKey));
+      };
+      pushTerrain(underrealmSymbols.wall, 'obsidian wall', 'terrain_wall');
+      pushTerrain(underrealmSymbols.cave, 'echo cavern', 'terrain_cave');
+      pushTerrain(underrealmSymbols.chasm, 'abyssal rift', 'terrain_chasm');
+      pushTerrain(underrealmSymbols.crystal, 'mana crystal', 'terrain_crystal');
+      pushTerrain(underrealmSymbols.magma, 'emberflow', 'terrain_magma');
+      pushTerrain(underrealmSymbols.shrine, 'ancestor shrine', 'terrain_shrine');
+      pushTerrain(symbols.underrealm_lift_up || '↑', 'lift to upper', 'underrealm_lift_up');
+      pushTerrain(symbols.underrealm_lift_down || '↓', 'lift to lower', 'underrealm_lift_down');
+      pushTerrain(symbols.underrealm_lift_locked || '↓', 'lift locked', 'underrealm_lift_locked');
+      return { legendParts, terrainParts };
+    }
     const forestSymbols = terrainConfig.forestSymbols || {};
     const hillSymbols = terrainConfig.hillSymbols || {};
     const mountainSymbols = terrainConfig.mountainSymbols || {};
@@ -189,9 +230,9 @@ function buildFooterLines(config, runtime) {
     'COMMANDS',
   ], innerWidth);
   const controlsText = pickFitting([
-    'ᚠ [SPACE] PAUSE ᚱ [l] LEGEND ᚨ [i] DWARF INFO ᛗ [m] MAP SAVE ᛗ [M] MAP+STRUCT ᚾ',
-    '[SPACE] PAUSE  ::  [l] LEGEND  ::  [i] DWARF INFO  ::  [m] MAP SAVE  ::  [M] MAP+STRUCT',
-    '[SPACE] PAUSE  [l] LEGEND  [i] DWARF INFO  [m] MAP SAVE  [M] MAP+STRUCT',
+    'ᚠ [SPACE] PAUSE ᚱ [l] LEGEND ᚨ [i] DWARF INFO ᛞ [↑/↓] DEPTH ᛗ [m] MAP SAVE ᛗ [M] MAP+STRUCT ᚾ',
+    '[SPACE] PAUSE  ::  [l] LEGEND  ::  [i] DWARF INFO  ::  [↑/↓] DEPTH  ::  [m] MAP SAVE  ::  [M] MAP+STRUCT',
+    '[SPACE] PAUSE  [l] LEGEND  [i] DWARF INFO  [↑/↓] DEPTH  [m] MAP SAVE  [M] MAP+STRUCT',
   ], innerWidth);
   const mottoText = pickFitting(buildTitleOptions(simTitle), innerWidth);
 

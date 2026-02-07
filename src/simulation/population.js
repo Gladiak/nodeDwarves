@@ -830,13 +830,38 @@ function getResourceFactor(state, reproduction) {
 
 // Compute reproduction crowding factor based on soft population cap.
 function getCrowdingFactor(state, reproduction) {
-  const softCap = Number(reproduction.softCap ?? 0);
+  const softCap = getDynamicPopulationSoftCap(state, reproduction);
   if (softCap <= 0) {
     return 1;
   }
   const minFactor = clamp(Number(reproduction.crowdingMinFactor ?? 0.2), 0, 1);
   const ratio = 1 - state.dwarves.length / softCap;
   return clamp(ratio, minFactor, 1);
+}
+
+// Compute soft population cap with optional Underrealm expansion bonuses.
+function getDynamicPopulationSoftCap(state, reproduction) {
+  const baseSoftCap = Number(reproduction.softCap ?? 0);
+  if (baseSoftCap <= 0) {
+    return 0;
+  }
+  const underrealm = state && state.underrealm;
+  if (!underrealm || underrealm.enabled === false) {
+    return baseSoftCap;
+  }
+  const crew = underrealm.crew || {};
+  if (crew.enabled === false) {
+    return baseSoftCap;
+  }
+  const unlockedDepth = Math.max(0, Math.floor(Number(underrealm.maxUnlockedDepth || 0)));
+  const perDepthBonus = Math.max(0, Number(crew.unlockPopulationBonusPerDepth || 0));
+  const perAssignedBonus = Math.max(0, Number(crew.populationBonusPerAssigned || 0));
+  const assignedByDepth = crew.assignedByDepth || {};
+  let assignedTotal = 0;
+  for (const count of Object.values(assignedByDepth)) {
+    assignedTotal += Math.max(0, Number(count || 0));
+  }
+  return baseSoftCap + unlockedDepth * perDepthBonus + assignedTotal * perAssignedBonus;
 }
 
 // Compute reproduction morale factor.

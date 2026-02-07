@@ -90,6 +90,1172 @@ function buildScaledTargets(config, mapScaleContext) {
   return scaleResourceMap(baseTargets, mapScaleContext.multiplier);
 }
 
+// Read underrealm configuration with safe defaults.
+function getUnderrealmConfig(config) {
+  return (config && config.underrealm) || {};
+}
+
+// Resolve fixed full-size dimensions for underrealm depth layers.
+function getUnderrealmDepthSizeConfig(config, runtime) {
+  const runtimeWidth = Math.max(1, Number(runtime && runtime.gridWidth || 1));
+  const runtimeHeight = Math.max(1, Number(runtime && runtime.gridHeight || 1));
+  return {
+    baseWidth: runtimeWidth,
+    baseHeight: runtimeHeight,
+    minWidth: runtimeWidth,
+    minHeight: runtimeHeight,
+    shrinkFactor: 1,
+  };
+}
+
+// Compute layer dimensions for a depth index with full-size layers.
+function resolveUnderrealmLayerSize(depth, sizeConfig) {
+  return {
+    width: Math.max(1, Number(sizeConfig.baseWidth || 1)),
+    height: Math.max(1, Number(sizeConfig.baseHeight || 1)),
+  };
+}
+
+// Build deterministic terrain seed for an underrealm layer.
+function getUnderrealmLayerSeed(baseSeed, underrealm, depth) {
+  const safeBaseSeed = Number.isFinite(baseSeed) ? Math.floor(baseSeed) : 1;
+  const seedOffset = Math.floor(Number(underrealm.seed_offset ?? 7001));
+  const seedStep = Math.max(1, Math.floor(Number(underrealm.seed_step ?? 97)));
+  const next = (safeBaseSeed + seedOffset + depth * seedStep) >>> 0;
+  return next || 1;
+}
+
+// Resolve underrealm terrain generation config.
+function getUnderrealmTerrainConfig(config) {
+  const underrealm = getUnderrealmConfig(config);
+  const terrain = underrealm.terrain || {};
+  return {
+    wallFillRatio: clamp(Number(terrain.wall_fill_ratio ?? 0.59), 0.2, 0.85),
+    smoothPasses: Math.max(0, Math.floor(Number(terrain.smooth_passes ?? 5))),
+    startChamberRadius: Math.max(2, Math.floor(Number(terrain.start_chamber_radius ?? 3))),
+    chamberCountBase: Math.max(1, Math.floor(Number(terrain.chamber_count_base ?? 5))),
+    chamberCountPerDepth: Math.max(0, Math.floor(Number(terrain.chamber_count_per_depth ?? 1))),
+    chamberRadiusMin: Math.max(2, Math.floor(Number(terrain.chamber_radius_min ?? 2))),
+    chamberRadiusMax: Math.max(2, Math.floor(Number(terrain.chamber_radius_max ?? 4))),
+    corridorWidth: Math.max(1, Math.floor(Number(terrain.corridor_width ?? 1))),
+    loopCountBase: Math.max(0, Math.floor(Number(terrain.loop_count_base ?? 2))),
+    loopCountPerDepth: Math.max(0, Math.floor(Number(terrain.loop_count_per_depth ?? 1))),
+    branchCountBase: Math.max(0, Math.floor(Number(terrain.branch_count_base ?? 7))),
+    branchCountPerDepth: Math.max(0, Math.floor(Number(terrain.branch_count_per_depth ?? 2))),
+    branchLengthMin: Math.max(2, Math.floor(Number(terrain.branch_length_min ?? 3))),
+    branchLengthMax: Math.max(2, Math.floor(Number(terrain.branch_length_max ?? 8))),
+    branchTurnChance: clamp(Number(terrain.branch_turn_chance ?? 0.1), 0, 1),
+    pillarRatioBase: clamp(Number(terrain.pillar_ratio_base ?? 0.09), 0, 0.4),
+    pillarRatioPerDepth: clamp(Number(terrain.pillar_ratio_per_depth ?? 0.018), 0, 0.2),
+    pillarOpenNeighborsMin: clamp(
+      Math.floor(Number(terrain.pillar_open_neighbors_min ?? 6)),
+      4,
+      8,
+    ),
+    chasmRatioBase: clamp(Number(terrain.chasm_ratio_base ?? 0.02), 0, 0.5),
+    chasmRatioPerDepth: clamp(Number(terrain.chasm_ratio_per_depth ?? 0.01), 0, 0.5),
+    crystalRatioBase: clamp(Number(terrain.crystal_ratio_base ?? 0.015), 0, 0.5),
+    crystalRatioPerDepth: clamp(Number(terrain.crystal_ratio_per_depth ?? 0.008), 0, 0.5),
+    magmaMinDepth: Math.max(1, Math.floor(Number(terrain.magma_min_depth ?? 4))),
+    magmaRatioBase: clamp(Number(terrain.magma_ratio_base ?? 0.005), 0, 0.5),
+    magmaRatioPerDepth: clamp(Number(terrain.magma_ratio_per_depth ?? 0.006), 0, 0.5),
+    shrineMinDepth: Math.max(1, Math.floor(Number(terrain.shrine_min_depth ?? 4))),
+    shrineCountBase: Math.max(0, Math.floor(Number(terrain.shrine_count_base ?? 1))),
+    shrineCountPerDepth: Math.max(0, Math.floor(Number(terrain.shrine_count_per_depth ?? 1))),
+    symbols: resolveUnderrealmSymbols(terrain.symbols),
+    walkableTypes: resolveUnderrealmWalkableTypes(terrain.walkable),
+  };
+}
+
+// Resolve underrealm terrain symbols.
+function resolveUnderrealmSymbols(rawSymbols) {
+  const symbols = rawSymbols || {};
+  return {
+    wall: String(symbols.wall || '#'),
+    cave: String(symbols.cave || '.'),
+    corridor: String(symbols.corridor || ':'),
+    chasm: String(symbols.chasm || 'x'),
+    crystal: String(symbols.crystal || '*'),
+    magma: String(symbols.magma || '~'),
+    shrine: String(symbols.shrine || '+'),
+  };
+}
+
+// Resolve walkability by underrealm terrain type.
+function resolveUnderrealmWalkableTypes(rawWalkable) {
+  const walkable = rawWalkable || {};
+  return {
+    wall: walkable.wall === true,
+    cave: walkable.cave !== false,
+    corridor: walkable.corridor !== false,
+    chasm: walkable.chasm === true,
+    crystal: walkable.crystal !== false,
+    magma: walkable.magma === true,
+    shrine: walkable.shrine !== false,
+  };
+}
+
+// Build a deterministic RNG for underrealm generation.
+function createUnderrealmRng(seed) {
+  let t = (Math.floor(Number(seed || 1)) >>> 0) || 1;
+  return () => {
+    t += 0x6d2b79f5;
+    let r = Math.imul(t ^ (t >>> 15), 1 | t);
+    r ^= r + Math.imul(r ^ (r >>> 7), 61 | r);
+    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// Pick an integer in [min, max] using a deterministic RNG.
+function randomIntWithRng(rng, min, max) {
+  const low = Number.isFinite(min) ? Number(min) : 0;
+  const high = Number.isFinite(max) ? Number(max) : low;
+  if (high <= low) {
+    return Math.floor(low);
+  }
+  return Math.floor(rng() * (high - low + 1)) + Math.floor(low);
+}
+
+// Shuffle a list in place with deterministic RNG.
+function shuffleInPlaceWithRng(items, rng) {
+  for (let i = items.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(rng() * (i + 1));
+    const tmp = items[i];
+    items[i] = items[j];
+    items[j] = tmp;
+  }
+}
+
+// Build an initial cave layout using a wall fill ratio.
+function createInitialUnderrealmLayout(width, height, wallFillRatio, rng) {
+  const types = Array.from({ length: height }, () => new Array(width).fill('wall'));
+  for (let y = 1; y < height - 1; y += 1) {
+    for (let x = 1; x < width - 1; x += 1) {
+      types[y][x] = rng() < wallFillRatio ? 'wall' : 'cave';
+    }
+  }
+  return types;
+}
+
+// Count adjacent wall cells in a 3x3 neighborhood.
+function countAdjacentWalls(types, x, y) {
+  let count = 0;
+  for (let dy = -1; dy <= 1; dy += 1) {
+    for (let dx = -1; dx <= 1; dx += 1) {
+      if (dx === 0 && dy === 0) {
+        continue;
+      }
+      const nx = x + dx;
+      const ny = y + dy;
+      if (ny < 0 || ny >= types.length || nx < 0 || nx >= types[0].length) {
+        count += 1;
+        continue;
+      }
+      if (types[ny][nx] === 'wall') {
+        count += 1;
+      }
+    }
+  }
+  return count;
+}
+
+// Smooth cave topology using cellular automata passes.
+function smoothUnderrealmLayout(types, passes) {
+  const height = types.length;
+  const width = height > 0 ? types[0].length : 0;
+  let current = types;
+  for (let pass = 0; pass < passes; pass += 1) {
+    const next = current.map((row) => row.slice());
+    for (let y = 1; y < height - 1; y += 1) {
+      for (let x = 1; x < width - 1; x += 1) {
+        const walls = countAdjacentWalls(current, x, y);
+        next[y][x] = walls >= 5 ? 'wall' : 'cave';
+      }
+    }
+    current = next;
+  }
+  return current;
+}
+
+// Carve a circular chamber.
+function carveChamber(types, centerX, centerY, radius) {
+  const height = types.length;
+  const width = height > 0 ? types[0].length : 0;
+  const r = Math.max(1, Math.floor(radius));
+  for (let y = centerY - r; y <= centerY + r; y += 1) {
+    if (y <= 0 || y >= height - 1) {
+      continue;
+    }
+    for (let x = centerX - r; x <= centerX + r; x += 1) {
+      if (x <= 0 || x >= width - 1) {
+        continue;
+      }
+      const dx = x - centerX;
+      const dy = y - centerY;
+      if (dx * dx + dy * dy <= r * r) {
+        types[y][x] = 'cave';
+      }
+    }
+  }
+}
+
+// Carve tunnel cells using a square brush.
+function carveCorridorBrush(types, centerX, centerY, corridorWidth) {
+  const height = types.length;
+  const width = height > 0 ? types[0].length : 0;
+  const brush = Math.max(0, Math.floor((corridorWidth - 1) / 2));
+  for (let y = centerY - brush; y <= centerY + brush; y += 1) {
+    if (y <= 0 || y >= height - 1) {
+      continue;
+    }
+    for (let x = centerX - brush; x <= centerX + brush; x += 1) {
+      if (x <= 0 || x >= width - 1) {
+        continue;
+      }
+      if (types[y][x] === 'wall' || types[y][x] === 'cave' || types[y][x] === 'corridor') {
+        types[y][x] = 'cave';
+      }
+    }
+  }
+}
+
+// Carve an L-shaped corridor between two chamber centers.
+function carveCorridor(types, from, to, corridorWidth, rng) {
+  let x = from.x;
+  let y = from.y;
+  const deltaX = Math.abs(to.x - from.x);
+  const deltaY = Math.abs(to.y - from.y);
+  const horizontalFirst = deltaX === deltaY ? rng() < 0.5 : deltaX > deltaY;
+  const stepX = to.x >= x ? 1 : -1;
+  const stepY = to.y >= y ? 1 : -1;
+  const carveHorizontal = () => {
+    while (x !== to.x) {
+      carveCorridorBrush(types, x, y, corridorWidth);
+      x += stepX;
+    }
+    carveCorridorBrush(types, x, y, corridorWidth);
+  };
+  const carveVertical = () => {
+    while (y !== to.y) {
+      carveCorridorBrush(types, x, y, corridorWidth);
+      y += stepY;
+    }
+    carveCorridorBrush(types, x, y, corridorWidth);
+  };
+  if (horizontalFirst) {
+    carveHorizontal();
+    carveVertical();
+  } else {
+    carveVertical();
+    carveHorizontal();
+  }
+}
+
+const CARDINAL_DIRECTIONS = [
+  { dx: 1, dy: 0 },
+  { dx: -1, dy: 0 },
+  { dx: 0, dy: 1 },
+  { dx: 0, dy: -1 },
+];
+
+// Build a canonical key for an undirected chamber edge.
+function buildChamberEdgeKey(aIndex, bIndex) {
+  const low = Math.min(aIndex, bIndex);
+  const high = Math.max(aIndex, bIndex);
+  return `${low}:${high}`;
+}
+
+// Build an engineered corridor graph using MST + optional loop links.
+function buildUnderrealmChamberConnections(chambers, extraLoops) {
+  if (!Array.isArray(chambers) || chambers.length <= 1) {
+    return [];
+  }
+  const edges = [];
+  const edgeSet = new Set();
+  const connected = new Set([0]);
+  const chamberCount = chambers.length;
+  while (connected.size < chamberCount) {
+    let best = null;
+    for (const aIndex of connected) {
+      const a = chambers[aIndex];
+      for (let bIndex = 0; bIndex < chamberCount; bIndex += 1) {
+        if (connected.has(bIndex)) {
+          continue;
+        }
+        const b = chambers[bIndex];
+        const distance = Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+        if (!best || distance < best.distance) {
+          best = {
+            aIndex,
+            bIndex,
+            distance,
+          };
+        }
+      }
+    }
+    if (!best) {
+      break;
+    }
+    connected.add(best.bIndex);
+    const key = buildChamberEdgeKey(best.aIndex, best.bIndex);
+    edgeSet.add(key);
+    edges.push(best);
+  }
+
+  if (extraLoops <= 0) {
+    return edges;
+  }
+  const candidates = [];
+  for (let aIndex = 0; aIndex < chamberCount; aIndex += 1) {
+    const a = chambers[aIndex];
+    for (let bIndex = aIndex + 1; bIndex < chamberCount; bIndex += 1) {
+      const key = buildChamberEdgeKey(aIndex, bIndex);
+      if (edgeSet.has(key)) {
+        continue;
+      }
+      const b = chambers[bIndex];
+      const distance = Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+      candidates.push({
+        aIndex,
+        bIndex,
+        distance,
+      });
+    }
+  }
+  candidates.sort((left, right) => left.distance - right.distance);
+  let loopsAdded = 0;
+  for (const candidate of candidates) {
+    if (loopsAdded >= extraLoops) {
+      break;
+    }
+    const key = buildChamberEdgeKey(candidate.aIndex, candidate.bIndex);
+    if (edgeSet.has(key)) {
+      continue;
+    }
+    edgeSet.add(key);
+    edges.push(candidate);
+    loopsAdded += 1;
+  }
+  return edges;
+}
+
+// Count open neighbors (non-wall) around a cell in 8 directions.
+function countOpenNeighbors(types, x, y) {
+  let count = 0;
+  for (let dy = -1; dy <= 1; dy += 1) {
+    for (let dx = -1; dx <= 1; dx += 1) {
+      if (dx === 0 && dy === 0) {
+        continue;
+      }
+      const ny = y + dy;
+      const nx = x + dx;
+      if (ny < 0 || ny >= types.length || nx < 0 || nx >= types[0].length) {
+        continue;
+      }
+      if (types[ny][nx] !== 'wall') {
+        count += 1;
+      }
+    }
+  }
+  return count;
+}
+
+// Measure how many consecutive wall cells are available in a direction.
+function measureWallRun(types, originX, originY, direction, maxSteps) {
+  const height = types.length;
+  const width = height > 0 ? types[0].length : 0;
+  let run = 0;
+  for (let step = 1; step <= maxSteps; step += 1) {
+    const x = originX + direction.dx * step;
+    const y = originY + direction.dy * step;
+    if (x <= 0 || y <= 0 || x >= width - 1 || y >= height - 1) {
+      break;
+    }
+    if (types[y][x] !== 'wall') {
+      break;
+    }
+    run += 1;
+  }
+  return run;
+}
+
+// Carve a service tunnel from an origin with at most one controlled bend.
+function carveUnderrealmBranch(
+  types,
+  origin,
+  direction,
+  length,
+  corridorWidth,
+  turnChance,
+  rng,
+) {
+  let x = origin.x;
+  let y = origin.y;
+  let activeDirection = direction;
+  let bent = false;
+  const desiredLength = Math.max(1, Math.floor(length));
+  for (let step = 1; step <= desiredLength; step += 1) {
+    x += activeDirection.dx;
+    y += activeDirection.dy;
+    if (y <= 0 || y >= types.length - 1 || x <= 0 || x >= types[0].length - 1) {
+      break;
+    }
+    carveCorridorBrush(types, x, y, corridorWidth);
+    if (!bent
+        && turnChance > 0
+        && step >= Math.floor(desiredLength / 2)
+        && rng() < turnChance) {
+      const options = CARDINAL_DIRECTIONS
+        .filter(
+          (entry) => !(entry.dx === activeDirection.dx && entry.dy === activeDirection.dy),
+        )
+        .filter(
+          (entry) => !(entry.dx === -activeDirection.dx && entry.dy === -activeDirection.dy),
+        )
+        .map((entry) => ({
+          direction: entry,
+          run: measureWallRun(types, x, y, entry, Math.max(2, desiredLength - step)),
+        }))
+        .filter((entry) => entry.run >= 2);
+      if (options.length > 0) {
+        options.sort((left, right) => right.run - left.run);
+        activeDirection = options[0].direction;
+        bent = true;
+      }
+    }
+  }
+  if (rng() < 0.2) {
+    carveChamber(types, x, y, 1);
+  }
+}
+
+// Add engineered side shafts branching from caves.
+function addUnderrealmBranches(types, depth, terrainConfig, start, rng) {
+  const depthOffset = Math.max(0, depth - 1);
+  const branchCount = Math.max(
+    0,
+    terrainConfig.branchCountBase + terrainConfig.branchCountPerDepth * depthOffset,
+  );
+  if (branchCount <= 0) {
+    return;
+  }
+  const branchLengthMin = Math.min(terrainConfig.branchLengthMin, terrainConfig.branchLengthMax);
+  const branchLengthMax = Math.max(terrainConfig.branchLengthMin, terrainConfig.branchLengthMax);
+  const origins = collectTypeCells(types, new Set(['cave']));
+  if (origins.length === 0) {
+    return;
+  }
+  shuffleInPlaceWithRng(origins, rng);
+  let carved = 0;
+  for (const origin of origins) {
+    if (carved >= branchCount) {
+      break;
+    }
+    const distance = Math.abs(origin.x - start.x) + Math.abs(origin.y - start.y);
+    if (distance < 4) {
+      continue;
+    }
+    const targetLength = randomIntWithRng(rng, branchLengthMin, branchLengthMax);
+    const options = CARDINAL_DIRECTIONS
+      .map((direction) => ({
+        direction,
+        run: measureWallRun(types, origin.x, origin.y, direction, targetLength),
+      }))
+      .filter((entry) => entry.run >= branchLengthMin);
+    if (options.length === 0) {
+      continue;
+    }
+    options.sort((left, right) => right.run - left.run);
+    const topRun = options[0].run;
+    const topOptions = options.filter((entry) => entry.run === topRun);
+    const chosen = topOptions[randomIntWithRng(rng, 0, topOptions.length - 1)];
+    const branchLength = Math.min(targetLength, chosen.run);
+    carveUnderrealmBranch(
+      types,
+      origin,
+      chosen.direction,
+      branchLength,
+      terrainConfig.corridorWidth,
+      terrainConfig.branchTurnChance,
+      rng,
+    );
+    carved += 1;
+  }
+}
+
+// Convert parts of wide-open caves into wall pillars to improve readability.
+function addUnderrealmPillars(types, depth, terrainConfig, start, rng) {
+  const depthOffset = Math.max(0, depth - 1);
+  const pillarRatio = clamp(
+    terrainConfig.pillarRatioBase + terrainConfig.pillarRatioPerDepth * depthOffset,
+    0,
+    0.5,
+  );
+  if (pillarRatio <= 0) {
+    return;
+  }
+  const candidates = [];
+  for (let y = 1; y < types.length - 1; y += 1) {
+    for (let x = 1; x < types[0].length - 1; x += 1) {
+      if (types[y][x] !== 'cave') {
+        continue;
+      }
+      const distance = Math.abs(x - start.x) + Math.abs(y - start.y);
+      if (distance < 5) {
+        continue;
+      }
+      const openNeighbors = countOpenNeighbors(types, x, y);
+      if (openNeighbors >= terrainConfig.pillarOpenNeighborsMin) {
+        candidates.push({ x, y });
+      }
+    }
+  }
+  if (candidates.length === 0) {
+    return;
+  }
+  shuffleInPlaceWithRng(candidates, rng);
+  const targetCount = Math.floor(candidates.length * pillarRatio);
+  for (let i = 0; i < targetCount; i += 1) {
+    const cell = candidates[i];
+    if (!cell) {
+      break;
+    }
+    types[cell.y][cell.x] = 'wall';
+  }
+}
+
+// Keep only walkable cave tiles connected to the start chamber.
+function pruneDisconnectedCaves(types, startX, startY) {
+  const height = types.length;
+  const width = height > 0 ? types[0].length : 0;
+  if (width <= 0 || height <= 0) {
+    return;
+  }
+  const walkableSet = new Set(['cave']);
+  const startInBounds = startX >= 0 && startY >= 0 && startX < width && startY < height;
+  if (!startInBounds || !walkableSet.has(types[startY][startX])) {
+    return;
+  }
+  const visited = Array.from({ length: height }, () => new Array(width).fill(false));
+  const queue = [{ x: startX, y: startY }];
+  let queueIndex = 0;
+  visited[startY][startX] = true;
+  while (queueIndex < queue.length) {
+    const current = queue[queueIndex];
+    queueIndex += 1;
+    const neighbors = [
+      { x: current.x + 1, y: current.y },
+      { x: current.x - 1, y: current.y },
+      { x: current.x, y: current.y + 1 },
+      { x: current.x, y: current.y - 1 },
+    ];
+    for (const next of neighbors) {
+      if (next.x < 0 || next.y < 0 || next.x >= width || next.y >= height) {
+        continue;
+      }
+      if (visited[next.y][next.x]) {
+        continue;
+      }
+      if (!walkableSet.has(types[next.y][next.x])) {
+        continue;
+      }
+      visited[next.y][next.x] = true;
+      queue.push(next);
+    }
+  }
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      if (walkableSet.has(types[y][x]) && !visited[y][x]) {
+        types[y][x] = 'wall';
+      }
+    }
+  }
+}
+
+// Collect all coordinates matching a whitelist of terrain types.
+function collectTypeCells(types, allowed) {
+  const cells = [];
+  for (let y = 0; y < types.length; y += 1) {
+    for (let x = 0; x < types[0].length; x += 1) {
+      if (allowed.has(types[y][x])) {
+        cells.push({ x, y });
+      }
+    }
+  }
+  return cells;
+}
+
+// Place thematic underrealm feature tiles (chasm, crystal, magma, shrine).
+function placeUnderrealmFeatures(types, depth, terrainConfig, start, rng) {
+  const availableCave = collectTypeCells(types, new Set(['cave']));
+  if (availableCave.length === 0) {
+    return;
+  }
+  shuffleInPlaceWithRng(availableCave, rng);
+  const depthOffset = Math.max(0, depth - 1);
+  const chasmRatio = clamp(
+    terrainConfig.chasmRatioBase + terrainConfig.chasmRatioPerDepth * depthOffset,
+    0,
+    0.6,
+  );
+  const crystalRatio = clamp(
+    terrainConfig.crystalRatioBase + terrainConfig.crystalRatioPerDepth * depthOffset,
+    0,
+    0.6,
+  );
+  const magmaRatio = depth >= terrainConfig.magmaMinDepth
+    ? clamp(
+      terrainConfig.magmaRatioBase + terrainConfig.magmaRatioPerDepth * depthOffset,
+      0,
+      0.6,
+    )
+    : 0;
+  const shrineCount = depth >= terrainConfig.shrineMinDepth
+    ? Math.max(
+      0,
+      terrainConfig.shrineCountBase + terrainConfig.shrineCountPerDepth * depthOffset,
+    )
+    : 0;
+  const reserved = new Set([`${start.x},${start.y}`]);
+  let index = 0;
+  const placeRatio = (ratio, tileType, minDistanceFromStart) => {
+    const count = Math.max(0, Math.floor(availableCave.length * ratio));
+    let placed = 0;
+    while (index < availableCave.length && placed < count) {
+      const cell = availableCave[index];
+      index += 1;
+      const key = `${cell.x},${cell.y}`;
+      if (reserved.has(key)) {
+        continue;
+      }
+      const dist = Math.abs(cell.x - start.x) + Math.abs(cell.y - start.y);
+      if (dist < minDistanceFromStart) {
+        continue;
+      }
+      types[cell.y][cell.x] = tileType;
+      reserved.add(key);
+      placed += 1;
+    }
+  };
+  placeRatio(chasmRatio, 'chasm', 4);
+  placeRatio(crystalRatio, 'crystal', 3);
+  placeRatio(magmaRatio, 'magma', 8);
+
+  const shrineCandidates = collectTypeCells(types, new Set(['cave', 'crystal']));
+  shuffleInPlaceWithRng(shrineCandidates, rng);
+  let placedShrines = 0;
+  for (const cell of shrineCandidates) {
+    if (placedShrines >= shrineCount) {
+      break;
+    }
+    const key = `${cell.x},${cell.y}`;
+    if (reserved.has(key)) {
+      continue;
+    }
+    const dist = Math.abs(cell.x - start.x) + Math.abs(cell.y - start.y);
+    if (dist < 6) {
+      continue;
+    }
+    types[cell.y][cell.x] = 'shrine';
+    reserved.add(key);
+    placedShrines += 1;
+  }
+}
+
+// Build a walkable matrix from terrain type rules.
+function buildUnderrealmWalkableMap(types, walkableTypes) {
+  const height = types.length;
+  const width = height > 0 ? types[0].length : 0;
+  const walkable = Array.from({ length: height }, () => new Array(width).fill(false));
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const type = types[y][x];
+      walkable[y][x] = Boolean(walkableTypes[type] !== false);
+    }
+  }
+  return walkable;
+}
+
+// Build spawnable cells reachable from a starting tile.
+function buildUnderrealmSpawnableMap(walkable, startX, startY) {
+  const height = walkable.length;
+  const width = height > 0 ? walkable[0].length : 0;
+  if (width <= 0 || height <= 0) {
+    return null;
+  }
+  const spawnable = Array.from({ length: height }, () => new Array(width).fill(false));
+  if (startX < 0 || startY < 0 || startX >= width || startY >= height) {
+    return spawnable;
+  }
+  if (!walkable[startY][startX]) {
+    return spawnable;
+  }
+  const queue = [{ x: startX, y: startY }];
+  let queueIndex = 0;
+  spawnable[startY][startX] = true;
+  while (queueIndex < queue.length) {
+    const current = queue[queueIndex];
+    queueIndex += 1;
+    const neighbors = [
+      { x: current.x + 1, y: current.y },
+      { x: current.x - 1, y: current.y },
+      { x: current.x, y: current.y + 1 },
+      { x: current.x, y: current.y - 1 },
+    ];
+    for (const next of neighbors) {
+      if (next.x < 0 || next.y < 0 || next.x >= width || next.y >= height) {
+        continue;
+      }
+      if (!walkable[next.y][next.x] || spawnable[next.y][next.x]) {
+        continue;
+      }
+      spawnable[next.y][next.x] = true;
+      queue.push(next);
+    }
+  }
+  return spawnable;
+}
+
+// Generate terrain for an underrealm layer using cave chambers and corridors.
+function createUnderrealmLayerTerrain(config, width, height, seed, depth) {
+  if (width <= 0 || height <= 0) {
+    return null;
+  }
+  const terrainConfig = getUnderrealmTerrainConfig(config);
+  const rng = createUnderrealmRng(Number(seed || 1) + depth * 7919);
+  let types = createInitialUnderrealmLayout(
+    width,
+    height,
+    terrainConfig.wallFillRatio,
+    rng,
+  );
+  types = smoothUnderrealmLayout(types, terrainConfig.smoothPasses);
+
+  const start = {
+    x: clamp(Math.floor(width / 2), 1, Math.max(1, width - 2)),
+    y: clamp(Math.floor(height / 2), 1, Math.max(1, height - 2)),
+  };
+  carveChamber(types, start.x, start.y, terrainConfig.startChamberRadius);
+  const chamberCount = terrainConfig.chamberCountBase
+    + Math.max(0, depth - 1) * terrainConfig.chamberCountPerDepth;
+  const chamberRadiusMin = Math.min(
+    terrainConfig.chamberRadiusMin,
+    terrainConfig.chamberRadiusMax,
+  );
+  const chamberRadiusMax = Math.max(
+    terrainConfig.chamberRadiusMin,
+    terrainConfig.chamberRadiusMax,
+  );
+  const chambers = [{ ...start }];
+  for (let index = 1; index < chamberCount; index += 1) {
+    const radius = randomIntWithRng(rng, chamberRadiusMin, chamberRadiusMax);
+    const centerX = randomIntWithRng(rng, radius + 1, Math.max(radius + 1, width - radius - 2));
+    const centerY = randomIntWithRng(rng, radius + 1, Math.max(radius + 1, height - radius - 2));
+    const center = { x: centerX, y: centerY };
+    carveChamber(types, center.x, center.y, radius);
+    chambers.push(center);
+  }
+  const depthOffset = Math.max(0, depth - 1);
+  const loopCount = Math.max(
+    0,
+    terrainConfig.loopCountBase + terrainConfig.loopCountPerDepth * depthOffset,
+  );
+  const connections = buildUnderrealmChamberConnections(chambers, loopCount);
+  for (const edge of connections) {
+    const from = chambers[edge.aIndex];
+    const to = chambers[edge.bIndex];
+    if (!from || !to) {
+      continue;
+    }
+    carveCorridor(types, from, to, terrainConfig.corridorWidth, rng);
+  }
+
+  addUnderrealmBranches(types, depth, terrainConfig, start, rng);
+  addUnderrealmPillars(types, depth, terrainConfig, start, rng);
+  pruneDisconnectedCaves(types, start.x, start.y);
+  placeUnderrealmFeatures(types, depth, terrainConfig, start, rng);
+  const walkable = buildUnderrealmWalkableMap(types, terrainConfig.walkableTypes);
+  const spawnable = buildUnderrealmSpawnableMap(walkable, start.x, start.y);
+  return {
+    width,
+    height,
+    seed: Math.floor(Number(seed || 1)) || 1,
+    start: { x: start.x, y: start.y },
+    types,
+    walkable,
+    spawnable,
+    symbols: terrainConfig.symbols,
+    walkableTypes: terrainConfig.walkableTypes,
+  };
+}
+
+// Build or refresh dedicated underrealm crew metadata.
+function createUnderrealmCrewState(config, previousCrew) {
+  const underrealm = getUnderrealmConfig(config);
+  const crewConfig = underrealm.crew || {};
+  const roles = crewConfig.roles || {};
+  const previousAssigned = previousCrew && previousCrew.assignedByDepth
+    ? previousCrew.assignedByDepth
+    : {};
+  const assignedByDepth = {};
+  for (const [depth, count] of Object.entries(previousAssigned)) {
+    const safeDepth = String(depth);
+    const safeCount = Math.max(0, Math.floor(Number(count || 0)));
+    assignedByDepth[safeDepth] = safeCount;
+  }
+  return {
+    enabled: crewConfig.enabled !== false,
+    surfaceReserveRatio: clamp(Number(crewConfig.surface_reserve_ratio ?? 0.4), 0, 1),
+    maxUnderrealmRatio: clamp(Number(crewConfig.max_underrealm_ratio ?? 0.6), 0, 1),
+    depthWeightGrowth: Math.max(0, Number(crewConfig.depth_weight_growth ?? 0.18)),
+    populationBonusPerAssigned: Math.max(
+      0,
+      Number(crewConfig.population_bonus_per_assigned ?? 0.35),
+    ),
+    unlockPopulationBonusPerDepth: Math.max(
+      0,
+      Math.floor(Number(crewConfig.unlock_population_bonus_per_depth ?? 18)),
+    ),
+    roles: {
+      minerRatio: clamp(Number(roles.miner_ratio ?? 0.12), 0, 1),
+      haulerRatio: clamp(Number(roles.hauler_ratio ?? 0.08), 0, 1),
+      guardRatio: clamp(Number(roles.guard_ratio ?? 0.05), 0, 1),
+    },
+    assignedByDepth,
+    rolesByDepth: previousCrew && previousCrew.rolesByDepth
+      ? { ...previousCrew.rolesByDepth }
+      : {},
+    membersByDepth: previousCrew && previousCrew.membersByDepth
+      ? { ...previousCrew.membersByDepth }
+      : {},
+    totalAssigned: Math.max(0, Number(previousCrew && previousCrew.totalAssigned || 0)),
+    surfaceAdults: Math.max(0, Number(previousCrew && previousCrew.surfaceAdults || 0)),
+  };
+}
+
+// Resolve Underrealm discovery settings.
+function getUnderrealmDiscoveryConfig(config) {
+  const underrealm = getUnderrealmConfig(config);
+  const discovery = underrealm.discovery || {};
+  const minTick = Math.max(0, Math.floor(Number(discovery.min_tick ?? 140)));
+  const maxTick = Math.max(minTick, Math.floor(Number(discovery.max_tick ?? 340)));
+  const populationMin = Math.max(
+    1,
+    Math.floor(Number(discovery.population_min_for_timer ?? 100)),
+  );
+  const populationMax = Math.max(
+    populationMin,
+    Math.floor(Number(discovery.population_max_for_timer ?? 150)),
+  );
+  return {
+    enabled: discovery.enabled !== false,
+    minTick,
+    maxTick,
+    populationMin,
+    populationMax,
+    seedOffset: Math.floor(Number(discovery.seed_offset ?? 911)),
+  };
+}
+
+// Check whether a point is inside current terrain bounds.
+function isValidTerrainPoint(terrain, point) {
+  if (!terrain || !point) {
+    return false;
+  }
+  const x = Math.floor(Number(point.x));
+  const y = Math.floor(Number(point.y));
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    return false;
+  }
+  return x >= 0
+    && y >= 0
+    && x < Number(terrain.width || 0)
+    && y < Number(terrain.height || 0);
+}
+
+// Pick a deterministic surface gate tile for underrealm discovery.
+function pickUnderrealmDiscoveryGate(terrain, seed) {
+  if (!terrain || !terrain.types) {
+    return { x: 0, y: 0 };
+  }
+  const width = Math.max(1, Number(terrain.width || 1));
+  const height = Math.max(1, Number(terrain.height || 1));
+  const candidates = [];
+  const map = terrain.spawnable || terrain.walkable || null;
+  if (Array.isArray(map) && map.length > 0) {
+    for (let y = 0; y < height; y += 1) {
+      const row = map[y];
+      if (!row) {
+        continue;
+      }
+      for (let x = 0; x < width; x += 1) {
+        if (row[x] === true) {
+          candidates.push({ x, y });
+        }
+      }
+    }
+  }
+  if (candidates.length === 0) {
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        candidates.push({ x, y });
+      }
+    }
+  }
+  if (candidates.length === 0) {
+    return { x: 0, y: 0 };
+  }
+  const rng = createUnderrealmRng(seed);
+  const index = randomIntWithRng(rng, 0, Math.max(0, candidates.length - 1));
+  return candidates[index] || { x: 0, y: 0 };
+}
+
+// Build or refresh underrealm discovery runtime state.
+function createUnderrealmDiscoveryState(config, surfaceTerrain, baseSeed, previousDiscovery, maxUnlockedDepth) {
+  const discoveryConfig = getUnderrealmDiscoveryConfig(config);
+  const discoverySeed = Math.floor(Number(baseSeed || 1)) + discoveryConfig.seedOffset;
+  const previousGate = previousDiscovery && previousDiscovery.surfaceGate
+    ? previousDiscovery.surfaceGate
+    : null;
+  const surfaceGate = isValidTerrainPoint(surfaceTerrain, previousGate)
+    ? {
+      x: Math.floor(Number(previousGate.x || 0)),
+      y: Math.floor(Number(previousGate.y || 0)),
+    }
+    : pickUnderrealmDiscoveryGate(surfaceTerrain, discoverySeed + 271);
+  const delayRng = createUnderrealmRng(discoverySeed + 541);
+  const populationRng = createUnderrealmRng(discoverySeed + 733);
+  const defaultDelayTicks = randomIntWithRng(
+    delayRng,
+    discoveryConfig.minTick,
+    discoveryConfig.maxTick,
+  );
+  const defaultPopulationThreshold = randomIntWithRng(
+    populationRng,
+    discoveryConfig.populationMin,
+    discoveryConfig.populationMax,
+  );
+  const delayTicksRaw = previousDiscovery
+    ? Number(previousDiscovery.delayTicks)
+    : defaultDelayTicks;
+  const delayTicks = Number.isFinite(delayTicksRaw)
+    ? Math.max(0, Math.floor(delayTicksRaw))
+    : defaultDelayTicks;
+  const thresholdRaw = previousDiscovery
+    ? Number(previousDiscovery.populationThreshold)
+    : defaultPopulationThreshold;
+  const populationThreshold = Number.isFinite(thresholdRaw)
+    ? Math.max(1, Math.floor(thresholdRaw))
+    : defaultPopulationThreshold;
+  const timerStartedTickRaw = previousDiscovery
+    ? Number(previousDiscovery.timerStartedTick)
+    : NaN;
+  let timerStartedTick = Number.isFinite(timerStartedTickRaw)
+    ? Math.max(0, Math.floor(timerStartedTickRaw))
+    : null;
+  const targetTickRaw = previousDiscovery ? Number(previousDiscovery.targetTick) : NaN;
+  let targetTick = Number.isFinite(targetTickRaw)
+    ? Math.max(0, Math.floor(targetTickRaw))
+    : 0;
+  if (timerStartedTick !== null && targetTick <= 0) {
+    targetTick = timerStartedTick + delayTicks;
+  }
+  if (previousDiscovery
+      && timerStartedTick === null
+      && targetTick > 0) {
+    timerStartedTick = Math.max(0, targetTick - delayTicks);
+  }
+  const unlockedDepth = Math.max(0, Math.floor(Number(maxUnlockedDepth || 0)));
+  const found = previousDiscovery
+    ? previousDiscovery.found === true
+    : unlockedDepth > 0;
+  const foundTickRaw = previousDiscovery ? Number(previousDiscovery.foundTick) : NaN;
+  const foundTick = Number.isFinite(foundTickRaw)
+    ? Math.max(0, Math.floor(foundTickRaw))
+    : null;
+  return {
+    enabled: discoveryConfig.enabled,
+    targetTick,
+    delayTicks,
+    timerStartedTick,
+    populationThreshold,
+    found,
+    foundTick,
+    surfaceGate,
+  };
+}
+
+// Build or refresh underrealm deep-lift progression runtime state.
+function createUnderrealmLiftState(previousLift) {
+  const fallback = {
+    active: false,
+    fromDepth: 0,
+    targetDepth: 0,
+    startedTick: 0,
+    ticksRemaining: 0,
+    totalTicks: 0,
+    requiredSurveyRatio: 0,
+    requiredStockpile: {},
+    requiredMined: {},
+  };
+  if (!previousLift || typeof previousLift !== 'object') {
+    return fallback;
+  }
+  return {
+    active: previousLift.active === true,
+    fromDepth: Math.max(0, Math.floor(Number(previousLift.fromDepth || 0))),
+    targetDepth: Math.max(0, Math.floor(Number(previousLift.targetDepth || 0))),
+    startedTick: Math.max(0, Math.floor(Number(previousLift.startedTick || 0))),
+    ticksRemaining: Math.max(0, Math.floor(Number(previousLift.ticksRemaining || 0))),
+    totalTicks: Math.max(0, Math.floor(Number(previousLift.totalTicks || 0))),
+    requiredSurveyRatio: Math.max(0, Number(previousLift.requiredSurveyRatio || 0)),
+    requiredStockpile: previousLift.requiredStockpile && typeof previousLift.requiredStockpile === 'object'
+      ? { ...previousLift.requiredStockpile }
+      : {},
+    requiredMined: previousLift.requiredMined && typeof previousLift.requiredMined === 'object'
+      ? { ...previousLift.requiredMined }
+      : {},
+  };
+}
+
+// Build or refresh underrealm shrine runtime state.
+function createUnderrealmShrineState(previousShrines) {
+  if (!previousShrines || typeof previousShrines !== 'object') {
+    return null;
+  }
+  const wardChargesByDepth = previousShrines.wardChargesByDepth
+    && typeof previousShrines.wardChargesByDepth === 'object'
+    ? { ...previousShrines.wardChargesByDepth }
+    : {};
+  const oathByDepth = previousShrines.oathByDepth
+    && typeof previousShrines.oathByDepth === 'object'
+    ? { ...previousShrines.oathByDepth }
+    : {};
+  const stats = previousShrines.stats && typeof previousShrines.stats === 'object'
+    ? {
+      ...previousShrines.stats,
+      prospectionFinds: previousShrines.stats.prospectionFinds
+        && typeof previousShrines.stats.prospectionFinds === 'object'
+        ? { ...previousShrines.stats.prospectionFinds }
+        : {},
+    }
+    : {
+      chargesCreated: 0,
+      chargesSpent: 0,
+      oathSuccesses: 0,
+      oathFailures: 0,
+      prospectionFinds: {},
+    };
+  return {
+    wardChargesByDepth,
+    oathByDepth,
+    stats,
+  };
+}
+
+// Build underrealm runtime state with full-size depth layers.
+function createUnderrealmState(config, runtime, surfaceTerrain, previousUnderrealm) {
+  const underrealm = getUnderrealmConfig(config);
+  if (underrealm.enabled === false) {
+    return null;
+  }
+  const maxDepth = Math.max(0, Math.floor(Number(underrealm.max_depth ?? 5)));
+  if (maxDepth <= 0) {
+    return null;
+  }
+  if (!surfaceTerrain || !surfaceTerrain.types) {
+    return null;
+  }
+  const baseSeed = surfaceTerrain && Number.isFinite(surfaceTerrain.seed)
+    ? Number(surfaceTerrain.seed)
+    : 1;
+  const sizeConfig = getUnderrealmDepthSizeConfig(config, runtime);
+  const startUnlockedDepth = clamp(
+    Math.floor(Number(underrealm.start_unlocked_depth ?? 0)),
+    0,
+    maxDepth,
+  );
+  const previousUnlockedDepth = previousUnderrealm
+    ? Math.floor(Number(previousUnderrealm.maxUnlockedDepth || 0))
+    : startUnlockedDepth;
+  let maxUnlockedDepth = clamp(previousUnlockedDepth, 0, maxDepth);
+  const discovery = createUnderrealmDiscoveryState(
+    config,
+    surfaceTerrain,
+    baseSeed,
+    previousUnderrealm ? previousUnderrealm.discovery : null,
+    maxUnlockedDepth,
+  );
+  if (discovery.enabled && discovery.found !== true) {
+    maxUnlockedDepth = 0;
+  } else if (maxUnlockedDepth > 0 && discovery.found !== true) {
+    discovery.found = true;
+  }
+  const startActiveDepth = clamp(
+    Math.floor(Number(underrealm.start_active_depth ?? 0)),
+    0,
+    maxUnlockedDepth,
+  );
+  const previousActiveDepth = previousUnderrealm
+    ? Math.floor(Number(previousUnderrealm.activeDepth || 0))
+    : startActiveDepth;
+  const activeDepth = clamp(previousActiveDepth, 0, maxUnlockedDepth);
+  const difficultyPerDepth = clamp(Number(underrealm.difficulty_per_depth ?? 0.08), 0, 1);
+  const rareDropPerDepth = clamp(Number(underrealm.rare_drop_per_depth ?? 0.1), 0, 1);
+  const previousLayers = previousUnderrealm && Array.isArray(previousUnderrealm.layers)
+    ? previousUnderrealm.layers
+    : [];
+  const previousByDepth = new Map();
+  for (const layer of previousLayers) {
+    const depth = Math.floor(Number(layer && layer.depth || 0));
+    if (depth > 0) {
+      previousByDepth.set(depth, layer);
+    }
+  }
+  const layers = [];
+  for (let depth = 1; depth <= maxDepth; depth += 1) {
+    const size = resolveUnderrealmLayerSize(depth, sizeConfig);
+    const layerSeed = getUnderrealmLayerSeed(baseSeed, underrealm, depth);
+    const previousLayer = previousByDepth.get(depth);
+    const terrain = createUnderrealmLayerTerrain(
+      config,
+      size.width,
+      size.height,
+      layerSeed,
+      depth,
+    );
+    layers.push({
+      depth,
+      unlocked: depth <= maxUnlockedDepth,
+      width: size.width,
+      height: size.height,
+      terrain,
+      difficultyMultiplier: 1 + difficultyPerDepth * (depth - 1),
+      rareDropMultiplier: 1 + rareDropPerDepth * (depth - 1),
+      economy: previousLayer && previousLayer.economy
+        ? previousLayer.economy
+        : null,
+    });
+  }
+  return {
+    enabled: true,
+    maxDepth,
+    maxUnlockedDepth,
+    activeDepth,
+    layers,
+    discovery,
+    lift: createUnderrealmLiftState(previousUnderrealm ? previousUnderrealm.lift : null),
+    crew: createUnderrealmCrewState(config, previousUnderrealm ? previousUnderrealm.crew : null),
+    economy: previousUnderrealm && previousUnderrealm.economy
+      ? previousUnderrealm.economy
+      : null,
+    shrines: createUnderrealmShrineState(previousUnderrealm ? previousUnderrealm.shrines : null),
+    deepFaction: previousUnderrealm && previousUnderrealm.deepFaction
+      ? previousUnderrealm.deepFaction
+      : null,
+  };
+}
+
 // Build the initial simulation state.
 function createInitialState(config, runtime) {
   const terrain = createTerrain(config, runtime, null);
@@ -116,6 +1282,7 @@ function createInitialState(config, runtime) {
   const roads = createRoadState(config, runtime);
   const temple = createTempleState(config);
   const prestige = createPrestigeState(config);
+  const underrealm = createUnderrealmState(config, runtime, terrain, null);
 
   return {
     tick: 0,
@@ -138,6 +1305,7 @@ function createInitialState(config, runtime) {
     pasture,
     wildlife,
     terrain,
+    underrealm,
     roads,
     temple,
     prestige,
@@ -194,6 +1362,7 @@ function createInitialState(config, runtime) {
       starvation: 0,
       oldAge: 0,
       raid: 0,
+      deepRaid: 0,
       hunt: 0,
       ruins: 0,
     },
@@ -807,6 +1976,7 @@ function syncTerrainToGrid(state, runtime, config) {
         && (state.terrain.width !== runtime.gridWidth || state.terrain.height !== runtime.gridHeight)) {
       state.terrain = null;
     }
+    state.underrealm = null;
     return;
   }
 
@@ -814,6 +1984,7 @@ function syncTerrainToGrid(state, runtime, config) {
   if (terrainConfig.enabled === false) {
     state.terrain = null;
     state.pasture = null;
+    state.underrealm = null;
     if (state) {
       state.villageCenter = null;
       state.villages = null;
@@ -849,6 +2020,20 @@ function syncTerrainToGrid(state, runtime, config) {
       }
     }
   }
+  syncUnderrealmToGrid(state, runtime, config);
+}
+
+// Sync underrealm layer data to the current runtime grid size.
+function syncUnderrealmToGrid(state, runtime, config) {
+  if (!state) {
+    return;
+  }
+  state.underrealm = createUnderrealmState(
+    config,
+    runtime,
+    state.terrain,
+    state.underrealm,
+  );
 }
 
 // Clamp an entity into the grid and re-place if occupied.

@@ -10,6 +10,16 @@ const SECTION_RUNES = {
   MAP: 'ᚨ',
 };
 
+function getActiveUnderrealmDepth(state) {
+  const underrealm = state && state.underrealm;
+  if (!underrealm || underrealm.enabled === false) {
+    return 0;
+  }
+  const maxUnlockedDepth = Math.max(0, Math.floor(Number(underrealm.maxUnlockedDepth || 0)));
+  const activeDepth = Math.max(0, Math.floor(Number(underrealm.activeDepth || 0)));
+  return clamp(activeDepth, 0, maxUnlockedDepth);
+}
+
 // Build a legend panel descriptor when enabled.
 function buildLegendPanel(state, config, runtime) {
   const uiConfig = (config.display && config.display.legend_panel) || {};
@@ -35,7 +45,10 @@ function buildLegendPanel(state, config, runtime) {
   const contentWidth = Math.max(1, innerWidth - 1);
   const innerHeight = Math.max(1, height - 2);
 
-  const { legendParts, terrainParts } = buildLegendSections(config, { detailed: true });
+  const { legendParts, terrainParts } = buildLegendSections(config, {
+    detailed: true,
+    underrealmActive: getActiveUnderrealmDepth(state) > 0,
+  });
   const lines = buildLegendLines(legendParts, terrainParts, contentWidth, innerHeight);
   const panelLines = buildPanelBox(lines, innerWidth, contentWidth);
 

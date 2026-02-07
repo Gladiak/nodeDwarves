@@ -6,6 +6,7 @@ const { getSeasonModifier } = require("./season");
 const { getRoleConfig, isEmergencyGather } = require("./roles");
 const { isAdult, getHousingNeed } = require("./population");
 const { addTerrainResourcesToSet } = require("./terrain");
+const { getAlchemyMultiplier } = require("./alchemy");
 const {
   createGatherJob,
   getStockpileTarget,
@@ -197,7 +198,13 @@ function assignJobs(state, config, runtime, action) {
 
 // Check whether a dwarf can be assigned work.
 function canWork(dwarf, config) {
-  return isAdult(dwarf, config) && !dwarf.expedition;
+  const underrealmDutyActive = Boolean(
+    dwarf
+    && dwarf.underrealmDuty
+    && dwarf.underrealmDuty.active !== false
+    && Number(dwarf.underrealmDuty.depth || 0) > 0,
+  );
+  return isAdult(dwarf, config) && !dwarf.expedition && !underrealmDutyActive;
 }
 
 // Take an idle dwarf with the requested role if available.
@@ -233,8 +240,8 @@ function orderIdleDwarves(idleDwarves) {
 }
 
 // Apply clan build tick modifiers to a job, if applicable.
-function applyClanBuildTicks(job, dwarf, config) {
-  if (!job || !dwarf) {
+function applyClanBuildTicks(job, dwarf, config, state) {
+  if (!job) {
     return;
   }
   if (
@@ -245,13 +252,16 @@ function applyClanBuildTicks(job, dwarf, config) {
   ) {
     return;
   }
-  const clanEffects = getClanEffects(config, dwarf.clanId);
-  const bonus = Math.max(0, Number(clanEffects.build_ticks_bonus || 0));
-  if (bonus <= 0) {
+  const clanEffects = dwarf ? getClanEffects(config, dwarf.clanId) : {};
+  const clanBonus = Math.max(0, Number(clanEffects.build_ticks_bonus || 0));
+  const clanMultiplier = Math.max(0, 1 - clanBonus);
+  const alchemyMultiplier = getAlchemyMultiplier(state, config, "buildTicks", 1);
+  const totalMultiplier = Math.max(0.1, clanMultiplier * alchemyMultiplier);
+  if (Math.abs(totalMultiplier - 1) < 0.0001) {
     return;
   }
   const workRemaining = Math.max(1, Number(job.workRemaining || 1));
-  job.workRemaining = Math.max(1, Math.round(workRemaining * (1 - bonus)));
+  job.workRemaining = Math.max(1, Math.round(workRemaining * totalMultiplier));
 }
 
 // Clone a cost map while keeping only positive numeric values.
@@ -487,7 +497,7 @@ function assignManagedStructureJobs(state, config, runtime, idleDwarves, buildQu
       return;
     }
     buildJob.dwarfId = dwarf.id;
-    applyClanBuildTicks(buildJob, dwarf, config);
+    applyClanBuildTicks(buildJob, dwarf, config, state);
     dwarf.job = buildJob;
     state.jobs.push(buildJob);
     reserveBuildQueue(buildQueue, buildJob);
@@ -597,7 +607,7 @@ function assignBuildJobIfNeeded(
       return;
     }
     buildJob.dwarfId = dwarf.id;
-    applyClanBuildTicks(buildJob, dwarf, config);
+    applyClanBuildTicks(buildJob, dwarf, config, state);
     dwarf.job = buildJob;
     state.jobs.push(buildJob);
     reserveBuildQueue(buildQueue, buildJob);
@@ -639,7 +649,7 @@ function assignExtraMineJobIfNeeded(
       return;
     }
     buildJob.dwarfId = dwarf.id;
-    applyClanBuildTicks(buildJob, dwarf, config);
+    applyClanBuildTicks(buildJob, dwarf, config, state);
     dwarf.job = buildJob;
     state.jobs.push(buildJob);
     reserveMineQueue(mineQueue, buildJob, buildQueue);
@@ -678,7 +688,7 @@ function assignBreweryJobs(state, config, runtime, brewers, buildQueue) {
           return;
         }
         buildJob.dwarfId = dwarf.id;
-        applyClanBuildTicks(buildJob, dwarf, config);
+        applyClanBuildTicks(buildJob, dwarf, config, state);
         dwarf.job = buildJob;
         state.jobs.push(buildJob);
         reserveBuildQueue(buildQueue, buildJob);
@@ -1000,7 +1010,7 @@ function assignToolUpgradeJob(
     cost: cloneCost(cost),
   };
 
-  applyClanBuildTicks(job, dwarf, config);
+  applyClanBuildTicks(job, dwarf, config, state);
   dwarf.job = job;
   state.jobs.push(job);
 }
@@ -1110,7 +1120,7 @@ function assignStructureUpgradeJob(
       cost: cloneCost(cost),
     };
 
-    applyClanBuildTicks(job, dwarf, config);
+    applyClanBuildTicks(job, dwarf, config, state);
     dwarf.job = job;
     state.jobs.push(job);
     return;
