@@ -22,9 +22,7 @@ trade-offs emerge from shortages, weather, raids, and long-term growth pressure.
 - 🏛️ Dwarf Temple of Ancestors: biome-aware multi-stage final work with prestige growth.
 - ⚗️ Alchemy Lab rites: burn rare minerals for powerful global buffs, then survive the backlash.
 - 🛡️ Clan culture traits that create trade-offs without micromanagement.
-- 🕳️ Underrealm Front (phase 1): depth layers with engineered dwarven halls and dense stone-hewn caverns.
-- 🧬 Underrealm Front (phase 3): population-triggered secret gate discovery, slower Deep Lift progression for lower depths, visible lift markers per depth, dedicated delver crews, and deep-hostile incursions on walkable tiles (`☠`).
-- 🛡️ Underrealm Front (phase 4): Ancestor Shrines now power ward charges, delver oath cycles, and deep prospection drops (`VoidShard`, `EmberResin`) for new alchemy rites.
+- 🕳️ Underrealm Front: depth layers with engineered dwarven halls and dense stone-hewn caverns.
 - 📊 HUD readability: Underrealm telemetry has its own dedicated HUD block for depth operations.
 - 🤖 AI training in Python (PPO) with JS-only inference.
 - 🧩 Modular architecture (simulation, state, render, AI) for sane iteration.
