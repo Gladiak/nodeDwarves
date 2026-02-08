@@ -611,6 +611,7 @@ function createValleyTerrain(runtime, settings, seed, config) {
   ensureMinimumRuinSpawnTiles(types, carved, config, rng);
 
   const walkable = buildWalkableMap(types, settings.walkable);
+  applyRuntimeInsetMask(walkable, runtime);
   const spawnable = buildSpawnableMap(walkable);
 
   return {
@@ -623,6 +624,31 @@ function createValleyTerrain(runtime, settings, seed, config) {
     walkableTypes: settings.walkable,
     symbols: settings.symbols,
   };
+}
+
+// Carve runtime map inset cells out of walkable/spawnable simulation space.
+function applyRuntimeInsetMask(walkable, runtime) {
+  if (!walkable || walkable.length === 0) {
+    return;
+  }
+  const inset = runtime && runtime.mapInset;
+  if (!inset || inset.reserveSimulationSpace === false) {
+    return;
+  }
+  const height = walkable.length;
+  const width = walkable[0].length || 0;
+  if (width <= 0 || height <= 0) {
+    return;
+  }
+  const minX = clamp(Math.floor(Number(inset.x || 0)), 0, width - 1);
+  const minY = clamp(Math.floor(Number(inset.y || 0)), 0, height - 1);
+  const maxX = clamp(minX + Math.max(0, Math.floor(Number(inset.width || 0))) - 1, minX, width - 1);
+  const maxY = clamp(minY + Math.max(0, Math.floor(Number(inset.height || 0))) - 1, minY, height - 1);
+  for (let y = minY; y <= maxY; y += 1) {
+    for (let x = minX; x <= maxX; x += 1) {
+      walkable[y][x] = false;
+    }
+  }
 }
 
 // Ensure a minimum number of spawn tiles for ruins.

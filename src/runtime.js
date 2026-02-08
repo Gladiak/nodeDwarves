@@ -1,11 +1,80 @@
 'use strict';
 
+// Clamp a number between min and max bounds.
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+
+// Resolve a top-right map inset rectangle from display config.
+function resolveMapInsetRect(display, gridWidth, gridHeight) {
+  const insetConfig = display && display.mapInset ? display.mapInset : null;
+  if (!insetConfig || insetConfig.enabled === false) {
+    return null;
+  }
+  if (gridWidth <= 0 || gridHeight <= 0) {
+    return null;
+  }
+
+  const marginTop = Math.max(0, Math.floor(Number(insetConfig.marginTop ?? 1)));
+  const marginRight = Math.max(0, Math.floor(Number(insetConfig.marginRight ?? 1)));
+  const maxWidth = Math.max(0, gridWidth - marginRight);
+  const maxHeight = Math.max(0, gridHeight - marginTop);
+  if (maxWidth < 24 || maxHeight < 6) {
+    return null;
+  }
+
+  const targetWidth = Math.max(24, Math.floor(Number(insetConfig.width || 50)));
+  const targetHeight = Math.max(6, Math.floor(Number(insetConfig.height || 7)));
+  const width = clamp(targetWidth, 24, maxWidth);
+  const height = clamp(targetHeight, 6, maxHeight);
+  const x = clamp(gridWidth - marginRight - width, 0, Math.max(0, gridWidth - width));
+  const y = clamp(marginTop, 0, Math.max(0, gridHeight - height));
+
+  return {
+    x,
+    y,
+    width,
+    height,
+    title: String(insetConfig.title || 'ᚦ NodeDwarves ᛞ'),
+    reserveSimulationSpace: insetConfig.reserveSimulationSpace !== false,
+  };
+}
+
+// Check whether a map coordinate falls inside the runtime inset rectangle.
+function isMapInsetCell(runtime, x, y) {
+  const inset = runtime && runtime.mapInset;
+  if (!inset) {
+    return false;
+  }
+  const px = Math.floor(Number(x));
+  const py = Math.floor(Number(y));
+  if (!Number.isFinite(px) || !Number.isFinite(py)) {
+    return false;
+  }
+  return px >= inset.x
+    && py >= inset.y
+    && px < inset.x + inset.width
+    && py < inset.y + inset.height;
+}
+
+// Compute effective playable cell count after runtime carving.
+function getPlayableGridArea(runtime) {
+  const width = Math.max(0, Number(runtime && runtime.gridWidth || 0));
+  const height = Math.max(0, Number(runtime && runtime.gridHeight || 0));
+  const total = width * height;
+  if (total <= 0) {
+    return 0;
+  }
+  const inset = runtime && runtime.mapInset;
+  if (!inset || inset.reserveSimulationSpace === false) {
+    return total;
+  }
+  const carved = Math.max(0, Number(inset.width || 0)) * Math.max(0, Number(inset.height || 0));
+  return Math.max(0, total - carved);
+}
+
 // Function: buildRuntime.
 function buildRuntime(display, terminal) {
-  let hudEnabled = Boolean(display.hud && display.hud.enabled);
-  const hudWidth = hudEnabled ? Number(display.hud.width || 0) : 0;
-  const hudColumns = hudEnabled ? Number(display.hud.columns || 1) : 1;
-  const hudColumnGap = hudEnabled ? Number(display.hud.columnGap || 2) : 2;
   let frameEnabled = Boolean(display.frame && display.frame.enabled);
   let frameWidth = frameEnabled ? 2 : 0;
   let frameHeight = frameEnabled ? 2 : 0;
@@ -30,18 +99,8 @@ function buildRuntime(display, terminal) {
     totalHeight = Math.min(rows, maxHeight);
   }
 
-  let gridWidth = totalWidth;
+  let gridWidth = totalWidth - frameWidth;
   let gridHeight = Math.max(0, totalHeight - headerHeight - footerHeight - frameHeight);
-
-  if (hudEnabled && gridWidth > hudWidth + 3 + frameWidth) {
-    gridWidth = gridWidth - (hudWidth + 3 + frameWidth);
-  } else {
-    hudEnabled = false;
-  }
-
-  if (!hudEnabled) {
-    gridWidth = gridWidth - frameWidth;
-  }
 
   if (frameEnabled && (gridWidth <= 0 || gridHeight <= 0)) {
     frameEnabled = false;
@@ -49,27 +108,27 @@ function buildRuntime(display, terminal) {
     frameHeight = 0;
     gridWidth = totalWidth;
     gridHeight = Math.max(0, totalHeight - headerHeight - footerHeight);
-    if (hudEnabled && gridWidth > hudWidth + 3) {
-      gridWidth = gridWidth - (hudWidth + 3);
-    } else {
-      hudEnabled = false;
-    }
   }
+
+  const mapInset = resolveMapInsetRect(display, gridWidth, gridHeight);
+  const playableArea = getPlayableGridArea({
+    gridWidth,
+    gridHeight,
+    mapInset,
+  });
 
   return {
     gridWidth,
     gridHeight,
+    playableArea,
     headerHeight,
     footerHeight,
-    hudEnabled,
-    hudWidth,
-    hudColumns,
-    hudColumnGap,
     frameEnabled,
     frameWidth,
     frameHeight,
     totalWidth,
     totalHeight,
+    mapInset,
   };
 }
 
@@ -105,4 +164,11 @@ function setupResizeHandler(display, onResize) {
   });
 }
 
-module.exports = { buildRuntime, getTerminalSize, setupResizeHandler };
+module.exports = {
+  buildRuntime,
+  getTerminalSize,
+  setupResizeHandler,
+  resolveMapInsetRect,
+  isMapInsetCell,
+  getPlayableGridArea,
+};

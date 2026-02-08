@@ -1,13 +1,10 @@
 'use strict';
 
-const { padRight, visibleLength, sliceVisible } = require('../utils');
+const { visibleLength, sliceVisible } = require('../utils');
 
-// Combine map and HUD text into a single line.
-function formatMapLine(mapLine, hudLine, runtime) {
-  if (!runtime.hudEnabled) {
-    return mapLine;
-  }
-  return `${mapLine} | ${padRight(hudLine || '', runtime.hudWidth)}`;
+// Return one map line (side telemetry layout removed).
+function formatMapLine(mapLine) {
+  return mapLine;
 }
 
 // Fit a string to the visible width.

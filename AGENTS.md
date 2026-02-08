@@ -37,8 +37,11 @@ This file defines how to implement new features in a consistent, stable way.
 - `src/state/`: state creation and terrain generation.
 - `src/state/index.js`: state orchestrator.
 - `src/state.js`: thin wrapper for `src/state/index.js`.
-- `src/render/`: render helpers (grid, header, HUD, legend, colors, format).
+- `src/render/`: render helpers (grid, header, telemetry, legend, colors, format).
 - `src/render/index.js`: render orchestrator.
+- `src/render/map_inset_panel.js`: carved top-right in-map operations snapshot panel (tick/year/cycle, population age split, underrealm unlock info, keyboard hints).
+- `src/render/telemetry.js`: telemetry section builders and formatting helpers.
+- `src/render/telemetry_panel.js`: in-game telemetry reference overlay panel (section and metric explanations).
 - `src/render.js`: thin wrapper for `src/render/index.js`.
 - `src/runtime.js`: terminal sizing and layout.
 - `src/terminal.js`: terminal helpers.
@@ -49,6 +52,7 @@ This file defines how to implement new features in a consistent, stable way.
 - `src/utils.js`: shared helpers.
 - `ai_server.js`: JS inference bridge for training.
 - `scripts/export_map.js`: CLI map export pipeline (PNG + SVG).
+- `scripts/headless_benchmark.js`: deterministic headless benchmark CLI for long-run tuning and validation.
 - `python/bootstrap.py`: venv bootstrap.
 - `python/train.py`: PPO training loop and logging.
 - `python/agent.py`: example Python agent.
@@ -67,12 +71,12 @@ This file defines how to implement new features in a consistent, stable way.
   - `config.json` (`resources.*`, `jobs.*`, `symbols.*`, `display.colors.map` when colors are enabled)
   - `src/state/` (initial stockpile, nodes, terrain source constraints)
   - `src/simulation/` (gathering, regen, consumption, shortages/jobs)
-  - `src/render/` (legend, HUD, symbols/colors usage)
+  - `src/render/` (legend, telemetry, symbols/colors usage)
   - `docs/PARAMETERS.md` (parameter reference) + `MANUAL.md` (operational behavior) + `README.md` (high-level player-facing mention only if relevant)
 - New structures must update:
   - `config.json` (`structures.*`, costs, build ticks, guardrails, `symbols.*`, `display.colors.map` when colors are enabled)
   - `src/simulation/` (build jobs, placement, upgrades/effects)
-  - `src/render/` (symbols, legend, HUD counts)
+  - `src/render/` (symbols, legend, telemetry counts)
   - `docs/PARAMETERS.md` (parameters) + `MANUAL.md` (operational behavior) + `README.md` (high-level player-facing mention only if relevant)
 - Guardrails should use stockpile ratios, not absolute counts.
 
@@ -101,13 +105,18 @@ This file defines how to implement new features in a consistent, stable way.
 
 - Avoid O(n^2) scans in per-tick logic when possible.
 - Prefer early exits and precomputed counts.
-- Keep HUD lines short enough for the configured width.
+- Keep telemetry lines short enough for the configured width.
+- Every time telemetry sections, labels, or metrics are changed, verify `src/render/telemetry_panel.js` is coherent with the current telemetry and update it in the same change set.
 - Update the ASCII legend when new entities are added.
 
 ## Validation checklist
 
-- Run `npm start` and confirm the HUD/legend renders.
-- Run headless long-run benchmarks (`createInitialState` + repeated `stepState`) to tune new defaults and validate stability before finalizing balancing changes.
+- Run `npm start` and confirm the telemetry/legend renders.
+- Run deterministic headless benchmark before finalizing balance defaults:
+  `node scripts/headless_benchmark.js --ticks 8000 --seeds 101,202,303,404`.
+- For A/B tuning, compare variants in one run and review deltas seed-by-seed:
+  `node scripts/headless_benchmark.js --ticks 8000 --variant baseline --set path=value --variant candidate`.
+- Treat seed collapses (population crashes) and strong stockpile regressions as tuning blockers unless intentional and documented.
 - Confirm no crashes on resize and no negative stockpile values.
 - Check that shortages drive gathering priorities as expected.
 
@@ -119,4 +128,4 @@ This file defines how to implement new features in a consistent, stable way.
 - For terminal map readability, avoid near-black foreground colors for gameplay-critical symbols on dark consoles; prefer medium/high-contrast colors.
 - Prefer early returns and guard clauses.
 - Add short English comments above top-level functions to aid onboarding.
-- Use English for all player-facing in-game strings (HUD, events, labels, config names).
+- Use English for all player-facing in-game strings (telemetry, events, labels, config names).

@@ -789,11 +789,6 @@ function buildExportConfig(source, options) {
     enabled: false,
     height: 0,
   };
-  cloned.display.hud = {
-    ...(cloned.display.hud || {}),
-    enabled: false,
-    width: 0,
-  };
   cloned.display.frame = { ...(cloned.display.frame || {}) };
   cloned.display.colors = cloned.display.colors || {};
   cloned.display.colors.enabled = true;

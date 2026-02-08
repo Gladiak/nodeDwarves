@@ -2817,7 +2817,11 @@ function buildResourceLookup(state, config) {
     return lookup;
   }
 
-  const typePositions = buildTerrainTypePositions(terrain.types, allowedTypes);
+  const typePositions = buildTerrainTypePositions(
+    terrain.types,
+    allowedTypes,
+    terrain.spawnable,
+  );
   const maxSamples = 200;
   for (const [resourceId, types] of Object.entries(terrainAllowed)) {
     if (!Array.isArray(types) || types.length === 0) {
@@ -2848,13 +2852,17 @@ function buildResourceLookup(state, config) {
 }
 
 // Build a lookup of terrain type positions, limited to allowed types.
-function buildTerrainTypePositions(types, allowedTypes) {
+function buildTerrainTypePositions(types, allowedTypes, spawnable) {
   const height = types.length;
   const width = height > 0 ? types[0].length : 0;
   const positions = {};
   for (let y = 0; y < height; y += 1) {
     const row = types[y];
+    const spawnRow = spawnable && spawnable[y] ? spawnable[y] : null;
     for (let x = 0; x < width; x += 1) {
+      if (spawnRow && spawnRow[x] !== true) {
+        continue;
+      }
       const type = row[x];
       if (!allowedTypes.has(type)) {
         continue;

@@ -25,9 +25,10 @@ npm start
 ```
 
 Runtime controls: `Space` pause/resume, `l` legend panel, `i` dwarf inspect panel,
-`↑`/`↓` switch between surface and unlocked underrealm depths, `m` export all
-currently unlocked layers (PNG + SVG), `Shift+M` export all unlocked layers
-with structures/roads.
+`h` telemetry Data Center panel, `←`/`→` change telemetry pages (or browse inspect entries when inspect is open),
+`↑`/`↓` switch between surface and unlocked underrealm depths,
+`m` export all currently unlocked layers (PNG + SVG), `Shift+M` export all
+unlocked layers with structures/roads.
 
 ### Run training 🏋️
 
@@ -67,7 +68,7 @@ npm run map:export:seasons -- --width=120 --height=40 --seed=12345
 ```
 
 Notes:
-- Renders the terrain map only (no HUD or active entities; includes static structures like mines/ruins and, when present in snapshot, temple footprint stages; frame follows `display.frame.enabled`).
+- Renders the terrain map only (no telemetry overlay or active entities; includes static structures like mines/ruins and, when present in snapshot, temple footprint stages; frame follows `display.frame.enabled`).
 - Outputs to `maps/png` and `maps/svg` by default.
 - Uses a fixed terrain palette defined in `scripts/export_map.js` so terminal
   colors remain unchanged.
@@ -92,6 +93,25 @@ Notes:
 - `--layers` selects exported planes (`surface,d1,d2`, `unlocked`, or `all`).
 - `--underrealmUnlockedDepth` forces unlocked depth for CLI exports.
 - `--underrealmMaxDepth` clamps max underrealm depth considered by `--layers`.
+
+### Run deterministic headless benchmark 📈
+
+Use this to tune defaults on long runs without terminal rendering.
+
+```bash
+node scripts/headless_benchmark.js --ticks 8000 --seeds 101,202,303,404
+```
+
+Variant A/B comparison in one run:
+
+```bash
+node scripts/headless_benchmark.js --ticks 8000 --variant baseline --set path=value --variant candidate
+```
+
+Notes:
+- Uses `createInitialState` + repeated `stepState` with deterministic seeded randomness per run.
+- Default output includes `population`, `morale`, `beerBoost`, needs averages, and selected stockpile resources.
+- Use `--resources` and `--output json` for machine-readable reports.
 
 ## 2) Mental model (big picture) 🧠
 
@@ -188,13 +208,16 @@ Notes:
   - AI action cadence uses `ai.stepTicks` to throttle policy calls.
   - Space toggles pause/resume during the live simulation.
   - Press `i` to open/close the dwarf inspect panel (works during pause or live); use `←`/`→` to browse spawn order.
+  - Press `h` to open/close the telemetry Data Center panel (`Overview + Deep`, `Economy`).
+  - While telemetry is open, use `←`/`→` to switch pages.
   - Press `↑` / `↓` to switch map view between surface and unlocked underrealm depths.
   - Press `l` to toggle the legend overlay panel (works during pause or live).
   - Press `m` to export all currently unlocked layers (PNG + SVG) using current season styling.
 - `src/config.js`
   - Zero-magic JSON loader for configuration.
 - `src/runtime.js`
-  - Computes grid/HUD/frame layout and handles terminal resize.
+  - Computes grid/frame layout and overlay bounds, and handles terminal resize.
+  - Resolves optional in-map inset carving (`display.mapInset.*`) and exports effective playable area (`runtime.playableArea`) for scaling-sensitive systems.
 - `src/terminal.js`
   - Low-level terminal I/O helpers (clear screen, move cursor, hide/show cursor).
   - Handles screen clearing and cursor control during live rendering.
@@ -210,7 +233,7 @@ Notes:
     - `underrealm` depth metadata (active depth, unlocked depths, full-size layer terrains), plus deep economy/faction runtime.
     - `stockpile` initialized from `config.resources.stockpile`.
     - Initial stockpiles (and optional node counts) can scale with map size via `resources.mapScale`
-      using the map grid dimensions as a baseline.
+      using effective playable map area as a baseline (grid area minus carved inset when enabled).
     - Counters and stats used by AI, raids, ruins, myths, alchemy, and endgame cycles.
   - `fitStateToGrid(...)` repositions entities after resize and keeps everything in-bounds.
 
@@ -244,6 +267,7 @@ Notes:
   - Terrain affects movement, spawn rules, and (optionally) resource gathering.
   - Terrain resources can be harvested directly when `resources.useTerrainTiles` is enabled.
   - Terrain walkability and movement delays are controlled by `display.terrain.walkable.*` and `display.terrain.movementDelay.*`.
+  - When `display.mapInset.reserveSimulationSpace=true`, inset cells are forced non-walkable/non-spawnable and are excluded from build/path placement.
   - Underrealm layers use a dedicated cave generator in `src/state/index.js`: deterministic wall fill + smoothing, chamber carving, tunnel linking graph (MST + loop links), and disconnected-cave pruning.
   - The generator carves tunnels as cave tiles (no dedicated corridor tile output) and injects wall pillars inside broad caverns to reduce oversized open rooms and keep topology legible.
   - Underrealm feature tiles (`chasm`, `crystal`, `magma`, `shrine`) are depth-scaled via `underrealm.terrain.*`; magma/shrine can be gated to deep layers only (`magma_min_depth`, `shrine_min_depth`) before walkable/spawnable conversion.
@@ -260,6 +284,7 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - Ages and life stages from `population.aging` (adult age, fertile range, old age start, max age).
   - Needs decay per tick from `needs.decayPerTick`, scaled by season/weather/housing/myths.
   - Consumption uses `consumption.*` thresholds/relief values for food, water, beer, plus beer reserve logic.
+  - Current beer-morale defaults are slightly persistence-biased for endgame support (`beerMoraleGain=0.095`, `beerMoraleDecayPerTick=0.0032`, `beerMoraleMax=0.30`).
   - Derived mood metrics (morale/stress/fatigue) come from average needs and beer morale boost.
   - Deaths: starvation threshold/ticks and old-age chance from `population.death` and `population.aging`.
   - Housing assignment, couple co-housing, and winter penalties are driven by `population.housing.*`.
@@ -291,7 +316,7 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
 - Social synergy note:
   - Relationship bonding can receive same-clan bonus via `population.relationships.sameClanBondGainBonus` (config-driven, outside `clans.effects`).
 - Visibility and AI:
-  - HUD clans block shows per-clan counts with labels.
+  - Telemetry exposes fixed operational sections (World, Underrealm, Population, Pressure, Lore, Structures, Diplomacy, Stockpile, Operations) instead of a dedicated clans block.
   - AI observation includes `clanShare_<id>` features, so policy training can adapt to composition changes.
 
 ### Jobs and economy 📦
@@ -300,6 +325,8 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
 - Worker pool creation:
   - Eligible workers are idle adults, not on expedition, and not assigned to active Underrealm duty.
   - Brewmasters are handled first (unless brewery is paused by food emergency).
+  - Current brewery defaults are tuned for long-run mid/late game support: up to 4 breweries,
+    4 workers each, `outputPerTick.beer=1.3`, and a softer food pause gate (`pauseWhenFoodRatioBelow=0.35`).
 - High-level assignment pipeline (in order):
   1. Brewmaster staffing/build.
   2. Manager-managed builds (well/field/watchtower) when manager mode is active.
@@ -487,7 +514,7 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - Activation requires all gates: season allowed, window open, cooldown seasons passed, stockpile ratio guardrails, full cost affordability, optional raid lock.
   - Costs are paid up-front once at start (`festivals.costs`).
   - Active festivals apply temporary `effects.*` multipliers until `durationTicks` expires.
-  - Start/end events are pushed for HUD observability.
+  - Start/end events are pushed for telemetry observability.
 - Festival eligibility is exposed to AI:
   - observation contains `festivalActive`, `festivalTimeLeft`, `festivalEligible`, `festivalCostRatio`.
   - This allows policy to time activation near seasonal windows instead of random triggering.
@@ -517,7 +544,7 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - need decay pipeline consumes `world_events` multipliers in `simulation/index.js`.
   - gather ticks/yield and stockpile target steering consume `world_events` multipliers/boosts in `resources.js`.
   - merchant trade sizing consumes `merchantTradeRate`; contract rewards consume `contractReward`.
-  - HUD shows active world event status (label, timer, and offer summary when relevant).
+  - Telemetry shows active world event status (label, timer, and offer summary when relevant).
 - Observability:
   - event stream logs start/end and opportunity completion/expiry outcomes.
   - `state.worldEvents.stats` tracks global and per-type spawn/completion/failure/expiry counts.
@@ -552,7 +579,7 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - Traditions and bounded history are carried across cycles (`carryMythsAcrossCycle`).
 - Observability:
   - Events: `Myth awakened`, `Myth faded`, `Tradition formed`.
-  - HUD renders active myths + traditions and an aggregate bonuses line.
+  - Telemetry renders active myths + traditions and an aggregate bonuses line.
   - AI observation includes myth flags and severity metrics, so policy can react to long-tail global states.
 
 ### Alchemy lab and pacts ⚗️
@@ -586,7 +613,7 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - History/stats are persisted in `state.alchemy`:
     - `stats.activations`, `stats.stableCompletions`, `stats.backlashes`
     - bounded history via `alchemy.historyLimit` (0 = unlimited)
-  - HUD status (`src/render/hud.js`) exposes runtime intent clearly:
+  - Telemetry status (`src/render/telemetry.js`) exposes runtime intent clearly:
     - `Alchemy: <label> <ticksLeft>t F<failures>/<threshold>` while active
     - `Alchemy: <backlashLabel> <ticksLeft>t` during backlash
     - `Alchemy: cooldown <ticksLeft>t` during cooldown
@@ -726,17 +753,22 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
     - `unlock_threshold_base + unlock_threshold_per_depth * (depth-1)`
   - Depth quick reference (default config values):
     - Scope:
-      - `max_depth=5`, `difficulty_per_depth=0.08`, `rare_drop_per_depth=0.10`, `depth_output_bonus=0.08`.
+      - `max_depth=10`, `difficulty_per_depth=0.08`, `rare_drop_per_depth=0.10`, `depth_output_bonus=0.08`.
       - D2+ unlocks require `required_survey_ratio=100%`, `min_frontier_miners=2`, and no active frontier raid (`require_no_active_raid=true`).
       - `Deep Lift` costs are from `base + per_depth * (depth-1)` on the frontier depth.
 
   | Depth | Unlock requirement | Bonuses (default) | Maluses / risk (default) | Distinct elements (default) |
   | --- | --- | --- | --- | --- |
   | D1 | Secret gate discovered on surface (`discovery` gate after population threshold + delay). | `diff x1.00`, `rare x1.00`, gather output `x1.00`. | Chasm ratio `2.0%`; hostile base term per check `~1.1% * crewFactor` (checked every `16` ticks). | Core caves, crystal fields (`1.5%`), no magma, no shrines. |
-  | D2 | From D1 frontier: survey target `95`; Deep Lift build `220` ticks; stockpile cost `stone 44, iron 16`; mined-in-depth requirement `stone 70, iron 26`. | `diff x1.08`, `rare x1.10`, gather output `x1.08`; new depth nodes include `mana_crystal`; rare tables start unlocking (`mana_crystal`, `mithril`). | Chasm ratio `3.0%`; hostile base term `~2.2% * crewFactor`. | More crystal (`2.3%`) and first ancestor shrines for ward/oath loops. |
-  | D3 | From D2 frontier: survey target `160`; Deep Lift build `360` ticks; stockpile cost `stone 74, iron 30`; mined requirement `stone 114, iron 48`. | `diff x1.16`, `rare x1.20`, gather output `x1.16`; `mithril` nodes active; `adamantio` rare drops can start. | Chasm ratio `4.0%`; hostile base term `~3.3% * crewFactor`. | First magma pockets and `ember_resin` prospection potential. |
-  | D4 | From D3 frontier: survey target `225`; Deep Lift build `500` ticks; stockpile cost `stone 104, iron 44`; mined requirement `stone 158, iron 70`. | `diff x1.24`, `rare x1.30`, gather output `x1.24`; `adamantio` + `embersteel` nodes/rare layers begin. | Chasm ratio `5.0%`; magma ratio `2.0%` (non-walkable); hostile base term `~4.4% * crewFactor`. | Denser shrine network and stronger ward charge throughput. |
-  | D5 | From D4 frontier: survey target `290`; Deep Lift build `640` ticks; stockpile cost `stone 134, iron 58`; mined requirement `stone 202, iron 92`. | `diff x1.32`, `rare x1.40`, gather output `x1.32`; `ironshade` nodes/rare layers active. | Chasm ratio `6.0%`; magma ratio `2.5%`; hostile base term `~5.5% * crewFactor`. | Densest deep hazards with max shrine/prospection pressure. |
+  | D2 | From D1 frontier: survey target `95`; Deep Lift build `220` ticks; stockpile cost `stone 44, iron 16`; mined-in-depth requirement `stone 70, iron 26`. | `diff x1.08`, `rare x1.10`, gather output `x1.08`; new depth nodes include `mana_crystal`; rare tables start with `mana_crystal`. | Chasm ratio `3.0%`; hostile base term `~2.2% * crewFactor`. | More crystal (`2.3%`) and first ancestor shrines for ward/oath loops. |
+  | D3 | From D2 frontier: survey target `160`; Deep Lift build `360` ticks; stockpile cost `stone 74, iron 30`; mined requirement `stone 114, iron 48`. | `diff x1.16`, `rare x1.20`, gather output `x1.16`; `mithril` rare drops can roll from here. | Chasm ratio `4.0%`; hostile base term `~3.3% * crewFactor`. | First magma pockets and `ember_resin` prospection potential. |
+  | D4 | From D3 frontier: survey target `225`; Deep Lift build `500` ticks; stockpile cost `stone 104, iron 44`; mined requirement `stone 158, iron 70`. | `diff x1.24`, `rare x1.30`, gather output `x1.24`; `mithril` nodes become available. | Chasm ratio `5.0%`; magma ratio `2.0%` (non-walkable); hostile base term `~4.4% * crewFactor`. | Denser shrine network and stronger ward charge throughput. |
+  | D5 | From D4 frontier: survey target `290`; Deep Lift build `640` ticks; stockpile cost `stone 134, iron 58`; mined requirement `stone 202, iron 92`. | `diff x1.32`, `rare x1.40`, gather output `x1.32`; `adamantio` rare drops unlock. | Chasm ratio `6.0%`; magma ratio `2.5%`; hostile base term `~5.5% * crewFactor`. | High-pressure transition depth before late-tier mineral strata. |
+  | D6 | From D5 frontier: survey target `355`; Deep Lift build `780` ticks; stockpile cost `stone 164, iron 72`; mined requirement `stone 246, iron 114`. | `diff x1.40`, `rare x1.50`, gather output `x1.40`; `adamantio` nodes unlock. | Chasm ratio `7.0%`; magma ratio `3.0%`; hostile base term `~6.6% * crewFactor`. | Deep-haul phase starts: heavier logistics, less forgiving raids. |
+  | D7 | From D6 frontier: survey target `420`; Deep Lift build `920` ticks; stockpile cost `stone 194, iron 86`; mined requirement `stone 290, iron 136`. | `diff x1.48`, `rare x1.60`, gather output `x1.48`; `embersteel` nodes and rare drops unlock. | Chasm ratio `8.0%`; magma ratio `3.5%`; hostile base term `~7.7% * crewFactor`. | Ember-biome pressure rises and shrine prospection value spikes. |
+  | D8 | From D7 frontier: survey target `485`; Deep Lift build `1060` ticks; stockpile cost `stone 224, iron 100`; mined requirement `stone 334, iron 158`. | `diff x1.56`, `rare x1.70`, gather output `x1.56`; `ironshade` nodes and rare drops unlock. | Chasm ratio `9.0%`; magma ratio `4.0%`; hostile base term `~8.8% * crewFactor`. | Full rare palette online; raids become a major economic threat. |
+  | D9 | From D8 frontier: survey target `550`; Deep Lift build `1200` ticks; stockpile cost `stone 254, iron 114`; mined requirement `stone 378, iron 180`. | `diff x1.64`, `rare x1.80`, gather output `x1.64`; late-depth efficiency favors specialized crews. | Chasm ratio `10.0%`; magma ratio `4.5%`; hostile base term `~9.9% * crewFactor`. | Ultra-deep hazard density with very expensive recovery loops. |
+  | D10 | From D9 frontier: survey target `615`; Deep Lift build `1340` ticks; stockpile cost `stone 284, iron 128`; mined requirement `stone 422, iron 202`. | `diff x1.72`, `rare x1.90`, gather output `x1.72`; maximum rare scaling and final deep economy ceiling. | Chasm ratio `11.0%`; magma ratio `5.0%`; hostile base term `~11.0% * crewFactor`. | Apex underrealm pressure where guard/ward discipline becomes mandatory. |
 
   - Notes on table values:
     - `crewFactor` in hostile spawn = `(1 + assignedDelvers/24)` and is multiplied after the listed base term.
@@ -780,8 +812,8 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
     - `+ unlock_population_bonus_per_depth * unlockedDepths`
     - `+ population_bonus_per_assigned * assignedDelvers`
   - This allows stable long runs with dedicated delver crews without collapsing surface labor entirely.
-- HUD and control observability:
-  - HUD exposes:
+- Telemetry and control observability:
+  - Telemetry exposes:
     - realm/depth status (`Surface` vs `Underrealm Dn`)
     - hidden gate status (population gate / search countdown / discovered)
     - layer dimensions and difficulty/rare multipliers
@@ -978,25 +1010,33 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
 
 ### Events + randomness 🎲
 
-- `events.js` tracks event log lines for the HUD (`events.maxEntries`).
+- `events.js` tracks event log lines for telemetry (`events.maxEntries`).
   - Systems push concise strings for weather, raids, ruins, builds, and myth changes.
 - `random.js` provides random helpers (ranges, shuffling) used across systems.
   - Training/eval can override randomness through scenario config and seed control.
 
-## 7) Rendering system (ASCII + HUD) 🎨
+## 7) Rendering system (ASCII + Telemetry) 🎨
 
 Everything under `src/render/` is view-layer only: no simulation state mutations.
 
 - `render/index.js`
-  - Composes header, grid, HUD, footer, and optional frame.
-  - Layout sizing uses `display.hud.*`, `display.header.*`, `display.footer.*`, and frame settings.
+  - Composes header, grid, overlays, and optional frame/footer.
+  - Layout sizing uses `display.header.*`, `display.footer.*`, and frame settings.
+  - Default profile runs in `Map Focus`: no side telemetry column, full-width map, telemetry via overlay panel.
   - Default layout assumes a 190x60 terminal (columns x rows); adjust `display.width`/`display.height`
-    and HUD width if you target a different size.
+    if you target a different size.
   - Places nodes, structures, temple footprint overlay, dwarves, merchant, and raid beasts on the grid.
   - When underrealm depth view is active, it renders the selected depth terrain layer and hides surface entities.
   - Selects a stable subset of dwarves to keep the map readable (`display.dwarves.maxVisible`; set `< 0` to skip dwarf rendering).
   - Applies the dwarf inspect overlay when `display.inspect_panel.enabled` is true.
+  - Applies the telemetry overlay when `display.telemetry_panel.enabled` is true.
   - Applies the map-save confirmation overlay when `display.save_panel.enabled` is true.
+
+- `render/map_inset_panel.js`
+  - Renders the carved top-right in-map Ops Snapshot (`display.mapInset.*`) as a dedicated component.
+  - Uses a status-stack digest focused on core progression signals: tick/year/cycle, population + age split + morale, underrealm unlock status, and current view depth.
+  - Keeps the keyboard-command row fixed at the bottom of the inset (symbol-first labels with short fallbacks on narrow widths).
+  - Uses width-aware wording fallbacks to reduce truncation on narrow terminals.
 
 - `render/inspect.js`
   - Builds the ASCII inspect panel overlay (box, content, controls) and draws it onto the grid.
@@ -1006,6 +1046,13 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
 - `render/legend_panel.js`
   - Builds the legend overlay panel (legend and map key sections) and draws it onto the grid.
   - Panel size is controlled by `display.legend_panel.width`/`height`.
+
+- `render/telemetry_panel.js`
+  - Builds a paged telemetry Data Center with two pages: `Overview + Deep` and `Economy`.
+  - Reuses live section builders from `render/telemetry.js`, so values stay consistent across overlays.
+  - Uses the full body area for live telemetry rows (no guide footer); labels are expanded directly in the telemetry rows for readability.
+  - Uses dynamic size by default (roughly 98% of map view), with optional overrides via `display.telemetry_panel.width`/`height`.
+  - Can be disabled globally via `display.telemetry_panel.enabled`.
 
 - `render/save_panel.js`
   - Builds the map-export confirmation modal and draws it onto the grid.
@@ -1026,16 +1073,24 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
   - Optional seasonal color overrides via `display.colors.seasonal.*`.
   - Seasonal color palettes are disabled automatically while viewing underrealm depth layers.
 
-- `render/hud.js`
-  - Builds a multi-column HUD: world, population, clans, housing, underrealm, structures, stockpile bars.
-  - Column layout uses `display.hud.columns` and `display.hud.columnGap`.
-  - Stockpile bars scale with `display.hud.stockBarMax` or resource targets.
-  - Dedicated Underrealm HUD includes active depth, layer size, crew assignment summary, depth stock ratio, survey progress, and deep threat count.
-  - World HUD includes event stream (`events.maxEntries`), active world-event status, and myth/ruins overlays.
-  - World HUD includes the current village count.
+- `render/telemetry.js`
+  - Provides telemetry section builders and formatting helpers used by the telemetry panel.
+  - Section set: `World`, `Population`, `Pressure`, `Stockpile`, `Structures`, `Diplomacy`, `Operations`, `Underrealm`, `Lore`, `Deep Signals`.
+  - Housing details are intentionally compressed: only `House ratio` is shown in `World`.
+  - World timeline shows `Tick`, `Year`, and season name only (capitalized label, no season tick progress fraction).
+  - Stockpile bars scale with `display.telemetry.stockBarMax` or per-resource targets.
+  - Stockpile rendering keeps a stable order from `resources.stockpile` (plus runtime extras), so resources do not appear/disappear when values hit zero.
+  - `World` keeps contract/alchemy windows and one `World log` line for the latest event signal.
+    - Long `World log` entries wrap up to 3 telemetry rows (instead of hard truncation) for readability.
+  - `Pressure` reports shortage priorities (`state.lastPriorities`), key stockpile target ratios, raid pressure, and shortage count.
+  - `Diplomacy` is the single merchant-focused block (status, trade totals, top give/recv flows, contracts, and world-event cadence/counters).
+  - `Deep Signals` consolidates world-event cadence/totals plus contract reliability for late-game monitoring.
+    - Its `World log` mirror also wraps to multiple rows (up to 3).
+  - `Operations` reports adult workforce split, job mix, build pipeline, 200-tick stockpile deltas, compact shortage pressure, and production-vs-infrastructure load split.
+  - `Lore` summarizes myths/traditions and ruins progress without bottom overlays.
 
 - `render/legend.js`
-  - Footer controls are built for `Space`, `l`, `i`, `↑/↓`, and `m`.
+  - Footer controls are built for `Space`, `l`, `i`, `h`, `←/→` (telemetry pages or inspect), `↑/↓`, and `m`.
   - Legend/map entries are built from `config.json` symbols and resource nodes for the overlay panel.
   - Uses `symbols.*` and `resources.labels.*` for readable names.
 
@@ -1097,7 +1152,7 @@ Clan dynamics add heterogeneity and longer-horizon trade-offs. To keep PPO stabl
 
 `config.json` is the master control-plane file. Main sections:
 
-- `display`: grid size, HUD, frame, terrain, colors.
+- `display`: grid size, frame, telemetry, in-map inset panel (`display.mapInset.*`), terrain, colors.
 - `underrealm`: multi-depth full-size generation, cave topology tuning, dedicated crew planning, deep extraction economy, exploration unlock pacing, and hostile deep-faction raids.
 - `resources`: stockpile targets, node counts/capacity, regen rates, crafting inputs.
 - `structures`: build costs, build ticks, upgrade rules, capacities.
@@ -1127,8 +1182,8 @@ If you are adding new mechanics, resources, or balancing gameplay:
 - Change **behavior** in `src/simulation/` and **initial conditions** in `src/state/`.
 - Keep guardrails ratio-based (stockpile/target), not absolute values.
 - Check seasonal and weather modifiers so new features scale naturally.
-- If you touch jobs or stockpiles, also update HUD/legend for clarity.
-- If you add new global modifiers, update myths config + HUD for visibility.
+- If you touch jobs or stockpiles, also update telemetry/legend for clarity.
+- If you add new global modifiers, update myths config + telemetry for visibility.
 
 Suggested starting files:
 
@@ -1163,11 +1218,13 @@ Training presets:
 If you work on the UI/UX in the terminal:
 
 - `src/render/index.js` orchestrates the frame.
+- `src/render/map_inset_panel.js` owns the carved in-map Ops Snapshot rendering.
 - `src/render/grid.js` handles terrain symbols and colors.
-- `src/render/hud.js` is the stats and stockpile bars.
+- `src/render/telemetry.js` provides telemetry section builders and formatting.
+- `src/render/telemetry_panel.js` is the paged telemetry Data Center overlay.
 - `src/render/legend.js` maps symbols to labels.
 
-Keep HUD lines short (respect `display.hud.width`) and update legend symbols when adding new entities.
+Keep telemetry lines compact so the telemetry panel stays readable and update legend symbols when adding new entities.
 
 ## 11) Adding a new resource (deep dive) ✅
 
@@ -1186,7 +1243,7 @@ do not break training contracts.
 - `resources.stockpile.<id>`: initial amount at game start.
 - `resources.targets.<id>`: desired stockpile target (used for shortages, merchant, AI).
 - `resources.targetsPerCapita.<id>` (optional): target scaling with population.
-- `resources.labels.<id>`: HUD label.
+- `resources.labels.<id>`: telemetry label.
 
 **Gathering model** (choose one):
 
@@ -1232,8 +1289,8 @@ Most resource logic is generic, but check these spots:
 
 - `src/render/legend.js` uses `resources.nodes` keys for resource legend entries.
   - If your resource is **terrain-based** and mapped to a terrain symbol, it may be omitted from the node legend.
-- `src/render/hud.js` lists everything in `state.stockpile`, so adding to `resources.stockpile` is enough to show it.
-- If you want special HUD formatting, add it explicitly.
+- `src/render/telemetry.js` lists everything in `state.stockpile`, so adding to `resources.stockpile` is enough to show it.
+- If you want special telemetry formatting, add it explicitly.
 
 ### E) AI and training impact 🤖
 
@@ -1283,12 +1340,15 @@ Quick checklist:
     - `simulation/temple.js` → Temple of Ancestors progression, effects, and prestige
     - `simulation/ruins.js` → expeditions, artifacts, and set bonuses
   - `state/` → initial state + terrain generation
-  - `render/` → ASCII output
+  - `render/` → ASCII output (grid, telemetry, legend, inspect overlays)
+    - `render/map_inset_panel.js` → carved in-map Ops Snapshot component (stable counters + keyboard hints)
+    - `render/telemetry_panel.js` → paged in-game telemetry Data Center with section pages and full-height telemetry body
   - `ai/` → observation + policy
   - `runtime.js`, `terminal.js`, `utils.js` → support
 - `scripts/train_wrapper.js` → unified safe wrapper for `ai:train:*` profiles
 - `scripts/regression.js` → AI regression harness and profile recording
 - `scripts/export_map.js` → map export pipeline (PNG + SVG)
+- `scripts/headless_benchmark.js` → deterministic long-run headless benchmark and A/B delta reports
 - `python/train.py` → PPO trainer and best-checkpoint updates
 - `python/promote_best.py` → post-train promotion check (latest vs best)
 - `python/bootstrap.py` / `python/agent.py` → venv bootstrap + sample agent

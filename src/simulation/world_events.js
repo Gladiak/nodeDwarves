@@ -724,7 +724,7 @@ function getWorldEventObservation(state, config) {
   };
 }
 
-// Build world event HUD status details.
+// Build world event telemetry status details.
 function getWorldEventStatus(state, config) {
   const worldConfig = getWorldEventsConfig(config);
   if (worldConfig.enabled === false) {
