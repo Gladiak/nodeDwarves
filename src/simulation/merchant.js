@@ -11,7 +11,7 @@ const { isBuildableCell, findVillageBuildSpot } = require('./structures');
 const MERCHANT_SIDES = ['north', 'south', 'west', 'east'];
 
 // Update merchant state machine per tick.
-function updateMerchant(state, config, runtime) {
+function updateMerchant(state, config, runtime, action) {
   const merchantConfig = config.merchant || {};
   if (merchantConfig.enabled === false) {
     return;
@@ -49,7 +49,7 @@ function updateMerchant(state, config, runtime) {
 
   if (merchant.phase === 'trading') {
     if (Number(merchant.tradesRemaining || 0) > 0) {
-      attemptMerchantTrade(state, config, merchant);
+      attemptMerchantTrade(state, config, merchant, action);
     }
     merchant.stayTicks = Math.max(0, Number(merchant.stayTicks || 0) - 1);
     if (merchant.stayTicks <= 0 || Number(merchant.tradesRemaining || 0) <= 0) {
@@ -246,8 +246,8 @@ function findMerchantStopSpot(state, runtime) {
 }
 
 // Attempt a merchant trade and apply it if valid.
-function attemptMerchantTrade(state, config, merchant) {
-  const trade = findMerchantTradeOption(state, config);
+function attemptMerchantTrade(state, config, merchant, action) {
+  const trade = findMerchantTradeOption(state, config, action);
   if (!trade) {
     return false;
   }
@@ -256,9 +256,9 @@ function attemptMerchantTrade(state, config, merchant) {
 }
 
 // Choose a trade option based on shortages and reserves.
-function findMerchantTradeOption(state, config) {
+function findMerchantTradeOption(state, config, action) {
   const merchantConfig = config.merchant || {};
-  const reserveRatio = clamp(Number(merchantConfig.reserveRatio ?? 0.8), 0, 1);
+  const reserveRatio = resolveMerchantReserveRatio(state, config, merchantConfig, action);
   const tradeRate = merchantConfig.tradeRate || {};
   const neverGive = getMerchantNeverGive(merchantConfig);
   const targets = getMerchantTargets(state, config);
@@ -310,7 +310,8 @@ function findMerchantTradeOption(state, config) {
   const extra = extras[0];
 
   const worldEventRate = Math.max(0.1, Number(getWorldEventModifier(state, 'merchantTradeRate', 1) || 1));
-  const rate = Number(tradeRate[extra.resource] ?? tradeRate.default ?? 1) * worldEventRate;
+  const baseRate = resolveMerchantTradeRate(tradeRate, extra.resource);
+  const rate = baseRate * worldEventRate;
   if (!Number.isFinite(rate) || rate <= 0) {
     return null;
   }
@@ -327,6 +328,104 @@ function findMerchantTradeOption(state, config) {
     receiveResource: need.resource,
     receiveAmount,
   };
+}
+
+// Resolve merchant reserve ratio with optional trade-governor bias.
+function resolveMerchantReserveRatio(state, config, merchantConfig, action) {
+  const baseReserveRatio = clamp(Number(merchantConfig.reserveRatio ?? 0.8), 0, 1);
+  const tradeGovernor = getTradeGovernorConfig(config);
+  if (tradeGovernor.enabled === false) {
+    return baseReserveRatio;
+  }
+
+  const tradeAction = getTradeAction(action);
+  if (!tradeAction || !Object.prototype.hasOwnProperty.call(tradeAction, 'reserveRatioBias')) {
+    return baseReserveRatio;
+  }
+
+  const reserveBiasMax = clamp(Number(tradeGovernor.reserveRatioBiasMax ?? 0), 0, 1);
+  if (reserveBiasMax <= 0) {
+    return baseReserveRatio;
+  }
+
+  const minReserveRatio = clamp(Number(tradeGovernor.reserveRatioMin ?? 0), 0, 1);
+  const maxReserveRatio = clamp(Number(tradeGovernor.reserveRatioMax ?? 1), minReserveRatio, 1);
+  const bias = normalizeTradeSignedValue(tradeAction.reserveRatioBias, config);
+  const worldBiasScale = Math.max(0, Number(getWorldEventModifier(state, 'merchantReserveBias', 1) || 1));
+  const scaledBias = clamp(bias * worldBiasScale, -1, 1);
+
+  return clamp(baseReserveRatio + (scaledBias * reserveBiasMax), minReserveRatio, maxReserveRatio);
+}
+
+// Read trade-governor config safely.
+function getTradeGovernorConfig(config) {
+  const aiConfig = (config && config.ai) || {};
+  const governors = aiConfig.governors && typeof aiConfig.governors === 'object'
+    ? aiConfig.governors
+    : {};
+  const trade = governors.trade;
+  if (!trade || typeof trade !== 'object') {
+    return {};
+  }
+  return trade;
+}
+
+// Extract the optional trade action payload.
+function getTradeAction(action) {
+  if (!action || typeof action !== 'object') {
+    return null;
+  }
+  const trade = action.trade;
+  if (!trade || typeof trade !== 'object' || Array.isArray(trade)) {
+    return null;
+  }
+  return trade;
+}
+
+// Normalize a trade intent signal to 0..1 using AI action scaling.
+function normalizeTradeIntent(value, config, fallback) {
+  const aiConfig = (config && config.ai) || {};
+  const minWeight = Number(aiConfig.minWeight ?? 0);
+  const maxWeight = Number(aiConfig.maxWeight ?? 1);
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return clamp(Number(fallback || 0), 0, 1);
+  }
+  if (maxWeight > minWeight) {
+    return clamp((numeric - minWeight) / (maxWeight - minWeight), 0, 1);
+  }
+  return clamp(numeric, 0, 1);
+}
+
+// Normalize a trade bias signal to -1..1.
+function normalizeTradeSignedValue(value, config) {
+  return clamp(normalizeTradeIntent(value, config, 0.5) * 2 - 1, -1, 1);
+}
+
+// Resolve merchant trade rate, supporting both current and legacy config keys.
+function resolveMerchantTradeRate(tradeRateConfig, giveResource) {
+  const config = tradeRateConfig && typeof tradeRateConfig === 'object'
+    ? tradeRateConfig
+    : {};
+  const resourceRate = Number(config[giveResource]);
+  if (Number.isFinite(resourceRate) && resourceRate > 0) {
+    return resourceRate;
+  }
+  const fallbackRate = Number(config.default ?? config.all);
+  if (Number.isFinite(fallbackRate) && fallbackRate > 0) {
+    return fallbackRate;
+  }
+
+  const legacyGive = Number(config.give);
+  const legacyReceive = Number(config.receive);
+  if (Number.isFinite(legacyGive) && legacyGive > 0) {
+    if (Number.isFinite(legacyReceive) && legacyReceive > 0) {
+      return legacyGive / legacyReceive;
+    }
+    return legacyGive;
+  }
+
+  return 1;
 }
 
 // Resolve resources that the merchant should never receive from the stockpile.

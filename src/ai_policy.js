@@ -1,5 +1,5 @@
 'use strict';
 
-const { loadPolicy, selectAction } = require('./ai/policy');
+const { loadPolicy, selectAction, normalizeActionEnvelope } = require('./ai/policy');
 
-module.exports = { loadPolicy, selectAction };
+module.exports = { loadPolicy, selectAction, normalizeActionEnvelope };

@@ -34,6 +34,8 @@ const {
 } = require("./structures");
 const { createTempleBuildJob } = require("./temple");
 
+const BUILD_CLASS_ORDER = ["housing", "economy", "defense", "special"];
+
 // Assign jobs to idle dwarves based on shortages and build needs.
 function assignJobs(state, config, runtime, action) {
   let idleDwarves = state.dwarves.filter(
@@ -97,6 +99,7 @@ function assignJobs(state, config, runtime, action) {
     emergency,
     managerActive,
     prioritizeMine,
+    action,
     buildQueue,
   );
   if (idleDwarves.length === 0) {
@@ -504,6 +507,287 @@ function assignManagedStructureJobs(state, config, runtime, idleDwarves, buildQu
   }
 }
 
+// Read building-governor config safely.
+function getBuildingGovernorConfig(config) {
+  const aiConfig = (config && config.ai) || {};
+  const governors = aiConfig.governors && typeof aiConfig.governors === "object"
+    ? aiConfig.governors
+    : {};
+  const building = governors.building;
+  if (!building || typeof building !== "object") {
+    return {
+      enabled: true,
+      defaultWeights: {},
+      mineBiasMax: 0,
+      upgradeBiasMax: 0,
+    };
+  }
+  return {
+    enabled: building.enabled !== false,
+    defaultWeights: building.defaultWeights && typeof building.defaultWeights === "object"
+      ? building.defaultWeights
+      : {},
+    mineBiasMax: clamp(Number(building.mineBiasMax ?? 0), 0, 1),
+    upgradeBiasMax: clamp(Number(building.upgradeBiasMax ?? 0), 0, 1),
+  };
+}
+
+// Resolve the optional building action payload from the governor envelope.
+function getBuildingAction(action) {
+  if (!action || typeof action !== "object") {
+    return null;
+  }
+  const building = action.building;
+  if (!building || typeof building !== "object" || Array.isArray(building)) {
+    return null;
+  }
+  return building;
+}
+
+// Clamp one governor class weight to configured AI ranges.
+function clampGovernorWeight(value, minWeight, maxWeight, fallback) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return fallback;
+  }
+  if (maxWeight > minWeight) {
+    return clamp(numeric, minWeight, maxWeight);
+  }
+  return fallback;
+}
+
+// Normalize a building intent to 0..1 using global AI action scaling.
+function normalizeBuildingIntent(value, config, fallback) {
+  const aiConfig = (config && config.ai) || {};
+  const minWeight = Number(aiConfig.minWeight ?? 0);
+  const maxWeight = Number(aiConfig.maxWeight ?? 1);
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return clamp(Number(fallback || 0), 0, 1);
+  }
+  if (maxWeight > minWeight) {
+    return clamp((numeric - minWeight) / (maxWeight - minWeight), 0, 1);
+  }
+  return clamp(numeric, 0, 1);
+}
+
+// Normalize a building bias signal to -1..1.
+function normalizeBuildingSignedValue(value, config) {
+  return clamp(normalizeBuildingIntent(value, config, 0.5) * 2 - 1, -1, 1);
+}
+
+// Resolve building-governor weights and advisory biases.
+function resolveBuildingGovernor(action, config) {
+  const aiConfig = (config && config.ai) || {};
+  const minWeight = Number(aiConfig.minWeight ?? 0);
+  const maxWeight = Number(aiConfig.maxWeight ?? 2);
+  const governorConfig = getBuildingGovernorConfig(config);
+  const fallbackWeight = maxWeight > minWeight
+    ? clamp(1, minWeight, maxWeight)
+    : 1;
+  const defaults = governorConfig.defaultWeights || {};
+  const weights = {
+    housing: clampGovernorWeight(defaults.housing, minWeight, maxWeight, fallbackWeight),
+    economy: clampGovernorWeight(defaults.economy, minWeight, maxWeight, fallbackWeight),
+    defense: clampGovernorWeight(defaults.defense, minWeight, maxWeight, fallbackWeight),
+    special: clampGovernorWeight(defaults.special, minWeight, maxWeight, fallbackWeight),
+  };
+
+  let mineBias = 0;
+  let upgradeBias = 0;
+  if (governorConfig.enabled === true) {
+    const buildingAction = getBuildingAction(action);
+    if (buildingAction) {
+      weights.housing = clampGovernorWeight(
+        buildingAction.housingWeight,
+        minWeight,
+        maxWeight,
+        weights.housing,
+      );
+      weights.economy = clampGovernorWeight(
+        buildingAction.economyWeight,
+        minWeight,
+        maxWeight,
+        weights.economy,
+      );
+      weights.defense = clampGovernorWeight(
+        buildingAction.defenseWeight,
+        minWeight,
+        maxWeight,
+        weights.defense,
+      );
+      weights.special = clampGovernorWeight(
+        buildingAction.specialWeight,
+        minWeight,
+        maxWeight,
+        weights.special,
+      );
+      if (Object.prototype.hasOwnProperty.call(buildingAction, "mineBias")) {
+        mineBias = clamp(
+          normalizeBuildingSignedValue(buildingAction.mineBias, config) * governorConfig.mineBiasMax,
+          -governorConfig.mineBiasMax,
+          governorConfig.mineBiasMax,
+        );
+      }
+      if (Object.prototype.hasOwnProperty.call(buildingAction, "upgradeBias")) {
+        upgradeBias = clamp(
+          normalizeBuildingSignedValue(buildingAction.upgradeBias, config) * governorConfig.upgradeBiasMax,
+          -governorConfig.upgradeBiasMax,
+          governorConfig.upgradeBiasMax,
+        );
+      }
+    }
+  }
+
+  return {
+    enabled: governorConfig.enabled,
+    weights,
+    mineBias,
+    upgradeBias,
+  };
+}
+
+// Rank build classes from highest to lowest governor weight.
+function rankBuildClasses(weights) {
+  const entries = BUILD_CLASS_ORDER.map((className, index) => ({
+    className,
+    index,
+    weight: Number(weights && weights[className]),
+  }));
+  entries.sort((a, b) => {
+    const aWeight = Number.isFinite(a.weight) ? a.weight : 0;
+    const bWeight = Number.isFinite(b.weight) ? b.weight : 0;
+    if (bWeight !== aWeight) {
+      return bWeight - aWeight;
+    }
+    return a.index - b.index;
+  });
+  return entries.map((entry) => entry.className);
+}
+
+// Try a ranked build class list until one candidate returns a job.
+function createRankedBuildJob(
+  classOrder,
+  state,
+  config,
+  runtime,
+  buildQueue,
+  housingNeed,
+  preferUpgrade,
+  buildingGovernor,
+) {
+  for (const className of classOrder) {
+    if (className === "housing") {
+      const job = createHousingClassBuildJob(
+        state,
+        config,
+        runtime,
+        buildQueue,
+        housingNeed,
+        preferUpgrade,
+        buildingGovernor,
+      );
+      if (job) {
+        return job;
+      }
+      continue;
+    }
+    if (className === "economy") {
+      const job = createEconomyClassBuildJob(
+        state,
+        config,
+        runtime,
+        buildQueue,
+        buildingGovernor,
+      );
+      if (job) {
+        return job;
+      }
+      continue;
+    }
+    if (className === "defense") {
+      const job = createDefenseClassBuildJob(state, config, runtime, buildQueue);
+      if (job) {
+        return job;
+      }
+      continue;
+    }
+    if (className === "special") {
+      const job = createSpecialClassBuildJob(state, config, runtime, buildQueue);
+      if (job) {
+        return job;
+      }
+    }
+  }
+  return null;
+}
+
+// Resolve housing build candidates with optional upgrade/build ordering bias.
+function createHousingClassBuildJob(
+  state,
+  config,
+  runtime,
+  buildQueue,
+  housingNeed,
+  preferUpgrade,
+  buildingGovernor,
+) {
+  if (!housingNeed || !housingNeed.needed) {
+    return null;
+  }
+  const upgradeBias = Number(buildingGovernor && buildingGovernor.upgradeBias || 0);
+  if (upgradeBias < 0) {
+    return createHouseBuildJob(state, config, runtime, buildQueue.reservedPositions)
+      || createHouseUpgradeJob(
+        state,
+        config,
+        runtime,
+        false,
+        buildQueue.reservedStructures,
+      );
+  }
+  const preferUpgradeHint = preferUpgrade || upgradeBias > 0;
+  return createHouseUpgradeJob(
+    state,
+    config,
+    runtime,
+    preferUpgradeHint,
+    buildQueue.reservedStructures,
+  ) || createHouseBuildJob(state, config, runtime, buildQueue.reservedPositions);
+}
+
+// Resolve economy build candidates with optional mine-order bias.
+function createEconomyClassBuildJob(state, config, runtime, buildQueue, buildingGovernor) {
+  const mineBias = Number(buildingGovernor && buildingGovernor.mineBias || 0);
+  if (mineBias > 0) {
+    return createMineBuildJob(state, config, runtime, buildQueue.reservedPositions)
+      || createWorkshopBuildJob(state, config, runtime, buildQueue.reservedPositions)
+      || createSawmillBuildJob(state, config, runtime, buildQueue.reservedPositions)
+      || createMithrilForgeBuildJob(state, config, runtime, buildQueue.reservedPositions);
+  }
+  if (mineBias < 0) {
+    return createWorkshopBuildJob(state, config, runtime, buildQueue.reservedPositions)
+      || createSawmillBuildJob(state, config, runtime, buildQueue.reservedPositions)
+      || createMithrilForgeBuildJob(state, config, runtime, buildQueue.reservedPositions)
+      || createMineBuildJob(state, config, runtime, buildQueue.reservedPositions);
+  }
+  return createWorkshopBuildJob(state, config, runtime, buildQueue.reservedPositions)
+    || createMineBuildJob(state, config, runtime, buildQueue.reservedPositions)
+    || createSawmillBuildJob(state, config, runtime, buildQueue.reservedPositions)
+    || createMithrilForgeBuildJob(state, config, runtime, buildQueue.reservedPositions);
+}
+
+// Resolve defense build candidates.
+function createDefenseClassBuildJob(state, config, runtime, buildQueue) {
+  return createArmoryBuildJob(state, config, runtime, buildQueue.reservedPositions);
+}
+
+// Resolve special build candidates.
+function createSpecialClassBuildJob(state, config, runtime, buildQueue) {
+  return createAlchemyLabBuildJob(state, config, runtime, buildQueue.reservedPositions)
+    || createTempleBuildJob(state, config, runtime, buildQueue.reservedPositions);
+}
+
 // Assign a build or upgrade job when housing or defenses need attention.
 function assignBuildJobIfNeeded(
   state,
@@ -514,6 +798,7 @@ function assignBuildJobIfNeeded(
   emergency,
   managerActive,
   prioritizeMine,
+  action,
   buildQueue,
 ) {
   const housingConfig = (config.population && config.population.housing) || {};
@@ -524,9 +809,6 @@ function assignBuildJobIfNeeded(
     return;
   }
   if (idleDwarves.length === 0) {
-    return;
-  }
-  if (roleConfig.enabled && emergency) {
     return;
   }
   if (!buildQueue || buildQueue.remaining <= 0) {
@@ -542,18 +824,52 @@ function assignBuildJobIfNeeded(
   const houses = (state.structures || []).filter(
     (structure) => structure.type === "house",
   );
+  const queuedHouseBuilds = (state.jobs || []).filter(
+    (job) => job.type === "build" && job.structureType === "house",
+  ).length;
   const preferUpgrade =
     housingNeed.needed &&
     (upgradeMinHouses <= 0 || houses.length >= upgradeMinHouses);
+  let bootstrapHousingPending = housingNeed.needed && houses.length === 0 && queuedHouseBuilds === 0;
+
+  if (roleConfig.enabled && emergency) {
+    if (!bootstrapHousingPending) {
+      return;
+    }
+    const bootstrapJob = createHouseBuildJob(state, config, runtime, buildQueue.reservedPositions);
+    if (!bootstrapJob) {
+      return;
+    }
+    const preferred = takeIdleDwarf(idleDwarves, "builder");
+    const dwarf = preferred || takeIdleDwarf(idleDwarves);
+    if (!dwarf) {
+      return;
+    }
+    bootstrapJob.dwarfId = dwarf.id;
+    applyClanBuildTicks(bootstrapJob, dwarf, config, state);
+    dwarf.job = bootstrapJob;
+    state.jobs.push(bootstrapJob);
+    reserveBuildQueue(buildQueue, bootstrapJob);
+    return;
+  }
+
   const managerMode = Boolean(managerActive);
 
   const preferExtraMine = shouldPreferExtraMine(state, config);
+  const buildingGovernor = resolveBuildingGovernor(action, config);
+  const classOrder = rankBuildClasses(buildingGovernor.weights);
 
   while (idleDwarves.length > 0 && buildQueue.remaining > 0) {
     let buildJob = null;
-    if (prioritizeMine) {
+    if (bootstrapHousingPending) {
+      buildJob = createHouseBuildJob(state, config, runtime, buildQueue.reservedPositions);
+      if (buildJob) {
+        bootstrapHousingPending = false;
+      }
+    }
+    if (!buildJob && prioritizeMine) {
       buildJob = createMineBuildJob(state, config, runtime, buildQueue.reservedPositions);
-    } else if (!managerMode) {
+    } else if (!buildJob && !managerMode) {
       buildJob =
         createWellBuildJob(state, config, runtime, buildQueue.reservedPositions) ||
         createFieldBuildJob(state, config, runtime, buildQueue.reservedPositions);
@@ -563,38 +879,17 @@ function assignBuildJobIfNeeded(
       buildJob = createMineBuildJob(state, config, runtime, buildQueue.reservedPositions);
     }
 
-    if (!buildJob && housingNeed.needed) {
-      buildJob =
-        createHouseUpgradeJob(
-          state,
-          config,
-          runtime,
-          preferUpgrade,
-          buildQueue.reservedStructures,
-        ) ||
-        createHouseBuildJob(state, config, runtime, buildQueue.reservedPositions);
-    }
-
     if (!buildJob) {
-      buildJob = createWorkshopBuildJob(state, config, runtime, buildQueue.reservedPositions);
-    }
-    if (!buildJob) {
-      buildJob = createMineBuildJob(state, config, runtime, buildQueue.reservedPositions);
-    }
-    if (!buildJob) {
-      buildJob = createSawmillBuildJob(state, config, runtime, buildQueue.reservedPositions);
-    }
-    if (!buildJob) {
-      buildJob = createMithrilForgeBuildJob(state, config, runtime, buildQueue.reservedPositions);
-    }
-    if (!buildJob) {
-      buildJob = createArmoryBuildJob(state, config, runtime, buildQueue.reservedPositions);
-    }
-    if (!buildJob) {
-      buildJob = createAlchemyLabBuildJob(state, config, runtime, buildQueue.reservedPositions);
-    }
-    if (!buildJob) {
-      buildJob = createTempleBuildJob(state, config, runtime, buildQueue.reservedPositions);
+      buildJob = createRankedBuildJob(
+        classOrder,
+        state,
+        config,
+        runtime,
+        buildQueue,
+        housingNeed,
+        preferUpgrade,
+        buildingGovernor,
+      );
     }
     if (!buildJob) {
       return;
@@ -1133,7 +1428,7 @@ function getActionWeights(action, config) {
   const minWeight = Number(aiConfig.minWeight ?? 0);
   const maxWeight = Number(aiConfig.maxWeight ?? 2);
   const defaults = aiConfig.defaultWeights || {};
-  const rawWeights = (action && action.weights) || defaults;
+  const rawWeights = getRawActionWeights(action) || defaults;
   const weights = {};
 
   for (const [resource, value] of Object.entries(rawWeights)) {
@@ -1145,6 +1440,30 @@ function getActionWeights(action, config) {
   }
 
   return weights;
+}
+
+// Resolve raw AI weights from governor envelope, with legacy fallback.
+function getRawActionWeights(action) {
+  if (!action || typeof action !== "object") {
+    return null;
+  }
+
+  const jobs = action.jobs;
+  if (jobs && typeof jobs === "object" && !Array.isArray(jobs)) {
+    if (Object.prototype.hasOwnProperty.call(jobs, "weights")) {
+      const jobsWeights = jobs.weights;
+      if (jobsWeights && typeof jobsWeights === "object" && !Array.isArray(jobsWeights)) {
+        return jobsWeights;
+      }
+      return {};
+    }
+  }
+
+  const legacyWeights = action.weights;
+  if (legacyWeights && typeof legacyWeights === "object" && !Array.isArray(legacyWeights)) {
+    return legacyWeights;
+  }
+  return null;
 }
 
 // Resolve the gather trigger ratio for a resource (multiplies the stockpile target).

@@ -12,7 +12,7 @@ const { stepState } = require('./src/simulation');
 const { renderFrame } = require('./src/render');
 const { getTelemetryPanelPageCount } = require('./src/render/telemetry_panel');
 const { clearScreen, moveCursorHome, hideCursor, showCursor } = require('./src/terminal');
-const { loadPolicy, selectAction } = require('./src/ai_policy');
+const { loadPolicy, selectAction, normalizeActionEnvelope } = require('./src/ai_policy');
 const { getSpawnOrderedIds } = require('./src/dwarf_lore');
 const { shouldTriggerEndgameReset, runEndgameReset } = require('./src/simulation/endgame');
 
@@ -85,7 +85,8 @@ function loop() {
     advanceEndgameTransition(state, config, runtime);
   } else if (!paused) {
     if (policy && state.tick >= nextActionTick) {
-      currentAction = selectAction(state, config, policy);
+      const selected = selectAction(state, config, policy);
+      currentAction = normalizeActionEnvelope(selected);
       nextActionTick = state.tick + getActionTicks(config);
     }
 

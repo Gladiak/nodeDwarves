@@ -7,9 +7,14 @@ alive while you watch the chaos unfold in ASCII. Grab popcorn. :)
 Think of it as a living systems sandbox: you tune config, press run, and watch
 trade-offs emerge from shortages, weather, raids, and long-term growth pressure.
 
-## Screenshot 📸
+## Screenshots 📸
 
-![NodeDwarves simulation](assets/NodeDwarves.png)
+![NodeDwarves simulation 1](assets/NodeDwarves_1.png)
+![NodeDwarves simulation 2](assets/NodeDwarves_2.png)
+![NodeDwarves simulation 3](assets/NodeDwarves_3.png)
+![NodeDwarves simulation 4](assets/NodeDwarves_4.png)
+![NodeDwarves simulation 5](assets/NodeDwarves_5.png)
+![NodeDwarves simulation 6](assets/NodeDwarves_6.png)
 
 ## Highlights ✨
 
@@ -22,6 +27,7 @@ trade-offs emerge from shortages, weather, raids, and long-term growth pressure.
 - 🎭 World events now live: traveling bards, rival caravans, and short-deadline opportunities.
 - 🗝️ Endgame ruins expeditions with artifacts, set bonuses, and cycle resets.
 - 🏛️ Dwarf Temple of Ancestors: biome-aware multi-stage final work with prestige growth.
+- 🧭 Economy telemetry now includes an Endgame checklist with live step completion and reset ETA.
 - ⚗️ Alchemy Lab rites: burn rare minerals for powerful global buffs, then survive the backlash.
 - 🛡️ Clan culture traits that create trade-offs without micromanagement.
 - 🕳️ Underrealm Front: 10 depth layers with engineered dwarven halls and dense stone-hewn caverns.
@@ -63,7 +69,7 @@ npm run ai:play
 - `Space`: pause/resume
 - `l`: legend panel
 - `i`: dwarf inspect panel
-- `h`: telemetry Data Center overlay (`Overview + Deep`, `Economy`) with expanded plain-language metric labels
+- `h`: telemetry Data Center overlay (`Overview + Deep`, `Economy`) with expanded plain-language metric labels and an `Endgame` progress checklist on the Economy page
 - `←` / `→`: change telemetry pages when telemetry is open, or browse dwarves when inspect is open
 - `↑` / `↓`: switch map view between surface and unlocked underrealm depths
 - `m`: export all currently unlocked layers (surface + underrealm) as PNG + SVG
@@ -84,6 +90,20 @@ Training now highlights every best-checkpoint save with a colored `[BEST SAVED]`
 line and keeps both `models/policy_best.json` and `models/policy_best.meta.json`
 in sync. 🧠
 
+AI runtime now accepts a backward-compatible governor action envelope, so legacy
+policy files still run while jobs/trade/building sub-policies roll out.
+Jobs prioritization now reads the governor envelope first, while keeping legacy
+AI weight payloads compatible.
+Trade governor hooks now support advisory `trade` intents for merchant reserve,
+rival caravan contests, and opportunity completion timing.
+Building governor hooks now support advisory `building` ranking signals for
+housing/economy/defense/special queues, with guardrails still enforced by the
+existing structure checks.
+Telemetry now exposes compact governor signals directly in `Pressure`,
+`Diplomacy`, and `Operations` so policy intent can be inspected live.
+Training action heads now include governor pseudo-action IDs when enabled; if
+feature/action shapes change, restart training with `--fresh`.
+
 ## Four runs to try ⚡
 
 1. `Vanilla sim`: `npm start`
@@ -96,6 +116,7 @@ in sync. 🧠
 - `MANUAL.md`: technical and gameplay manual (systems, formulas, workflows).
 - `docs/PARAMETERS.md`: full config reference.
 - `docs/TRAINING_OVERRIDES.md`: training override guide.
+- `AIGovernors.md`: practical backlog and rollout plan for AI governors (jobs/trade/building).
 - `AGENTS.md`: contribution and implementation guidelines.
 
 ## Roadmap ideas 🧭
@@ -111,6 +132,7 @@ in sync. 🧠
 
 - `app.js`: entrypoint and main loop.
 - `config.json`: single source of truth for tunables.
+- `AIGovernors.md`: living implementation backlog for AI governors.
 - `src/`: simulation, state, rendering, AI.
 - `src/simulation/underrealm.js`: Underrealm crew, shrine doctrine, deep economy, exploration unlocks, and hostile faction pressure.
 - `src/simulation/world_events.js`: world event lifecycle for bards, rival caravans, and time-limited opportunities.

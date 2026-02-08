@@ -14,6 +14,7 @@ const DEFAULT_TICKS = 6000;
 const DEFAULT_SEEDS = [101, 202, 303, 404];
 const DEFAULT_RESOURCES = ['beer', 'food', 'water'];
 const DEFAULT_VARIANT_LABEL = 'current';
+const DEFAULT_PROGRESS_STEPS = 8;
 
 // Print CLI usage and examples.
 function printHelp() {
@@ -33,6 +34,8 @@ function printHelp() {
     '  --variant <label>         Start a variant block (repeatable)',
     '  --set <path=value>        Override for latest variant (repeatable)',
     "  --output <table|json|both> Output format (default: table)",
+    '  --progress                Print progress updates to stderr',
+    '  --progress-every <n>      Progress update interval in ticks',
     '  --help                    Show this help',
     '',
     'Examples:',
@@ -57,6 +60,8 @@ function parseArgs(argv) {
     width: 120,
     height: 40,
     output: 'table',
+    progress: false,
+    progressEvery: null,
     variants: [],
   };
 
@@ -126,6 +131,20 @@ function parseArgs(argv) {
       i += 1;
       continue;
     }
+    if (arg === '--progress') {
+      options.progress = true;
+      continue;
+    }
+    if (arg === '--progress-every') {
+      const progressEvery = Math.max(1, Math.floor(Number(argv[i + 1] || 0)));
+      if (!Number.isFinite(progressEvery) || progressEvery <= 0) {
+        throw new Error('--progress-every must be a positive integer.');
+      }
+      options.progress = true;
+      options.progressEvery = progressEvery;
+      i += 1;
+      continue;
+    }
     throw new Error(`Unknown argument: ${arg}`);
   }
 
@@ -134,6 +153,29 @@ function parseArgs(argv) {
   }
 
   return options;
+}
+
+// Resolve tick interval used for progress updates.
+function resolveProgressEvery(ticks, progressEvery) {
+  const configured = Number(progressEvery);
+  if (Number.isFinite(configured) && configured > 0) {
+    return Math.max(1, Math.floor(configured));
+  }
+  const steps = Math.max(1, Number(DEFAULT_PROGRESS_STEPS));
+  return Math.max(1, Math.floor(Math.max(1, Number(ticks || 1)) / steps));
+}
+
+// Format elapsed milliseconds in seconds.
+function formatElapsedMs(elapsedMs) {
+  return `${(Math.max(0, Number(elapsedMs || 0)) / 1000).toFixed(1)}s`;
+}
+
+// Print one progress line to stderr when enabled.
+function writeProgress(options, message) {
+  if (!options || options.progress !== true) {
+    return;
+  }
+  process.stderr.write(`[progress] ${message}\n`);
 }
 
 // Resolve a possibly relative file path.
@@ -347,8 +389,11 @@ function summarizeRows(rows, resources) {
 // Run all seeds for one variant and return rows + summary.
 function runVariant(baseConfig, options, variant) {
   const rows = [];
+  const totalSeeds = options.seeds.length;
+  writeProgress(options, `variant=${variant.label} start seeds=${totalSeeds} ticks=${options.ticks}`);
   for (const seed of options.seeds) {
     const row = withSeed(seed, () => {
+      const seedStartMs = Date.now();
       const variantConfig = buildVariantConfig(baseConfig, variant);
       variantConfig.display = variantConfig.display || {};
       variantConfig.display.terrain = variantConfig.display.terrain || {};
@@ -356,15 +401,38 @@ function runVariant(baseConfig, options, variant) {
 
       const runtime = buildFixedRuntime(variantConfig, options.width, options.height);
       const state = createInitialState(variantConfig, runtime);
+      const progressEvery = resolveProgressEvery(options.ticks, options.progressEvery);
+      let nextProgressTick = progressEvery;
 
       for (let index = 0; index < options.ticks; index += 1) {
         stepState(state, variantConfig, runtime, null);
+        const tick = index + 1;
+        if (options.progress === true && (tick >= nextProgressTick || tick === options.ticks)) {
+          const elapsedMs = Date.now() - seedStartMs;
+          const population = Array.isArray(state.dwarves) ? state.dwarves.length : 0;
+          const etaMs = tick > 0
+            ? Math.max(0, (elapsedMs / tick) * (options.ticks - tick))
+            : 0;
+          writeProgress(
+            options,
+            `variant=${variant.label} seed=${seed} tick=${tick}/${options.ticks} pop=${population} elapsed=${formatElapsedMs(elapsedMs)} eta=${formatElapsedMs(etaMs)}`,
+          );
+          while (nextProgressTick <= tick) {
+            nextProgressTick += progressEvery;
+          }
+        }
       }
 
-      return collectRow(state, options.resources, seed);
+      const collected = collectRow(state, options.resources, seed);
+      writeProgress(
+        options,
+        `variant=${variant.label} seed=${seed} done tick=${collected.tick} pop=${collected.population} elapsed=${formatElapsedMs(Date.now() - seedStartMs)}`,
+      );
+      return collected;
     });
     rows.push(row);
   }
+  writeProgress(options, `variant=${variant.label} completed seeds=${totalSeeds}`);
   return {
     label: variant.label,
     assignments: variant.assignments,
