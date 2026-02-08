@@ -479,7 +479,7 @@ function getAlchemyOutputBonus(state, config) {
   return clamp(bonus, -0.95, 5);
 }
 
-// Return HUD-friendly alchemy status.
+// Return telemetry-friendly alchemy status.
 function getAlchemyStatus(state, config) {
   const alchemyConfig = getAlchemyConfig(config);
   if (!state || !state.alchemy || alchemyConfig.enabled === false) {

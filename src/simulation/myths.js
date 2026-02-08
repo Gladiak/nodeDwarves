@@ -123,7 +123,7 @@ function updateSeasonWindow(counter, seasonIndex, windowSize, conditionMet) {
   return counter.seasons.length;
 }
 
-// Compute per-effect severity for HUD/AI summaries.
+// Compute per-effect severity for telemetry/AI summaries.
 function getEffectsSeverity(effects) {
   if (!effects || typeof effects !== 'object') {
     return 0;

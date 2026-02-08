@@ -2,7 +2,7 @@
 
 const { clamp } = require('../utils');
 const { getStockpileRatio, hasInputs, consumeInputs } = require('./resources');
-const { getTerrainTypeAt } = require('./terrain');
+const { getTerrainTypeAt, isSpawnableTile } = require('./terrain');
 const { pushEvent } = require('./events');
 
 const NEIGHBOR_STEPS = [
@@ -618,8 +618,8 @@ function planRoadLink(state, roads, roadsConfig, runtime, config, linkKey, kind,
     markLinkFailed(roads, linkKey, roadsConfig);
     return;
   }
-  const anchorStart = findRoadAnchor(roads, runtime, start, roadsConfig.anchorRadius, goal);
-  const anchorGoal = findRoadAnchor(roads, runtime, goal, roadsConfig.anchorRadius, start);
+  const anchorStart = findRoadAnchor(state, roads, runtime, start, roadsConfig.anchorRadius, goal);
+  const anchorGoal = findRoadAnchor(state, roads, runtime, goal, roadsConfig.anchorRadius, start);
   const from = anchorStart || start;
   const to = anchorGoal || goal;
   const path = findRoadPath(state, roads, runtime, roadsConfig, from, to, linkKey);
@@ -679,6 +679,9 @@ function resolveCrossingType(roadsConfig, kind) {
 }
 
 function resolveRoadTileType(state, x, y, crossingType, roadsConfig) {
+  if (!isSpawnableTile(state, x, y)) {
+    return null;
+  }
   const terrainType = getTerrainTypeAt(state, x, y);
   if (isWaterTerrain(roadsConfig, terrainType)) {
     return 'bridge';
@@ -697,6 +700,9 @@ function findRoadPath(state, roads, runtime, roadsConfig, start, goal, linkKey) 
   const startY = clamp(Number(start.y || 0), 0, height - 1);
   const goalX = clamp(Number(goal.x || 0), 0, width - 1);
   const goalY = clamp(Number(goal.y || 0), 0, height - 1);
+  if (!isSpawnableTile(state, startX, startY) || !isSpawnableTile(state, goalX, goalY)) {
+    return null;
+  }
   if (startX === goalX && startY === goalY) {
     return [{ x: startX, y: startY }];
   }
@@ -902,6 +908,9 @@ function findRoadPathViaLongWaypoint(
   let bestScore = Number.POSITIVE_INFINITY;
   for (let i = 0; i < candidates.length; i += 1) {
     const waypoint = candidates[i];
+    if (!isSpawnableTile(state, waypoint.x, waypoint.y)) {
+      continue;
+    }
     const terrainType = getTerrainTypeAt(state, waypoint.x, waypoint.y);
     if (terrainType && blockedSet && blockedSet.has(terrainType)) {
       continue;
@@ -1147,6 +1156,9 @@ function findRoadPathWithAvoidBfs(
     return false;
   };
   const isPassable = (x, y) => {
+    if (!isSpawnableTile(state, x, y)) {
+      return false;
+    }
     if (x === goalX && y === goalY) {
       return true;
     }
@@ -1272,6 +1284,9 @@ function findRoadPathWithAvoidWeighted(
     return false;
   };
   const isPassable = (x, y) => {
+    if (!isSpawnableTile(state, x, y)) {
+      return false;
+    }
     if (x === goalX && y === goalY) {
       return true;
     }
@@ -1524,7 +1539,7 @@ function isWaterTerrain(roadsConfig, terrainType) {
   return roadsConfig.waterTerrain.includes(terrainType);
 }
 
-function findRoadAnchor(roads, runtime, pos, radius, target) {
+function findRoadAnchor(state, roads, runtime, pos, radius, target) {
   if (!roads || !roads.types || !pos || radius <= 0) {
     return null;
   }
@@ -1544,7 +1559,7 @@ function findRoadAnchor(roads, runtime, pos, radius, target) {
     return false;
   };
 
-  if (isRoad(startX, startY)) {
+  if (isRoad(startX, startY) && isSpawnableTile(state, startX, startY)) {
     return { x: startX, y: startY };
   }
 
@@ -1557,7 +1572,12 @@ function findRoadAnchor(roads, runtime, pos, radius, target) {
       const dy = r - Math.abs(dx);
       const x1 = startX + dx;
       const y1 = startY + dy;
-      if (x1 >= 0 && y1 >= 0 && x1 < width && y1 < height && isRoad(x1, y1)) {
+      if (x1 >= 0
+          && y1 >= 0
+          && x1 < width
+          && y1 < height
+          && isRoad(x1, y1)
+          && isSpawnableTile(state, x1, y1)) {
         const selfDist = Math.abs(x1 - startX) + Math.abs(y1 - startY);
         const targetDist = targetX === null ? 0 : Math.abs(x1 - targetX) + Math.abs(y1 - targetY);
         if (targetDist < bestTargetDist || (targetDist === bestTargetDist && selfDist < bestSelfDist)) {
@@ -1569,7 +1589,12 @@ function findRoadAnchor(roads, runtime, pos, radius, target) {
       if (dy !== 0) {
         const x2 = startX + dx;
         const y2 = startY - dy;
-        if (x2 >= 0 && y2 >= 0 && x2 < width && y2 < height && isRoad(x2, y2)) {
+        if (x2 >= 0
+            && y2 >= 0
+            && x2 < width
+            && y2 < height
+            && isRoad(x2, y2)
+            && isSpawnableTile(state, x2, y2)) {
           const selfDist = Math.abs(x2 - startX) + Math.abs(y2 - startY);
           const targetDist = targetX === null ? 0 : Math.abs(x2 - targetX) + Math.abs(y2 - targetY);
           if (targetDist < bestTargetDist || (targetDist === bestTargetDist && selfDist < bestSelfDist)) {
@@ -1601,6 +1626,15 @@ function buildNextRoadTile(state, roads, roadsConfig, config) {
     const x = entry.x;
     const y = entry.y;
     if (!roads.types[y] || roads.types[y][x]) {
+      const key = `${x},${y}`;
+      if (roads.planned[key]) {
+        delete roads.planned[key];
+      }
+      roads.queueIndex += 1;
+      attempts += 1;
+      continue;
+    }
+    if (!isSpawnableTile(state, x, y)) {
       const key = `${x},${y}`;
       if (roads.planned[key]) {
         delete roads.planned[key];

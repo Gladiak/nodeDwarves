@@ -29,7 +29,9 @@ function getResourceMapScale(config, runtime) {
   if (width <= 0 || height <= 0) {
     return { mapScale, multiplier: 1 };
   }
-  let multiplier = (width * height) / baselineArea;
+  const playableArea = Math.max(0, Number(runtime && runtime.playableArea || 0));
+  const effectiveArea = playableArea > 0 ? playableArea : width * height;
+  let multiplier = effectiveArea / baselineArea;
   const minMultiplier = Number(mapScale.minMultiplier ?? 0);
   const maxMultiplier = Number(mapScale.maxMultiplier ?? 0);
   if (Number.isFinite(minMultiplier) && minMultiplier > 0) {
@@ -1159,7 +1161,7 @@ function createUnderrealmState(config, runtime, surfaceTerrain, previousUnderrea
   if (underrealm.enabled === false) {
     return null;
   }
-  const maxDepth = Math.max(0, Math.floor(Number(underrealm.max_depth ?? 5)));
+  const maxDepth = Math.max(0, Math.floor(Number(underrealm.max_depth ?? 10)));
   if (maxDepth <= 0) {
     return null;
   }
@@ -1278,6 +1280,7 @@ function createInitialState(config, runtime) {
   const myths = createMythsState(config);
   const alchemy = createAlchemyState(config);
   const festival = createFestivalState(config);
+  const worldEvents = createWorldEventsState(config);
   const wildlife = createWildlifeState(config);
   const roads = createRoadState(config, runtime);
   const temple = createTempleState(config);
@@ -1302,6 +1305,7 @@ function createInitialState(config, runtime) {
     myths,
     alchemy,
     festival,
+    worldEvents,
     pasture,
     wildlife,
     terrain,
@@ -1330,6 +1334,10 @@ function createInitialState(config, runtime) {
       },
       legend: {
         open: false,
+      },
+      telemetryPanel: {
+        open: false,
+        page: 0,
       },
       saveMap: {
         open: false,
@@ -1386,6 +1394,40 @@ function createInitialState(config, runtime) {
       blockedNoHousing: 0,
       blockedLowStockpile: 0,
       blockedChance: 0,
+    },
+  };
+}
+
+// Create the initial world events state.
+function createWorldEventsState(config) {
+  const worldConfig = (config && config.worldEvents) || {};
+  if (worldConfig.enabled === false) {
+    return null;
+  }
+  const spawnRange = worldConfig.spawnRangeTicks || {};
+  const minSpawn = Math.max(0, Number(spawnRange.min ?? 200));
+  const maxSpawn = Math.max(minSpawn, Number(spawnRange.max ?? minSpawn));
+  return {
+    active: null,
+    nextSpawnTick: randomBetween(minSpawn, maxSpawn),
+    cooldownUntilTick: 0,
+    cooldownByType: {
+      traveling_bards: 0,
+      rival_caravans: 0,
+      limited_opportunities: 0,
+    },
+    counter: 1,
+    history: [],
+    stats: {
+      spawned: 0,
+      completed: 0,
+      failed: 0,
+      expired: 0,
+      byType: {
+        traveling_bards: { spawned: 0, completed: 0, failed: 0, expired: 0 },
+        rival_caravans: { spawned: 0, completed: 0, failed: 0, expired: 0 },
+        limited_opportunities: { spawned: 0, completed: 0, failed: 0, expired: 0 },
+      },
     },
   };
 }
@@ -2020,6 +2062,10 @@ function syncTerrainToGrid(state, runtime, config) {
       }
     }
   }
+  if (applyRuntimeInsetMaskToTerrain(state.terrain, runtime)) {
+    state.terrainIndex = null;
+    state.roads = createRoadState(config, runtime);
+  }
   syncUnderrealmToGrid(state, runtime, config);
 }
 
@@ -2034,6 +2080,46 @@ function syncUnderrealmToGrid(state, runtime, config) {
     state.terrain,
     state.underrealm,
   );
+}
+
+// Carve runtime inset cells out of existing terrain walkable/spawnable maps.
+function applyRuntimeInsetMaskToTerrain(terrain, runtime) {
+  if (!terrain || !Array.isArray(terrain.walkable)) {
+    return false;
+  }
+  const inset = runtime && runtime.mapInset;
+  if (!inset || inset.reserveSimulationSpace === false) {
+    return false;
+  }
+  const width = Math.max(0, Number(terrain.width || 0));
+  const height = Math.max(0, Number(terrain.height || 0));
+  if (width <= 0 || height <= 0) {
+    return false;
+  }
+  const minX = clamp(Math.floor(Number(inset.x || 0)), 0, width - 1);
+  const minY = clamp(Math.floor(Number(inset.y || 0)), 0, height - 1);
+  const maxX = clamp(minX + Math.max(0, Math.floor(Number(inset.width || 0))) - 1, minX, width - 1);
+  const maxY = clamp(minY + Math.max(0, Math.floor(Number(inset.height || 0))) - 1, minY, height - 1);
+
+  let changed = false;
+  for (let y = minY; y <= maxY; y += 1) {
+    const walkableRow = terrain.walkable[y];
+    const spawnableRow = terrain.spawnable && terrain.spawnable[y] ? terrain.spawnable[y] : null;
+    if (!walkableRow) {
+      continue;
+    }
+    for (let x = minX; x <= maxX; x += 1) {
+      if (walkableRow[x] !== false) {
+        walkableRow[x] = false;
+        changed = true;
+      }
+      if (spawnableRow && spawnableRow[x] !== false) {
+        spawnableRow[x] = false;
+        changed = true;
+      }
+    }
+  }
+  return changed;
 }
 
 // Clamp an entity into the grid and re-place if occupied.

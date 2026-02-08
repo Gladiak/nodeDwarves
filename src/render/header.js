@@ -3,7 +3,7 @@
 const { padRight } = require('../utils');
 const { fitLine } = require('./format');
 
-// Build header lines for the HUD.
+// Build header lines for the frame header band.
 function buildHeaderLines(config, runtime) {
   const height = Math.max(0, Number(runtime.headerHeight || 0));
   if (height === 0) {

@@ -319,7 +319,7 @@ function getFestivalModifier(state, key, fallback) {
   return Number.isFinite(value) ? value : fallback;
 }
 
-// Build a festival observation payload for AI/HUD usage.
+// Build a festival observation payload for AI/telemetry usage.
 function getFestivalObservation(state, config) {
   const festivalsConfig = getFestivalsConfig(config);
   if (festivalsConfig.enabled === false) {
@@ -348,7 +348,7 @@ function getFestivalObservation(state, config) {
   };
 }
 
-// Build a festival status summary for the HUD.
+// Build a festival status summary for telemetry.
 function getFestivalStatus(state, config) {
   const festivalsConfig = getFestivalsConfig(config);
   if (festivalsConfig.enabled === false) {

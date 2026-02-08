@@ -1,11 +1,12 @@
 'use strict';
 
-const { padRight, clamp } = require('../utils');
+const { clamp } = require('../utils');
 const { buildGridBase } = require('./grid');
 const { buildHeaderLines } = require('./header');
 const { buildFooterLines, getBeastSymbol } = require('./legend');
 const { buildLegendPanel, applyLegendPanel } = require('./legend_panel');
-const { buildHudLines } = require('./hud');
+const { buildTelemetryPanel, applyTelemetryPanel } = require('./telemetry_panel');
+const { applyMapInsetPanel } = require('./map_inset_panel');
 const { getColorConfig, applyColor } = require('./colors');
 const { formatMapLine } = require('./format');
 const { buildInspectPanel, applyInspectPanel } = require('./inspect');
@@ -580,7 +581,7 @@ function renderUnderrealmLifts(grid, state, config, colors, depth) {
   drawUnderrealmLiftMarker(grid, downCell, lockedSymbol, 'underrealm_lift_locked', colors);
 }
 
-// Render a full frame including map, HUD, header, and footer.
+// Render a full frame including map, telemetry overlays, header, and footer.
 function renderFrame(state, config, runtime) {
   const symbols = config.symbols || {};
   const colors = getColorConfig(config);
@@ -705,10 +706,16 @@ function renderFrame(state, config, runtime) {
   }
 
   applyTransitionMask(grid, state.ui ? state.ui.transition : null, runtime);
+  applyMapInsetPanel(grid, state, config, runtime, colors, frameSymbols);
 
   const legendPanel = buildLegendPanel(state, config, runtime);
   if (legendPanel) {
     applyLegendPanel(grid, legendPanel, colors);
+  }
+
+  const telemetryPanel = buildTelemetryPanel(state, config, runtime);
+  if (telemetryPanel) {
+    applyTelemetryPanel(grid, telemetryPanel, colors);
   }
 
   const inspectPanel = buildInspectPanel(state, config, runtime);
@@ -726,7 +733,6 @@ function renderFrame(state, config, runtime) {
     applyTransitionPanel(grid, transitionPanel, colors);
   }
 
-  const hudLines = runtime.hudEnabled ? buildHudLines(state, config, runtime) : [];
   const lines = [];
 
   for (const line of headerLines) {
@@ -744,18 +750,10 @@ function renderFrame(state, config, runtime) {
 
   for (let y = 0; y < runtime.gridHeight; y += 1) {
     const gridLine = grid[y].join('');
-    if (runtime.hudEnabled) {
-      const hudLine = hudLines[y] || '';
-      const mapLine = frameEnabled
-        ? `${applyColor(frameSymbols.vertical, 'frame', colors)}${gridLine}${applyColor(frameSymbols.vertical, 'frame', colors)}`
-        : gridLine;
-      lines.push(`${mapLine} | ${padRight(hudLine, runtime.hudWidth)}`);
-    } else {
-      const mapLine = frameEnabled
-        ? `${applyColor(frameSymbols.vertical, 'frame', colors)}${gridLine}${applyColor(frameSymbols.vertical, 'frame', colors)}`
-        : gridLine;
-      lines.push(mapLine);
-    }
+    const mapLine = frameEnabled
+      ? `${applyColor(frameSymbols.vertical, 'frame', colors)}${gridLine}${applyColor(frameSymbols.vertical, 'frame', colors)}`
+      : gridLine;
+    lines.push(mapLine);
   }
 
   if (frameEnabled) {

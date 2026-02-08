@@ -10,6 +10,7 @@ const { buildRuntime, getTerminalSize, setupResizeHandler } = require('./src/run
 const { createInitialState, fitStateToGrid } = require('./src/state');
 const { stepState } = require('./src/simulation');
 const { renderFrame } = require('./src/render');
+const { getTelemetryPanelPageCount } = require('./src/render/telemetry_panel');
 const { clearScreen, moveCursorHome, hideCursor, showCursor } = require('./src/terminal');
 const { loadPolicy, selectAction } = require('./src/ai_policy');
 const { getSpawnOrderedIds } = require('./src/dwarf_lore');
@@ -163,6 +164,22 @@ function ensureLegendState(state) {
   }
 }
 
+// Function: ensureTelemetryPanelState.
+function ensureTelemetryPanelState(state) {
+  if (!state.ui) {
+    state.ui = {};
+  }
+  if (!state.ui.telemetryPanel) {
+    state.ui.telemetryPanel = { open: false, page: 0 };
+  }
+  if (!Number.isFinite(Number(state.ui.telemetryPanel.page))) {
+    state.ui.telemetryPanel.page = 0;
+  }
+  const pageCount = Math.max(1, Number(getTelemetryPanelPageCount() || 1));
+  const page = Math.floor(Number(state.ui.telemetryPanel.page || 0));
+  state.ui.telemetryPanel.page = ((page % pageCount) + pageCount) % pageCount;
+}
+
 // Function: ensureSaveMapState.
 function ensureSaveMapState(state) {
   if (!state.ui) {
@@ -182,8 +199,10 @@ function ensureSaveMapState(state) {
 function openInspect(state) {
   ensureInspectState(state);
   ensureLegendState(state);
+  ensureTelemetryPanelState(state);
   ensureSaveMapState(state);
   state.ui.legend.open = false;
+  state.ui.telemetryPanel.open = false;
   closeSaveMap(state);
   state.ui.inspect.ids = getSpawnOrderedIds(state.dwarves || []);
   state.ui.inspect.index = 0;
@@ -200,11 +219,13 @@ function closeInspect(state) {
 function toggleLegend(state) {
   ensureLegendState(state);
   ensureInspectState(state);
+  ensureTelemetryPanelState(state);
   ensureSaveMapState(state);
   const next = !state.ui.legend.open;
   state.ui.legend.open = next;
   if (next) {
     state.ui.inspect.open = false;
+    state.ui.telemetryPanel.open = false;
     closeSaveMap(state);
   }
 }
@@ -212,11 +233,40 @@ function toggleLegend(state) {
 // Function: toggleInspect.
 function toggleInspect(state) {
   ensureInspectState(state);
+  ensureTelemetryPanelState(state);
   if (state.ui.inspect.open) {
     closeInspect(state);
     return;
   }
   openInspect(state);
+}
+
+// Function: toggleTelemetryPanel.
+function toggleTelemetryPanel(state) {
+  ensureTelemetryPanelState(state);
+  ensureInspectState(state);
+  ensureLegendState(state);
+  ensureSaveMapState(state);
+  const next = !state.ui.telemetryPanel.open;
+  state.ui.telemetryPanel.open = next;
+  if (next) {
+    state.ui.telemetryPanel.page = 0;
+    state.ui.inspect.open = false;
+    state.ui.legend.open = false;
+    closeSaveMap(state);
+  }
+}
+
+// Function: moveTelemetryPanelPage.
+function moveTelemetryPanelPage(state, delta) {
+  ensureTelemetryPanelState(state);
+  if (!state.ui.telemetryPanel.open) {
+    return;
+  }
+  const pageCount = Math.max(1, Number(getTelemetryPanelPageCount() || 1));
+  const current = Math.floor(Number(state.ui.telemetryPanel.page || 0));
+  const next = ((current + Number(delta || 0)) % pageCount + pageCount) % pageCount;
+  state.ui.telemetryPanel.page = next;
 }
 
 // Function: moveInspect.
@@ -256,6 +306,7 @@ function openSaveMap(state, config, message, options = {}) {
   ensureSaveMapState(state);
   ensureInspectState(state);
   ensureLegendState(state);
+  ensureTelemetryPanelState(state);
   const uiConfig = (config.display && config.display.save_panel) || {};
   const autoCloseMs = Math.max(0, Number(uiConfig.autoCloseMs || 3000));
   const holdOpen = options.holdOpen === true;
@@ -264,6 +315,7 @@ function openSaveMap(state, config, message, options = {}) {
   state.ui.saveMap.closeAtMs = holdOpen ? 0 : Date.now() + autoCloseMs;
   state.ui.inspect.open = false;
   state.ui.legend.open = false;
+  state.ui.telemetryPanel.open = false;
 }
 
 // Function: triggerMapExport.
@@ -598,6 +650,7 @@ function startEndgameTransition(state, config, runtime) {
   }
   ensureInspectState(state);
   ensureLegendState(state);
+  ensureTelemetryPanelState(state);
   ensureSaveMapState(state);
   transition.active = true;
   transition.phase = 'fadeOut';
@@ -610,6 +663,7 @@ function startEndgameTransition(state, config, runtime) {
   transition.message = pickTransitionMessage(transitionConfig.messages, state);
   state.ui.inspect.open = false;
   state.ui.legend.open = false;
+  state.ui.telemetryPanel.open = false;
   closeSaveMap(state);
   currentAction = null;
   nextActionTick = 0;
@@ -751,6 +805,11 @@ function handleInput(text) {
       i += 1;
       continue;
     }
+    if (char === 'h' || char === 'H') {
+      toggleTelemetryPanel(state);
+      i += 1;
+      continue;
+    }
     if (char === 'm') {
       triggerMapExport(state, config, runtime);
       i += 1;
@@ -774,12 +833,30 @@ function handleInput(text) {
         continue;
       }
       if (seq === '\u001b[C') {
-        moveInspect(state, 1);
+        ensureTelemetryPanelState(state);
+        if (state.ui.telemetryPanel.open) {
+          moveTelemetryPanelPage(state, 1);
+          i += 3;
+          continue;
+        }
+        ensureInspectState(state);
+        if (state.ui.inspect.open) {
+          moveInspect(state, 1);
+        }
         i += 3;
         continue;
       }
       if (seq === '\u001b[D') {
-        moveInspect(state, -1);
+        ensureTelemetryPanelState(state);
+        if (state.ui.telemetryPanel.open) {
+          moveTelemetryPanelPage(state, -1);
+          i += 3;
+          continue;
+        }
+        ensureInspectState(state);
+        if (state.ui.inspect.open) {
+          moveInspect(state, -1);
+        }
         i += 3;
         continue;
       }

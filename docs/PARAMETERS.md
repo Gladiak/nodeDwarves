@@ -11,13 +11,16 @@ Display and layout:
 - `display.header.enabled`: enable the header bar.
 - `display.header.height`: header height in lines.
 - `display.header.title`: header title text.
-- `display.footer.enabled`: enable the footer bar.
-- `display.footer.height`: footer height in lines.
-- `display.hud.enabled`: enable the HUD panel.
-- `display.hud.width`: HUD width in characters.
-- `display.hud.columns`: number of HUD columns.
-- `display.hud.columnGap`: gap between HUD columns.
-- `display.hud.stockBarMax`: stockpile bar scale (0 = use targets).
+- `display.footer.enabled`: enable the footer bar (default profile keeps this disabled).
+- `display.footer.height`: footer height in lines (use `0` to maximize map height).
+- `display.telemetry.stockBarMax`: stockpile bar scale used by telemetry bars (0 = use targets).
+- `display.mapInset.enabled`: enable the top-right in-map inset panel carved from simulation space.
+- `display.mapInset.width`: inset width in map cells (default profile: `50`; runtime clamps to available map width with a minimum of `24`).
+- `display.mapInset.height`: inset height in map cells (default profile: `7`; runtime clamps to available map height with a minimum of `6`).
+- `display.mapInset.marginTop`: inset top margin in map cells.
+- `display.mapInset.marginRight`: inset right margin in map cells.
+- `display.mapInset.title`: inset title text rendered in the top border (default: `ᚦ NodeDwarves ᛞ`).
+- `display.mapInset.reserveSimulationSpace`: when true, carved cells are non-walkable/non-spawnable and excluded from build/path systems.
 - `display.frame.enabled`: render a frame around the map.
 - `display.frame.horizontal`: frame horizontal character.
 - `display.frame.vertical`: frame vertical character.
@@ -31,6 +34,9 @@ Display and layout:
 - `display.legend_panel.enabled`: enable the legend overlay panel (toggle with `l`).
 - `display.legend_panel.width`: legend panel width in characters.
 - `display.legend_panel.height`: legend panel height in lines.
+- `display.telemetry_panel.enabled`: enable the full telemetry Data Center overlay (toggle with `h`; while open use `←`/`→` to switch pages).
+- `display.telemetry_panel.width`: optional telemetry panel width override in characters (unset = dynamic size, ~98% map width).
+- `display.telemetry_panel.height`: optional telemetry panel height override in lines (unset = dynamic size, ~98% map height).
 - `display.save_panel.enabled`: enable the map-export confirmation panel.
 - `display.save_panel.width`: save panel width in characters.
 - `display.save_panel.height`: save panel height in lines.
@@ -280,7 +286,7 @@ Display and layout:
 - `display.colors.enabled`: enable ANSI colors in the render.
 - `display.colors.reset`: ANSI reset sequence (defaults to `\u001b[0m`).
 - `display.colors.map.<key>`: ANSI color for an entity key (e.g. `dwarf`, `merchant`, `house`, `alchemy_lab`, `food`, `hud_header`).
-- `display.colors.map.weather_<type>`: ANSI color for HUD weather labels (e.g. `weather_rain`).
+- `display.colors.map.weather_<type>`: ANSI color for telemetry weather labels (e.g. `weather_rain`).
 - `display.colors.map.terrain_<type>`: ANSI color for terrain tiles (`terrain_river`, `terrain_lake`, `terrain_road`, `terrain_bridge`, `terrain_ford`, `terrain_mountain`, `terrain_hill`, `terrain_plain`, `terrain_fertile`, `terrain_food`, `terrain_forest`, `terrain_stone`).
 - `display.colors.map.terrain_wall|terrain_cave|terrain_corridor|terrain_chasm|terrain_crystal|terrain_magma|terrain_shrine`: dedicated underrealm terrain colors (used when depth view is active; unaffected by seasonal palettes).
 - `display.colors.map.terrain_void`: color used for out-of-layer underrealm cells when viewport and layer bounds differ (optional near-black void mask).
@@ -299,6 +305,7 @@ Display and layout:
 - `display.colors.map.terrain_<type>_winter_ice`: optional colder/darker winter variants used by the `ice_fantasy` preset (for example `terrain_plain_winter_ice`, `terrain_forest_winter_ice`, `terrain_river_winter_ice`, `terrain_lake_winter_ice`).
 - `display.colors.map.terrain_pasture`: ANSI color for pasture tiles.
 - `display.colors.map.terrain_pasture_depleted`: ANSI color for depleted pasture tiles.
+- `display.colors.map.alert_critical`: ANSI color used by high-priority telemetry markers (for example pressure/critical rows in telemetry panels).
 - `display.colors.seasonal.enabled`: enable seasonal terrain color transitions.
 - `display.colors.seasonal.preset`: optional named seasonal palette preset (for example `ice_fantasy`, currently tuned to a softer winter look).
 - `display.colors.seasonal.types`: terrain types that should use seasonal palettes (e.g. `plain`, `fertile`, `forest`, `food`, `grass`, `river`, `lake`; hills/mountains/stone remain fixed across seasons).
@@ -321,7 +328,7 @@ Display and layout:
 
 Events:
 
-- `events.maxEntries`: number of recent events to show in the HUD.
+- `events.maxEntries`: number of recent events kept for telemetry panels/snapshots.
 
 Wildlife and pastures:
 
@@ -548,7 +555,7 @@ Prestige:
 
 - `prestige.enabled`: enable prestige scoring/rank tracking.
 - `prestige.cycleResetBonus`: prestige granted automatically when an endgame cycle reset completes.
-- `prestige.tiers[]`: ordered rank thresholds used for HUD rank labels.
+- `prestige.tiers[]`: ordered rank thresholds used for telemetry rank labels.
 - `prestige.tiers[].name`: rank label.
 - `prestige.tiers[].min`: minimum prestige required for that rank.
 
@@ -566,7 +573,7 @@ Resources:
 - `resources.mapScale.applyTo.targets`: scale stockpile targets by the map multiplier.
 - `resources.mapScale.applyTo.nodes`: scale resource node counts by the map multiplier.
 - `resources.mapScale.applyTo.nodeCapacity`: scale node capacities by the map multiplier.
-- `resources.labels.<resource>`: HUD label overrides for stockpile resources (falls back to the resource id).
+- `resources.labels.<resource>`: telemetry label overrides for stockpile resources (falls back to the resource id).
 - `resources.useTerrainTiles`: gather resources directly from terrain tiles when available.
 - `resources.terrainAllowed.<resource>`: allowed terrain tile types for resource placement and terrain gathering.
 - `resources.terrainCooldownTicks`: base cooldown ticks applied to terrain tiles after gathering (number or object).
@@ -639,7 +646,7 @@ Raids:
 Festivals:
 
 - `festivals.enabled`: enable seasonal festivals.
-- `festivals.label`: festival label used in HUD/events.
+- `festivals.label`: festival label used in telemetry/events.
 - `festivals.seasonNames`: seasons eligible for festivals (empty = any).
 - `festivals.seasonWindowTicks`: ticks from season start when a festival may begin.
 - `festivals.durationTicks`: festival duration in ticks.
@@ -654,6 +661,52 @@ Festivals:
 - `festivals.ai.enabled`: allow AI to trigger festivals.
 - `festivals.ai.intentThreshold`: normalized threshold (0..1) for the AI festival intent.
 
+World events:
+
+- `worldEvents.enabled`: enable world events runtime and telemetry status.
+- `worldEvents.minTick`: minimum tick before world event spawns can begin.
+- `worldEvents.spawnRangeTicks.min`: minimum ticks between world event spawn attempts.
+- `worldEvents.spawnRangeTicks.max`: maximum ticks between world event spawn attempts.
+- `worldEvents.maxConcurrent`: maximum active world events (`1` in current runtime behavior).
+- `worldEvents.globalCooldownTicks`: cooldown applied after any world event resolves.
+- `worldEvents.historyLimit`: max history entries retained in `state.worldEvents.history` (`0` = unlimited).
+- `worldEvents.blockDuringRaid`: block new world event spawns while raids are active.
+- `worldEvents.traveling_bards.enabled`: enable the traveling bards event type.
+- `worldEvents.traveling_bards.weight`: weighted spawn priority for bards.
+- `worldEvents.traveling_bards.label`: telemetry/event label for bards.
+- `worldEvents.traveling_bards.durationTicks`: active duration in ticks.
+- `worldEvents.traveling_bards.cooldownTicks`: per-type cooldown after bards end.
+- `worldEvents.traveling_bards.minPopulation`: minimum population required to spawn bards.
+- `worldEvents.traveling_bards.minStockpileRatios.<resource>`: ratio guardrails required to start bards.
+- `worldEvents.traveling_bards.costs.<resource>`: upfront stockpile costs consumed on spawn.
+- `worldEvents.traveling_bards.minCostRatio`: required multiple of each bard cost.
+- `worldEvents.traveling_bards.effects.<key>`: multipliers applied while bards are active (for example `needDecay`, `gatherYield`).
+- `worldEvents.rival_caravans.enabled`: enable the rival caravans event type.
+- `worldEvents.rival_caravans.weight`: weighted spawn priority for rival caravans.
+- `worldEvents.rival_caravans.label`: telemetry/event label for rival caravans.
+- `worldEvents.rival_caravans.durationTicks`: active duration in ticks.
+- `worldEvents.rival_caravans.cooldownTicks`: per-type cooldown after rival caravans end.
+- `worldEvents.rival_caravans.contestEnabled`: enable immediate resource contest resolution at event start.
+- `worldEvents.rival_caravans.contestCosts.<resource>`: contest costs consumed when the colony wins the contest.
+- `worldEvents.rival_caravans.contestMinStockpileRatios.<resource>`: ratio guardrails required to attempt contest costs.
+- `worldEvents.rival_caravans.contestMinCostRatio`: required multiple of each contest cost.
+- `worldEvents.rival_caravans.effectsWin.<key>`: multipliers applied when contest is won (for example `merchantTradeRate`, `contractReward`).
+- `worldEvents.rival_caravans.effectsLose.<key>`: multipliers applied when contest is lost.
+- `worldEvents.limited_opportunities.enabled`: enable time-limited opportunity offers.
+- `worldEvents.limited_opportunities.weight`: weighted spawn priority for opportunities.
+- `worldEvents.limited_opportunities.label`: fallback label for opportunities.
+- `worldEvents.limited_opportunities.cooldownTicks`: per-type cooldown after an opportunity resolves.
+- `worldEvents.limited_opportunities.expiryTicks`: ticks before an active opportunity offer expires.
+- `worldEvents.limited_opportunities.failureLossRatio`: stockpile loss ratio applied on offer expiry.
+- `worldEvents.limited_opportunities.failureLossResources[]`: resources eligible for expiry loss.
+- `worldEvents.limited_opportunities.templates[]`: weighted template list for opportunity offers.
+- `worldEvents.limited_opportunities.templates[].id`: template id stored in event metadata.
+- `worldEvents.limited_opportunities.templates[].weight`: weighted spawn priority for the template.
+- `worldEvents.limited_opportunities.templates[].label`: template-specific display label.
+- `worldEvents.limited_opportunities.templates[].request.<resource>`: stockpile required to complete the offer.
+- `worldEvents.limited_opportunities.templates[].reward.<resource>`: stockpile granted on completion.
+- `worldEvents.limited_opportunities.templates[].targetBoosts.<resource>`: temporary target boost while offer is active.
+
 Myths:
 
 - `myths.enabled`: enable global myth modifiers.
@@ -662,7 +715,7 @@ Myths:
 - `myths.minGapTicks`: minimum ticks between activations of the same myth.
 - `myths.historyLimit`: maximum myth history entries to retain (0 = unlimited).
 - `myths.traditionsEnabled`: enable tradition carry-over between endgame cycles.
-- `myths.definitions.<id>.label`: HUD label for the myth.
+- `myths.definitions.<id>.label`: telemetry label for the myth.
 - `myths.definitions.<id>.durationTicks`: myth duration in ticks (0 = indefinite).
 - `myths.definitions.<id>.effects.<key>`: multiplier applied while the myth is active (1 = neutral).
 - `myths.definitions.<id>.traditionEffects.<key>`: multiplier applied by the tradition (1 = neutral).
@@ -682,11 +735,11 @@ Myths:
 
 Alchemy:
 
-- `alchemy.enabled`: enable alchemy rite processing and alchemy HUD state.
+- `alchemy.enabled`: enable alchemy rite processing and alchemy telemetry state.
 - `alchemy.historyLimit`: max alchemy history entries retained (0 = unlimited).
 - `alchemy.formulas.<id>.enabled`: enable/disable a specific rite formula.
 - `alchemy.formulas.<id>.priority`: formula selection priority (higher runs first when multiple are eligible).
-- `alchemy.formulas.<id>.label`: HUD/event label for the rite.
+- `alchemy.formulas.<id>.label`: telemetry/event label for the rite.
 - `alchemy.formulas.<id>.durationTicks`: active duration of the rite.
 - `alchemy.formulas.<id>.cooldownTicks`: cooldown applied after rite completion.
 - `alchemy.formulas.<id>.requiredStructures`: structures required before the formula can activate.
@@ -698,7 +751,7 @@ Alchemy:
 - `alchemy.formulas.<id>.outputBonus`: additive production bonus while active (`0.2` = +20%).
 - `alchemy.formulas.<id>.effects.<key>`: multiplicative modifiers while active (`needDecay`, `ruinsArtifactChance`, `ruinsHazard`, `raidDeathRate`, `raidResourceLoss`, `mineRareChance`, `gatherTicks`, `buildTicks`, `mineOutput`, `underrealmRaidStrength`, `underrealmRaidLoss`, `underrealmRareDrop`).
 - `alchemy.formulas.<id>.backlash.id`: id of the backlash state used in history/debug.
-- `alchemy.formulas.<id>.backlash.label`: HUD/event label for the backlash phase.
+- `alchemy.formulas.<id>.backlash.label`: telemetry/event label for the backlash phase.
 - `alchemy.formulas.<id>.backlash.failureThreshold`: ruins failures during the rite required to trigger backlash.
 - `alchemy.formulas.<id>.backlash.durationTicks`: duration of the backlash phase.
 - `alchemy.formulas.<id>.backlash.resourceLossRatio`: immediate stockpile loss ratio applied when backlash starts.
@@ -841,7 +894,7 @@ Clans:
 
 - `clans.enabled`: enable clan culture system.
 - `clans.list`: ordered list of clan ids.
-- `clans.labels.<clan>`: short clan label used in the HUD.
+- `clans.labels.<clan>`: short clan label used in telemetry.
 - `clans.distribution.<clan>`: spawn weight for initial/random clan assignment.
 - `clans.inheritance.mode`: `parent` (inherit from parents) or `random` (distribution only).
 - `clans.effects.<clan>.mine_output_bonus`: mine output bonus applied to all mine outputs (0..1).
@@ -918,7 +971,7 @@ Structures (temple of ancestors):
 - `structures.temple_of_ancestors.finalCompletionPrestige`: one-time prestige grant when the last stage completes.
 - `structures.temple_of_ancestors.stages[]`: ordered stage definitions.
 - `structures.temple_of_ancestors.stages[].id`: stage id (1-based).
-- `structures.temple_of_ancestors.stages[].name`: stage label used in events/HUD.
+- `structures.temple_of_ancestors.stages[].name`: stage label used in events/telemetry.
 - `structures.temple_of_ancestors.stages[].radius`: render/build footprint radius for that stage.
 - `structures.temple_of_ancestors.stages[].buildTicks`: build time in ticks for the stage job.
 - `structures.temple_of_ancestors.stages[].buildCost.<resource>`: stage build cost.

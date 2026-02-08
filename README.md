@@ -15,15 +15,18 @@ trade-offs emerge from shortages, weather, raids, and long-term growth pressure.
 
 - 🧠 Fully autonomous ASCII colony sim with real-time rendering.
 - ⛏️ Resource economy with production chains and rare minerals (yes, shiny ones).
+- 🍺 Brewery + beer morale tuning for long-run saves, so mid/late-game morale fuel stays active.
 - 🏘️ Village growth with structures, roads, and organic placement.
 - 🌦️ Seasons, weather, festivals, and wildlife that shift priorities (raids optional).
 - 📜 Merchant trading, caravan contracts, and faction reputation.
+- 🎭 World events now live: traveling bards, rival caravans, and short-deadline opportunities.
 - 🗝️ Endgame ruins expeditions with artifacts, set bonuses, and cycle resets.
 - 🏛️ Dwarf Temple of Ancestors: biome-aware multi-stage final work with prestige growth.
 - ⚗️ Alchemy Lab rites: burn rare minerals for powerful global buffs, then survive the backlash.
 - 🛡️ Clan culture traits that create trade-offs without micromanagement.
-- 🕳️ Underrealm Front: depth layers with engineered dwarven halls and dense stone-hewn caverns.
-- 📊 HUD readability: Underrealm telemetry has its own dedicated HUD block for depth operations.
+- 🕳️ Underrealm Front: 10 depth layers with engineered dwarven halls and dense stone-hewn caverns.
+- 🗺️ Map Focus default: no side telemetry column; `h` opens a full-screen paged telemetry Data Center while the map keeps full width.
+- 🪟 In-map Ops Snapshot: a top-right status stack with core runtime signals (time, population, underrealm + view) and a fixed keyboard-command row, without letting roads/buildings/pathing use that carved space.
 - 🤖 AI training in Python (PPO) with JS-only inference.
 - 🧩 Modular architecture (simulation, state, render, AI) for sane iteration.
 - ⚡ Late-game pathing cache optimizations for smoother high-population ticks.
@@ -59,6 +62,8 @@ npm run ai:play
 - `Space`: pause/resume
 - `l`: legend panel
 - `i`: dwarf inspect panel
+- `h`: telemetry Data Center overlay (`Overview + Deep`, `Economy`) with expanded plain-language metric labels
+- `←` / `→`: change telemetry pages when telemetry is open, or browse dwarves when inspect is open
 - `↑` / `↓`: switch map view between surface and unlocked underrealm depths
 - `m`: export all currently unlocked layers (surface + underrealm) as PNG + SVG
 - `Shift+M`: export all currently unlocked layers with structures/roads
@@ -94,15 +99,12 @@ in sync. 🧠
 
 ## Roadmap ideas 🧭
 
-- 🛰️ Fog-of-war + scouting: unlock map intel with explorers, towers, and rumors.
 - 🧬 Lineages and legacy perks: clan bloodlines evolve traits across cycles.
 - ⚖️ Dynamic laws: policy toggles that trade safety, productivity, and morale.
 - 🔥 Disaster arcs: drought → fire → recovery chain with emergent priorities.
-- 🧭 World events: traveling bards, rival caravans, and time-limited opportunities.
 - 🧭 Multi-village specialization: assign production roles per settlement.
 - 🗺️ Expedition map: alternate tactical layer for ruins parties and outcomes.
 - 🧠 AI governors: trainable sub-policies for jobs, trade, and building.
-- 🕳️ Underrealm Front expansion: shaft logistics networks, deep strongholds, and faction boss arcs.
 
 ## Project layout (high level) 🧱
 
@@ -110,9 +112,14 @@ in sync. 🧠
 - `config.json`: single source of truth for tunables.
 - `src/`: simulation, state, rendering, AI.
 - `src/simulation/underrealm.js`: Underrealm crew, shrine doctrine, deep economy, exploration unlocks, and hostile faction pressure.
+- `src/simulation/world_events.js`: world event lifecycle for bards, rival caravans, and time-limited opportunities.
 - `src/simulation/alchemy.js`: alchemy rites, pact lifecycle, and backlash logic.
 - `src/simulation/temple.js`: Temple of Ancestors stages, map footprint, and prestige system.
+- `src/render/map_inset_panel.js`: carved in-map Ops Snapshot component with compact, width-aware runtime lines.
+- `src/render/telemetry.js`: telemetry section builders and formatting helpers.
+- `src/render/telemetry_panel.js`: in-game paged telemetry Data Center with section pages and full-height telemetry content area.
 - `scripts/train_wrapper.js`: safe unified wrapper for all `ai:train:*` profiles.
+- `scripts/headless_benchmark.js`: deterministic headless benchmark for long-run balance tuning and validation.
 - `python/`: PPO training + agent example.
 - `docs/`: parameter reference and training overrides.
 - `models/`: policy checkpoints.

@@ -92,7 +92,11 @@ function ensureTerrainIndex(state) {
   const typePositions = {};
   for (let y = 0; y < terrain.height; y += 1) {
     const row = terrain.types[y];
+    const spawnRow = terrain.spawnable && terrain.spawnable[y] ? terrain.spawnable[y] : null;
     for (let x = 0; x < terrain.width; x += 1) {
+      if (spawnRow && spawnRow[x] !== true) {
+        continue;
+      }
       const type = row[x];
       if (!type) {
         continue;
@@ -243,6 +247,9 @@ function pickTerrainResourceTarget(state, config, resourceId, anchor, options) {
   const ignoreCooldown = options && options.ignoreCooldown === true;
   const samples = [];
   const pushIfReady = (pos, type) => {
+    if (!isSpawnableTile(state, pos.x, pos.y)) {
+      return;
+    }
     if (!ignoreCooldown && isTerrainTileOnCooldown(state, pos.x, pos.y)) {
       return;
     }

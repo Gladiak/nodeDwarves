@@ -3,6 +3,7 @@
 const { clamp } = require('../utils');
 const { pushEvent } = require('./events');
 const { randomBetween, shuffleInPlace } = require('./random');
+const { getWorldEventModifier } = require('./world_events');
 
 // Update contract lifecycle, reputation, and active buffs each tick.
 function updateContracts(state, config) {
@@ -301,11 +302,12 @@ function applyContractRewards(state, config, contract, contracts, contractsConfi
   const rewardConfig = contractsConfig.rewards || {};
   const baseRewards = rewardConfig.base || {};
   const scalePerResource = Math.max(0, Number(rewardConfig.scalePerResource || 0));
+  const eventRewardMultiplier = Math.max(0, Number(getWorldEventModifier(state, 'contractReward', 1) || 1));
   const requestCount = contract && contract.requests ? contract.requests.length : 0;
   const scale = 1 + scalePerResource * Math.max(0, requestCount - 1);
 
   for (const [resource, amountRaw] of Object.entries(baseRewards)) {
-    const amount = Math.max(0, Math.round(Number(amountRaw || 0) * scale));
+    const amount = Math.max(0, Math.round(Number(amountRaw || 0) * scale * eventRewardMultiplier));
     if (amount <= 0) {
       continue;
     }
@@ -329,6 +331,7 @@ function applyContractRewards(state, config, contract, contracts, contractsConfi
       break;
     }
   }
+  mineralAmount = Math.max(0, Math.round(mineralAmount * eventRewardMultiplier));
   if (mineralAmount > 0) {
     state.stockpile[mineral] = Number(state.stockpile[mineral] || 0) + mineralAmount;
     const labels = (config && config.resources && config.resources.labels) || {};
