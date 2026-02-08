@@ -5,6 +5,18 @@ function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
 
+// Resolve an auto-size cap value (`<= 0` means uncapped).
+function resolveAutoSizeCap(cap, fallback) {
+  const numeric = Number(cap);
+  if (!Number.isFinite(numeric)) {
+    return Math.max(1, Math.floor(Number(fallback || 1)));
+  }
+  if (numeric <= 0) {
+    return Number.POSITIVE_INFINITY;
+  }
+  return Math.max(1, Math.floor(numeric));
+}
+
 // Resolve a top-right map inset rectangle from display config.
 function resolveMapInsetRect(display, gridWidth, gridHeight) {
   const insetConfig = display && display.mapInset ? display.mapInset : null;
@@ -92,11 +104,11 @@ function buildRuntime(display, terminal) {
   if (display.autoSize) {
     const columns = Number((terminal && terminal.columns) || fallbackWidth);
     const rows = Number((terminal && terminal.rows) || fallbackHeight);
-    const maxWidth = Number(display.maxWidth || fallbackWidth);
-    const maxHeight = Number(display.maxHeight || fallbackHeight);
+    const maxWidth = resolveAutoSizeCap(display.maxWidth, fallbackWidth);
+    const maxHeight = resolveAutoSizeCap(display.maxHeight, fallbackHeight);
 
-    totalWidth = Math.min(columns, maxWidth);
-    totalHeight = Math.min(rows, maxHeight);
+    totalWidth = Math.max(1, Math.min(columns, maxWidth));
+    totalHeight = Math.max(1, Math.min(rows, maxHeight));
   }
 
   let gridWidth = totalWidth - frameWidth;

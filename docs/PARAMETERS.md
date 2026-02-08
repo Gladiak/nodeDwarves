@@ -5,8 +5,10 @@ Display and layout:
 - `display.autoSize`: auto-size the grid to the terminal.
 - `display.width`: base grid width when not auto-sized.
 - `display.height`: base grid height when not auto-sized.
-- `display.maxWidth`: max grid width when auto-sized.
-- `display.maxHeight`: max grid height when auto-sized.
+- `display.maxWidth`: max grid width when auto-sized (`<= 0` means uncapped and follows terminal width).
+- `display.maxHeight`: max grid height when auto-sized (`<= 0` means uncapped and follows terminal height).
+- `display.resize.enabled`: handle terminal resize events while the simulation is running.
+- `display.resize.reflow_world`: when true, apply the new runtime grid immediately and reflow terrain/entities (`fitStateToGrid`); when false, live resize keeps the current world dimensions to avoid road/village/temple reflow resets.
 - `display.tickMs`: milliseconds between ticks in the visible simulation.
 - `display.header.enabled`: enable the header bar.
 - `display.header.height`: header height in lines.

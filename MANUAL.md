@@ -206,6 +206,7 @@ Notes:
   - Optionally loads an AI policy when `--ai <path>` or env `AI_POLICY` is provided.
   - Tick pacing uses `display.tickMs`; hard stop uses `simulation.maxTicks`.
   - AI action cadence uses `ai.stepTicks` to throttle policy calls.
+  - Terminal resize behavior is configured under `display.resize.*`: default profile keeps resize handling enabled but does not reflow world geometry (`reflow_world=false`) to avoid live road/village/temple resets.
   - Space toggles pause/resume during the live simulation.
   - Press `i` to open/close the dwarf inspect panel (works during pause or live); use `←`/`→` to browse spawn order.
   - Press `h` to open/close the telemetry Data Center panel (`Overview + Deep`, `Economy`).
@@ -217,6 +218,7 @@ Notes:
   - Zero-magic JSON loader for configuration.
 - `src/runtime.js`
   - Computes grid/frame layout and overlay bounds, and handles terminal resize.
+  - Auto-size caps (`display.maxWidth`, `display.maxHeight`) accept `<= 0` as uncapped (follow terminal dimensions).
   - Resolves optional in-map inset carving (`display.mapInset.*`) and exports effective playable area (`runtime.playableArea`) for scaling-sensitive systems.
 - `src/terminal.js`
   - Low-level terminal I/O helpers (clear screen, move cursor, hide/show cursor).
@@ -235,7 +237,7 @@ Notes:
     - Initial stockpiles (and optional node counts) can scale with map size via `resources.mapScale`
       using effective playable map area as a baseline (grid area minus carved inset when enabled).
     - Counters and stats used by AI, raids, ruins, myths, alchemy, and endgame cycles.
-  - `fitStateToGrid(...)` repositions entities after resize and keeps everything in-bounds.
+  - `fitStateToGrid(...)` repositions entities after resize and keeps everything in-bounds (used when `display.resize.reflow_world=true`).
 
 ### Terrain generation 🗺️
 
@@ -1023,8 +1025,9 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
   - Composes header, grid, overlays, and optional frame/footer.
   - Layout sizing uses `display.header.*`, `display.footer.*`, and frame settings.
   - Default profile runs in `Map Focus`: no side telemetry column, full-width map, telemetry via overlay panel.
-  - Default layout assumes a 190x60 terminal (columns x rows); adjust `display.width`/`display.height`
-    if you target a different size.
+  - With `display.autoSize=true`, the map follows terminal size; `display.maxWidth` / `display.maxHeight`
+    are optional caps, and values `<= 0` mean uncapped.
+  - `display.width` / `display.height` stay as fallback dimensions (and as fixed dimensions when `autoSize=false`).
   - Places nodes, structures, temple footprint overlay, dwarves, merchant, and raid beasts on the grid.
   - When underrealm depth view is active, it renders the selected depth terrain layer and hides surface entities.
   - Selects a stable subset of dwarves to keep the map readable (`display.dwarves.maxVisible`; set `< 0` to skip dwarf rendering).

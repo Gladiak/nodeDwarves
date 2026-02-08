@@ -3,9 +3,13 @@
     "autoSize": true,
     "width": 190,
     "height": 60,
-    "maxWidth": 190,
-    "maxHeight": 60,
+    "maxWidth": 0,
+    "maxHeight": 0,
     "tickMs": 20,
+    "resize": {
+      "enabled": true,
+      "reflow_world": false
+    },
     "header": {
       "enabled": false,
       "height": 0,

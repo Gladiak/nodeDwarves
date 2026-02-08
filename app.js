@@ -44,8 +44,26 @@ process.on('SIGINT', () => {
 });
 
 setupResizeHandler(config.display, () => {
-  runtime = buildRuntime(config.display, getTerminalSize(config.display));
-  fitStateToGrid(state, runtime, config);
+  if (!isResizeHandlingEnabled(config)) {
+    return;
+  }
+
+  const nextRuntime = buildRuntime(config.display, getTerminalSize(config.display));
+  const gridChanged = nextRuntime.gridWidth !== runtime.gridWidth
+    || nextRuntime.gridHeight !== runtime.gridHeight;
+  const shouldReflowWorld = shouldReflowWorldOnResize(config);
+
+  if (!gridChanged) {
+    runtime = nextRuntime;
+    clearScreen();
+    return;
+  }
+
+  if (shouldReflowWorld) {
+    runtime = nextRuntime;
+    fitStateToGrid(state, runtime, config);
+  }
+
   clearScreen();
 });
 
@@ -124,6 +142,20 @@ function getActionTicks(config) {
   const aiConfig = config.ai || {};
   const ticks = Number(aiConfig.stepTicks || 1);
   return Math.max(1, ticks);
+}
+
+// Function: isResizeHandlingEnabled.
+function isResizeHandlingEnabled(config) {
+  const display = (config && config.display) || {};
+  const resize = display.resize || {};
+  return resize.enabled !== false;
+}
+
+// Function: shouldReflowWorldOnResize.
+function shouldReflowWorldOnResize(config) {
+  const display = (config && config.display) || {};
+  const resize = display.resize || {};
+  return resize.reflow_world === true;
 }
 
 // Function: setupInput.
