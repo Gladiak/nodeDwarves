@@ -27,6 +27,7 @@ trade-offs emerge from shortages, weather, raids, and long-term growth pressure.
 - 🗝️ Endgame ruins expeditions with artifacts, set bonuses, and cycle resets.
 - 🏛️ Dwarf Temple of Ancestors: biome-aware multi-stage final work with prestige growth.
 - 🧭 Economy telemetry now includes an Endgame checklist with live step completion and reset ETA.
+- 🔍 AI Explainability in telemetry: top decision drivers, shortage score breakdown, and governor intent sources.
 - ⚗️ Alchemy Lab rites: burn rare minerals for powerful global buffs, then survive the backlash.
 - 🛡️ Clan culture traits that create trade-offs without micromanagement.
 - 🕳️ Underrealm Front: 10 depth layers with engineered dwarven halls and dense stone-hewn caverns.
@@ -68,7 +69,7 @@ npm run ai:play
 - `Space`: pause/resume
 - `l`: legend panel
 - `i`: dwarf inspect panel
-- `h`: telemetry Data Center overlay (`Overview + Deep`, `Economy`) with expanded plain-language metric labels and an `Endgame` progress checklist on the Economy page
+- `h`: telemetry Data Center overlay (`Overview + Deep`, `Economy`) with expanded plain-language metric labels, `AI Explainability` drivers, and an `Endgame` progress checklist
 - `←` / `→`: change telemetry pages when telemetry is open, or browse dwarves when inspect is open
 - `↑` / `↓`: switch map view between surface and unlocked underrealm depths
 - `m`: export all currently unlocked layers (surface + underrealm) as PNG + SVG
@@ -104,6 +105,12 @@ In auto mode, workers are also phase-aware (foundation/finetune/endgame/
 consolidation) and you can force flat behavior with `--workers-flat`. 🧭
 Regression runs now stream subprocess logs directly to per-run files, improving
 stability on long validation passes. 🧪
+Regression baseline profiles now live in `regression/baselines/` so reference
+snapshots are kept outside volatile debug artifacts. 🗂️
+Headless benchmark now supports comparative score, seed-by-seed deltas, and
+optional blocking gates (`--gate`) with tunable thresholds for A/B tuning. 📈
+Regression reports now auto-emit `.txt`, `.json`, and `.md` outputs for local
+inspection plus CI parsing (override paths with `--report-json/--report-md`). 🧾
 
 AI runtime now accepts a backward-compatible governor action envelope, so legacy
 policy files still run while jobs/trade/building sub-policies roll out.
@@ -125,6 +132,13 @@ feature/action shapes change, restart training with `--fresh`.
 2. `Train then watch`: `npm run ai:train` then `npm run ai:play`
 3. `Capture the world`: during runtime press `m` (or `Shift+M`) to export all unlocked layers
 4. `CLI map export`: `npm run map:export -- --width=120 --height=40 --season=spring --layers=surface,d1,d2 --underrealmUnlockedDepth=2`
+5. `Balance gate presets`: `npm run balance:gate:standard` (or `:strict` / `:relaxed`)
+
+Pass candidate overrides to the active preset with `--set`:
+
+```bash
+npm run balance:gate:standard -- --set jobs.gatherTriggerRatio.food=1.1 --set jobs.gatherTriggerRatio.water=1.1
+```
 
 ## Documentation 📚
 
@@ -140,7 +154,6 @@ feature/action shapes change, restart training with `--fresh`.
 - 🔥 Disaster arcs: drought → fire → recovery chain with emergent priorities.
 - 🧭 Multi-village specialization: assign production roles per settlement.
 - 🗺️ Expedition map: alternate tactical layer for ruins parties and outcomes.
-- 🧠 AI governors: trainable sub-policies for jobs, trade, and building.
 
 ## Project layout (high level) 🧱
 
@@ -155,8 +168,9 @@ feature/action shapes change, restart training with `--fresh`.
 - `src/render/telemetry.js`: telemetry section builders and formatting helpers.
 - `src/render/telemetry_panel.js`: in-game paged telemetry Data Center with section pages and full-height telemetry content area.
 - `scripts/train_wrapper.js`: safe unified wrapper for all `ai:train:*` profiles.
-- `scripts/regression.js`: baseline-vs-current AI regression checks (deterministic eval + randomized stability pass).
-- `scripts/headless_benchmark.js`: deterministic headless benchmark for long-run balance tuning and validation.
+- `scripts/regression.js`: baseline-vs-current AI regression checks (deterministic eval + randomized stability pass) with txt/json/markdown reports.
+- `regression/baselines/regression_baseline.json`: durable regression baseline profiles tracked outside `debug/`.
+- `scripts/headless_benchmark.js`: deterministic headless benchmark with comparative score, seed deltas, and optional gate for long-run balance tuning.
 - `python/regression_rollout.py`: rollout-only randomized regression runner used by `scripts/regression.js`.
 - `python/`: PPO training + agent example.
 - `docs/`: parameter reference and training overrides.

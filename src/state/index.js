@@ -1324,6 +1324,8 @@ function createInitialState(config, runtime) {
     structureCounter: structures.length,
     nodeCounter: nodes.length,
     lastPriorities: [],
+    lastGovernorSignals: null,
+    lastDecisionTrace: null,
     dwarfCounter: dwarves.length,
     events: [],
     ui: {

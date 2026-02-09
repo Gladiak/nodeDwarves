@@ -18,6 +18,7 @@ const SECTION_TOKEN_COLOR_KEYS = {
   structures: 'workshop',
   diplomacy: 'merchant',
   operations: 'brewery',
+  'ai explainability': 'hud_header',
   endgame: 'temple_of_ancestors',
   underrealm: 'underrealm_delver',
   lore: 'alchemy_lab',
@@ -41,8 +42,8 @@ const TELEMETRY_PANEL_PAGES = [
   {
     id: 'economy',
     title: 'Economy',
-    subtitle: 'Production chain health, governor signals, diplomacy flow, and endgame checklist.',
-    sections: ['stockpile', 'structures', 'operations', 'diplomacy', 'endgame'],
+    subtitle: 'Production chain health, governor signals, explainability drivers, diplomacy flow, and endgame checklist.',
+    sections: ['stockpile', 'structures', 'operations', 'explainability', 'diplomacy', 'endgame'],
     preferredColumns: 2,
     minColumnWidth: 38,
   },

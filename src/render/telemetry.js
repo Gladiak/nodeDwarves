@@ -17,7 +17,7 @@ const TELEMETRY_LAYOUT = [
   {
     id: "economy",
     title: "Economy",
-    sections: ["structures", "diplomacy", "operations", "endgame"],
+    sections: ["structures", "diplomacy", "operations", "explainability", "endgame"],
   },
   {
     id: "deep_meta",
@@ -355,6 +355,14 @@ function buildTelemetryColumns(state, config, columnWidth, options = {}) {
       governorSignals,
     ),
     11,
+  );
+
+  appendFixedSection(
+    right,
+    "explainability",
+    "AI Explainability",
+    buildExplainabilitySectionRows(state, governorSignals, shortages, resourceLabels),
+    8,
   );
 
   appendFixedSection(
@@ -779,6 +787,208 @@ function getGovernorSignals(state) {
     trade: raw.trade && typeof raw.trade === "object" ? raw.trade : {},
     building: raw.building && typeof raw.building === "object" ? raw.building : {},
   };
+}
+
+// Resolve the latest simulation decision trace with normalized safe defaults.
+function getDecisionTrace(state) {
+  const raw = state && state.lastDecisionTrace && typeof state.lastDecisionTrace === "object"
+    ? state.lastDecisionTrace
+    : {};
+  const governors = raw.governors && typeof raw.governors === "object"
+    ? raw.governors
+    : {};
+  const shortages = Array.isArray(raw.shortages) ? raw.shortages : [];
+  const jobs = raw.jobs && typeof raw.jobs === "object"
+    ? raw.jobs
+    : {};
+  const context = raw.context && typeof raw.context === "object"
+    ? raw.context
+    : {};
+  const drivers = Array.isArray(raw.drivers) ? raw.drivers : [];
+  return {
+    tick: Math.max(0, Number(raw.tick || (state && state.tick) || 0)),
+    governors: {
+      jobsSource: governors.jobsSource === "action" ? "action" : "default",
+      tradeSource: governors.tradeSource === "action" ? "action" : "default",
+      buildingSource: governors.buildingSource === "action" ? "action" : "default",
+      tradeReserveBias: Number(governors.tradeReserveBias || 0),
+      tradeContestIntent: clamp(Number(governors.tradeContestIntent || 0), 0, 1),
+      tradeOpportunityIntent: clamp(Number(governors.tradeOpportunityIntent || 0), 0, 1),
+      buildMineBias: Number(governors.buildMineBias || 0),
+      buildUpgradeBias: Number(governors.buildUpgradeBias || 0),
+      buildingClassOrder: Array.isArray(governors.buildingClassOrder)
+        ? governors.buildingClassOrder.slice(0, 3).map((entry) => String(entry || "")).filter(Boolean)
+        : [],
+    },
+    shortages: shortages.slice(0, 2).map((entry) => ({
+      resource: String(entry && entry.resource || ""),
+      score: Math.max(0, Number(entry && entry.score || 0)),
+      current: Math.max(0, Number(entry && entry.current || 0)),
+      target: Math.max(0, Number(entry && entry.target || 0)),
+      weight: Math.max(0, Number(entry && entry.weight || 0)),
+      boostApplied: entry && entry.boostApplied === true,
+      boostMultiplier: Math.max(1, Number(entry && entry.boostMultiplier || 1)),
+    })).filter((entry) => entry.resource.length > 0),
+    jobs: {
+      total: Math.max(0, Math.floor(Number(jobs.total || 0))),
+      byType: jobs.byType && typeof jobs.byType === "object" ? jobs.byType : {},
+    },
+    context: {
+      weather: String(context.weather || "clear"),
+      raidActive: context.raidActive === true,
+      raidTicksLeft: Math.max(0, Number(context.raidTicksLeft || 0)),
+      worldEventActive: context.worldEventActive === true,
+      worldEventLabel: String(context.worldEventLabel || ""),
+      worldEventPhase: String(context.worldEventPhase || ""),
+      worldEventTicksLeft: Math.max(0, Number(context.worldEventTicksLeft || 0)),
+      festivalActive: context.festivalActive === true,
+      contractActive: context.contractActive === true,
+    },
+    drivers: drivers.slice(0, 3).map((entry) => ({
+      kind: String(entry && entry.kind || ""),
+      label: String(entry && entry.label || ""),
+      key: String(entry && entry.key || ""),
+      score: Math.max(0, Number(entry && entry.score || 0)),
+    })),
+  };
+}
+
+// Build explainability rows with driver, shortage, and governor context.
+function buildExplainabilitySectionRows(state, governorSignals, shortages, resourceLabels) {
+  const trace = getDecisionTrace(state);
+  const currentGovernorSignals = governorSignals && typeof governorSignals === "object"
+    ? governorSignals
+    : getGovernorSignals(state);
+  const traceShortages = trace.shortages.length > 0
+    ? trace.shortages
+    : (Array.isArray(shortages) ? shortages.slice(0, 2).map((entry) => ({
+      resource: String(entry && entry.resource || ""),
+      score: Math.max(0, Number(entry && entry.score || 0)),
+      current: Math.max(0, Number(entry && entry.current || 0)),
+      target: Math.max(0, Number(entry && entry.target || 0)),
+      weight: Math.max(0, Number(entry && entry.weight || 0)),
+      boostApplied: entry && entry.boostApplied === true,
+      boostMultiplier: Math.max(1, Number(entry && entry.boostMultiplier || 1)),
+    })).filter((entry) => entry.resource.length > 0) : []);
+
+  const rows = [];
+  rows.push(
+    `Decision tick ${trace.tick}: jobs ${trace.governors.jobsSource}, trade ${trace.governors.tradeSource}, build ${trace.governors.buildingSource}`,
+  );
+  rows.push(formatExplainabilityDriversLine(trace.drivers, resourceLabels));
+  rows.push(formatExplainabilityShortageLine(traceShortages, 0, resourceLabels));
+  rows.push(formatExplainabilityShortageLine(traceShortages, 1, resourceLabels));
+  rows.push(formatExplainabilityContextLine(trace.context));
+  rows.push(formatExplainabilityTradeLine(trace.governors, currentGovernorSignals.trade));
+  rows.push(formatExplainabilityBuildLine(trace.governors, currentGovernorSignals.building));
+  rows.push(formatExplainabilityWorkloadLine(trace.jobs));
+  return rows;
+}
+
+// Format ranked explainability drivers in one compact line.
+function formatExplainabilityDriversLine(drivers, resourceLabels) {
+  const ranked = Array.isArray(drivers) ? drivers.slice(0, 3) : [];
+  if (ranked.length === 0) {
+    return "Drivers: no dominant pressure detected";
+  }
+  const parts = ranked.map((entry) => {
+    if (!entry || !entry.kind) {
+      return null;
+    }
+    if (entry.kind === "shortage") {
+      const label = String(entry.key || "").replace(/^shortage:/, "");
+      const readable = getTelemetryResourceLabel(label, resourceLabels);
+      return `${readable} ${Number(entry.score || 0).toFixed(2)}`;
+    }
+    const rawLabel = String(entry.label || entry.kind).trim();
+    return `${rawLabel} ${Number(entry.score || 0).toFixed(2)}`;
+  }).filter(Boolean);
+  if (parts.length === 0) {
+    return "Drivers: no dominant pressure detected";
+  }
+  return `Drivers: ${parts.join(" | ")}`;
+}
+
+// Format one shortage explainability line with stock/weight/boost context.
+function formatExplainabilityShortageLine(shortages, index, resourceLabels) {
+  const list = Array.isArray(shortages) ? shortages : [];
+  const shortage = list[index];
+  if (!shortage || !shortage.resource) {
+    return index === 0
+      ? "Shortage #1: none"
+      : "Shortage #2: none";
+  }
+  const label = getTelemetryResourceLabel(shortage.resource, resourceLabels);
+  const current = Math.max(0, Number(shortage.current || 0));
+  const target = Math.max(0, Number(shortage.target || 0));
+  const score = Math.max(0, Number(shortage.score || 0));
+  const weight = Math.max(0, Number(shortage.weight || 0));
+  const boost = shortage.boostApplied === true
+    ? `, boost x${Math.max(1, Number(shortage.boostMultiplier || 1)).toFixed(2)}`
+    : "";
+  return `Shortage #${index + 1}: ${label} ${formatCompactNumber(current)}/${formatCompactNumber(target)} | score ${score.toFixed(2)} | w ${weight.toFixed(2)}${boost}`;
+}
+
+// Format world context line for explainability.
+function formatExplainabilityContextLine(context) {
+  const safeContext = context && typeof context === "object" ? context : {};
+  const weather = String(safeContext.weather || "clear");
+  const raid = safeContext.raidActive === true
+    ? `raid active (${Math.max(0, Number(safeContext.raidTicksLeft || 0))}t)`
+    : "raid idle";
+  const worldEvent = safeContext.worldEventActive === true
+    ? `${String(safeContext.worldEventLabel || "event")} (${Math.max(0, Number(safeContext.worldEventTicksLeft || 0))}t)`
+    : "none";
+  const festival = safeContext.festivalActive === true ? "on" : "off";
+  return `Context: weather ${weather}, ${raid}, event ${worldEvent}, festival ${festival}`;
+}
+
+// Format trade-governor explainability line.
+function formatExplainabilityTradeLine(governors, tradeGovernor) {
+  const traceGovernors = governors && typeof governors === "object" ? governors : {};
+  const source = traceGovernors.tradeSource === "action" ? "action" : "default";
+  const reserve = formatSignedGovernorValue(traceGovernors.tradeReserveBias);
+  const contest = clamp(Number(traceGovernors.tradeContestIntent || 0), 0, 1).toFixed(2);
+  const opportunity = clamp(Number(traceGovernors.tradeOpportunityIntent || 0), 0, 1).toFixed(2);
+  if (!tradeGovernor || tradeGovernor.enabled === false) {
+    return `Trade explain (${source}): disabled`;
+  }
+  return `Trade explain (${source}): reserve ${reserve}, contest ${contest}, opp ${opportunity}`;
+}
+
+// Format building-governor explainability line.
+function formatExplainabilityBuildLine(governors, buildingGovernor) {
+  const traceGovernors = governors && typeof governors === "object" ? governors : {};
+  const source = traceGovernors.buildingSource === "action" ? "action" : "default";
+  if (!buildingGovernor || buildingGovernor.enabled === false) {
+    return `Build explain (${source}): disabled`;
+  }
+  const classOrder = Array.isArray(traceGovernors.buildingClassOrder)
+    ? traceGovernors.buildingClassOrder.slice(0, 2).join(">")
+    : "";
+  const rank = classOrder || "-";
+  const mineBias = formatSignedGovernorValue(traceGovernors.buildMineBias);
+  const upgradeBias = formatSignedGovernorValue(traceGovernors.buildUpgradeBias);
+  return `Build explain (${source}): ${rank}, mine ${mineBias}, upgrade ${upgradeBias}`;
+}
+
+// Format workload summary line using traced job counts.
+function formatExplainabilityWorkloadLine(jobs) {
+  const safeJobs = jobs && typeof jobs === "object" ? jobs : {};
+  const byType = safeJobs.byType && typeof safeJobs.byType === "object" ? safeJobs.byType : {};
+  const total = Math.max(0, Number(safeJobs.total || 0));
+  const topTypeEntries = Object.entries(byType)
+    .map(([type, count]) => ({
+      type: String(type || "other"),
+      count: Math.max(0, Number(count || 0)),
+    }))
+    .sort((left, right) => right.count - left.count)
+    .filter((entry) => entry.count > 0);
+  if (topTypeEntries.length === 0) {
+    return `Job load: ${total} active jobs`;
+  }
+  const top = topTypeEntries.slice(0, 2).map((entry) => `${entry.type} ${entry.count}`).join(", ");
+  return `Job load: ${total} active jobs | top ${top}`;
 }
 
 // Format one jobs-governor line from top weighted resources.

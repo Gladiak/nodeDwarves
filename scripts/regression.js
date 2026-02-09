@@ -11,7 +11,8 @@ const PYTHON = path.join(ROOT, '.venv', 'bin', 'python');
 const PROMOTE = path.join(ROOT, 'python', 'promote_best.py');
 const ROLLOUT = path.join(ROOT, 'python', 'regression_rollout.py');
 const CONFIG_PATH = path.join(ROOT, 'config.json');
-const BASELINE_PATH = path.join(ROOT, 'debug', 'regression_baseline.json');
+const BASELINE_PATH = path.join(ROOT, 'regression', 'baselines', 'regression_baseline.json');
+const LEGACY_BASELINE_PATH = path.join(ROOT, 'debug', 'regression_baseline.json');
 const POLICY_BEST_PATH = path.join(ROOT, 'models', 'policy_best.json');
 
 const DEFAULT_SEEDS = [12345, 22222];
@@ -31,6 +32,30 @@ const DEFAULT_TOLERANCES = {
     extinction_rate: { mode: 'abs', limit: 0.05 },
   },
 };
+const EVAL_REPORT_METRICS = ['avg_reward', 'avg_steps', 'avg_births', 'avg_deaths', 'score'];
+const RANDOM_REPORT_METRICS = [
+  'avg_reward',
+  'avg_steps',
+  'avg_births',
+  'avg_deaths',
+  'stock_min',
+  'stock_avg',
+  'crit',
+  'idle',
+  'raid_count',
+  'raid_deaths',
+  'raid_exposed',
+  'raid_defense',
+  'node_food',
+  'node_water',
+  'node_wood',
+  'node_stone',
+  'short_food',
+  'short_water',
+  'short_wood',
+  'short_stone',
+  'extinction_rate',
+];
 
 function parseArgs(argv) {
   const options = {
@@ -49,6 +74,8 @@ function parseArgs(argv) {
     record: false,
     profile: 'standard',
     all: false,
+    reportJsonPath: null,
+    reportMarkdownPath: null,
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -97,12 +124,31 @@ function parseArgs(argv) {
       i += 1;
       continue;
     }
+    if (arg === '--report-json') {
+      options.reportJsonPath = resolveOutputPath(argv[i + 1]);
+      i += 1;
+      continue;
+    }
+    if (arg === '--report-md') {
+      options.reportMarkdownPath = resolveOutputPath(argv[i + 1]);
+      i += 1;
+      continue;
+    }
   }
 
   if (!options.seeds.length) {
     options.seeds = DEFAULT_SEEDS.slice();
   }
   return options;
+}
+
+// Resolve an output file path from CLI input.
+function resolveOutputPath(rawPath) {
+  const trimmed = String(rawPath || '').trim();
+  if (!trimmed) {
+    throw new Error('Output path cannot be empty.');
+  }
+  return path.isAbsolute(trimmed) ? trimmed : path.resolve(process.cwd(), trimmed);
 }
 
 function ensureFile(pathname, label) {
@@ -381,6 +427,23 @@ function averageMetrics(list) {
   return averages;
 }
 
+function average(list, selector) {
+  if (!Array.isArray(list) || list.length === 0) {
+    return 0;
+  }
+  let sum = 0;
+  let count = 0;
+  for (const entry of list) {
+    const value = Number(selector(entry));
+    if (!Number.isFinite(value)) {
+      continue;
+    }
+    sum += value;
+    count += 1;
+  }
+  return count > 0 ? sum / count : 0;
+}
+
 function formatNumber(value, digits = 3) {
   if (!Number.isFinite(value)) {
     return 'n/a';
@@ -488,9 +551,77 @@ function buildSummaryLines(sections) {
   for (const section of sections) {
     const evalStatus = section.evalOk ? 'PASS' : 'FAIL';
     const randomStatus = section.randomOk ? 'PASS' : 'FAIL';
-    lines.push(`- ${section.profile}: eval=${evalStatus} random=${randomStatus}`);
+    const score = Number.isFinite(section.profileScore)
+      ? formatNumber(section.profileScore, 1)
+      : 'n/a';
+    lines.push(`- ${section.profile}: eval=${evalStatus} random=${randomStatus} score=${score}`);
   }
   return lines;
+}
+
+// Compute pass rate over rows with concrete tolerance status.
+function computeRowsPassRate(rows) {
+  const list = Array.isArray(rows) ? rows : [];
+  const checked = list.filter((row) => row && row.status !== 'n/a');
+  if (checked.length === 0) {
+    return null;
+  }
+  const passed = checked.filter((row) => row.status === 'ok').length;
+  return passed / checked.length;
+}
+
+// Compute one profile score from eval/random pass rates (0..100).
+function computeProfileScore(evalRows, randomRows) {
+  const evalPassRate = computeRowsPassRate(evalRows);
+  const randomPassRate = computeRowsPassRate(randomRows);
+  const parts = [evalPassRate, randomPassRate].filter((value) => Number.isFinite(value));
+  if (parts.length === 0) {
+    return null;
+  }
+  return average(parts, (value) => value) * 100;
+}
+
+// Build compact seed metric rows for report output.
+function buildSeedMetricsRows(entries, metricKeys) {
+  const rows = [];
+  const list = Array.isArray(entries) ? entries : [];
+  for (const entry of list) {
+    const seed = Number(entry && entry.seed);
+    const metrics = entry && entry.metrics && typeof entry.metrics === 'object'
+      ? entry.metrics
+      : {};
+    const row = { seed };
+    for (const key of metricKeys) {
+      row[key] = Number(metrics[key]);
+    }
+    rows.push(row);
+  }
+  return rows;
+}
+
+// Build a serializable report bundle consumed by txt/json/markdown writers.
+function buildReportBundle(sections, options, allOk) {
+  const sectionList = Array.isArray(sections) ? sections : [];
+  const scores = sectionList
+    .map((section) => Number(section && section.profileScore))
+    .filter(Number.isFinite);
+  const averageScore = scores.length > 0 ? average(scores, (value) => value) : null;
+  return {
+    meta: {
+      generatedAt: new Date().toISOString(),
+      allProfiles: options && options.all === true,
+      allOk: Boolean(allOk),
+      averageProfileScore: averageScore,
+      options: {
+        seeds: options && options.seeds ? options.seeds : [],
+        evalEpisodes: options && options.evalEpisodes,
+        evalMaxSteps: options && options.evalMaxSteps,
+        randomEpisodes: options && options.randomEpisodes,
+        randomMaxSteps: options && options.randomMaxSteps,
+      },
+    },
+    sections: sectionList,
+  };
 }
 
 function writeReport(reportPath, data) {
@@ -517,11 +648,112 @@ function writeReport(reportPath, data) {
   fs.writeFileSync(reportPath, lines.join('\n'));
 }
 
-function loadBaseline() {
-  if (!fs.existsSync(BASELINE_PATH)) {
-    return { version: 2, profiles: {} };
+// Build Markdown report lines from a bundle payload.
+function buildMarkdownReport(bundle) {
+  const lines = [];
+  lines.push('# NodeDwarves Regression Report');
+  lines.push('');
+  lines.push(`Generated: ${bundle.meta.generatedAt}`);
+  lines.push(`All profiles mode: ${bundle.meta.allProfiles ? 'yes' : 'no'}`);
+  lines.push(`Gate result: ${bundle.meta.allOk ? 'PASS' : 'FAIL'}`);
+  lines.push(
+    `Average profile score: ${
+      Number.isFinite(bundle.meta.averageProfileScore)
+        ? formatNumber(bundle.meta.averageProfileScore, 1)
+        : 'n/a'
+    }`,
+  );
+  lines.push('');
+  lines.push('## Profiles');
+  lines.push('');
+  lines.push('| Profile | Eval | Random | Score |');
+  lines.push('| --- | --- | --- | ---: |');
+  for (const section of bundle.sections) {
+    lines.push(
+      `| ${section.profile} | ${section.evalOk ? 'PASS' : 'FAIL'} | ${section.randomOk ? 'PASS' : 'FAIL'} | ${
+        Number.isFinite(section.profileScore) ? formatNumber(section.profileScore, 1) : 'n/a'
+      } |`,
+    );
   }
-  const raw = JSON.parse(fs.readFileSync(BASELINE_PATH, 'utf8'));
+
+  for (const section of bundle.sections) {
+    lines.push('');
+    lines.push(`## ${section.profile}`);
+    lines.push('');
+    lines.push(`Config seeds: ${(section.config && section.config.seeds || []).join(', ')}`);
+    lines.push(
+      `Eval episodes/max_steps: ${section.config.evalEpisodes}/${section.config.evalMaxSteps}`,
+    );
+    lines.push(
+      `Random episodes/max_steps: ${section.config.randomEpisodes}/${section.config.randomMaxSteps}`,
+    );
+    lines.push('');
+    lines.push('### Eval diff');
+    lines.push('');
+    lines.push('| Metric | Current | Baseline | Delta | Delta% | Threshold | Status |');
+    lines.push('| --- | ---: | ---: | ---: | ---: | ---: | --- |');
+    for (const row of section.evalRows || []) {
+      lines.push(
+        `| ${row.metric} | ${formatNumber(row.current)} | ${formatNumber(row.baseline)} | ${formatNumber(row.deltaAbs)} | ${
+          row.deltaRel === null ? 'n/a' : formatPercent(row.deltaRel)
+        } | ${formatNumber(row.threshold)} | ${String(row.status || 'n/a').toUpperCase()} |`,
+      );
+    }
+    lines.push('');
+    lines.push('### Randomized diff');
+    lines.push('');
+    lines.push('| Metric | Current | Baseline | Delta | Delta% | Threshold | Status |');
+    lines.push('| --- | ---: | ---: | ---: | ---: | ---: | --- |');
+    for (const row of section.randomRows || []) {
+      lines.push(
+        `| ${row.metric} | ${formatNumber(row.current)} | ${formatNumber(row.baseline)} | ${formatNumber(row.deltaAbs)} | ${
+          row.deltaRel === null ? 'n/a' : formatPercent(row.deltaRel)
+        } | ${formatNumber(row.threshold)} | ${String(row.status || 'n/a').toUpperCase()} |`,
+      );
+    }
+    if (Array.isArray(section.evalSeedMetrics) && section.evalSeedMetrics.length > 0) {
+      lines.push('');
+      lines.push('### Eval seed metrics');
+      lines.push('');
+      lines.push('| Seed | avg_reward | avg_steps | avg_births | avg_deaths | score |');
+      lines.push('| ---: | ---: | ---: | ---: | ---: | ---: |');
+      for (const row of section.evalSeedMetrics) {
+        lines.push(
+          `| ${row.seed} | ${formatNumber(row.avg_reward)} | ${formatNumber(row.avg_steps)} | ${formatNumber(row.avg_births)} | ${formatNumber(row.avg_deaths)} | ${formatNumber(row.score)} |`,
+        );
+      }
+    }
+    if (Array.isArray(section.randomSeedMetrics) && section.randomSeedMetrics.length > 0) {
+      lines.push('');
+      lines.push('### Randomized seed metrics');
+      lines.push('');
+      lines.push('| Seed | avg_reward | avg_steps | avg_births | avg_deaths | stock_min | stock_avg | extinction_rate |');
+      lines.push('| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |');
+      for (const row of section.randomSeedMetrics) {
+        lines.push(
+          `| ${row.seed} | ${formatNumber(row.avg_reward)} | ${formatNumber(row.avg_steps)} | ${formatNumber(row.avg_births)} | ${formatNumber(row.avg_deaths)} | ${formatNumber(row.stock_min)} | ${formatNumber(row.stock_avg)} | ${formatNumber(row.extinction_rate)} |`,
+        );
+      }
+    }
+  }
+
+  return `${lines.join('\n')}\n`;
+}
+
+// Write one JSON report bundle to disk.
+function writeJsonReport(reportPath, bundle) {
+  fs.mkdirSync(path.dirname(reportPath), { recursive: true });
+  fs.writeFileSync(reportPath, `${JSON.stringify(bundle, null, 2)}\n`);
+}
+
+// Write one Markdown report bundle to disk.
+function writeMarkdownReport(reportPath, bundle) {
+  fs.mkdirSync(path.dirname(reportPath), { recursive: true });
+  fs.writeFileSync(reportPath, buildMarkdownReport(bundle));
+}
+
+// Normalize baseline payloads to the current v2 profile schema.
+function normalizeBaselinePayload(raw) {
   if (raw && raw.profiles) {
     return raw;
   }
@@ -538,6 +770,27 @@ function loadBaseline() {
       },
     };
   }
+  return { version: 2, profiles: {} };
+}
+
+// Read and parse a baseline file from disk.
+function readBaselineFile(pathname) {
+  const raw = JSON.parse(fs.readFileSync(pathname, 'utf8'));
+  return normalizeBaselinePayload(raw);
+}
+
+function loadBaseline() {
+  if (fs.existsSync(BASELINE_PATH)) {
+    return readBaselineFile(BASELINE_PATH);
+  }
+
+  if (fs.existsSync(LEGACY_BASELINE_PATH)) {
+    const migrated = readBaselineFile(LEGACY_BASELINE_PATH);
+    saveBaseline(migrated);
+    console.log(`Migrated legacy baseline from ${LEGACY_BASELINE_PATH} to ${BASELINE_PATH}`);
+    return migrated;
+  }
+
   return { version: 2, profiles: {} };
 }
 
@@ -635,7 +888,12 @@ function runProfile(profileName, options) {
   printSuite(`Eval (deterministic:${profileName})`, evalAverage);
   printSuite(`Randomized (${profileName})`, randomAverage);
 
-  return { evalAverage, randomAverage };
+  return {
+    evalAverage,
+    randomAverage,
+    evalSeedResults: results.eval,
+    randomSeedResults: results.random,
+  };
 }
 
 function compareSuite(name, current, baseline, tolerances) {
@@ -704,6 +962,78 @@ function printSuite(title, metrics) {
   console.log(`${title}: ${entries.join(' ')}`);
 }
 
+// Build one profile report section with score and seed-level snapshots.
+function buildProfileReportSection(
+  profileName,
+  profileConfig,
+  tolerances,
+  evalAverage,
+  randomAverage,
+  evalSeedResults,
+  randomSeedResults,
+  evalOk,
+  randomOk,
+) {
+  const evalRows = buildDiffRows(
+    evalAverage,
+    profileConfig.baseline.eval,
+    tolerances.eval,
+    EVAL_REPORT_METRICS,
+  );
+  const randomRows = buildDiffRows(
+    randomAverage,
+    profileConfig.baseline.random,
+    tolerances.random,
+    RANDOM_REPORT_METRICS,
+  );
+  const profileScore = computeProfileScore(evalRows, randomRows);
+  return {
+    profile: profileName,
+    config: profileConfig.config,
+    evalOk,
+    randomOk,
+    evalRows,
+    randomRows,
+    profileScore,
+    evalSeedMetrics: buildSeedMetricsRows(evalSeedResults, EVAL_REPORT_METRICS),
+    randomSeedMetrics: buildSeedMetricsRows(randomSeedResults, RANDOM_REPORT_METRICS),
+  };
+}
+
+// Log tolerance comparison results and return gate status.
+function logComparisonResults(comparisons) {
+  let allOk = true;
+  for (const suite of comparisons) {
+    if (!suite.ok) {
+      allOk = false;
+    }
+    for (const result of suite.results) {
+      const verdict = result.pass ? 'ok' : 'regress';
+      console.log(
+        `${suite.name}.${result.metric}: ${verdict} ` +
+        `current=${formatNumber(result.current)} ` +
+        `baseline=${formatNumber(result.baseline)} ` +
+        `threshold=${formatNumber(result.threshold)}`
+      );
+    }
+  }
+  return allOk;
+}
+
+// Resolve report output paths, defaulting JSON/Markdown next to the txt report.
+function resolveReportPaths(options, txtPath) {
+  const defaultBase = txtPath.endsWith('.txt') ? txtPath.slice(0, -4) : txtPath;
+  return {
+    txtPath,
+    jsonPath: options && options.reportJsonPath
+      ? options.reportJsonPath
+      : `${defaultBase}.json`,
+    markdownPath: options && options.reportMarkdownPath
+      ? options.reportMarkdownPath
+      : `${defaultBase}.md`,
+  };
+}
+
 function main() {
   ensureFile(PYTHON, 'Python venv');
   ensureFile(PROMOTE, 'promote_best.py');
@@ -727,70 +1057,45 @@ function main() {
     for (const profileName of profileNames) {
       const profile = baselineFile.profiles[profileName];
       const profileOptions = applyProfileConfig(options, profile.config || {});
-      const { evalAverage, randomAverage } = runProfile(profileName, profileOptions);
+      const runtimeProfile = {
+        ...profile,
+        config: buildProfileConfig(profileOptions),
+      };
+      const {
+        evalAverage,
+        randomAverage,
+        evalSeedResults,
+        randomSeedResults,
+      } = runProfile(profileName, profileOptions);
       const tolerances = profile.tolerances || DEFAULT_TOLERANCES;
       const comparisons = [
         compareSuite(`${profileName}.eval`, evalAverage, profile.baseline.eval, tolerances.eval),
         compareSuite(`${profileName}.random`, randomAverage, profile.baseline.random, tolerances.random),
       ];
-      reportSections.push({
-        profile: profileName,
-        config: profile.config,
-        evalOk: comparisons[0].ok,
-        randomOk: comparisons[1].ok,
-        evalRows: buildDiffRows(
-          evalAverage,
-          profile.baseline.eval,
-          tolerances.eval,
-          ['avg_reward', 'avg_steps', 'avg_births', 'avg_deaths', 'score'],
-        ),
-        randomRows: buildDiffRows(
-          randomAverage,
-          profile.baseline.random,
-          tolerances.random,
-          [
-            'avg_reward',
-            'avg_steps',
-            'avg_births',
-            'avg_deaths',
-            'stock_min',
-            'stock_avg',
-            'crit',
-            'idle',
-            'raid_count',
-            'raid_deaths',
-            'raid_exposed',
-            'raid_defense',
-            'node_food',
-            'node_water',
-            'node_wood',
-            'node_stone',
-            'short_food',
-            'short_water',
-            'short_wood',
-            'short_stone',
-            'extinction_rate',
-          ],
-        ),
-      });
-      for (const suite of comparisons) {
-        if (!suite.ok) {
-          allOk = false;
-        }
-        for (const result of suite.results) {
-          const verdict = result.pass ? 'ok' : 'regress';
-          console.log(
-            `${suite.name}.${result.metric}: ${verdict} ` +
-            `current=${formatNumber(result.current)} ` +
-            `baseline=${formatNumber(result.baseline)} ` +
-            `threshold=${formatNumber(result.threshold)}`
-          );
-        }
+      reportSections.push(buildProfileReportSection(
+        profileName,
+        runtimeProfile,
+        tolerances,
+        evalAverage,
+        randomAverage,
+        evalSeedResults,
+        randomSeedResults,
+        comparisons[0].ok,
+        comparisons[1].ok,
+      ));
+      if (!logComparisonResults(comparisons)) {
+        allOk = false;
       }
     }
     const reportPath = path.join(ROOT, 'debug', `regression_report_${Date.now()}.txt`);
     writeReport(reportPath, reportSections);
-    console.log(`Diff report written to ${reportPath}`);
+    const bundle = buildReportBundle(reportSections, options, allOk);
+    const paths = resolveReportPaths(options, reportPath);
+    writeJsonReport(paths.jsonPath, bundle);
+    writeMarkdownReport(paths.markdownPath, bundle);
+    console.log(`Diff report written to ${paths.txtPath}`);
+    console.log(`JSON report written to ${paths.jsonPath}`);
+    console.log(`Markdown report written to ${paths.markdownPath}`);
     if (!allOk) {
       process.exit(1);
     }
@@ -802,7 +1107,12 @@ function main() {
   const profileOptions = options.record
     ? options
     : (profile ? applyProfileConfig(options, profile.config || {}) : options);
-  const { evalAverage, randomAverage } = runProfile(profileName, profileOptions);
+  const {
+    evalAverage,
+    randomAverage,
+    evalSeedResults,
+    randomSeedResults,
+  } = runProfile(profileName, profileOptions);
 
   if (options.record) {
     const record = {
@@ -827,69 +1137,36 @@ function main() {
   }
 
   const tolerances = profile.tolerances || DEFAULT_TOLERANCES;
+  const runtimeProfile = {
+    ...profile,
+    config: buildProfileConfig(profileOptions),
+  };
   const comparisons = [
     compareSuite(`${profileName}.eval`, evalAverage, profile.baseline.eval, tolerances.eval),
     compareSuite(`${profileName}.random`, randomAverage, profile.baseline.random, tolerances.random),
   ];
 
+  const section = buildProfileReportSection(
+    profileName,
+    runtimeProfile,
+    tolerances,
+    evalAverage,
+    randomAverage,
+    evalSeedResults,
+    randomSeedResults,
+    comparisons[0].ok,
+    comparisons[1].ok,
+  );
   const reportPath = path.join(ROOT, 'debug', `regression_report_${Date.now()}.txt`);
-  writeReport(reportPath, [{
-    profile: profileName,
-    config: profile.config,
-    evalOk: comparisons[0].ok,
-    randomOk: comparisons[1].ok,
-    evalRows: buildDiffRows(
-      evalAverage,
-      profile.baseline.eval,
-      tolerances.eval,
-      ['avg_reward', 'avg_steps', 'avg_births', 'avg_deaths', 'score'],
-    ),
-    randomRows: buildDiffRows(
-      randomAverage,
-      profile.baseline.random,
-      tolerances.random,
-      [
-        'avg_reward',
-        'avg_steps',
-        'avg_births',
-        'avg_deaths',
-        'stock_min',
-        'stock_avg',
-        'crit',
-        'idle',
-        'raid_count',
-        'raid_deaths',
-        'raid_exposed',
-        'raid_defense',
-        'node_food',
-        'node_water',
-        'node_wood',
-        'node_stone',
-        'short_food',
-        'short_water',
-        'short_wood',
-        'short_stone',
-        'extinction_rate',
-      ],
-    ),
-  }]);
-  console.log(`Diff report written to ${reportPath}`);
-
-  let allOk = true;
-  for (const suite of comparisons) {
-    if (!suite.ok) {
-      allOk = false;
-    }
-    for (const result of suite.results) {
-      const verdict = result.pass ? 'ok' : 'regress';
-      console.log(
-        `${suite.name}.${result.metric}: ${verdict} ` +
-        `current=${formatNumber(result.current)} ` +
-        `baseline=${formatNumber(result.baseline)} ` +
-        `threshold=${formatNumber(result.threshold)}`
-      );
-    }
-  }
+  writeReport(reportPath, [section]);
+  const allOk = logComparisonResults(comparisons);
+  const bundle = buildReportBundle([section], options, allOk);
+  const paths = resolveReportPaths(options, reportPath);
+  writeJsonReport(paths.jsonPath, bundle);
+  writeMarkdownReport(paths.markdownPath, bundle);
+  console.log(`Diff report written to ${paths.txtPath}`);
+  console.log(`JSON report written to ${paths.jsonPath}`);
+  console.log(`Markdown report written to ${paths.markdownPath}`);
 
   if (!allOk) {
     process.exit(1);

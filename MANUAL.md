@@ -120,10 +120,96 @@ Variant A/B comparison in one run:
 node scripts/headless_benchmark.js --ticks 8000 --variant baseline --set path=value --variant candidate
 ```
 
-Notes:
+Gate candidate variants against baseline (exit code `1` on failures):
+
+```bash
+node scripts/headless_benchmark.js --ticks 8000 --variant baseline --variant candidate --gate
+```
+
+Write machine reports for CI/artifacts:
+
+```bash
+node scripts/headless_benchmark.js --ticks 8000 --variant baseline --variant candidate --gate --report-json debug/balance_report.json --report-md debug/balance_report.md
+```
+
+Preset gate profiles via npm scripts:
+
+```bash
+npm run balance:gate:strict
+npm run balance:gate:standard
+npm run balance:gate:relaxed
+```
+
+Inject candidate overrides into the active preset:
+
+```bash
+npm run balance:gate:standard -- --set jobs.gatherTriggerRatio.food=1.1 --set jobs.gatherTriggerRatio.water=1.1
+```
+
+How it works (under the hood):
+- Runs each variant on the same deterministic seed set and tick horizon.
+- Treats the first variant as `baseline` and compares every following variant against it.
+- Produces:
+  - per-variant per-seed end-state rows,
+  - per-variant averages,
+  - summary deltas vs baseline,
+  - seed-by-seed deltas,
+  - a compact comparison score (`higher is better`),
+  - optional gate verdicts (`PASS/FAIL`) when `--gate` is enabled.
+- Exits with code `1` if any gate check fails (useful for CI).
+
+Preset utility in practice:
+- `strict`: pre-merge hard guardrail; blocks risky economy drawdowns and hidden instability.
+- `standard`: day-to-day tuning default; catches meaningful regressions without over-blocking.
+- `relaxed`: exploratory balancing and ideation; allows wider variance while still surfacing metrics.
+
+Preset thresholds:
+
+| Preset | minScore | maxPopDrop | maxMoraleDrop | maxHungerRise | maxThirstRise | maxResourceDrop |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `strict` | `0` | `0.03` | `0.01` | `0.05` | `0.05` | `0.08` |
+| `standard` | `-2` | `0.08` | `0.03` | `0.08` | `0.10` | `0.12` |
+| `relaxed` | `-4` | `0.12` | `0.05` | `0.12` | `0.18` | `0.20` |
+
+Important variant-routing rule:
+- In preset scripts, `baseline` is fixed as the first variant and `candidate` as the second.
+- Extra `--set ...` flags passed with `npm run ... -- ...` are applied to `candidate`.
+- Avoid adding extra `--variant` flags on top of presets unless you explicitly want a different comparison structure.
+
+Practical playbook:
+1. Start with `standard` for fast feedback while tuning one or two knobs.
+2. If `standard` passes and change is significant, re-run with `strict`.
+3. If `strict` fails, inspect seed deltas in the generated report to identify unstable seeds/resources.
+4. Use `relaxed` only while exploring broad design space, then return to `standard`/`strict`.
+
+Concrete examples:
+- Small economy tweak (local smoke):
+
+```bash
+npm run balance:gate:standard -- --ticks 2000 --seeds 101,202 --set jobs.gatherTriggerRatio.food=1.1
+```
+
+- Candidate with two changes + artifact reports for review:
+
+```bash
+npm run balance:gate:standard -- --set jobs.gatherTriggerRatio.food=1.1 --set jobs.gatherTriggerRatio.water=1.1 --report-json debug/my_candidate.json --report-md debug/my_candidate.md
+```
+
+- CI hard gate (fail pipeline on regressions):
+
+```bash
+npm run balance:gate:strict
+```
+
+Report outputs:
+- Presets write reports in `debug/` by default (`balance_strict.*`, `balance_standard.*`, `balance_relaxed.*`).
+- You can override paths via `--report-json` / `--report-md`.
+
+General benchmark notes:
 - Uses `createInitialState` + repeated `stepState` with deterministic seeded randomness per run.
 - Default output includes `population`, `morale`, `beerBoost`, needs averages, and selected stockpile resources.
-- Use `--resources` and `--output json` for machine-readable reports.
+- Adds a comparative score (baseline vs candidate), per-seed deltas, and optional gate checks.
+- Use `--resources` and `--output json` for machine-readable stdout, or `--report-json` / `--report-md` for saved artifacts.
 
 ## 2) Mental model (big picture) 🧠
 
@@ -249,6 +335,7 @@ Notes:
     - Initial stockpiles (and optional node counts) can scale with map size via `resources.mapScale`
       using effective playable map area as a baseline (grid area minus carved inset when enabled).
     - Counters and stats used by AI, raids, ruins, myths, alchemy, and endgame cycles.
+    - Decision observability snapshots: `lastGovernorSignals`, `lastPriorities`, `lastDecisionTrace` (used by telemetry explainability rows).
   - `fitStateToGrid(...)` repositions entities after resize and keeps everything in-bounds (used when `display.resize.reflow_world=true`).
 
 ### Terrain generation 🗺️
@@ -1075,7 +1162,7 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
 
 - `render/telemetry_panel.js`
   - Builds a paged telemetry Data Center with two pages: `Overview + Deep` and `Economy`.
-  - Economy page includes a dedicated `Endgame` block with step-by-step cycle-reset checklist status.
+  - Economy page includes dedicated `AI Explainability` rows (driver ranking, shortage scoring context, governor sources/intents) plus the `Endgame` checklist block.
   - Reuses live section builders from `render/telemetry.js`, so values stay consistent across overlays.
   - Uses the full body area for live telemetry rows (no guide footer); labels are expanded directly in the telemetry rows for readability.
   - Uses dynamic size by default (roughly 98% of map view), with optional overrides via `display.telemetry_panel.width`/`height`.
@@ -1102,7 +1189,7 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
 
 - `render/telemetry.js`
   - Provides telemetry section builders and formatting helpers used by the telemetry panel.
-  - Section set: `World`, `Population`, `Pressure`, `Stockpile`, `Structures`, `Diplomacy`, `Operations`, `Endgame`, `Underrealm`, `Lore`, `Deep Signals`.
+  - Section set: `World`, `Population`, `Pressure`, `Stockpile`, `Structures`, `Diplomacy`, `Operations`, `AI Explainability`, `Endgame`, `Underrealm`, `Lore`, `Deep Signals`.
   - Housing details are intentionally compressed: only `House ratio` is shown in `World`.
   - World timeline shows `Tick`, `Year`, and season name only (capitalized label, no season tick progress fraction).
   - Stockpile bars scale with `display.telemetry.stockBarMax` or per-resource targets.
@@ -1114,6 +1201,7 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
   - `Deep Signals` consolidates world-event cadence/totals plus contract reliability for late-game monitoring.
     - Its `World log` mirror also wraps to multiple rows (up to 3).
   - `Operations` reports adult workforce split, job mix, build pipeline, 200-tick stockpile deltas, building-governor ranking/bias signals, and production-vs-infrastructure load split.
+  - `AI Explainability` reads `state.lastDecisionTrace` to expose top pressure drivers, shortage score decomposition (including boost context), world pressure context, and governor intent source (`action` vs `default`).
   - `Endgame` reports a checklist path for cycle reset pacing (ruins rooms, artifacts, post-artifact window, trigger arm), plus ETA reason when blocked/pending.
   - `Lore` summarizes myths/traditions and ruins progress without bottom overlays.
 
@@ -1259,8 +1347,10 @@ Training presets:
 - Regression deterministic pass is eval-only: `scripts/regression.js` calls `python/promote_best.py --eval-only` for policy quality checks instead of running a quasi-train loop.
 - Regression temp artifacts are isolated per seed via `mkdtemp` workspaces (config + transient policy files), removing static `/tmp` filename collisions and cross-run side effects.
 - Regression randomized pass is rollout-only: `scripts/regression.js` calls `python/regression_rollout.py`, avoiding PPO optimizer/update overhead and checkpoint side effects.
+- Regression baseline profiles are persisted in `regression/baselines/regression_baseline.json` (stable/versionable), while per-run logs/reports stay in `debug/`.
 - In `scripts/regression.js --all`, explicit CLI knobs (`--seeds`, `--eval-*`, `--random-*`) override the stored profile config, so short smoke checks do not require editing baseline files.
 - Regression subprocess logs are streamed directly to per-run `console.log` files (instead of buffered pipes), reducing risk of buffer-cap failures in long runs.
+- Regression now writes `.txt`, `.json`, and `.md` reports for each run (defaults next to the txt report; override with `--report-json` / `--report-md`).
 
 
 ### Rendering 🖼️
@@ -1396,9 +1486,10 @@ Quick checklist:
   - `ai/` → observation + policy
   - `runtime.js`, `terminal.js`, `utils.js` → support
 - `scripts/train_wrapper.js` → unified safe wrapper for `ai:train:*` profiles
-- `scripts/regression.js` → AI regression harness and profile recording
+- `scripts/regression.js` → AI regression harness and profile recording with txt/json/markdown reports
+- `regression/baselines/regression_baseline.json` → durable profile baselines used by regression checks
 - `scripts/export_map.js` → map export pipeline (PNG + SVG)
-- `scripts/headless_benchmark.js` → deterministic long-run headless benchmark and A/B delta reports
+- `scripts/headless_benchmark.js` → deterministic long-run headless benchmark with comparative score, seed deltas, and optional gate checks
 - `python/train.py` → PPO trainer and best-checkpoint updates
 - `python/promote_best.py` → post-train promotion check (latest vs best)
 - `python/regression_rollout.py` → randomized regression rollouts without PPO updates/checkpoint writes

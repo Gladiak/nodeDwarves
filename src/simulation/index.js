@@ -104,7 +104,9 @@ function stepState(state, config, runtime, action, options = {}) {
   updateVillages(state, config, runtime);
   updateRoads(state, config, runtime);
 
+  state.lastPriorities = [];
   assignJobs(state, config, runtime, resolvedAction);
+  state.lastDecisionTrace = buildDecisionTrace(state);
 
   for (const dwarf of state.dwarves) {
     processDwarfAction(dwarf, state, config, runtime);
@@ -384,6 +386,181 @@ function clampGovernorWeight(value, minWeight, maxWeight, fallback) {
     return clamp(numeric, minWeight, maxWeight);
   }
   return fallback;
+}
+
+// Build a compact decision trace used by telemetry explainability rows.
+function buildDecisionTrace(state) {
+  const shortagesRaw = Array.isArray(state && state.lastPriorities) ? state.lastPriorities : [];
+  const shortages = shortagesRaw.slice(0, 3).map((entry) => ({
+    resource: String(entry && entry.resource || ''),
+    score: Number(entry && entry.score || 0),
+    ratio: clamp(Number(entry && entry.ratio || 0), 0, 1),
+    missing: Math.max(0, Number(entry && entry.missing || 0)),
+    current: Math.max(0, Number(entry && entry.current || 0)),
+    target: Math.max(0, Number(entry && entry.target || 0)),
+    weight: Math.max(0, Number(entry && entry.weight || 0)),
+    baseWeight: Math.max(0, Number(entry && entry.baseWeight || 0)),
+    boostApplied: entry && entry.boostApplied === true,
+    boostSeverity: clamp(Number(entry && entry.boostSeverity || 0), 0, 1),
+    boostMultiplier: Math.max(1, Number(entry && entry.boostMultiplier || 1)),
+  })).filter((entry) => entry.resource.length > 0);
+
+  const governorSignals = state && state.lastGovernorSignals && typeof state.lastGovernorSignals === 'object'
+    ? state.lastGovernorSignals
+    : {};
+  const jobsGovernor = governorSignals.jobs && typeof governorSignals.jobs === 'object'
+    ? governorSignals.jobs
+    : {};
+  const tradeGovernor = governorSignals.trade && typeof governorSignals.trade === 'object'
+    ? governorSignals.trade
+    : {};
+  const buildingGovernor = governorSignals.building && typeof governorSignals.building === 'object'
+    ? governorSignals.building
+    : {};
+  const jobs = Array.isArray(state && state.jobs) ? state.jobs : [];
+  const jobsByType = {};
+  for (const job of jobs) {
+    const type = String(job && job.type || 'other');
+    jobsByType[type] = Number(jobsByType[type] || 0) + 1;
+  }
+  const worldEvent = state && state.worldEvents && state.worldEvents.active
+    ? state.worldEvents.active
+    : null;
+  const tick = Math.max(0, Number(state && state.tick || 0));
+  const worldEventTicksLeft = worldEvent
+    ? Math.max(
+      0,
+      Number(worldEvent.expiresAt || 0) > 0
+        ? Number(worldEvent.expiresAt || 0) - tick
+        : Number(worldEvent.ticksRemaining || 0),
+    )
+    : 0;
+  const context = {
+    weather: state && state.weather && state.weather.type ? String(state.weather.type) : 'clear',
+    raidActive: Boolean(state && state.raid && state.raid.active === true),
+    raidTicksLeft: Math.max(0, Number(state && state.raid && state.raid.ticksRemaining || 0)),
+    worldEventActive: Boolean(worldEvent),
+    worldEventLabel: worldEvent && worldEvent.label ? String(worldEvent.label) : '',
+    worldEventPhase: worldEvent && worldEvent.phase ? String(worldEvent.phase) : '',
+    worldEventTicksLeft,
+    festivalActive: Boolean(state && state.festival && state.festival.active === true),
+    contractActive: Boolean(state && state.contracts && state.contracts.active === true),
+  };
+
+  return {
+    tick,
+    governors: {
+      jobsSource: jobsGovernor.source === 'action' ? 'action' : 'default',
+      tradeSource: tradeGovernor.source === 'action' ? 'action' : 'default',
+      buildingSource: buildingGovernor.source === 'action' ? 'action' : 'default',
+      jobsTop: Array.isArray(jobsGovernor.top)
+        ? jobsGovernor.top.slice(0, 2).map((entry) => ({
+          resource: String(entry && entry.resource || ''),
+          weight: Math.max(0, Number(entry && entry.weight || 0)),
+        })).filter((entry) => entry.resource.length > 0)
+        : [],
+      buildingClassOrder: Array.isArray(buildingGovernor.classOrder)
+        ? buildingGovernor.classOrder.slice(0, 4).map((name) => String(name || '')).filter(Boolean)
+        : [],
+      tradeReserveBias: Number(tradeGovernor.reserveRatioBias || 0),
+      tradeContestIntent: clamp(Number(tradeGovernor.contestIntent || 0), 0, 1),
+      tradeOpportunityIntent: clamp(Number(tradeGovernor.opportunityIntent || 0), 0, 1),
+      buildMineBias: Number(buildingGovernor.mineBias || 0),
+      buildUpgradeBias: Number(buildingGovernor.upgradeBias || 0),
+    },
+    shortages,
+    jobs: {
+      total: jobs.length,
+      byType: jobsByType,
+    },
+    context,
+    drivers: buildDecisionDrivers(shortages, context, governorSignals),
+  };
+}
+
+// Build ranked decision drivers so telemetry can explain top pressures quickly.
+function buildDecisionDrivers(shortages, context, governorSignals) {
+  const drivers = [];
+  const shortageList = Array.isArray(shortages) ? shortages : [];
+  for (const shortage of shortageList) {
+    const resource = String(shortage && shortage.resource || '');
+    if (!resource) {
+      continue;
+    }
+    drivers.push({
+      key: `shortage:${resource}`,
+      label: `Shortage ${resource}`,
+      kind: 'shortage',
+      score: Math.max(0, Number(shortage && shortage.score || 0)),
+    });
+  }
+
+  const weatherType = context && context.weather ? String(context.weather) : 'clear';
+  const weatherScore = scoreWeatherPressure(weatherType);
+  if (weatherScore > 0) {
+    drivers.push({
+      key: `weather:${weatherType}`,
+      label: `Weather ${weatherType}`,
+      kind: 'weather',
+      score: weatherScore,
+    });
+  }
+
+  if (context && context.raidActive) {
+    const ticksLeft = Math.max(0, Number(context.raidTicksLeft || 0));
+    drivers.push({
+      key: 'raid:active',
+      label: ticksLeft > 0 ? `Raid active (${ticksLeft}t left)` : 'Raid active',
+      kind: 'raid',
+      score: 1,
+    });
+  }
+
+  if (context && context.worldEventActive) {
+    const label = String(context.worldEventLabel || 'World event');
+    drivers.push({
+      key: 'world_event:active',
+      label,
+      kind: 'world_event',
+      score: 0.7,
+    });
+  }
+
+  const signals = governorSignals && typeof governorSignals === 'object' ? governorSignals : {};
+  const jobsSource = signals.jobs && signals.jobs.source === 'action';
+  const tradeSource = signals.trade && signals.trade.source === 'action';
+  const buildingSource = signals.building && signals.building.source === 'action';
+  const actionDrivenCount = Number(jobsSource) + Number(tradeSource) + Number(buildingSource);
+  if (actionDrivenCount > 0) {
+    drivers.push({
+      key: 'governor:action',
+      label: `Policy action envelope (${actionDrivenCount}/3)`,
+      kind: 'policy',
+      score: 0.45 + actionDrivenCount * 0.1,
+    });
+  }
+
+  return drivers
+    .sort((left, right) => Number(right.score || 0) - Number(left.score || 0))
+    .slice(0, 4);
+}
+
+// Score weather pressure for explainability ranking.
+function scoreWeatherPressure(type) {
+  const key = String(type || 'clear');
+  if (key === 'storm') {
+    return 0.9;
+  }
+  if (key === 'drought') {
+    return 0.85;
+  }
+  if (key === 'cold') {
+    return 0.8;
+  }
+  if (key === 'rain') {
+    return 0.35;
+  }
+  return 0;
 }
 
 module.exports = { stepState };

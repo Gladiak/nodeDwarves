@@ -1564,8 +1564,12 @@ function computeShortages(state, targets, weights, config) {
       const stockpileRatio = clamp(current / target, 0, 1);
       const weightRaw =
         weights && weights[resource] !== undefined ? weights[resource] : 1;
-      let weight = clamp(Number(weightRaw || 1), 0, Number.POSITIVE_INFINITY);
+      const baseWeight = clamp(Number(weightRaw || 1), 0, Number.POSITIVE_INFINITY);
+      let weight = baseWeight;
       const boostConfig = priorityBoosts && priorityBoosts[resource];
+      let boostApplied = false;
+      let boostSeverity = 0;
+      let boostMultiplier = 1;
       if (boostConfig && typeof boostConfig === "object") {
         const threshold = clamp(Number(boostConfig.threshold ?? 0), 0, 1);
         const multiplier = Math.max(0, Number(boostConfig.multiplier ?? 0));
@@ -1576,21 +1580,31 @@ function computeShortages(state, targets, weights, config) {
           stockpileRatio < threshold &&
           (multiplier > 0 || minWeight > 0)
         ) {
-          const severity = clamp(
+          boostSeverity = clamp(
             (threshold - stockpileRatio) / threshold,
             0,
             1,
           );
-          const boost = 1 + Math.pow(severity, exponent) * multiplier;
-          weight = Math.max(weight, minWeight) * boost;
+          boostMultiplier = 1 + Math.pow(boostSeverity, exponent) * multiplier;
+          weight = Math.max(weight, minWeight) * boostMultiplier;
+          boostApplied = true;
         }
       }
       const score = ratio * weight;
       shortages.push({
         resource,
+        current,
+        target,
+        triggerRatio,
+        effectiveTarget,
         missing,
         ratio,
+        stockpileRatio,
+        baseWeight,
         weight,
+        boostApplied,
+        boostSeverity,
+        boostMultiplier,
         score,
       });
     }

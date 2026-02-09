@@ -15,6 +15,14 @@ const DEFAULT_SEEDS = [101, 202, 303, 404];
 const DEFAULT_RESOURCES = ['beer', 'food', 'water'];
 const DEFAULT_VARIANT_LABEL = 'current';
 const DEFAULT_PROGRESS_STEPS = 8;
+const DEFAULT_GATE_THRESHOLDS = {
+  minScore: -2,
+  maxPopulationDrop: 0.08,
+  maxMoraleDrop: 0.05,
+  maxHungerRise: 0.1,
+  maxThirstRise: 0.1,
+  maxResourceDrop: 0.12,
+};
 
 // Print CLI usage and examples.
 function printHelp() {
@@ -34,6 +42,15 @@ function printHelp() {
     '  --variant <label>         Start a variant block (repeatable)',
     '  --set <path=value>        Override for latest variant (repeatable)',
     "  --output <table|json|both> Output format (default: table)",
+    '  --gate                    Enable balance gate against the first variant (baseline)',
+    '  --gate-min-score <n>      Minimum comparison score allowed (default: -2)',
+    '  --gate-max-pop-drop <n>   Max relative population drop allowed (default: 0.08)',
+    '  --gate-max-morale-drop <n> Max relative morale drop allowed (default: 0.05)',
+    '  --gate-max-hunger-rise <n> Max relative hunger rise allowed (default: 0.10)',
+    '  --gate-max-thirst-rise <n> Max relative thirst rise allowed (default: 0.10)',
+    '  --gate-max-resource-drop <n> Max average relative resource drop allowed (default: 0.12)',
+    '  --report-json <path>      Write report JSON to file',
+    '  --report-md <path>        Write report Markdown to file',
     '  --progress                Print progress updates to stderr',
     '  --progress-every <n>      Progress update interval in ticks',
     '  --help                    Show this help',
@@ -44,6 +61,7 @@ function printHelp() {
     '    --set structures.brewery.maxCount=3 \\',
     '    --set structures.brewery.outputPerTick.beer=1.15 \\',
     '    --variant tuned',
+    '  node scripts/headless_benchmark.js --ticks 8000 --variant baseline --variant candidate --gate',
     '  node scripts/headless_benchmark.js --output both --resources beer,food,water,iron',
     '',
   ];
@@ -62,6 +80,10 @@ function parseArgs(argv) {
     output: 'table',
     progress: false,
     progressEvery: null,
+    gate: false,
+    gateThresholds: { ...DEFAULT_GATE_THRESHOLDS },
+    reportJsonPath: null,
+    reportMarkdownPath: null,
     variants: [],
   };
 
@@ -131,6 +153,65 @@ function parseArgs(argv) {
       i += 1;
       continue;
     }
+    if (arg === '--gate') {
+      options.gate = true;
+      continue;
+    }
+    if (arg === '--gate-min-score') {
+      options.gateThresholds.minScore = parseFiniteNumber(argv[i + 1], '--gate-min-score');
+      i += 1;
+      continue;
+    }
+    if (arg === '--gate-max-pop-drop') {
+      options.gateThresholds.maxPopulationDrop = parseNonNegativeNumber(
+        argv[i + 1],
+        '--gate-max-pop-drop',
+      );
+      i += 1;
+      continue;
+    }
+    if (arg === '--gate-max-morale-drop') {
+      options.gateThresholds.maxMoraleDrop = parseNonNegativeNumber(
+        argv[i + 1],
+        '--gate-max-morale-drop',
+      );
+      i += 1;
+      continue;
+    }
+    if (arg === '--gate-max-hunger-rise') {
+      options.gateThresholds.maxHungerRise = parseNonNegativeNumber(
+        argv[i + 1],
+        '--gate-max-hunger-rise',
+      );
+      i += 1;
+      continue;
+    }
+    if (arg === '--gate-max-thirst-rise') {
+      options.gateThresholds.maxThirstRise = parseNonNegativeNumber(
+        argv[i + 1],
+        '--gate-max-thirst-rise',
+      );
+      i += 1;
+      continue;
+    }
+    if (arg === '--gate-max-resource-drop') {
+      options.gateThresholds.maxResourceDrop = parseNonNegativeNumber(
+        argv[i + 1],
+        '--gate-max-resource-drop',
+      );
+      i += 1;
+      continue;
+    }
+    if (arg === '--report-json') {
+      options.reportJsonPath = resolveOutputPath(argv[i + 1]);
+      i += 1;
+      continue;
+    }
+    if (arg === '--report-md') {
+      options.reportMarkdownPath = resolveOutputPath(argv[i + 1]);
+      i += 1;
+      continue;
+    }
     if (arg === '--progress') {
       options.progress = true;
       continue;
@@ -153,6 +234,24 @@ function parseArgs(argv) {
   }
 
   return options;
+}
+
+// Parse a finite number for one CLI argument.
+function parseFiniteNumber(rawValue, flag) {
+  const numeric = Number(rawValue);
+  if (!Number.isFinite(numeric)) {
+    throw new Error(`${flag} requires a finite number.`);
+  }
+  return numeric;
+}
+
+// Parse a non-negative number for one CLI argument.
+function parseNonNegativeNumber(rawValue, flag) {
+  const numeric = parseFiniteNumber(rawValue, flag);
+  if (numeric < 0) {
+    throw new Error(`${flag} must be >= 0.`);
+  }
+  return numeric;
 }
 
 // Resolve tick interval used for progress updates.
@@ -186,6 +285,15 @@ function resolvePath(rawPath, fallback) {
   const trimmed = String(rawPath).trim();
   if (!trimmed) {
     return fallback;
+  }
+  return path.isAbsolute(trimmed) ? trimmed : path.resolve(process.cwd(), trimmed);
+}
+
+// Resolve an output path and require a non-empty value.
+function resolveOutputPath(rawPath) {
+  const trimmed = String(rawPath || '').trim();
+  if (!trimmed) {
+    throw new Error('Output path cannot be empty.');
   }
   return path.isAbsolute(trimmed) ? trimmed : path.resolve(process.cwd(), trimmed);
 }
@@ -459,28 +567,334 @@ function formatResources(resourceMap, resources) {
 
 // Build delta information against the first variant summary.
 function buildDeltas(variantResults, resources) {
+  return buildSummaryComparisons(variantResults, resources).map((comparison) => {
+    const resourceDelta = {};
+    for (const resourceId of resources) {
+      resourceDelta[resourceId] = Number(
+        comparison.deltas.resources[resourceId]
+        && comparison.deltas.resources[resourceId].abs || 0,
+      );
+    }
+    return {
+      baseline: comparison.baseline,
+      variant: comparison.variant,
+      population: Number(comparison.deltas.population.abs || 0),
+      morale: Number(comparison.deltas.morale.abs || 0),
+      beerBoost: Number(comparison.deltas.beerBoost.abs || 0),
+      hunger: Number(comparison.deltas.hunger.abs || 0),
+      thirst: Number(comparison.deltas.thirst.abs || 0),
+      resources: resourceDelta,
+    };
+  });
+}
+
+// Format a signed fixed-decimal number with explicit +/- prefix.
+function formatSignedNumber(value, decimals) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return 'n/a';
+  }
+  const fixed = numeric.toFixed(decimals);
+  return numeric >= 0 ? `+${fixed}` : fixed;
+}
+
+// Format a signed percentage from a relative delta.
+function formatSignedPercent(value, decimals = 2) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return 'n/a';
+  }
+  const scaled = (numeric * 100).toFixed(decimals);
+  return numeric >= 0 ? `+${scaled}%` : `${scaled}%`;
+}
+
+// Compute relative delta as (current - baseline) / abs(baseline).
+function computeRelativeDelta(current, baseline) {
+  const currentNumber = Number(current);
+  const baselineNumber = Number(baseline);
+  if (!Number.isFinite(currentNumber) || !Number.isFinite(baselineNumber)) {
+    return null;
+  }
+  if (Math.abs(baselineNumber) <= 1e-9) {
+    return Math.abs(currentNumber) <= 1e-9 ? 0 : null;
+  }
+  return (currentNumber - baselineNumber) / Math.abs(baselineNumber);
+}
+
+// Build one metric delta payload with absolute and relative changes.
+function buildMetricDelta(current, baseline) {
+  const currentNumber = Number(current);
+  const baselineNumber = Number(baseline);
+  if (!Number.isFinite(currentNumber) || !Number.isFinite(baselineNumber)) {
+    return { abs: null, rel: null };
+  }
+  return {
+    abs: currentNumber - baselineNumber,
+    rel: computeRelativeDelta(currentNumber, baselineNumber),
+  };
+}
+
+// Compute one comparative score versus baseline (higher is better).
+function computeComparisonScore(metricDeltas, resourceAverageRel) {
+  const populationRel = Number(metricDeltas.population && metricDeltas.population.rel);
+  const moraleRel = Number(metricDeltas.morale && metricDeltas.morale.rel);
+  const beerBoostRel = Number(metricDeltas.beerBoost && metricDeltas.beerBoost.rel);
+  const hungerRel = Number(metricDeltas.hunger && metricDeltas.hunger.rel);
+  const thirstRel = Number(metricDeltas.thirst && metricDeltas.thirst.rel);
+  const resourceRel = Number(resourceAverageRel);
+  const components = [
+    Number.isFinite(populationRel) ? populationRel * 0.35 : 0,
+    Number.isFinite(moraleRel) ? moraleRel * 0.2 : 0,
+    Number.isFinite(beerBoostRel) ? beerBoostRel * 0.05 : 0,
+    Number.isFinite(hungerRel) ? -hungerRel * 0.15 : 0,
+    Number.isFinite(thirstRel) ? -thirstRel * 0.15 : 0,
+    Number.isFinite(resourceRel) ? resourceRel * 0.1 : 0,
+  ];
+  return components.reduce((sum, value) => sum + value, 0) * 100;
+}
+
+// Build detailed summary comparisons against the first variant.
+function buildSummaryComparisons(variantResults, resources) {
   if (!Array.isArray(variantResults) || variantResults.length <= 1) {
     return [];
   }
   const baseline = variantResults[0];
   return variantResults.slice(1).map((variant) => {
-    const resourceDelta = {};
+    const metricDeltas = {
+      population: buildMetricDelta(variant.summary.population, baseline.summary.population),
+      morale: buildMetricDelta(variant.summary.morale, baseline.summary.morale),
+      beerBoost: buildMetricDelta(variant.summary.beerBoost, baseline.summary.beerBoost),
+      hunger: buildMetricDelta(variant.summary.hunger, baseline.summary.hunger),
+      thirst: buildMetricDelta(variant.summary.thirst, baseline.summary.thirst),
+      resources: {},
+    };
+    const resourceRelValues = [];
     for (const resourceId of resources) {
-      resourceDelta[resourceId] =
-        Number(variant.summary.resources[resourceId] || 0) -
-        Number(baseline.summary.resources[resourceId] || 0);
+      const delta = buildMetricDelta(
+        variant.summary.resources[resourceId],
+        baseline.summary.resources[resourceId],
+      );
+      metricDeltas.resources[resourceId] = delta;
+      if (Number.isFinite(delta.rel)) {
+        resourceRelValues.push(delta.rel);
+      }
+    }
+    const resourceAverageRel = resourceRelValues.length > 0
+      ? average(resourceRelValues, (value) => value)
+      : 0;
+    const score = computeComparisonScore(metricDeltas, resourceAverageRel);
+    return {
+      baseline: baseline.label,
+      variant: variant.label,
+      deltas: {
+        ...metricDeltas,
+        resourceAverageRel,
+      },
+      score,
+    };
+  });
+}
+
+// Build per-seed delta rows for each non-baseline variant.
+function buildSeedDeltas(variantResults, resources) {
+  if (!Array.isArray(variantResults) || variantResults.length <= 1) {
+    return [];
+  }
+  const baseline = variantResults[0];
+  const baselineRowsBySeed = new Map(
+    baseline.rows.map((row) => [Number(row.seed), row]),
+  );
+  return variantResults.slice(1).map((variant) => {
+    const rows = [];
+    for (const row of variant.rows) {
+      const seed = Number(row.seed);
+      const baselineRow = baselineRowsBySeed.get(seed);
+      if (!baselineRow) {
+        continue;
+      }
+      const metricDeltas = {
+        population: buildMetricDelta(row.population, baselineRow.population),
+        morale: buildMetricDelta(row.morale, baselineRow.morale),
+        beerBoost: buildMetricDelta(row.beerBoost, baselineRow.beerBoost),
+        hunger: buildMetricDelta(row.hunger, baselineRow.hunger),
+        thirst: buildMetricDelta(row.thirst, baselineRow.thirst),
+        resources: {},
+      };
+      const resourceRelValues = [];
+      for (const resourceId of resources) {
+        const delta = buildMetricDelta(
+          row.resources[resourceId],
+          baselineRow.resources[resourceId],
+        );
+        metricDeltas.resources[resourceId] = delta;
+        if (Number.isFinite(delta.rel)) {
+          resourceRelValues.push(delta.rel);
+        }
+      }
+      const resourceAverageRel = resourceRelValues.length > 0
+        ? average(resourceRelValues, (value) => value)
+        : 0;
+      rows.push({
+        seed,
+        deltas: {
+          ...metricDeltas,
+          resourceAverageRel,
+        },
+        score: computeComparisonScore(metricDeltas, resourceAverageRel),
+      });
     }
     return {
       baseline: baseline.label,
       variant: variant.label,
-      population: Number(variant.summary.population || 0) - Number(baseline.summary.population || 0),
-      morale: Number(variant.summary.morale || 0) - Number(baseline.summary.morale || 0),
-      beerBoost: Number(variant.summary.beerBoost || 0) - Number(baseline.summary.beerBoost || 0),
-      hunger: Number(variant.summary.hunger || 0) - Number(baseline.summary.hunger || 0),
-      thirst: Number(variant.summary.thirst || 0) - Number(baseline.summary.thirst || 0),
-      resources: resourceDelta,
+      rows,
     };
   });
+}
+
+// Evaluate gate checks for each candidate variant.
+function evaluateGate(summaryComparisons, thresholds) {
+  const gateThresholds = {
+    ...DEFAULT_GATE_THRESHOLDS,
+    ...(thresholds || {}),
+  };
+  const results = summaryComparisons.map((comparison) => {
+    const deltas = comparison.deltas || {};
+    const checks = [
+      {
+        key: 'population_drop',
+        pass: !Number.isFinite(deltas.population && deltas.population.rel)
+          || deltas.population.rel >= -gateThresholds.maxPopulationDrop,
+        value: deltas.population && deltas.population.rel,
+        comparator: '>=',
+        limit: -gateThresholds.maxPopulationDrop,
+      },
+      {
+        key: 'morale_drop',
+        pass: !Number.isFinite(deltas.morale && deltas.morale.rel)
+          || deltas.morale.rel >= -gateThresholds.maxMoraleDrop,
+        value: deltas.morale && deltas.morale.rel,
+        comparator: '>=',
+        limit: -gateThresholds.maxMoraleDrop,
+      },
+      {
+        key: 'hunger_rise',
+        pass: !Number.isFinite(deltas.hunger && deltas.hunger.rel)
+          || deltas.hunger.rel <= gateThresholds.maxHungerRise,
+        value: deltas.hunger && deltas.hunger.rel,
+        comparator: '<=',
+        limit: gateThresholds.maxHungerRise,
+      },
+      {
+        key: 'thirst_rise',
+        pass: !Number.isFinite(deltas.thirst && deltas.thirst.rel)
+          || deltas.thirst.rel <= gateThresholds.maxThirstRise,
+        value: deltas.thirst && deltas.thirst.rel,
+        comparator: '<=',
+        limit: gateThresholds.maxThirstRise,
+      },
+      {
+        key: 'resource_avg_drop',
+        pass: !Number.isFinite(deltas.resourceAverageRel)
+          || deltas.resourceAverageRel >= -gateThresholds.maxResourceDrop,
+        value: deltas.resourceAverageRel,
+        comparator: '>=',
+        limit: -gateThresholds.maxResourceDrop,
+      },
+      {
+        key: 'comparison_score',
+        pass: !Number.isFinite(comparison.score)
+          || comparison.score >= gateThresholds.minScore,
+        value: comparison.score,
+        comparator: '>=',
+        limit: gateThresholds.minScore,
+      },
+    ];
+    return {
+      baseline: comparison.baseline,
+      variant: comparison.variant,
+      score: comparison.score,
+      checks,
+      passed: checks.every((check) => check.pass),
+    };
+  });
+  const failed = results.filter((result) => result.passed !== true).map((result) => result.variant);
+  return {
+    enabled: true,
+    thresholds: gateThresholds,
+    results,
+    failed,
+    allPassed: failed.length === 0,
+  };
+}
+
+// Build a compact Markdown report for CI artifacts.
+function buildMarkdownReport(report) {
+  const lines = [];
+  lines.push('# NodeDwarves Balance Report');
+  lines.push('');
+  lines.push(`Generated: ${report.meta.generatedAt}`);
+  lines.push(`Ticks: ${report.meta.ticks}`);
+  lines.push(`Seeds: ${report.meta.seeds.join(', ')}`);
+  lines.push(`Resources: ${report.meta.resources.join(', ')}`);
+  lines.push('');
+  lines.push('## Variant Summary');
+  lines.push('');
+  lines.push('| Variant | Population | Morale | BeerBoost | Hunger | Thirst |');
+  lines.push('| --- | ---: | ---: | ---: | ---: | ---: |');
+  for (const variant of report.variants) {
+    lines.push(
+      `| ${variant.label} | ${formatNumber(variant.summary.population, 2)} | ${formatNumber(variant.summary.morale, 4)} | ${formatNumber(variant.summary.beerBoost, 4)} | ${formatNumber(variant.summary.hunger, 4)} | ${formatNumber(variant.summary.thirst, 4)} |`,
+    );
+  }
+  if (report.comparisons.length > 0) {
+    lines.push('');
+    lines.push('## Comparisons (vs baseline)');
+    lines.push('');
+    lines.push('| Variant | Score | Pop rel | Morale rel | Hunger rel | Thirst rel | Resource rel avg |');
+    lines.push('| --- | ---: | ---: | ---: | ---: | ---: | ---: |');
+    for (const comparison of report.comparisons) {
+      lines.push(
+        `| ${comparison.variant} | ${formatSignedNumber(comparison.score, 2)} | ${formatSignedPercent(comparison.deltas.population.rel)} | ${formatSignedPercent(comparison.deltas.morale.rel)} | ${formatSignedPercent(comparison.deltas.hunger.rel)} | ${formatSignedPercent(comparison.deltas.thirst.rel)} | ${formatSignedPercent(comparison.deltas.resourceAverageRel)} |`,
+      );
+    }
+  }
+  for (const block of report.seedDeltas) {
+    lines.push('');
+    lines.push(`## Seed Deltas: ${block.variant} vs ${block.baseline}`);
+    lines.push('');
+    lines.push('| Seed | Score | Pop rel | Morale rel | Hunger rel | Thirst rel | Resource rel avg |');
+    lines.push('| ---: | ---: | ---: | ---: | ---: | ---: | ---: |');
+    for (const row of block.rows) {
+      lines.push(
+        `| ${row.seed} | ${formatSignedNumber(row.score, 2)} | ${formatSignedPercent(row.deltas.population.rel)} | ${formatSignedPercent(row.deltas.morale.rel)} | ${formatSignedPercent(row.deltas.hunger.rel)} | ${formatSignedPercent(row.deltas.thirst.rel)} | ${formatSignedPercent(row.deltas.resourceAverageRel)} |`,
+      );
+    }
+  }
+  if (report.gate && report.gate.enabled === true) {
+    lines.push('');
+    lines.push('## Gate');
+    lines.push('');
+    lines.push('| Variant | Status | Score | Failed checks |');
+    lines.push('| --- | --- | ---: | --- |');
+    for (const gateResult of report.gate.results) {
+      const failedChecks = gateResult.checks
+        .filter((check) => check.pass !== true)
+        .map((check) => check.key)
+        .join(', ') || '-';
+      lines.push(
+        `| ${gateResult.variant} | ${gateResult.passed ? 'PASS' : 'FAIL'} | ${formatSignedNumber(gateResult.score, 2)} | ${failedChecks} |`,
+      );
+    }
+  }
+  return `${lines.join('\n')}\n`;
+}
+
+// Write a report file ensuring parent folders exist.
+function writeReportFile(filePath, content) {
+  const targetPath = resolveOutputPath(filePath);
+  fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+  fs.writeFileSync(targetPath, content);
+  return targetPath;
 }
 
 // Print benchmark report in human-readable table form.
@@ -505,15 +919,64 @@ function printTable(report) {
     process.stdout.write(`${summaryLine}\n\n`);
   }
 
-  for (const delta of report.deltas) {
-    process.stdout.write(`=== delta ${delta.variant} - ${delta.baseline} ===\n`);
-    process.stdout.write(`population ${formatNumber(delta.population, 1)}\n`);
-    process.stdout.write(`morale ${formatNumber(delta.morale, 4)}\n`);
-    process.stdout.write(`beerBoost ${formatNumber(delta.beerBoost, 4)}\n`);
-    process.stdout.write(`hunger ${formatNumber(delta.hunger, 4)}\n`);
-    process.stdout.write(`thirst ${formatNumber(delta.thirst, 4)}\n`);
+  for (const comparison of report.comparisons) {
+    process.stdout.write(`=== comparison ${comparison.variant} - ${comparison.baseline} ===\n`);
+    process.stdout.write(`score ${formatSignedNumber(comparison.score, 2)}\n`);
+    process.stdout.write(
+      `population ${formatSignedNumber(comparison.deltas.population.abs, 1)} (${formatSignedPercent(comparison.deltas.population.rel)})\n`,
+    );
+    process.stdout.write(
+      `morale ${formatSignedNumber(comparison.deltas.morale.abs, 4)} (${formatSignedPercent(comparison.deltas.morale.rel)})\n`,
+    );
+    process.stdout.write(
+      `beerBoost ${formatSignedNumber(comparison.deltas.beerBoost.abs, 4)} (${formatSignedPercent(comparison.deltas.beerBoost.rel)})\n`,
+    );
+    process.stdout.write(
+      `hunger ${formatSignedNumber(comparison.deltas.hunger.abs, 4)} (${formatSignedPercent(comparison.deltas.hunger.rel)})\n`,
+    );
+    process.stdout.write(
+      `thirst ${formatSignedNumber(comparison.deltas.thirst.abs, 4)} (${formatSignedPercent(comparison.deltas.thirst.rel)})\n`,
+    );
+    process.stdout.write(
+      `resource_avg_rel ${formatSignedPercent(comparison.deltas.resourceAverageRel)}\n`,
+    );
     for (const resourceId of report.meta.resources) {
-      process.stdout.write(`${resourceId} ${formatNumber(delta.resources[resourceId], 1)}\n`);
+      const delta = comparison.deltas.resources[resourceId] || {};
+      process.stdout.write(
+        `${resourceId} ${formatSignedNumber(delta.abs, 1)} (${formatSignedPercent(delta.rel)})\n`,
+      );
+    }
+    process.stdout.write('\n');
+  }
+
+  for (const seedBlock of report.seedDeltas) {
+    process.stdout.write(`=== seed deltas ${seedBlock.variant} - ${seedBlock.baseline} ===\n`);
+    for (const row of seedBlock.rows) {
+      const line =
+        `seed ${row.seed}: score ${formatSignedNumber(row.score, 2)}, ` +
+        `pop ${formatSignedPercent(row.deltas.population.rel)}, ` +
+        `morale ${formatSignedPercent(row.deltas.morale.rel)}, ` +
+        `hunger ${formatSignedPercent(row.deltas.hunger.rel)}, ` +
+        `thirst ${formatSignedPercent(row.deltas.thirst.rel)}, ` +
+        `resources ${formatSignedPercent(row.deltas.resourceAverageRel)}`;
+      process.stdout.write(`${line}\n`);
+    }
+    process.stdout.write('\n');
+  }
+
+  if (report.gate && report.gate.enabled === true) {
+    const thresholds = report.gate.thresholds || {};
+    process.stdout.write('=== gate ===\n');
+    process.stdout.write(
+      `thresholds: minScore ${formatNumber(thresholds.minScore, 2)}, maxPopDrop ${formatNumber(thresholds.maxPopulationDrop, 3)}, maxMoraleDrop ${formatNumber(thresholds.maxMoraleDrop, 3)}, maxHungerRise ${formatNumber(thresholds.maxHungerRise, 3)}, maxThirstRise ${formatNumber(thresholds.maxThirstRise, 3)}, maxResourceDrop ${formatNumber(thresholds.maxResourceDrop, 3)}\n`,
+    );
+    for (const gateResult of report.gate.results) {
+      const failed = gateResult.checks.filter((check) => check.pass !== true);
+      const status = gateResult.passed ? 'PASS' : 'FAIL';
+      const failedLabels = failed.map((check) => check.key).join(', ') || '-';
+      process.stdout.write(
+        `variant ${gateResult.variant}: ${status} | score ${formatSignedNumber(gateResult.score, 2)} | failed ${failedLabels}\n`,
+      );
     }
     process.stdout.write('\n');
   }
@@ -528,6 +991,17 @@ function printJson(report) {
 function runBenchmark(options) {
   const baseConfig = loadConfig(options.configPath);
   const variants = options.variants.map((variant) => runVariant(baseConfig, options, variant));
+  const comparisons = buildSummaryComparisons(variants, options.resources);
+  const seedDeltas = buildSeedDeltas(variants, options.resources);
+  const gate = options.gate === true
+    ? evaluateGate(comparisons, options.gateThresholds)
+    : {
+      enabled: false,
+      thresholds: options.gateThresholds,
+      results: [],
+      failed: [],
+      allPassed: true,
+    };
   return {
     meta: {
       ticks: options.ticks,
@@ -540,6 +1014,9 @@ function runBenchmark(options) {
     },
     variants,
     deltas: buildDeltas(variants, options.resources),
+    comparisons,
+    seedDeltas,
+    gate,
   };
 }
 
@@ -557,6 +1034,23 @@ function main() {
     }
     if (options.output === 'json' || options.output === 'both') {
       printJson(report);
+    }
+    if (options.reportJsonPath) {
+      const reportPath = writeReportFile(
+        options.reportJsonPath,
+        `${JSON.stringify(report, null, 2)}\n`,
+      );
+      process.stdout.write(`Report JSON written to ${reportPath}\n`);
+    }
+    if (options.reportMarkdownPath) {
+      const reportPath = writeReportFile(
+        options.reportMarkdownPath,
+        buildMarkdownReport(report),
+      );
+      process.stdout.write(`Report Markdown written to ${reportPath}\n`);
+    }
+    if (options.gate === true && report.gate && report.gate.allPassed !== true) {
+      process.exit(1);
     }
   } catch (error) {
     process.stderr.write(`headless_benchmark error: ${error.message}\n`);

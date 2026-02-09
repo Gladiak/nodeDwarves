@@ -53,7 +53,9 @@ This file defines how to implement new features in a consistent, stable way.
 - `src/utils.js`: shared helpers.
 - `ai_server.js`: JS inference bridge for training.
 - `scripts/export_map.js`: CLI map export pipeline (PNG + SVG).
+- `scripts/regression.js`: AI regression harness and profile recording.
 - `scripts/headless_benchmark.js`: deterministic headless benchmark CLI for long-run tuning and validation.
+- `regression/baselines/regression_baseline.json`: durable regression baseline profiles used by checks.
 - `python/bootstrap.py`: venv bootstrap.
 - `python/train.py`: PPO training loop and logging.
 - `python/regression_rollout.py`: rollout-only randomized regression runner (no PPO updates, no checkpoint writes).
