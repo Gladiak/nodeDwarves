@@ -8,9 +8,11 @@ const { spawnSync } = require('child_process');
 
 const ROOT = path.resolve(__dirname, '..');
 const PYTHON = path.join(ROOT, '.venv', 'bin', 'python');
-const TRAIN = path.join(ROOT, 'python', 'train.py');
+const PROMOTE = path.join(ROOT, 'python', 'promote_best.py');
+const ROLLOUT = path.join(ROOT, 'python', 'regression_rollout.py');
 const CONFIG_PATH = path.join(ROOT, 'config.json');
 const BASELINE_PATH = path.join(ROOT, 'debug', 'regression_baseline.json');
+const POLICY_BEST_PATH = path.join(ROOT, 'models', 'policy_best.json');
 
 const DEFAULT_SEEDS = [12345, 22222];
 const DEFAULT_EVAL_EPISODES = 20;
@@ -37,6 +39,13 @@ function parseArgs(argv) {
     evalMaxSteps: DEFAULT_EVAL_MAX_STEPS,
     randomEpisodes: DEFAULT_RANDOM_EPISODES,
     randomMaxSteps: DEFAULT_RANDOM_MAX_STEPS,
+    cliOverrides: {
+      seeds: false,
+      evalEpisodes: false,
+      evalMaxSteps: false,
+      randomEpisodes: false,
+      randomMaxSteps: false,
+    },
     record: false,
     profile: 'standard',
     all: false,
@@ -61,25 +70,30 @@ function parseArgs(argv) {
       const value = argv[i + 1];
       i += 1;
       options.seeds = value.split(',').map((part) => Number(part.trim())).filter(Number.isFinite);
+      options.cliOverrides.seeds = true;
       continue;
     }
     if (arg === '--eval-episodes') {
       options.evalEpisodes = Number(argv[i + 1] || options.evalEpisodes);
+      options.cliOverrides.evalEpisodes = true;
       i += 1;
       continue;
     }
     if (arg === '--eval-max-steps') {
       options.evalMaxSteps = Number(argv[i + 1] || options.evalMaxSteps);
+      options.cliOverrides.evalMaxSteps = true;
       i += 1;
       continue;
     }
     if (arg === '--random-episodes') {
       options.randomEpisodes = Number(argv[i + 1] || options.randomEpisodes);
+      options.cliOverrides.randomEpisodes = true;
       i += 1;
       continue;
     }
     if (arg === '--random-max-steps') {
       options.randomMaxSteps = Number(argv[i + 1] || options.randomMaxSteps);
+      options.cliOverrides.randomMaxSteps = true;
       i += 1;
       continue;
     }
@@ -102,8 +116,25 @@ function readConfig() {
   return JSON.parse(raw);
 }
 
-function writeTempConfig(config, tag) {
-  const tempPath = path.join(os.tmpdir(), `nodedwarves_regression_${tag}.json`);
+function createTempWorkspace(prefix) {
+  const safePrefix = String(prefix || 'nodedwarves_regression').replace(/[^a-zA-Z0-9._-]+/g, '_');
+  return fs.mkdtempSync(path.join(os.tmpdir(), `${safePrefix}_`));
+}
+
+function removeTempWorkspace(tempDir) {
+  if (!tempDir) {
+    return;
+  }
+  try {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  } catch (error) {
+    // Best-effort cleanup; regression results remain in debug/ directories.
+  }
+}
+
+function writeTempConfig(config, tempDir, tag) {
+  const safeTag = String(tag || 'config').replace(/[^a-zA-Z0-9._-]+/g, '_');
+  const tempPath = path.join(tempDir, `${safeTag}.json`);
   fs.writeFileSync(tempPath, JSON.stringify(config, null, 2));
   return tempPath;
 }
@@ -127,20 +158,78 @@ function buildRandomConfig() {
   return cfg;
 }
 
-function runCommand(args, logPath) {
-  const result = spawnSync(PYTHON, [TRAIN, ...args], {
-    cwd: ROOT,
-    encoding: 'utf8',
-    maxBuffer: 1024 * 1024 * 10,
-  });
-  const output = `${result.stdout || ''}${result.stderr || ''}`;
-  if (logPath) {
-    fs.writeFileSync(logPath, output);
+function runPythonScript(scriptPath, args, logPath, options = {}) {
+  const captureOutput = options.captureOutput !== false;
+  const scriptName = path.basename(scriptPath || 'python');
+  const tempLogDir = !logPath ? createTempWorkspace(`nodedwarves_regression_${scriptName}`) : null;
+  const effectiveLogPath = logPath || path.join(tempLogDir, `${scriptName}.log`);
+  const logDir = path.dirname(effectiveLogPath);
+  fs.mkdirSync(logDir, { recursive: true });
+  const logFd = fs.openSync(effectiveLogPath, 'w');
+  let result;
+  try {
+    result = spawnSync(PYTHON, [scriptPath, ...args], {
+      cwd: ROOT,
+      stdio: ['ignore', logFd, logFd],
+    });
+  } finally {
+    fs.closeSync(logFd);
+  }
+  if (result && result.error) {
+    if (tempLogDir) {
+      removeTempWorkspace(tempLogDir);
+    }
+    throw result.error;
+  }
+  let output = '';
+  if (captureOutput) {
+    try {
+      output = fs.readFileSync(effectiveLogPath, 'utf8');
+    } catch (error) {
+      output = '';
+    }
   }
   if (result.status !== 0) {
-    throw new Error(`train.py failed (exit ${result.status}). See ${logPath || 'output'}.`);
+    const error = new Error(`${scriptName} failed (exit ${result.status}). See ${effectiveLogPath}.`);
+    if (tempLogDir) {
+      removeTempWorkspace(tempLogDir);
+    }
+    throw error;
+  }
+  if (tempLogDir) {
+    removeTempWorkspace(tempLogDir);
   }
   return output;
+}
+
+function parseEvalOnlyOutput(output) {
+  const lines = output.split(/\r?\n/);
+  let payload = null;
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    if (!lines[i].startsWith('EVAL_ONLY ')) {
+      continue;
+    }
+    const rawJson = lines[i].slice('EVAL_ONLY '.length).trim();
+    if (!rawJson) {
+      continue;
+    }
+    try {
+      payload = JSON.parse(rawJson);
+      break;
+    } catch (error) {
+      throw new Error(`Invalid EVAL_ONLY payload: ${rawJson}`);
+    }
+  }
+  if (!payload) {
+    return parseEvalOutput(output);
+  }
+  return {
+    avg_reward: Number(payload.avg_reward),
+    avg_steps: Number(payload.avg_steps),
+    avg_births: Number(payload.avg_births),
+    avg_deaths: Number(payload.avg_deaths),
+    score: Number(payload.score),
+  };
 }
 
 function parseEvalOutput(output) {
@@ -258,48 +347,14 @@ function parseKeyValueMap(section) {
   return map;
 }
 
-function extractSection(line, startLabel, endLabel) {
-  if (!line || !startLabel) {
-    return '';
-  }
-  const start = line.indexOf(startLabel);
-  if (start === -1) {
-    return '';
-  }
-  const end = endLabel ? line.indexOf(endLabel, start) : -1;
-  const slice = end === -1
-    ? line.slice(start + startLabel.length)
-    : line.slice(start + startLabel.length, end);
-  return slice.trim();
-}
-
-function parseKeyValueMap(section) {
-  if (!section) {
-    return {};
-  }
-  const entries = section.split(' ').map((part) => part.trim()).filter(Boolean);
-  const map = {};
-  for (const entry of entries) {
-    const [key, value] = entry.split('=');
-    if (!key || value === undefined) {
-      continue;
-    }
-    const numeric = Number(value);
-    if (Number.isFinite(numeric)) {
-      map[key] = numeric;
-    }
-  }
-  return map;
-}
-
 function parseTermRates(termLabel) {
   const rates = {};
   if (!termLabel) {
     return rates;
   }
-  const entries = termLabel.split(',');
+  const entries = termLabel.split(/\s+/).filter(Boolean);
   for (const entry of entries) {
-    const match = entry.match(/^([a-z_]+):(\\d+)%$/);
+    const match = entry.match(/^([a-z_]+):(\d+)%$/);
     if (match) {
       rates[match[1]] = Number(match[2]) / 100;
     }
@@ -505,13 +560,24 @@ function applyProfileConfig(options, config) {
   if (!config) {
     return { ...options };
   }
+  const cliOverrides = options.cliOverrides || {};
   return {
     ...options,
-    seeds: Array.isArray(config.seeds) && config.seeds.length ? config.seeds : options.seeds,
-    evalEpisodes: Number(config.evalEpisodes || options.evalEpisodes),
-    evalMaxSteps: Number(config.evalMaxSteps || options.evalMaxSteps),
-    randomEpisodes: Number(config.randomEpisodes || options.randomEpisodes),
-    randomMaxSteps: Number(config.randomMaxSteps || options.randomMaxSteps),
+    seeds: cliOverrides.seeds
+      ? options.seeds
+      : (Array.isArray(config.seeds) && config.seeds.length ? config.seeds : options.seeds),
+    evalEpisodes: cliOverrides.evalEpisodes
+      ? options.evalEpisodes
+      : Number(config.evalEpisodes || options.evalEpisodes),
+    evalMaxSteps: cliOverrides.evalMaxSteps
+      ? options.evalMaxSteps
+      : Number(config.evalMaxSteps || options.evalMaxSteps),
+    randomEpisodes: cliOverrides.randomEpisodes
+      ? options.randomEpisodes
+      : Number(config.randomEpisodes || options.randomEpisodes),
+    randomMaxSteps: cliOverrides.randomMaxSteps
+      ? options.randomMaxSteps
+      : Number(config.randomMaxSteps || options.randomMaxSteps),
   };
 }
 
@@ -520,54 +586,47 @@ function runProfile(profileName, options) {
     eval: [],
     random: [],
   };
+  const sourceBestModelPath = POLICY_BEST_PATH;
 
   for (const seed of options.seeds) {
-    const evalDir = path.join(ROOT, 'debug', `regression_eval_${profileName}_seed${seed}_${Date.now()}`);
-    fs.mkdirSync(evalDir, { recursive: true });
-    const evalConfig = buildEvalConfig(['baseline', 'full_sim']);
-    const evalConfigPath = writeTempConfig(evalConfig, `eval_${profileName}_${seed}`);
-    fs.copyFileSync(path.join(ROOT, 'models', 'policy_best.json'), '/tmp/policy_best_eval.json');
-    const evalOutput = runCommand([
-      '--config', evalConfigPath,
-      '--episodes', '1',
-      '--batch-episodes', '9999',
-      '--workers', '1',
-      '--seed', String(seed),
-      '--full-sim',
-      '--eval-every', '1',
-      '--eval-episodes', String(options.evalEpisodes),
-      '--eval-max-steps', String(options.evalMaxSteps),
-      '--model-path', '/tmp/policy_eval.json',
-      '--best-model-path', '/tmp/policy_best_eval.json',
-      '--best-model-meta-path', '/tmp/policy_best_eval.meta.json',
-    ], path.join(evalDir, 'console.log'));
-    const evalMetrics = parseEvalOutput(evalOutput);
-    results.eval.push({ seed, metrics: evalMetrics, logDir: evalDir });
+    const seedTempDir = createTempWorkspace(`nodedwarves_regression_${profileName}_seed${seed}`);
+    try {
+      const evalDir = path.join(ROOT, 'debug', `regression_eval_${profileName}_seed${seed}_${Date.now()}`);
+      fs.mkdirSync(evalDir, { recursive: true });
+      const evalConfig = buildEvalConfig(['baseline', 'full_sim']);
+      const evalConfigPath = writeTempConfig(evalConfig, seedTempDir, `eval_${profileName}_${seed}`);
+      const evalOutput = runPythonScript(PROMOTE, [
+        '--config', evalConfigPath,
+        '--model-path', sourceBestModelPath,
+        '--best-model-path', path.join(seedTempDir, `unused_best_${seed}.json`),
+        '--best-model-meta-path', path.join(seedTempDir, `unused_best_${seed}.meta.json`),
+        '--eval-episodes', String(options.evalEpisodes),
+        '--eval-max-steps', String(options.evalMaxSteps),
+        '--eval-difficulty', '1.0',
+        '--seed', String(seed),
+        '--eval-only',
+      ], path.join(evalDir, 'console.log'));
+      const evalMetrics = parseEvalOnlyOutput(evalOutput);
+      results.eval.push({ seed, metrics: evalMetrics, logDir: evalDir });
 
-    const randomDir = path.join(ROOT, 'debug', `regression_random_${profileName}_seed${seed}_${Date.now()}`);
-    fs.mkdirSync(randomDir, { recursive: true });
-    const randomConfig = buildRandomConfig();
-    const randomConfigPath = writeTempConfig(randomConfig, `random_${profileName}_${seed}`);
-    fs.copyFileSync(path.join(ROOT, 'models', 'policy_best.json'), '/tmp/policy_best_eval.json');
-    runCommand([
-      '--config', randomConfigPath,
-      '--episodes', String(options.randomEpisodes),
-      '--batch-episodes', '9999',
-      '--workers', '1',
-      '--seed', String(seed),
-      '--max-steps', String(options.randomMaxSteps),
-      '--log-every', String(options.randomEpisodes),
-      '--eval-every', '0',
-      '--model-path', '/tmp/policy_eval.json',
-      '--best-model-path', '/tmp/policy_best_eval.json',
-      '--best-model-meta-path', '/tmp/policy_best_eval.meta.json',
-      '--debug-run-dir', randomDir,
-      '--debug-summary-name', 'summary_random.log',
-      '--debug-prefix', 'rand',
-    ], path.join(randomDir, 'console.log'));
-    const summaryPath = path.join(randomDir, 'summary_random.log');
-    const randomMetrics = parseSummaryLog(summaryPath);
-    results.random.push({ seed, metrics: randomMetrics, logDir: randomDir });
+      const randomDir = path.join(ROOT, 'debug', `regression_random_${profileName}_seed${seed}_${Date.now()}`);
+      fs.mkdirSync(randomDir, { recursive: true });
+      const randomConfig = buildRandomConfig();
+      const randomConfigPath = writeTempConfig(randomConfig, seedTempDir, `random_${profileName}_${seed}`);
+      const summaryPath = path.join(randomDir, 'summary_random.log');
+      runPythonScript(ROLLOUT, [
+        '--config', randomConfigPath,
+        '--model-path', sourceBestModelPath,
+        '--episodes', String(options.randomEpisodes),
+        '--seed', String(seed),
+        '--max-steps', String(options.randomMaxSteps),
+        '--summary-path', summaryPath,
+      ], path.join(randomDir, 'console.log'), { captureOutput: false });
+      const randomMetrics = parseSummaryLog(summaryPath);
+      results.random.push({ seed, metrics: randomMetrics, logDir: randomDir });
+    } finally {
+      removeTempWorkspace(seedTempDir);
+    }
   }
 
   const evalAverage = averageMetrics(results.eval.map((entry) => entry.metrics));
@@ -647,8 +706,10 @@ function printSuite(title, metrics) {
 
 function main() {
   ensureFile(PYTHON, 'Python venv');
-  ensureFile(TRAIN, 'train.py');
+  ensureFile(PROMOTE, 'promote_best.py');
+  ensureFile(ROLLOUT, 'regression_rollout.py');
   ensureFile(CONFIG_PATH, 'config.json');
+  ensureFile(POLICY_BEST_PATH, 'policy_best.json');
 
   const options = parseArgs(process.argv.slice(2));
   const baselineFile = loadBaseline();

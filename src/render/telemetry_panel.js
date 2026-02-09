@@ -18,6 +18,7 @@ const SECTION_TOKEN_COLOR_KEYS = {
   structures: 'workshop',
   diplomacy: 'merchant',
   operations: 'brewery',
+  endgame: 'temple_of_ancestors',
   underrealm: 'underrealm_delver',
   lore: 'alchemy_lab',
   'deep signals': 'underrealm_hostile',
@@ -40,8 +41,8 @@ const TELEMETRY_PANEL_PAGES = [
   {
     id: 'economy',
     title: 'Economy',
-    subtitle: 'Production chain health, structures, and diplomacy flow.',
-    sections: ['stockpile', 'structures', 'operations', 'diplomacy'],
+    subtitle: 'Production chain health, governor signals, diplomacy flow, and endgame checklist.',
+    sections: ['stockpile', 'structures', 'operations', 'diplomacy', 'endgame'],
     preferredColumns: 2,
     minColumnWidth: 38,
   },

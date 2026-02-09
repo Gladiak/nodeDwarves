@@ -17,7 +17,7 @@ const TELEMETRY_LAYOUT = [
   {
     id: "economy",
     title: "Economy",
-    sections: ["structures", "diplomacy", "operations"],
+    sections: ["structures", "diplomacy", "operations", "endgame"],
   },
   {
     id: "deep_meta",
@@ -227,6 +227,7 @@ function buildTelemetryColumns(state, config, columnWidth, options = {}) {
   const alchemyStatus = formatAlchemyStatus(state, config, columnWidth);
   const underrealmRows = buildStableUnderrealmRows(underrealmTelemetry);
   const shortages = Array.isArray(state.lastPriorities) ? state.lastPriorities : [];
+  const governorSignals = getGovernorSignals(state);
   const stockRatioLine = [
     formatStockRatio("food", state, config, resourceLabels),
     formatStockRatio("water", state, config, resourceLabels),
@@ -271,7 +272,7 @@ function buildTelemetryColumns(state, config, columnWidth, options = {}) {
     `Core stock targets: ${stockRatioLine}`,
     `Build stock targets: ${buildRatioLine}`,
     formatRaidStatus(raidStats),
-    `Active shortage signals: ${shortages.length}`,
+    formatJobsGovernorLine(governorSignals.jobs, resourceLabels),
   ], 6);
 
   appendFixedSection(
@@ -316,7 +317,7 @@ function buildTelemetryColumns(state, config, columnWidth, options = {}) {
     formatContractStatus(state, config, columnWidth),
     formatContractReputation(state, config, columnWidth),
     formatContractRecordLine(contractsStats),
-    formatContractWinRateLine(contractsStats),
+    formatTradeGovernorLine(governorSignals.trade),
     formatWorldEventStats(worldEventsStats),
     formatWorldEventLiveLine(worldEventStatus, worldEventsState, state.tick),
   ], 10);
@@ -351,7 +352,19 @@ function buildTelemetryColumns(state, config, columnWidth, options = {}) {
       shortages,
       resourceLabels,
       templeJob,
+      governorSignals,
     ),
+    11,
+  );
+
+  appendFixedSection(
+    right,
+    "endgame",
+    "Endgame",
+    buildEndgameSectionRows(state, config, {
+      templeStage,
+      templeMaxStage,
+    }),
     11,
   );
 
@@ -392,6 +405,171 @@ function buildDeepSignalsSectionRows(
     formatContractRecordLine(contractsStats),
     formatContractWinRateLine(contractsStats),
   ];
+}
+
+// Build endgame progression rows with a step-by-step checklist.
+function buildEndgameSectionRows(state, config, options = {}) {
+  const endgameConfig = (config && config.endgame) || {};
+  const ruinsConfig = (config && config.ruins) || {};
+  const endgameEnabled = endgameConfig.enabled !== false;
+  const ruinsEnabled = ruinsConfig.enabled !== false;
+  const cycleStats = state && state.cycleStats ? state.cycleStats : {};
+  const cycleCount = Math.max(0, Number(cycleStats.count || 0));
+  const lastCycleTicks = Math.max(0, Number(cycleStats.lastTicks || 0));
+  const lastCycleLabel = lastCycleTicks > 0
+    ? `${formatCompactNumber(lastCycleTicks)} ticks`
+    : "-";
+  const structures = Array.isArray(state && state.structures) ? state.structures : [];
+  const hasRuinsStructure = ruinsEnabled
+    && structures.some((structure) => structure && structure.type === "ruins");
+  const rooms = Array.isArray(ruinsConfig.rooms) ? ruinsConfig.rooms : [];
+  const roomTarget = Math.max(0, rooms.length);
+  const ruinsState = state && state.ruins && typeof state.ruins === "object"
+    ? state.ruins
+    : null;
+  const roomsCleared = clamp(
+    Math.floor(Number(ruinsState && ruinsState.roomsCleared || 0)),
+    0,
+    roomTarget,
+  );
+  const roomsComplete = roomTarget <= 0 || roomsCleared >= roomTarget;
+  const artifactPool = ruinsEnabled
+    ? Object.keys((ruinsConfig.artifacts && ruinsConfig.artifacts.pool) || {})
+    : [];
+  const artifactTarget = artifactPool.length;
+  const artifactsFoundMap = ruinsState && ruinsState.artifactsFound
+    ? ruinsState.artifactsFound
+    : {};
+  let artifactFoundCount = 0;
+  for (const artifactId of artifactPool) {
+    if (artifactsFoundMap[artifactId]) {
+      artifactFoundCount += 1;
+    }
+  }
+  const artifactsComplete = ruinsEnabled
+    && (artifactTarget <= 0 || artifactFoundCount >= artifactTarget);
+
+  const minTicksAfterArtifacts = getEndgameMinTicks(endgameConfig);
+  const tick = Math.max(0, Math.floor(Number(state && state.tick || 0)));
+  const rawCompletionTick = state ? state.endgameArtifactsTick : null;
+  const hasCompletionTick = Number.isFinite(rawCompletionTick) && Number(rawCompletionTick) >= 0;
+  const completionTick = hasCompletionTick
+    ? Math.max(0, Math.floor(Number(rawCompletionTick)))
+    : 0;
+  const waitElapsed = artifactsComplete && hasCompletionTick
+    ? Math.max(0, tick - completionTick)
+    : 0;
+  const waitTarget = Math.max(0, minTicksAfterArtifacts);
+  const waitShown = waitTarget > 0 ? Math.min(waitElapsed, waitTarget) : waitElapsed;
+  const waitRemaining = waitTarget > waitElapsed ? waitTarget - waitElapsed : 0;
+  const waitComplete = artifactsComplete && (waitTarget <= 0 || waitElapsed >= waitTarget);
+  const triggerArmed = endgameEnabled && artifactsComplete && waitComplete;
+
+  const requiredSteps = [roomsComplete, artifactsComplete, waitComplete, triggerArmed];
+  const requiredDone = requiredSteps.filter(Boolean).length;
+
+  const ruinsGatewayLabel = !ruinsEnabled
+    ? "disabled (ruins.enabled=false)"
+    : hasRuinsStructure
+      ? "online"
+      : "no ruins structure";
+  const templeStage = Math.max(0, Number(options && options.templeStage || 0));
+  const templeMaxStage = Math.max(0, Number(options && options.templeMaxStage || 0));
+  const templeComplete = templeMaxStage > 0 && templeStage >= templeMaxStage;
+  const templeDetail = templeMaxStage > 0
+    ? `stage ${templeStage}/${templeMaxStage}`
+    : "disabled";
+  const difficulty = Math.max(1, Number(state && state.endgameDifficulty || 1));
+
+  return [
+    `Cycle reset loop: ${endgameEnabled ? "enabled" : "disabled"}`,
+    `Cycle history: current ${cycleCount} | last cycle length ${lastCycleLabel}`,
+    `Ruins gateway: ${ruinsGatewayLabel}`,
+    `Required path progress: ${requiredDone}/4`,
+    formatChecklistStep(
+      roomsComplete,
+      "Clear all ruins rooms",
+      `${roomsCleared}/${roomTarget}`,
+    ),
+    formatChecklistStep(
+      artifactsComplete,
+      "Recover all artifacts",
+      `${artifactFoundCount}/${artifactTarget}`,
+    ),
+    formatChecklistStep(
+      waitComplete,
+      "Hold post-artifact window",
+      waitTarget <= 0
+        ? "no delay configured"
+        : `${waitShown}/${waitTarget} ticks`,
+    ),
+    formatChecklistStep(
+      triggerArmed,
+      "Arm new cycle trigger",
+      triggerArmed ? "ready" : "pending",
+    ),
+    `Next reset ETA: ${getEndgameEtaLabel({
+      endgameEnabled,
+      ruinsEnabled,
+      roomsComplete,
+      roomTarget,
+      roomsCleared,
+      artifactsComplete,
+      artifactTarget,
+      artifactFoundCount,
+      waitComplete,
+      waitRemaining,
+      waitTarget,
+    })}`,
+    formatChecklistStep(templeComplete, "Temple completion (optional)", templeDetail),
+    `Cycle pressure multiplier: x${difficulty.toFixed(2)}`,
+  ];
+}
+
+// Resolve the reset delay after all artifacts are found.
+function getEndgameMinTicks(endgameConfig) {
+  if (!endgameConfig || typeof endgameConfig !== "object") {
+    return 0;
+  }
+  if (Number.isFinite(endgameConfig.minTicksAfterArtifacts)) {
+    return Math.max(0, Number(endgameConfig.minTicksAfterArtifacts));
+  }
+  return Math.max(0, Number(endgameConfig.minStableTicks || 0));
+}
+
+// Format one checklist row with a stable [x]/[ ] marker.
+function formatChecklistStep(done, label, detail) {
+  const mark = done ? "x" : " ";
+  return `[${mark}] ${label}: ${detail}`;
+}
+
+// Build a concise reason/ETA for the next cycle reset.
+function getEndgameEtaLabel(context) {
+  const data = context && typeof context === "object" ? context : {};
+  if (!data.endgameEnabled) {
+    return "disabled";
+  }
+  if (!data.ruinsEnabled) {
+    return "blocked (ruins disabled)";
+  }
+  if (!data.roomsComplete) {
+    const missingRooms = Math.max(0, Number(data.roomTarget || 0) - Number(data.roomsCleared || 0));
+    return `${missingRooms} room(s) left`;
+  }
+  if (!data.artifactsComplete) {
+    const missingArtifacts = Math.max(
+      0,
+      Number(data.artifactTarget || 0) - Number(data.artifactFoundCount || 0),
+    );
+    return `${missingArtifacts} artifact(s) missing`;
+  }
+  if (!data.waitComplete) {
+    if (Math.max(0, Number(data.waitTarget || 0)) <= 0) {
+      return "waiting for endgame check";
+    }
+    return `${Math.max(0, Number(data.waitRemaining || 0))} ticks after artifacts`;
+  }
+  return "armed (reset on next check)";
 }
 
 // Format multiple columns into fixed-width lines.
@@ -591,6 +769,82 @@ function formatRaidStatus(raidStats) {
   return `Surface raids: ${count} total | Deaths: ${deaths} total | Last raid deaths: ${lastDeaths}`;
 }
 
+// Resolve the latest governor observability snapshot with safe defaults.
+function getGovernorSignals(state) {
+  const raw = state && state.lastGovernorSignals && typeof state.lastGovernorSignals === "object"
+    ? state.lastGovernorSignals
+    : {};
+  return {
+    jobs: raw.jobs && typeof raw.jobs === "object" ? raw.jobs : {},
+    trade: raw.trade && typeof raw.trade === "object" ? raw.trade : {},
+    building: raw.building && typeof raw.building === "object" ? raw.building : {},
+  };
+}
+
+// Format one jobs-governor line from top weighted resources.
+function formatJobsGovernorLine(governor, resourceLabels) {
+  const source = governor && governor.source === "action" ? "action" : "default";
+  const top = governor && Array.isArray(governor.top) ? governor.top : [];
+  const entries = top
+    .slice(0, 2)
+    .map((entry) => {
+      const resourceId = String(entry && entry.resource || "");
+      if (!resourceId) {
+        return "";
+      }
+      const label = getTelemetryResourceLabel(resourceId, resourceLabels);
+      const weight = Number(entry && entry.weight || 0);
+      return `${label} x${weight.toFixed(2)}`;
+    })
+    .filter((value) => value.length > 0);
+  if (entries.length === 0) {
+    return `Jobs governor (${source}): -`;
+  }
+  return `Jobs governor (${source}): ${entries.join(", ")}`;
+}
+
+// Format one trade-governor line with normalized advisory intents.
+function formatTradeGovernorLine(governor) {
+  if (!governor || governor.enabled === false) {
+    return "Trade governor: disabled";
+  }
+  const source = governor.source === "action" ? "action" : "default";
+  const reserve = formatSignedGovernorValue(governor.reserveRatioBias);
+  const contest = clamp(Number(governor.contestIntent || 0), 0, 1).toFixed(2);
+  const opportunity = clamp(Number(governor.opportunityIntent || 0), 0, 1).toFixed(2);
+  return `Trade governor (${source}): reserve ${reserve}, contest ${contest}, opp ${opportunity}`;
+}
+
+// Format one building-governor line with class rank and bounded biases.
+function formatBuildingGovernorLine(governor) {
+  if (!governor || governor.enabled === false) {
+    return "Building governor: disabled";
+  }
+  const source = governor.source === "action" ? "action" : "default";
+  const classOrder = Array.isArray(governor.classOrder)
+    ? governor.classOrder.slice(0, 2).map((name) => String(name || "").trim()).filter(Boolean)
+    : [];
+  const rank = classOrder.length > 0 ? classOrder.join(">") : "-";
+  const mineBias = formatSignedGovernorValue(governor.mineBias);
+  const upgradeBias = formatSignedGovernorValue(governor.upgradeBias);
+  return `Building governor (${source}): ${rank}, mine ${mineBias}, upgrade ${upgradeBias}`;
+}
+
+// Format a signed governor bias value with explicit sign.
+function formatSignedGovernorValue(value) {
+  const numeric = Number(value || 0);
+  if (!Number.isFinite(numeric)) {
+    return "0.00";
+  }
+  if (numeric > 0) {
+    return `+${numeric.toFixed(2)}`;
+  }
+  if (numeric < 0) {
+    return `-${Math.abs(numeric).toFixed(2)}`;
+  }
+  return "0.00";
+}
+
 // Format a top resource flow line from cumulative stats maps.
 function formatMerchantFlowLine(prefix, amounts, resourceLabels) {
   const entries = Object.entries(amounts || {})
@@ -685,6 +939,7 @@ function buildOperationsSectionRows(
   shortages,
   resourceLabels,
   templeJob,
+  governorSignals,
 ) {
   const jobs = Array.isArray(state.jobs) ? state.jobs : [];
   const workforce = getWorkforceCounts(state.dwarves || []);
@@ -714,7 +969,7 @@ function buildOperationsSectionRows(
     `Stockpile trend (${windowLabel}) core: food ${formatSignedDelta(delta.food)}, water ${formatSignedDelta(delta.water)}, beer ${formatSignedDelta(delta.beer)}`,
     `Stockpile trend (${windowLabel}) build: wood ${formatSignedDelta(delta.wood)}, stone ${formatSignedDelta(delta.stone)}, iron ${formatSignedDelta(delta.iron)}`,
     formatShortageCompact(shortages, 0, state, config, resourceLabels),
-    formatShortageCompact(shortages, 1, state, config, resourceLabels),
+    formatBuildingGovernorLine(governorSignals && governorSignals.building),
     `Total shortage pressure: ${formatShortageHeat(shortages)}`,
     formatOpsLoadLine(jobCounts, jobs.length),
   ];

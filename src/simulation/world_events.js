@@ -116,7 +116,7 @@ function updateWorldEvents(state, config, runtime, action) {
 
   const tick = Math.max(0, Number(state.tick || 0));
   if (worldState.active) {
-    updateActiveWorldEvent(state, config, worldState, worldConfig, tick);
+    updateActiveWorldEvent(state, config, worldState, worldConfig, tick, action);
     return;
   }
 
@@ -134,21 +134,24 @@ function updateWorldEvents(state, config, runtime, action) {
     return;
   }
 
-  const spawned = spawnNextWorldEvent(state, config, worldState, worldConfig, tick);
+  const spawned = spawnNextWorldEvent(state, config, worldState, worldConfig, tick, action);
   if (!spawned) {
     worldState.nextSpawnTick = scheduleNextWorldEventTick(worldState, worldConfig, tick);
   }
 }
 
 // Resolve active world event lifecycle and completion.
-function updateActiveWorldEvent(state, config, worldState, worldConfig, tick) {
+function updateActiveWorldEvent(state, config, worldState, worldConfig, tick, action) {
   const active = worldState.active;
   if (!active) {
     return;
   }
 
   if (active.type === 'limited_opportunities' && active.phase === 'offer') {
-    if (canFulfillRequest(state.stockpile, active.request)) {
+    if (
+      canFulfillRequest(state.stockpile, active.request)
+      && shouldCompleteLimitedOpportunity(config, active, tick, action)
+    ) {
       completeLimitedOpportunity(state, config, worldState, worldConfig, active, tick);
       return;
     }
@@ -164,7 +167,7 @@ function updateActiveWorldEvent(state, config, worldState, worldConfig, tick) {
 }
 
 // Attempt to spawn one world event based on weighted candidates.
-function spawnNextWorldEvent(state, config, worldState, worldConfig, tick) {
+function spawnNextWorldEvent(state, config, worldState, worldConfig, tick, action) {
   const candidates = WORLD_EVENT_TYPES
     .map((type) => ({ type, weight: getWorldEventWeight(worldConfig, type), def: worldConfig[type] || {} }))
     .filter((entry) => entry.weight > 0 && entry.def.enabled !== false)
@@ -176,7 +179,7 @@ function spawnNextWorldEvent(state, config, worldState, worldConfig, tick) {
 
   let picked = pickWeightedEntry(candidates);
   while (picked) {
-    const active = buildWorldEvent(state, config, worldState, worldConfig, picked.type, tick);
+    const active = buildWorldEvent(state, config, worldState, worldConfig, picked.type, tick, action);
     if (active) {
       worldState.active = active;
       worldState.nextSpawnTick = scheduleNextWorldEventTick(worldState, worldConfig, tick);
@@ -225,12 +228,12 @@ function pickWeightedEntry(entries) {
 }
 
 // Build a world event instance by type.
-function buildWorldEvent(state, config, worldState, worldConfig, type, tick) {
+function buildWorldEvent(state, config, worldState, worldConfig, type, tick, action) {
   if (type === 'traveling_bards') {
     return buildTravelingBardsEvent(state, config, worldState, worldConfig, tick);
   }
   if (type === 'rival_caravans') {
-    return buildRivalCaravansEvent(state, config, worldState, worldConfig, tick);
+    return buildRivalCaravansEvent(state, config, worldState, worldConfig, tick, action);
   }
   if (type === 'limited_opportunities') {
     return buildLimitedOpportunityEvent(state, config, worldState, worldConfig, tick);
@@ -275,18 +278,24 @@ function buildTravelingBardsEvent(state, config, worldState, worldConfig, tick) 
 }
 
 // Build the rival caravans event and resolve contest outcome immediately.
-function buildRivalCaravansEvent(state, config, worldState, worldConfig, tick) {
+function buildRivalCaravansEvent(state, config, worldState, worldConfig, tick, action) {
   const def = worldConfig.rival_caravans || {};
   const duration = Math.max(1, Number(def.durationTicks || 0));
   let outcome = 'lose';
   let effects = normalizeMultiplierMap(def.effectsLose);
   let paidContest = false;
   const contestCosts = resolveScaledMap(def.contestCosts, def.contestMinCostRatio, true);
+  const contestIntent = getTradeIntent(action, config, 'contestIntent', 1);
+  const contestIntentThreshold = clamp(
+    Number(getTradeGovernorConfig(config).contestIntentThreshold ?? 0),
+    0,
+    1,
+  );
 
   if (def.contestEnabled !== false) {
     const contestOk = passesStockpileRatios(state, config, def.contestMinStockpileRatios)
       && hasInputs(state.stockpile, contestCosts);
-    if (contestOk) {
+    if (contestOk && contestIntent >= contestIntentThreshold) {
       consumeInputs(state.stockpile, contestCosts);
       paidContest = true;
       outcome = 'win';
@@ -312,6 +321,8 @@ function buildRivalCaravansEvent(state, config, worldState, worldConfig, tick) {
     meta: {
       outcome,
       paidContest,
+      contestIntent,
+      contestIntentThreshold,
       contestCosts: paidContest ? contestCosts : {},
     },
   };
@@ -357,6 +368,72 @@ function buildLimitedOpportunityEvent(state, config, worldState, worldConfig, ti
       templateId: chosen.id || null,
     },
   };
+}
+
+// Decide whether an opportunity should be completed this tick.
+function shouldCompleteLimitedOpportunity(config, active, tick, action) {
+  const tradeConfig = getTradeGovernorConfig(config);
+  const forceTicks = Math.max(0, Math.floor(Number(tradeConfig.opportunityForceCompleteTicks || 0)));
+  const ticksLeft = Math.max(0, Number(active.expiresAt || 0) - Number(tick || 0));
+  if (ticksLeft <= forceTicks) {
+    return true;
+  }
+  const intent = getTradeIntent(action, config, 'opportunityIntent', 1);
+  const threshold = clamp(Number(tradeConfig.opportunityIntentThreshold ?? 0), 0, 1);
+  return intent >= threshold;
+}
+
+// Read trade-governor config safely.
+function getTradeGovernorConfig(config) {
+  const aiConfig = (config && config.ai) || {};
+  const governors = aiConfig.governors && typeof aiConfig.governors === 'object'
+    ? aiConfig.governors
+    : {};
+  const trade = governors.trade;
+  if (!trade || typeof trade !== 'object') {
+    return {};
+  }
+  return trade;
+}
+
+// Resolve trade governor action payload safely.
+function getTradeAction(action) {
+  if (!action || typeof action !== 'object') {
+    return null;
+  }
+  const trade = action.trade;
+  if (!trade || typeof trade !== 'object' || Array.isArray(trade)) {
+    return null;
+  }
+  return trade;
+}
+
+// Normalize a trade intent signal to 0..1 using AI action scaling.
+function normalizeTradeIntent(value, config, fallback) {
+  const aiConfig = (config && config.ai) || {};
+  const minWeight = Number(aiConfig.minWeight ?? 0);
+  const maxWeight = Number(aiConfig.maxWeight ?? 1);
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return clamp(Number(fallback || 0), 0, 1);
+  }
+  if (maxWeight > minWeight) {
+    return clamp((numeric - minWeight) / (maxWeight - minWeight), 0, 1);
+  }
+  return clamp(numeric, 0, 1);
+}
+
+// Read one trade intent field with fallback.
+function getTradeIntent(action, config, key, fallback) {
+  const tradeConfig = getTradeGovernorConfig(config);
+  if (tradeConfig.enabled === false) {
+    return clamp(Number(fallback || 0), 0, 1);
+  }
+  const tradeAction = getTradeAction(action);
+  if (!tradeAction || !Object.prototype.hasOwnProperty.call(tradeAction, key)) {
+    return clamp(Number(fallback || 0), 0, 1);
+  }
+  return normalizeTradeIntent(tradeAction[key], config, fallback);
 }
 
 // Build a unique event id and advance the world event counter.

@@ -7,9 +7,13 @@ alive while you watch the chaos unfold in ASCII. Grab popcorn. :)
 Think of it as a living systems sandbox: you tune config, press run, and watch
 trade-offs emerge from shortages, weather, raids, and long-term growth pressure.
 
-## Screenshot 📸
+## Screenshots 📸
 
-![NodeDwarves simulation](assets/NodeDwarves.png)
+![NodeDwarves simulation 1](assets/NodeDwarves_1.png)
+![NodeDwarves simulation 2](assets/NodeDwarves_2.png)
+![NodeDwarves simulation 3](assets/NodeDwarves_3.png)
+![NodeDwarves simulation 4](assets/NodeDwarves_4.png)
+![NodeDwarves simulation 5](assets/NodeDwarves_5.png)
 
 ## Highlights ✨
 
@@ -22,6 +26,7 @@ trade-offs emerge from shortages, weather, raids, and long-term growth pressure.
 - 🎭 World events now live: traveling bards, rival caravans, and short-deadline opportunities.
 - 🗝️ Endgame ruins expeditions with artifacts, set bonuses, and cycle resets.
 - 🏛️ Dwarf Temple of Ancestors: biome-aware multi-stage final work with prestige growth.
+- 🧭 Economy telemetry now includes an Endgame checklist with live step completion and reset ETA.
 - ⚗️ Alchemy Lab rites: burn rare minerals for powerful global buffs, then survive the backlash.
 - 🛡️ Clan culture traits that create trade-offs without micromanagement.
 - 🕳️ Underrealm Front: 10 depth layers with engineered dwarven halls and dense stone-hewn caverns.
@@ -63,7 +68,7 @@ npm run ai:play
 - `Space`: pause/resume
 - `l`: legend panel
 - `i`: dwarf inspect panel
-- `h`: telemetry Data Center overlay (`Overview + Deep`, `Economy`) with expanded plain-language metric labels
+- `h`: telemetry Data Center overlay (`Overview + Deep`, `Economy`) with expanded plain-language metric labels and an `Endgame` progress checklist on the Economy page
 - `←` / `→`: change telemetry pages when telemetry is open, or browse dwarves when inspect is open
 - `↑` / `↓`: switch map view between surface and unlocked underrealm depths
 - `m`: export all currently unlocked layers (surface + underrealm) as PNG + SVG
@@ -77,12 +82,42 @@ npm run ai:train
 npm run ai:play
 ```
 
+Quality-first full curriculum (early game + endgame + consolidation):
+
+```bash
+npm run ai:train:full:fresh
+```
+
 For training presets, evaluation, and overrides, see `MANUAL.md` and
 `docs/TRAINING_OVERRIDES.md`.
 
 Training now highlights every best-checkpoint save with a colored `[BEST SAVED]`
 line and keeps both `models/policy_best.json` and `models/policy_best.meta.json`
 in sync. 🧠
+Latest-checkpoint writes are now decoupled from log windows (`saveEvery` /
+`--save-every`) so long curriculum runs spend less time on disk I/O. ⚡
+Promote checks now require a phase-specific minimum score gain (`--min-improve`)
+and use more eval episodes in late phases to reduce statistical-noise promotions. 🎯
+Training wrappers now auto-tune worker count from CPU capacity (with bounds and
+manual `--workers` override) to behave better across different machines. ⚙️
+In auto mode, workers are also phase-aware (foundation/finetune/endgame/
+consolidation) and you can force flat behavior with `--workers-flat`. 🧭
+Regression runs now stream subprocess logs directly to per-run files, improving
+stability on long validation passes. 🧪
+
+AI runtime now accepts a backward-compatible governor action envelope, so legacy
+policy files still run while jobs/trade/building sub-policies roll out.
+Jobs prioritization now reads the governor envelope first, while keeping legacy
+AI weight payloads compatible.
+Trade governor hooks now support advisory `trade` intents for merchant reserve,
+rival caravan contests, and opportunity completion timing.
+Building governor hooks now support advisory `building` ranking signals for
+housing/economy/defense/special queues, with guardrails still enforced by the
+existing structure checks.
+Telemetry now exposes compact governor signals directly in `Pressure`,
+`Diplomacy`, and `Operations` so policy intent can be inspected live.
+Training action heads now include governor pseudo-action IDs when enabled; if
+feature/action shapes change, restart training with `--fresh`.
 
 ## Four runs to try ⚡
 
@@ -120,7 +155,9 @@ in sync. 🧠
 - `src/render/telemetry.js`: telemetry section builders and formatting helpers.
 - `src/render/telemetry_panel.js`: in-game paged telemetry Data Center with section pages and full-height telemetry content area.
 - `scripts/train_wrapper.js`: safe unified wrapper for all `ai:train:*` profiles.
+- `scripts/regression.js`: baseline-vs-current AI regression checks (deterministic eval + randomized stability pass).
 - `scripts/headless_benchmark.js`: deterministic headless benchmark for long-run balance tuning and validation.
+- `python/regression_rollout.py`: rollout-only randomized regression runner used by `scripts/regression.js`.
 - `python/`: PPO training + agent example.
 - `docs/`: parameter reference and training overrides.
 - `models/`: policy checkpoints.

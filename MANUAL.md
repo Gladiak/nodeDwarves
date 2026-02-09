@@ -42,6 +42,18 @@ Pass extra trainer flags safely through any profile command (for example):
 npm run ai:train:fast -- --fresh
 ```
 
+Force a manual worker count for all phases:
+
+```bash
+npm run ai:train:full -- --workers 6
+```
+
+Disable profile-aware worker scaling (keep one flat worker count in all phases):
+
+```bash
+npm run ai:train:full -- --workers-flat
+```
+
 ### Run trained policy 🧠
 
 ```bash
@@ -349,7 +361,7 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - Target source: `resources.targets` (+ `targetsPerCapita` scaling).
   - Trigger threshold: `effectiveTarget = target * jobs.gatherTriggerRatio`.
   - Missing amount drives base urgency; final priority is `score = shortageRatio * weight`.
-  - Weight source: AI action weights (or defaults), with optional dynamic low-stock boosts (`ai.priorityBoosts`).
+  - Weight source: AI jobs-governor weights from `action.jobs.weights` (fallback legacy `action.weights`, then defaults), with optional dynamic low-stock boosts (`ai.priorityBoosts`).
 - Shortage execution model:
   - If resource has active nodes/terrain source -> gather job.
   - If resource is `food` and hunting is enabled/eligible -> hunt job can replace gather.
@@ -357,6 +369,12 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
 - Role-aware assignment:
   - Ordering prefers gatherers first for shortage flow; builders/managers are consumed by earlier branches.
   - `takeIdleDwarf` enforces role preference but gracefully degrades to any idle worker.
+- Building governor ranking (M4):
+  - General build queue now supports ranked class selection from `action.building.{housingWeight,economyWeight,defenseWeight,specialWeight}`.
+  - Class ranking is advisory only: every selected candidate still goes through the same legality/cost/cap/min-ratio guards in `structures.js`.
+  - Defaults from `ai.governors.building.defaultWeights` keep legacy ordering stable when no building action is provided.
+  - `action.building.mineBias` only reorders economy-class candidates (mine earlier/later) within `ai.governors.building.mineBiasMax`.
+  - `action.building.upgradeBias` only reorders housing candidates (upgrade-first vs build-first) within `ai.governors.building.upgradeBiasMax`.
 - Crafting and kit production:
   - Inputs are reserved at job creation time (not at completion), reducing race conditions.
   - Workshop capacity is tracked from active craft jobs to avoid overbooking.
@@ -364,7 +382,7 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
 - Integration with other systems:
   - Build costs and ratio guardrails are structure-config-driven (`structures.js` helpers).
   - Gather work/yield also inherits season/weather/myth/morale multipliers via `resources.js`.
-  - Job priorities from AI directly steer runtime economy through `action.weights`.
+  - Job priorities from AI directly steer runtime economy through `action.jobs.weights` (legacy `action.weights` still accepted).
 
 ### Dwarf actions ⛏️
 
@@ -537,9 +555,12 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
 - Rival caravans:
   - temporary trade/reward pressure window.
   - optional instant contest consumes resources when guardrails pass.
+  - `action.trade.contestIntent` can prevent contest spending unless it exceeds `ai.governors.trade.contestIntentThreshold`.
   - applies either `effectsWin.*` or `effectsLose.*` for event duration.
 - Time-limited opportunities:
   - spawns an offer (`request` + `reward`) with strict expiry.
+  - `action.trade.opportunityIntent` can delay completion even when stockpile is sufficient.
+  - near expiry, completion is forced by `ai.governors.trade.opportunityForceCompleteTicks` to avoid accidental timeout from low intent.
   - while active, request resources can receive target boosts (`targetBoosts`) to steer shortages/jobs.
   - on expiry, optional stockpile penalty is applied (`failureLossRatio` over configured resources).
 - Integration points:
@@ -953,7 +974,9 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
 - Trade sizing:
   - Uses target ratios from `resources.targets`/`targetsPerCapita`.
   - `reserveRatio` blocks giving away resources that are not safely above target.
+  - `action.trade.reserveRatioBias` can shift reserve behavior within `ai.governors.trade.reserveRatioMin/Max` and `reserveRatioBiasMax`.
   - `tradeRate` (default or per-resource) determines give/receive amounts.
+  - Legacy `tradeRate.give/receive` configs are still accepted and mapped to `give/receive` ratio.
   - Minimum transfer quantity is clamped to at least 1 on both sides.
 - Accounting and observability:
   - Visit-level trade log tracks pair counts (`A->B xN`) and is summarized on departure.
@@ -1052,6 +1075,7 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
 
 - `render/telemetry_panel.js`
   - Builds a paged telemetry Data Center with two pages: `Overview + Deep` and `Economy`.
+  - Economy page includes a dedicated `Endgame` block with step-by-step cycle-reset checklist status.
   - Reuses live section builders from `render/telemetry.js`, so values stay consistent across overlays.
   - Uses the full body area for live telemetry rows (no guide footer); labels are expanded directly in the telemetry rows for readability.
   - Uses dynamic size by default (roughly 98% of map view), with optional overrides via `display.telemetry_panel.width`/`height`.
@@ -1078,18 +1102,19 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
 
 - `render/telemetry.js`
   - Provides telemetry section builders and formatting helpers used by the telemetry panel.
-  - Section set: `World`, `Population`, `Pressure`, `Stockpile`, `Structures`, `Diplomacy`, `Operations`, `Underrealm`, `Lore`, `Deep Signals`.
+  - Section set: `World`, `Population`, `Pressure`, `Stockpile`, `Structures`, `Diplomacy`, `Operations`, `Endgame`, `Underrealm`, `Lore`, `Deep Signals`.
   - Housing details are intentionally compressed: only `House ratio` is shown in `World`.
   - World timeline shows `Tick`, `Year`, and season name only (capitalized label, no season tick progress fraction).
   - Stockpile bars scale with `display.telemetry.stockBarMax` or per-resource targets.
   - Stockpile rendering keeps a stable order from `resources.stockpile` (plus runtime extras), so resources do not appear/disappear when values hit zero.
   - `World` keeps contract/alchemy windows and one `World log` line for the latest event signal.
     - Long `World log` entries wrap up to 3 telemetry rows (instead of hard truncation) for readability.
-  - `Pressure` reports shortage priorities (`state.lastPriorities`), key stockpile target ratios, raid pressure, and shortage count.
-  - `Diplomacy` is the single merchant-focused block (status, trade totals, top give/recv flows, contracts, and world-event cadence/counters).
+  - `Pressure` reports shortage priorities (`state.lastPriorities`), key stockpile target ratios, raid pressure, and compact jobs-governor priorities.
+  - `Diplomacy` is the single merchant-focused block (status, trade totals, top give/recv flows, contracts, world-event cadence/counters, plus trade-governor intents).
   - `Deep Signals` consolidates world-event cadence/totals plus contract reliability for late-game monitoring.
     - Its `World log` mirror also wraps to multiple rows (up to 3).
-  - `Operations` reports adult workforce split, job mix, build pipeline, 200-tick stockpile deltas, compact shortage pressure, and production-vs-infrastructure load split.
+  - `Operations` reports adult workforce split, job mix, build pipeline, 200-tick stockpile deltas, building-governor ranking/bias signals, and production-vs-infrastructure load split.
+  - `Endgame` reports a checklist path for cycle reset pacing (ruins rooms, artifacts, post-artifact window, trigger arm), plus ETA reason when blocked/pending.
   - `Lore` summarizes myths/traditions and ruins progress without bottom overlays.
 
 - `render/legend.js`
@@ -1115,8 +1140,14 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
   - Converts state to observation features (stockpile ratios, node ratios, needs, weather, raids, housing, ruins, myths, festivals).
   - Adds normalized ratios and flags used by the policy feature list.
 - `src/ai/policy.js`
-  - Loads JSON policies (linear or MLP) and outputs action weights plus festival intent.
+  - Loads JSON policies (linear or MLP) and maps outputs to the governor action envelope.
   - Feature order is defined by `featureNames`; defaults live in the file.
+  - Normalizes actions to a governor-ready envelope (`jobs.weights`, `festivalIntent`, optional `trade`/`building`) and mirrors legacy `weights` for compatibility.
+  - Supports explicit governor pseudo action-ids in policy `resources`:
+    - trade: `gov_trade_reserve_ratio_bias`, `gov_trade_contest_intent`, `gov_trade_opportunity_intent`
+    - building: `gov_building_housing_weight`, `gov_building_economy_weight`, `gov_building_defense_weight`, `gov_building_special_weight`, `gov_building_mine_bias`, `gov_building_upgrade_bias`
+  - Trade intents currently consumed at runtime: `reserveRatioBias`, `contestIntent`, `opportunityIntent`.
+  - Building intents currently consumed at runtime: class weights (`housing/economy/defense/special`) plus advisory `mineBias` and `upgradeBias`.
 - `src/ai_policy.js`
   - Thin wrapper used by `app.js`.
 
@@ -1133,6 +1164,8 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
 - `python/train.py`
   - PPO training loop (2x128 MLP), logs, checkpoints, and evals.
   - Exports JSON weights for JS inference.
+  - Builds action heads from resource ids plus optional festival and governor pseudo action-ids (when `ai.governors.*.enabled`).
+  - Resume guard validates both `featureNames` and action-head ids (`resources` list); mismatch requires `--fresh`.
 - `python/agent.py`
   - Example agent showing how to call the server.
 - `python/bootstrap.py`
@@ -1202,18 +1235,32 @@ If you work on the policy or training loop:
 - Training loop and scenario sampling live in `python/train.py`.
 - The JS ↔ Python bridge is `ai_server.js`.
 
-Important rule: if you change **resource lists** or **observation features**, you must retrain from scratch with `--fresh` (for example `npm run ai:train -- --fresh`).
+Important rule: if you change **resource/action lists** or **observation features**, you must retrain from scratch with `--fresh` (for example `npm run ai:train -- --fresh`).
 
 Training presets:
 
-- `ai:train` (alias of `ai:train:fast`) runs a fast baseline loop tuned for sub-5-minute runs (8 workers, 200 episodes, max_steps=1600, step_ticks=2). The difficulty ramp reaches 1.0 by episode 120 and eval runs every 20 episodes at difficulty 1.0, followed by a post-run promotion check comparing the latest policy to the best snapshot.
+- `ai:train` (alias of `ai:train:fast`) runs a fast baseline loop tuned for sub-5-minute runs (auto-tuned workers by CPU, 200 episodes, max_steps=1600, step_ticks=2). The difficulty ramp reaches 1.0 by episode 120 and eval runs every 20 episodes at difficulty 1.0, followed by a post-run promotion check comparing the latest policy to the best snapshot.
 - `ai:train:fresh` runs the same fast preset but clears existing policy and best-eval snapshots first.
 - `ai:train:fast:quality` runs the fast phase plus a short full-sim finetune at max difficulty (40 episodes, max_steps=1800). Eval cadence is 20 episodes in the fast phase and 10 episodes in finetune, with the promotion check after each phase.
+- `ai:train:full` runs the quality-first full curriculum in four phases: foundation (280 episodes), full-sim finetune (90), endgame specialization (24), and final consolidation (40). It is optimized for model quality over runtime and keeps promote checks after every phase.
+- `ai:train:full:fresh` runs the same full curriculum but starts from a clean checkpoint set (`--fresh` is applied to phase 1 only, then resume-from-best continues through later phases).
 - `ai:train:endgame` runs an intermediate endgame-enabled pass (8 episodes, max_steps=2400) with a single eval at the end. It is tuned to improve late-game quality signal while staying much faster than the older 120-episode endgame run.
 - `ai:promote:best` runs just the promotion check manually.
 - Presets generate a run-specific config in `debug/run_<timestamp>/`, align `ai.training.*Overrides.ai.maxTicks` with `max_steps * step_ticks`, and reuse that same config for `promote_best`.
 - All presets save the best model to `models/policy_best.json` (with meta in `models/policy_best.meta.json`) and resume from it unless `--fresh` is used.
 - Best-checkpoint writes are explicit in logs: `train.py` prints a colored `[BEST SAVED]` line on eval improvement, and `promote_best.py` prints the same marker when latest is promoted.
+- `promote_best.py` uses the same action-head contract as training (`resources` + optional `festival` + enabled governor pseudo action-ids), so multi-phase governor profiles do not fail on false resource-shape mismatches.
+- Wrapper phase progress is explicit in console logs (`== Phase x/n: <name> ==`) so long curriculum runs are easier to monitor.
+- Wrapper logs now use colorized status tags (`PROFILE`, `PHASE`, `TRAIN`, `PROMOTE`, `DONE`) in TTY terminals for clearer long-run progress tracking.
+- Checkpoint cadence is decoupled: `--log-every` controls summary windows, while `--save-every` controls how often `modelPath` is written; final episode save is always enforced.
+- Promote robustness guardrail: wrapper presets pass phase-specific `--min-improve` and increase `--eval-episodes` in later phases (especially endgame/consolidation) to avoid promoting checkpoints on pure eval noise.
+- Worker allocation guardrail: wrapper auto-tunes `--workers` from CPU parallelism (`auto-min`/`auto-max` bounds plus reserved cores), and a manual `--workers <n>` override always takes precedence.
+- Profile-aware worker policy: in auto mode the wrapper scales workers by phase category (`foundation` > `finetune` > `consolidation` > `endgame`) and also caps by PPO batch window (`batchEpisodes * 2`) to limit over-queued rollouts; use `--workers-flat` to disable this behavior.
+- Regression deterministic pass is eval-only: `scripts/regression.js` calls `python/promote_best.py --eval-only` for policy quality checks instead of running a quasi-train loop.
+- Regression temp artifacts are isolated per seed via `mkdtemp` workspaces (config + transient policy files), removing static `/tmp` filename collisions and cross-run side effects.
+- Regression randomized pass is rollout-only: `scripts/regression.js` calls `python/regression_rollout.py`, avoiding PPO optimizer/update overhead and checkpoint side effects.
+- In `scripts/regression.js --all`, explicit CLI knobs (`--seeds`, `--eval-*`, `--random-*`) override the stored profile config, so short smoke checks do not require editing baseline files.
+- Regression subprocess logs are streamed directly to per-run `console.log` files (instead of buffered pipes), reducing risk of buffer-cap failures in long runs.
 
 
 ### Rendering 🖼️
@@ -1354,6 +1401,7 @@ Quick checklist:
 - `scripts/headless_benchmark.js` → deterministic long-run headless benchmark and A/B delta reports
 - `python/train.py` → PPO trainer and best-checkpoint updates
 - `python/promote_best.py` → post-train promotion check (latest vs best)
+- `python/regression_rollout.py` → randomized regression rollouts without PPO updates/checkpoint writes
 - `python/bootstrap.py` / `python/agent.py` → venv bootstrap + sample agent
 - `docs/PARAMETERS.md` / `docs/TRAINING_OVERRIDES.md` → config and training override references
 - `models/` → `policy.json`, `policy_best.json`, `policy_best.meta.json`

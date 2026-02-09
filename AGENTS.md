@@ -10,6 +10,7 @@ This file defines how to implement new features in a consistent, stable way.
 - Favor gather-first economy; build structures only when shortages justify them.
 - Keep the simulation deterministic enough for training comparison.
 - Continuously improve model intelligence and learning capability in measured, stable steps.
+- Validate every substantial change with dedicated short-run and long-run checks, and include explicit model non-regression tests before considering the change complete.
 - When implementation details are unclear, ask for clarifications before coding changes.
 - Always update README.md and MANUAL.md after new implementations or tweaks, if needed.
 - README.md is a general product feature overview; avoid deep implementation details, formulas, and low-level file-by-file behavior.
@@ -55,6 +56,7 @@ This file defines how to implement new features in a consistent, stable way.
 - `scripts/headless_benchmark.js`: deterministic headless benchmark CLI for long-run tuning and validation.
 - `python/bootstrap.py`: venv bootstrap.
 - `python/train.py`: PPO training loop and logging.
+- `python/regression_rollout.py`: rollout-only randomized regression runner (no PPO updates, no checkpoint writes).
 - `python/agent.py`: example Python agent.
 
 ## Config-first changes

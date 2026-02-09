@@ -369,7 +369,11 @@ Merchant:
 - `merchant.reserveRatio`: minimum stockpile ratio to consider a resource tradable.
 - `merchant.tradeRate.default`: fallback trade rate used for exchange calculations.
 - `merchant.tradeRate.<resource>`: per-resource trade rate override.
+- Legacy compatibility: `merchant.tradeRate.give` and `merchant.tradeRate.receive` are accepted and converted to a ratio (`give / receive`).
 - `merchant.neverGive`: resource ids the colony will never give to the merchant (can still receive them).
+- `ai.governors.trade.reserveRatioBiasMax`: max absolute reserve-ratio adjustment applied from `action.trade.reserveRatioBias`.
+- `ai.governors.trade.reserveRatioMin`: lower clamp for reserve ratio after governor bias.
+- `ai.governors.trade.reserveRatioMax`: upper clamp for reserve ratio after governor bias.
 
 Contracts:
 
@@ -694,6 +698,7 @@ World events:
 - `worldEvents.rival_caravans.contestMinCostRatio`: required multiple of each contest cost.
 - `worldEvents.rival_caravans.effectsWin.<key>`: multipliers applied when contest is won (for example `merchantTradeRate`, `contractReward`).
 - `worldEvents.rival_caravans.effectsLose.<key>`: multipliers applied when contest is lost.
+- `ai.governors.trade.contestIntentThreshold`: normalized minimum `action.trade.contestIntent` needed to attempt rival-caravan contest costs.
 - `worldEvents.limited_opportunities.enabled`: enable time-limited opportunity offers.
 - `worldEvents.limited_opportunities.weight`: weighted spawn priority for opportunities.
 - `worldEvents.limited_opportunities.label`: fallback label for opportunities.
@@ -708,6 +713,8 @@ World events:
 - `worldEvents.limited_opportunities.templates[].request.<resource>`: stockpile required to complete the offer.
 - `worldEvents.limited_opportunities.templates[].reward.<resource>`: stockpile granted on completion.
 - `worldEvents.limited_opportunities.templates[].targetBoosts.<resource>`: temporary target boost while offer is active.
+- `ai.governors.trade.opportunityIntentThreshold`: normalized minimum `action.trade.opportunityIntent` needed to auto-complete an eligible offer.
+- `ai.governors.trade.opportunityForceCompleteTicks`: force-complete eligible offers when remaining lifetime is at or below this tick count.
 
 Myths:
 
@@ -1351,6 +1358,20 @@ AI and training:
 - `ai.runtime.enabled`: enable trained policy in live simulation.
 - `ai.runtime.policyPath`: path to the trained policy file.
 - `ai.defaultWeights.<resource>`: fallback priority weights per resource.
+- `ai.governors.trade.enabled`: enable/disable trade-governor advisory hooks.
+- `ai.governors.trade.reserveRatioBiasMax`: max absolute reserve-ratio shift from `action.trade.reserveRatioBias`.
+- `ai.governors.trade.reserveRatioMin`: reserve-ratio floor after applying bias.
+- `ai.governors.trade.reserveRatioMax`: reserve-ratio ceiling after applying bias.
+- `ai.governors.trade.contestIntentThreshold`: minimum normalized contest intent to pay rival-caravan contest costs.
+- `ai.governors.trade.opportunityIntentThreshold`: minimum normalized intent to complete eligible limited opportunities early.
+- `ai.governors.trade.opportunityForceCompleteTicks`: fail-safe completion window (in ticks) near offer expiry.
+- `ai.governors.building.enabled`: enable/disable building-governor ranked class selection.
+- `ai.governors.building.defaultWeights.housing`: fallback class weight for housing builds when `action.building.housingWeight` is missing.
+- `ai.governors.building.defaultWeights.economy`: fallback class weight for economy builds when `action.building.economyWeight` is missing.
+- `ai.governors.building.defaultWeights.defense`: fallback class weight for defense builds when `action.building.defenseWeight` is missing.
+- `ai.governors.building.defaultWeights.special`: fallback class weight for special builds when `action.building.specialWeight` is missing.
+- `ai.governors.building.mineBiasMax`: max absolute economy-order bias from `action.building.mineBias` (mine earlier/later, guardrails unchanged).
+- `ai.governors.building.upgradeBiasMax`: max absolute housing-order bias from `action.building.upgradeBias` (upgrade-first vs build-first, guardrails unchanged).
 - `ai.reward.stockpileAvg`: reward contribution for average stockpile ratio.
 - `ai.reward.stockpileMin`: reward contribution for minimum stockpile ratio.
 - `ai.reward.waterStockpile`: extra reward contribution for the water stockpile ratio.
@@ -1438,11 +1459,13 @@ AI and training:
 - `ai.training.trainer.batchEpisodes`: episodes per update batch.
 - `ai.training.trainer.hiddenSizes`: MLP hidden layer sizes (e.g. `[128, 128]`).
 - `ai.training.trainer.featureNames`: ordered list of observation features per resource (e.g. `shortage`, `nodeScarcity`, `criticalNeeds`, `idleAdults`, `populationBalance`, `seasonIndex`, `seasonProgress`, `weatherSeverity`, `weatherTimeLeft`, `raidActive`, `raidTimeLeft`, `raidExposed`, `raidDefense`, `housingShortage`, `seasonEligible`, `ruinsActive`, `ruinsCooldown`, `ruinsProgress`, `ruinsArtifacts`, `clanShare_abyssborn`).
+- Dynamic feature names are accepted for `mythFlag_<mythId>` and `clanShare_<clanId>`.
 - `ai.training.trainer.activation`: hidden-layer activation (`tanh` or `relu`).
 - `ai.training.trainer.logStdInit`: initial log-std for action sampling.
 - `ai.training.trainer.maxGradNorm`: gradient norm clip.
 - `ai.training.trainer.workers`: number of parallel rollout workers.
-- `ai.training.trainer.logEvery`: episodes between training checkpoints (policy save + window reset).
+- `ai.training.trainer.logEvery`: episodes between training summary windows (`diag`/debug aggregation reset).
+- `ai.training.trainer.saveEvery`: episodes between writing the latest policy checkpoint (`modelPath`); `0` disables periodic saves and still writes at the final episode.
 - `ai.training.trainer.debugMode`: debug payload mode for ai_server (`full`, `summary`, `final`, `off`).
 - `ai.training.trainer.evalEvery`: episodes between evaluation runs.
 - `ai.training.trainer.evalEpisodes`: evaluation episode count.

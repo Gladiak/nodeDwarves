@@ -5,6 +5,7 @@ const { loadConfig } = require('./src/config');
 const { buildRuntime } = require('./src/runtime');
 const { createInitialState } = require('./src/state');
 const { stepState } = require('./src/simulation');
+const { buildObservation: buildAiObservation } = require('./src/ai/observation');
 const { getTerrainResourceRatio } = require('./src/simulation/terrain');
 const { getFestivalObservation } = require('./src/simulation/festivals');
 const { clamp } = require('./src/utils');
@@ -576,6 +577,7 @@ function buildObservation(state, config, metrics) {
   const weatherSeverity = getWeatherSeverity(state, config);
   const weatherTimeLeft = getWeatherTimeLeft(state);
   const festivalObservation = getFestivalObservation(state, config);
+  const aiObservation = buildAiObservation(state, config) || {};
   return {
     tick: state.tick,
     season: state.season || null,
@@ -596,6 +598,18 @@ function buildObservation(state, config, metrics) {
     housingRatio: metrics.housingRatio,
     raid: metrics.raid,
     festival: festivalObservation,
+    ruins: aiObservation.ruins || {
+      active: 0,
+      cooldownRatio: 0,
+      progress: 0,
+      artifacts: 0,
+    },
+    myths: aiObservation.myths || {
+      activeRatio: 0,
+      severity: 0,
+      flags: {},
+    },
+    clanShares: aiObservation.clanShares || {},
   };
 }
 

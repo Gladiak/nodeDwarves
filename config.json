@@ -959,6 +959,28 @@
       "wood": 0.4,
       "stone": 0.4
     },
+    "governors": {
+      "trade": {
+        "enabled": true,
+        "reserveRatioBiasMax": 0.1,
+        "reserveRatioMin": 0.55,
+        "reserveRatioMax": 0.9,
+        "contestIntentThreshold": 0.45,
+        "opportunityIntentThreshold": 0.4,
+        "opportunityForceCompleteTicks": 12
+      },
+      "building": {
+        "enabled": true,
+        "defaultWeights": {
+          "housing": 1,
+          "economy": 1,
+          "defense": 1,
+          "special": 1
+        },
+        "mineBiasMax": 0.45,
+        "upgradeBiasMax": 0.45
+      }
+    },
     "reward": {
       "stockpileAvg": 0.3,
       "stockpileMin": 1.6,
@@ -1738,6 +1760,7 @@
         "maxGradNorm": 0.5,
         "workers": 6,
         "logEvery": 2000,
+        "saveEvery": 4000,
         "debugMode": "summary",
         "evalEvery": 3000,
         "evalEpisodes": 8,
@@ -3303,8 +3326,7 @@
     "neverGive": ["food", "water"],
     "reserveRatio": 0.7,
     "tradeRate": {
-      "give": 1,
-      "receive": 1
+      "default": 1
     }
   },
   "contracts": {

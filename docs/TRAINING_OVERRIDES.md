@@ -30,8 +30,25 @@ Merchant:
 - `merchant.stayTicks`: ticks the merchant waits near houses.
 - `merchant.maxTradesPerVisit`: max trades per visit.
 - `merchant.reserveRatio`: minimum stockpile ratio kept when trading away resources.
-- `merchant.tradeRate.give`: units given per trade.
-- `merchant.tradeRate.receive`: units received per trade.
+- `merchant.tradeRate.default`: fallback exchange rate used when no per-resource override exists.
+- `merchant.tradeRate.<resource>`: per-resource exchange rate override for the traded-away resource.
+- Legacy compatibility: `merchant.tradeRate.give`/`merchant.tradeRate.receive` are still accepted and mapped to a ratio (`give / receive`), but `default` + per-resource keys are preferred.
+- `ai.governors.trade.enabled`: enable trade-governor intent hooks during training/eval.
+- `ai.governors.trade.reserveRatioBiasMax`: max absolute reserve-ratio shift from `action.trade.reserveRatioBias`.
+- `ai.governors.trade.reserveRatioMin`: reserve-ratio floor after governor bias.
+- `ai.governors.trade.reserveRatioMax`: reserve-ratio ceiling after governor bias.
+- `ai.governors.trade.contestIntentThreshold`: minimum normalized `contestIntent` to attempt rival-caravan contest costs.
+- `ai.governors.trade.opportunityIntentThreshold`: minimum normalized `opportunityIntent` to auto-complete eligible opportunities.
+- `ai.governors.trade.opportunityForceCompleteTicks`: force-complete safety window near opportunity expiry.
+- `ai.governors.building.enabled`: enable ranked building-class governor hooks during training/eval.
+- `ai.governors.building.defaultWeights.housing`: fallback class weight when no `action.building.housingWeight` is provided.
+- `ai.governors.building.defaultWeights.economy`: fallback class weight when no `action.building.economyWeight` is provided.
+- `ai.governors.building.defaultWeights.defense`: fallback class weight when no `action.building.defenseWeight` is provided.
+- `ai.governors.building.defaultWeights.special`: fallback class weight when no `action.building.specialWeight` is provided.
+- `ai.governors.building.mineBiasMax`: max absolute class-internal mine ordering bias from `action.building.mineBias`.
+- `ai.governors.building.upgradeBiasMax`: max absolute housing ordering bias from `action.building.upgradeBias`.
+- Training contract note: when trade/building governors are enabled, `python/train.py` appends governor pseudo action-ids to the policy action head (`gov_trade_*`, `gov_building_*`) in addition to resource actions and optional `festival`.
+- Checkpoint compatibility note: if feature names or action-head ids differ from an existing checkpoint, resume is blocked and you must restart with `--fresh`.
 
 Population:
 

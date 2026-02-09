@@ -39,8 +39,37 @@ DEFAULT_FEATURE_NAMES = [
     "festivalEligible",
     "festivalCostRatio",
 ]
-FEATURE_NAME_SET = set(DEFAULT_FEATURE_NAMES)
+EXTENDED_FEATURE_NAMES = [
+    "ruinsActive",
+    "ruinsCooldown",
+    "ruinsProgress",
+    "ruinsArtifacts",
+    "mythsActiveRatio",
+    "mythsSeverity",
+]
+DYNAMIC_FEATURE_PREFIXES = ("mythFlag_", "clanShare_")
+FEATURE_NAME_SET = set(DEFAULT_FEATURE_NAMES + EXTENDED_FEATURE_NAMES)
 FESTIVAL_ACTION_ID = "festival"
+TRADE_RESERVE_BIAS_ACTION_ID = "gov_trade_reserve_ratio_bias"
+TRADE_CONTEST_INTENT_ACTION_ID = "gov_trade_contest_intent"
+TRADE_OPPORTUNITY_INTENT_ACTION_ID = "gov_trade_opportunity_intent"
+BUILDING_HOUSING_WEIGHT_ACTION_ID = "gov_building_housing_weight"
+BUILDING_ECONOMY_WEIGHT_ACTION_ID = "gov_building_economy_weight"
+BUILDING_DEFENSE_WEIGHT_ACTION_ID = "gov_building_defense_weight"
+BUILDING_SPECIAL_WEIGHT_ACTION_ID = "gov_building_special_weight"
+BUILDING_MINE_BIAS_ACTION_ID = "gov_building_mine_bias"
+BUILDING_UPGRADE_BIAS_ACTION_ID = "gov_building_upgrade_bias"
+GOVERNOR_ACTION_ID_SET = {
+    TRADE_RESERVE_BIAS_ACTION_ID,
+    TRADE_CONTEST_INTENT_ACTION_ID,
+    TRADE_OPPORTUNITY_INTENT_ACTION_ID,
+    BUILDING_HOUSING_WEIGHT_ACTION_ID,
+    BUILDING_ECONOMY_WEIGHT_ACTION_ID,
+    BUILDING_DEFENSE_WEIGHT_ACTION_ID,
+    BUILDING_SPECIAL_WEIGHT_ACTION_ID,
+    BUILDING_MINE_BIAS_ACTION_ID,
+    BUILDING_UPGRADE_BIAS_ACTION_ID,
+}
 
 DEBUG_LOG_DIRNAME = "debug"
 DEBUG_LOG_EVERY = 500
@@ -51,7 +80,7 @@ TRAINING_LOGS_ENABLED = True
 DETAIL_EVAL_REGRESSION_ABS = 25.0
 DETAIL_EVAL_REGRESSION_REL = 0.01
 DETAIL_SCENARIO_SHIFT = 0.2
-BEST_EVAL_COLOR = "\033[96m"
+BEST_EVAL_COLOR = "\033[1;92m"
 COLOR_RESET = "\033[0m"
 USE_COLOR = sys.stdout.isatty()
 
@@ -563,7 +592,7 @@ def write_summary_header(
         f"difficulty_ramp={args.difficulty_ramp} min_weight={min_weight} max_weight={max_weight} "
         f"eval_max_steps={args.eval_max_steps} eval_difficulty={args.eval_difficulty} "
         f"eval_score={args.eval_score} sample_score={args.sample_score} "
-        f"full_sim={args.full_sim}\n"
+        f"full_sim={args.full_sim} save_every={args.save_every}\n"
     )
     handle.write(f"resources={' '.join(resources)}\n")
     handle.write(f"scenarios={format_scenario_weights(scenario_defs)}\n")
@@ -627,7 +656,8 @@ def write_detail_header(
         f"entropy_ramp={args.entropy_ramp} value_coef={args.value_coef} "
         f"lr={args.lr} lr_final={args.lr_final} "
         f"difficulty_start={args.difficulty_start} difficulty_end={args.difficulty_end} "
-        f"difficulty_ramp={args.difficulty_ramp} min_weight={min_weight} max_weight={max_weight}\n"
+        f"difficulty_ramp={args.difficulty_ramp} min_weight={min_weight} max_weight={max_weight} "
+        f"save_every={args.save_every}\n"
     )
     handle.write(f"resources={' '.join(resources)}\n")
     handle.write(f"scenarios={format_scenario_weights(scenario_defs)}\n")
@@ -935,16 +965,75 @@ def append_festival_action(resources, config):
     return list(resources) + [FESTIVAL_ACTION_ID]
 
 
+def append_governor_actions(resources, config):
+    merged = list(resources)
+    ai_config = (config or {}).get("ai") or {}
+    governors = ai_config.get("governors") or {}
+
+    trade = governors.get("trade") or {}
+    if trade.get("enabled", True) is not False:
+        for action_id in (
+            TRADE_RESERVE_BIAS_ACTION_ID,
+            TRADE_CONTEST_INTENT_ACTION_ID,
+            TRADE_OPPORTUNITY_INTENT_ACTION_ID,
+        ):
+            if action_id not in merged:
+                merged.append(action_id)
+
+    building = governors.get("building") or {}
+    if building.get("enabled", True) is not False:
+        for action_id in (
+            BUILDING_HOUSING_WEIGHT_ACTION_ID,
+            BUILDING_ECONOMY_WEIGHT_ACTION_ID,
+            BUILDING_DEFENSE_WEIGHT_ACTION_ID,
+            BUILDING_SPECIAL_WEIGHT_ACTION_ID,
+            BUILDING_MINE_BIAS_ACTION_ID,
+            BUILDING_UPGRADE_BIAS_ACTION_ID,
+        ):
+            if action_id not in merged:
+                merged.append(action_id)
+
+    return merged
+
+
+def is_policy_resource_id(resource):
+    return resource != FESTIVAL_ACTION_ID and resource not in GOVERNOR_ACTION_ID_SET
+
+
 def split_action_payload(action, resources):
     weights = {}
     festival_intent = None
+    trade = {}
+    building = {}
     for idx, resource in enumerate(resources):
-        value = float(action[idx])
+        raw = action[idx] if idx < len(action) else 0.0
+        try:
+            value = float(raw)
+        except (TypeError, ValueError):
+            value = 0.0
         if resource == FESTIVAL_ACTION_ID:
             festival_intent = value
+        elif resource == TRADE_RESERVE_BIAS_ACTION_ID:
+            trade["reserveRatioBias"] = value
+        elif resource == TRADE_CONTEST_INTENT_ACTION_ID:
+            trade["contestIntent"] = value
+        elif resource == TRADE_OPPORTUNITY_INTENT_ACTION_ID:
+            trade["opportunityIntent"] = value
+        elif resource == BUILDING_HOUSING_WEIGHT_ACTION_ID:
+            building["housingWeight"] = value
+        elif resource == BUILDING_ECONOMY_WEIGHT_ACTION_ID:
+            building["economyWeight"] = value
+        elif resource == BUILDING_DEFENSE_WEIGHT_ACTION_ID:
+            building["defenseWeight"] = value
+        elif resource == BUILDING_SPECIAL_WEIGHT_ACTION_ID:
+            building["specialWeight"] = value
+        elif resource == BUILDING_MINE_BIAS_ACTION_ID:
+            building["mineBias"] = value
+        elif resource == BUILDING_UPGRADE_BIAS_ACTION_ID:
+            building["upgradeBias"] = value
         else:
             weights[resource] = value
-    return weights, festival_intent
+    return weights, festival_intent, trade, building
 
 
 def get_scenario_definitions(config):
@@ -1359,6 +1448,16 @@ def build_features(obs, resource, feature_names):
     festival_time_left = clamp(float(festival.get("timeLeft", 0.0)), 0.0, 1.0)
     festival_eligible = clamp(float(festival.get("eligible", 0.0)), 0.0, 1.0)
     festival_cost_ratio = clamp(float(festival.get("costRatio", 0.0)), 0.0, 1.0)
+    ruins = obs.get("ruins") or {}
+    ruins_active = 1.0 if ruins.get("active") else 0.0
+    ruins_cooldown = clamp(float(ruins.get("cooldownRatio", 0.0)), 0.0, 1.0)
+    ruins_progress = clamp(float(ruins.get("progress", 0.0)), 0.0, 1.0)
+    ruins_artifacts = clamp(float(ruins.get("artifacts", 0.0)), 0.0, 1.0)
+    myths = obs.get("myths") or {}
+    myths_active_ratio = clamp(float(myths.get("activeRatio", 0.0)), 0.0, 1.0)
+    myths_severity = clamp(float(myths.get("severity", 0.0)), 0.0, 1.0)
+    myth_flags = myths.get("flags") or {}
+    clan_shares = obs.get("clanShares") or {}
 
     feature_map = {
         "shortage": shortage,
@@ -1380,9 +1479,26 @@ def build_features(obs, resource, feature_names):
         "festivalTimeLeft": festival_time_left,
         "festivalEligible": festival_eligible,
         "festivalCostRatio": festival_cost_ratio,
+        "ruinsActive": ruins_active,
+        "ruinsCooldown": ruins_cooldown,
+        "ruinsProgress": ruins_progress,
+        "ruinsArtifacts": ruins_artifacts,
+        "mythsActiveRatio": myths_active_ratio,
+        "mythsSeverity": myths_severity,
     }
-
-    return [float(feature_map.get(name, 0.0)) for name in feature_names]
+    values = []
+    for name in feature_names:
+        if name in feature_map:
+            values.append(float(feature_map[name]))
+        elif name.startswith("mythFlag_"):
+            myth_id = name[len("mythFlag_"):]
+            values.append(clamp(float(myth_flags.get(myth_id, 0.0)), 0.0, 1.0))
+        elif name.startswith("clanShare_"):
+            clan_id = name[len("clanShare_"):]
+            values.append(clamp(float(clan_shares.get(clan_id, 0.0)), 0.0, 1.0))
+        else:
+            values.append(0.0)
+    return values
 
 
 def build_obs_vector(obs, resources, feature_names):
@@ -1557,7 +1673,8 @@ def run_episode(
     total_reward = 0.0
     steps = 0
     done = False
-    shortage_sum = {resource: 0.0 for resource in resources}
+    tracked_resources = [resource for resource in resources if is_policy_resource_id(resource)]
+    shortage_sum = {resource: 0.0 for resource in tracked_resources}
     critical_sum = 0.0
     idle_sum = 0.0
     population_balance_sum = 0.0
@@ -1574,10 +1691,14 @@ def run_episode(
                 deterministic=False,
             )
             action = action_tensor.squeeze(0).tolist()
-            weights, festival_intent = split_action_payload(action, resources)
+            weights, festival_intent, trade_payload, building_payload = split_action_payload(action, resources)
             action_payload = {"weights": weights, "ticks": step_ticks}
             if festival_intent is not None:
                 action_payload["festivalIntent"] = festival_intent
+            if trade_payload:
+                action_payload["trade"] = trade_payload
+            if building_payload:
+                action_payload["building"] = building_payload
             if step == max_steps - 1:
                 action_payload["debug"] = True
             response = send(proc, {"cmd": "step", "action": action_payload})
@@ -1588,9 +1709,7 @@ def run_episode(
             idle_sum += float(obs.get("idleAdultsFraction", 0.0) or 0.0)
             population_balance_sum += float(obs.get("populationBalance", 0.0) or 0.0)
             ratios = obs.get("stockpileRatio", {}) or {}
-            for resource in resources:
-                if resource == FESTIVAL_ACTION_ID:
-                    continue
+            for resource in tracked_resources:
                 ratio = float(ratios.get(resource, 1.0) or 0.0)
                 shortage_sum[resource] += clamp(1.0 - ratio, 0.0, 1.0)
 
@@ -1709,10 +1828,17 @@ def evaluate(
                         deterministic=True,
                     )
                     action = action_tensor.squeeze(0).tolist()
-                    weights, festival_intent = split_action_payload(action, resources)
+                    weights, festival_intent, trade_payload, building_payload = split_action_payload(
+                        action,
+                        resources,
+                    )
                     action_payload = {"weights": weights, "ticks": step_ticks}
                     if festival_intent is not None:
                         action_payload["festivalIntent"] = festival_intent
+                    if trade_payload:
+                        action_payload["trade"] = trade_payload
+                    if building_payload:
+                        action_payload["building"] = building_payload
                     response = send(proc, {"cmd": "step", "action": action_payload})
                     reward = float(response.get("reward", 0.0))
                     total_reward += reward
@@ -1870,6 +1996,13 @@ def to_str_list(value, fallback):
     return fallback
 
 
+def is_dynamic_feature_name(name):
+    text = str(name or "").strip()
+    if not text:
+        return False
+    return any(text.startswith(prefix) and len(text) > len(prefix) for prefix in DYNAMIC_FEATURE_PREFIXES)
+
+
 def resolve_feature_names(value, fallback):
     names = to_str_list(value, None)
     if not names:
@@ -1878,7 +2011,7 @@ def resolve_feature_names(value, fallback):
     invalid = []
     filtered = []
     for name in names:
-        if name in FEATURE_NAME_SET:
+        if name in FEATURE_NAME_SET or is_dynamic_feature_name(name):
             if name not in seen:
                 filtered.append(name)
                 seen.add(name)
@@ -1938,6 +2071,7 @@ def build_training_defaults(config):
         "resume_from_best": to_bool(trainer.get("resumeFromBest"), False),
         "seed": to_int(trainer.get("seed"), 0),
         "log_every": to_int(trainer.get("logEvery"), 500),
+        "save_every": to_int(trainer.get("saveEvery"), None),
         "debug_mode": to_str(
             trainer.get("debugMode", trainer.get("debug_mode")),
             "full",
@@ -1954,6 +2088,8 @@ def build_training_defaults(config):
         defaults["entropy_coef_final"] = defaults["entropy_coef"]
     if defaults["entropy_ramp"] is None:
         defaults["entropy_ramp"] = defaults["episodes"]
+    if defaults["save_every"] is None:
+        defaults["save_every"] = defaults["log_every"]
 
     return defaults
 
@@ -1998,6 +2134,7 @@ def parse_args():
     parser.add_argument("--resume-from-best", action="store_true", default=defaults["resume_from_best"])
     parser.add_argument("--seed", type=int, default=defaults["seed"])
     parser.add_argument("--log-every", type=int, default=defaults["log_every"])
+    parser.add_argument("--save-every", type=int, default=defaults["save_every"])
     parser.add_argument("--debug-mode", type=str, default=defaults["debug_mode"])
     parser.add_argument("--eval-every", type=int, default=defaults["eval_every"])
     parser.add_argument("--eval-episodes", type=int, default=defaults["eval_episodes"])
@@ -2025,6 +2162,10 @@ def parse_args():
             file=sys.stderr,
         )
     args.debug_mode = to_str(args.debug_mode, defaults["debug_mode"]).lower()
+    args.log_every = max(1, int(args.log_every))
+    args.save_every = int(args.save_every)
+    if args.save_every < 0:
+        args.save_every = 0
     if args.eval_difficulty is not None:
         args.eval_difficulty = clamp(float(args.eval_difficulty), 0.0, 1.0)
     args.eval_score = to_str(args.eval_score, defaults["eval_score"]).lower()
@@ -2126,6 +2267,25 @@ def load_policy_feature_names(path):
     return parsed or None
 
 
+def load_policy_resources(path):
+    if not path or not os.path.exists(path):
+        return None
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+    except (OSError, json.JSONDecodeError):
+        return None
+    names = payload.get("resources")
+    if not isinstance(names, list):
+        return None
+    parsed = []
+    for name in names:
+        text = str(name).strip()
+        if text:
+            parsed.append(text)
+    return parsed or None
+
+
 def main():
     args = parse_args()
     configure_torch_threads()
@@ -2171,6 +2331,7 @@ def main():
         raise SystemExit("No resources available for training. Check config.json.")
 
     resources = append_festival_action(resources, config)
+    resources = append_governor_actions(resources, config)
 
     feature_names = args.feature_names or list(DEFAULT_FEATURE_NAMES)
     input_size = len(resources) * len(feature_names)
@@ -2202,7 +2363,18 @@ def main():
                 "Feature names mismatch with resume policy. "
                 "Update ai.training.trainer.featureNames or run with --fresh."
             )
-        load_policy(resume_path, model)
+        resume_resources = load_policy_resources(resume_path)
+        if resume_resources and resume_resources != resources:
+            raise SystemExit(
+                "Action head mismatch with resume policy (resource/action ids differ). "
+                "Run with --fresh."
+            )
+        try:
+            load_policy(resume_path, model)
+        except ValueError as exc:
+            raise SystemExit(
+                "Resume checkpoint shape mismatch. Run with --fresh."
+            ) from exc
 
     best_eval = None if args.fresh else load_best_meta(args.best_model_meta_path, args.best_model_path)
 
@@ -2262,6 +2434,7 @@ def main():
     batch_rewards = []
     batch_values = []
     batch_episode_count = 0
+    policy_dirty = False
 
     worker_count = max(1, int(args.workers))
     ctx = mp.get_context("spawn")
@@ -2434,6 +2607,7 @@ def main():
                     batch_values.clear()
                     batch_episode_count = 0
                     broadcast_weights(update_queues, get_model_payload(model), processes)
+                    policy_dirty = True
 
                 if args.lr_final is not None:
                     lr_progress = next_expected / max(1, args.episodes)
@@ -2463,6 +2637,19 @@ def main():
                             f"{rate_label}lr={optimizer.param_groups[0]['lr']:.6f} diff={difficulty:.2f} "
                             f"tick={info.get('tick')} pop={info.get('population')}"
                         )
+                    reward_window = 0.0
+                    steps_window = 0
+                    births_window = 0
+                    deaths_window = 0
+                    debug_window = init_debug_accumulator()
+                    window_start = next_expected + 1
+                    window_start_time = time.perf_counter()
+
+                save_due = (
+                    next_expected == args.episodes
+                    or (args.save_every > 0 and next_expected % args.save_every == 0)
+                )
+                if save_due and (policy_dirty or next_expected == args.episodes):
                     save_policy(
                         args.model_path,
                         model,
@@ -2473,13 +2660,7 @@ def main():
                         args.activation,
                         model.log_std,
                     )
-                    reward_window = 0.0
-                    steps_window = 0
-                    births_window = 0
-                    deaths_window = 0
-                    debug_window = init_debug_accumulator()
-                    window_start = next_expected + 1
-                    window_start_time = time.perf_counter()
+                    policy_dirty = False
 
                 if (
                     TRAINING_LOGS_ENABLED
