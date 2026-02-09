@@ -285,6 +285,18 @@ Display and layout:
 - `display.terrain.roadSpecialSymbols.ford`: symbol for ford road tiles.
 - `display.terrain.riverConnectsTo`: list of terrain types treated as connected to rivers (defaults to `["river"]`).
 - `display.dwarves.maxVisible`: max dwarves to render on the map (`0` = show all, `< 0` = hide all).
+- `display.theme`: active visual theme id (uses `display.themes.<id>` when present).
+- `display.themes.<id>.colors.*`: theme-level color overrides merged on top of `display.colors` (supports nested `map` and `seasonal` keys).
+- `display.themes.<id>.alerts.tracked_resources`: stockpile ids used to evaluate global warning/critical pressure in inset and telemetry panel.
+- `display.themes.<id>.alerts.stockpile_warning_ratio`: warning threshold for tracked stockpile ratio (0..1).
+- `display.themes.<id>.alerts.stockpile_critical_ratio`: critical threshold for tracked stockpile ratio (0..1).
+- `display.themes.<id>.alerts.morale_warning`: warning threshold for average morale (0..1).
+- `display.themes.<id>.alerts.morale_critical`: critical threshold for average morale (0..1).
+- `display.themes.<id>.alerts.shortage_warning_score`: warning threshold for primary shortage urgency score.
+- `display.themes.<id>.alerts.shortage_critical_score`: critical threshold for primary shortage urgency score.
+- `display.themes.<id>.focus.enabled`: enable static focus-mode visual emphasis for inset/panel risk states.
+- `display.themes.<id>.focus.compact_inset_on_critical`: switch inset metrics to compact critical layout when risk is critical.
+- `display.themes.<id>.focus.emphasize_inset_frame`: tint inset frame/title with alert colors when warning/critical.
 - `display.colors.enabled`: enable ANSI colors in the render.
 - `display.colors.reset`: ANSI reset sequence (defaults to `\u001b[0m`).
 - `display.colors.map.<key>`: ANSI color for an entity key (e.g. `dwarf`, `merchant`, `house`, `alchemy_lab`, `food`, `hud_header`).
@@ -307,6 +319,7 @@ Display and layout:
 - `display.colors.map.terrain_<type>_winter_ice`: optional colder/darker winter variants used by the `ice_fantasy` preset (for example `terrain_plain_winter_ice`, `terrain_forest_winter_ice`, `terrain_river_winter_ice`, `terrain_lake_winter_ice`).
 - `display.colors.map.terrain_pasture`: ANSI color for pasture tiles.
 - `display.colors.map.terrain_pasture_depleted`: ANSI color for depleted pasture tiles.
+- `display.colors.map.alert_warning`: ANSI color used by warning-level UI pressure markers.
 - `display.colors.map.alert_critical`: ANSI color used by high-priority telemetry markers (for example pressure/critical rows in telemetry panels).
 - `display.colors.seasonal.enabled`: enable seasonal terrain color transitions.
 - `display.colors.seasonal.preset`: optional named seasonal palette preset (for example `ice_fantasy`, currently tuned to a softer winter look).

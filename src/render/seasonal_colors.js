@@ -1,11 +1,11 @@
 'use strict';
 
 const { clamp } = require('../utils');
+const { getResolvedDisplayColors } = require('./colors');
 
 // Build the seasonal color context for the current render.
 function buildSeasonalColorContext(state, config, terrain, colors) {
-  const display = (config && config.display) || {};
-  const colorConfig = display.colors || {};
+  const colorConfig = getResolvedDisplayColors(config);
   if (colorConfig.enabled === false) {
     return null;
   }

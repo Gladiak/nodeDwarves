@@ -1,8 +1,25 @@
 'use strict';
 
 const { padRight } = require('../utils');
+const { getStockpileTarget } = require('../simulation/resources');
 const { fitLine } = require('./format');
 const { applyColor } = require('./colors');
+
+const DEFAULT_ALERTS = {
+  tracked_resources: ['food', 'water', 'beer'],
+  stockpile_warning_ratio: 0.5,
+  stockpile_critical_ratio: 0.25,
+  morale_warning: 0.45,
+  morale_critical: 0.3,
+  shortage_warning_score: 1.5,
+  shortage_critical_score: 2.5,
+};
+
+const DEFAULT_FOCUS = {
+  enabled: false,
+  compact_inset_on_critical: false,
+  emphasize_inset_frame: true,
+};
 
 // Set one grid cell with optional color key.
 function setGridCell(grid, x, y, symbol, colorKey, colors) {
@@ -107,13 +124,385 @@ function averageDwarfMetric(dwarves, key) {
   return count > 0 ? sum / count : 0;
 }
 
+// Clamp a numeric ratio to [0, 1], with fallback.
+function clampUnit(value, fallback) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return clampUnit(fallback, 0);
+  }
+  return Math.max(0, Math.min(1, numeric));
+}
+
+// Resolve alert/focus settings from the active color profile.
+function resolveInsetThemeState(colors) {
+  const rawAlerts = colors && colors.alerts ? colors.alerts : {};
+  const tracked = Array.isArray(rawAlerts.tracked_resources)
+    ? rawAlerts.tracked_resources.map((value) => String(value || '').trim()).filter(Boolean)
+    : DEFAULT_ALERTS.tracked_resources;
+  const stockpileCritical = clampUnit(
+    rawAlerts.stockpile_critical_ratio,
+    DEFAULT_ALERTS.stockpile_critical_ratio,
+  );
+  const stockpileWarning = Math.max(
+    stockpileCritical,
+    clampUnit(rawAlerts.stockpile_warning_ratio, DEFAULT_ALERTS.stockpile_warning_ratio),
+  );
+  const moraleCritical = clampUnit(rawAlerts.morale_critical, DEFAULT_ALERTS.morale_critical);
+  const moraleWarning = Math.max(
+    moraleCritical,
+    clampUnit(rawAlerts.morale_warning, DEFAULT_ALERTS.morale_warning),
+  );
+  const shortageWarning = Math.max(
+    0,
+    Number.isFinite(Number(rawAlerts.shortage_warning_score))
+      ? Number(rawAlerts.shortage_warning_score)
+      : DEFAULT_ALERTS.shortage_warning_score,
+  );
+  const shortageCritical = Math.max(
+    shortageWarning,
+    Number.isFinite(Number(rawAlerts.shortage_critical_score))
+      ? Number(rawAlerts.shortage_critical_score)
+      : DEFAULT_ALERTS.shortage_critical_score,
+  );
+
+  const rawFocus = colors && colors.focus ? colors.focus : {};
+
+  return {
+    alerts: {
+      tracked_resources: tracked.length > 0 ? tracked : DEFAULT_ALERTS.tracked_resources.slice(),
+      stockpile_warning_ratio: stockpileWarning,
+      stockpile_critical_ratio: stockpileCritical,
+      morale_warning: moraleWarning,
+      morale_critical: moraleCritical,
+      shortage_warning_score: shortageWarning,
+      shortage_critical_score: shortageCritical,
+    },
+    focus: {
+      enabled: rawFocus.enabled === true,
+      compact_inset_on_critical: rawFocus.compact_inset_on_critical === true,
+      emphasize_inset_frame: rawFocus.emphasize_inset_frame !== false,
+    },
+  };
+}
+
+// Resolve the minimum tracked stockpile ratio across key survival resources.
+function resolveTrackedStockpileRatio(state, config, trackedResources) {
+  const tracked = Array.isArray(trackedResources) && trackedResources.length > 0
+    ? trackedResources
+    : DEFAULT_ALERTS.tracked_resources;
+  let minRatio = 1;
+  let found = false;
+  for (const resourceId of tracked) {
+    const id = String(resourceId || '').trim();
+    if (!id) {
+      continue;
+    }
+    const target = Math.max(0, Number(getStockpileTarget(state, config, id) || 0));
+    if (target <= 0) {
+      continue;
+    }
+    const current = Math.max(0, Number(state && state.stockpile ? state.stockpile[id] : 0));
+    minRatio = Math.min(minRatio, clampUnit(current / target, 0));
+    found = true;
+  }
+  return found ? minRatio : 1;
+}
+
+// Check if at least one underrealm deep raid is currently active.
+function hasActiveDeepRaid(state) {
+  const raids = state
+    && state.underrealm
+    && state.underrealm.deepFaction
+    && state.underrealm.deepFaction.activeRaidsByDepth;
+  if (!raids || typeof raids !== 'object') {
+    return false;
+  }
+  return Object.values(raids).some((entry) => entry && Number(entry.ticksRemaining || 0) > 0);
+}
+
+// Resolve one alert color key from a semantic severity level.
+function getAlertColorKey(level) {
+  if (level === 'critical') {
+    return 'alert_critical';
+  }
+  if (level === 'warning') {
+    return 'alert_warning';
+  }
+  return 'weather_clear';
+}
+
+// Compute alert severity for inset emphasis using stockpile/morale/pressure signals.
+function resolveInsetAlertState(state, config, moraleRatio, themeState) {
+  const alerts = themeState && themeState.alerts ? themeState.alerts : DEFAULT_ALERTS;
+  const shortageScore = Math.max(
+    0,
+    Number(
+      state
+      && Array.isArray(state.lastPriorities)
+      && state.lastPriorities[0]
+        ? state.lastPriorities[0].score
+        : 0,
+    ),
+  );
+  const stockpileRatio = resolveTrackedStockpileRatio(state, config, alerts.tracked_resources);
+  const raidActive = Boolean(state && state.raid && state.raid.active);
+  const deepRaidActive = hasActiveDeepRaid(state);
+  const shortageCritical = shortageScore >= alerts.shortage_critical_score;
+  const shortageWarning = shortageScore >= alerts.shortage_warning_score;
+  const stockpileCritical = stockpileRatio <= alerts.stockpile_critical_ratio;
+  const stockpileWarning = stockpileRatio <= alerts.stockpile_warning_ratio;
+  const moraleCritical = moraleRatio <= alerts.morale_critical;
+  const moraleWarning = moraleRatio <= alerts.morale_warning;
+
+  let level = 'stable';
+  if (
+    raidActive
+    || deepRaidActive
+    || shortageCritical
+    || stockpileCritical
+    || moraleCritical
+  ) {
+    level = 'critical';
+  } else if (
+    shortageWarning
+    || stockpileWarning
+    || moraleWarning
+  ) {
+    level = 'warning';
+  }
+
+  return {
+    level,
+    colorKey: getAlertColorKey(level),
+    shortageScore,
+    stockpileRatio,
+    moraleRatio,
+    raidActive,
+    deepRaidActive,
+    shortageCritical,
+    shortageWarning,
+    stockpileCritical,
+    stockpileWarning,
+    moraleCritical,
+    moraleWarning,
+  };
+}
+
+// Resolve one compact alert reason label for the inset status line.
+function resolveInsetAlertReason(alertState) {
+  if (!alertState || alertState.level === 'stable') {
+    return 'stable';
+  }
+  const reasons = [];
+  if (alertState.deepRaidActive) {
+    reasons.push('deepRaid');
+  }
+  if (alertState.raidActive) {
+    reasons.push('raid');
+  }
+  if (alertState.shortageCritical || alertState.shortageWarning) {
+    reasons.push('shortage');
+  }
+  if (alertState.stockpileCritical || alertState.stockpileWarning) {
+    reasons.push('stockpile');
+  }
+  if (alertState.moraleCritical || alertState.moraleWarning) {
+    reasons.push('morale');
+  }
+  if (reasons.length === 0) {
+    return 'unknown';
+  }
+  return reasons.length === 1 ? reasons[0] : 'mixed';
+}
+
+// Build the population metric line with morale severity highlighting.
+function buildPopulationMetricLine(population, moralePct, alertState, width) {
+  const text = pickFittingInsetText(
+    [
+      `Pop:${population.total}  C:${population.children} A:${population.adults} E:${population.elders}  Mor:${moralePct}`,
+      `Pop:${population.total} C:${population.children} A:${population.adults} E:${population.elders} M:${moralePct}`,
+      `P:${population.total} C:${population.children} A:${population.adults} E:${population.elders} M:${moralePct}`,
+      `P:${population.total} C${population.children} A${population.adults} E${population.elders}`,
+    ],
+    width,
+  );
+  const moraleCritical = Boolean(alertState && alertState.moraleCritical);
+  const moraleWarning = Boolean(alertState && alertState.moraleWarning);
+  if (!moraleCritical && !moraleWarning) {
+    return buildInsetTextLine(text, width);
+  }
+  const moraleTokens = [`Mor:${moralePct}`, `M:${moralePct}`];
+  let moraleIndex = -1;
+  let moraleLength = 0;
+  for (const token of moraleTokens) {
+    moraleIndex = text.indexOf(token);
+    if (moraleIndex >= 0) {
+      moraleLength = token.length;
+      break;
+    }
+  }
+  if (moraleIndex < 0) {
+    return buildInsetTextLine(text, width);
+  }
+  return buildInsetTextLine(text, width, [
+    {
+      start: moraleIndex,
+      end: moraleIndex + moraleLength,
+      colorKey: moraleCritical ? 'alert_critical' : 'alert_warning',
+    },
+  ]);
+}
+
+// Build a colored alert-summary line for the inset.
+function buildAlertMetricLine(alertState, width) {
+  const stockpilePct = Math.max(0, Math.round(Number(alertState.stockpileRatio || 0) * 100));
+  const moralePct = Math.max(0, Math.round(Number(alertState.moraleRatio || 0) * 100));
+  const reasonLabel = resolveInsetAlertReason(alertState);
+  const showReason = alertState.level !== 'stable';
+  const statusLabel = alertState.level === 'critical'
+    ? 'CRITICAL'
+    : alertState.level === 'warning'
+      ? 'Warning'
+      : 'Stable';
+  const text = showReason
+    ? pickFittingInsetText(
+      [
+        `Alert: ${statusLabel} (${reasonLabel})  Stock:${stockpilePct}% Mor:${moralePct}%`,
+        `Alert: ${statusLabel} ${reasonLabel}  S:${stockpilePct}% M:${moralePct}%`,
+        `Alert:${statusLabel} ${reasonLabel} S:${stockpilePct}% M:${moralePct}%`,
+        `${statusLabel}/${reasonLabel} S:${stockpilePct}% M:${moralePct}%`,
+      ],
+      width,
+    )
+    : pickFittingInsetText(
+      [
+        `Alert: ${statusLabel}  Stock:${stockpilePct}% Mor:${moralePct}%`,
+        `Alert: ${statusLabel}  S:${stockpilePct}% M:${moralePct}%`,
+        `Alert:${statusLabel} S:${stockpilePct}% M:${moralePct}%`,
+        `${statusLabel} S:${stockpilePct}% M:${moralePct}%`,
+      ],
+      width,
+    );
+  const spans = [];
+  const statusStart = text.indexOf(statusLabel);
+  if (statusStart >= 0) {
+    spans.push({
+      start: statusStart,
+      end: statusStart + statusLabel.length,
+      colorKey: alertState.colorKey,
+    });
+  }
+  const reasonStart = text.indexOf(reasonLabel);
+  if (showReason && reasonStart >= 0) {
+    spans.push({
+      start: reasonStart,
+      end: reasonStart + reasonLabel.length,
+      colorKey: alertState.colorKey,
+    });
+  }
+
+  const stockTokens = [`Stock:${stockpilePct}%`, `S:${stockpilePct}%`];
+  for (const token of stockTokens) {
+    const start = text.indexOf(token);
+    if (start >= 0 && (alertState.stockpileCritical || alertState.stockpileWarning)) {
+      spans.push({
+        start,
+        end: start + token.length,
+        colorKey: alertState.stockpileCritical ? 'alert_critical' : 'alert_warning',
+      });
+      break;
+    }
+  }
+
+  const moraleTokens = [`Mor:${moralePct}%`, `M:${moralePct}%`];
+  for (const token of moraleTokens) {
+    const start = text.indexOf(token);
+    if (start >= 0 && (alertState.moraleCritical || alertState.moraleWarning)) {
+      spans.push({
+        start,
+        end: start + token.length,
+        colorKey: alertState.moraleCritical ? 'alert_critical' : 'alert_warning',
+      });
+      break;
+    }
+  }
+
+  return buildInsetTextLine(text, width, spans);
+}
+
+// Build regular inset metrics for day-to-day map operation.
+function buildInsetDefaultMetricLines(meta, alertState, width) {
+  const metrics = [];
+  metrics.push(buildInsetTextLine(pickFittingInsetText(
+    [
+      `T:${meta.tick}  Y:${meta.year}  Cy:${meta.cycleCount}`,
+      `Tick:${meta.tick} Year:${meta.year} C:${meta.cycleCount}`,
+      `T${meta.tick} Y${meta.year} C${meta.cycleCount}`,
+    ],
+    width,
+  ), width));
+  metrics.push(buildPopulationMetricLine(meta.population, meta.moralePct, alertState, width));
+  metrics.push(buildInsetSegmentLine(
+    [
+      {
+        text: pickFittingInsetText(
+          [
+            `Underrealm unlocked: ${meta.unlockToken}`,
+            `Underrealm: ${meta.unlockToken}`,
+            `U:${meta.unlockToken}`,
+          ],
+          width,
+        ),
+        colorKey: alertState.deepRaidActive ? 'alert_critical' : null,
+      },
+    ],
+    width,
+  ));
+  metrics.push(buildInsetTextLine(pickFittingInsetText(
+    [
+      `View ${meta.viewLabel} ${meta.depthToken}`,
+      `View: ${meta.viewLabel} ${meta.depthToken}`,
+      `${meta.viewLabel} ${meta.depthToken}`,
+      `V:${meta.depthToken}`,
+    ],
+    width,
+  ), width));
+  metrics.push(buildAlertMetricLine(alertState, width));
+  return metrics;
+}
+
+// Build compact critical-focus metrics for cinematic high-pressure moments.
+function buildInsetFocusMetricLines(meta, alertState, width) {
+  const metrics = [];
+  metrics.push(buildInsetTextLine(pickFittingInsetText(
+    [
+      `T:${meta.tick}  Y:${meta.year}  Cy:${meta.cycleCount}`,
+      `T${meta.tick} Y${meta.year} C${meta.cycleCount}`,
+    ],
+    width,
+  ), width));
+  metrics.push(buildAlertMetricLine(alertState, width));
+  metrics.push(buildPopulationMetricLine(meta.population, meta.moralePct, alertState, width));
+  metrics.push(buildInsetTextLine(pickFittingInsetText(
+    [
+      `View ${meta.depthToken}  Unlock ${meta.unlockToken}`,
+      `V:${meta.depthToken} U:${meta.unlockToken}`,
+      `${meta.depthToken} ${meta.unlockToken}`,
+    ],
+    width,
+  ), width));
+  return metrics;
+}
+
 // Build concise map-inset lines with high-signal runtime data.
-function buildMapInsetLines(state, config, width, height) {
+function buildMapInsetLines(state, config, width, height, themeState) {
   const safeHeight = Math.max(0, Math.floor(Number(height || 0)));
   if (safeHeight <= 0) {
-    return [];
+    return {
+      lines: [],
+      alertState: resolveInsetAlertState(state, config, 1, themeState),
+    };
   }
-  const metrics = [];
   const tick = Math.max(0, Number(state && state.tick || 0));
   const seasonOrder = Array.isArray(config && config.seasons && config.seasons.order)
     && config.seasons.order.length > 0
@@ -138,8 +527,8 @@ function buildMapInsetLines(state, config, width, height) {
       adults += 1;
     }
   }
-  const totalPopulation = Math.max(0, dwarves.length);
-  const moralePct = Math.max(0, Math.round(averageDwarfMetric(dwarves, 'morale') * 100));
+  const moraleRatio = clampUnit(averageDwarfMetric(dwarves, 'morale'), 0);
+  const moralePct = Math.max(0, Math.round(moraleRatio * 100));
 
   const underrealm = state && state.underrealm ? state.underrealm : null;
   const underrealmEnabled = Boolean(underrealm && underrealm.enabled !== false);
@@ -150,41 +539,36 @@ function buildMapInsetLines(state, config, width, height) {
   const depthToken = underrealmEnabled ? `D${activeDepth}` : 'D0';
   const unlockToken = underrealmEnabled ? `D${maxUnlockedDepth}/${maxDepth}` : 'Off';
 
-  metrics.push(buildInsetTextLine(pickFittingInsetText(
-    [
-      `T:${tick}  Y:${year}  Cy:${cycleCount}`,
-      `Tick:${tick} Year:${year} C:${cycleCount}`,
-      `T${tick} Y${year} C${cycleCount}`,
-    ],
-    width,
-  ), width));
-  metrics.push(buildInsetTextLine(pickFittingInsetText(
-    [
-      `Pop:${totalPopulation}  C:${children} A:${adults} E:${elders}  Mor:${moralePct}`,
-      `Pop:${totalPopulation} C:${children} A:${adults} E:${elders} M:${moralePct}`,
-      `P:${totalPopulation} C:${children} A:${adults} E:${elders} M:${moralePct}`,
-      `P:${totalPopulation} C${children} A${adults} E${elders}`,
-    ],
-    width,
-  ), width));
-  metrics.push(buildInsetTextLine(pickFittingInsetText(
-    [
-      `Underrealm unlocked: ${unlockToken}`,
-      `Underrealm: ${unlockToken}`,
-      `U:${unlockToken}`,
-    ],
-    width,
-  ), width));
-  metrics.push(buildInsetTextLine(pickFittingInsetText(
-    [
-      `View ${viewLabel} ${depthToken}`,
-      `View: ${viewLabel} ${depthToken}`,
-      `${viewLabel} ${depthToken}`,
-      `V:${depthToken}`,
-    ],
-    width,
-  ), width));
+  const alertState = resolveInsetAlertState(state, config, moraleRatio, themeState);
+  const meta = {
+    tick,
+    year,
+    cycleCount,
+    population: {
+      total: Math.max(0, dwarves.length),
+      adults,
+      children,
+      elders,
+    },
+    moralePct,
+    viewLabel,
+    depthToken,
+    unlockToken,
+  };
 
+  const focus = themeState && themeState.focus ? themeState.focus : DEFAULT_FOCUS;
+  const focusCritical = focus.enabled
+    && focus.compact_inset_on_critical
+    && alertState.level === 'critical';
+  const metrics = focusCritical
+    ? buildInsetFocusMetricLines(meta, alertState, width)
+    : buildInsetDefaultMetricLines(meta, alertState, width);
+
+  const commandColorKey = alertState.level === 'critical'
+    ? 'alert_critical'
+    : alertState.level === 'warning'
+      ? 'alert_warning'
+      : 'hud_header';
   const commandLine = buildInsetSegmentLine(
     [
       {
@@ -197,16 +581,12 @@ function buildMapInsetLines(state, config, width, height) {
           ],
           width,
         ),
-        colorKey: 'hud_header',
+        colorKey: commandColorKey,
       },
     ],
     width,
   );
   const metricBudget = Math.max(0, safeHeight - 1);
-  if (metricBudget >= 5) {
-    metrics.push(buildInsetTextLine('─'.repeat(Math.max(1, width)), width));
-  }
-
   const out = [];
   for (const line of metrics) {
     if (out.length >= metricBudget) {
@@ -218,7 +598,10 @@ function buildMapInsetLines(state, config, width, height) {
     out.push(buildInsetTextLine('', width));
   }
   out.push(commandLine);
-  return out;
+  return {
+    lines: out,
+    alertState,
+  };
 }
 
 // Carve and render the top-right inset panel directly inside the map grid.
@@ -246,6 +629,19 @@ function applyMapInsetPanel(grid, state, config, runtime, colors, frameSymbols) 
       bottomLeft: '+',
       bottomRight: '+',
     };
+  const innerWidth = Math.max(0, width - 2);
+  const innerHeight = Math.max(0, height - 2);
+  const themeState = resolveInsetThemeState(colors);
+  const insetData = buildMapInsetLines(state, config, innerWidth, innerHeight, themeState);
+  const alertState = insetData && insetData.alertState
+    ? insetData.alertState
+    : { level: 'stable', colorKey: 'hud_header' };
+  const focusState = themeState && themeState.focus ? themeState.focus : DEFAULT_FOCUS;
+  const focusAlertFrame = focusState.enabled
+    && focusState.emphasize_inset_frame
+    && alertState.level !== 'stable';
+  const frameColorKey = focusAlertFrame ? alertState.colorKey : 'frame';
+  const titleColorKey = focusAlertFrame ? alertState.colorKey : 'hud_header';
 
   for (let y = minY; y <= maxY; y += 1) {
     for (let x = minX; x <= maxX; x += 1) {
@@ -253,17 +649,17 @@ function applyMapInsetPanel(grid, state, config, runtime, colors, frameSymbols) 
     }
   }
 
-  setGridCell(grid, minX, minY, symbols.topLeft, 'frame', colors);
-  setGridCell(grid, maxX, minY, symbols.topRight, 'frame', colors);
-  setGridCell(grid, minX, maxY, symbols.bottomLeft, 'frame', colors);
-  setGridCell(grid, maxX, maxY, symbols.bottomRight, 'frame', colors);
+  setGridCell(grid, minX, minY, symbols.topLeft, frameColorKey, colors);
+  setGridCell(grid, maxX, minY, symbols.topRight, frameColorKey, colors);
+  setGridCell(grid, minX, maxY, symbols.bottomLeft, frameColorKey, colors);
+  setGridCell(grid, maxX, maxY, symbols.bottomRight, frameColorKey, colors);
   for (let x = minX + 1; x < maxX; x += 1) {
-    setGridCell(grid, x, minY, symbols.horizontal, 'frame', colors);
-    setGridCell(grid, x, maxY, symbols.horizontal, 'frame', colors);
+    setGridCell(grid, x, minY, symbols.horizontal, frameColorKey, colors);
+    setGridCell(grid, x, maxY, symbols.horizontal, frameColorKey, colors);
   }
   for (let y = minY + 1; y < maxY; y += 1) {
-    setGridCell(grid, minX, y, symbols.vertical, 'frame', colors);
-    setGridCell(grid, maxX, y, symbols.vertical, 'frame', colors);
+    setGridCell(grid, minX, y, symbols.vertical, frameColorKey, colors);
+    setGridCell(grid, maxX, y, symbols.vertical, frameColorKey, colors);
   }
 
   const title = fitLine(String(inset.title || 'ᚦ NodeDwarves ᛞ'), Math.max(0, width - 4));
@@ -273,12 +669,10 @@ function applyMapInsetPanel(grid, state, config, runtime, colors, frameSymbols) 
     if (x >= maxX) {
       break;
     }
-    setGridCell(grid, x, minY, title[i], 'hud_header', colors);
+    setGridCell(grid, x, minY, title[i], titleColorKey, colors);
   }
 
-  const innerWidth = Math.max(0, width - 2);
-  const innerHeight = Math.max(0, height - 2);
-  const lines = buildMapInsetLines(state, config, innerWidth, innerHeight);
+  const lines = Array.isArray(insetData && insetData.lines) ? insetData.lines : [];
   for (let row = 0; row < lines.length; row += 1) {
     const y = minY + 1 + row;
     if (y >= maxY) {
