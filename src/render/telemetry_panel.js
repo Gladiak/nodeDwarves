@@ -2,7 +2,8 @@
 
 const { padRight, clamp } = require('../utils');
 const { fitLine, wrapLine } = require('./format');
-const { applyColor } = require('./colors');
+const { applyColor, getColorConfig } = require('./colors');
+const { getStockpileTarget } = require('../simulation/resources');
 const {
   buildTelemetrySections,
   formatColumns,
@@ -10,6 +11,15 @@ const {
 } = require('./telemetry');
 
 const ANSI_PATTERN = /\u001b\[[0-9;]*m/g;
+const DEFAULT_ALERTS = {
+  tracked_resources: ['food', 'water', 'beer'],
+  stockpile_warning_ratio: 0.5,
+  stockpile_critical_ratio: 0.25,
+  morale_warning: 0.45,
+  morale_critical: 0.3,
+  shortage_warning_score: 1.5,
+  shortage_critical_score: 2.5,
+};
 const SECTION_TOKEN_COLOR_KEYS = {
   world: 'weather_clear',
   population: 'dwarf',
@@ -24,7 +34,7 @@ const SECTION_TOKEN_COLOR_KEYS = {
   lore: 'alchemy_lab',
   'deep signals': 'underrealm_hostile',
   workforce: 'dwarf',
-  'resource pressure': 'food',
+  'resource pressure': 'alert_warning',
   'diplomacy signals': 'merchant',
   'underrealm cues': 'underrealm_delver',
 };
@@ -52,6 +62,203 @@ const TELEMETRY_PANEL_PAGES = [
 // Return the number of telemetry panel pages.
 function getTelemetryPanelPageCount() {
   return TELEMETRY_PANEL_PAGES.length;
+}
+
+// Clamp a numeric ratio to [0, 1], with fallback.
+function clampUnit(value, fallback) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return clampUnit(fallback, 0);
+  }
+  return Math.max(0, Math.min(1, numeric));
+}
+
+// Resolve normalized alert thresholds for telemetry panel status.
+function resolveTelemetryAlertConfig(alerts) {
+  const source = alerts && typeof alerts === 'object' ? alerts : {};
+  const tracked = Array.isArray(source.tracked_resources)
+    ? source.tracked_resources.map((value) => String(value || '').trim()).filter(Boolean)
+    : DEFAULT_ALERTS.tracked_resources;
+  const stockpileCritical = clampUnit(
+    source.stockpile_critical_ratio,
+    DEFAULT_ALERTS.stockpile_critical_ratio,
+  );
+  const stockpileWarning = Math.max(
+    stockpileCritical,
+    clampUnit(source.stockpile_warning_ratio, DEFAULT_ALERTS.stockpile_warning_ratio),
+  );
+  const moraleCritical = clampUnit(source.morale_critical, DEFAULT_ALERTS.morale_critical);
+  const moraleWarning = Math.max(
+    moraleCritical,
+    clampUnit(source.morale_warning, DEFAULT_ALERTS.morale_warning),
+  );
+  const shortageWarning = Math.max(
+    0,
+    Number.isFinite(Number(source.shortage_warning_score))
+      ? Number(source.shortage_warning_score)
+      : DEFAULT_ALERTS.shortage_warning_score,
+  );
+  const shortageCritical = Math.max(
+    shortageWarning,
+    Number.isFinite(Number(source.shortage_critical_score))
+      ? Number(source.shortage_critical_score)
+      : DEFAULT_ALERTS.shortage_critical_score,
+  );
+  return {
+    tracked_resources: tracked.length > 0 ? tracked : DEFAULT_ALERTS.tracked_resources.slice(),
+    stockpile_warning_ratio: stockpileWarning,
+    stockpile_critical_ratio: stockpileCritical,
+    morale_warning: moraleWarning,
+    morale_critical: moraleCritical,
+    shortage_warning_score: shortageWarning,
+    shortage_critical_score: shortageCritical,
+  };
+}
+
+// Resolve the minimum stockpile ratio across tracked resources.
+function resolveTelemetryStockpileRatio(state, config, trackedResources) {
+  const tracked = Array.isArray(trackedResources) && trackedResources.length > 0
+    ? trackedResources
+    : DEFAULT_ALERTS.tracked_resources;
+  let minRatio = 1;
+  let found = false;
+  for (const resourceId of tracked) {
+    const id = String(resourceId || '').trim();
+    if (!id) {
+      continue;
+    }
+    const target = Math.max(0, Number(getStockpileTarget(state, config, id) || 0));
+    if (target <= 0) {
+      continue;
+    }
+    const current = Math.max(0, Number(state && state.stockpile ? state.stockpile[id] : 0));
+    minRatio = Math.min(minRatio, clampUnit(current / target, 0));
+    found = true;
+  }
+  return found ? minRatio : 1;
+}
+
+// Check if at least one underrealm deep raid is active.
+function hasActiveDeepRaid(state) {
+  const raids = state
+    && state.underrealm
+    && state.underrealm.deepFaction
+    && state.underrealm.deepFaction.activeRaidsByDepth;
+  if (!raids || typeof raids !== 'object') {
+    return false;
+  }
+  return Object.values(raids).some((entry) => entry && Number(entry.ticksRemaining || 0) > 0);
+}
+
+// Resolve telemetry panel alert state from core pressure indicators.
+function resolveTelemetryAlertState(state, config, alertConfig) {
+  const alerts = resolveTelemetryAlertConfig(alertConfig);
+  const dwarves = Array.isArray(state && state.dwarves) ? state.dwarves : [];
+  let moraleTotal = 0;
+  let moraleCount = 0;
+  for (const dwarf of dwarves) {
+    const value = Number(dwarf && dwarf.state ? dwarf.state.morale : Number.NaN);
+    if (!Number.isFinite(value)) {
+      continue;
+    }
+    moraleTotal += value;
+    moraleCount += 1;
+  }
+  const moraleRatio = moraleCount > 0 ? moraleTotal / moraleCount : 0;
+  const stockpileRatio = resolveTelemetryStockpileRatio(state, config, alerts.tracked_resources);
+  const shortageScore = Math.max(
+    0,
+    Number(
+      state
+      && Array.isArray(state.lastPriorities)
+      && state.lastPriorities[0]
+        ? state.lastPriorities[0].score
+        : 0,
+    ),
+  );
+  const raidActive = Boolean(state && state.raid && state.raid.active);
+  const deepRaidActive = hasActiveDeepRaid(state);
+  const shortageCritical = shortageScore >= alerts.shortage_critical_score;
+  const shortageWarning = shortageScore >= alerts.shortage_warning_score;
+  const stockpileCritical = stockpileRatio <= alerts.stockpile_critical_ratio;
+  const stockpileWarning = stockpileRatio <= alerts.stockpile_warning_ratio;
+  const moraleCritical = moraleRatio <= alerts.morale_critical;
+  const moraleWarning = moraleRatio <= alerts.morale_warning;
+  let level = 'stable';
+  if (
+    raidActive
+    || deepRaidActive
+    || shortageCritical
+    || stockpileCritical
+    || moraleCritical
+  ) {
+    level = 'critical';
+  } else if (
+    shortageWarning
+    || stockpileWarning
+    || moraleWarning
+  ) {
+    level = 'warning';
+  }
+  return {
+    level,
+    colorKey: level === 'critical' ? 'alert_critical' : level === 'warning' ? 'alert_warning' : 'weather_clear',
+    moraleRatio: clampUnit(moraleRatio, 0),
+    stockpileRatio,
+    shortageScore,
+    raidActive,
+    deepRaidActive,
+    shortageCritical,
+    shortageWarning,
+    stockpileCritical,
+    stockpileWarning,
+    moraleCritical,
+    moraleWarning,
+  };
+}
+
+// Resolve one compact cause label for telemetry alert status.
+function resolveTelemetryAlertCause(alertState) {
+  if (!alertState || alertState.level === 'stable') {
+    return 'stable';
+  }
+  const reasons = [];
+  if (alertState.deepRaidActive) {
+    reasons.push('deepRaid');
+  }
+  if (alertState.raidActive) {
+    reasons.push('raid');
+  }
+  if (alertState.shortageCritical || alertState.shortageWarning) {
+    reasons.push('shortage');
+  }
+  if (alertState.stockpileCritical || alertState.stockpileWarning) {
+    reasons.push('stockpile');
+  }
+  if (alertState.moraleCritical || alertState.moraleWarning) {
+    reasons.push('morale');
+  }
+  if (reasons.length === 0) {
+    return 'unknown';
+  }
+  return reasons.length === 1 ? reasons[0] : 'mixed';
+}
+
+// Format the panel top risk line with compact pressure values.
+function formatTelemetryAlertLine(alertState) {
+  const status = alertState.level === 'critical'
+    ? 'CRITICAL'
+    : alertState.level === 'warning'
+      ? 'Warning'
+      : 'Stable';
+  const cause = resolveTelemetryAlertCause(alertState);
+  const stockpilePct = Math.max(0, Math.round(Number(alertState.stockpileRatio || 0) * 100));
+  const moralePct = Math.max(0, Math.round(Number(alertState.moraleRatio || 0) * 100));
+  const shortage = Math.max(0, Number(alertState.shortageScore || 0)).toFixed(2);
+  if (alertState.level === 'stable') {
+    return `Colony risk: ${status}  Stock:${stockpilePct}% Mor:${moralePct}% Shortage:${shortage}`;
+  }
+  return `Colony risk: ${status} (${cause})  Stock:${stockpilePct}% Mor:${moralePct}% Shortage:${shortage}`;
 }
 
 // Build a telemetry panel descriptor when enabled and opened.
@@ -84,12 +291,13 @@ function buildTelemetryPanel(state, config, runtime) {
     pageCount,
   );
   const pageDefinition = TELEMETRY_PANEL_PAGES[pageIndex] || TELEMETRY_PANEL_PAGES[0];
+  const colorProfile = getColorConfig(config);
 
   const lines = buildTelemetryPanelLines(state, config, contentWidth, innerHeight, {
     pageIndex,
     pageCount,
     page: pageDefinition,
-  });
+  }, colorProfile.alerts);
   const panelLines = buildPanelBox(lines, innerWidth, contentWidth);
 
   const x = Math.max(0, Math.floor((gridWidth - width) / 2));
@@ -105,7 +313,7 @@ function buildTelemetryPanel(state, config, runtime) {
 }
 
 // Build content lines for the telemetry panel.
-function buildTelemetryPanelLines(state, config, width, height, pageState) {
+function buildTelemetryPanelLines(state, config, width, height, pageState, alertConfig) {
   const controlsLine = '[<-]/[->] Page  [h] Close telemetry  [i] Dwarf info  [l] Legend';
   const maxContent = Math.max(0, height - 1);
   const topEntries = [];
@@ -123,6 +331,8 @@ function buildTelemetryPanelLines(state, config, width, height, pageState) {
     'hud_header',
   );
   pushLine(topEntries, pageSubtitle, width, 'weather_clear');
+  const alertState = resolveTelemetryAlertState(state, config, alertConfig);
+  pushLine(topEntries, formatTelemetryAlertLine(alertState), width, alertState.colorKey);
   topEntries.push({ separator: true });
 
   const telemetryLines = buildTelemetryPageLines(state, config, width, page);

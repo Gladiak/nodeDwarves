@@ -1,11 +1,9 @@
 # NodeDwarves 🛠️
 
 An autonomous, gamey dwarf colony simulation that lives entirely in your terminal.
-No player input after launch: the colony gathers, adapts, and tries to keep itself
-alive while you watch the chaos unfold in ASCII. Grab popcorn. :)
+No player input after launch: the colony gathers, adapts, and tries to keep itself alive while you watch the chaos unfold in ASCII. Grab popcorn. :)
 
-Think of it as a living systems sandbox: you tune config, press run, and watch
-trade-offs emerge from shortages, weather, raids, and long-term growth pressure.
+Think of it as a living systems sandbox: you tune config, press run, and watch trade-offs emerge from shortages, weather, raids, and long-term growth pressure.
 
 ## Screenshots 📸
 
@@ -34,6 +32,8 @@ trade-offs emerge from shortages, weather, raids, and long-term growth pressure.
 - 🗺️ Map Focus default: no side telemetry column; `h` opens a full-screen paged telemetry Data Center while the map keeps full width.
 - 🪟 Terminal-aware layout: with `display.autoSize` the map follows your terminal size (max caps optional), and live resize can keep world geometry locked to avoid infrastructure reflow resets.
 - 🪟 In-map Ops Snapshot: a top-right status stack with core runtime signals (time, population, underrealm + view) and a fixed keyboard-command row, without letting roads/buildings/pathing use that carved space.
+- 🎨 Visual theme presets: switchable terminal identity with coherent palette overrides, static warning/critical alert accents, and a compact focus-style Ops Snapshot under pressure.
+- 🚨 Alert clarity upgrade: risk lines now expose a compact cause tag (`raid`, `shortage`, `stockpile`, `morale`, `mixed`) so critical states are easier to diagnose at a glance.
 - 🤖 AI training in Python (PPO) with JS-only inference.
 - 🧩 Modular architecture (simulation, state, render, AI) for sane iteration.
 - ⚡ Late-game pathing cache optimizations for smoother high-population ticks.
@@ -92,39 +92,23 @@ npm run ai:train:full:fresh
 For training presets, evaluation, and overrides, see `MANUAL.md` and
 `docs/TRAINING_OVERRIDES.md`.
 
-Training now highlights every best-checkpoint save with a colored `[BEST SAVED]`
-line and keeps both `models/policy_best.json` and `models/policy_best.meta.json`
-in sync. 🧠
-Latest-checkpoint writes are now decoupled from log windows (`saveEvery` /
-`--save-every`) so long curriculum runs spend less time on disk I/O. ⚡
-Promote checks now require a phase-specific minimum score gain (`--min-improve`)
-and use more eval episodes in late phases to reduce statistical-noise promotions. 🎯
-Training wrappers now auto-tune worker count from CPU capacity (with bounds and
-manual `--workers` override) to behave better across different machines. ⚙️
-In auto mode, workers are also phase-aware (foundation/finetune/endgame/
-consolidation) and you can force flat behavior with `--workers-flat`. 🧭
-Regression runs now stream subprocess logs directly to per-run files, improving
-stability on long validation passes. 🧪
-Regression baseline profiles now live in `regression/baselines/` so reference
-snapshots are kept outside volatile debug artifacts. 🗂️
-Headless benchmark now supports comparative score, seed-by-seed deltas, and
-optional blocking gates (`--gate`) with tunable thresholds for A/B tuning. 📈
-Regression reports now auto-emit `.txt`, `.json`, and `.md` outputs for local
-inspection plus CI parsing (override paths with `--report-json/--report-md`). 🧾
+Training now highlights every best-checkpoint save with a colored `[BEST SAVED]` line and keeps both `models/policy_best.json` and `models/policy_best.meta.json` in sync.
 
-AI runtime now accepts a backward-compatible governor action envelope, so legacy
-policy files still run while jobs/trade/building sub-policies roll out.
-Jobs prioritization now reads the governor envelope first, while keeping legacy
-AI weight payloads compatible.
-Trade governor hooks now support advisory `trade` intents for merchant reserve,
-rival caravan contests, and opportunity completion timing.
-Building governor hooks now support advisory `building` ranking signals for
-housing/economy/defense/special queues, with guardrails still enforced by the
-existing structure checks.
-Telemetry now exposes compact governor signals directly in `Pressure`,
-`Diplomacy`, and `Operations` so policy intent can be inspected live.
-Training action heads now include governor pseudo-action IDs when enabled; if
-feature/action shapes change, restart training with `--fresh`.
+- 🧠 Latest-checkpoint writes are now decoupled from log windows (`saveEvery` / `--save-every`) so long curriculum runs spend less time on disk I/O.
+- ⚡ Promote checks now require a phase-specific minimum score gain (`--min-improve`) and use more eval episodes in late phases to reduce statistical-noise promotions.
+- 🎯 Training wrappers now auto-tune worker count from CPU capacity (with bounds and manual `--workers` override) to behave better across different machines.
+- ⚙️ In auto mode, workers are also phase-aware (foundation/finetune/endgame/consolidation) and you can force flat behavior with `--workers-flat`.
+- 🧭 Regression runs now stream subprocess logs directly to per-run files, improving stability on long validation passes.
+- 🧪 Regression baseline profiles now live in `regression/baselines/` so reference snapshots are kept outside volatile debug artifacts.
+- 🗂️ Headless benchmark now supports comparative score, seed-by-seed deltas, and optional blocking gates (`--gate`) with tunable thresholds for A/B tuning.
+- 📈 Regression reports now auto-emit `.txt`, `.json`, and `.md` outputs for local inspection plus CI parsing (override paths with `--report-json/--report-md`).
+- 🧾 AI runtime now accepts a backward-compatible governor action envelope, so legacy policy files still run while jobs/trade/building sub-policies roll out.
+
+Jobs prioritization now reads the governor envelope first, while keeping legacy AI weight payloads compatible.
+Trade governor hooks now support advisory `trade` intents for merchant reserve, rival caravan contests, and opportunity completion timing.
+Building governor hooks now support advisory `building` ranking signals for housing/economy/defense/special queues, with guardrails still enforced by the existing structure checks.
+Telemetry now exposes compact governor signals directly in `Pressure`, `Diplomacy`, and `Operations` so policy intent can be inspected live.
+Training action heads now include governor pseudo-action IDs when enabled; if feature/action shapes change, restart training with `--fresh`.
 
 ## Four runs to try ⚡
 
@@ -179,8 +163,7 @@ npm run balance:gate:standard -- --set jobs.gatherTriggerRatio.food=1.1 --set jo
 
 ## Collaborate with us 🤝
 
-Open a PR or start a discussion if you want to help with simulation design, AI
-training, or terminal UX. Start with `MANUAL.md` for the technical tour. ;)
+Open a PR or start a discussion if you want to help with simulation design, AI training, or terminal UX. Start with `MANUAL.md` for the technical tour. ;)
 
 ## License 📄
 

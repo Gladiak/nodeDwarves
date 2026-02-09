@@ -1148,6 +1148,10 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
 - `render/map_inset_panel.js`
   - Renders the carved top-right in-map Ops Snapshot (`display.mapInset.*`) as a dedicated component.
   - Uses a status-stack digest focused on core progression signals: tick/year/cycle, population + age split + morale, underrealm unlock status, and current view depth.
+  - Computes a static risk level (`Stable`/`Warning`/`Critical`) from stockpile-ratio pressure, morale, shortage urgency, and active raid flags.
+  - Adds a compact alert cause tag in the inset status line (`raid`, `deepRaid`, `shortage`, `stockpile`, `morale`, `mixed`) when level is not stable.
+  - Applies semantic alert accents (`alert_warning` / `alert_critical`) to risk tokens and command strip; morale is emphasized only when morale thresholds are actually breached.
+  - Supports theme-driven focus mode (`display.themes.<id>.focus.*`) with compact critical layout and optional alert-tinted inset frame/title.
   - Keeps the keyboard-command row fixed at the bottom of the inset (symbol-first labels with short fallbacks on narrow widths).
   - Uses width-aware wording fallbacks to reduce truncation on narrow terminals.
 
@@ -1163,6 +1167,7 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
 - `render/telemetry_panel.js`
   - Builds a paged telemetry Data Center with two pages: `Overview + Deep` and `Economy`.
   - Economy page includes dedicated `AI Explainability` rows (driver ranking, shortage scoring context, governor sources/intents) plus the `Endgame` checklist block.
+  - Adds a top static risk row (`Colony risk`) with warning/critical color accents plus a compact cause tag, aligned to the same alert thresholds used by the map inset.
   - Reuses live section builders from `render/telemetry.js`, so values stay consistent across overlays.
   - Uses the full body area for live telemetry rows (no guide footer); labels are expanded directly in the telemetry rows for readability.
   - Uses dynamic size by default (roughly 98% of map view), with optional overrides via `display.telemetry_panel.width`/`height`.
@@ -1212,8 +1217,10 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
 
 - `render/colors.js` and `render/seasonal_colors.js`
   - Optional ANSI color mapping (`display.colors.map`) and seasonal palettes.
+  - Supports theme-aware color resolution via `display.theme` + `display.themes.<id>.colors.*`, merged over base `display.colors`.
+  - Theme alerts (`display.themes.<id>.alerts.*`) provide shared thresholds for warning/critical visual states in the map inset and telemetry panel.
   - Seasonal palettes can be per-terrain and per-season with patchy noise transitions.
-  - Named seasonal presets can override palette entries at runtime via `display.colors.seasonal.preset` (for example `ice_fantasy` for softer, low-contrast winter tones).
+  - Named seasonal presets can override palette entries at runtime via `display.colors.seasonal.preset` and/or theme overrides (`display.themes.<id>.colors.seasonal.*`).
   - Default spring/summer/autumn terrain colors are tuned to softer fantasy shades for readability and reduced eye strain in long runs.
   - Include `food`, `river`, and `lake` in `display.colors.seasonal.types` so winter presets remain coherent across resources and water; hills/mountains/stone are intentionally fixed across seasons.
   - Underrealm terrain uses dedicated fixed keys (`terrain_wall`, `terrain_cave`, `terrain_chasm`, `terrain_crystal`, `terrain_magma`, `terrain_shrine`) and does not consume seasonal palettes.
