@@ -42,6 +42,18 @@ Pass extra trainer flags safely through any profile command (for example):
 npm run ai:train:fast -- --fresh
 ```
 
+Force a manual worker count for all phases:
+
+```bash
+npm run ai:train:full -- --workers 6
+```
+
+Disable profile-aware worker scaling (keep one flat worker count in all phases):
+
+```bash
+npm run ai:train:full -- --workers-flat
+```
+
 ### Run trained policy 🧠
 
 ```bash
@@ -1227,14 +1239,28 @@ Important rule: if you change **resource/action lists** or **observation feature
 
 Training presets:
 
-- `ai:train` (alias of `ai:train:fast`) runs a fast baseline loop tuned for sub-5-minute runs (8 workers, 200 episodes, max_steps=1600, step_ticks=2). The difficulty ramp reaches 1.0 by episode 120 and eval runs every 20 episodes at difficulty 1.0, followed by a post-run promotion check comparing the latest policy to the best snapshot.
+- `ai:train` (alias of `ai:train:fast`) runs a fast baseline loop tuned for sub-5-minute runs (auto-tuned workers by CPU, 200 episodes, max_steps=1600, step_ticks=2). The difficulty ramp reaches 1.0 by episode 120 and eval runs every 20 episodes at difficulty 1.0, followed by a post-run promotion check comparing the latest policy to the best snapshot.
 - `ai:train:fresh` runs the same fast preset but clears existing policy and best-eval snapshots first.
 - `ai:train:fast:quality` runs the fast phase plus a short full-sim finetune at max difficulty (40 episodes, max_steps=1800). Eval cadence is 20 episodes in the fast phase and 10 episodes in finetune, with the promotion check after each phase.
+- `ai:train:full` runs the quality-first full curriculum in four phases: foundation (280 episodes), full-sim finetune (90), endgame specialization (24), and final consolidation (40). It is optimized for model quality over runtime and keeps promote checks after every phase.
+- `ai:train:full:fresh` runs the same full curriculum but starts from a clean checkpoint set (`--fresh` is applied to phase 1 only, then resume-from-best continues through later phases).
 - `ai:train:endgame` runs an intermediate endgame-enabled pass (8 episodes, max_steps=2400) with a single eval at the end. It is tuned to improve late-game quality signal while staying much faster than the older 120-episode endgame run.
 - `ai:promote:best` runs just the promotion check manually.
 - Presets generate a run-specific config in `debug/run_<timestamp>/`, align `ai.training.*Overrides.ai.maxTicks` with `max_steps * step_ticks`, and reuse that same config for `promote_best`.
 - All presets save the best model to `models/policy_best.json` (with meta in `models/policy_best.meta.json`) and resume from it unless `--fresh` is used.
 - Best-checkpoint writes are explicit in logs: `train.py` prints a colored `[BEST SAVED]` line on eval improvement, and `promote_best.py` prints the same marker when latest is promoted.
+- `promote_best.py` uses the same action-head contract as training (`resources` + optional `festival` + enabled governor pseudo action-ids), so multi-phase governor profiles do not fail on false resource-shape mismatches.
+- Wrapper phase progress is explicit in console logs (`== Phase x/n: <name> ==`) so long curriculum runs are easier to monitor.
+- Wrapper logs now use colorized status tags (`PROFILE`, `PHASE`, `TRAIN`, `PROMOTE`, `DONE`) in TTY terminals for clearer long-run progress tracking.
+- Checkpoint cadence is decoupled: `--log-every` controls summary windows, while `--save-every` controls how often `modelPath` is written; final episode save is always enforced.
+- Promote robustness guardrail: wrapper presets pass phase-specific `--min-improve` and increase `--eval-episodes` in later phases (especially endgame/consolidation) to avoid promoting checkpoints on pure eval noise.
+- Worker allocation guardrail: wrapper auto-tunes `--workers` from CPU parallelism (`auto-min`/`auto-max` bounds plus reserved cores), and a manual `--workers <n>` override always takes precedence.
+- Profile-aware worker policy: in auto mode the wrapper scales workers by phase category (`foundation` > `finetune` > `consolidation` > `endgame`) and also caps by PPO batch window (`batchEpisodes * 2`) to limit over-queued rollouts; use `--workers-flat` to disable this behavior.
+- Regression deterministic pass is eval-only: `scripts/regression.js` calls `python/promote_best.py --eval-only` for policy quality checks instead of running a quasi-train loop.
+- Regression temp artifacts are isolated per seed via `mkdtemp` workspaces (config + transient policy files), removing static `/tmp` filename collisions and cross-run side effects.
+- Regression randomized pass is rollout-only: `scripts/regression.js` calls `python/regression_rollout.py`, avoiding PPO optimizer/update overhead and checkpoint side effects.
+- In `scripts/regression.js --all`, explicit CLI knobs (`--seeds`, `--eval-*`, `--random-*`) override the stored profile config, so short smoke checks do not require editing baseline files.
+- Regression subprocess logs are streamed directly to per-run `console.log` files (instead of buffered pipes), reducing risk of buffer-cap failures in long runs.
 
 
 ### Rendering 🖼️
@@ -1351,7 +1377,6 @@ Quick checklist:
 
 - `app.js` → main terminal simulation
 - `config.json` → single source of truth for gameplay and training tunables
-- `AIGovernors.md` → living backlog for AI governors design, milestones, guardrails, and rollout checks
 - `ai_server.js` → JSON bridge for Python training
 - `src/config.js` → runtime config loader
 - `src/`
@@ -1376,6 +1401,7 @@ Quick checklist:
 - `scripts/headless_benchmark.js` → deterministic long-run headless benchmark and A/B delta reports
 - `python/train.py` → PPO trainer and best-checkpoint updates
 - `python/promote_best.py` → post-train promotion check (latest vs best)
+- `python/regression_rollout.py` → randomized regression rollouts without PPO updates/checkpoint writes
 - `python/bootstrap.py` / `python/agent.py` → venv bootstrap + sample agent
 - `docs/PARAMETERS.md` / `docs/TRAINING_OVERRIDES.md` → config and training override references
 - `models/` → `policy.json`, `policy_best.json`, `policy_best.meta.json`

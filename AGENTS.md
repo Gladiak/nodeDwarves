@@ -10,9 +10,9 @@ This file defines how to implement new features in a consistent, stable way.
 - Favor gather-first economy; build structures only when shortages justify them.
 - Keep the simulation deterministic enough for training comparison.
 - Continuously improve model intelligence and learning capability in measured, stable steps.
+- Validate every substantial change with dedicated short-run and long-run checks, and include explicit model non-regression tests before considering the change complete.
 - When implementation details are unclear, ask for clarifications before coding changes.
 - Always update README.md and MANUAL.md after new implementations or tweaks, if needed.
-- `AIGovernors.md` is the canonical backlog for the "AI governors" roadmap feature: keep it updated at every implementation/test/rollout step affecting that feature.
 - README.md is a general product feature overview; avoid deep implementation details, formulas, and low-level file-by-file behavior.
 - README.md tone: technical but playful (nerd-friendly). Use emojis.
 - MANUAL.md is the technical manual and operational runbook (systems, formulas, workflows, implementation behavior). Tone: technical-nerd and precise. Use emojis.
@@ -26,7 +26,6 @@ This file defines how to implement new features in a consistent, stable way.
 - Keep this section always aligned with the real repository layout.
 - `app.js`: entrypoint and main loop.
 - `config.json`: single source of truth for tunables.
-- `AIGovernors.md`: living backlog for AI governors architecture, guardrails, milestone rollout, and validation tracking.
 - `docs/PARAMETERS.md`: config parameter reference.
 - `docs/TRAINING_OVERRIDES.md`: training overrides guide.
 - `src/config.js`: config loader.
@@ -57,6 +56,7 @@ This file defines how to implement new features in a consistent, stable way.
 - `scripts/headless_benchmark.js`: deterministic headless benchmark CLI for long-run tuning and validation.
 - `python/bootstrap.py`: venv bootstrap.
 - `python/train.py`: PPO training loop and logging.
+- `python/regression_rollout.py`: rollout-only randomized regression runner (no PPO updates, no checkpoint writes).
 - `python/agent.py`: example Python agent.
 
 ## Config-first changes

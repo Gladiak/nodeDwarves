@@ -380,6 +380,12 @@ function processDwarfJob(dwarf, state, config, runtime) {
     return;
   }
 
+  if (job.type === 'brewery' && shouldPauseBrewing(state, config)) {
+    removeJob(state, job.id);
+    dwarf.job = null;
+    return;
+  }
+
   if (dwarf.x !== targetX || dwarf.y !== targetY) {
     const pathKey = resolveJobPathKey(job, targetX, targetY);
     moveWithDetour(
@@ -413,11 +419,6 @@ function processDwarfJob(dwarf, state, config, runtime) {
     return;
   }
   if (job.type === 'brewery') {
-    if (shouldPauseBrewing(state, config)) {
-      removeJob(state, job.id);
-      dwarf.job = null;
-      return;
-    }
     const output = getBreweryOutput(state, config, targetStructure);
     if (!output || Object.keys(output).length === 0) {
       return;

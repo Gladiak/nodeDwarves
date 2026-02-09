@@ -14,7 +14,6 @@ trade-offs emerge from shortages, weather, raids, and long-term growth pressure.
 ![NodeDwarves simulation 3](assets/NodeDwarves_3.png)
 ![NodeDwarves simulation 4](assets/NodeDwarves_4.png)
 ![NodeDwarves simulation 5](assets/NodeDwarves_5.png)
-![NodeDwarves simulation 6](assets/NodeDwarves_6.png)
 
 ## Highlights ✨
 
@@ -83,12 +82,28 @@ npm run ai:train
 npm run ai:play
 ```
 
+Quality-first full curriculum (early game + endgame + consolidation):
+
+```bash
+npm run ai:train:full:fresh
+```
+
 For training presets, evaluation, and overrides, see `MANUAL.md` and
 `docs/TRAINING_OVERRIDES.md`.
 
 Training now highlights every best-checkpoint save with a colored `[BEST SAVED]`
 line and keeps both `models/policy_best.json` and `models/policy_best.meta.json`
 in sync. 🧠
+Latest-checkpoint writes are now decoupled from log windows (`saveEvery` /
+`--save-every`) so long curriculum runs spend less time on disk I/O. ⚡
+Promote checks now require a phase-specific minimum score gain (`--min-improve`)
+and use more eval episodes in late phases to reduce statistical-noise promotions. 🎯
+Training wrappers now auto-tune worker count from CPU capacity (with bounds and
+manual `--workers` override) to behave better across different machines. ⚙️
+In auto mode, workers are also phase-aware (foundation/finetune/endgame/
+consolidation) and you can force flat behavior with `--workers-flat`. 🧭
+Regression runs now stream subprocess logs directly to per-run files, improving
+stability on long validation passes. 🧪
 
 AI runtime now accepts a backward-compatible governor action envelope, so legacy
 policy files still run while jobs/trade/building sub-policies roll out.
@@ -116,7 +131,6 @@ feature/action shapes change, restart training with `--fresh`.
 - `MANUAL.md`: technical and gameplay manual (systems, formulas, workflows).
 - `docs/PARAMETERS.md`: full config reference.
 - `docs/TRAINING_OVERRIDES.md`: training override guide.
-- `AIGovernors.md`: practical backlog and rollout plan for AI governors (jobs/trade/building).
 - `AGENTS.md`: contribution and implementation guidelines.
 
 ## Roadmap ideas 🧭
@@ -132,7 +146,6 @@ feature/action shapes change, restart training with `--fresh`.
 
 - `app.js`: entrypoint and main loop.
 - `config.json`: single source of truth for tunables.
-- `AIGovernors.md`: living implementation backlog for AI governors.
 - `src/`: simulation, state, rendering, AI.
 - `src/simulation/underrealm.js`: Underrealm crew, shrine doctrine, deep economy, exploration unlocks, and hostile faction pressure.
 - `src/simulation/world_events.js`: world event lifecycle for bards, rival caravans, and time-limited opportunities.
@@ -142,7 +155,9 @@ feature/action shapes change, restart training with `--fresh`.
 - `src/render/telemetry.js`: telemetry section builders and formatting helpers.
 - `src/render/telemetry_panel.js`: in-game paged telemetry Data Center with section pages and full-height telemetry content area.
 - `scripts/train_wrapper.js`: safe unified wrapper for all `ai:train:*` profiles.
+- `scripts/regression.js`: baseline-vs-current AI regression checks (deterministic eval + randomized stability pass).
 - `scripts/headless_benchmark.js`: deterministic headless benchmark for long-run balance tuning and validation.
+- `python/regression_rollout.py`: rollout-only randomized regression runner used by `scripts/regression.js`.
 - `python/`: PPO training + agent example.
 - `docs/`: parameter reference and training overrides.
 - `models/`: policy checkpoints.

@@ -151,7 +151,19 @@ def parse_args():
     parser.add_argument("--seed", type=int, default=defaults["seed"])
     parser.add_argument("--debug-mode", type=str, default=defaults["debug_mode"])
     parser.add_argument("--min-improve", type=float, default=0.0)
+    parser.add_argument("--eval-only", action="store_true", default=False)
     return parser.parse_args()
+
+
+# Function: build_eval_only_payload.
+def build_eval_only_payload(stats, score):
+    return {
+        "avg_reward": float(stats.get("avg_reward", 0.0)),
+        "avg_steps": float(stats.get("avg_steps", 0.0)),
+        "avg_births": float(stats.get("avg_births", 0.0)),
+        "avg_deaths": float(stats.get("avg_deaths", 0.0)),
+        "score": float(score),
+    }
 
 
 # Function: print_best_saved_line.
@@ -197,6 +209,7 @@ def main():
 
     resources = train.get_resources_from_config(config)
     resources = train.append_festival_action(resources, config)
+    resources = train.append_governor_actions(resources, config)
     if not resources:
         raise SystemExit("No resources available for evaluation. Check config.json.")
 
@@ -283,6 +296,10 @@ def main():
             eval_score_mode,
             eval_scenarios,
         )
+
+        if args.eval_only:
+            print("EVAL_ONLY " + json.dumps(build_eval_only_payload(latest_stats, latest_score), sort_keys=True))
+            return
 
         best_stats = None
         best_score = None

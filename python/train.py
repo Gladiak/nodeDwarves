@@ -80,7 +80,7 @@ TRAINING_LOGS_ENABLED = True
 DETAIL_EVAL_REGRESSION_ABS = 25.0
 DETAIL_EVAL_REGRESSION_REL = 0.01
 DETAIL_SCENARIO_SHIFT = 0.2
-BEST_EVAL_COLOR = "\033[96m"
+BEST_EVAL_COLOR = "\033[1;92m"
 COLOR_RESET = "\033[0m"
 USE_COLOR = sys.stdout.isatty()
 
@@ -592,7 +592,7 @@ def write_summary_header(
         f"difficulty_ramp={args.difficulty_ramp} min_weight={min_weight} max_weight={max_weight} "
         f"eval_max_steps={args.eval_max_steps} eval_difficulty={args.eval_difficulty} "
         f"eval_score={args.eval_score} sample_score={args.sample_score} "
-        f"full_sim={args.full_sim}\n"
+        f"full_sim={args.full_sim} save_every={args.save_every}\n"
     )
     handle.write(f"resources={' '.join(resources)}\n")
     handle.write(f"scenarios={format_scenario_weights(scenario_defs)}\n")
@@ -656,7 +656,8 @@ def write_detail_header(
         f"entropy_ramp={args.entropy_ramp} value_coef={args.value_coef} "
         f"lr={args.lr} lr_final={args.lr_final} "
         f"difficulty_start={args.difficulty_start} difficulty_end={args.difficulty_end} "
-        f"difficulty_ramp={args.difficulty_ramp} min_weight={min_weight} max_weight={max_weight}\n"
+        f"difficulty_ramp={args.difficulty_ramp} min_weight={min_weight} max_weight={max_weight} "
+        f"save_every={args.save_every}\n"
     )
     handle.write(f"resources={' '.join(resources)}\n")
     handle.write(f"scenarios={format_scenario_weights(scenario_defs)}\n")
@@ -2070,6 +2071,7 @@ def build_training_defaults(config):
         "resume_from_best": to_bool(trainer.get("resumeFromBest"), False),
         "seed": to_int(trainer.get("seed"), 0),
         "log_every": to_int(trainer.get("logEvery"), 500),
+        "save_every": to_int(trainer.get("saveEvery"), None),
         "debug_mode": to_str(
             trainer.get("debugMode", trainer.get("debug_mode")),
             "full",
@@ -2086,6 +2088,8 @@ def build_training_defaults(config):
         defaults["entropy_coef_final"] = defaults["entropy_coef"]
     if defaults["entropy_ramp"] is None:
         defaults["entropy_ramp"] = defaults["episodes"]
+    if defaults["save_every"] is None:
+        defaults["save_every"] = defaults["log_every"]
 
     return defaults
 
@@ -2130,6 +2134,7 @@ def parse_args():
     parser.add_argument("--resume-from-best", action="store_true", default=defaults["resume_from_best"])
     parser.add_argument("--seed", type=int, default=defaults["seed"])
     parser.add_argument("--log-every", type=int, default=defaults["log_every"])
+    parser.add_argument("--save-every", type=int, default=defaults["save_every"])
     parser.add_argument("--debug-mode", type=str, default=defaults["debug_mode"])
     parser.add_argument("--eval-every", type=int, default=defaults["eval_every"])
     parser.add_argument("--eval-episodes", type=int, default=defaults["eval_episodes"])
@@ -2157,6 +2162,10 @@ def parse_args():
             file=sys.stderr,
         )
     args.debug_mode = to_str(args.debug_mode, defaults["debug_mode"]).lower()
+    args.log_every = max(1, int(args.log_every))
+    args.save_every = int(args.save_every)
+    if args.save_every < 0:
+        args.save_every = 0
     if args.eval_difficulty is not None:
         args.eval_difficulty = clamp(float(args.eval_difficulty), 0.0, 1.0)
     args.eval_score = to_str(args.eval_score, defaults["eval_score"]).lower()
@@ -2425,6 +2434,7 @@ def main():
     batch_rewards = []
     batch_values = []
     batch_episode_count = 0
+    policy_dirty = False
 
     worker_count = max(1, int(args.workers))
     ctx = mp.get_context("spawn")
@@ -2597,6 +2607,7 @@ def main():
                     batch_values.clear()
                     batch_episode_count = 0
                     broadcast_weights(update_queues, get_model_payload(model), processes)
+                    policy_dirty = True
 
                 if args.lr_final is not None:
                     lr_progress = next_expected / max(1, args.episodes)
@@ -2626,6 +2637,19 @@ def main():
                             f"{rate_label}lr={optimizer.param_groups[0]['lr']:.6f} diff={difficulty:.2f} "
                             f"tick={info.get('tick')} pop={info.get('population')}"
                         )
+                    reward_window = 0.0
+                    steps_window = 0
+                    births_window = 0
+                    deaths_window = 0
+                    debug_window = init_debug_accumulator()
+                    window_start = next_expected + 1
+                    window_start_time = time.perf_counter()
+
+                save_due = (
+                    next_expected == args.episodes
+                    or (args.save_every > 0 and next_expected % args.save_every == 0)
+                )
+                if save_due and (policy_dirty or next_expected == args.episodes):
                     save_policy(
                         args.model_path,
                         model,
@@ -2636,13 +2660,7 @@ def main():
                         args.activation,
                         model.log_std,
                     )
-                    reward_window = 0.0
-                    steps_window = 0
-                    births_window = 0
-                    deaths_window = 0
-                    debug_window = init_debug_accumulator()
-                    window_start = next_expected + 1
-                    window_start_time = time.perf_counter()
+                    policy_dirty = False
 
                 if (
                     TRAINING_LOGS_ENABLED

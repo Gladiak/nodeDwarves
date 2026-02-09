@@ -47,7 +47,21 @@ function assignJobs(state, config, runtime, action) {
 
   const buildQueue = createBuildQueueState(state, config);
   const mineQueue = createMineQueueState(state, config, buildQueue);
-  const brewingPaused = shouldPauseBrewing(state, config);
+  const roleConfig = getRoleConfig(config);
+  const emergency = isEmergencyGather(state, config, roleConfig);
+  if (emergency) {
+    releaseEmergencyStructureJobs(state, config);
+    idleDwarves = state.dwarves.filter(
+      (dwarf) => !dwarf.job && canWork(dwarf, config),
+    );
+    if (idleDwarves.length === 0) {
+      return;
+    }
+  }
+
+  const breweryConfig = (config.structures && config.structures.brewery) || {};
+  const brewingPaused = shouldPauseBrewing(state, config)
+    || (emergency && breweryConfig.pauseOnEmergency !== false);
   if (!brewingPaused) {
     const brewers = idleDwarves.filter((dwarf) => dwarf.role === "brewmaster");
     idleDwarves = idleDwarves.filter((dwarf) => dwarf.role !== "brewmaster");
@@ -59,8 +73,6 @@ function assignJobs(state, config, runtime, action) {
     return;
   }
 
-  const roleConfig = getRoleConfig(config);
-  const emergency = isEmergencyGather(state, config, roleConfig);
   const managerActive =
     roleConfig.enabled &&
     roleConfig.managerRatio > 0 &&
@@ -208,6 +220,48 @@ function canWork(dwarf, config) {
     && Number(dwarf.underrealmDuty.depth || 0) > 0,
   );
   return isAdult(dwarf, config) && !dwarf.expedition && !underrealmDutyActive;
+}
+
+// Release persistent structure jobs when emergency gather should take priority.
+function releaseEmergencyStructureJobs(state, config) {
+  const structures = (config && config.structures) || {};
+  const releaseMine = (structures.mine || {}).pauseOnEmergency !== false;
+  const releaseSawmill = (structures.sawmill || {}).pauseOnEmergency !== false;
+  const releaseBrewery = (structures.brewery || {}).pauseOnEmergency !== false;
+  const releaseArmory = (structures.armory || {}).pauseOnEmergency !== false;
+  const releaseTypes = new Set();
+  if (releaseMine) {
+    releaseTypes.add("mine");
+  }
+  if (releaseSawmill) {
+    releaseTypes.add("sawmill");
+  }
+  if (releaseBrewery) {
+    releaseTypes.add("brewery");
+  }
+  if (releaseArmory) {
+    releaseTypes.add("armory");
+  }
+  if (releaseTypes.size === 0) {
+    return;
+  }
+
+  const removedIds = new Set();
+  for (const job of state.jobs || []) {
+    if (releaseTypes.has(job.type)) {
+      removedIds.add(job.id);
+    }
+  }
+  if (removedIds.size === 0) {
+    return;
+  }
+
+  for (const dwarf of state.dwarves || []) {
+    if (dwarf.job && removedIds.has(dwarf.job.id)) {
+      dwarf.job = null;
+    }
+  }
+  state.jobs = (state.jobs || []).filter((job) => !removedIds.has(job.id));
 }
 
 // Take an idle dwarf with the requested role if available.

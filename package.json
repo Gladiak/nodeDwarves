@@ -11,6 +11,8 @@
     "ai:train:fresh": "node scripts/train_wrapper.js fast --fresh",
     "ai:train:fast": "node scripts/train_wrapper.js fast",
     "ai:train:fast:quality": "node scripts/train_wrapper.js quality",
+    "ai:train:full": "node scripts/train_wrapper.js full",
+    "ai:train:full:fresh": "node scripts/train_wrapper.js full --fresh",
     "ai:train:endgame": "node scripts/train_wrapper.js endgame",
     "ai:train:benchmark": "node scripts/train_wrapper.js benchmark",
     "ai:promote:best": "npm run ai:bootstrap --silent && ./.venv/bin/python python/promote_best.py",
