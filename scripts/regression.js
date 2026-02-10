@@ -46,6 +46,15 @@ const RANDOM_REPORT_METRICS = [
   'raid_deaths',
   'raid_exposed',
   'raid_defense',
+  'under_depthProgress',
+  'under_championProgress',
+  'under_frontierContested',
+  'under_championCooldown',
+  'under_readinessScore',
+  'under_readinessGap',
+  'under_readinessBlocked',
+  'under_readinessWarning',
+  'under_combatPressure',
   'node_food',
   'node_water',
   'node_wood',
@@ -319,16 +328,23 @@ function parseSummaryLog(summaryPath) {
     /raid\[count=([0-9.]+) deaths=([0-9.]+) exp=([0-9.]+) def=([0-9.]+)[^\]]*\]/,
   );
   const shortSection = extractSection(line, 'short=', ' nodes=');
-  const nodesSection = extractSection(line, 'nodes=', ' term=');
+  const nodesSection = extractSection(line, 'nodes=', ' under=')
+    || extractSection(line, 'nodes=', ' term=');
+  const underSection = extractSection(line, 'under=', ' term=');
   const shortMap = parseKeyValueMap(shortSection);
   const nodesMap = parseKeyValueMap(nodesSection);
+  const underMap = parseKeyValueMap(underSection);
   const shortMetrics = {};
   const nodeMetrics = {};
+  const underMetrics = {};
   for (const [key, value] of Object.entries(shortMap)) {
     shortMetrics[`short_${key}`] = value;
   }
   for (const [key, value] of Object.entries(nodesMap)) {
     nodeMetrics[`node_${key}`] = value;
+  }
+  for (const [key, value] of Object.entries(underMap)) {
+    underMetrics[`under_${key}`] = value;
   }
   return {
     avg_reward: readFloat(line, 'avg_reward'),
@@ -346,6 +362,7 @@ function parseSummaryLog(summaryPath) {
     raid_defense: raidMatch ? Number(raidMatch[4]) : null,
     ...shortMetrics,
     ...nodeMetrics,
+    ...underMetrics,
   };
 }
 
@@ -485,6 +502,7 @@ function buildLegendLines() {
     '- Key metrics: avg_reward/score (policy quality), avg_steps (survival), stock_min/stock_avg (buffer),',
     '  avg_births/avg_deaths (population flow), crit/idle (strain/utilization), extinction_rate (failures).',
     '- raid_*: avg raid count/deaths/exposure/defense; short_*: avg shortage ratio by resource; node_*: avg node capacity ratio.',
+    '- under_*: averaged Underrealm combat/progression bundle from trainer summaries (depth/champion/readiness/pressure).',
   ];
 }
 

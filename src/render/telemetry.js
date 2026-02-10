@@ -623,25 +623,33 @@ function buildStableUnderrealmRows(underrealmLines) {
     return [
       "Realm: Inactive",
       "Hidden gate: -",
+      "Depth progression: -",
+      "Champion gate: -",
+      "Readiness gate: -",
       "Strata: -",
-      "Depth stock reserves: -",
-      "Depth survey progress: -",
       "Delver role ratios: -",
       "Assigned delvers: -",
-      "Ward status: -",
-      "Deep threat level: -",
+      "Underrealm pressure: -",
     ];
   }
   return [
     findLineByPrefix(lines, ["Realm:"], "Realm: -"),
     findLineByPrefix(lines, ["Hidden gate search time:", "Hidden gate:"], "Hidden gate: -"),
+    findLineByPrefix(
+      lines,
+      ["Depth progression:", "Deep lift progress", "Depth survey progress:"],
+      "Depth progression: -",
+    ),
+    findLineByPrefix(lines, ["Champion gate:"], "Champion gate: -"),
+    findLineByPrefix(lines, ["Readiness gate:"], "Readiness gate: -"),
     findLineByPrefix(lines, ["Strata:"], "Strata: -"),
-    findLineByPrefix(lines, ["Depth stock reserves:"], "Depth stock reserves: -"),
-    findLineByPrefix(lines, ["Depth survey progress:"], "Depth survey progress: -"),
     findLineByPrefix(lines, ["Delver role ratios:"], "Delver role ratios: -"),
     findLineByPrefix(lines, ["Assigned delvers:"], "Assigned delvers: -"),
-    findLineByPrefix(lines, ["Ward charges available:", "Shrine oath status:"], "Ward status: -"),
-    findLineByPrefix(lines, ["Deep threat level:", "Deep lift progress"], "Deep threat level: -"),
+    findLineByPrefix(
+      lines,
+      ["Underrealm pressure:", "Deep threat level:", "Ward charges available:", "Shrine oath status:"],
+      "Underrealm pressure: -",
+    ),
   ];
 }
 
@@ -1513,6 +1521,12 @@ function buildRuinsTelemetryLines(state, config, columnWidth) {
   const kitResource = expeditionConfig.kitResource || "expedition_kit";
   const kits = Number(state.stockpile[kitResource] || 0);
   lines.push(`Expedition kits in stock: ${formatCompactNumber(kits)}`);
+  const readinessGate = ruins.readinessGate && typeof ruins.readinessGate === "object"
+    ? ruins.readinessGate
+    : null;
+  if (readinessGate && Number(readinessGate.depth || 0) > 0) {
+    lines.push(formatRuinsReadinessGateLine(readinessGate));
+  }
 
   const artifactLines = buildArtifactProgressLines(
     ruins,
@@ -1622,6 +1636,188 @@ function buildRuinsBonusLines(ruins, columnWidth) {
   return lines;
 }
 
+// Format one compact readiness gate line for ruins expedition telemetry.
+function formatRuinsReadinessGateLine(readinessGate) {
+  const depth = Math.max(1, Math.floor(Number(readinessGate.depth || 1)));
+  const status = String(readinessGate.status || "unknown");
+  const score = Math.max(0, Number(readinessGate.score || 0)).toFixed(1);
+  const minScore = Math.max(0, Number(readinessGate.minScore || 0)).toFixed(1);
+  const recommended = Math.max(minScore, Number(readinessGate.recommendedScore || 0)).toFixed(1);
+  if (status === "blocked") {
+    if (readinessGate.reason === "armory_level") {
+      const level = Math.max(0, Math.floor(Number(readinessGate.armoryLevel || 0)));
+      const required = Math.max(1, Math.floor(Number(readinessGate.minArmoryLevel || 1)));
+      return `Readiness gate: D${depth} BLOCKED armory ${level}/${required}`;
+    }
+    if (readinessGate.reason === "champion_cooldown") {
+      const cooldown = Math.max(0, Math.floor(Number(readinessGate.championCooldownTicks || 0)));
+      return `Readiness gate: D${depth} BLOCKED champion cd ${cooldown}t`;
+    }
+    return `Readiness gate: D${depth} BLOCKED score ${score}/${minScore}`;
+  }
+  if (status === "warning") {
+    const risk = Math.max(1, Number(readinessGate.warningRiskMultiplier || 1)).toFixed(2);
+    return `Readiness gate: D${depth} warning score ${score}/${recommended} risk x${risk}`;
+  }
+  return `Readiness gate: D${depth} ready score ${score}/${recommended}`;
+}
+
+// Resolve one Underrealm combat floor snapshot by depth.
+function getUnderrealmCombatFloor(underrealm, depth) {
+  const combat = underrealm && underrealm.combat;
+  const floors = combat && combat.floorsByDepth && typeof combat.floorsByDepth === "object"
+    ? combat.floorsByDepth
+    : null;
+  if (!floors) {
+    return null;
+  }
+  const safeDepth = Math.max(1, Math.floor(Number(depth || 1)));
+  return floors[String(safeDepth)] || floors[safeDepth] || null;
+}
+
+// Build a compact progression status line for the current frontier depth.
+function formatUnderrealmProgressionLine(underrealm, frontierLayer, maxUnlockedDepth, maxDepth) {
+  if (maxDepth <= 0) {
+    return "Depth progression: unavailable";
+  }
+  if (maxUnlockedDepth <= 0) {
+    return "Depth progression: gate locked";
+  }
+  if (maxUnlockedDepth >= maxDepth) {
+    return `Depth progression: D${maxDepth} max unlocked`;
+  }
+
+  const lift = underrealm && underrealm.lift ? underrealm.lift : null;
+  if (lift && lift.active === true) {
+    const totalTicks = Math.max(1, Number(lift.totalTicks || 1));
+    const remainingTicks = Math.max(0, Number(lift.ticksRemaining || 0));
+    const pct = Math.max(0, Math.min(100, Math.round((1 - remainingTicks / totalTicks) * 100)));
+    return `Depth progression: lift D${lift.fromDepth}->D${lift.targetDepth} ${pct}%`;
+  }
+
+  const frontierFloor = getUnderrealmCombatFloor(underrealm, maxUnlockedDepth);
+  const championRequired = Boolean(
+    frontierFloor
+    && frontierFloor.unlock
+    && frontierFloor.unlock.required === true
+    && frontierFloor.champion
+    && frontierFloor.champion.enabled !== false,
+  );
+  const championCleared = Boolean(
+    frontierFloor
+    && frontierFloor.unlock
+    && frontierFloor.unlock.cleared === true,
+  );
+  if (championRequired && !championCleared) {
+    return `Depth progression: D${maxUnlockedDepth + 1} locked by champion`;
+  }
+
+  if (frontierLayer && frontierLayer.economy) {
+    const progress = Math.max(0, Number(frontierLayer.economy.explorationProgress || 0));
+    const target = Math.max(0, Number(frontierLayer.economy.explorationTarget || 0));
+    if (target > 0) {
+      const pct = Math.min(100, Math.round((progress / target) * 100));
+      return `Depth progression: D${maxUnlockedDepth} survey ${pct}%`;
+    }
+  }
+
+  return `Depth progression: D${maxUnlockedDepth}->D${maxUnlockedDepth + 1} pending`;
+}
+
+// Build a compact champion-gate status line for the frontier depth.
+function formatUnderrealmChampionGateLine(underrealm, frontierDepth) {
+  const combat = underrealm && underrealm.combat;
+  if (!combat || combat.enabled === false) {
+    return "Champion gate: off";
+  }
+  if (frontierDepth <= 0) {
+    return "Champion gate: unavailable";
+  }
+  const floor = getUnderrealmCombatFloor(underrealm, frontierDepth);
+  if (!floor) {
+    return `Champion gate: D${frontierDepth} missing`;
+  }
+  const championRequired = Boolean(
+    floor.unlock
+    && floor.unlock.required === true
+    && floor.champion
+    && floor.champion.enabled !== false,
+  );
+  if (!championRequired) {
+    return `Champion gate: D${frontierDepth} bypassed`;
+  }
+
+  const encounter = floor.encounter && typeof floor.encounter === "object"
+    ? floor.encounter
+    : {};
+  const attempts = Math.max(0, Math.floor(Number(encounter.attempts || 0)));
+  const wins = Math.max(0, Math.floor(Number(encounter.victories || 0)));
+  const defeats = Math.max(0, Math.floor(Number(encounter.defeats || 0)));
+  const retreats = Math.max(0, Math.floor(Number(encounter.retreats || 0)));
+  const cooldown = Math.max(0, Math.floor(Number(encounter.cooldownTicksRemaining || 0)));
+  const cleared = floor.unlock && floor.unlock.cleared === true;
+  const stateLabel = cleared ? "cleared" : String(floor.state || "accessible");
+
+  if (cooldown > 0 && !cleared) {
+    return `Champion gate: D${frontierDepth} ${stateLabel} cd${cooldown} W${wins}D${defeats}R${retreats}`;
+  }
+  if (cleared) {
+    return `Champion gate: D${frontierDepth} cleared W${wins}/A${attempts}`;
+  }
+  return `Champion gate: D${frontierDepth} ${stateLabel} W${wins}D${defeats}R${retreats}`;
+}
+
+// Build readiness fallback from frontier floor when ruins gate snapshot is unavailable.
+function formatUnderrealmReadinessFallbackLine(underrealm, frontierDepth) {
+  const combat = underrealm && underrealm.combat;
+  if (!combat || combat.enabled === false || frontierDepth <= 0) {
+    return "Readiness gate: -";
+  }
+  const floor = getUnderrealmCombatFloor(underrealm, frontierDepth);
+  if (!floor) {
+    return `Readiness gate: D${frontierDepth} unavailable`;
+  }
+  const minScore = Math.max(
+    0,
+    Number(floor.readiness && floor.readiness.minScore || 0),
+  ).toFixed(1);
+  const recommendedValue = Math.max(
+    Number(minScore),
+    Number(floor.readiness && floor.readiness.recommendedScore || minScore),
+  );
+  const recommended = Number.isFinite(recommendedValue)
+    ? recommendedValue.toFixed(1)
+    : minScore;
+  const minArmory = Math.max(1, Math.floor(Number(floor.minArmoryLevel || 1)));
+  return `Readiness gate: D${frontierDepth} min ${minScore}/${recommended} armory ${minArmory}`;
+}
+
+// Build a compact pressure line from ward/oath status and deep hostile activity.
+function formatUnderrealmPressureLine(underrealm, activeDepth, activeRaidCount) {
+  const parts = [];
+  if (activeDepth > 0 && underrealm && underrealm.shrines) {
+    const depthKey = String(activeDepth);
+    const charges = Math.max(
+      0,
+      Number(
+        underrealm.shrines.wardChargesByDepth
+        && underrealm.shrines.wardChargesByDepth[depthKey],
+      ),
+    );
+    parts.push(`ward ${Math.floor(charges)}`);
+    const oath = underrealm.shrines.oathByDepth && underrealm.shrines.oathByDepth[depthKey];
+    if (oath && Number(oath.activeTicks || 0) > 0) {
+      parts.push(`oath active ${Math.floor(Number(oath.activeTicks || 0))}t`);
+    } else if (oath && Number(oath.penaltyTicks || 0) > 0) {
+      parts.push(`oath unrest ${Math.floor(Number(oath.penaltyTicks || 0))}t`);
+    } else {
+      parts.push("oath idle");
+    }
+  }
+  parts.push(`threats ${Math.max(0, Math.floor(Number(activeRaidCount || 0)))}`);
+  return `Underrealm pressure: ${parts.join(" | ")}`;
+}
+
 // Build underrealm status lines for the dedicated Underrealm telemetry section.
 function getUnderrealmTelemetryLines(state) {
   const underrealm = state && state.underrealm;
@@ -1645,6 +1841,9 @@ function getUnderrealmTelemetryLines(state) {
   } else {
     lines.push(`Realm: Underrealm depth ${activeDepth} (unlocked depths ${maxUnlockedDepth}/${maxDepth})`);
   }
+  const frontierDepth = clamp(maxUnlockedDepth, 0, maxDepth);
+  const layers = Array.isArray(underrealm.layers) ? underrealm.layers : [];
+  const frontierLayer = layers.find((layer) => Number(layer && layer.depth) === frontierDepth);
   const discovery = underrealm.discovery || null;
   if (maxUnlockedDepth <= 0 && discovery && discovery.enabled !== false && discovery.found !== true) {
     const threshold = Math.max(1, Math.floor(Number(discovery.populationThreshold || 1)));
@@ -1662,7 +1861,16 @@ function getUnderrealmTelemetryLines(state) {
   } else if (discovery && discovery.enabled !== false && discovery.found === true) {
     lines.push('Hidden gate: discovered');
   }
-  const layers = Array.isArray(underrealm.layers) ? underrealm.layers : [];
+  lines.push(
+    formatUnderrealmProgressionLine(
+      underrealm,
+      frontierLayer,
+      maxUnlockedDepth,
+      maxDepth,
+    ),
+  );
+  lines.push(formatUnderrealmChampionGateLine(underrealm, frontierDepth));
+
   const activeLayer = layers.find((layer) => Number(layer && layer.depth) === activeDepth);
   if (activeLayer) {
     lines.push(
@@ -1693,9 +1901,9 @@ function getUnderrealmTelemetryLines(state) {
   if (crew && crew.enabled !== false) {
     const roles = crew.roles || {};
     lines.push(
-      `Delver role ratios: miners ${Math.round(clamp(Number(roles.minerRatio || 0), 0, 1) * 100)}%`
-      + ` | haulers ${Math.round(clamp(Number(roles.haulerRatio || 0), 0, 1) * 100)}%`
-      + ` | guards ${Math.round(clamp(Number(roles.guardRatio || 0), 0, 1) * 100)}%`,
+      `Delver role ratios: M${Math.round(clamp(Number(roles.minerRatio || 0), 0, 1) * 100)}%`
+      + ` H${Math.round(clamp(Number(roles.haulerRatio || 0), 0, 1) * 100)}%`
+      + ` G${Math.round(clamp(Number(roles.guardRatio || 0), 0, 1) * 100)}%`,
     );
     const assignedByDepth = crew.assignedByDepth || {};
     let assignedTotal = 0;
@@ -1705,39 +1913,25 @@ function getUnderrealmTelemetryLines(state) {
     const surfaceAdults = Math.max(0, Number(crew.surfaceAdults || 0));
     lines.push(`Assigned delvers: ${assignedTotal} | Surface adults: ${surfaceAdults}`);
   }
-  if (activeDepth > 0 && underrealm.shrines) {
-    const depthKey = String(activeDepth);
-    const charges = Math.max(
-      0,
-      Number(
-        underrealm.shrines.wardChargesByDepth
-        && underrealm.shrines.wardChargesByDepth[depthKey],
-      ),
-    );
-    lines.push(`Ward charges available: ${Math.floor(charges)}`);
-    const oath = underrealm.shrines.oathByDepth && underrealm.shrines.oathByDepth[depthKey];
-    if (oath && Number(oath.activeTicks || 0) > 0) {
-      lines.push(`Shrine oath status: active (${Math.floor(Number(oath.activeTicks || 0))} ticks remaining)`);
-    } else if (oath && Number(oath.penaltyTicks || 0) > 0) {
-      lines.push(`Shrine oath status: unrest (${Math.floor(Number(oath.penaltyTicks || 0))} ticks remaining)`);
-    }
-  }
   const deepFaction = underrealm.deepFaction || null;
+  let activeRaidCount = 0;
   if (deepFaction && deepFaction.activeRaidsByDepth) {
     const activeRaids = Object.values(deepFaction.activeRaidsByDepth)
       .filter((raid) => raid && Number(raid.ticksRemaining || 0) > 0);
-    if (activeRaids.length > 0) {
-      lines.push(`Deep threat level: ${activeRaids.length} active raid(s)`);
-    }
+    activeRaidCount = activeRaids.length;
   }
-  if (maxUnlockedDepth > 0 && maxUnlockedDepth < maxDepth) {
-    const lift = underrealm.lift || null;
-    if (lift && lift.active === true) {
-      const totalTicks = Math.max(1, Number(lift.totalTicks || 1));
-      const remainingTicks = Math.max(0, Number(lift.ticksRemaining || 0));
-      const pct = Math.max(0, Math.min(100, Math.round((1 - remainingTicks / totalTicks) * 100)));
-      lines.push(`Deep lift progress D${lift.fromDepth} to D${lift.targetDepth}: ${pct}%`);
-    }
+  lines.push(formatUnderrealmPressureLine(underrealm, activeDepth, activeRaidCount));
+
+  const ruinsGate = state
+    && state.ruins
+    && state.ruins.readinessGate
+    && typeof state.ruins.readinessGate === "object"
+    ? state.ruins.readinessGate
+    : null;
+  if (ruinsGate && Number(ruinsGate.depth || 0) > 0) {
+    lines.push(formatRuinsReadinessGateLine(ruinsGate));
+  } else {
+    lines.push(formatUnderrealmReadinessFallbackLine(underrealm, frontierDepth));
   }
   return lines;
 }

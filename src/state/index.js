@@ -1155,6 +1155,275 @@ function createUnderrealmShrineState(previousShrines) {
   };
 }
 
+const UNDERREALM_FLOOR_STATE_SET = new Set(['locked', 'accessible', 'contested', 'cleared']);
+
+// Resolve floor-specific Underrealm combat scaffolding from config.
+function resolveUnderrealmCombatFloorConfig(underrealmConfig, depth) {
+  const combat = (underrealmConfig && underrealmConfig.combat) || {};
+  const floors = combat.floors || {};
+  const defaults = floors.defaults || {};
+  const defaultReadiness = defaults.readiness || {};
+  const defaultChampion = defaults.champion || {};
+  const byDepth = floors.by_depth || {};
+  const depthOverride = byDepth && typeof byDepth === 'object'
+    ? (byDepth[String(depth)] || {})
+    : {};
+  const depthReadiness = depthOverride.readiness || {};
+  const depthChampion = depthOverride.champion || {};
+  const depthOffset = Math.max(0, depth - 1);
+
+  const minScoreDefault = Math.max(
+    0,
+    Number(defaultReadiness.min_score_base ?? 18)
+      + Number(defaultReadiness.min_score_per_depth ?? 8) * depthOffset,
+  );
+  const recommendedScoreDefault = Math.max(
+    minScoreDefault,
+    Number(defaultReadiness.recommended_score_base ?? 27)
+      + Number(defaultReadiness.recommended_score_per_depth ?? 10) * depthOffset,
+  );
+  const minScore = Math.max(0, Number(depthReadiness.min_score ?? minScoreDefault));
+  const recommendedScore = Math.max(
+    minScore,
+    Number(depthReadiness.recommended_score ?? recommendedScoreDefault),
+  );
+
+  const minArmoryLevelDefault = Math.max(
+    1,
+    Math.floor(
+      Number(defaults.min_armory_level_base ?? 1)
+        + Number(defaults.min_armory_level_per_depth ?? 0) * depthOffset,
+    ),
+  );
+  const minArmoryLevel = Math.max(
+    1,
+    Math.floor(Number(depthOverride.min_armory_level ?? minArmoryLevelDefault)),
+  );
+
+  const championEnabled = (depthChampion.enabled ?? defaultChampion.enabled) !== false;
+  const championIdPrefix = String(defaultChampion.id_prefix || 'under_champion');
+  const championLabelPrefix = String(defaultChampion.label_prefix || 'Depth Champion');
+  const championHpDefault = Math.max(
+    1,
+    Number(defaultChampion.hp_base ?? 105)
+      + Number(defaultChampion.hp_per_depth ?? 28) * depthOffset,
+  );
+  const championAttackDefault = Math.max(
+    0,
+    Number(defaultChampion.attack_base ?? 9)
+      + Number(defaultChampion.attack_per_depth ?? 2) * depthOffset,
+  );
+  const championDefenseDefault = Math.max(
+    0,
+    Number(defaultChampion.defense_base ?? 7)
+      + Number(defaultChampion.defense_per_depth ?? 2) * depthOffset,
+  );
+  const championPenetrationDefault = clamp(
+    Number(defaultChampion.penetration_base ?? 0.03)
+      + Number(defaultChampion.penetration_per_depth ?? 0.01) * depthOffset,
+    0,
+    1,
+  );
+  return {
+    minArmoryLevel,
+    readiness: {
+      minScore,
+      recommendedScore,
+    },
+    champion: {
+      enabled: championEnabled,
+      id: String(depthChampion.id || `${championIdPrefix}_${depth}`),
+      label: String(depthChampion.label || `${championLabelPrefix} D${depth}`),
+      stats: {
+        hp: Math.max(1, Number(depthChampion.hp ?? championHpDefault)),
+        attack: Math.max(0, Number(depthChampion.attack ?? championAttackDefault)),
+        defense: Math.max(0, Number(depthChampion.defense ?? championDefenseDefault)),
+        penetration: clamp(
+          Number(depthChampion.penetration ?? championPenetrationDefault),
+          0,
+          1,
+        ),
+      },
+    },
+  };
+}
+
+// Normalize floor progression state while enforcing depth unlock constraints.
+function normalizeUnderrealmFloorState(rawState, unlocked) {
+  const fallback = unlocked ? 'accessible' : 'locked';
+  if (typeof rawState !== 'string' || !UNDERREALM_FLOOR_STATE_SET.has(rawState)) {
+    return fallback;
+  }
+  if (!unlocked) {
+    return 'locked';
+  }
+  if (rawState === 'locked') {
+    return 'accessible';
+  }
+  return rawState;
+}
+
+// Build per-depth Underrealm combat runtime scaffolding.
+function createUnderrealmCombatFloorState(underrealmConfig, depth, maxUnlockedDepth, previousFloor) {
+  const floorConfig = resolveUnderrealmCombatFloorConfig(underrealmConfig, depth);
+  const unlocked = depth <= maxUnlockedDepth;
+  const previousEncounter = previousFloor && previousFloor.encounter
+    ? previousFloor.encounter
+    : {};
+  const state = normalizeUnderrealmFloorState(previousFloor ? previousFloor.state : null, unlocked);
+  const cleared = state === 'cleared'
+    || Boolean(
+      previousFloor
+      && previousFloor.unlock
+      && previousFloor.unlock.cleared === true,
+    );
+  return {
+    depth,
+    unlocked,
+    state: cleared ? 'cleared' : state,
+    minArmoryLevel: floorConfig.minArmoryLevel,
+    readiness: {
+      minScore: floorConfig.readiness.minScore,
+      recommendedScore: floorConfig.readiness.recommendedScore,
+    },
+    champion: floorConfig.champion,
+    encounter: {
+      active: previousEncounter.active === true,
+      attempts: Math.max(0, Math.floor(Number(previousEncounter.attempts || 0))),
+      victories: Math.max(0, Math.floor(Number(previousEncounter.victories || 0))),
+      defeats: Math.max(0, Math.floor(Number(previousEncounter.defeats || 0))),
+      retreats: Math.max(0, Math.floor(Number(previousEncounter.retreats || 0))),
+      lastOutcome: typeof previousEncounter.lastOutcome === 'string'
+        ? previousEncounter.lastOutcome
+        : null,
+      lastOutcomeTick: Math.max(
+        0,
+        Math.floor(Number(previousEncounter.lastOutcomeTick || 0)),
+      ),
+      cooldownTicksRemaining: Math.max(
+        0,
+        Math.floor(Number(previousEncounter.cooldownTicksRemaining || 0)),
+      ),
+    },
+    unlock: {
+      required: floorConfig.champion.enabled === true,
+      cleared,
+      unlocksDepthOnWin: Math.max(
+        depth + 1,
+        Math.floor(Number(
+          previousFloor
+          && previousFloor.unlock
+          && previousFloor.unlock.unlocksDepthOnWin
+            ? previousFloor.unlock.unlocksDepthOnWin
+            : depth + 1,
+        )),
+      ),
+    },
+  };
+}
+
+// Build or refresh top-level Underrealm combat runtime scaffolding.
+function createUnderrealmCombatState(config, maxDepth, maxUnlockedDepth, previousUnderrealm) {
+  const underrealmConfig = getUnderrealmConfig(config);
+  const combatConfig = underrealmConfig.combat || {};
+  const readiness = combatConfig.readiness || {};
+  const readinessFormula = readiness.formula || {};
+  const scoreWeights = readiness.score_weights || {};
+  const encounterConfig = combatConfig.encounter || {};
+  const previousCombat = previousUnderrealm && previousUnderrealm.combat
+    && typeof previousUnderrealm.combat === 'object'
+    ? previousUnderrealm.combat
+    : null;
+  const previousFloors = previousCombat && previousCombat.floorsByDepth
+    && typeof previousCombat.floorsByDepth === 'object'
+    ? { ...previousCombat.floorsByDepth }
+    : {};
+  if (Object.keys(previousFloors).length === 0) {
+    for (const layer of (previousUnderrealm && previousUnderrealm.layers) || []) {
+      const depth = Math.max(1, Math.floor(Number(layer && layer.depth || 0)));
+      if (!layer || !layer.combat || typeof layer.combat !== 'object' || depth <= 0) {
+        continue;
+      }
+      previousFloors[String(depth)] = layer.combat;
+    }
+  }
+  const floorsByDepth = {};
+  for (let depth = 1; depth <= maxDepth; depth += 1) {
+    const previousFloor = previousFloors[String(depth)] || previousFloors[depth] || null;
+    floorsByDepth[String(depth)] = createUnderrealmCombatFloorState(
+      underrealmConfig,
+      depth,
+      maxUnlockedDepth,
+      previousFloor,
+    );
+  }
+  const previousStats = previousCombat && previousCombat.stats
+    && typeof previousCombat.stats === 'object'
+    ? previousCombat.stats
+    : {};
+  return {
+    enabled: combatConfig.enabled !== false,
+    progressionMode: String(combatConfig.progression_mode || 'champion_gate'),
+    readiness: {
+      hardMinGate: readiness.hard_min_gate !== false,
+      warningZoneRiskMultiplier: Math.max(
+        1,
+        Number(readiness.warning_zone_risk_multiplier ?? 1.2),
+      ),
+      scoreWeights: {
+        offense: Math.max(0, Number(scoreWeights.offense ?? 1)),
+        defense: Math.max(0, Number(scoreWeights.defense ?? 1)),
+        support: Math.max(0, Number(scoreWeights.support ?? 0.8)),
+      },
+      formula: {
+        weaponAvgTierScale: Math.max(
+          0,
+          Number(readinessFormula.weapon_avg_tier_scale ?? 6),
+        ),
+        armorAvgTierScale: Math.max(
+          0,
+          Number(readinessFormula.armor_avg_tier_scale ?? 6),
+        ),
+        supportKitFullScale: Math.max(
+          0,
+          Number(readinessFormula.support_kit_full_scale ?? 8),
+        ),
+        supportArmoryLevelScale: Math.max(
+          0,
+          Number(readinessFormula.support_armory_level_scale ?? 1),
+        ),
+      },
+    },
+    encounter: {
+      roundsBase: Math.max(1, Math.floor(Number(encounterConfig.rounds_base ?? 4))),
+      roundsPerDepth: Math.max(0, Math.floor(Number(encounterConfig.rounds_per_depth ?? 1))),
+      retryCooldownTicksBase: Math.max(
+        0,
+        Math.floor(Number(encounterConfig.retry_cooldown_ticks_base ?? 90)),
+      ),
+      retryCooldownTicksPerDepth: Math.max(
+        0,
+        Math.floor(Number(encounterConfig.retry_cooldown_ticks_per_depth ?? 20)),
+      ),
+    },
+    floorsByDepth,
+    stats: {
+      championsDefeated: Math.max(
+        0,
+        Math.floor(Number(previousStats.championsDefeated || 0)),
+      ),
+      failedExpeditions: Math.max(
+        0,
+        Math.floor(Number(previousStats.failedExpeditions || 0)),
+      ),
+      blockedDispatches: Math.max(
+        0,
+        Math.floor(Number(previousStats.blockedDispatches || 0)),
+      ),
+    },
+  };
+}
+
 // Build underrealm runtime state with full-size depth layers.
 function createUnderrealmState(config, runtime, surfaceTerrain, previousUnderrealm) {
   const underrealm = getUnderrealmConfig(config);
@@ -1204,6 +1473,12 @@ function createUnderrealmState(config, runtime, surfaceTerrain, previousUnderrea
   const activeDepth = clamp(previousActiveDepth, 0, maxUnlockedDepth);
   const difficultyPerDepth = clamp(Number(underrealm.difficulty_per_depth ?? 0.08), 0, 1);
   const rareDropPerDepth = clamp(Number(underrealm.rare_drop_per_depth ?? 0.1), 0, 1);
+  const combat = createUnderrealmCombatState(
+    config,
+    maxDepth,
+    maxUnlockedDepth,
+    previousUnderrealm || null,
+  );
   const previousLayers = previousUnderrealm && Array.isArray(previousUnderrealm.layers)
     ? previousUnderrealm.layers
     : [];
@@ -1226,6 +1501,9 @@ function createUnderrealmState(config, runtime, surfaceTerrain, previousUnderrea
       layerSeed,
       depth,
     );
+    const floorCombat = combat && combat.floorsByDepth
+      ? combat.floorsByDepth[String(depth)] || null
+      : null;
     layers.push({
       depth,
       unlocked: depth <= maxUnlockedDepth,
@@ -1234,6 +1512,7 @@ function createUnderrealmState(config, runtime, surfaceTerrain, previousUnderrea
       terrain,
       difficultyMultiplier: 1 + difficultyPerDepth * (depth - 1),
       rareDropMultiplier: 1 + rareDropPerDepth * (depth - 1),
+      combat: floorCombat,
       economy: previousLayer && previousLayer.economy
         ? previousLayer.economy
         : null,
@@ -1246,6 +1525,7 @@ function createUnderrealmState(config, runtime, surfaceTerrain, previousUnderrea
     activeDepth,
     layers,
     discovery,
+    combat,
     lift: createUnderrealmLiftState(previousUnderrealm ? previousUnderrealm.lift : null),
     crew: createUnderrealmCrewState(config, previousUnderrealm ? previousUnderrealm.crew : null),
     economy: previousUnderrealm && previousUnderrealm.economy
@@ -1619,6 +1899,26 @@ function createRuinsState(config) {
       lastFailures: 0,
       lastArtifactsFound: 0,
     },
+    readinessGate: {
+      depth: 0,
+      roomIndex: 0,
+      status: 'unknown',
+      reason: null,
+      score: 0,
+      minScore: 0,
+      recommendedScore: 0,
+      armoryLevel: 0,
+      minArmoryLevel: 1,
+      partySize: 0,
+      offense: 0,
+      defense: 0,
+      support: 0,
+      warningRiskMultiplier: 1,
+      tick: 0,
+      lastBlockedTick: 0,
+      lastBlockedReason: null,
+      lastBlockedDepth: 0,
+    },
   };
 }
 
@@ -1724,9 +2024,14 @@ function createStructures(config, runtime, occupied, terrain) {
       if (level) {
         structure.level = level;
       }
-    if ((type === 'mine' || type === 'sawmill' || type === 'brewery' || type === 'mithril_forge') && levelMax) {
-      structure.level = 1;
-    }
+      if ((type === 'mine'
+          || type === 'sawmill'
+          || type === 'brewery'
+          || type === 'mithril_forge'
+          || type === 'armory')
+          && levelMax) {
+        structure.level = 1;
+      }
       structures.push(structure);
       occupied.add(positionKey(pos.x, pos.y));
     }

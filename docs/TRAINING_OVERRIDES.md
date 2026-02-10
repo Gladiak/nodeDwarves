@@ -132,6 +132,38 @@ Ruins:
 - `ruins.rooms[].artifactChance`: artifact chance per room (0..1).
 - `ruins.rooms[].artifactRolls`: number of artifact rolls per room.
 
+Underrealm readiness gate (Ruins dispatch coupling):
+
+- Dispatch depth uses `max(roomIndex + 1, currentFrontierDepth)` (clamped to `underrealm.maxDepth`), so frontier champions remain contestable even after room progression plateaus.
+- `underrealm.combat.progression_mode`: progression mode (`champion_gate` keeps unlock chain tied to champion clear).
+- `underrealm.combat.readiness.hard_min_gate`: enforce hard block below floor minimum score.
+- `underrealm.combat.readiness.warning_zone_risk_multiplier`: warning-zone risk multiplier applied to hazards/guardian/loss severity.
+- `underrealm.combat.readiness.score_weights.offense|defense|support`: score component weights.
+- `underrealm.combat.readiness.formula.weapon_avg_tier_scale`: weapon average-tier score scale.
+- `underrealm.combat.readiness.formula.armor_avg_tier_scale`: armor average-tier score scale.
+- `underrealm.combat.readiness.formula.support_kit_full_scale`: expedition-kit support coverage score scale.
+- `underrealm.combat.readiness.formula.support_armory_level_scale`: armory-level support score scale.
+- `underrealm.combat.encounter.rounds_base|rounds_per_depth`: deterministic champion round budget.
+- `underrealm.combat.encounter.retry_cooldown_ticks_base|retry_cooldown_ticks_per_depth`: champion retry cooldown pacing.
+- `underrealm.combat.floors.defaults.min_armory_level_base|min_armory_level_per_depth`: minimum armory-level baseline/scaling per floor depth.
+- `underrealm.combat.floors.defaults.readiness.min_score_base|min_score_per_depth|recommended_score_base|recommended_score_per_depth`: default floor score thresholds by depth.
+- `underrealm.combat.floors.defaults.champion.hp_base|hp_per_depth|attack_base|attack_per_depth|defense_base|defense_per_depth|penetration_base|penetration_per_depth`: default champion stat curve per depth.
+- `underrealm.combat.floors.by_depth.<depth>.min_armory_level|readiness.min_score|readiness.recommended_score`: per-depth override thresholds.
+- `underrealm.combat.floors.by_depth.<depth>.champion.enabled|id|label|hp|attack|defense|penetration`: per-depth champion overrides.
+
+Underrealm AI observation features (M6):
+
+- `underrealmDepthProgress`: unlocked-depth progression ratio (`maxUnlockedDepth / maxDepth`).
+- `underrealmChampionProgress`: champion clears ratio (`championsDefeated / maxDepth`).
+- `underrealmFrontierContested`: `1` when current frontier floor is `contested`.
+- `underrealmChampionCooldown`: normalized champion retry cooldown ratio.
+- `underrealmReadinessScore`: normalized readiness score ratio vs floor readiness scale.
+- `underrealmReadinessGap`: normalized missing score ratio vs readiness scale.
+- `underrealmReadinessBlocked`: `1` when readiness gate blocks dispatch.
+- `underrealmReadinessWarning`: `1` when dispatch is in warning zone.
+- `underrealmCombatPressure`: compact aggregate pressure signal from frontier/champion/readiness outcomes.
+- Shape compatibility note: adding/removing/reordering `ai.training.trainer.featureNames` changes model input size, so resume is blocked and training must restart with `--fresh`.
+
 Endgame cycles:
 
 - `endgame.enabled`: enable or disable endgame cycle resets.

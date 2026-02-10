@@ -44,7 +44,7 @@ const TELEMETRY_PANEL_PAGES = [
   {
     id: 'overview_deep',
     title: 'Overview + Deep',
-    subtitle: 'Core world, underrealm, population, pressure, lore, and deep signals.',
+    subtitle: 'Core world, underrealm combat gates, population, pressure, lore, and deep signals.',
     sections: ['world', 'underrealm', 'population', 'lore', 'pressure', 'deepSignals'],
     preferredColumns: 2,
     minColumnWidth: 38,

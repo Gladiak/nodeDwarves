@@ -22,6 +22,7 @@ function buildObservation(state, config) {
   const housingStats = getHousingStats(state, config);
   const raidObservation = getRaidObservation(state, config, housingStats);
   const ruinsObservation = buildRuinsObservation(state, config);
+  const underrealmObservation = buildUnderrealmObservation(state, config);
   const mythsObservation = buildMythsObservation(state, config);
   const festivalObservation = getFestivalObservation(state, config);
   const clanShares = getClanShares(state, config);
@@ -37,6 +38,7 @@ function buildObservation(state, config) {
     housingRatio: housingStats.housingRatio,
     raid: raidObservation,
     ruins: ruinsObservation,
+    underrealm: underrealmObservation,
     myths: mythsObservation,
     festival: festivalObservation,
     clanShares,
@@ -70,6 +72,16 @@ function buildFeatures(obs, resource, config, featureNames) {
   const ruinsCooldown = clamp(Number(ruins.cooldownRatio ?? 0), 0, 1);
   const ruinsProgress = clamp(Number(ruins.progress ?? 0), 0, 1);
   const ruinsArtifacts = clamp(Number(ruins.artifacts ?? 0), 0, 1);
+  const underrealm = obs.underrealm || {};
+  const underrealmDepthProgress = clamp(Number(underrealm.depthProgress ?? 0), 0, 1);
+  const underrealmChampionProgress = clamp(Number(underrealm.championProgress ?? 0), 0, 1);
+  const underrealmFrontierContested = clamp(Number(underrealm.frontierContested ?? 0), 0, 1);
+  const underrealmChampionCooldown = clamp(Number(underrealm.championCooldown ?? 0), 0, 1);
+  const underrealmReadinessScore = clamp(Number(underrealm.readinessScore ?? 0), 0, 1);
+  const underrealmReadinessGap = clamp(Number(underrealm.readinessGap ?? 0), 0, 1);
+  const underrealmReadinessBlocked = clamp(Number(underrealm.readinessBlocked ?? 0), 0, 1);
+  const underrealmReadinessWarning = clamp(Number(underrealm.readinessWarning ?? 0), 0, 1);
+  const underrealmCombatPressure = clamp(Number(underrealm.combatPressure ?? 0), 0, 1);
   const myths = obs.myths || {};
   const mythsActiveRatio = clamp(Number(myths.activeRatio ?? 0), 0, 1);
   const mythsSeverity = clamp(Number(myths.severity ?? 0), 0, 1);
@@ -101,6 +113,15 @@ function buildFeatures(obs, resource, config, featureNames) {
     ruinsCooldown,
     ruinsProgress,
     ruinsArtifacts,
+    underrealmDepthProgress,
+    underrealmChampionProgress,
+    underrealmFrontierContested,
+    underrealmChampionCooldown,
+    underrealmReadinessScore,
+    underrealmReadinessGap,
+    underrealmReadinessBlocked,
+    underrealmReadinessWarning,
+    underrealmCombatPressure,
     mythsActiveRatio,
     mythsSeverity,
     festivalActive,
@@ -143,6 +164,148 @@ function buildWeatherObservation(state, config) {
     severity,
     timeLeft: clamp(remaining / duration, 0, 1),
   };
+}
+
+// Build underrealm combat/progression observation scalars.
+function buildUnderrealmObservation(state, config) {
+  const underrealmState = state && state.underrealm;
+  if (!underrealmState || underrealmState.enabled === false) {
+    return {
+      depthProgress: 0,
+      championProgress: 0,
+      frontierContested: 0,
+      championCooldown: 0,
+      readinessScore: 0,
+      readinessGap: 0,
+      readinessBlocked: 0,
+      readinessWarning: 0,
+      combatPressure: 0,
+    };
+  }
+  const maxDepth = Math.max(1, Math.floor(Number(underrealmState.maxDepth || 0)));
+  const maxUnlockedDepth = clamp(
+    Math.floor(Number(underrealmState.maxUnlockedDepth || 0)),
+    0,
+    maxDepth,
+  );
+  const depthProgress = clamp(maxUnlockedDepth / maxDepth, 0, 1);
+  const combat = underrealmState.combat && typeof underrealmState.combat === 'object'
+    ? underrealmState.combat
+    : {};
+  const stats = combat.stats && typeof combat.stats === 'object'
+    ? combat.stats
+    : {};
+  const championsDefeated = Math.max(0, Number(stats.championsDefeated || 0));
+  const championProgress = clamp(championsDefeated / maxDepth, 0, 1);
+  const frontierDepth = maxUnlockedDepth > 0 ? maxUnlockedDepth : 0;
+  const floor = frontierDepth > 0 && combat.floorsByDepth && typeof combat.floorsByDepth === 'object'
+    ? combat.floorsByDepth[String(frontierDepth)] || null
+    : null;
+  const championRequired = Boolean(
+    floor
+    && floor.unlock
+    && floor.unlock.required === true
+    && floor.champion
+    && floor.champion.enabled !== false,
+  );
+  const frontierContested = championRequired && floor && floor.state === 'contested' ? 1 : 0;
+  const cooldownTicks = floor && floor.encounter
+    ? Math.max(0, Number(floor.encounter.cooldownTicksRemaining || 0))
+    : 0;
+  const cooldownBudget = getUnderrealmRetryCooldownBudget(config, combat, frontierDepth);
+  const championCooldown = cooldownBudget > 0
+    ? clamp(cooldownTicks / cooldownBudget, 0, 1)
+    : 0;
+  const readinessGate = state && state.ruins && state.ruins.readinessGate
+    && typeof state.ruins.readinessGate === 'object'
+    ? state.ruins.readinessGate
+    : {};
+  const readinessSnapshot = floor && floor.readinessSnapshot && typeof floor.readinessSnapshot === 'object'
+    ? floor.readinessSnapshot
+    : {};
+  const readinessStatus = String(
+    readinessGate.status
+    || readinessSnapshot.status
+    || 'unknown',
+  );
+  const readinessScoreRaw = Number(
+    readinessGate.score !== undefined ? readinessGate.score : readinessSnapshot.score,
+  );
+  const readinessRecommendedRaw = Number(
+    readinessGate.recommendedScore !== undefined
+      ? readinessGate.recommendedScore
+      : readinessSnapshot.recommendedScore,
+  );
+  const readinessMinRaw = Number(
+    readinessGate.minScore !== undefined ? readinessGate.minScore : readinessSnapshot.minScore,
+  );
+  const readinessScore = Math.max(0, readinessScoreRaw || 0);
+  const readinessRecommended = Math.max(0, readinessRecommendedRaw || 0);
+  const readinessMin = Math.max(0, readinessMinRaw || 0);
+  const readinessScale = readinessRecommended > 0
+    ? readinessRecommended
+    : (readinessMin > 0 ? readinessMin : 1);
+  const readinessScoreRatio = clamp(readinessScore / readinessScale, 0, 1);
+  const readinessGap = clamp((readinessScale - readinessScore) / readinessScale, 0, 1);
+  const readinessBlocked = readinessStatus === 'blocked' ? 1 : 0;
+  const readinessWarning = readinessStatus === 'warning' ? 1 : 0;
+  const failedExpeditions = Math.max(0, Number(stats.failedExpeditions || 0));
+  const blockedDispatches = Math.max(0, Number(stats.blockedDispatches || 0));
+  const failurePressure = clamp(
+    failedExpeditions / Math.max(1, failedExpeditions + championsDefeated + 1),
+    0,
+    1,
+  );
+  const blockedPressure = clamp(
+    blockedDispatches / Math.max(1, blockedDispatches + championsDefeated + 1),
+    0,
+    1,
+  );
+  const combatPressure = clamp(
+    frontierContested * 0.35
+      + readinessBlocked * 0.25
+      + readinessWarning * 0.15
+      + championCooldown * 0.1
+      + failurePressure * 0.1
+      + blockedPressure * 0.05,
+    0,
+    1,
+  );
+  return {
+    depthProgress,
+    championProgress,
+    frontierContested,
+    championCooldown,
+    readinessScore: readinessScoreRatio,
+    readinessGap,
+    readinessBlocked,
+    readinessWarning,
+    combatPressure,
+  };
+}
+
+// Resolve retry cooldown budget used to normalize champion cooldown ratio.
+function getUnderrealmRetryCooldownBudget(config, combat, depth) {
+  const combatConfig = (config && config.underrealm && config.underrealm.combat) || {};
+  const encounterConfig = (combat && combat.encounter) || combatConfig.encounter || {};
+  const depthValue = Math.max(1, Math.floor(Number(depth || 1)));
+  const base = Math.max(
+    1,
+    Number(
+      encounterConfig.retryCooldownTicksBase
+      ?? encounterConfig.retry_cooldown_ticks_base
+      ?? 90,
+    ),
+  );
+  const perDepth = Math.max(
+    0,
+    Number(
+      encounterConfig.retryCooldownTicksPerDepth
+      ?? encounterConfig.retry_cooldown_ticks_per_depth
+      ?? 20,
+    ),
+  );
+  return Math.max(1, base + perDepth * Math.max(0, depthValue - 1));
 }
 
 // Provide a fallback weather severity by type.

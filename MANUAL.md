@@ -435,7 +435,7 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   4. General build/upgrade queue (housing, workshops, mines, armory, alchemy lab, etc.).
   5. Continuous structure work slots (mine, sawmill).
   6. Tool upgrade and structure upgrade jobs.
-  7. Armory kit production jobs.
+  7. Armory production jobs (expedition kits + tiered weapon/armor stock).
   8. Shortage-driven gather/craft/hunt jobs.
 - Queue guardrails are explicit and independent:
   - `jobs.buildQueue.maxConcurrent/maxPerTick` for build+upgrade.
@@ -465,7 +465,13 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
 - Crafting and kit production:
   - Inputs are reserved at job creation time (not at completion), reducing race conditions.
   - Workshop capacity is tracked from active craft jobs to avoid overbooking.
-  - Armory kit output obeys `kitMax`, `kitTicks`, and `kitCost`.
+  - Armory output now supports:
+    - legacy expedition kit recipe (`kitMax`, `kitTicks`, `kitCost`)
+    - equipment recipe catalog (`structures.armory.equipment.recipes.*`) with:
+      - deterministic recipe priority (`craft_order`)
+      - armory-level gate (`min_level`)
+      - mineral gate against current level allow-list (`levels.<level>.allowed_minerals`)
+      - stock cap enforcement (`max_stock`) against current + queued output.
 - Integration with other systems:
   - Build costs and ratio guardrails are structure-config-driven (`structures.js` helpers).
   - Gather work/yield also inherits season/weather/myth/morale multipliers via `resources.js`.
@@ -884,6 +890,43 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
     - `crewFactor` in hostile spawn = `(1 + assignedDelvers/24)` and is multiplied after the listed base term.
     - Hostile spawn chance is clamped to `0.95`.
     - Shrine count and feature ratios are generation targets; final topology can vary by deterministic terrain seed.
+- Underrealm V2 combat framework (M1+M4):
+  - Config includes `underrealm.combat.*` (readiness gates/weights, encounter pacing, per-floor champion/readiness templates, and per-depth overrides).
+  - Runtime initializes `underrealm.combat.floorsByDepth` and mirrors each floor snapshot on `underrealm.layers[].combat` for deterministic depth-local state access.
+  - Floor progression states are explicit per depth: `locked | accessible | contested | cleared`.
+  - Deep Lift completion on a champion-required frontier marks that floor `contested`; further depth unlocks are blocked until champion victory.
+  - Champion encounters are resolved deterministically with aggregated rounds (`underrealm.combat.encounter.*`), deterministic cooldowns, and explicit outcome accounting (`victory|retreat|defeat`).
+  - Champion victory marks the floor `cleared` and unlocks next depth; defeat/retreat keeps floor `contested` and applies retry cooldown.
+- Underrealm V2 armory production scaffolding (M2):
+  - Armory progression now supports 10 upgrade levels (`structures.armory.levelMax=10`) and is included in structure-upgrade scheduling.
+  - Armory can craft tiered weapons/armor (`weapon_tier_1..10`, `armor_tier_1..10`) in addition to expedition kits.
+  - Recipe gating uses both armory level (`min_level`) and per-level mineral allow-lists (`allowed_minerals`), with deterministic stock-cap scheduling (`max_stock`).
+- Underrealm V2 readiness dispatch policy (M3):
+  - Ruins expedition dispatch evaluates readiness on depth `max(roomIndex + 1, currentFrontierDepth)` (clamped by `underrealm.maxDepth`).
+  - Readiness score uses weighted offense/defense/support components:
+    - offense from average best-available weapon tier for party slots,
+    - defense from average best-available armor tier for party slots,
+    - support from expedition-kit coverage plus current armory level.
+  - Dispatch is blocked when:
+    - armory level is below floor `min_armory_level`, or
+    - score is below floor `min_score` and `underrealm.combat.readiness.hard_min_gate=true`.
+  - Warning zone dispatch (`score < recommended_score`) remains allowed, but applies explicit risk via `warning_zone_risk_multiplier`.
+  - Runtime emits gate snapshots to telemetry (`state.ruins.readinessGate`) and increments `underrealm.combat.stats.blockedDispatches` on blocked transitions.
+  - If a frontier champion is on retry cooldown, dispatch is blocked with reason `champion_cooldown`.
+- Underrealm V2 telemetry/render integration (M5):
+  - Underrealm telemetry now keeps a stable 9-row summary focused on combat progression:
+    - `Depth progression: ...`
+    - `Champion gate: ...`
+    - `Readiness gate: ...`
+    - compact pressure line (`Underrealm pressure: ward/oath/threats`).
+  - Champion/readiness/progression lines are intentionally compact to stay within narrow telemetry columns.
+  - When ruins readiness snapshot is unavailable, a frontier-floor fallback readiness line is shown instead of `-`.
+  - Map inset Ops Snapshot adds a concise deep-combat token line (`P:* C:* R:*`) for at-a-glance progression/champion/readiness context.
+- Underrealm V2 AI/training/regression integration (M6):
+  - AI observation exports normalized Underrealm combat/progression signals for PPO (`depth/champion/readiness/pressure` bundle).
+  - Trainer summary line now includes `under=...` diagnostics, so randomized regression can ingest `under_*` rollout metrics.
+  - `scripts/regression.js` randomized suite reports now include `under_*` rows when summary diagnostics are available.
+  - `scripts/headless_benchmark.js` now includes compact Underrealm KPIs (`underDepth`, `underChamp`, `underFail`, `underBlocked`, `underContested`, `underReady`) in summaries, comparisons, and seed deltas.
 - Hostile deep faction pressure (`underrealm.hostiles.*`):
   - Raid checks run per unlocked depth on `check_interval` ticks.
   - Spawn prerequisites:
@@ -926,14 +969,14 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - Telemetry exposes:
     - realm/depth status (`Surface` vs `Underrealm Dn`)
     - hidden gate status (population gate / search countdown / discovered)
+    - depth progression status (`gate locked`, `lift`, `survey`, `locked by champion`, `max unlocked`)
+    - frontier champion gate state (`off|unavailable|bypassed|contested|cleared` + compact encounter stats/cooldown)
+    - readiness gate state (`ready|warning|blocked`, including `champion_cooldown`)
     - layer dimensions and difficulty/rare multipliers
     - depth stock ratio and frontier survey progress
-    - Deep Lift progress while active
     - delver doctrine ratios (`Delver oath M/H/G`)
     - assigned delvers vs surface adults
-    - ward charges on active depth
-    - shrine oath status (`active` vs `unrest`)
-    - active deep threat count
+    - compact underrealm pressure line (ward charges + oath state + active threat count)
   - Input controls:
     - `↑` / `↓` changes active viewed depth (`0 = surface`, `1..maxUnlockedDepth = underrealm planes`)
   - Event stream logs key milestones: depth unlocks, rare finds, raid starts, casualties, raid resolution summaries.
@@ -998,6 +1041,8 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - Drives the ruins expedition loop (rooms, hazards, guardians, rewards).
   - Manages expedition cooldowns, casualties, and artifact bonuses.
 - Armory kits are crafted in the `armory` structure and consumed per expedition.
+- Armory also maintains a separate deep-equipment stockpile (`weapon_tier_1..10`, `armor_tier_1..10`) used by Underrealm V2 progression systems.
+- Armory structures initialize and preserve `level` metadata, and that level now participates in expedition readiness gating.
 - Mithril is only used for late-game expedition reinforcement.
 - Preconditions (all must be satisfied before an expedition can start):
   - `ruins.enabled` is true and a `ruins` structure exists on the map.
@@ -1006,6 +1051,10 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - `ruins.expedition.minPopulation` and `ruins.expedition.minIdleAdults` are met.
   - All `ruins.expedition.minStockpileRatio.<resource>` thresholds are met.
   - Room cost (`ruins.rooms[].cost`) is available.
+  - Underrealm readiness gate for mapped floor depth (`max(roomIndex + 1, currentFrontierDepth)`) passes:
+    - armory level >= floor `min_armory_level`,
+    - readiness score >= floor `min_score` (when hard gate enabled).
+    - if floor is `contested`, champion retry cooldown must be zero (otherwise dispatch is blocked with `champion_cooldown`).
 - Party size:
   - Desired size is `ruins.rooms[].partySize`, clamped to `ruins.expedition.partySizeMin/Max`.
   - If idle adults are fewer than `partySizeMin`, no expedition starts.
@@ -1019,13 +1068,22 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
 - Guardians and combat:
   - Guardian spawns with `ruins.rooms[].guardianChance`.
   - Combat power is `partySize * (1 + kitPowerBonus + mithrilPowerBonus + combatBonus)`.
-  - Guardian is defeated if combat power >= `ruins.rooms[].guardianPower`; otherwise expedition fails.
+  - For warning-zone dispatches, guardian power is multiplied by `underrealm.combat.readiness.warning_zone_risk_multiplier`.
+  - Guardian is defeated if combat power >= effective guardian power; otherwise expedition fails.
   - `kitPowerBonus` comes from `ruins.expedition.kitPowerBonus`.
   - `mithrilPowerBonus` applies only if reinforcement is used (see below).
   - `combatBonus` comes from artifacts/set/combos (`ruins.setBonuses` and `ruins.comboBonuses`).
+- Champion encounters (Underrealm V2):
+  - Triggered when the mapped floor is `contested`, champion is required, and champion is not cleared.
+  - Resolution is deterministic aggregated rounds using readiness components + expedition bonuses vs champion stats.
+  - Outcomes:
+    - `victory`: floor becomes `cleared`, champion clear flag is set, and next depth unlocks.
+    - `retreat|defeat`: floor remains `contested`, retry cooldown is applied, and expedition fails.
+  - Champion retry cooldown is read by dispatch gate and surfaced in telemetry (`Readiness gate: ... BLOCKED champion cd ...`).
 - Hazards:
   - Base failure chance per room is `ruins.rooms[].hazardChance`.
   - Hazard chance is reduced by `hazardReduction` bonuses (from artifacts/combos).
+  - For warning-zone dispatches, final hazard chance is multiplied by `underrealm.combat.readiness.warning_zone_risk_multiplier` (clamped to `0..1`).
 - Mithril reinforcement:
   - Enabled by `ruins.mithrilReinforcement.enabled`.
   - Only available from room index `ruins.mithrilReinforcement.minRoom` (1-based).
@@ -1041,6 +1099,8 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
 - Failure and casualties:
   - On failure, casualties are randomly selected from the expedition party.
   - Base loss range is `ruins.expedition.failureLossMin/Max`.
+  - For warning-zone dispatches, sampled base losses are scaled by the warning risk multiplier before reductions.
+  - Champion failures can inject deterministic loss hints (retreat/defeat severity), then normal casualty-reduction bonuses still apply.
   - Losses are reduced by `casualtyReduction` bonuses (from artifacts/combos).
 
 ### Merchant 🧳
@@ -1232,8 +1292,12 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
 ### JS inference 🧠
 
 - `src/ai/observation.js`
-  - Converts state to observation features (stockpile ratios, node ratios, needs, weather, raids, housing, ruins, myths, festivals).
+  - Converts state to observation features (stockpile ratios, node ratios, needs, weather, raids, housing, ruins, myths, festivals, and underrealm combat/progression signals).
   - Adds normalized ratios and flags used by the policy feature list.
+  - Underrealm V2 features include:
+    - `underrealmDepthProgress`, `underrealmChampionProgress`, `underrealmFrontierContested`
+    - `underrealmChampionCooldown`, `underrealmReadinessScore`, `underrealmReadinessGap`
+    - `underrealmReadinessBlocked`, `underrealmReadinessWarning`, `underrealmCombatPressure`
 - `src/ai/policy.js`
   - Loads JSON policies (linear or MLP) and maps outputs to the governor action envelope.
   - Feature order is defined by `featureNames`; defaults live in the file.
@@ -1358,6 +1422,8 @@ Training presets:
 - In `scripts/regression.js --all`, explicit CLI knobs (`--seeds`, `--eval-*`, `--random-*`) override the stored profile config, so short smoke checks do not require editing baseline files.
 - Regression subprocess logs are streamed directly to per-run `console.log` files (instead of buffered pipes), reducing risk of buffer-cap failures in long runs.
 - Regression now writes `.txt`, `.json`, and `.md` reports for each run (defaults next to the txt report; override with `--report-json` / `--report-md`).
+- Randomized regression summary parsing also captures `under_*` metrics from trainer `under=` diagnostics when present.
+- Headless benchmark summaries/comparisons now include Underrealm KPIs (`underDepth`, `underChamp`, `underFail`, `underBlocked`, `underContested`, `underReady`) for seed-by-seed balancing review.
 
 
 ### Rendering 🖼️
@@ -1474,6 +1540,7 @@ Quick checklist:
 
 - `app.js` → main terminal simulation
 - `config.json` → single source of truth for gameplay and training tunables
+- `underrealm_v2.md` → Underrealm V2 blueprint/workbook and implementation log
 - `ai_server.js` → JSON bridge for Python training
 - `src/config.js` → runtime config loader
 - `src/`

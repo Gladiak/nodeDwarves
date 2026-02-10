@@ -184,6 +184,8 @@ const DEFAULT_SHRINE_SETTINGS = {
   },
 };
 
+const UNDERREALM_FLOOR_STATE_SET = new Set(['locked', 'accessible', 'contested', 'cleared']);
+
 // Tick all Underrealm systems: crew assignment, economy, exploration, and hostiles.
 function updateUnderrealm(state, config) {
   const underrealm = state && state.underrealm;
@@ -193,11 +195,143 @@ function updateUnderrealm(state, config) {
   }
   ensureUnderrealmRuntimeState(state);
   updateUnderrealmDiscovery(state, config);
+  updateUnderrealmCombatRuntime(state, config);
   updateCrewAssignments(state, config);
   updateUnderrealmShrines(state, config);
   updateUnderrealmEconomy(state, config);
   updateUnderrealmProgression(state, config);
   updateUnderrealmHostiles(state, config);
+}
+
+// Normalize combat floor state while respecting unlock status.
+function normalizeUnderrealmCombatFloorState(rawState, unlocked) {
+  const fallback = unlocked ? 'accessible' : 'locked';
+  if (typeof rawState !== 'string' || !UNDERREALM_FLOOR_STATE_SET.has(rawState)) {
+    return fallback;
+  }
+  if (!unlocked) {
+    return 'locked';
+  }
+  if (rawState === 'locked') {
+    return 'accessible';
+  }
+  return rawState;
+}
+
+// Build fallback combat scaffolding for a depth when state is missing.
+function createFallbackUnderrealmCombatFloor(depth, maxUnlockedDepth) {
+  const unlocked = depth <= maxUnlockedDepth;
+  return {
+    depth,
+    unlocked,
+    state: unlocked ? 'accessible' : 'locked',
+    minArmoryLevel: 1,
+    readiness: {
+      minScore: 0,
+      recommendedScore: 0,
+    },
+    champion: {
+      enabled: true,
+      id: `under_champion_${depth}`,
+      label: `Depth Champion D${depth}`,
+      stats: {
+        hp: 100,
+        attack: 10,
+        defense: 8,
+        penetration: 0.05,
+      },
+    },
+    encounter: {
+      active: false,
+      attempts: 0,
+      victories: 0,
+      defeats: 0,
+      retreats: 0,
+      lastOutcome: null,
+      lastOutcomeTick: 0,
+      cooldownTicksRemaining: 0,
+    },
+    unlock: {
+      required: true,
+      cleared: false,
+      unlocksDepthOnWin: depth + 1,
+    },
+  };
+}
+
+// Return normalized combat progression mode.
+function getUnderrealmCombatProgressionMode(combat) {
+  return String(
+    combat && typeof combat.progressionMode === 'string'
+      ? combat.progressionMode
+      : 'champion_gate',
+  );
+}
+
+// Tick per-floor combat runtime flags and encounter cooldowns.
+function updateUnderrealmCombatRuntime(state, config) {
+  const underrealm = state && state.underrealm;
+  const combat = underrealm && underrealm.combat;
+  if (!underrealm || !combat || combat.enabled === false) {
+    return;
+  }
+  const maxDepth = Math.max(0, Math.floor(Number(underrealm.maxDepth || 0)));
+  const maxUnlockedDepth = Math.max(0, Math.floor(Number(underrealm.maxUnlockedDepth || 0)));
+  const mode = getUnderrealmCombatProgressionMode(combat);
+  for (let depth = 1; depth <= maxDepth; depth += 1) {
+    const floor = resolveUnderrealmCombatFloor(combat, depth, maxUnlockedDepth);
+    if (!floor) {
+      continue;
+    }
+    floor.depth = depth;
+    floor.unlocked = depth <= maxUnlockedDepth;
+    floor.state = normalizeUnderrealmCombatFloorState(floor.state, floor.unlocked);
+    floor.unlock = floor.unlock && typeof floor.unlock === 'object'
+      ? floor.unlock
+      : {};
+    floor.unlock.required = floor.unlock.required !== false;
+    floor.unlock.cleared = floor.unlock.cleared === true;
+    floor.unlock.unlocksDepthOnWin = Math.max(
+      depth + 1,
+      Math.floor(Number(floor.unlock.unlocksDepthOnWin || depth + 1)),
+    );
+    floor.encounter = floor.encounter && typeof floor.encounter === 'object'
+      ? floor.encounter
+      : {};
+    floor.encounter.active = floor.encounter.active === true;
+    floor.encounter.attempts = Math.max(0, Math.floor(Number(floor.encounter.attempts || 0)));
+    floor.encounter.victories = Math.max(0, Math.floor(Number(floor.encounter.victories || 0)));
+    floor.encounter.defeats = Math.max(0, Math.floor(Number(floor.encounter.defeats || 0)));
+    floor.encounter.retreats = Math.max(0, Math.floor(Number(floor.encounter.retreats || 0)));
+    floor.encounter.lastOutcome = typeof floor.encounter.lastOutcome === 'string'
+      ? floor.encounter.lastOutcome
+      : null;
+    floor.encounter.lastOutcomeTick = Math.max(
+      0,
+      Math.floor(Number(floor.encounter.lastOutcomeTick || 0)),
+    );
+    floor.encounter.cooldownTicksRemaining = Math.max(
+      0,
+      Math.floor(Number(floor.encounter.cooldownTicksRemaining || 0)),
+    );
+    if (floor.encounter.cooldownTicksRemaining > 0) {
+      floor.encounter.cooldownTicksRemaining -= 1;
+    }
+    if (floor.unlock.cleared === true || floor.state === 'cleared') {
+      floor.unlock.cleared = true;
+      floor.state = 'cleared';
+      floor.encounter.active = false;
+      continue;
+    }
+    if (!floor.unlocked) {
+      floor.state = 'locked';
+      floor.encounter.active = false;
+      continue;
+    }
+    if (mode === 'champion_gate' && floor.unlock.required === true && floor.state === 'locked') {
+      floor.state = 'accessible';
+    }
+  }
 }
 
 // Resolve the Underrealm root config with safe defaults.
@@ -536,6 +670,117 @@ function ensureUnderrealmRuntimeState(state) {
     };
   }
   underrealm.shrines.stats.prospectionFinds = underrealm.shrines.stats.prospectionFinds || {};
+  if (!underrealm.combat || typeof underrealm.combat !== 'object') {
+    underrealm.combat = {
+      enabled: true,
+      progressionMode: 'champion_gate',
+      readiness: {
+        hardMinGate: true,
+        warningZoneRiskMultiplier: 1.2,
+        scoreWeights: {
+          offense: 1,
+          defense: 1,
+          support: 0.8,
+        },
+        formula: {
+          weaponAvgTierScale: 6,
+          armorAvgTierScale: 6,
+          supportKitFullScale: 8,
+          supportArmoryLevelScale: 1,
+        },
+      },
+      encounter: {
+        roundsBase: 4,
+        roundsPerDepth: 1,
+        retryCooldownTicksBase: 90,
+        retryCooldownTicksPerDepth: 20,
+      },
+      floorsByDepth: {},
+      stats: {
+        championsDefeated: 0,
+        failedExpeditions: 0,
+        blockedDispatches: 0,
+      },
+    };
+  }
+  underrealm.combat.floorsByDepth = underrealm.combat.floorsByDepth || {};
+  underrealm.combat.stats = underrealm.combat.stats || {};
+  underrealm.combat.stats.championsDefeated = Math.max(
+    0,
+    Math.floor(Number(underrealm.combat.stats.championsDefeated || 0)),
+  );
+  underrealm.combat.stats.failedExpeditions = Math.max(
+    0,
+    Math.floor(Number(underrealm.combat.stats.failedExpeditions || 0)),
+  );
+  underrealm.combat.stats.blockedDispatches = Math.max(
+    0,
+    Math.floor(Number(underrealm.combat.stats.blockedDispatches || 0)),
+  );
+  underrealm.combat.readiness = underrealm.combat.readiness || {};
+  underrealm.combat.readiness.scoreWeights = underrealm.combat.readiness.scoreWeights || {};
+  underrealm.combat.readiness.formula = underrealm.combat.readiness.formula || {};
+  underrealm.combat.readiness.hardMinGate = underrealm.combat.readiness.hardMinGate !== false;
+  underrealm.combat.readiness.warningZoneRiskMultiplier = Math.max(
+    1,
+    Number(underrealm.combat.readiness.warningZoneRiskMultiplier ?? 1.2),
+  );
+  underrealm.combat.readiness.scoreWeights.offense = Math.max(
+    0,
+    Number(underrealm.combat.readiness.scoreWeights.offense ?? 1),
+  );
+  underrealm.combat.readiness.scoreWeights.defense = Math.max(
+    0,
+    Number(underrealm.combat.readiness.scoreWeights.defense ?? 1),
+  );
+  underrealm.combat.readiness.scoreWeights.support = Math.max(
+    0,
+    Number(underrealm.combat.readiness.scoreWeights.support ?? 0.8),
+  );
+  underrealm.combat.readiness.formula.weaponAvgTierScale = Math.max(
+    0,
+    Number(underrealm.combat.readiness.formula.weaponAvgTierScale ?? 6),
+  );
+  underrealm.combat.readiness.formula.armorAvgTierScale = Math.max(
+    0,
+    Number(underrealm.combat.readiness.formula.armorAvgTierScale ?? 6),
+  );
+  underrealm.combat.readiness.formula.supportKitFullScale = Math.max(
+    0,
+    Number(underrealm.combat.readiness.formula.supportKitFullScale ?? 8),
+  );
+  underrealm.combat.readiness.formula.supportArmoryLevelScale = Math.max(
+    0,
+    Number(underrealm.combat.readiness.formula.supportArmoryLevelScale ?? 1),
+  );
+  const maxDepth = Math.max(0, Math.floor(Number(underrealm.maxDepth || 0)));
+  const maxUnlockedDepth = Math.max(0, Math.floor(Number(underrealm.maxUnlockedDepth || 0)));
+  for (let depth = 1; depth <= maxDepth; depth += 1) {
+    const depthKey = String(depth);
+    const fallback = createFallbackUnderrealmCombatFloor(depth, maxUnlockedDepth);
+    const currentFloor = underrealm.combat.floorsByDepth[depthKey];
+    const normalizedFloor = currentFloor && typeof currentFloor === 'object'
+      ? currentFloor
+      : fallback;
+    normalizedFloor.depth = depth;
+    normalizedFloor.unlocked = depth <= maxUnlockedDepth;
+    normalizedFloor.state = normalizeUnderrealmCombatFloorState(
+      normalizedFloor.state,
+      normalizedFloor.unlocked,
+    );
+    underrealm.combat.floorsByDepth[depthKey] = normalizedFloor;
+  }
+  for (const layer of underrealm.layers || []) {
+    const depth = Math.max(1, Math.floor(Number(layer && layer.depth || 0)));
+    const depthKey = String(depth);
+    if (!underrealm.combat.floorsByDepth[depthKey]) {
+      underrealm.combat.floorsByDepth[depthKey] = createFallbackUnderrealmCombatFloor(
+        depth,
+        maxUnlockedDepth,
+      );
+    }
+    layer.combat = underrealm.combat.floorsByDepth[depthKey];
+  }
   if (!underrealm.crew || underrealm.crew.enabled === false) {
     clearAllUnderrealmDuty(state);
     return;
@@ -637,6 +882,33 @@ function updateUnderrealmProgression(state, config) {
   if (!frontierLayer || !frontierLayer.economy) {
     return;
   }
+  const combat = underrealm.combat && typeof underrealm.combat === 'object'
+    ? underrealm.combat
+    : null;
+  const progressionMode = getUnderrealmCombatProgressionMode(combat);
+  const championGateEnabled = progressionMode === 'champion_gate'
+    && combat
+    && combat.enabled !== false;
+  const frontierFloor = championGateEnabled
+    ? resolveUnderrealmCombatFloor(combat, frontierDepth, underrealm.maxUnlockedDepth)
+    : null;
+  const championRequired = Boolean(
+    frontierFloor
+    && frontierFloor.unlocked === true
+    && frontierFloor.unlock
+    && frontierFloor.unlock.required === true
+    && frontierFloor.champion
+    && frontierFloor.champion.enabled !== false,
+  );
+  const frontierCleared = Boolean(
+    frontierFloor
+    && frontierFloor.unlock
+    && frontierFloor.unlock.cleared === true,
+  );
+  if (championRequired && !frontierCleared && frontierFloor.state === 'contested') {
+    underrealm.lift = buildIdleLiftState();
+    return;
+  }
   const roleCounts = (
     underrealm.crew
     && underrealm.crew.rolesByDepth
@@ -685,6 +957,25 @@ function updateUnderrealmProgression(state, config) {
       return;
     }
     const nextDepth = frontierDepth + 1;
+    if (championRequired && !frontierCleared) {
+      frontierFloor.state = 'contested';
+      frontierFloor.encounter = frontierFloor.encounter && typeof frontierFloor.encounter === 'object'
+        ? frontierFloor.encounter
+        : {};
+      frontierFloor.encounter.active = false;
+      underrealm.lift = buildIdleLiftState();
+      const championLabel = String(
+        frontierFloor.champion && frontierFloor.champion.label
+          ? frontierFloor.champion.label
+          : `Depth Champion D${frontierDepth}`,
+      );
+      pushEvent(
+        state,
+        config,
+        `Underrealm D${frontierDepth}: Deep Lift complete, ${championLabel} blocks depth ${nextDepth}`,
+      );
+      return;
+    }
     underrealm.maxUnlockedDepth = nextDepth;
     const unlockedLayer = findUnderrealmLayer(underrealm, nextDepth);
     if (unlockedLayer) {
@@ -1902,6 +2193,22 @@ function formatLossSummary(losses) {
 function findUnderrealmLayer(underrealm, depth) {
   return (underrealm.layers || [])
     .find((layer) => Number(layer && layer.depth) === Number(depth));
+}
+
+// Resolve one combat floor entry by depth, creating fallback shape when missing.
+function resolveUnderrealmCombatFloor(combat, depth, maxUnlockedDepth = 0) {
+  if (!combat || !combat.floorsByDepth || typeof combat.floorsByDepth !== 'object') {
+    return null;
+  }
+  const safeDepth = Math.max(1, Math.floor(Number(depth || 1)));
+  const key = String(safeDepth);
+  if (!combat.floorsByDepth[key]) {
+    combat.floorsByDepth[key] = createFallbackUnderrealmCombatFloor(
+      safeDepth,
+      Math.max(0, Math.floor(Number(maxUnlockedDepth || 0))),
+    );
+  }
+  return combat.floorsByDepth[key] || null;
 }
 
 // Return active raid descriptor for a depth, or null.

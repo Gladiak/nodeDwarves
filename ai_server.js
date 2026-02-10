@@ -201,6 +201,7 @@ function buildDebugInfoMinimal(state, config, metrics) {
   const raidState = state.raid || {};
   const raidStats = state.raidStats || {};
   const raidObservation = metrics.raid || {};
+  const underrealm = getUnderrealmDebugMetrics(state, config);
   return {
     stockpile: {
       avgRatio: Number(metrics.stockpileAvg || 0),
@@ -218,6 +219,7 @@ function buildDebugInfoMinimal(state, config, metrics) {
       seasonEligible: Number(raidObservation.seasonEligible || 0),
     },
     nodes: { ...(metrics.nodeRatio || {}) },
+    underrealm,
     weather: state.weather && state.weather.type ? { type: state.weather.type } : null,
     criticalNeedsFraction: Number(metrics.criticalNeedsFraction || 0),
     idleAdultsFraction: Number(metrics.idleAdultsFraction || 0),
@@ -279,6 +281,7 @@ function buildDebugInfo(state, config, metrics) {
   const raidState = state.raid || {};
   const raidStats = state.raidStats || {};
   const raidObservation = metrics.raid || {};
+  const underrealm = getUnderrealmDebugMetrics(state, config);
 
   return {
     deaths: {
@@ -353,6 +356,7 @@ function buildDebugInfo(state, config, metrics) {
       defenseRatio: Number(raidObservation.defenseRatio || 0),
       seasonEligible: Number(raidObservation.seasonEligible || 0),
     },
+    underrealm,
     nodes: { ...metrics.nodeRatio },
     needsAvg: { ...metrics.needsAvg },
     criticalNeedsFraction: Number(metrics.criticalNeedsFraction || 0),
@@ -372,6 +376,25 @@ function scaleMerchantMap(values, ticks) {
     result[key] = divisor > 0 ? amount / divisor : 0;
   }
   return result;
+}
+
+// Resolve underrealm debug metrics with stable numeric defaults.
+function getUnderrealmDebugMetrics(state, config) {
+  const aiObservation = buildAiObservation(state, config) || {};
+  const underrealm = aiObservation.underrealm && typeof aiObservation.underrealm === 'object'
+    ? aiObservation.underrealm
+    : {};
+  return {
+    depthProgress: Number(underrealm.depthProgress || 0),
+    championProgress: Number(underrealm.championProgress || 0),
+    frontierContested: Number(underrealm.frontierContested || 0),
+    championCooldown: Number(underrealm.championCooldown || 0),
+    readinessScore: Number(underrealm.readinessScore || 0),
+    readinessGap: Number(underrealm.readinessGap || 0),
+    readinessBlocked: Number(underrealm.readinessBlocked || 0),
+    readinessWarning: Number(underrealm.readinessWarning || 0),
+    combatPressure: Number(underrealm.combatPressure || 0),
+  };
 }
 
 // Function: getSeasonValue.
@@ -603,6 +626,17 @@ function buildObservation(state, config, metrics) {
       cooldownRatio: 0,
       progress: 0,
       artifacts: 0,
+    },
+    underrealm: aiObservation.underrealm || {
+      depthProgress: 0,
+      championProgress: 0,
+      frontierContested: 0,
+      championCooldown: 0,
+      readinessScore: 0,
+      readinessGap: 0,
+      readinessBlocked: 0,
+      readinessWarning: 0,
+      combatPressure: 0,
     },
     myths: aiObservation.myths || {
       activeRatio: 0,
