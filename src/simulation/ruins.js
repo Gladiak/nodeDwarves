@@ -275,7 +275,7 @@ function evaluateChampionDispatchGate(state, readinessGate) {
   if (String(combat.progressionMode || 'champion_gate') !== 'champion_gate') {
     return gate;
   }
-  const depth = Math.max(1, Math.floor(Number(gate.depth || 1)));
+  const depth = resolveChampionTargetDepth(state, null, gate.depth);
   const floor = resolveUnderrealmCombatFloor(combat, depth);
   if (!floor || floor.unlocked !== true) {
     return gate;
@@ -299,6 +299,7 @@ function evaluateChampionDispatchGate(state, readinessGate) {
   }
   return {
     ...gate,
+    depth,
     status: 'blocked',
     reason: 'champion_cooldown',
     championCooldownTicks: cooldown,
@@ -507,6 +508,95 @@ function getUnderrealmCombatStats(state) {
   return stats;
 }
 
+// Resolve dwarf-champion runtime state when Underrealm combat is available.
+function getUnderrealmDwarfChampionRuntime(state, combat = null) {
+  const sourceCombat = combat
+    && typeof combat === 'object'
+    ? combat
+    : (
+      state
+      && state.underrealm
+      && state.underrealm.combat
+      && typeof state.underrealm.combat === 'object'
+        ? state.underrealm.combat
+        : null
+    );
+  const runtime = sourceCombat && sourceCombat.dwarfChampion
+    && typeof sourceCombat.dwarfChampion === 'object'
+    ? sourceCombat.dwarfChampion
+    : null;
+  if (!runtime) {
+    return null;
+  }
+  return runtime;
+}
+
+// Resolve one dwarf entity by id from live state.
+function findDwarfById(state, dwarfId) {
+  const target = String(dwarfId || '');
+  if (!target) {
+    return null;
+  }
+  for (const dwarf of (state && state.dwarves) || []) {
+    if (String(dwarf && dwarf.id || '') === target) {
+      return dwarf;
+    }
+  }
+  return null;
+}
+
+// Resolve active dwarf-champion combat bonus for one expedition attempt.
+function resolveDwarfChampionCombatBonus(state, expedition, combat) {
+  const runtime = getUnderrealmDwarfChampionRuntime(state, combat);
+  if (!runtime || runtime.enabled === false) {
+    return {
+      active: false,
+      dwarfId: null,
+      attackBonusRatio: 0,
+      defenseBonusRatio: 0,
+    };
+  }
+  const dwarfId = typeof runtime.activeDwarfId === 'string'
+    ? runtime.activeDwarfId
+    : null;
+  if (!dwarfId) {
+    return {
+      active: false,
+      dwarfId: null,
+      attackBonusRatio: 0,
+      defenseBonusRatio: 0,
+    };
+  }
+  const dwarf = findDwarfById(state, dwarfId);
+  if (!dwarf) {
+    return {
+      active: false,
+      dwarfId: null,
+      attackBonusRatio: 0,
+      defenseBonusRatio: 0,
+    };
+  }
+  const partyIds = Array.isArray(expedition && expedition.dwarfIds)
+    ? expedition.dwarfIds.map((id) => String(id || ''))
+    : [];
+  const inParty = partyIds.includes(dwarfId);
+  const requiresPartyPresence = runtime.requiresPartyPresence !== false;
+  if (requiresPartyPresence && !inParty) {
+    return {
+      active: false,
+      dwarfId,
+      attackBonusRatio: 0,
+      defenseBonusRatio: 0,
+    };
+  }
+  return {
+    active: true,
+    dwarfId,
+    attackBonusRatio: clamp(Number(runtime.attackBonusRatio || 0), 0, 1),
+    defenseBonusRatio: clamp(Number(runtime.defenseBonusRatio || 0), 0, 1),
+  };
+}
+
 // Resolve one Underrealm combat floor object by depth.
 function resolveUnderrealmCombatFloor(combat, depth) {
   if (!combat || !combat.floorsByDepth || typeof combat.floorsByDepth !== 'object') {
@@ -532,6 +622,53 @@ function resolveExpeditionDepth(roomIndex, underrealm) {
     1,
     maxDepth,
   );
+}
+
+// Pick the champion target depth, prioritizing the currently contested frontier floor.
+function resolveChampionTargetDepth(state, expedition = null, fallbackDepth = 1) {
+  const underrealm = state && state.underrealm;
+  const combat = underrealm && underrealm.combat;
+  const maxDepth = Math.max(
+    1,
+    Math.floor(Number(underrealm && underrealm.maxDepth || fallbackDepth || 1)),
+  );
+  const safeFallbackDepth = clamp(
+    Math.floor(Number(fallbackDepth || 1)),
+    1,
+    maxDepth,
+  );
+  if (!underrealm || !combat || combat.enabled === false) {
+    return safeFallbackDepth;
+  }
+  if (String(combat.progressionMode || 'champion_gate') !== 'champion_gate') {
+    return safeFallbackDepth;
+  }
+  const frontierDepth = clamp(
+    Math.floor(Number(underrealm.maxUnlockedDepth || 0)),
+    0,
+    maxDepth,
+  );
+  if (frontierDepth >= 1) {
+    const frontierFloor = resolveUnderrealmCombatFloor(combat, frontierDepth);
+    const frontierChampionRequired = Boolean(
+      frontierFloor
+      && frontierFloor.unlocked === true
+      && frontierFloor.unlock
+      && frontierFloor.unlock.required === true
+      && frontierFloor.champion
+      && frontierFloor.champion.enabled !== false
+      && frontierFloor.unlock.cleared !== true,
+    );
+    if (frontierChampionRequired && frontierFloor.state === 'contested') {
+      return frontierDepth;
+    }
+  }
+  const expeditionDepth = expedition
+    && expedition.readiness
+    && expedition.readiness.depth
+      ? Math.floor(Number(expedition.readiness.depth))
+      : resolveExpeditionDepth(expedition && expedition.roomIndex, underrealm);
+  return clamp(expeditionDepth, 1, maxDepth);
 }
 
 // Resolve highest built armory level from current structures.
@@ -639,7 +776,14 @@ function startExpedition(state, config, ruinsConfig, rooms, startContext = null)
 
   const selected = idleAdults.slice(0, partySize);
   const dwarfIds = selected.map((dwarf) => dwarf.id);
+  state.jobs = Array.isArray(state.jobs) ? state.jobs : [];
   for (const dwarf of selected) {
+    if (dwarf.job && dwarf.job.id) {
+      const currentJobId = dwarf.job.id;
+      state.jobs = state.jobs.filter((job) => job && job.id !== currentJobId);
+      dwarf.job = null;
+    }
+    delete dwarf.underrealmDuty;
     dwarf.expedition = true;
   }
 
@@ -789,16 +933,12 @@ function resolveChampionEncounter(state, config, ruinsConfig, expedition) {
   if (String(combat.progressionMode || 'champion_gate') !== 'champion_gate') {
     return { required: false };
   }
-  const depth = Math.max(
-    1,
-    Math.floor(Number(
-      expedition
-      && expedition.readiness
-      && expedition.readiness.depth
-        ? expedition.readiness.depth
-        : resolveExpeditionDepth(expedition && expedition.roomIndex, underrealm),
-    )),
-  );
+  const fallbackDepth = expedition
+    && expedition.readiness
+    && expedition.readiness.depth
+      ? expedition.readiness.depth
+      : resolveExpeditionDepth(expedition && expedition.roomIndex, underrealm);
+  const depth = resolveChampionTargetDepth(state, expedition, fallbackDepth);
   const floor = resolveUnderrealmCombatFloor(combat, depth);
   if (!floor || floor.unlocked !== true) {
     return { required: false };
@@ -861,11 +1001,16 @@ function resolveChampionEncounter(state, config, ruinsConfig, expedition) {
     0.1,
     1 + kitPowerBonus + mithrilPowerBonus + combatBonus,
   );
-  const partyAttack = Math.max(
+  const dwarfChampionBonus = resolveDwarfChampionCombatBonus(state, expedition, combat);
+  let partyAttack = Math.max(
     1,
     (offense + support + partySize) * partyPowerMultiplier,
   );
-  const partyDefense = Math.max(0, defense + support + partySize * 0.5);
+  let partyDefense = Math.max(0, defense + support + partySize * 0.5);
+  if (dwarfChampionBonus.active) {
+    partyAttack *= 1 + dwarfChampionBonus.attackBonusRatio;
+    partyDefense *= 1 + dwarfChampionBonus.defenseBonusRatio;
+  }
   const partyHpMax = Math.max(1, partySize * Math.max(2, defense + 2));
 
   const championStats = floor.champion && floor.champion.stats
@@ -961,6 +1106,8 @@ function resolveChampionEncounter(state, config, ruinsConfig, expedition) {
       championLabel,
       suggestedLosses: 0,
       unlockedDepth,
+      dwarfChampionApplied: dwarfChampionBonus.active,
+      dwarfChampionId: dwarfChampionBonus.active ? dwarfChampionBonus.dwarfId : null,
     };
   }
 
@@ -991,6 +1138,8 @@ function resolveChampionEncounter(state, config, ruinsConfig, expedition) {
     championLabel,
     suggestedLosses,
     cooldownTicksRemaining: retryCooldown,
+    dwarfChampionApplied: dwarfChampionBonus.active,
+    dwarfChampionId: dwarfChampionBonus.active ? dwarfChampionBonus.dwarfId : null,
   };
 }
 
@@ -1005,9 +1154,121 @@ function resolveChampionLossCount(outcome, partySize, partyHp, partyHpMax) {
   const baselineRatio = outcome === 'defeat' ? 0.55 : 0.2;
   const lossRatio = clamp(Math.max(damageRatio, baselineRatio), 0, 1);
   const minimum = outcome === 'defeat' ? 1 : 0;
+  const maximum = outcome === 'retreat'
+    ? Math.max(0, safePartySize - 1)
+    : safePartySize;
   return Math.min(
-    safePartySize,
+    maximum,
     Math.max(minimum, Math.round(safePartySize * lossRatio)),
+  );
+}
+
+// Sort expedition candidates to accelerate deterministic champion-promotion buildup.
+function compareChampionPromotionPipelineCandidates(left, right) {
+  const leftSurvivals = Math.max(0, Math.floor(Number(left && left.underrealmChampionSurvivals || 0)));
+  const rightSurvivals = Math.max(0, Math.floor(Number(right && right.underrealmChampionSurvivals || 0)));
+  if (rightSurvivals !== leftSurvivals) {
+    return rightSurvivals - leftSurvivals;
+  }
+  const leftAge = Math.max(0, Math.floor(Number(left && left.ageTicks || 0)));
+  const rightAge = Math.max(0, Math.floor(Number(right && right.ageTicks || 0)));
+  if (leftAge !== rightAge) {
+    return leftAge - rightAge;
+  }
+  const leftSpawnIndex = Math.max(0, Math.floor(Number(left && left.spawnIndex || 0)));
+  const rightSpawnIndex = Math.max(0, Math.floor(Number(right && right.spawnIndex || 0)));
+  if (leftSpawnIndex !== rightSpawnIndex) {
+    return rightSpawnIndex - leftSpawnIndex;
+  }
+  return String(left && left.id || '').localeCompare(String(right && right.id || ''));
+}
+
+// Sort dwarf-champion candidates deterministically by survivals, spawn order, and id.
+function compareDwarfChampionCandidates(left, right) {
+  const leftSurvivals = Math.max(0, Math.floor(Number(left && left.underrealmChampionSurvivals || 0)));
+  const rightSurvivals = Math.max(0, Math.floor(Number(right && right.underrealmChampionSurvivals || 0)));
+  if (rightSurvivals !== leftSurvivals) {
+    return rightSurvivals - leftSurvivals;
+  }
+  const leftAge = Math.max(0, Math.floor(Number(left && left.ageTicks || 0)));
+  const rightAge = Math.max(0, Math.floor(Number(right && right.ageTicks || 0)));
+  if (leftAge !== rightAge) {
+    return leftAge - rightAge;
+  }
+  const leftSpawnIndex = Math.max(0, Math.floor(Number(left && left.spawnIndex || 0)));
+  const rightSpawnIndex = Math.max(0, Math.floor(Number(right && right.spawnIndex || 0)));
+  if (leftSpawnIndex !== rightSpawnIndex) {
+    return rightSpawnIndex - leftSpawnIndex;
+  }
+  return String(left && left.id || '').localeCompare(String(right && right.id || ''));
+}
+
+// Update dwarf-champion progression after one expedition outcome is finalized.
+function updateDwarfChampionAfterExpedition(state, config, expedition, resultMeta) {
+  const runtime = getUnderrealmDwarfChampionRuntime(state);
+  if (!runtime || runtime.enabled === false) {
+    return;
+  }
+  const aliveById = new Set((state.dwarves || []).map((dwarf) => String(dwarf && dwarf.id || '')));
+  const activeDwarfId = typeof runtime.activeDwarfId === 'string' ? runtime.activeDwarfId : null;
+  if (activeDwarfId && !aliveById.has(activeDwarfId)) {
+    runtime.activeDwarfId = null;
+    runtime.activeSinceTick = 0;
+    runtime.losses = Math.max(0, Math.floor(Number(runtime.losses || 0))) + 1;
+    pushEvent(state, config, `Underrealm: Dwarf Champion ${activeDwarfId} has fallen`);
+  }
+  const championResult = resultMeta && resultMeta.championResult
+    && typeof resultMeta.championResult === 'object'
+    ? resultMeta.championResult
+    : null;
+  const battleResolved = championResult
+    && championResult.required === true
+    && championResult.outcome !== 'cooldown';
+  if (!battleResolved) {
+    return;
+  }
+  const expeditionIds = Array.isArray(expedition && expedition.dwarfIds)
+    ? expedition.dwarfIds
+    : [];
+  if (expeditionIds.length === 0) {
+    return;
+  }
+  const survivors = [];
+  for (const dwarfIdRaw of expeditionIds) {
+    const dwarfId = String(dwarfIdRaw || '');
+    if (!dwarfId || !aliveById.has(dwarfId)) {
+      continue;
+    }
+    const dwarf = findDwarfById(state, dwarfId);
+    if (!dwarf) {
+      continue;
+    }
+    dwarf.underrealmChampionSurvivals = Math.max(
+      0,
+      Math.floor(Number(dwarf.underrealmChampionSurvivals || 0)),
+    ) + 1;
+    survivors.push(dwarf);
+  }
+  if (survivors.length === 0 || runtime.activeDwarfId) {
+    return;
+  }
+  const minSurvivals = Math.max(1, Math.floor(Number(runtime.minSurvivals || 3)));
+  const eligible = survivors
+    .filter((dwarf) => Number(dwarf.underrealmChampionSurvivals || 0) >= minSurvivals)
+    .sort(compareDwarfChampionCandidates);
+  if (eligible.length === 0) {
+    return;
+  }
+  const champion = eligible[0];
+  runtime.activeDwarfId = champion.id;
+  runtime.activeSinceTick = Math.max(0, Math.floor(Number(state.tick || 0)));
+  runtime.promotions = Math.max(0, Math.floor(Number(runtime.promotions || 0))) + 1;
+  const attackBonusPct = Math.round(clamp(Number(runtime.attackBonusRatio || 0), 0, 1) * 100);
+  const defenseBonusPct = Math.round(clamp(Number(runtime.defenseBonusRatio || 0), 0, 1) * 100);
+  pushEvent(
+    state,
+    config,
+    `Underrealm: ${champion.id} crowned Dwarf Champion (+${attackBonusPct}% atk, +${defenseBonusPct}% def)`,
   );
 }
 
@@ -1082,6 +1343,8 @@ function finishExpedition(state, config, ruinsConfig, expedition, success, reaso
       pushEvent(state, config, 'Ruins: expedition failed');
     }
   }
+
+  updateDwarfChampionAfterExpedition(state, config, expedition, resultMeta);
 
   const stats = state.ruins.stats || {};
   const tick = Number(state.tick || 0);
@@ -1325,13 +1588,46 @@ function resolvePartySize(room, expeditionConfig, idleCount) {
   return Math.min(clamped, idleCount);
 }
 
+// Resolve active dwarf champion id when bonus requires expedition party presence.
+function resolveRequiredPartyChampionId(state) {
+  const runtime = getUnderrealmDwarfChampionRuntime(state);
+  if (!runtime || runtime.enabled === false || runtime.requiresPartyPresence === false) {
+    return '';
+  }
+  return typeof runtime.activeDwarfId === 'string' ? runtime.activeDwarfId : '';
+}
+
 function getIdleAdults(state, config) {
-  return state.dwarves.filter((dwarf) => (
+  const requiredChampionId = resolveRequiredPartyChampionId(state);
+  const championRuntime = getUnderrealmDwarfChampionRuntime(state);
+  const adults = state.dwarves.filter((dwarf) => (
     !dwarf.job
     && !dwarf.expedition
     && !(dwarf.underrealmDuty && dwarf.underrealmDuty.active !== false)
     && isAdult(dwarf, config)
   ));
+  if (
+    championRuntime
+    && championRuntime.enabled !== false
+    && !championRuntime.activeDwarfId
+  ) {
+    adults.sort(compareChampionPromotionPipelineCandidates);
+  }
+  if (!requiredChampionId) {
+    return adults;
+  }
+  const champion = findDwarfById(state, requiredChampionId);
+  if (!champion || champion.expedition || !isAdult(champion, config)) {
+    return adults;
+  }
+  const currentIndex = adults.findIndex((entry) => String(entry && entry.id || '') === requiredChampionId);
+  if (currentIndex >= 0) {
+    const [entry] = adults.splice(currentIndex, 1);
+    adults.unshift(entry);
+    return adults;
+  }
+  adults.unshift(champion);
+  return adults;
 }
 
 function hasStructure(state, type) {

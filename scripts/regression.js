@@ -4,7 +4,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { spawnSync } = require('child_process');
+const { spawn } = require('child_process');
 
 const ROOT = path.resolve(__dirname, '..');
 const PYTHON = path.join(ROOT, '.venv', 'bin', 'python');
@@ -213,43 +213,111 @@ function buildRandomConfig() {
   return cfg;
 }
 
-function runPythonScript(scriptPath, args, logPath, options = {}) {
+// Format elapsed milliseconds as compact mm:ss string.
+function formatElapsedMs(elapsedMs) {
+  const safeMs = Math.max(0, Math.floor(Number(elapsedMs || 0)));
+  const totalSeconds = Math.floor(safeMs / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  }
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
+// Run one Python script with heartbeat logging and persisted console output.
+async function runPythonScript(scriptPath, args, logPath, options = {}) {
   const captureOutput = options.captureOutput !== false;
   const scriptName = path.basename(scriptPath || 'python');
+  const label = String(options.label || scriptName);
+  const heartbeatEveryMs = Math.max(1000, Math.floor(Number(options.heartbeatEveryMs || 15000)));
+  const progressLog = options.progressLog !== false;
   const tempLogDir = !logPath ? createTempWorkspace(`nodedwarves_regression_${scriptName}`) : null;
   const effectiveLogPath = logPath || path.join(tempLogDir, `${scriptName}.log`);
   const logDir = path.dirname(effectiveLogPath);
   fs.mkdirSync(logDir, { recursive: true });
-  const logFd = fs.openSync(effectiveLogPath, 'w');
-  let result;
-  try {
-    result = spawnSync(PYTHON, [scriptPath, ...args], {
-      cwd: ROOT,
-      stdio: ['ignore', logFd, logFd],
-    });
-  } finally {
-    fs.closeSync(logFd);
+  if (progressLog) {
+    console.log(`[regression] ${label}: started (log=${effectiveLogPath})`);
   }
-  if (result && result.error) {
+
+  const startMs = Date.now();
+  const logStream = fs.createWriteStream(effectiveLogPath, { flags: 'w' });
+  const child = spawn(PYTHON, [scriptPath, ...args], {
+    cwd: ROOT,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  let output = '';
+
+  const appendChunk = (chunk) => {
+    if (!chunk) {
+      return;
+    }
+    const text = chunk.toString('utf8');
+    logStream.write(text);
+    if (captureOutput) {
+      output += text;
+    }
+  };
+
+  if (child.stdout) {
+    child.stdout.on('data', appendChunk);
+  }
+  if (child.stderr) {
+    child.stderr.on('data', appendChunk);
+  }
+
+  const heartbeat = progressLog
+    ? setInterval(() => {
+      const elapsed = formatElapsedMs(Date.now() - startMs);
+      console.log(`[regression] ${label}: running ${elapsed}`);
+    }, heartbeatEveryMs)
+    : null;
+
+  let spawnError = null;
+  let exitCode = 0;
+  await new Promise((resolve) => {
+    child.on('error', (error) => {
+      spawnError = error;
+      resolve();
+    });
+    child.on('close', (code) => {
+      exitCode = Number(code || 0);
+      resolve();
+    });
+  });
+
+  if (heartbeat) {
+    clearInterval(heartbeat);
+  }
+
+  await new Promise((resolve) => {
+    logStream.end(resolve);
+  });
+
+  if (spawnError) {
     if (tempLogDir) {
       removeTempWorkspace(tempLogDir);
     }
-    throw result.error;
+    throw spawnError;
   }
-  let output = '';
-  if (captureOutput) {
-    try {
-      output = fs.readFileSync(effectiveLogPath, 'utf8');
-    } catch (error) {
-      output = '';
+
+  if (exitCode !== 0) {
+    if (progressLog) {
+      console.log(
+        `[regression] ${label}: failed after ${formatElapsedMs(Date.now() - startMs)} ` +
+        `(exit=${exitCode})`,
+      );
     }
-  }
-  if (result.status !== 0) {
-    const error = new Error(`${scriptName} failed (exit ${result.status}). See ${effectiveLogPath}.`);
+    const error = new Error(`${scriptName} failed (exit ${exitCode}). See ${effectiveLogPath}.`);
     if (tempLogDir) {
       removeTempWorkspace(tempLogDir);
     }
     throw error;
+  }
+
+  if (progressLog) {
+    console.log(`[regression] ${label}: completed in ${formatElapsedMs(Date.now() - startMs)}`);
   }
   if (tempLogDir) {
     removeTempWorkspace(tempLogDir);
@@ -852,7 +920,8 @@ function applyProfileConfig(options, config) {
   };
 }
 
-function runProfile(profileName, options) {
+// Run one full profile (eval + randomized) across all configured seeds.
+async function runProfile(profileName, options) {
   const results = {
     eval: [],
     random: [],
@@ -860,13 +929,14 @@ function runProfile(profileName, options) {
   const sourceBestModelPath = POLICY_BEST_PATH;
 
   for (const seed of options.seeds) {
+    console.log(`[regression] profile=${profileName} seed=${seed}: begin`);
     const seedTempDir = createTempWorkspace(`nodedwarves_regression_${profileName}_seed${seed}`);
     try {
       const evalDir = path.join(ROOT, 'debug', `regression_eval_${profileName}_seed${seed}_${Date.now()}`);
       fs.mkdirSync(evalDir, { recursive: true });
       const evalConfig = buildEvalConfig(['baseline', 'full_sim']);
       const evalConfigPath = writeTempConfig(evalConfig, seedTempDir, `eval_${profileName}_${seed}`);
-      const evalOutput = runPythonScript(PROMOTE, [
+      const evalOutput = await runPythonScript(PROMOTE, [
         '--config', evalConfigPath,
         '--model-path', sourceBestModelPath,
         '--best-model-path', path.join(seedTempDir, `unused_best_${seed}.json`),
@@ -876,7 +946,9 @@ function runProfile(profileName, options) {
         '--eval-difficulty', '1.0',
         '--seed', String(seed),
         '--eval-only',
-      ], path.join(evalDir, 'console.log'));
+      ], path.join(evalDir, 'console.log'), {
+        label: `profile=${profileName} seed=${seed} eval`,
+      });
       const evalMetrics = parseEvalOnlyOutput(evalOutput);
       results.eval.push({ seed, metrics: evalMetrics, logDir: evalDir });
 
@@ -885,16 +957,20 @@ function runProfile(profileName, options) {
       const randomConfig = buildRandomConfig();
       const randomConfigPath = writeTempConfig(randomConfig, seedTempDir, `random_${profileName}_${seed}`);
       const summaryPath = path.join(randomDir, 'summary_random.log');
-      runPythonScript(ROLLOUT, [
+      await runPythonScript(ROLLOUT, [
         '--config', randomConfigPath,
         '--model-path', sourceBestModelPath,
         '--episodes', String(options.randomEpisodes),
         '--seed', String(seed),
         '--max-steps', String(options.randomMaxSteps),
         '--summary-path', summaryPath,
-      ], path.join(randomDir, 'console.log'), { captureOutput: false });
+      ], path.join(randomDir, 'console.log'), {
+        captureOutput: false,
+        label: `profile=${profileName} seed=${seed} randomized`,
+      });
       const randomMetrics = parseSummaryLog(summaryPath);
       results.random.push({ seed, metrics: randomMetrics, logDir: randomDir });
+      console.log(`[regression] profile=${profileName} seed=${seed}: completed`);
     } finally {
       removeTempWorkspace(seedTempDir);
     }
@@ -1052,7 +1128,7 @@ function resolveReportPaths(options, txtPath) {
   };
 }
 
-function main() {
+async function main() {
   ensureFile(PYTHON, 'Python venv');
   ensureFile(PROMOTE, 'promote_best.py');
   ensureFile(ROLLOUT, 'regression_rollout.py');
@@ -1084,7 +1160,7 @@ function main() {
         randomAverage,
         evalSeedResults,
         randomSeedResults,
-      } = runProfile(profileName, profileOptions);
+      } = await runProfile(profileName, profileOptions);
       const tolerances = profile.tolerances || DEFAULT_TOLERANCES;
       const comparisons = [
         compareSuite(`${profileName}.eval`, evalAverage, profile.baseline.eval, tolerances.eval),
@@ -1130,7 +1206,7 @@ function main() {
     randomAverage,
     evalSeedResults,
     randomSeedResults,
-  } = runProfile(profileName, profileOptions);
+  } = await runProfile(profileName, profileOptions);
 
   if (options.record) {
     const record = {
@@ -1191,4 +1267,11 @@ function main() {
   }
 }
 
-main();
+main().catch((error) => {
+  if (error && error.stack) {
+    console.error(error.stack);
+  } else {
+    console.error(String(error));
+  }
+  process.exit(1);
+});

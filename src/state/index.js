@@ -1361,6 +1361,11 @@ function createUnderrealmCombatState(config, maxDepth, maxUnlockedDepth, previou
     && typeof previousCombat.stats === 'object'
     ? previousCombat.stats
     : {};
+  const dwarfChampionConfig = combatConfig.dwarf_champion || {};
+  const previousDwarfChampion = previousCombat && previousCombat.dwarfChampion
+    && typeof previousCombat.dwarfChampion === 'object'
+    ? previousCombat.dwarfChampion
+    : {};
   return {
     enabled: combatConfig.enabled !== false,
     progressionMode: String(combatConfig.progression_mode || 'champion_gate'),
@@ -1404,6 +1409,39 @@ function createUnderrealmCombatState(config, maxDepth, maxUnlockedDepth, previou
       retryCooldownTicksPerDepth: Math.max(
         0,
         Math.floor(Number(encounterConfig.retry_cooldown_ticks_per_depth ?? 20)),
+      ),
+    },
+    dwarfChampion: {
+      enabled: dwarfChampionConfig.enabled !== false,
+      minSurvivals: Math.max(
+        1,
+        Math.floor(Number(dwarfChampionConfig.min_survivals ?? 3)),
+      ),
+      attackBonusRatio: clamp(
+        Number(dwarfChampionConfig.attack_bonus_ratio ?? 0.1),
+        0,
+        1,
+      ),
+      defenseBonusRatio: clamp(
+        Number(dwarfChampionConfig.defense_bonus_ratio ?? 0.08),
+        0,
+        1,
+      ),
+      requiresPartyPresence: dwarfChampionConfig.requires_party_presence !== false,
+      activeDwarfId: typeof previousDwarfChampion.activeDwarfId === 'string'
+        ? previousDwarfChampion.activeDwarfId
+        : null,
+      activeSinceTick: Math.max(
+        0,
+        Math.floor(Number(previousDwarfChampion.activeSinceTick || 0)),
+      ),
+      promotions: Math.max(
+        0,
+        Math.floor(Number(previousDwarfChampion.promotions || 0)),
+      ),
+      losses: Math.max(
+        0,
+        Math.floor(Number(previousDwarfChampion.losses || 0)),
       ),
     },
     floorsByDepth,
@@ -2182,6 +2220,7 @@ function createDwarves(config, runtime, occupied, terrain) {
       fertilityCooldown: 0,
       pregnancy: null,
       starvationTicks: 0,
+      underrealmChampionSurvivals: 0,
     };
   });
 

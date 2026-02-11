@@ -478,6 +478,10 @@ function collectUnderrealmMetrics(state) {
       blockedDispatches: 0,
       frontierContested: 0,
       readinessScore: 0,
+      heroPromotions: 0,
+      heroLosses: 0,
+      heroActive: 0,
+      heroSurvivals: 0,
     };
   }
   const maxDepth = Math.max(1, Math.floor(Number(underrealm.maxDepth || 0)));
@@ -508,6 +512,15 @@ function collectUnderrealmMetrics(state) {
   const readinessScore = readinessTargetRaw > 0
     ? clamp(readinessScoreRaw / readinessTargetRaw, 0, 1)
     : 0;
+  const dwarfChampion = combat.dwarfChampion && typeof combat.dwarfChampion === 'object'
+    ? combat.dwarfChampion
+    : {};
+  const activeDwarfId = typeof dwarfChampion.activeDwarfId === 'string'
+    ? dwarfChampion.activeDwarfId
+    : '';
+  const activeDwarf = activeDwarfId && Array.isArray(state && state.dwarves)
+    ? state.dwarves.find((dwarf) => String(dwarf && dwarf.id || '') === activeDwarfId)
+    : null;
   return {
     depth: maxUnlockedDepth,
     champions: Math.max(0, Number(combatStats.championsDefeated || 0)),
@@ -515,6 +528,10 @@ function collectUnderrealmMetrics(state) {
     blockedDispatches: Math.max(0, Number(combatStats.blockedDispatches || 0)),
     frontierContested: frontier && frontier.state === 'contested' ? 1 : 0,
     readinessScore,
+    heroPromotions: Math.max(0, Number(dwarfChampion.promotions || 0)),
+    heroLosses: Math.max(0, Number(dwarfChampion.losses || 0)),
+    heroActive: activeDwarfId ? 1 : 0,
+    heroSurvivals: Math.max(0, Number(activeDwarf && activeDwarf.underrealmChampionSurvivals || 0)),
   };
 }
 
@@ -541,6 +558,10 @@ function collectRow(state, resources, seed) {
     underrealmBlockedDispatches: underrealm.blockedDispatches,
     underrealmFrontierContested: underrealm.frontierContested,
     underrealmReadinessScore: underrealm.readinessScore,
+    underrealmHeroPromotions: underrealm.heroPromotions,
+    underrealmHeroLosses: underrealm.heroLosses,
+    underrealmHeroActive: underrealm.heroActive,
+    underrealmHeroSurvivals: underrealm.heroSurvivals,
     resources: resourceValues,
   };
 }
@@ -563,6 +584,10 @@ function summarizeRows(rows, resources) {
     underrealmBlockedDispatches: average(rows, (row) => row.underrealmBlockedDispatches),
     underrealmFrontierContested: average(rows, (row) => row.underrealmFrontierContested),
     underrealmReadinessScore: average(rows, (row) => row.underrealmReadinessScore),
+    underrealmHeroPromotions: average(rows, (row) => row.underrealmHeroPromotions),
+    underrealmHeroLosses: average(rows, (row) => row.underrealmHeroLosses),
+    underrealmHeroActive: average(rows, (row) => row.underrealmHeroActive),
+    underrealmHeroSurvivals: average(rows, (row) => row.underrealmHeroSurvivals),
     resources: resourceAverages,
   };
 }
@@ -668,6 +693,10 @@ function buildDeltas(variantResults, resources) {
         comparison.deltas.underrealmFrontierContested.abs || 0,
       ),
       underrealmReadinessScore: Number(comparison.deltas.underrealmReadinessScore.abs || 0),
+      underrealmHeroPromotions: Number(comparison.deltas.underrealmHeroPromotions.abs || 0),
+      underrealmHeroLosses: Number(comparison.deltas.underrealmHeroLosses.abs || 0),
+      underrealmHeroActive: Number(comparison.deltas.underrealmHeroActive.abs || 0),
+      underrealmHeroSurvivals: Number(comparison.deltas.underrealmHeroSurvivals.abs || 0),
       resources: resourceDelta,
     };
   });
@@ -775,6 +804,22 @@ function buildSummaryComparisons(variantResults, resources) {
         variant.summary.underrealmReadinessScore,
         baseline.summary.underrealmReadinessScore,
       ),
+      underrealmHeroPromotions: buildMetricDelta(
+        variant.summary.underrealmHeroPromotions,
+        baseline.summary.underrealmHeroPromotions,
+      ),
+      underrealmHeroLosses: buildMetricDelta(
+        variant.summary.underrealmHeroLosses,
+        baseline.summary.underrealmHeroLosses,
+      ),
+      underrealmHeroActive: buildMetricDelta(
+        variant.summary.underrealmHeroActive,
+        baseline.summary.underrealmHeroActive,
+      ),
+      underrealmHeroSurvivals: buildMetricDelta(
+        variant.summary.underrealmHeroSurvivals,
+        baseline.summary.underrealmHeroSurvivals,
+      ),
       resources: {},
     };
     const resourceRelValues = [];
@@ -850,6 +895,22 @@ function buildSeedDeltas(variantResults, resources) {
         underrealmReadinessScore: buildMetricDelta(
           row.underrealmReadinessScore,
           baselineRow.underrealmReadinessScore,
+        ),
+        underrealmHeroPromotions: buildMetricDelta(
+          row.underrealmHeroPromotions,
+          baselineRow.underrealmHeroPromotions,
+        ),
+        underrealmHeroLosses: buildMetricDelta(
+          row.underrealmHeroLosses,
+          baselineRow.underrealmHeroLosses,
+        ),
+        underrealmHeroActive: buildMetricDelta(
+          row.underrealmHeroActive,
+          baselineRow.underrealmHeroActive,
+        ),
+        underrealmHeroSurvivals: buildMetricDelta(
+          row.underrealmHeroSurvivals,
+          baselineRow.underrealmHeroSurvivals,
         ),
         resources: {},
       };
@@ -982,22 +1043,22 @@ function buildMarkdownReport(report) {
   lines.push('');
   lines.push('## Underrealm Summary');
   lines.push('');
-  lines.push('| Variant | Depth | Champions | Failed Expeditions | Blocked Dispatches | Frontier Contested | Readiness Score |');
-  lines.push('| --- | ---: | ---: | ---: | ---: | ---: | ---: |');
+  lines.push('| Variant | Depth | Champions | Failed Expeditions | Blocked Dispatches | Frontier Contested | Readiness Score | Hero Prom | Hero Loss | Hero Active | Hero Surv |');
+  lines.push('| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |');
   for (const variant of report.variants) {
     lines.push(
-      `| ${variant.label} | ${formatNumber(variant.summary.underrealmDepth, 2)} | ${formatNumber(variant.summary.underrealmChampions, 2)} | ${formatNumber(variant.summary.underrealmFailedExpeditions, 2)} | ${formatNumber(variant.summary.underrealmBlockedDispatches, 2)} | ${formatNumber(variant.summary.underrealmFrontierContested, 2)} | ${formatNumber(variant.summary.underrealmReadinessScore, 3)} |`,
+      `| ${variant.label} | ${formatNumber(variant.summary.underrealmDepth, 2)} | ${formatNumber(variant.summary.underrealmChampions, 2)} | ${formatNumber(variant.summary.underrealmFailedExpeditions, 2)} | ${formatNumber(variant.summary.underrealmBlockedDispatches, 2)} | ${formatNumber(variant.summary.underrealmFrontierContested, 2)} | ${formatNumber(variant.summary.underrealmReadinessScore, 3)} | ${formatNumber(variant.summary.underrealmHeroPromotions, 2)} | ${formatNumber(variant.summary.underrealmHeroLosses, 2)} | ${formatNumber(variant.summary.underrealmHeroActive, 2)} | ${formatNumber(variant.summary.underrealmHeroSurvivals, 2)} |`,
     );
   }
   if (report.comparisons.length > 0) {
     lines.push('');
     lines.push('## Comparisons (vs baseline)');
     lines.push('');
-    lines.push('| Variant | Score | Pop rel | Morale rel | Hunger rel | Thirst rel | Depth rel | Champions rel | Blocked rel | Readiness rel | Resource rel avg |');
-    lines.push('| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |');
+    lines.push('| Variant | Score | Pop rel | Morale rel | Hunger rel | Thirst rel | Depth rel | Champions rel | Blocked rel | Readiness rel | HeroProm rel | HeroLoss rel | HeroActive rel | HeroSurv rel | Resource rel avg |');
+    lines.push('| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |');
     for (const comparison of report.comparisons) {
       lines.push(
-        `| ${comparison.variant} | ${formatSignedNumber(comparison.score, 2)} | ${formatSignedPercent(comparison.deltas.population.rel)} | ${formatSignedPercent(comparison.deltas.morale.rel)} | ${formatSignedPercent(comparison.deltas.hunger.rel)} | ${formatSignedPercent(comparison.deltas.thirst.rel)} | ${formatSignedPercent(comparison.deltas.underrealmDepth.rel)} | ${formatSignedPercent(comparison.deltas.underrealmChampions.rel)} | ${formatSignedPercent(comparison.deltas.underrealmBlockedDispatches.rel)} | ${formatSignedPercent(comparison.deltas.underrealmReadinessScore.rel)} | ${formatSignedPercent(comparison.deltas.resourceAverageRel)} |`,
+        `| ${comparison.variant} | ${formatSignedNumber(comparison.score, 2)} | ${formatSignedPercent(comparison.deltas.population.rel)} | ${formatSignedPercent(comparison.deltas.morale.rel)} | ${formatSignedPercent(comparison.deltas.hunger.rel)} | ${formatSignedPercent(comparison.deltas.thirst.rel)} | ${formatSignedPercent(comparison.deltas.underrealmDepth.rel)} | ${formatSignedPercent(comparison.deltas.underrealmChampions.rel)} | ${formatSignedPercent(comparison.deltas.underrealmBlockedDispatches.rel)} | ${formatSignedPercent(comparison.deltas.underrealmReadinessScore.rel)} | ${formatSignedPercent(comparison.deltas.underrealmHeroPromotions.rel)} | ${formatSignedPercent(comparison.deltas.underrealmHeroLosses.rel)} | ${formatSignedPercent(comparison.deltas.underrealmHeroActive.rel)} | ${formatSignedPercent(comparison.deltas.underrealmHeroSurvivals.rel)} | ${formatSignedPercent(comparison.deltas.resourceAverageRel)} |`,
       );
     }
   }
@@ -1005,11 +1066,11 @@ function buildMarkdownReport(report) {
     lines.push('');
     lines.push(`## Seed Deltas: ${block.variant} vs ${block.baseline}`);
     lines.push('');
-    lines.push('| Seed | Score | Pop rel | Morale rel | Hunger rel | Thirst rel | Depth rel | Champions rel | Readiness rel | Resource rel avg |');
-    lines.push('| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |');
+    lines.push('| Seed | Score | Pop rel | Morale rel | Hunger rel | Thirst rel | Depth rel | Champions rel | Readiness rel | HeroProm rel | HeroLoss rel | HeroActive rel | HeroSurv rel | Resource rel avg |');
+    lines.push('| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |');
     for (const row of block.rows) {
       lines.push(
-        `| ${row.seed} | ${formatSignedNumber(row.score, 2)} | ${formatSignedPercent(row.deltas.population.rel)} | ${formatSignedPercent(row.deltas.morale.rel)} | ${formatSignedPercent(row.deltas.hunger.rel)} | ${formatSignedPercent(row.deltas.thirst.rel)} | ${formatSignedPercent(row.deltas.underrealmDepth.rel)} | ${formatSignedPercent(row.deltas.underrealmChampions.rel)} | ${formatSignedPercent(row.deltas.underrealmReadinessScore.rel)} | ${formatSignedPercent(row.deltas.resourceAverageRel)} |`,
+        `| ${row.seed} | ${formatSignedNumber(row.score, 2)} | ${formatSignedPercent(row.deltas.population.rel)} | ${formatSignedPercent(row.deltas.morale.rel)} | ${formatSignedPercent(row.deltas.hunger.rel)} | ${formatSignedPercent(row.deltas.thirst.rel)} | ${formatSignedPercent(row.deltas.underrealmDepth.rel)} | ${formatSignedPercent(row.deltas.underrealmChampions.rel)} | ${formatSignedPercent(row.deltas.underrealmReadinessScore.rel)} | ${formatSignedPercent(row.deltas.underrealmHeroPromotions.rel)} | ${formatSignedPercent(row.deltas.underrealmHeroLosses.rel)} | ${formatSignedPercent(row.deltas.underrealmHeroActive.rel)} | ${formatSignedPercent(row.deltas.underrealmHeroSurvivals.rel)} | ${formatSignedPercent(row.deltas.resourceAverageRel)} |`,
       );
     }
   }
@@ -1052,6 +1113,8 @@ function printTable(report) {
         `underDepth ${formatNumber(row.underrealmDepth, 2)}, underChamp ${formatNumber(row.underrealmChampions, 2)}, ` +
         `underFail ${formatNumber(row.underrealmFailedExpeditions, 2)}, underBlocked ${formatNumber(row.underrealmBlockedDispatches, 2)}, ` +
         `underContested ${formatNumber(row.underrealmFrontierContested, 2)}, underReady ${formatNumber(row.underrealmReadinessScore, 3)}, ` +
+        `underHeroProm ${formatNumber(row.underrealmHeroPromotions, 2)}, underHeroLoss ${formatNumber(row.underrealmHeroLosses, 2)}, ` +
+        `underHeroAct ${formatNumber(row.underrealmHeroActive, 2)}, underHeroSurv ${formatNumber(row.underrealmHeroSurvivals, 2)}, ` +
         formatResources(row.resources, report.meta.resources);
       process.stdout.write(`${line}\n`);
     }
@@ -1067,6 +1130,10 @@ function printTable(report) {
       `underBlocked ${formatNumber(variant.summary.underrealmBlockedDispatches, 2)}, ` +
       `underContested ${formatNumber(variant.summary.underrealmFrontierContested, 2)}, ` +
       `underReady ${formatNumber(variant.summary.underrealmReadinessScore, 3)}, ` +
+      `underHeroProm ${formatNumber(variant.summary.underrealmHeroPromotions, 2)}, ` +
+      `underHeroLoss ${formatNumber(variant.summary.underrealmHeroLosses, 2)}, ` +
+      `underHeroAct ${formatNumber(variant.summary.underrealmHeroActive, 2)}, ` +
+      `underHeroSurv ${formatNumber(variant.summary.underrealmHeroSurvivals, 2)}, ` +
       formatResources(variant.summary.resources, report.meta.resources);
     process.stdout.write(`${summaryLine}\n\n`);
   }
@@ -1110,6 +1177,18 @@ function printTable(report) {
     process.stdout.write(
       `underReadiness ${formatSignedNumber(comparison.deltas.underrealmReadinessScore.abs, 3)} (${formatSignedPercent(comparison.deltas.underrealmReadinessScore.rel)})\n`,
     );
+    process.stdout.write(
+      `underHeroProm ${formatSignedNumber(comparison.deltas.underrealmHeroPromotions.abs, 2)} (${formatSignedPercent(comparison.deltas.underrealmHeroPromotions.rel)})\n`,
+    );
+    process.stdout.write(
+      `underHeroLoss ${formatSignedNumber(comparison.deltas.underrealmHeroLosses.abs, 2)} (${formatSignedPercent(comparison.deltas.underrealmHeroLosses.rel)})\n`,
+    );
+    process.stdout.write(
+      `underHeroAct ${formatSignedNumber(comparison.deltas.underrealmHeroActive.abs, 2)} (${formatSignedPercent(comparison.deltas.underrealmHeroActive.rel)})\n`,
+    );
+    process.stdout.write(
+      `underHeroSurv ${formatSignedNumber(comparison.deltas.underrealmHeroSurvivals.abs, 2)} (${formatSignedPercent(comparison.deltas.underrealmHeroSurvivals.rel)})\n`,
+    );
     for (const resourceId of report.meta.resources) {
       const delta = comparison.deltas.resources[resourceId] || {};
       process.stdout.write(
@@ -1131,6 +1210,10 @@ function printTable(report) {
         `underDepth ${formatSignedPercent(row.deltas.underrealmDepth.rel)}, ` +
         `underChamp ${formatSignedPercent(row.deltas.underrealmChampions.rel)}, ` +
         `underReady ${formatSignedPercent(row.deltas.underrealmReadinessScore.rel)}, ` +
+        `underHeroProm ${formatSignedPercent(row.deltas.underrealmHeroPromotions.rel)}, ` +
+        `underHeroLoss ${formatSignedPercent(row.deltas.underrealmHeroLosses.rel)}, ` +
+        `underHeroAct ${formatSignedPercent(row.deltas.underrealmHeroActive.rel)}, ` +
+        `underHeroSurv ${formatSignedPercent(row.deltas.underrealmHeroSurvivals.rel)}, ` +
         `resources ${formatSignedPercent(row.deltas.resourceAverageRel)}`;
       process.stdout.write(`${line}\n`);
     }

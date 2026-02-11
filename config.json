@@ -1938,6 +1938,13 @@
         "retry_cooldown_ticks_base": 90,
         "retry_cooldown_ticks_per_depth": 22
       },
+      "dwarf_champion": {
+        "enabled": true,
+        "min_survivals": 2,
+        "attack_bonus_ratio": 0.14,
+        "defense_bonus_ratio": 0.12,
+        "requires_party_presence": true
+      },
       "floors": {
         "defaults": {
           "min_armory_level_base": 1,

@@ -322,18 +322,19 @@ function buildTelemetryColumns(state, config, columnWidth, options = {}) {
     formatWorldEventLiveLine(worldEventStatus, worldEventsState, state.tick),
   ], 10);
 
-  const stockpileOrder = getStockpileDisplayOrder(state, config);
-  const stockpileLines = stockpileOrder.map((id) => {
-    const count = Number(state.stockpile[id] || 0);
-    const target = getStockpileTarget(state, config, id, targets);
-    const maxValue = stockBarMax > 0
-      ? stockBarMax
-      : Math.max(1, target, Math.round(count));
-    const ratio = maxValue > 0 ? clamp(count / maxValue, 0, 1) : 0;
-    const detail = formatCountDetail(count, maxValue);
-    const label = getTelemetryResourceLabel(id, resourceLabels);
-    return formatBarLine(label, ratio, detail, columnWidth);
-  });
+  const stockpileEntries = buildStockpileTelemetryEntries(
+    state,
+    config,
+    targets,
+    resourceLabels,
+    stockBarMax,
+  );
+  const stockpileLines = stockpileEntries.map((entry) => formatBarLine(
+    entry.label,
+    entry.ratio,
+    entry.detail,
+    columnWidth,
+  ));
   appendFixedSection(
     right,
     "stockpile",
@@ -1150,6 +1151,150 @@ function getStockpileDisplayOrder(state, config) {
   return order;
 }
 
+// Build stockpile telemetry entries with compact weapon/armor tier aggregation.
+function buildStockpileTelemetryEntries(state, config, targets, resourceLabels, stockBarMax) {
+  const order = getStockpileDisplayOrder(state, config);
+  const entries = [];
+  const weaponTierIds = [];
+  const armorTierIds = [];
+  let compactInsertIndex = -1;
+
+  for (const id of order) {
+    const tierInfo = parseEquipmentTierResourceId(id);
+    if (tierInfo) {
+      if (compactInsertIndex < 0) {
+        compactInsertIndex = entries.length;
+      }
+      if (tierInfo.type === "weapon") {
+        weaponTierIds.push(id);
+      } else if (tierInfo.type === "armor") {
+        armorTierIds.push(id);
+      }
+      continue;
+    }
+    entries.push(
+      buildStockpileEntryForResource(state, config, targets, resourceLabels, stockBarMax, id),
+    );
+  }
+
+  const compactEntries = [];
+  if (weaponTierIds.length > 0) {
+    compactEntries.push(
+      buildCompactEquipmentStockpileEntry(state, config, "weapon", weaponTierIds),
+    );
+  }
+  if (armorTierIds.length > 0) {
+    compactEntries.push(
+      buildCompactEquipmentStockpileEntry(state, config, "armor", armorTierIds),
+    );
+  }
+  if (compactEntries.length > 0) {
+    const insertAt = compactInsertIndex >= 0 ? compactInsertIndex : entries.length;
+    entries.splice(insertAt, 0, ...compactEntries);
+  }
+
+  return entries;
+}
+
+// Build one standard stockpile telemetry entry from a single resource id.
+function buildStockpileEntryForResource(state, config, targets, resourceLabels, stockBarMax, resourceId) {
+  const count = Number(state && state.stockpile && state.stockpile[resourceId] || 0);
+  const target = getStockpileTarget(state, config, resourceId, targets);
+  const maxValue = stockBarMax > 0
+    ? stockBarMax
+    : Math.max(1, target, Math.round(count));
+  const ratio = maxValue > 0 ? clamp(count / maxValue, 0, 1) : 0;
+  const detail = formatCountDetail(count, maxValue);
+  const label = getTelemetryResourceLabel(resourceId, resourceLabels);
+  return { label, ratio, detail };
+}
+
+// Parse one equipment stockpile id and resolve tier metadata when applicable.
+function parseEquipmentTierResourceId(resourceId) {
+  const raw = String(resourceId || "").trim();
+  const match = raw.match(/^(weapon|armor)_tier_(\d+)$/);
+  if (!match) {
+    return null;
+  }
+  return {
+    type: String(match[1] || ""),
+    tier: Math.max(1, Math.floor(Number(match[2] || 1))),
+  };
+}
+
+// Resolve one compact stockpile entry for all tiers of one equipment type.
+function buildCompactEquipmentStockpileEntry(state, config, type, resourceIds) {
+  const normalizedType = String(type || "") === "armor" ? "armor" : "weapon";
+  const sorted = resourceIds
+    .slice()
+    .sort((left, right) => {
+      const leftTier = parseEquipmentTierResourceId(left);
+      const rightTier = parseEquipmentTierResourceId(right);
+      return Number(leftTier && leftTier.tier || 0) - Number(rightTier && rightTier.tier || 0);
+    });
+
+  let totalCount = 0;
+  let highestTierWithStock = 0;
+  let highestTierCount = 0;
+  let minTier = Infinity;
+  let maxTier = 0;
+  for (const id of sorted) {
+    const tierInfo = parseEquipmentTierResourceId(id);
+    const tier = Math.max(1, Math.floor(Number(tierInfo && tierInfo.tier || 1)));
+    const count = Math.max(0, Number(state && state.stockpile && state.stockpile[id] || 0));
+    totalCount += count;
+    minTier = Math.min(minTier, tier);
+    maxTier = Math.max(maxTier, tier);
+    if (count > 0 && tier >= highestTierWithStock) {
+      highestTierWithStock = tier;
+      highestTierCount = count;
+    }
+  }
+  if (!Number.isFinite(minTier)) {
+    minTier = 1;
+  }
+  if (maxTier <= 0) {
+    maxTier = minTier;
+  }
+
+  const target = resolveEquipmentTypeStockTarget(config, normalizedType, sorted);
+  const maxValue = Math.max(1, Math.round(Math.max(target, totalCount)));
+  const ratio = maxValue > 0 ? clamp(totalCount / maxValue, 0, 1) : 0;
+  const detailParts = [formatCountDetail(totalCount, maxValue)];
+  if (highestTierWithStock > 0) {
+    detailParts.push(`hiT${highestTierWithStock}:${formatCompactNumber(highestTierCount)}`);
+  }
+  return {
+    label: normalizedType === "weapon"
+      ? `Weapons T${minTier}-${maxTier}`
+      : `Armor T${minTier}-${maxTier}`,
+    ratio,
+    detail: detailParts.join(" "),
+  };
+}
+
+// Resolve total stock target for one equipment type from armory recipes.
+function resolveEquipmentTypeStockTarget(config, type, resourceIds) {
+  const armory = config && config.structures && config.structures.armory;
+  const equipment = armory && armory.equipment;
+  const recipes = equipment && equipment.recipes && typeof equipment.recipes === "object"
+    ? equipment.recipes
+    : {};
+  let total = 0;
+  for (const id of resourceIds) {
+    const recipe = recipes[id];
+    const recipeType = String(recipe && recipe.type || "").trim();
+    if (recipeType !== type) {
+      continue;
+    }
+    total += Math.max(0, Number(recipe.max_stock || 0));
+  }
+  if (total > 0) {
+    return total;
+  }
+  return 0;
+}
+
 // Build operations lines for workforce, job mix, and stockpile deltas.
 function buildOperationsSectionRows(
   state,
@@ -1675,6 +1820,38 @@ function getUnderrealmCombatFloor(underrealm, depth) {
   return floors[String(safeDepth)] || floors[safeDepth] || null;
 }
 
+// Resolve dwarf-champion runtime metadata from Underrealm combat state.
+function getUnderrealmDwarfChampionRuntime(underrealm) {
+  const combat = underrealm && underrealm.combat;
+  const runtime = combat && combat.dwarfChampion && typeof combat.dwarfChampion === "object"
+    ? combat.dwarfChampion
+    : null;
+  if (!runtime || runtime.enabled === false) {
+    return null;
+  }
+  return runtime;
+}
+
+// Format compact dwarf-champion status token for Underrealm champion-gate row.
+function formatUnderrealmDwarfChampionToken(state, underrealm) {
+  const runtime = getUnderrealmDwarfChampionRuntime(underrealm);
+  if (!runtime) {
+    return "Hero off";
+  }
+  const dwarfId = typeof runtime.activeDwarfId === "string" ? runtime.activeDwarfId : "";
+  if (!dwarfId) {
+    return "Hero none";
+  }
+  const dwarf = Array.isArray(state && state.dwarves)
+    ? state.dwarves.find((entry) => String(entry && entry.id || "") === dwarfId)
+    : null;
+  if (!dwarf) {
+    return "Hero none";
+  }
+  const survivals = Math.max(0, Math.floor(Number(dwarf.underrealmChampionSurvivals || 0)));
+  return `Hero ${dwarfId} S${survivals}`;
+}
+
 // Build a compact progression status line for the current frontier depth.
 function formatUnderrealmProgressionLine(underrealm, frontierLayer, maxUnlockedDepth, maxDepth) {
   if (maxDepth <= 0) {
@@ -1725,17 +1902,18 @@ function formatUnderrealmProgressionLine(underrealm, frontierLayer, maxUnlockedD
 }
 
 // Build a compact champion-gate status line for the frontier depth.
-function formatUnderrealmChampionGateLine(underrealm, frontierDepth) {
+function formatUnderrealmChampionGateLine(state, underrealm, frontierDepth) {
   const combat = underrealm && underrealm.combat;
+  const heroToken = formatUnderrealmDwarfChampionToken(state, underrealm);
   if (!combat || combat.enabled === false) {
-    return "Champion gate: off";
+    return `Champion gate: off | ${heroToken}`;
   }
   if (frontierDepth <= 0) {
-    return "Champion gate: unavailable";
+    return `Champion gate: unavailable | ${heroToken}`;
   }
   const floor = getUnderrealmCombatFloor(underrealm, frontierDepth);
   if (!floor) {
-    return `Champion gate: D${frontierDepth} missing`;
+    return `Champion gate: D${frontierDepth} missing | ${heroToken}`;
   }
   const championRequired = Boolean(
     floor.unlock
@@ -1744,7 +1922,7 @@ function formatUnderrealmChampionGateLine(underrealm, frontierDepth) {
     && floor.champion.enabled !== false,
   );
   if (!championRequired) {
-    return `Champion gate: D${frontierDepth} bypassed`;
+    return `Champion gate: D${frontierDepth} bypassed | ${heroToken}`;
   }
 
   const encounter = floor.encounter && typeof floor.encounter === "object"
@@ -1759,12 +1937,12 @@ function formatUnderrealmChampionGateLine(underrealm, frontierDepth) {
   const stateLabel = cleared ? "cleared" : String(floor.state || "accessible");
 
   if (cooldown > 0 && !cleared) {
-    return `Champion gate: D${frontierDepth} ${stateLabel} cd${cooldown} W${wins}D${defeats}R${retreats}`;
+    return `Champion gate: D${frontierDepth} ${stateLabel} cd${cooldown} W${wins}D${defeats}R${retreats} | ${heroToken}`;
   }
   if (cleared) {
-    return `Champion gate: D${frontierDepth} cleared W${wins}/A${attempts}`;
+    return `Champion gate: D${frontierDepth} cleared W${wins}/A${attempts} | ${heroToken}`;
   }
-  return `Champion gate: D${frontierDepth} ${stateLabel} W${wins}D${defeats}R${retreats}`;
+  return `Champion gate: D${frontierDepth} ${stateLabel} W${wins}D${defeats}R${retreats} | ${heroToken}`;
 }
 
 // Build readiness fallback from frontier floor when ruins gate snapshot is unavailable.
@@ -1869,7 +2047,7 @@ function getUnderrealmTelemetryLines(state) {
       maxDepth,
     ),
   );
-  lines.push(formatUnderrealmChampionGateLine(underrealm, frontierDepth));
+  lines.push(formatUnderrealmChampionGateLine(state, underrealm, frontierDepth));
 
   const activeLayer = layers.find((layer) => Number(layer && layer.depth) === activeDepth);
   if (activeLayer) {

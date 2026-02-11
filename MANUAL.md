@@ -80,6 +80,7 @@ npm run map:export:seasons -- --width=120 --height=40 --seed=12345
 ```
 
 Notes:
+
 - Renders the terrain map only (no telemetry overlay or active entities; includes static structures like mines/ruins and, when present in snapshot, temple footprint stages; frame follows `display.frame.enabled`).
 - Outputs to `maps/png` and `maps/svg` by default.
 - Uses a fixed terrain palette defined in `scripts/export_map.js` so terminal
@@ -147,6 +148,7 @@ npm run balance:gate:standard -- --set jobs.gatherTriggerRatio.food=1.1 --set jo
 ```
 
 How it works (under the hood):
+
 - Runs each variant on the same deterministic seed set and tick horizon.
 - Treats the first variant as `baseline` and compares every following variant against it.
 - Produces:
@@ -159,30 +161,34 @@ How it works (under the hood):
 - Exits with code `1` if any gate check fails (useful for CI).
 
 Preset utility in practice:
+
 - `strict`: pre-merge hard guardrail; blocks risky economy drawdowns and hidden instability.
 - `standard`: day-to-day tuning default; catches meaningful regressions without over-blocking.
 - `relaxed`: exploratory balancing and ideation; allows wider variance while still surfacing metrics.
 
 Preset thresholds:
 
-| Preset | minScore | maxPopDrop | maxMoraleDrop | maxHungerRise | maxThirstRise | maxResourceDrop |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `strict` | `0` | `0.03` | `0.01` | `0.05` | `0.05` | `0.08` |
-| `standard` | `-2` | `0.08` | `0.03` | `0.08` | `0.10` | `0.12` |
-| `relaxed` | `-4` | `0.12` | `0.05` | `0.12` | `0.18` | `0.20` |
+| Preset     | minScore | maxPopDrop | maxMoraleDrop | maxHungerRise | maxThirstRise | maxResourceDrop |
+| ---------- | -------: | ---------: | ------------: | ------------: | ------------: | --------------: |
+| `strict`   |      `0` |     `0.03` |        `0.01` |        `0.05` |        `0.05` |          `0.08` |
+| `standard` |     `-2` |     `0.08` |        `0.03` |        `0.08` |        `0.10` |          `0.12` |
+| `relaxed`  |     `-4` |     `0.12` |        `0.05` |        `0.12` |        `0.18` |          `0.20` |
 
 Important variant-routing rule:
+
 - In preset scripts, `baseline` is fixed as the first variant and `candidate` as the second.
 - Extra `--set ...` flags passed with `npm run ... -- ...` are applied to `candidate`.
 - Avoid adding extra `--variant` flags on top of presets unless you explicitly want a different comparison structure.
 
 Practical playbook:
+
 1. Start with `standard` for fast feedback while tuning one or two knobs.
 2. If `standard` passes and change is significant, re-run with `strict`.
 3. If `strict` fails, inspect seed deltas in the generated report to identify unstable seeds/resources.
 4. Use `relaxed` only while exploring broad design space, then return to `standard`/`strict`.
 
 Concrete examples:
+
 - Small economy tweak (local smoke):
 
 ```bash
@@ -202,10 +208,28 @@ npm run balance:gate:strict
 ```
 
 Report outputs:
+
 - Presets write reports in `debug/` by default (`balance_strict.*`, `balance_standard.*`, `balance_relaxed.*`).
 - You can override paths via `--report-json` / `--report-md`.
 
+Cached baseline workflow (faster iteration):
+
+```bash
+npm run bench:baseline
+npm run bench:candidate -- --set path=value
+npm run bench:diff
+```
+
+- `bench:baseline` writes `regression/baselines/headless_benchmark_baseline.json|.md`.
+- `bench:candidate` writes `debug/headless_benchmark_candidate.json|.md`.
+- `bench:diff` compares the two saved reports (no baseline rerun) and writes `debug/headless_benchmark_diff.json|.md`.
+- `bench:run`, `bench:baseline`, and `bench:candidate` stream benchmark progress lines by default (`[progress] variant=... seed=... tick=...`).
+- You can pass horizon/seeds/resources overrides to baseline/candidate scripts:
+  - `npm run bench:baseline -- --ticks 20000 --seeds 101,202 --variant baseline`
+  - `npm run bench:candidate -- --ticks 20000 --seeds 101,202 --set underrealm.combat.dwarf_champion.requires_party_presence=false`
+
 General benchmark notes:
+
 - Uses `createInitialState` + repeated `stepState` with deterministic seeded randomness per run.
 - Default output includes `population`, `morale`, `beerBoost`, needs averages, and selected stockpile resources.
 - Adds a comparative score (baseline vs candidate), per-seed deltas, and optional gate checks.
@@ -246,9 +270,11 @@ The tick order in code lives in `src/simulation/index.js` and is the execution c
 8. Update temple site/effects/prestige tick (`temple.js`).
 9. Update wildlife season spawns (`wildlife.js`).
 10. For each dwarf:
-   - Age + life stage updates (`population.js`).
-   - Needs decay (season/weather/myth/alchemy/world-event/festival modifiers).
-   - Consume resources from stockpile when thresholds hit.
+
+- Age + life stage updates (`population.js`).
+- Needs decay (season/weather/myth/alchemy/world-event/festival modifiers).
+- Consume resources from stockpile when thresholds hit.
+
 11. Handle deaths, roles, ruins, housing, relationships, reproduction (`population.js`, `roles.js`, `ruins.js`).
 12. Village and road updates (`villages.js`, `roads.js`).
 13. Assign jobs (`jobs.js`).
@@ -565,7 +591,7 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - Tile build requires both stockpile ratio gate (`roads.buildMinResources`) and tile material cost (`roads.cost.<tileType>`).
   - If tile cost is temporarily unaffordable, tile is requeued instead of abandoning the whole link.
 - Pathfinding strategy is multi-pass and deterministic-by-seed:
-  - Preferred mode: weighted A* with terrain penalties and style noise (`roads.pathStyle.enabled=true`).
+  - Preferred mode: weighted A\* with terrain penalties and style noise (`roads.pathStyle.enabled=true`).
   - Fallback mode: strict BFS if style pathing is disabled.
   - Search passes:
     - primary: hard avoid + soft-avoid treated as blocked
@@ -633,7 +659,7 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - This allows policy to time activation near seasonal windows instead of random triggering.
 - Stacking order in the simulation loop:
   - season and weather update first, festival update runs before per-dwarf needs.
-  - final need decay multiplier stacks season * weather * housing * endgame difficulty * clan * myths * alchemy * world-events * festival.
+  - final need decay multiplier stacks season _ weather _ housing _ endgame difficulty _ clan _ myths _ alchemy _ world-events _ festival.
 
 ### World events 🎭
 
@@ -873,23 +899,23 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
       - D2+ unlocks require `required_survey_ratio=100%`, `min_frontier_miners=2`, and no active frontier raid (`require_no_active_raid=true`).
       - `Deep Lift` costs are from `base + per_depth * (depth-1)` on the frontier depth.
 
-  | Depth | Unlock requirement | Bonuses (default) | Maluses / risk (default) | Distinct elements (default) |
-  | --- | --- | --- | --- | --- |
-  | D1 | Secret gate discovered on surface (`discovery` gate after population threshold + delay). | `diff x1.00`, `rare x1.00`, gather output `x1.00`. | Chasm ratio `2.0%`; hostile base term per check `~1.1% * crewFactor` (checked every `16` ticks). | Core caves, crystal fields (`1.5%`), no magma, no shrines. |
-  | D2 | From D1 frontier: survey target `95`; Deep Lift build `220` ticks; stockpile cost `stone 44, iron 16`; mined-in-depth requirement `stone 70, iron 26`. | `diff x1.08`, `rare x1.10`, gather output `x1.08`; new depth nodes include `mana_crystal`; rare tables start with `mana_crystal`. | Chasm ratio `3.0%`; hostile base term `~2.2% * crewFactor`. | More crystal (`2.3%`) and first ancestor shrines for ward/oath loops. |
-  | D3 | From D2 frontier: survey target `160`; Deep Lift build `360` ticks; stockpile cost `stone 74, iron 30`; mined requirement `stone 114, iron 48`. | `diff x1.16`, `rare x1.20`, gather output `x1.16`; `mithril` rare drops can roll from here. | Chasm ratio `4.0%`; hostile base term `~3.3% * crewFactor`. | First magma pockets and `ember_resin` prospection potential. |
-  | D4 | From D3 frontier: survey target `225`; Deep Lift build `500` ticks; stockpile cost `stone 104, iron 44`; mined requirement `stone 158, iron 70`. | `diff x1.24`, `rare x1.30`, gather output `x1.24`; `mithril` nodes become available. | Chasm ratio `5.0%`; magma ratio `2.0%` (non-walkable); hostile base term `~4.4% * crewFactor`. | Denser shrine network and stronger ward charge throughput. |
-  | D5 | From D4 frontier: survey target `290`; Deep Lift build `640` ticks; stockpile cost `stone 134, iron 58`; mined requirement `stone 202, iron 92`. | `diff x1.32`, `rare x1.40`, gather output `x1.32`; `adamantio` rare drops unlock. | Chasm ratio `6.0%`; magma ratio `2.5%`; hostile base term `~5.5% * crewFactor`. | High-pressure transition depth before late-tier mineral strata. |
-  | D6 | From D5 frontier: survey target `355`; Deep Lift build `780` ticks; stockpile cost `stone 164, iron 72`; mined requirement `stone 246, iron 114`. | `diff x1.40`, `rare x1.50`, gather output `x1.40`; `adamantio` nodes unlock. | Chasm ratio `7.0%`; magma ratio `3.0%`; hostile base term `~6.6% * crewFactor`. | Deep-haul phase starts: heavier logistics, less forgiving raids. |
-  | D7 | From D6 frontier: survey target `420`; Deep Lift build `920` ticks; stockpile cost `stone 194, iron 86`; mined requirement `stone 290, iron 136`. | `diff x1.48`, `rare x1.60`, gather output `x1.48`; `embersteel` nodes and rare drops unlock. | Chasm ratio `8.0%`; magma ratio `3.5%`; hostile base term `~7.7% * crewFactor`. | Ember-biome pressure rises and shrine prospection value spikes. |
-  | D8 | From D7 frontier: survey target `485`; Deep Lift build `1060` ticks; stockpile cost `stone 224, iron 100`; mined requirement `stone 334, iron 158`. | `diff x1.56`, `rare x1.70`, gather output `x1.56`; `ironshade` nodes and rare drops unlock. | Chasm ratio `9.0%`; magma ratio `4.0%`; hostile base term `~8.8% * crewFactor`. | Full rare palette online; raids become a major economic threat. |
-  | D9 | From D8 frontier: survey target `550`; Deep Lift build `1200` ticks; stockpile cost `stone 254, iron 114`; mined requirement `stone 378, iron 180`. | `diff x1.64`, `rare x1.80`, gather output `x1.64`; late-depth efficiency favors specialized crews. | Chasm ratio `10.0%`; magma ratio `4.5%`; hostile base term `~9.9% * crewFactor`. | Ultra-deep hazard density with very expensive recovery loops. |
-  | D10 | From D9 frontier: survey target `615`; Deep Lift build `1340` ticks; stockpile cost `stone 284, iron 128`; mined requirement `stone 422, iron 202`. | `diff x1.72`, `rare x1.90`, gather output `x1.72`; maximum rare scaling and final deep economy ceiling. | Chasm ratio `11.0%`; magma ratio `5.0%`; hostile base term `~11.0% * crewFactor`. | Apex underrealm pressure where guard/ward discipline becomes mandatory. |
-
+  | Depth | Unlock requirement                                                                                                                                     | Bonuses (default)                                                                                                                 | Maluses / risk (default)                                                                         | Distinct elements (default)                                             |
+  | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------- |
+  | D1    | Secret gate discovered on surface (`discovery` gate after population threshold + delay).                                                               | `diff x1.00`, `rare x1.00`, gather output `x1.00`.                                                                                | Chasm ratio `2.0%`; hostile base term per check `~1.1% * crewFactor` (checked every `16` ticks). | Core caves, crystal fields (`1.5%`), no magma, no shrines.              |
+  | D2    | From D1 frontier: survey target `95`; Deep Lift build `220` ticks; stockpile cost `stone 44, iron 16`; mined-in-depth requirement `stone 70, iron 26`. | `diff x1.08`, `rare x1.10`, gather output `x1.08`; new depth nodes include `mana_crystal`; rare tables start with `mana_crystal`. | Chasm ratio `3.0%`; hostile base term `~2.2% * crewFactor`.                                      | More crystal (`2.3%`) and first ancestor shrines for ward/oath loops.   |
+  | D3    | From D2 frontier: survey target `160`; Deep Lift build `360` ticks; stockpile cost `stone 74, iron 30`; mined requirement `stone 114, iron 48`.        | `diff x1.16`, `rare x1.20`, gather output `x1.16`; `mithril` rare drops can roll from here.                                       | Chasm ratio `4.0%`; hostile base term `~3.3% * crewFactor`.                                      | First magma pockets and `ember_resin` prospection potential.            |
+  | D4    | From D3 frontier: survey target `225`; Deep Lift build `500` ticks; stockpile cost `stone 104, iron 44`; mined requirement `stone 158, iron 70`.       | `diff x1.24`, `rare x1.30`, gather output `x1.24`; `mithril` nodes become available.                                              | Chasm ratio `5.0%`; magma ratio `2.0%` (non-walkable); hostile base term `~4.4% * crewFactor`.   | Denser shrine network and stronger ward charge throughput.              |
+  | D5    | From D4 frontier: survey target `290`; Deep Lift build `640` ticks; stockpile cost `stone 134, iron 58`; mined requirement `stone 202, iron 92`.       | `diff x1.32`, `rare x1.40`, gather output `x1.32`; `adamantio` rare drops unlock.                                                 | Chasm ratio `6.0%`; magma ratio `2.5%`; hostile base term `~5.5% * crewFactor`.                  | High-pressure transition depth before late-tier mineral strata.         |
+  | D6    | From D5 frontier: survey target `355`; Deep Lift build `780` ticks; stockpile cost `stone 164, iron 72`; mined requirement `stone 246, iron 114`.      | `diff x1.40`, `rare x1.50`, gather output `x1.40`; `adamantio` nodes unlock.                                                      | Chasm ratio `7.0%`; magma ratio `3.0%`; hostile base term `~6.6% * crewFactor`.                  | Deep-haul phase starts: heavier logistics, less forgiving raids.        |
+  | D7    | From D6 frontier: survey target `420`; Deep Lift build `920` ticks; stockpile cost `stone 194, iron 86`; mined requirement `stone 290, iron 136`.      | `diff x1.48`, `rare x1.60`, gather output `x1.48`; `embersteel` nodes and rare drops unlock.                                      | Chasm ratio `8.0%`; magma ratio `3.5%`; hostile base term `~7.7% * crewFactor`.                  | Ember-biome pressure rises and shrine prospection value spikes.         |
+  | D8    | From D7 frontier: survey target `485`; Deep Lift build `1060` ticks; stockpile cost `stone 224, iron 100`; mined requirement `stone 334, iron 158`.    | `diff x1.56`, `rare x1.70`, gather output `x1.56`; `ironshade` nodes and rare drops unlock.                                       | Chasm ratio `9.0%`; magma ratio `4.0%`; hostile base term `~8.8% * crewFactor`.                  | Full rare palette online; raids become a major economic threat.         |
+  | D9    | From D8 frontier: survey target `550`; Deep Lift build `1200` ticks; stockpile cost `stone 254, iron 114`; mined requirement `stone 378, iron 180`.    | `diff x1.64`, `rare x1.80`, gather output `x1.64`; late-depth efficiency favors specialized crews.                                | Chasm ratio `10.0%`; magma ratio `4.5%`; hostile base term `~9.9% * crewFactor`.                 | Ultra-deep hazard density with very expensive recovery loops.           |
+  | D10   | From D9 frontier: survey target `615`; Deep Lift build `1340` ticks; stockpile cost `stone 284, iron 128`; mined requirement `stone 422, iron 202`.    | `diff x1.72`, `rare x1.90`, gather output `x1.72`; maximum rare scaling and final deep economy ceiling.                           | Chasm ratio `11.0%`; magma ratio `5.0%`; hostile base term `~11.0% * crewFactor`.                | Apex underrealm pressure where guard/ward discipline becomes mandatory. |
   - Notes on table values:
     - `crewFactor` in hostile spawn = `(1 + assignedDelvers/24)` and is multiplied after the listed base term.
     - Hostile spawn chance is clamped to `0.95`.
     - Shrine count and feature ratios are generation targets; final topology can vary by deterministic terrain seed.
+
 - Underrealm V2 combat framework (M1+M4):
   - Config includes `underrealm.combat.*` (readiness gates/weights, encounter pacing, per-floor champion/readiness templates, and per-depth overrides).
   - Runtime initializes `underrealm.combat.floorsByDepth` and mirrors each floor snapshot on `underrealm.layers[].combat` for deterministic depth-local state access.
@@ -903,6 +929,7 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - Recipe gating uses both armory level (`min_level`) and per-level mineral allow-lists (`allowed_minerals`), with deterministic stock-cap scheduling (`max_stock`).
 - Underrealm V2 readiness dispatch policy (M3):
   - Ruins expedition dispatch evaluates readiness on depth `max(roomIndex + 1, currentFrontierDepth)` (clamped by `underrealm.maxDepth`).
+  - When the current frontier floor is `contested`, champion cooldown gating and champion combat target the contested frontier depth first (instead of following room depth growth).
   - Readiness score uses weighted offense/defense/support components:
     - offense from average best-available weapon tier for party slots,
     - defense from average best-available armor tier for party slots,
@@ -927,6 +954,14 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - Trainer summary line now includes `under=...` diagnostics, so randomized regression can ingest `under_*` rollout metrics.
   - `scripts/regression.js` randomized suite reports now include `under_*` rows when summary diagnostics are available.
   - `scripts/headless_benchmark.js` now includes compact Underrealm KPIs (`underDepth`, `underChamp`, `underFail`, `underBlocked`, `underContested`, `underReady`) in summaries, comparisons, and seed deltas.
+- Underrealm M8 safe Dwarf Champion integration:
+  - Adds one optional runtime slot (`underrealm.combat.dwarf_champion`) for a unique active hero.
+  - Promotion is deterministic and requires repeated survival in resolved champion encounters (`min_survivals` threshold).
+  - Bonus is applied to aggregated champion-encounter party stats (`attack_bonus_ratio`, `defense_bonus_ratio`), without switching to per-unit tactical combat.
+  - Default tuning keeps the effect visible but controlled (`min_survivals=2`, `attack_bonus_ratio=0.14`, `defense_bonus_ratio=0.12`, `requires_party_presence=true`).
+  - Default behavior keeps bonus party-bound (`requires_party_presence=true`): if the hero is not in expedition party, the bonus does not apply.
+  - To keep party-bound bonuses practical, active Dwarf Champion is pinned out of Underrealm duty assignment while the party-presence rule is active.
+  - If active champion dies, slot is cleared and can be reassigned only after a later eligible survivor promotion.
 - Hostile deep faction pressure (`underrealm.hostiles.*`):
   - Raid checks run per unlocked depth on `check_interval` ticks.
   - Spawn prerequisites:
@@ -1054,7 +1089,7 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - Underrealm readiness gate for mapped floor depth (`max(roomIndex + 1, currentFrontierDepth)`) passes:
     - armory level >= floor `min_armory_level`,
     - readiness score >= floor `min_score` (when hard gate enabled).
-    - if floor is `contested`, champion retry cooldown must be zero (otherwise dispatch is blocked with `champion_cooldown`).
+    - if the contested frontier champion is on retry cooldown, dispatch is blocked with `champion_cooldown`.
 - Party size:
   - Desired size is `ruins.rooms[].partySize`, clamped to `ruins.expedition.partySizeMin/Max`.
   - If idle adults are fewer than `partySizeMin`, no expedition starts.
@@ -1074,11 +1109,15 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - `mithrilPowerBonus` applies only if reinforcement is used (see below).
   - `combatBonus` comes from artifacts/set/combos (`ruins.setBonuses` and `ruins.comboBonuses`).
 - Champion encounters (Underrealm V2):
-  - Triggered when the mapped floor is `contested`, champion is required, and champion is not cleared.
+  - Triggered when champion target depth is `contested`, champion is required, and champion is not cleared.
+  - Champion target depth prioritizes the current contested frontier floor; if no contested frontier gate exists, mapping falls back to the expedition/readiness depth.
   - Resolution is deterministic aggregated rounds using readiness components + expedition bonuses vs champion stats.
+  - When M8 is enabled and a valid Dwarf Champion is active, party attack/defense gain bounded additive multipliers before round resolution.
+  - Champion encounter survivors increment per-dwarf champion-survival counters; promotion occurs only when no active Dwarf Champion exists.
   - Outcomes:
     - `victory`: floor becomes `cleared`, champion clear flag is set, and next depth unlocks.
     - `retreat|defeat`: floor remains `contested`, retry cooldown is applied, and expedition fails.
+  - Retreat casualty hints are capped below total-party wipe (`max losses = partySize - 1`) so resolved retreats can preserve at least one survivor.
   - Champion retry cooldown is read by dispatch gate and surfaced in telemetry (`Readiness gate: ... BLOCKED champion cd ...`).
 - Hazards:
   - Base failure chance per room is `ruins.rooms[].hazardChance`.
@@ -1101,6 +1140,7 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - Base loss range is `ruins.expedition.failureLossMin/Max`.
   - For warning-zone dispatches, sampled base losses are scaled by the warning risk multiplier before reductions.
   - Champion failures can inject deterministic loss hints (retreat/defeat severity), then normal casualty-reduction bonuses still apply.
+  - Retreat loss hints are bounded to keep at least one survivor when the expedition still has living members at outcome resolution.
   - Losses are reduced by `casualtyReduction` bonuses (from artifacts/combos).
 
 ### Merchant 🧳
@@ -1144,7 +1184,7 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - picks one random faction from `contracts.factions`.
   - request resources sampled from `allowedResources`.
   - request count comes from `requestCount.min/max`.
-  - per-resource amount is derived from target * sampled `requestRatio`.
+  - per-resource amount is derived from target \* sampled `requestRatio`.
   - contract carries `expiresAt`, `requested` map, and per-resource `targetBoosts`.
 - Active steering effect:
   - while active, `getContractTargetBoost` inflates stockpile targets for requested resources.
@@ -1259,6 +1299,7 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
   - World timeline shows `Tick`, `Year`, and season name only (capitalized label, no season tick progress fraction).
   - Stockpile bars scale with `display.telemetry.stockBarMax` or per-resource targets.
   - Stockpile rendering keeps a stable order from `resources.stockpile` (plus runtime extras), so resources do not appear/disappear when values hit zero.
+  - Equipment stockpiles (`weapon_tier_*`, `armor_tier_*`) are compacted into two aggregate rows (`Weapons T*`, `Armor T*`) with total stock and highest stocked tier token.
   - `World` keeps contract/alchemy windows and one `World log` line for the latest event signal.
     - Long `World log` entries wrap up to 3 telemetry rows (instead of hard truncation) for readability.
   - `Pressure` reports shortage priorities (`state.lastPriorities`), key stockpile target ratios, raid pressure, and compact jobs-governor priorities.
@@ -1421,10 +1462,10 @@ Training presets:
 - Regression baseline profiles are persisted in `regression/baselines/regression_baseline.json` (stable/versionable), while per-run logs/reports stay in `debug/`.
 - In `scripts/regression.js --all`, explicit CLI knobs (`--seeds`, `--eval-*`, `--random-*`) override the stored profile config, so short smoke checks do not require editing baseline files.
 - Regression subprocess logs are streamed directly to per-run `console.log` files (instead of buffered pipes), reducing risk of buffer-cap failures in long runs.
+- Regression CLI now emits heartbeat lines during long Python phases (`[regression] ... running mm:ss`), so long checks provide visible progress and do not appear stuck.
 - Regression now writes `.txt`, `.json`, and `.md` reports for each run (defaults next to the txt report; override with `--report-json` / `--report-md`).
 - Randomized regression summary parsing also captures `under_*` metrics from trainer `under=` diagnostics when present.
 - Headless benchmark summaries/comparisons now include Underrealm KPIs (`underDepth`, `underChamp`, `underFail`, `underBlocked`, `underContested`, `underReady`) for seed-by-seed balancing review.
-
 
 ### Rendering 🖼️
 
@@ -1502,7 +1543,7 @@ Most resource logic is generic, but check these spots:
 
 - `src/render/legend.js` uses `resources.nodes` keys for resource legend entries.
   - If your resource is **terrain-based** and mapped to a terrain symbol, it may be omitted from the node legend.
-- `src/render/telemetry.js` lists everything in `state.stockpile`, so adding to `resources.stockpile` is enough to show it.
+- `src/render/telemetry.js` lists stockpile resources from `state.stockpile` by default (equipment tiers are intentionally compacted into aggregate `Weapons`/`Armor` rows).
 - If you want special telemetry formatting, add it explicitly.
 
 ### E) AI and training impact 🤖
@@ -1564,6 +1605,7 @@ Quick checklist:
 - `regression/baselines/regression_baseline.json` → durable profile baselines used by regression checks
 - `scripts/export_map.js` → map export pipeline (PNG + SVG)
 - `scripts/headless_benchmark.js` → deterministic long-run headless benchmark with comparative score, seed deltas, and optional gate checks
+- `scripts/compare_benchmark_reports.js` → report-to-report benchmark diff utility for cached baseline/candidate comparisons
 - `python/train.py` → PPO trainer and best-checkpoint updates
 - `python/promote_best.py` → post-train promotion check (latest vs best)
 - `python/regression_rollout.py` → randomized regression rollouts without PPO updates/checkpoint writes

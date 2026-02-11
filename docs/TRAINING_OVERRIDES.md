@@ -145,6 +145,10 @@ Underrealm readiness gate (Ruins dispatch coupling):
 - `underrealm.combat.readiness.formula.support_armory_level_scale`: armory-level support score scale.
 - `underrealm.combat.encounter.rounds_base|rounds_per_depth`: deterministic champion round budget.
 - `underrealm.combat.encounter.retry_cooldown_ticks_base|retry_cooldown_ticks_per_depth`: champion retry cooldown pacing.
+- `underrealm.combat.dwarf_champion.enabled`: enable single-slot Dwarf Champion progression/bonus layer on top of aggregated champion encounters.
+- `underrealm.combat.dwarf_champion.min_survivals`: survivals needed for deterministic promotion when no active Dwarf Champion exists.
+- `underrealm.combat.dwarf_champion.attack_bonus_ratio|defense_bonus_ratio`: bounded aggregated party attack/defense bonus ratios.
+- `underrealm.combat.dwarf_champion.requires_party_presence`: require active champion dwarf presence in expedition party before bonus applies.
 - `underrealm.combat.floors.defaults.min_armory_level_base|min_armory_level_per_depth`: minimum armory-level baseline/scaling per floor depth.
 - `underrealm.combat.floors.defaults.readiness.min_score_base|min_score_per_depth|recommended_score_base|recommended_score_per_depth`: default floor score thresholds by depth.
 - `underrealm.combat.floors.defaults.champion.hp_base|hp_per_depth|attack_base|attack_per_depth|defense_base|defense_per_depth|penetration_base|penetration_per_depth`: default champion stat curve per depth.
@@ -163,6 +167,7 @@ Underrealm AI observation features (M6):
 - `underrealmReadinessWarning`: `1` when dispatch is in warning zone.
 - `underrealmCombatPressure`: compact aggregate pressure signal from frontier/champion/readiness outcomes.
 - Shape compatibility note: adding/removing/reordering `ai.training.trainer.featureNames` changes model input size, so resume is blocked and training must restart with `--fresh`.
+- M8 compatibility note: Dwarf Champion integration does not change observation feature shape by default; existing M6 feature vectors remain shape-compatible.
 
 Endgame cycles:
 

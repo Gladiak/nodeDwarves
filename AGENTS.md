@@ -56,6 +56,7 @@ This file defines how to implement new features in a consistent, stable way.
 - `scripts/export_map.js`: CLI map export pipeline (PNG + SVG).
 - `scripts/regression.js`: AI regression harness and profile recording.
 - `scripts/headless_benchmark.js`: deterministic headless benchmark CLI for long-run tuning and validation.
+- `scripts/compare_benchmark_reports.js`: report-to-report benchmark diff CLI for cached baseline/candidate comparisons.
 - `regression/baselines/regression_baseline.json`: durable regression baseline profiles used by checks.
 - `python/bootstrap.py`: venv bootstrap.
 - `python/train.py`: PPO training loop and logging.

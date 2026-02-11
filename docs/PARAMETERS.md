@@ -16,6 +16,7 @@ Display and layout:
 - `display.footer.enabled`: enable the footer bar (default profile keeps this disabled).
 - `display.footer.height`: footer height in lines (use `0` to maximize map height).
 - `display.telemetry.stockBarMax`: stockpile bar scale used by telemetry bars (0 = use targets).
+- `display.telemetry.stockBarMax` note: compact equipment rows (`weapon_tier_*`, `armor_tier_*`) use aggregated armory `equipment.recipes.*.max_stock` totals as scale to keep bar readability.
 - `display.mapInset.enabled`: enable the top-right in-map inset panel carved from simulation space.
 - `display.mapInset.width`: inset width in map cells (default profile: `50`; runtime clamps to available map width with a minimum of `24`).
 - `display.mapInset.height`: inset height in map cells (default profile: `7`; runtime clamps to available map height with a minimum of `6`).
@@ -470,6 +471,12 @@ Underrealm:
 - `underrealm.combat.readiness.formula.support_armory_level_scale`: support score contribution per current armory level.
 - `underrealm.combat.encounter.rounds_base|rounds_per_depth`: base and per-depth combat rounds used by deterministic champion encounter resolution.
 - `underrealm.combat.encounter.retry_cooldown_ticks_base|retry_cooldown_ticks_per_depth`: base and per-depth retry cooldown applied after champion retreat/defeat.
+- `underrealm.combat.dwarf_champion.enabled`: enable single-slot Dwarf Champion runtime lifecycle and bonus application in champion encounters.
+- `underrealm.combat.dwarf_champion.min_survivals`: minimum resolved champion-battle survivals required before a dwarf can be promoted when no active champion exists.
+- `underrealm.combat.dwarf_champion.attack_bonus_ratio`: additive attack bonus ratio applied to party aggregated attack when Dwarf Champion bonus is active.
+- `underrealm.combat.dwarf_champion.defense_bonus_ratio`: additive defense bonus ratio applied to party aggregated defense when Dwarf Champion bonus is active.
+- `underrealm.combat.dwarf_champion.requires_party_presence`: when true, Dwarf Champion bonus is active only if the champion dwarf is in the expedition party.
+- `underrealm.combat.dwarf_champion` default profile: `min_survivals=2`, `attack_bonus_ratio=0.14`, `defense_bonus_ratio=0.12`, `requires_party_presence=true` (visibility-focused but stability-safe baseline).
 - `underrealm.combat.floors.defaults.min_armory_level_base|min_armory_level_per_depth`: baseline and depth scaling for minimum armory level readiness gate.
 - `underrealm.combat.floors.defaults.readiness.min_score_base|min_score_per_depth|recommended_score_base|recommended_score_per_depth`: default readiness threshold growth profile by depth.
 - `underrealm.combat.floors.defaults.champion.enabled`: default champion requirement toggle per floor.
@@ -600,6 +607,7 @@ Prestige:
 Resources:
 
 - `resources.stockpile.<resource>`: initial stockpile amounts (e.g. `food`, `water`, `beer`, `wood`, `stone`, `iron`, `expedition_kit`, `weapon_tier_1..10`, `armor_tier_1..10`, `mithril`, `adamantio`, `mana_crystal`, `embersteel`, `ironshade`, `void_shard`, `ember_resin`).
+- `resources.stockpile` telemetry note: weapon/armor tier ids are still tracked independently in simulation, but telemetry renders them as compact aggregate `Weapons` and `Armor` rows.
 - `resources.targets.<resource>`: target stockpile amounts used for shortages and stockpile ratios.
 - `resources.targetsPerCapita.<resource>`: per-dwarf target add-on (added to `resources.targets`) for scaling shortages and ratios.
 - `resources.mapScale.enabled`: enable scaling of initial resources based on map area.
@@ -1368,6 +1376,7 @@ Ruins exploration:
   - blocked when score is below floor `min_score` and `underrealm.combat.readiness.hard_min_gate=true`,
   - blocked when mapped floor is `contested` and champion retry cooldown is active (`champion_cooldown`),
   - warning zone when score is below floor `recommended_score` (dispatch still allowed with risk multiplier).
+- When `underrealm.combat.dwarf_champion.enabled=true`, resolved champion encounters also update deterministic per-dwarf survival counters and single-slot promotion/loss lifecycle (`activeDwarfId`, promotions, losses) in Underrealm combat runtime state.
 - `ruins.mithrilReinforcement.enabled`: enable mithril reinforcement for expeditions.
 - `ruins.mithrilReinforcement.minRoom`: minimum room index (1-based) to allow mithril use.
 - `ruins.mithrilReinforcement.cost.<resource>`: resources consumed for mithril reinforcement.

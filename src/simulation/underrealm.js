@@ -193,7 +193,7 @@ function updateUnderrealm(state, config) {
     clearAllUnderrealmDuty(state);
     return;
   }
-  ensureUnderrealmRuntimeState(state);
+  ensureUnderrealmRuntimeState(state, config);
   updateUnderrealmDiscovery(state, config);
   updateUnderrealmCombatRuntime(state, config);
   updateCrewAssignments(state, config);
@@ -608,7 +608,7 @@ function getUnderrealmShrineConfig(config) {
 }
 
 // Initialize or repair runtime fields used by Underrealm simulation.
-function ensureUnderrealmRuntimeState(state) {
+function ensureUnderrealmRuntimeState(state, config) {
   const underrealm = state.underrealm;
   if (!underrealm.discovery || typeof underrealm.discovery !== 'object') {
     underrealm.discovery = {
@@ -695,6 +695,17 @@ function ensureUnderrealmRuntimeState(state) {
         retryCooldownTicksBase: 90,
         retryCooldownTicksPerDepth: 20,
       },
+      dwarfChampion: {
+        enabled: true,
+        minSurvivals: 3,
+        attackBonusRatio: 0.1,
+        defenseBonusRatio: 0.08,
+        requiresPartyPresence: true,
+        activeDwarfId: null,
+        activeSinceTick: 0,
+        promotions: 0,
+        losses: 0,
+      },
       floorsByDepth: {},
       stats: {
         championsDefeated: 0,
@@ -753,6 +764,66 @@ function ensureUnderrealmRuntimeState(state) {
     0,
     Number(underrealm.combat.readiness.formula.supportArmoryLevelScale ?? 1),
   );
+  underrealm.combat.dwarfChampion = underrealm.combat.dwarfChampion || {};
+  underrealm.combat.dwarfChampion.enabled = underrealm.combat.dwarfChampion.enabled !== false;
+  underrealm.combat.dwarfChampion.minSurvivals = Math.max(
+    1,
+    Math.floor(Number(underrealm.combat.dwarfChampion.minSurvivals ?? 2)),
+  );
+  underrealm.combat.dwarfChampion.attackBonusRatio = clamp(
+    Number(underrealm.combat.dwarfChampion.attackBonusRatio ?? 0.14),
+    0,
+    1,
+  );
+  underrealm.combat.dwarfChampion.defenseBonusRatio = clamp(
+    Number(underrealm.combat.dwarfChampion.defenseBonusRatio ?? 0.12),
+    0,
+    1,
+  );
+  underrealm.combat.dwarfChampion.requiresPartyPresence =
+    underrealm.combat.dwarfChampion.requiresPartyPresence !== false;
+  underrealm.combat.dwarfChampion.activeDwarfId =
+    typeof underrealm.combat.dwarfChampion.activeDwarfId === 'string'
+      ? underrealm.combat.dwarfChampion.activeDwarfId
+      : null;
+  underrealm.combat.dwarfChampion.activeSinceTick = Math.max(
+    0,
+    Math.floor(Number(underrealm.combat.dwarfChampion.activeSinceTick || 0)),
+  );
+  underrealm.combat.dwarfChampion.promotions = Math.max(
+    0,
+    Math.floor(Number(underrealm.combat.dwarfChampion.promotions || 0)),
+  );
+  underrealm.combat.dwarfChampion.losses = Math.max(
+    0,
+    Math.floor(Number(underrealm.combat.dwarfChampion.losses || 0)),
+  );
+  const aliveDwarfIds = new Set(
+    Array.isArray(state.dwarves)
+      ? state.dwarves.map((dwarf) => String(dwarf && dwarf.id || ''))
+      : [],
+  );
+  if (
+    underrealm.combat.dwarfChampion.activeDwarfId
+    && !aliveDwarfIds.has(underrealm.combat.dwarfChampion.activeDwarfId)
+  ) {
+    const fallenChampionId = String(underrealm.combat.dwarfChampion.activeDwarfId || '');
+    underrealm.combat.dwarfChampion.activeDwarfId = null;
+    underrealm.combat.dwarfChampion.activeSinceTick = 0;
+    underrealm.combat.dwarfChampion.losses = Math.max(
+      0,
+      Math.floor(Number(underrealm.combat.dwarfChampion.losses || 0)),
+    ) + 1;
+    if (fallenChampionId) {
+      pushEvent(state, config, `Underrealm: Dwarf Champion ${fallenChampionId} has fallen`);
+    }
+  }
+  for (const dwarf of Array.isArray(state.dwarves) ? state.dwarves : []) {
+    dwarf.underrealmChampionSurvivals = Math.max(
+      0,
+      Math.floor(Number(dwarf && dwarf.underrealmChampionSurvivals || 0)),
+    );
+  }
   const maxDepth = Math.max(0, Math.floor(Number(underrealm.maxDepth || 0)));
   const maxUnlockedDepth = Math.max(0, Math.floor(Number(underrealm.maxUnlockedDepth || 0)));
   for (let depth = 1; depth <= maxDepth; depth += 1) {
@@ -1047,8 +1118,24 @@ function updateCrewAssignments(state, config) {
     resetCrewAssignments(crew);
     return;
   }
+  const dwarfChampion = underrealm
+    && underrealm.combat
+    && underrealm.combat.dwarfChampion
+    && typeof underrealm.combat.dwarfChampion === 'object'
+    ? underrealm.combat.dwarfChampion
+    : null;
+  const pinnedSurfaceChampionId = dwarfChampion
+    && dwarfChampion.enabled !== false
+    && dwarfChampion.requiresPartyPresence !== false
+    && typeof dwarfChampion.activeDwarfId === 'string'
+      ? dwarfChampion.activeDwarfId
+      : '';
   const adults = state.dwarves
-    .filter((dwarf) => isAdult(dwarf, config) && !dwarf.expedition)
+    .filter((dwarf) => (
+      isAdult(dwarf, config)
+      && !dwarf.expedition
+      && String(dwarf && dwarf.id || '') !== pinnedSurfaceChampionId
+    ))
     .slice()
     .sort(compareDwarvesBySpawn);
   const surfaceReserveRatio = clamp(Number(crew.surfaceReserveRatio || 0), 0, 1);

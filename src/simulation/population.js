@@ -930,6 +930,7 @@ function spawnNewborn(state, config, parentA, parentB) {
     fertilityCooldown: 0,
     pregnancy: null,
     starvationTicks: 0,
+    underrealmChampionSurvivals: 0,
   };
 
   if (parentA && parentB) {

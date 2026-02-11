@@ -1,9 +1,9 @@
 # Underrealm V2 Blueprint and Implementation Workbook
 
-Status: Active (M0 completed, M1 completed, M2 completed, M3 completed, M4 completed, M5 completed, M6 completed, M7 completed)  
+Status: Active (M0 completed, M1 completed, M2 completed, M3 completed, M4 completed, M5 completed, M6 completed, M7 completed, M8 completed, post-M8 stabilization completed)  
 Owner: Codex + Project Maintainer  
 Created: 2026-02-10  
-Last updated: 2026-02-10  
+Last updated: 2026-02-11  
 Scope: Underrealm V2 (combat-centric progression, armory/equipment depth, readiness gates)
 
 ## 1. Purpose
@@ -64,6 +64,7 @@ Secondary objectives:
 - FR-10: Existing Underrealm economy loop must remain compatible and stable after integration.
 - FR-11: AI-observation payload must expose key new Underrealm combat signals.
 - FR-12: Regression and benchmark tools must include Underrealm V2 metrics.
+- FR-13: Underrealm combat must support one active Dwarf Champion with deterministic promotion lifecycle and tangible attack/defense bonus in aggregated champion encounters.
 
 ### 5.2 Non-Functional Requirements (NFR)
 
@@ -344,11 +345,44 @@ Validation:
 - balancing pass decision:
   - no default rebalance applied in M7 because benchmark/regression gates remained stable and deterministic.
 
+### M8 - Dwarf Champion (Safe Aggregated Integration)
+
+Status:
+- Completed (2026-02-10)
+
+Deliverables:
+- Added config-driven Dwarf Champion profile under `underrealm.combat.dwarf_champion.*`.
+- Added deterministic runtime champion lifecycle (single-slot active champion, promotion, loss handling).
+- Added per-dwarf champion survival tracking from resolved champion encounters (no per-unit combat rewrite).
+- Applied champion attack/defense bonus on top of existing aggregated champion encounter formulas.
+- Exposed champion status in compact Underrealm telemetry (`Champion gate: ... | Hero ...`).
+
+Validation:
+- syntax/config sanity checks passed:
+  - `node --check src/simulation/ruins.js`
+  - `node --check src/simulation/underrealm.js`
+  - `node --check src/state/index.js`
+  - `node --check src/render/telemetry.js`
+  - `node --check src/simulation/population.js`
+  - config JSON parse smoke
+- targeted champion lifecycle smoke scenarios passed:
+  - promotion scenario: first eligible survivor promoted when no active champion exists.
+  - single-slot scenario: additional eligible survivors do not replace an active champion.
+  - loss scenario: active champion death clears champion slot and increments loss counter.
+- deterministic benchmark long-run passed:
+  - `node scripts/headless_benchmark.js --ticks 8000 --seeds 101,202,303,404 --progress --progress-every 2000`
+- deterministic A/B comparison passed:
+  - `node scripts/headless_benchmark.js --ticks 8000 --seeds 101,202,303,404 --variant baseline --set underrealm.combat.dwarf_champion.enabled=false --variant candidate --output table --progress --progress-every 2000`
+- AI non-regression suite passed:
+  - `node scripts/regression.js`
+- runtime smoke passed:
+  - `npm start` (interactive render boot, manual interrupt after successful run).
+
 ## 9. Definition of Done (DoD)
 
 ### 9.1 Feature DoD
 
-- All FR-01..FR-12 satisfied.
+- All FR-01..FR-13 satisfied.
 - No NFR violations in validation runs.
 - No critical regressions in baseline benchmark seeds.
 - Underrealm progression is materially combat-driven in practice.
@@ -433,7 +467,7 @@ Initial entries:
 
 - ID: D-007
   Date: 2026-02-10
-  Status: accepted
+  Status: superseded (by D-012)
   Context: M4 requires champion-gated floor progression without introducing a brand-new expedition subsystem.
   Decision: keep ruins expedition loop as the combat carrier, but map expedition depth to `max(roomDepth, currentFrontierDepth)` so repeated expeditions can contest frontier champions; enforce per-floor encounter cooldown via readiness gate blocking (`champion_cooldown`) and unlock next floor only on champion victory.
   Alternatives considered: keep strict `roomIndex + 1` mapping; add a dedicated underrealm expedition queue separate from ruins.
@@ -463,6 +497,22 @@ Initial entries:
   Alternatives considered: force a final tuning tweak despite stable metrics; defer hardening sign-off pending additional exploratory retuning.
   Consequences: V2 closes on a reproducible, non-regressed baseline; further balancing work can be scheduled as explicit post-M7 scope.
 
+- ID: D-011
+  Date: 2026-02-10
+  Status: accepted
+  Context: Add hero-like combat identity after V2 closure without breaking deterministic aggregated-combat architecture.
+  Decision: introduce a single runtime Dwarf Champion slot with deterministic promotion from champion-battle survivals and bounded attack/defense bonuses applied to existing aggregated champion encounter math (no per-unit tactical rewrite).
+  Alternatives considered: full per-dwarf tactical combat simulation; global passive bonus without lifecycle; multiple concurrent champions.
+  Consequences: stronger encounter identity and progression flavor with moderate integration cost; requires conservative bonus defaults to avoid depth-progression snowball.
+
+- ID: D-012
+  Date: 2026-02-11
+  Status: accepted
+  Context: Post-M8 validation showed frontier floors entering `contested` while champion encounters remained unattempted in long runs because room-depth mapping drifted combat target away from the contested frontier.
+  Decision: keep readiness-score mapping unchanged, but resolve champion cooldown gating and champion encounter depth with contested-frontier priority; additionally cap retreat loss hints below full-party wipe (`partySize - 1`) to preserve survivor-based champion lifecycle continuity.
+  Alternatives considered: keep pure room-depth mapping and rebalance only stats/cooldowns; introduce a dedicated frontier-only expedition queue.
+  Consequences: champion gate is materially reachable in default long runs, depth progression no longer stalls at contested frontier mismatch, and retreat outcomes keep deterministic survivor pathways for Dwarf Champion promotion.
+
 ## 11. Risks and Mitigations
 
 - R-01: Over-gating can stall progression.
@@ -475,6 +525,8 @@ Initial entries:
   - Mitigation: compact labels, prioritize actionable metrics.
 - R-05: Regression blind spots.
   - Mitigation: add Underrealm-specific KPIs to regression and benchmark outputs.
+- R-06: Dwarf Champion bonus can snowball depth progression.
+  - Mitigation: conservative default bonus ratios, deterministic single-slot lifecycle, and benchmark/regression A/B gating before tuning increases.
 
 ## 12. Validation Plan
 
@@ -887,16 +939,82 @@ Execution log:
   - final balancing pass result: no default tuning changes required for M7 sign-off.
   Follow-ups: Underrealm V2 workbook closed; further feature work requires new scope confirmation.
 
+- Step ID: S-016
+  Date: 2026-02-11
+  Milestone: M8 stabilization
+  Intent: Fix Dwarf Champion activation stall observed in long-run validation (contested frontier with zero champion attempts) and harden retreat casualty behavior for survivor continuity.
+  Changes made:
+  - Updated champion depth resolution to prioritize the currently contested frontier floor for champion cooldown gating and encounter execution.
+  - Kept readiness-score computation on existing mapped depth policy to avoid introducing broad balance drift in the same fix.
+  - Capped retreat loss hints to `partySize - 1` (when party has living members), preventing deterministic full-wipe retreat outcomes from collapsing survivor-based promotion flow.
+  - Synced documentation (`README.md`, `MANUAL.md`) and decision log (`D-012`) for the new champion targeting/casualty policy.
+  Files touched:
+  - `src/simulation/ruins.js`
+  - `README.md`
+  - `MANUAL.md`
+  - `underrealm_v2.md`
+  Validation commands:
+  - `node --check src/simulation/ruins.js`
+  - targeted long-run frontier diagnostic (seed `101`, `12000` ticks):
+    - confirmed `floor1` transitioned `contested -> cleared`,
+    - confirmed `encounter.attempts` increased from `0` (pre-fix) to `2` (post-fix),
+    - confirmed depth progression advanced to `maxUnlockedDepth=4`.
+  - A/B smoke:
+    - `node scripts/headless_benchmark.js --ticks 8000 --seeds 101,202 --variant baseline --set underrealm.combat.dwarf_champion.enabled=false --variant candidate --set underrealm.combat.dwarf_champion.enabled=true --output table --progress --progress-every 2000`
+    - `node scripts/headless_benchmark.js --ticks 12000 --seeds 101 --variant baseline --set underrealm.combat.dwarf_champion.enabled=false --variant candidate --set underrealm.combat.dwarf_champion.enabled=true --set underrealm.combat.dwarf_champion.min_survivals=1 --set underrealm.combat.dwarf_champion.attack_bonus_ratio=0.25 --set underrealm.combat.dwarf_champion.defense_bonus_ratio=0.2 --set underrealm.combat.dwarf_champion.requires_party_presence=false --output table --progress --progress-every 3000`
+  Outcome:
+  - completed.
+  - champion encounter pipeline is now reachable in normal progression runs (no longer stuck at zero attempts on contested frontier).
+  - Dwarf Champion promotions are observable in deterministic A/B smoke when survivor threshold is intentionally lowered for instrumentation (`underHeroProm > 0`).
+  Follow-ups:
+  - evaluate whether readiness scoring should also adopt contested-frontier priority in a future balancing pass.
+
+- Step ID: S-017
+  Date: 2026-02-11
+  Milestone: Merge hardening
+  Intent: Final safety pass for Dwarf Champion gameplay impact and telemetry readability before branch merge.
+  Changes made:
+  - Tuned default Dwarf Champion profile to a visible-but-stable baseline:
+    - `min_survivals=2`
+    - `attack_bonus_ratio=0.14`
+    - `defense_bonus_ratio=0.12`
+    - `requires_party_presence=true`
+  - Synced Underrealm runtime fallbacks with the same default values, so behavior remains consistent even with partial/missing config payloads.
+  - Hardened champion lifecycle accounting: if active champion dies outside expedition resolution, champion slot is cleared, `losses` counter is incremented, and a deterministic event is emitted.
+  - Compacted telemetry stockpile rendering for equipment tiers:
+    - collapsed `weapon_tier_*` into one aggregated `Weapons T*` row,
+    - collapsed `armor_tier_*` into one aggregated `Armor T*` row,
+    - preserved total stock visibility with compact detail token and highest stocked tier hint.
+  - Updated docs (`README.md`, `MANUAL.md`) for the final tuning and stockpile compaction behavior.
+  Files touched:
+  - `config.json`
+  - `src/simulation/underrealm.js`
+  - `src/render/telemetry.js`
+  - `README.md`
+  - `MANUAL.md`
+  - `underrealm_v2.md`
+  Validation commands:
+  - `node --check src/simulation/underrealm.js`
+  - `node --check src/render/telemetry.js`
+  - `node -e "JSON.parse(require('fs').readFileSync('config.json','utf8')); console.log('config-ok')"`
+  - `node scripts/headless_benchmark.js --ticks 8000 --seeds 101,202 --variant current --output table --progress --progress-every 2000`
+  Outcome:
+  - completed.
+  - Dwarf Champion defaults now bias toward practical activation without forcing overpowered global behavior.
+  - Champion loss accounting is coherent across expedition and non-expedition death paths.
+  - Stockpile telemetry panel remains information-rich while avoiding weapon/armor tier line bloat.
+
 ## 14. Open Questions
 
 - OQ-01: Keep Deep Lift as mandatory prerequisite for each champion floor, or only for selected floors?
 - OQ-02: Should equipment be fully stockpile-based or partially assigned to persistent squads?
 - OQ-03: Should champion retry cooldown/loss penalties scale by encounter history (attempt count) or remain depth-based only?
 - OQ-04: Which Underrealm metrics are mandatory in `diag` vs optional in extended telemetry?
+- OQ-05: Should Dwarf Champion bonuses remain party-presence bound by default, or switch to a global passive aura once promoted?
 
 ## 15. Approval Gate
 
-Underrealm V2 milestones are complete (M0..M7). Further implementation requires explicit maintainer confirmation for new scope.
+Underrealm V2 + M8 safe extension milestones are complete (M0..M8). Further implementation requires explicit maintainer confirmation for new scope.
 
 Current state:
 - Planning document: ready
@@ -908,4 +1026,6 @@ Current state:
 - M5: completed
 - M6: completed
 - M7: completed
-- Workbook state: closed for Underrealm V2 baseline delivery
+- M8: completed
+- M8 stabilization: completed
+- Workbook state: closed for Underrealm V2 baseline + M8 safe extension + post-M8 stabilization delivery
