@@ -70,6 +70,9 @@ function updateRuins(state, config, runtime) {
   if (!ruins.artifactsFound) {
     ruins.artifactsFound = {};
   }
+  if (!ruins.readinessGate || typeof ruins.readinessGate !== 'object') {
+    ruins.readinessGate = createDefaultReadinessGateState();
+  }
   if (!Array.isArray(ruins.expeditions)) {
     ruins.expeditions = [];
   }
@@ -111,10 +114,11 @@ function updateRuins(state, config, runtime) {
   }
 
   while (activeCount < maxConcurrent) {
-    if (!canStartExpedition(state, config, ruinsConfig, rooms)) {
+    const startContext = buildExpeditionStartContext(state, config, ruinsConfig, rooms);
+    if (!startContext) {
       return;
     }
-    startExpedition(state, config, ruinsConfig, rooms);
+    startExpedition(state, config, ruinsConfig, rooms, startContext);
     activeCount += 1;
   }
 }
@@ -148,32 +152,59 @@ function createDefaultRuinsState(ruinsConfig) {
       lastFailures: 0,
       lastArtifactsFound: 0,
     },
+    readinessGate: createDefaultReadinessGateState(),
   };
 }
 
-function canStartExpedition(state, config, ruinsConfig, rooms) {
+// Build default readiness gate runtime state for ruins dispatch decisions.
+function createDefaultReadinessGateState() {
+  return {
+    depth: 0,
+    roomIndex: 0,
+    status: 'unknown',
+    reason: null,
+    score: 0,
+    minScore: 0,
+    recommendedScore: 0,
+    armoryLevel: 0,
+    minArmoryLevel: 1,
+    partySize: 0,
+    offense: 0,
+    defense: 0,
+    support: 0,
+    warningRiskMultiplier: 1,
+    championCooldownTicks: 0,
+    tick: 0,
+    lastBlockedTick: 0,
+    lastBlockedReason: null,
+    lastBlockedDepth: 0,
+  };
+}
+
+// Build a validated start context for a ruins expedition, or return null if blocked.
+function buildExpeditionStartContext(state, config, ruinsConfig, rooms) {
   const expeditionConfig = ruinsConfig.expedition || {};
   if (!hasStructure(state, 'ruins')) {
-    return false;
+    return null;
   }
   if (state.ruins.roomsCleared >= rooms.length && allArtifactsFound(ruinsConfig, state.ruins)) {
-    return false;
+    return null;
   }
   if (expeditionConfig.requiresArmory && !hasStructure(state, 'armory')) {
-    return false;
+    return null;
   }
   const kitResource = expeditionConfig.kitResource || 'expedition_kit';
   if (Number(state.stockpile[kitResource] || 0) < 1) {
-    return false;
+    return null;
   }
   const minPopulation = Math.max(0, Number(expeditionConfig.minPopulation || 0));
   if (minPopulation > 0 && state.dwarves.length < minPopulation) {
-    return false;
+    return null;
   }
   const idleAdults = getIdleAdults(state, config);
   const minIdle = Math.max(0, Number(expeditionConfig.minIdleAdults || 0));
   if (minIdle > 0 && idleAdults.length < minIdle) {
-    return false;
+    return null;
   }
   const minRatios = expeditionConfig.minStockpileRatio || {};
   for (const [resource, ratioRaw] of Object.entries(minRatios)) {
@@ -183,44 +214,541 @@ function canStartExpedition(state, config, ruinsConfig, rooms) {
     }
     const ratio = getStockpileRatio(state, config, resource);
     if (ratio < minRatio) {
-      return false;
+      return null;
     }
   }
 
   const roomIndex = Math.max(0, Math.min(rooms.length - 1, Number(state.ruins.roomsCleared || 0)));
   const room = rooms[roomIndex];
   if (!room) {
-    return false;
+    return null;
   }
   const cost = room.cost || {};
   if (Object.keys(cost).length > 0 && !hasInputs(state.stockpile, cost)) {
-    return false;
+    return null;
   }
 
   const partySize = resolvePartySize(room, expeditionConfig, idleAdults.length);
   if (partySize <= 0) {
-    return false;
+    return null;
   }
 
-  return true;
+  const readinessGate = evaluateExpeditionReadinessGate(
+    state,
+    config,
+    roomIndex,
+    partySize,
+    kitResource,
+  );
+  const dispatchGate = evaluateChampionDispatchGate(state, readinessGate);
+  updateReadinessGateState(state, config, dispatchGate);
+  if (dispatchGate.status === 'blocked') {
+    return null;
+  }
+
+  return {
+    expeditionConfig,
+    kitResource,
+    roomIndex,
+    room,
+    cost,
+    idleAdults,
+    partySize,
+    readinessGate: dispatchGate,
+  };
 }
 
-function startExpedition(state, config, ruinsConfig, rooms) {
-  const expeditionConfig = ruinsConfig.expedition || {};
-  const kitResource = expeditionConfig.kitResource || 'expedition_kit';
-  const roomIndex = Math.max(0, Math.min(rooms.length - 1, Number(state.ruins.roomsCleared || 0)));
-  const room = rooms[roomIndex];
-  if (!room) {
+// Apply champion encounter dispatch constraints on top of readiness gate checks.
+function evaluateChampionDispatchGate(state, readinessGate) {
+  const gate = readinessGate && typeof readinessGate === 'object'
+    ? { ...readinessGate }
+    : createDefaultReadinessGateState();
+  gate.championCooldownTicks = Math.max(0, Math.floor(Number(gate.championCooldownTicks || 0)));
+  if (gate.status === 'blocked') {
+    return gate;
+  }
+  const underrealm = state && state.underrealm;
+  const combat = underrealm && underrealm.combat;
+  if (!combat || combat.enabled === false) {
+    return gate;
+  }
+  if (String(combat.progressionMode || 'champion_gate') !== 'champion_gate') {
+    return gate;
+  }
+  const depth = resolveChampionTargetDepth(state, null, gate.depth);
+  const floor = resolveUnderrealmCombatFloor(combat, depth);
+  if (!floor || floor.unlocked !== true) {
+    return gate;
+  }
+  const championRequired = Boolean(
+    floor.unlock
+    && floor.unlock.required === true
+    && floor.champion
+    && floor.champion.enabled !== false
+    && floor.unlock.cleared !== true,
+  );
+  if (!championRequired || floor.state !== 'contested') {
+    return gate;
+  }
+  const cooldown = Math.max(
+    0,
+    Math.floor(Number(floor.encounter && floor.encounter.cooldownTicksRemaining || 0)),
+  );
+  if (cooldown <= 0) {
+    return gate;
+  }
+  return {
+    ...gate,
+    depth,
+    status: 'blocked',
+    reason: 'champion_cooldown',
+    championCooldownTicks: cooldown,
+  };
+}
+
+// Evaluate Underrealm readiness gate for one expedition dispatch.
+function evaluateExpeditionReadinessGate(state, config, roomIndex, partySize, kitResource) {
+  const safeRoomIndex = Math.max(0, Math.floor(Number(roomIndex || 0)));
+  const safePartySize = Math.max(1, Math.floor(Number(partySize || 1)));
+  const depth = resolveExpeditionDepth(safeRoomIndex, state && state.underrealm);
+  const defaultGate = {
+    depth,
+    roomIndex: safeRoomIndex,
+    status: 'ready',
+    reason: 'combat_disabled',
+    score: 0,
+    minScore: 0,
+    recommendedScore: 0,
+    armoryLevel: resolveArmoryLevel(state),
+    minArmoryLevel: 1,
+    partySize: safePartySize,
+    offense: 0,
+    defense: 0,
+    support: 0,
+    warningRiskMultiplier: 1,
+    championCooldownTicks: 0,
+  };
+  const underrealm = state && state.underrealm;
+  const combat = underrealm && underrealm.combat;
+  if (!combat || combat.enabled === false) {
+    return defaultGate;
+  }
+  const floor = resolveUnderrealmCombatFloor(combat, depth);
+  const minScore = Math.max(
+    0,
+    Number(floor && floor.readiness ? floor.readiness.minScore : 0),
+  );
+  const recommendedScore = Math.max(
+    minScore,
+    Number(floor && floor.readiness ? floor.readiness.recommendedScore : minScore),
+  );
+  const minArmoryLevel = Math.max(
+    1,
+    Math.floor(Number(floor && floor.minArmoryLevel ? floor.minArmoryLevel : 1)),
+  );
+  const armoryLevel = resolveArmoryLevel(state);
+  const stockpile = state && state.stockpile ? state.stockpile : {};
+  const maxTier = resolveMaxEquipmentTier(config, combat);
+  const weights = combat.readiness && combat.readiness.scoreWeights
+    ? combat.readiness.scoreWeights
+    : {};
+  const formula = combat.readiness && combat.readiness.formula
+    ? combat.readiness.formula
+    : {};
+  const weaponPower = collectTopTierPower(stockpile, 'weapon_tier_', maxTier, safePartySize);
+  const armorPower = collectTopTierPower(stockpile, 'armor_tier_', maxTier, safePartySize);
+  const kits = Math.max(0, Math.floor(Number(stockpile[kitResource] || 0)));
+  const kitCoverage = clamp(kits / safePartySize, 0, 1);
+  const weaponAvgTier = weaponPower / safePartySize;
+  const armorAvgTier = armorPower / safePartySize;
+  const offense = Math.max(0, weaponAvgTier * Math.max(0, Number(formula.weaponAvgTierScale ?? 6)));
+  const defense = Math.max(0, armorAvgTier * Math.max(0, Number(formula.armorAvgTierScale ?? 6)));
+  const support = Math.max(
+    0,
+    kitCoverage * Math.max(0, Number(formula.supportKitFullScale ?? 8))
+      + armoryLevel * Math.max(0, Number(formula.supportArmoryLevelScale ?? 1)),
+  );
+  const score = Math.max(
+    0,
+    offense * Math.max(0, Number(weights.offense ?? 1))
+      + defense * Math.max(0, Number(weights.defense ?? 1))
+      + support * Math.max(0, Number(weights.support ?? 0.8)),
+  );
+
+  let status = 'ready';
+  let reason = 'recommended_ready';
+  let warningRiskMultiplier = 1;
+  if (armoryLevel < minArmoryLevel) {
+    status = 'blocked';
+    reason = 'armory_level';
+  } else if (combat.readiness && combat.readiness.hardMinGate !== false && score < minScore) {
+    status = 'blocked';
+    reason = 'min_score';
+  } else if (score < recommendedScore) {
+    status = 'warning';
+    reason = 'warning_zone';
+    warningRiskMultiplier = Math.max(
+      1,
+      Number(combat.readiness.warningZoneRiskMultiplier ?? 1),
+    );
+  }
+  return {
+    depth,
+    roomIndex: safeRoomIndex,
+    status,
+    reason,
+    score,
+    minScore,
+    recommendedScore,
+    armoryLevel,
+    minArmoryLevel,
+    partySize: safePartySize,
+    offense,
+    defense,
+    support,
+    warningRiskMultiplier,
+    championCooldownTicks: 0,
+  };
+}
+
+// Persist readiness gate snapshot and emit one-time block transitions.
+function updateReadinessGateState(state, config, gate) {
+  if (!state || !state.ruins || !gate) {
     return;
   }
+  const previous = state.ruins.readinessGate && typeof state.ruins.readinessGate === 'object'
+    ? state.ruins.readinessGate
+    : createDefaultReadinessGateState();
+  const tick = Math.max(0, Math.floor(Number(state.tick || 0)));
+  const transitionedToBlocked = gate.status === 'blocked'
+    && (
+      previous.status !== 'blocked'
+      || previous.reason !== gate.reason
+      || Number(previous.depth || 0) !== Number(gate.depth || 0)
+    );
+  const readinessGate = {
+    ...previous,
+    ...gate,
+    tick,
+    lastBlockedTick: transitionedToBlocked ? tick : Number(previous.lastBlockedTick || 0),
+    lastBlockedReason: transitionedToBlocked
+      ? (gate.reason || null)
+      : (previous.lastBlockedReason || null),
+    lastBlockedDepth: transitionedToBlocked
+      ? Math.max(0, Math.floor(Number(gate.depth || 0)))
+      : Math.max(0, Math.floor(Number(previous.lastBlockedDepth || 0))),
+  };
+  state.ruins.readinessGate = readinessGate;
 
-  const idleAdults = getIdleAdults(state, config);
-  const partySize = resolvePartySize(room, expeditionConfig, idleAdults.length);
-  if (partySize <= 0) {
-    return;
+  const floor = resolveUnderrealmCombatFloor(
+    state && state.underrealm && state.underrealm.combat,
+    readinessGate.depth,
+  );
+  if (floor && typeof floor === 'object') {
+    floor.readinessSnapshot = {
+      score: Math.max(0, Number(readinessGate.score || 0)),
+      offense: Math.max(0, Number(readinessGate.offense || 0)),
+      defense: Math.max(0, Number(readinessGate.defense || 0)),
+      support: Math.max(0, Number(readinessGate.support || 0)),
+      partySize: Math.max(0, Math.floor(Number(readinessGate.partySize || 0))),
+      armoryLevel: Math.max(0, Math.floor(Number(readinessGate.armoryLevel || 0))),
+      tick,
+    };
+    floor.dispatchGate = {
+      status: readinessGate.status || 'unknown',
+      reason: readinessGate.reason || null,
+      warningRiskMultiplier: Math.max(1, Number(readinessGate.warningRiskMultiplier || 1)),
+      tick,
+    };
   }
 
-  const cost = room.cost || {};
+  if (!transitionedToBlocked) {
+    return;
+  }
+  const combatStats = getUnderrealmCombatStats(state);
+  if (combatStats) {
+    combatStats.blockedDispatches = Number(combatStats.blockedDispatches || 0) + 1;
+  }
+  const depth = Math.max(1, Math.floor(Number(readinessGate.depth || 1)));
+  if (readinessGate.reason === 'armory_level') {
+    pushEvent(
+      state,
+      config,
+      `Ruins: readiness gate blocked D${depth} (armory ${readinessGate.armoryLevel}/${readinessGate.minArmoryLevel})`,
+    );
+    return;
+  }
+  if (readinessGate.reason === 'champion_cooldown') {
+    const cooldown = Math.max(0, Math.floor(Number(readinessGate.championCooldownTicks || 0)));
+    pushEvent(
+      state,
+      config,
+      `Ruins: readiness gate blocked D${depth} (champion cooldown ${cooldown} ticks)`,
+    );
+    return;
+  }
+  const score = Math.max(0, Number(readinessGate.score || 0)).toFixed(1);
+  const minScore = Math.max(0, Number(readinessGate.minScore || 0)).toFixed(1);
+  pushEvent(
+    state,
+    config,
+    `Ruins: readiness gate blocked D${depth} (score ${score}/${minScore})`,
+  );
+}
+
+// Resolve combat stats object if Underrealm combat runtime is available.
+function getUnderrealmCombatStats(state) {
+  const stats = state
+    && state.underrealm
+    && state.underrealm.combat
+    && state.underrealm.combat.stats;
+  if (!stats || typeof stats !== 'object') {
+    return null;
+  }
+  return stats;
+}
+
+// Resolve dwarf-champion runtime state when Underrealm combat is available.
+function getUnderrealmDwarfChampionRuntime(state, combat = null) {
+  const sourceCombat = combat
+    && typeof combat === 'object'
+    ? combat
+    : (
+      state
+      && state.underrealm
+      && state.underrealm.combat
+      && typeof state.underrealm.combat === 'object'
+        ? state.underrealm.combat
+        : null
+    );
+  const runtime = sourceCombat && sourceCombat.dwarfChampion
+    && typeof sourceCombat.dwarfChampion === 'object'
+    ? sourceCombat.dwarfChampion
+    : null;
+  if (!runtime) {
+    return null;
+  }
+  return runtime;
+}
+
+// Resolve one dwarf entity by id from live state.
+function findDwarfById(state, dwarfId) {
+  const target = String(dwarfId || '');
+  if (!target) {
+    return null;
+  }
+  for (const dwarf of (state && state.dwarves) || []) {
+    if (String(dwarf && dwarf.id || '') === target) {
+      return dwarf;
+    }
+  }
+  return null;
+}
+
+// Resolve active dwarf-champion combat bonus for one expedition attempt.
+function resolveDwarfChampionCombatBonus(state, expedition, combat) {
+  const runtime = getUnderrealmDwarfChampionRuntime(state, combat);
+  if (!runtime || runtime.enabled === false) {
+    return {
+      active: false,
+      dwarfId: null,
+      attackBonusRatio: 0,
+      defenseBonusRatio: 0,
+    };
+  }
+  const dwarfId = typeof runtime.activeDwarfId === 'string'
+    ? runtime.activeDwarfId
+    : null;
+  if (!dwarfId) {
+    return {
+      active: false,
+      dwarfId: null,
+      attackBonusRatio: 0,
+      defenseBonusRatio: 0,
+    };
+  }
+  const dwarf = findDwarfById(state, dwarfId);
+  if (!dwarf) {
+    return {
+      active: false,
+      dwarfId: null,
+      attackBonusRatio: 0,
+      defenseBonusRatio: 0,
+    };
+  }
+  const partyIds = Array.isArray(expedition && expedition.dwarfIds)
+    ? expedition.dwarfIds.map((id) => String(id || ''))
+    : [];
+  const inParty = partyIds.includes(dwarfId);
+  const requiresPartyPresence = runtime.requiresPartyPresence !== false;
+  if (requiresPartyPresence && !inParty) {
+    return {
+      active: false,
+      dwarfId,
+      attackBonusRatio: 0,
+      defenseBonusRatio: 0,
+    };
+  }
+  return {
+    active: true,
+    dwarfId,
+    attackBonusRatio: clamp(Number(runtime.attackBonusRatio || 0), 0, 1),
+    defenseBonusRatio: clamp(Number(runtime.defenseBonusRatio || 0), 0, 1),
+  };
+}
+
+// Resolve one Underrealm combat floor object by depth.
+function resolveUnderrealmCombatFloor(combat, depth) {
+  if (!combat || !combat.floorsByDepth || typeof combat.floorsByDepth !== 'object') {
+    return null;
+  }
+  const key = String(Math.max(1, Math.floor(Number(depth || 1))));
+  return combat.floorsByDepth[key] || combat.floorsByDepth[Number(key)] || null;
+}
+
+// Map ruins room progression index to an Underrealm combat depth.
+function resolveExpeditionDepth(roomIndex, underrealm) {
+  const roomDepth = Math.max(1, Math.floor(Number(roomIndex || 0)) + 1);
+  const frontierDepth = Math.max(
+    1,
+    Math.floor(Number(underrealm && underrealm.maxUnlockedDepth || roomDepth)),
+  );
+  const maxDepth = Math.max(
+    1,
+    Math.floor(Number(underrealm && underrealm.maxDepth || roomDepth)),
+  );
+  return clamp(
+    Math.max(roomDepth, frontierDepth),
+    1,
+    maxDepth,
+  );
+}
+
+// Pick the champion target depth, prioritizing the currently contested frontier floor.
+function resolveChampionTargetDepth(state, expedition = null, fallbackDepth = 1) {
+  const underrealm = state && state.underrealm;
+  const combat = underrealm && underrealm.combat;
+  const maxDepth = Math.max(
+    1,
+    Math.floor(Number(underrealm && underrealm.maxDepth || fallbackDepth || 1)),
+  );
+  const safeFallbackDepth = clamp(
+    Math.floor(Number(fallbackDepth || 1)),
+    1,
+    maxDepth,
+  );
+  if (!underrealm || !combat || combat.enabled === false) {
+    return safeFallbackDepth;
+  }
+  if (String(combat.progressionMode || 'champion_gate') !== 'champion_gate') {
+    return safeFallbackDepth;
+  }
+  const frontierDepth = clamp(
+    Math.floor(Number(underrealm.maxUnlockedDepth || 0)),
+    0,
+    maxDepth,
+  );
+  if (frontierDepth >= 1) {
+    const frontierFloor = resolveUnderrealmCombatFloor(combat, frontierDepth);
+    const frontierChampionRequired = Boolean(
+      frontierFloor
+      && frontierFloor.unlocked === true
+      && frontierFloor.unlock
+      && frontierFloor.unlock.required === true
+      && frontierFloor.champion
+      && frontierFloor.champion.enabled !== false
+      && frontierFloor.unlock.cleared !== true,
+    );
+    if (frontierChampionRequired && frontierFloor.state === 'contested') {
+      return frontierDepth;
+    }
+  }
+  const expeditionDepth = expedition
+    && expedition.readiness
+    && expedition.readiness.depth
+      ? Math.floor(Number(expedition.readiness.depth))
+      : resolveExpeditionDepth(expedition && expedition.roomIndex, underrealm);
+  return clamp(expeditionDepth, 1, maxDepth);
+}
+
+// Resolve highest built armory level from current structures.
+function resolveArmoryLevel(state) {
+  let best = 0;
+  for (const structure of (state && state.structures) || []) {
+    if (!structure || structure.type !== 'armory') {
+      continue;
+    }
+    best = Math.max(best, Math.max(1, Math.floor(Number(structure.level || 1))));
+  }
+  return best;
+}
+
+// Resolve max equipment tier available in config/runtime schema.
+function resolveMaxEquipmentTier(config, combat) {
+  const armory = (config && config.structures && config.structures.armory) || {};
+  let maxTier = Math.max(1, Math.floor(Number(armory.levelMax || 1)));
+  const equipment = armory.equipment || {};
+  const recipes = equipment.recipes && typeof equipment.recipes === 'object'
+    ? equipment.recipes
+    : {};
+  for (const recipe of Object.values(recipes)) {
+    const tier = Math.max(0, Math.floor(Number(recipe && recipe.tier || 0)));
+    if (tier > maxTier) {
+      maxTier = tier;
+    }
+  }
+  const floors = combat && combat.floorsByDepth && typeof combat.floorsByDepth === 'object'
+    ? combat.floorsByDepth
+    : {};
+  for (const floor of Object.values(floors)) {
+    const required = Math.max(1, Math.floor(Number(floor && floor.minArmoryLevel || 1)));
+    if (required > maxTier) {
+      maxTier = required;
+    }
+  }
+  return maxTier;
+}
+
+// Sum the strongest available tier power for a fixed number of equipment slots.
+function collectTopTierPower(stockpile, prefix, maxTier, slots) {
+  const safeSlots = Math.max(0, Math.floor(Number(slots || 0)));
+  const safeTier = Math.max(1, Math.floor(Number(maxTier || 1)));
+  if (safeSlots <= 0) {
+    return 0;
+  }
+  let remaining = safeSlots;
+  let power = 0;
+  for (let tier = safeTier; tier >= 1; tier -= 1) {
+    const resourceId = `${prefix}${tier}`;
+    const available = Math.max(0, Math.floor(Number(stockpile && stockpile[resourceId] || 0)));
+    if (available <= 0) {
+      continue;
+    }
+    const used = Math.min(remaining, available);
+    power += used * tier;
+    remaining -= used;
+    if (remaining <= 0) {
+      break;
+    }
+  }
+  return power;
+}
+
+function startExpedition(state, config, ruinsConfig, rooms, startContext = null) {
+  const context = startContext || buildExpeditionStartContext(state, config, ruinsConfig, rooms);
+  if (!context) {
+    return;
+  }
+  const {
+    expeditionConfig,
+    kitResource,
+    roomIndex,
+    room,
+    cost,
+    idleAdults,
+    partySize,
+    readinessGate,
+  } = context;
   if (Object.keys(cost).length > 0) {
     if (!hasInputs(state.stockpile, cost)) {
       return;
@@ -248,21 +776,55 @@ function startExpedition(state, config, ruinsConfig, rooms) {
 
   const selected = idleAdults.slice(0, partySize);
   const dwarfIds = selected.map((dwarf) => dwarf.id);
+  state.jobs = Array.isArray(state.jobs) ? state.jobs : [];
   for (const dwarf of selected) {
+    if (dwarf.job && dwarf.job.id) {
+      const currentJobId = dwarf.job.id;
+      state.jobs = state.jobs.filter((job) => job && job.id !== currentJobId);
+      dwarf.job = null;
+    }
+    delete dwarf.underrealmDuty;
     dwarf.expedition = true;
   }
 
   const ticks = Math.max(1, Number(room.expeditionTicks || 1));
+  const riskMultiplier = Math.max(1, Number(readinessGate.warningRiskMultiplier || 1));
   const expedition = {
     active: true,
     roomIndex,
     ticksRemaining: ticks,
     dwarfIds,
     useMithril,
+    readiness: {
+      depth: Math.max(1, Math.floor(Number(readinessGate.depth || roomIndex + 1))),
+      status: readinessGate.status || 'ready',
+      reason: readinessGate.reason || null,
+      score: Math.max(0, Number(readinessGate.score || 0)),
+      minScore: Math.max(0, Number(readinessGate.minScore || 0)),
+      recommendedScore: Math.max(0, Number(readinessGate.recommendedScore || 0)),
+      armoryLevel: Math.max(0, Math.floor(Number(readinessGate.armoryLevel || 0))),
+      minArmoryLevel: Math.max(1, Math.floor(Number(readinessGate.minArmoryLevel || 1))),
+      warningRiskMultiplier: riskMultiplier,
+      components: {
+        offense: Math.max(0, Number(readinessGate.offense || 0)),
+        defense: Math.max(0, Number(readinessGate.defense || 0)),
+        support: Math.max(0, Number(readinessGate.support || 0)),
+      },
+    },
   };
   state.ruins.expeditions = Array.isArray(state.ruins.expeditions) ? state.ruins.expeditions : [];
   state.ruins.expeditions.push(expedition);
   state.ruins.stats.started = Number(state.ruins.stats.started || 0) + 1;
+  if (readinessGate.status === 'warning') {
+    const depth = Math.max(1, Math.floor(Number(readinessGate.depth || roomIndex + 1)));
+    const score = Math.max(0, Number(readinessGate.score || 0)).toFixed(1);
+    const target = Math.max(0, Number(readinessGate.recommendedScore || 0)).toFixed(1);
+    pushEvent(
+      state,
+      config,
+      `Ruins: warning-zone dispatch D${depth} (score ${score}/${target}, risk x${riskMultiplier.toFixed(2)})`,
+    );
+  }
   pushEvent(state, config, `Ruins: expedition started (Room ${roomIndex + 1})`);
 }
 
@@ -298,14 +860,29 @@ function resolveExpedition(state, config, ruinsConfig, rooms, expedition) {
   const hazardReduction = clamp(Number(bonuses.hazardReduction || 0) + clanHazardReduction, 0, 0.95);
   const mythHazard = getMythMultiplier(state, config, 'ruinsHazard', 1);
   const alchemyHazard = getAlchemyMultiplier(state, config, 'ruinsHazard', 1);
-  const hazardChance = clamp(Number(room.hazardChance || 0), 0, 1) * (1 - hazardReduction) * mythHazard * alchemyHazard;
+  const readinessRiskMultiplier = clamp(
+    Number(
+      expedition
+      && expedition.readiness
+      && expedition.readiness.status === 'warning'
+        ? expedition.readiness.warningRiskMultiplier
+        : 1,
+    ),
+    1,
+    3,
+  );
+  const hazardChance = clamp(
+    clamp(Number(room.hazardChance || 0), 0, 1) * (1 - hazardReduction) * mythHazard * alchemyHazard * readinessRiskMultiplier,
+    0,
+    1,
+  );
 
   let guardianSpawned = false;
   let guardianDefeated = false;
   const guardianChance = clamp(Number(room.guardianChance || 0), 0, 1);
   if (guardianChance > 0 && Math.random() < guardianChance) {
     guardianSpawned = true;
-    const guardianPower = Math.max(0, Number(room.guardianPower || 0));
+    const guardianPower = Math.max(0, Number(room.guardianPower || 0)) * readinessRiskMultiplier;
     const partySize = getExpeditionPartySize(state, expedition);
     const kitPowerBonus = Math.max(0, Number((ruinsConfig.expedition || {}).kitPowerBonus || 0));
     const mithrilPowerBonus = expedition.useMithril
@@ -329,11 +906,373 @@ function resolveExpedition(state, config, ruinsConfig, rooms, expedition) {
     finishExpedition(state, config, ruinsConfig, expedition, false, 'hazard');
     return;
   }
-
+  const championResult = resolveChampionEncounter(state, config, ruinsConfig, expedition);
+  if (championResult.required === true) {
+    if (championResult.outcome === 'victory') {
+      finishExpedition(state, config, ruinsConfig, expedition, true, 'champion', {
+        championResult,
+      });
+      return;
+    }
+    finishExpedition(state, config, ruinsConfig, expedition, false, `champion_${championResult.outcome}`, {
+      championResult,
+      forcedLosses: championResult.suggestedLosses,
+    });
+    return;
+  }
   finishExpedition(state, config, ruinsConfig, expedition, true, guardianDefeated ? 'guardian' : 'clear');
 }
 
-function finishExpedition(state, config, ruinsConfig, expedition, success, reason) {
+// Resolve one deterministic champion encounter when the current frontier floor is contested.
+function resolveChampionEncounter(state, config, ruinsConfig, expedition) {
+  const underrealm = state && state.underrealm;
+  const combat = underrealm && underrealm.combat;
+  if (!underrealm || !combat || combat.enabled === false) {
+    return { required: false };
+  }
+  if (String(combat.progressionMode || 'champion_gate') !== 'champion_gate') {
+    return { required: false };
+  }
+  const fallbackDepth = expedition
+    && expedition.readiness
+    && expedition.readiness.depth
+      ? expedition.readiness.depth
+      : resolveExpeditionDepth(expedition && expedition.roomIndex, underrealm);
+  const depth = resolveChampionTargetDepth(state, expedition, fallbackDepth);
+  const floor = resolveUnderrealmCombatFloor(combat, depth);
+  if (!floor || floor.unlocked !== true) {
+    return { required: false };
+  }
+  const championRequired = Boolean(
+    floor.unlock
+    && floor.unlock.required === true
+    && floor.champion
+    && floor.champion.enabled !== false
+    && floor.unlock.cleared !== true,
+  );
+  if (!championRequired || floor.state !== 'contested') {
+    return { required: false };
+  }
+  const encounter = floor.encounter && typeof floor.encounter === 'object'
+    ? floor.encounter
+    : {};
+  floor.encounter = encounter;
+  const cooldown = Math.max(0, Math.floor(Number(encounter.cooldownTicksRemaining || 0)));
+  if (cooldown > 0) {
+    return {
+      required: true,
+      outcome: 'cooldown',
+      depth,
+      championLabel: String(floor.champion && floor.champion.label || `Depth Champion D${depth}`),
+      suggestedLosses: 0,
+    };
+  }
+  encounter.active = true;
+  encounter.attempts = Math.max(0, Math.floor(Number(encounter.attempts || 0))) + 1;
+
+  const readiness = expedition && expedition.readiness ? expedition.readiness : {};
+  const components = readiness.components && typeof readiness.components === 'object'
+    ? readiness.components
+    : {};
+  const partySize = Math.max(1, getExpeditionPartySize(state, expedition));
+  const bonuses = state && state.ruins && state.ruins.bonuses
+    ? state.ruins.bonuses
+    : {};
+  const kitPowerBonus = Math.max(0, Number((ruinsConfig.expedition || {}).kitPowerBonus || 0));
+  const mithrilPowerBonus = expedition.useMithril
+    ? Math.max(0, Number((ruinsConfig.mithrilReinforcement || {}).powerBonus || 0))
+    : 0;
+  const clanCombatBonus = getClanExpeditionBonus(state, config, expedition, 'ruins_combat_bonus');
+  const contractCombatBonus = getContractRuinsCombatBonus(state);
+  const combatBonus = Math.max(
+    0,
+    Number(bonuses.combatBonus || 0) + clanCombatBonus + contractCombatBonus,
+  );
+  const readinessRiskMultiplier = clamp(
+    Number(readiness && readiness.status === 'warning' ? readiness.warningRiskMultiplier : 1),
+    1,
+    3,
+  );
+
+  const offense = Math.max(0, Number(components.offense || 0));
+  const defense = Math.max(0, Number(components.defense || 0));
+  const support = Math.max(0, Number(components.support || 0));
+  const partyPowerMultiplier = Math.max(
+    0.1,
+    1 + kitPowerBonus + mithrilPowerBonus + combatBonus,
+  );
+  const dwarfChampionBonus = resolveDwarfChampionCombatBonus(state, expedition, combat);
+  let partyAttack = Math.max(
+    1,
+    (offense + support + partySize) * partyPowerMultiplier,
+  );
+  let partyDefense = Math.max(0, defense + support + partySize * 0.5);
+  if (dwarfChampionBonus.active) {
+    partyAttack *= 1 + dwarfChampionBonus.attackBonusRatio;
+    partyDefense *= 1 + dwarfChampionBonus.defenseBonusRatio;
+  }
+  const partyHpMax = Math.max(1, partySize * Math.max(2, defense + 2));
+
+  const championStats = floor.champion && floor.champion.stats
+    ? floor.champion.stats
+    : {};
+  const championLabel = String(floor.champion && floor.champion.label || `Depth Champion D${depth}`);
+  const championHpMax = Math.max(
+    1,
+    Number(championStats.hp || 1) * readinessRiskMultiplier,
+  );
+  const championAttack = Math.max(
+    0,
+    Number(championStats.attack || 0) * readinessRiskMultiplier,
+  );
+  const championDefense = Math.max(
+    0,
+    Number(championStats.defense || 0) * readinessRiskMultiplier,
+  );
+  const championPenetration = clamp(Number(championStats.penetration || 0), 0, 1);
+  const encounterConfig = combat && combat.encounter && typeof combat.encounter === 'object'
+    ? combat.encounter
+    : {};
+  const rounds = Math.max(
+    1,
+    Math.floor(
+      Number(encounterConfig.roundsBase || 4)
+        + Number(encounterConfig.roundsPerDepth || 0) * Math.max(0, depth - 1),
+    ),
+  );
+
+  let partyHp = partyHpMax;
+  let championHp = championHpMax;
+  for (let round = 0; round < rounds; round += 1) {
+    const partyDamage = Math.max(1, partyAttack - championDefense);
+    const mitigatedDefense = Math.max(0, partyDefense * (1 - championPenetration));
+    const championDamage = Math.max(1, championAttack - mitigatedDefense);
+    championHp = Math.max(0, championHp - partyDamage);
+    partyHp = Math.max(0, partyHp - championDamage);
+    if (championHp <= 0 || partyHp <= 0) {
+      break;
+    }
+  }
+
+  let outcome = 'retreat';
+  if (championHp <= 0 && partyHp > 0) {
+    outcome = 'victory';
+  } else if (partyHp <= 0) {
+    outcome = 'defeat';
+  }
+  const tick = Math.max(0, Math.floor(Number(state.tick || 0)));
+  encounter.active = false;
+  encounter.lastOutcome = outcome;
+  encounter.lastOutcomeTick = tick;
+
+  if (outcome === 'victory') {
+    encounter.victories = Math.max(0, Math.floor(Number(encounter.victories || 0))) + 1;
+    encounter.cooldownTicksRemaining = 0;
+    floor.state = 'cleared';
+    floor.unlock = floor.unlock && typeof floor.unlock === 'object'
+      ? floor.unlock
+      : {};
+    floor.unlock.cleared = true;
+    const maxDepth = Math.max(1, Math.floor(Number(underrealm.maxDepth || depth)));
+    const unlockDepth = clamp(
+      Math.max(depth + 1, Math.floor(Number(floor.unlock.unlocksDepthOnWin || depth + 1))),
+      1,
+      maxDepth,
+    );
+    let unlockedDepth = null;
+    if (unlockDepth > Math.max(0, Math.floor(Number(underrealm.maxUnlockedDepth || 0)))) {
+      underrealm.maxUnlockedDepth = unlockDepth;
+      const unlockedLayer = findUnderrealmLayer(underrealm, unlockDepth);
+      if (unlockedLayer) {
+        unlockedLayer.unlocked = true;
+      }
+      unlockedDepth = unlockDepth;
+    }
+    const combatStats = getUnderrealmCombatStats(state);
+    if (combatStats) {
+      combatStats.championsDefeated = Number(combatStats.championsDefeated || 0) + 1;
+    }
+    pushEvent(
+      state,
+      config,
+      unlockedDepth
+        ? `Underrealm D${depth}: ${championLabel} defeated, depth ${unlockedDepth} unlocked`
+        : `Underrealm D${depth}: ${championLabel} defeated`,
+    );
+    return {
+      required: true,
+      outcome,
+      depth,
+      championLabel,
+      suggestedLosses: 0,
+      unlockedDepth,
+      dwarfChampionApplied: dwarfChampionBonus.active,
+      dwarfChampionId: dwarfChampionBonus.active ? dwarfChampionBonus.dwarfId : null,
+    };
+  }
+
+  if (outcome === 'defeat') {
+    encounter.defeats = Math.max(0, Math.floor(Number(encounter.defeats || 0))) + 1;
+  } else {
+    encounter.retreats = Math.max(0, Math.floor(Number(encounter.retreats || 0))) + 1;
+  }
+  floor.state = 'contested';
+  const retryCooldown = Math.max(
+    0,
+    Math.floor(
+      Number(encounterConfig.retryCooldownTicksBase || 90)
+        + Number(encounterConfig.retryCooldownTicksPerDepth || 0) * Math.max(0, depth - 1),
+    ),
+  );
+  encounter.cooldownTicksRemaining = retryCooldown;
+  const suggestedLosses = resolveChampionLossCount(outcome, partySize, partyHp, partyHpMax);
+  pushEvent(
+    state,
+    config,
+    `Underrealm D${depth}: ${championLabel} ${outcome}, cooldown ${retryCooldown} ticks`,
+  );
+  return {
+    required: true,
+    outcome,
+    depth,
+    championLabel,
+    suggestedLosses,
+    cooldownTicksRemaining: retryCooldown,
+    dwarfChampionApplied: dwarfChampionBonus.active,
+    dwarfChampionId: dwarfChampionBonus.active ? dwarfChampionBonus.dwarfId : null,
+  };
+}
+
+// Compute a deterministic casualty hint from champion outcome and remaining party stamina.
+function resolveChampionLossCount(outcome, partySize, partyHp, partyHpMax) {
+  const safePartySize = Math.max(0, Math.floor(Number(partySize || 0)));
+  if (safePartySize <= 0 || outcome === 'victory') {
+    return 0;
+  }
+  const hpRatio = partyHpMax > 0 ? clamp(Number(partyHp || 0) / Number(partyHpMax || 1), 0, 1) : 0;
+  const damageRatio = clamp(1 - hpRatio, 0, 1);
+  const baselineRatio = outcome === 'defeat' ? 0.55 : 0.2;
+  const lossRatio = clamp(Math.max(damageRatio, baselineRatio), 0, 1);
+  const minimum = outcome === 'defeat' ? 1 : 0;
+  const maximum = outcome === 'retreat'
+    ? Math.max(0, safePartySize - 1)
+    : safePartySize;
+  return Math.min(
+    maximum,
+    Math.max(minimum, Math.round(safePartySize * lossRatio)),
+  );
+}
+
+// Sort expedition candidates to accelerate deterministic champion-promotion buildup.
+function compareChampionPromotionPipelineCandidates(left, right) {
+  const leftSurvivals = Math.max(0, Math.floor(Number(left && left.underrealmChampionSurvivals || 0)));
+  const rightSurvivals = Math.max(0, Math.floor(Number(right && right.underrealmChampionSurvivals || 0)));
+  if (rightSurvivals !== leftSurvivals) {
+    return rightSurvivals - leftSurvivals;
+  }
+  const leftAge = Math.max(0, Math.floor(Number(left && left.ageTicks || 0)));
+  const rightAge = Math.max(0, Math.floor(Number(right && right.ageTicks || 0)));
+  if (leftAge !== rightAge) {
+    return leftAge - rightAge;
+  }
+  const leftSpawnIndex = Math.max(0, Math.floor(Number(left && left.spawnIndex || 0)));
+  const rightSpawnIndex = Math.max(0, Math.floor(Number(right && right.spawnIndex || 0)));
+  if (leftSpawnIndex !== rightSpawnIndex) {
+    return rightSpawnIndex - leftSpawnIndex;
+  }
+  return String(left && left.id || '').localeCompare(String(right && right.id || ''));
+}
+
+// Sort dwarf-champion candidates deterministically by survivals, spawn order, and id.
+function compareDwarfChampionCandidates(left, right) {
+  const leftSurvivals = Math.max(0, Math.floor(Number(left && left.underrealmChampionSurvivals || 0)));
+  const rightSurvivals = Math.max(0, Math.floor(Number(right && right.underrealmChampionSurvivals || 0)));
+  if (rightSurvivals !== leftSurvivals) {
+    return rightSurvivals - leftSurvivals;
+  }
+  const leftAge = Math.max(0, Math.floor(Number(left && left.ageTicks || 0)));
+  const rightAge = Math.max(0, Math.floor(Number(right && right.ageTicks || 0)));
+  if (leftAge !== rightAge) {
+    return leftAge - rightAge;
+  }
+  const leftSpawnIndex = Math.max(0, Math.floor(Number(left && left.spawnIndex || 0)));
+  const rightSpawnIndex = Math.max(0, Math.floor(Number(right && right.spawnIndex || 0)));
+  if (leftSpawnIndex !== rightSpawnIndex) {
+    return rightSpawnIndex - leftSpawnIndex;
+  }
+  return String(left && left.id || '').localeCompare(String(right && right.id || ''));
+}
+
+// Update dwarf-champion progression after one expedition outcome is finalized.
+function updateDwarfChampionAfterExpedition(state, config, expedition, resultMeta) {
+  const runtime = getUnderrealmDwarfChampionRuntime(state);
+  if (!runtime || runtime.enabled === false) {
+    return;
+  }
+  const aliveById = new Set((state.dwarves || []).map((dwarf) => String(dwarf && dwarf.id || '')));
+  const activeDwarfId = typeof runtime.activeDwarfId === 'string' ? runtime.activeDwarfId : null;
+  if (activeDwarfId && !aliveById.has(activeDwarfId)) {
+    runtime.activeDwarfId = null;
+    runtime.activeSinceTick = 0;
+    runtime.losses = Math.max(0, Math.floor(Number(runtime.losses || 0))) + 1;
+    pushEvent(state, config, `Underrealm: Dwarf Champion ${activeDwarfId} has fallen`);
+  }
+  const championResult = resultMeta && resultMeta.championResult
+    && typeof resultMeta.championResult === 'object'
+    ? resultMeta.championResult
+    : null;
+  const battleResolved = championResult
+    && championResult.required === true
+    && championResult.outcome !== 'cooldown';
+  if (!battleResolved) {
+    return;
+  }
+  const expeditionIds = Array.isArray(expedition && expedition.dwarfIds)
+    ? expedition.dwarfIds
+    : [];
+  if (expeditionIds.length === 0) {
+    return;
+  }
+  const survivors = [];
+  for (const dwarfIdRaw of expeditionIds) {
+    const dwarfId = String(dwarfIdRaw || '');
+    if (!dwarfId || !aliveById.has(dwarfId)) {
+      continue;
+    }
+    const dwarf = findDwarfById(state, dwarfId);
+    if (!dwarf) {
+      continue;
+    }
+    dwarf.underrealmChampionSurvivals = Math.max(
+      0,
+      Math.floor(Number(dwarf.underrealmChampionSurvivals || 0)),
+    ) + 1;
+    survivors.push(dwarf);
+  }
+  if (survivors.length === 0 || runtime.activeDwarfId) {
+    return;
+  }
+  const minSurvivals = Math.max(1, Math.floor(Number(runtime.minSurvivals || 3)));
+  const eligible = survivors
+    .filter((dwarf) => Number(dwarf.underrealmChampionSurvivals || 0) >= minSurvivals)
+    .sort(compareDwarfChampionCandidates);
+  if (eligible.length === 0) {
+    return;
+  }
+  const champion = eligible[0];
+  runtime.activeDwarfId = champion.id;
+  runtime.activeSinceTick = Math.max(0, Math.floor(Number(state.tick || 0)));
+  runtime.promotions = Math.max(0, Math.floor(Number(runtime.promotions || 0))) + 1;
+  const attackBonusPct = Math.round(clamp(Number(runtime.attackBonusRatio || 0), 0, 1) * 100);
+  const defenseBonusPct = Math.round(clamp(Number(runtime.defenseBonusRatio || 0), 0, 1) * 100);
+  pushEvent(
+    state,
+    config,
+    `Underrealm: ${champion.id} crowned Dwarf Champion (+${attackBonusPct}% atk, +${defenseBonusPct}% def)`,
+  );
+}
+
+function finishExpedition(state, config, ruinsConfig, expedition, success, reason, resultMeta = null) {
   const roomIndex = expedition.roomIndex;
   const room = Array.isArray(ruinsConfig.rooms) ? ruinsConfig.rooms[roomIndex] : null;
   let artifactsFound = 0;
@@ -375,13 +1314,37 @@ function finishExpedition(state, config, ruinsConfig, expedition, success, reaso
     }
   } else {
     state.ruins.stats.failures = Number(state.ruins.stats.failures || 0) + 1;
-    const losses = resolveExpeditionLosses(state, ruinsConfig, expedition);
-    if (losses > 0) {
+    const combatStats = getUnderrealmCombatStats(state);
+    if (combatStats) {
+      combatStats.failedExpeditions = Number(combatStats.failedExpeditions || 0) + 1;
+    }
+    const forcedLosses = resultMeta
+      && Number.isFinite(Number(resultMeta.forcedLosses))
+      ? Math.max(0, Math.floor(Number(resultMeta.forcedLosses)))
+      : null;
+    const losses = resolveExpeditionLosses(state, ruinsConfig, expedition, forcedLosses);
+    if (reason === 'champion_defeat') {
+      if (losses > 0) {
+        pushEvent(state, config, `Ruins: champion overran expedition (${losses} fallen)`);
+      } else {
+        pushEvent(state, config, 'Ruins: champion overran expedition');
+      }
+    } else if (reason === 'champion_retreat') {
+      if (losses > 0) {
+        pushEvent(state, config, `Ruins: expedition retreated from champion (${losses} fallen)`);
+      } else {
+        pushEvent(state, config, 'Ruins: expedition retreated from champion');
+      }
+    } else if (reason === 'champion_cooldown') {
+      pushEvent(state, config, 'Ruins: champion hall sealed, expedition returned');
+    } else if (losses > 0) {
       pushEvent(state, config, `Ruins: expedition failed (${losses} fallen)`);
     } else {
       pushEvent(state, config, 'Ruins: expedition failed');
     }
   }
+
+  updateDwarfChampionAfterExpedition(state, config, expedition, resultMeta);
 
   const stats = state.ruins.stats || {};
   const tick = Number(state.tick || 0);
@@ -412,16 +1375,41 @@ function finishExpedition(state, config, ruinsConfig, expedition, success, reaso
 
 }
 
-function resolveExpeditionLosses(state, ruinsConfig, expedition) {
+function resolveExpeditionLosses(state, ruinsConfig, expedition, forcedLosses = null) {
   const expeditionConfig = ruinsConfig.expedition || {};
   const minLoss = Math.max(0, Math.floor(Number(expeditionConfig.failureLossMin || 0)));
   const maxLoss = Math.max(minLoss, Math.floor(Number(expeditionConfig.failureLossMax || minLoss)));
   const aliveIds = getExpeditionAliveIds(state, expedition);
   const partySize = aliveIds.length;
-  if (partySize <= 0 || maxLoss <= 0) {
+  if (partySize <= 0) {
     return 0;
   }
-  const baseLoss = Math.min(partySize, randomInt(minLoss, maxLoss));
+  let baseLoss = 0;
+  if (Number.isFinite(Number(forcedLosses))) {
+    baseLoss = Math.min(
+      partySize,
+      Math.max(0, Math.floor(Number(forcedLosses))),
+    );
+  } else {
+    if (maxLoss <= 0) {
+      return 0;
+    }
+    const readinessRiskMultiplier = clamp(
+      Number(
+        expedition
+        && expedition.readiness
+        && expedition.readiness.status === 'warning'
+          ? expedition.readiness.warningRiskMultiplier
+          : 1,
+      ),
+      1,
+      3,
+    );
+    baseLoss = Math.min(
+      partySize,
+      Math.max(0, Math.round(randomInt(minLoss, maxLoss) * readinessRiskMultiplier)),
+    );
+  }
   const reduction = clamp(Number((state.ruins.bonuses || {}).casualtyReduction || 0), 0, 0.9);
   const lossCount = Math.min(partySize, Math.max(0, Math.round(baseLoss * (1 - reduction))));
   if (lossCount <= 0) {
@@ -600,13 +1588,46 @@ function resolvePartySize(room, expeditionConfig, idleCount) {
   return Math.min(clamped, idleCount);
 }
 
+// Resolve active dwarf champion id when bonus requires expedition party presence.
+function resolveRequiredPartyChampionId(state) {
+  const runtime = getUnderrealmDwarfChampionRuntime(state);
+  if (!runtime || runtime.enabled === false || runtime.requiresPartyPresence === false) {
+    return '';
+  }
+  return typeof runtime.activeDwarfId === 'string' ? runtime.activeDwarfId : '';
+}
+
 function getIdleAdults(state, config) {
-  return state.dwarves.filter((dwarf) => (
+  const requiredChampionId = resolveRequiredPartyChampionId(state);
+  const championRuntime = getUnderrealmDwarfChampionRuntime(state);
+  const adults = state.dwarves.filter((dwarf) => (
     !dwarf.job
     && !dwarf.expedition
     && !(dwarf.underrealmDuty && dwarf.underrealmDuty.active !== false)
     && isAdult(dwarf, config)
   ));
+  if (
+    championRuntime
+    && championRuntime.enabled !== false
+    && !championRuntime.activeDwarfId
+  ) {
+    adults.sort(compareChampionPromotionPipelineCandidates);
+  }
+  if (!requiredChampionId) {
+    return adults;
+  }
+  const champion = findDwarfById(state, requiredChampionId);
+  if (!champion || champion.expedition || !isAdult(champion, config)) {
+    return adults;
+  }
+  const currentIndex = adults.findIndex((entry) => String(entry && entry.id || '') === requiredChampionId);
+  if (currentIndex >= 0) {
+    const [entry] = adults.splice(currentIndex, 1);
+    adults.unshift(entry);
+    return adults;
+  }
+  adults.unshift(champion);
+  return adults;
 }
 
 function hasStructure(state, type) {
@@ -649,6 +1670,11 @@ function resolveMaxConcurrent(ruins, ruinsConfig, rooms) {
     return 1;
   }
   return Math.max(1, Math.floor(raw));
+}
+
+function findUnderrealmLayer(underrealm, depth) {
+  return (underrealm && Array.isArray(underrealm.layers) ? underrealm.layers : [])
+    .find((layer) => Number(layer && layer.depth) === Number(depth));
 }
 
 function getExpeditionAliveIds(state, expedition) {

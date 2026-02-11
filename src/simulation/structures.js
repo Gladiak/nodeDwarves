@@ -59,7 +59,11 @@ function createStructure(state, config, type, x, y) {
     structure.capacity = capacity;
   }
 
-  if (type === 'mine' || type === 'sawmill' || type === 'brewery' || type === 'mithril_forge') {
+  if (type === 'mine'
+      || type === 'sawmill'
+      || type === 'brewery'
+      || type === 'mithril_forge'
+      || type === 'armory') {
     const levelMax = Math.max(1, Number(structureConfig.levelMax || 1));
     structure.level = Math.min(1, levelMax);
   }

@@ -44,6 +44,15 @@ EXTENDED_FEATURE_NAMES = [
     "ruinsCooldown",
     "ruinsProgress",
     "ruinsArtifacts",
+    "underrealmDepthProgress",
+    "underrealmChampionProgress",
+    "underrealmFrontierContested",
+    "underrealmChampionCooldown",
+    "underrealmReadinessScore",
+    "underrealmReadinessGap",
+    "underrealmReadinessBlocked",
+    "underrealmReadinessWarning",
+    "underrealmCombatPressure",
     "mythsActiveRatio",
     "mythsSeverity",
 ]
@@ -417,6 +426,7 @@ def format_summary_line(
     reward_per_tick = avg_reward / ticks_avg if ticks_avg else 0.0
     shortage_label = format_map_label(debug.get("shortageAvg") or {}, digits=2)
     nodes_label = format_map_label(debug.get("nodes") or {}, digits=2)
+    underrealm_label = format_map_label(debug.get("underrealm") or {}, digits=2)
     termination_label = format_termination_label(debug.get("terminationCounts") or {}, window_count)
     weather_label = format_mix_label(weather_counts, window_count)
     scenario_label = format_mix_label(scenario_counts, window_count)
@@ -445,7 +455,7 @@ def format_summary_line(
         f"exp={fmt(raid.get('exposedRatio', 0))} "
         f"def={fmt(raid.get('defenseRatio', 0))} "
         f"loot={raid_loot_label}] "
-        f"short={shortage_label} nodes={nodes_label} term={termination_label} "
+        f"short={shortage_label} nodes={nodes_label} under={underrealm_label} term={termination_label} "
         f"weather={weather_label} scenario={scenario_label} "
         f"scenario_target={scenario_target_label} scenario_delta={scenario_delta:.2f} "
         f"events={event_label}"
@@ -627,6 +637,7 @@ def write_summary_header(
     handle.write("# crit/idle/pop_bal: avg critical needs, idle adults, and population balance.\n")
     handle.write("# raid: avg raid count/deaths/loot/exposure/defense in the window.\n")
     handle.write("# short: average shortage per resource (1 - stockpile ratio).\n")
+    handle.write("# under: average Underrealm combat/progression signal bundle (depth/champion/readiness/pressure).\n")
     handle.write("# term: termination reason mix within the window.\n")
     handle.write("# scenario_target_mix: target distribution based on base weights.\n")
     handle.write("# weather/scenario: top label and share in the window.\n")
@@ -750,6 +761,7 @@ def init_debug_accumulator():
         "idleAdultsFraction": 0.0,
         "termination": {},
         "shortage": {},
+        "underrealm": {},
         "signals": {},
         "ticks": 0.0,
     }
@@ -863,6 +875,7 @@ def accumulate_debug(accumulator, info):
     add_map(accumulator["merchant_received"], merchant.get("receivedPerTick") or {})
 
     add_map(accumulator["nodes"], debug.get("nodes") or {})
+    add_map(accumulator["underrealm"], debug.get("underrealm") or {})
     add_map(accumulator["needsAvg"], debug.get("needsAvg") or {})
     add_numeric(accumulator, "criticalNeedsFraction", debug.get("criticalNeedsFraction"))
     add_numeric(accumulator, "idleAdultsFraction", debug.get("idleAdultsFraction"))
@@ -916,6 +929,7 @@ def average_debug(accumulator):
             "receivedPerTick": avg_map(accumulator["merchant_received"]),
         },
         "nodes": avg_map(accumulator["nodes"]),
+        "underrealm": avg_map(accumulator["underrealm"]),
         "needsAvg": avg_map(accumulator["needsAvg"]),
         "scenarioCounts": dict(accumulator["scenarios"]),
         "weatherCounts": dict(accumulator["weather"]),
@@ -1453,6 +1467,16 @@ def build_features(obs, resource, feature_names):
     ruins_cooldown = clamp(float(ruins.get("cooldownRatio", 0.0)), 0.0, 1.0)
     ruins_progress = clamp(float(ruins.get("progress", 0.0)), 0.0, 1.0)
     ruins_artifacts = clamp(float(ruins.get("artifacts", 0.0)), 0.0, 1.0)
+    underrealm = obs.get("underrealm") or {}
+    underrealm_depth_progress = clamp(float(underrealm.get("depthProgress", 0.0)), 0.0, 1.0)
+    underrealm_champion_progress = clamp(float(underrealm.get("championProgress", 0.0)), 0.0, 1.0)
+    underrealm_frontier_contested = clamp(float(underrealm.get("frontierContested", 0.0)), 0.0, 1.0)
+    underrealm_champion_cooldown = clamp(float(underrealm.get("championCooldown", 0.0)), 0.0, 1.0)
+    underrealm_readiness_score = clamp(float(underrealm.get("readinessScore", 0.0)), 0.0, 1.0)
+    underrealm_readiness_gap = clamp(float(underrealm.get("readinessGap", 0.0)), 0.0, 1.0)
+    underrealm_readiness_blocked = clamp(float(underrealm.get("readinessBlocked", 0.0)), 0.0, 1.0)
+    underrealm_readiness_warning = clamp(float(underrealm.get("readinessWarning", 0.0)), 0.0, 1.0)
+    underrealm_combat_pressure = clamp(float(underrealm.get("combatPressure", 0.0)), 0.0, 1.0)
     myths = obs.get("myths") or {}
     myths_active_ratio = clamp(float(myths.get("activeRatio", 0.0)), 0.0, 1.0)
     myths_severity = clamp(float(myths.get("severity", 0.0)), 0.0, 1.0)
@@ -1483,6 +1507,15 @@ def build_features(obs, resource, feature_names):
         "ruinsCooldown": ruins_cooldown,
         "ruinsProgress": ruins_progress,
         "ruinsArtifacts": ruins_artifacts,
+        "underrealmDepthProgress": underrealm_depth_progress,
+        "underrealmChampionProgress": underrealm_champion_progress,
+        "underrealmFrontierContested": underrealm_frontier_contested,
+        "underrealmChampionCooldown": underrealm_champion_cooldown,
+        "underrealmReadinessScore": underrealm_readiness_score,
+        "underrealmReadinessGap": underrealm_readiness_gap,
+        "underrealmReadinessBlocked": underrealm_readiness_blocked,
+        "underrealmReadinessWarning": underrealm_readiness_warning,
+        "underrealmCombatPressure": underrealm_combat_pressure,
         "mythsActiveRatio": myths_active_ratio,
         "mythsSeverity": myths_severity,
     }

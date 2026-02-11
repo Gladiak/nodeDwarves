@@ -26,6 +26,7 @@ This file defines how to implement new features in a consistent, stable way.
 - Keep this section always aligned with the real repository layout.
 - `app.js`: entrypoint and main loop.
 - `config.json`: single source of truth for tunables.
+- `underrealm_v2.md`: Underrealm V2 blueprint/workbook (requirements, milestones, DoD, decision log, and implementation log).
 - `docs/PARAMETERS.md`: config parameter reference.
 - `docs/TRAINING_OVERRIDES.md`: training overrides guide.
 - `src/config.js`: config loader.
@@ -55,6 +56,7 @@ This file defines how to implement new features in a consistent, stable way.
 - `scripts/export_map.js`: CLI map export pipeline (PNG + SVG).
 - `scripts/regression.js`: AI regression harness and profile recording.
 - `scripts/headless_benchmark.js`: deterministic headless benchmark CLI for long-run tuning and validation.
+- `scripts/compare_benchmark_reports.js`: report-to-report benchmark diff CLI for cached baseline/candidate comparisons.
 - `regression/baselines/regression_baseline.json`: durable regression baseline profiles used by checks.
 - `python/bootstrap.py`: venv bootstrap.
 - `python/train.py`: PPO training loop and logging.
@@ -117,9 +119,9 @@ This file defines how to implement new features in a consistent, stable way.
 
 - Run `npm start` and confirm the telemetry/legend renders.
 - Run deterministic headless benchmark before finalizing balance defaults:
-  `node scripts/headless_benchmark.js --ticks 8000 --seeds 101,202,303,404`.
+  `node scripts/headless_benchmark.js --ticks 8000 --seeds 101,202,303,404 --progress --progress-every 2000`.
 - For A/B tuning, compare variants in one run and review deltas seed-by-seed:
-  `node scripts/headless_benchmark.js --ticks 8000 --variant baseline --set path=value --variant candidate`.
+  `node scripts/headless_benchmark.js --ticks 8000 --variant baseline --set path=value --variant candidate --progress --progress-every 2000`.
 - Treat seed collapses (population crashes) and strong stockpile regressions as tuning blockers unless intentional and documented.
 - Confirm no crashes on resize and no negative stockpile values.
 - Check that shortages drive gathering priorities as expected.

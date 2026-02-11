@@ -16,6 +16,7 @@ Display and layout:
 - `display.footer.enabled`: enable the footer bar (default profile keeps this disabled).
 - `display.footer.height`: footer height in lines (use `0` to maximize map height).
 - `display.telemetry.stockBarMax`: stockpile bar scale used by telemetry bars (0 = use targets).
+- `display.telemetry.stockBarMax` note: compact equipment rows (`weapon_tier_*`, `armor_tier_*`) use aggregated armory `equipment.recipes.*.max_stock` totals as scale to keep bar readability.
 - `display.mapInset.enabled`: enable the top-right in-map inset panel carved from simulation space.
 - `display.mapInset.width`: inset width in map cells (default profile: `50`; runtime clamps to available map width with a minimum of `24`).
 - `display.mapInset.height`: inset height in map cells (default profile: `7`; runtime clamps to available map height with a minimum of `6`).
@@ -459,6 +460,31 @@ Underrealm:
 - `underrealm.progression.stockpile_cost_per_depth.<resource>`: additional stockpile cost per frontier depth.
 - `underrealm.progression.mined_cost_base.<resource>`: minimum amount that must have been mined on the frontier depth before starting Deep Lift.
 - `underrealm.progression.mined_cost_per_depth.<resource>`: additional frontier mined requirement per depth.
+- `underrealm.combat.enabled`: enable Underrealm combat progression runtime data and readiness gating logic.
+- `underrealm.combat.progression_mode`: combat progression mode (`champion_gate` enforces champion-clear unlock chain for depth progression).
+- `underrealm.combat.readiness.hard_min_gate`: when true, dispatch is blocked if computed readiness score is below floor `min_score`.
+- `underrealm.combat.readiness.warning_zone_risk_multiplier`: risk multiplier applied to warning-zone dispatches (`min_score <= score < recommended_score`).
+- `underrealm.combat.readiness.score_weights.offense|defense|support`: weighted mix used for final readiness score from computed components.
+- `underrealm.combat.readiness.formula.weapon_avg_tier_scale`: base score scale applied to average equipped weapon tier.
+- `underrealm.combat.readiness.formula.armor_avg_tier_scale`: base score scale applied to average equipped armor tier.
+- `underrealm.combat.readiness.formula.support_kit_full_scale`: support score contribution when expedition-kit coverage reaches 100% of party slots.
+- `underrealm.combat.readiness.formula.support_armory_level_scale`: support score contribution per current armory level.
+- `underrealm.combat.encounter.rounds_base|rounds_per_depth`: base and per-depth combat rounds used by deterministic champion encounter resolution.
+- `underrealm.combat.encounter.retry_cooldown_ticks_base|retry_cooldown_ticks_per_depth`: base and per-depth retry cooldown applied after champion retreat/defeat.
+- `underrealm.combat.dwarf_champion.enabled`: enable single-slot Dwarf Champion runtime lifecycle and bonus application in champion encounters.
+- `underrealm.combat.dwarf_champion.min_survivals`: minimum resolved champion-battle survivals required before a dwarf can be promoted when no active champion exists.
+- `underrealm.combat.dwarf_champion.attack_bonus_ratio`: additive attack bonus ratio applied to party aggregated attack when Dwarf Champion bonus is active.
+- `underrealm.combat.dwarf_champion.defense_bonus_ratio`: additive defense bonus ratio applied to party aggregated defense when Dwarf Champion bonus is active.
+- `underrealm.combat.dwarf_champion.requires_party_presence`: when true, Dwarf Champion bonus is active only if the champion dwarf is in the expedition party.
+- `underrealm.combat.dwarf_champion` default profile: `min_survivals=2`, `attack_bonus_ratio=0.14`, `defense_bonus_ratio=0.12`, `requires_party_presence=true` (visibility-focused but stability-safe baseline).
+- `underrealm.combat.floors.defaults.min_armory_level_base|min_armory_level_per_depth`: baseline and depth scaling for minimum armory level readiness gate.
+- `underrealm.combat.floors.defaults.readiness.min_score_base|min_score_per_depth|recommended_score_base|recommended_score_per_depth`: default readiness threshold growth profile by depth.
+- `underrealm.combat.floors.defaults.champion.enabled`: default champion requirement toggle per floor.
+- `underrealm.combat.floors.defaults.champion.id_prefix|label_prefix`: default champion id/label prefixes used when depth-specific overrides are absent.
+- `underrealm.combat.floors.defaults.champion.hp_base|hp_per_depth|attack_base|attack_per_depth|defense_base|defense_per_depth|penetration_base|penetration_per_depth`: default champion stat curves by depth.
+- `underrealm.combat.floors.by_depth.<depth>.min_armory_level`: depth override for minimum required armory level.
+- `underrealm.combat.floors.by_depth.<depth>.readiness.min_score|recommended_score`: depth override for readiness thresholds.
+- `underrealm.combat.floors.by_depth.<depth>.champion.enabled|id|label|hp|attack|defense|penetration`: depth override for champion profile.
 - Underrealm depth layers currently match the active surface runtime size (`display.width` / `display.height`) at every depth.
 - `underrealm.terrain.wall_fill_ratio`: initial random wall fill ratio before cave smoothing (`0..1`).
 - `underrealm.terrain.smooth_passes`: number of cellular-automata smoothing passes for cave topology.
@@ -580,7 +606,8 @@ Prestige:
 
 Resources:
 
-- `resources.stockpile.<resource>`: initial stockpile amounts (e.g. `food`, `water`, `beer`, `wood`, `stone`, `iron`, `expedition_kit`, `mithril`, `adamantio`, `mana_crystal`, `embersteel`, `ironshade`, `void_shard`, `ember_resin`).
+- `resources.stockpile.<resource>`: initial stockpile amounts (e.g. `food`, `water`, `beer`, `wood`, `stone`, `iron`, `expedition_kit`, `weapon_tier_1..10`, `armor_tier_1..10`, `mithril`, `adamantio`, `mana_crystal`, `embersteel`, `ironshade`, `void_shard`, `ember_resin`).
+- `resources.stockpile` telemetry note: weapon/armor tier ids are still tracked independently in simulation, but telemetry renders them as compact aggregate `Weapons` and `Armor` rows.
 - `resources.targets.<resource>`: target stockpile amounts used for shortages and stockpile ratios.
 - `resources.targetsPerCapita.<resource>`: per-dwarf target add-on (added to `resources.targets`) for scaling shortages and ratios.
 - `resources.mapScale.enabled`: enable scaling of initial resources based on map area.
@@ -1113,6 +1140,24 @@ Structures (armory):
 - `structures.armory.kitMax`: maximum kits to keep in stockpile.
 - `structures.armory.kitCost.<resource>`: resource costs per kit.
 - `structures.armory.pauseOnEmergency`: pause armory jobs during emergency gathering.
+- `structures.armory.levelMax`: maximum armory level for tiered equipment progression scaffolding.
+- `structures.armory.upgradeTicks`: default ticks required for an armory level upgrade when level-specific override is absent.
+- `structures.armory.upgradeCostScale`: scaling factor for generated upgrade costs when explicit `levels.<level>.upgradeCost` is absent.
+- `structures.armory.upgradeBaseCost.<resource>`: base upgrade cost map used by scaling fallback logic.
+- `structures.armory.levels.<level>.upgradeTicks`: explicit ticks required to upgrade into that armory level.
+- `structures.armory.levels.<level>.upgradeCost.<resource>`: explicit resource costs to upgrade into that armory level.
+- `structures.armory.levels.<level>.equipment_tier_max`: highest equipment tier unlocked at that armory level (combat system scaffolding).
+- `structures.armory.levels.<level>.allowed_minerals[]`: advanced mineral whitelist for recipes unlocked by that armory level.
+- `structures.armory.equipment.enabled`: enable tiered armory equipment crafting (weapons/armor) alongside expedition kits.
+- `structures.armory.equipment.craft_order[]`: deterministic priority order used by armory workers when multiple recipes are eligible.
+- `structures.armory.equipment.recipes.<output_resource>.type`: recipe category (`weapon` or `armor`, used for metadata/telemetry tooling).
+- `structures.armory.equipment.recipes.<output_resource>.tier`: recipe tier index.
+- `structures.armory.equipment.recipes.<output_resource>.min_level`: minimum armory level required for the recipe.
+- `structures.armory.equipment.recipes.<output_resource>.max_stock`: stock cap for that output resource (current + queued output).
+- `structures.armory.equipment.recipes.<output_resource>.work_ticks`: work duration of one armory job for that recipe.
+- `structures.armory.equipment.recipes.<output_resource>.output`: produced amount per completed job.
+- `structures.armory.equipment.recipes.<output_resource>.minerals[]`: mineral gate list that must be included in the current armory-level `allowed_minerals`.
+- `structures.armory.equipment.recipes.<output_resource>.cost.<resource>`: stockpile inputs consumed when the armory job is created.
 
 Structures (alchemy lab):
 
@@ -1326,6 +1371,12 @@ Ruins exploration:
 - `ruins.expedition.minStockpileRatio.<resource>`: minimum stockpile ratios before expeditions start.
 - `ruins.expedition.failureLossMin`: minimum expedition casualties on failure.
 - `ruins.expedition.failureLossMax`: maximum expedition casualties on failure.
+- Ruins expedition dispatch now also evaluates Underrealm readiness gate for mapped floor depth `max(roomIndex + 1, currentFrontierDepth)` (clamped by `underrealm.maxDepth`):
+  - blocked when armory level is below floor `min_armory_level`,
+  - blocked when score is below floor `min_score` and `underrealm.combat.readiness.hard_min_gate=true`,
+  - blocked when mapped floor is `contested` and champion retry cooldown is active (`champion_cooldown`),
+  - warning zone when score is below floor `recommended_score` (dispatch still allowed with risk multiplier).
+- When `underrealm.combat.dwarf_champion.enabled=true`, resolved champion encounters also update deterministic per-dwarf survival counters and single-slot promotion/loss lifecycle (`activeDwarfId`, promotions, losses) in Underrealm combat runtime state.
 - `ruins.mithrilReinforcement.enabled`: enable mithril reinforcement for expeditions.
 - `ruins.mithrilReinforcement.minRoom`: minimum room index (1-based) to allow mithril use.
 - `ruins.mithrilReinforcement.cost.<resource>`: resources consumed for mithril reinforcement.
@@ -1471,7 +1522,7 @@ AI and training:
 - `ai.training.trainer.miniBatchSize`: minibatch size for PPO updates.
 - `ai.training.trainer.batchEpisodes`: episodes per update batch.
 - `ai.training.trainer.hiddenSizes`: MLP hidden layer sizes (e.g. `[128, 128]`).
-- `ai.training.trainer.featureNames`: ordered list of observation features per resource (e.g. `shortage`, `nodeScarcity`, `criticalNeeds`, `idleAdults`, `populationBalance`, `seasonIndex`, `seasonProgress`, `weatherSeverity`, `weatherTimeLeft`, `raidActive`, `raidTimeLeft`, `raidExposed`, `raidDefense`, `housingShortage`, `seasonEligible`, `ruinsActive`, `ruinsCooldown`, `ruinsProgress`, `ruinsArtifacts`, `clanShare_abyssborn`).
+- `ai.training.trainer.featureNames`: ordered list of observation features per resource (e.g. `shortage`, `nodeScarcity`, `criticalNeeds`, `idleAdults`, `populationBalance`, `seasonIndex`, `seasonProgress`, `weatherSeverity`, `weatherTimeLeft`, `raidActive`, `raidTimeLeft`, `raidExposed`, `raidDefense`, `housingShortage`, `seasonEligible`, `ruinsActive`, `ruinsCooldown`, `ruinsProgress`, `ruinsArtifacts`, `underrealmDepthProgress`, `underrealmChampionProgress`, `underrealmFrontierContested`, `underrealmChampionCooldown`, `underrealmReadinessScore`, `underrealmReadinessGap`, `underrealmReadinessBlocked`, `underrealmReadinessWarning`, `underrealmCombatPressure`, `clanShare_abyssborn`).
 - Dynamic feature names are accepted for `mythFlag_<mythId>` and `clanShare_<clanId>`.
 - `ai.training.trainer.activation`: hidden-layer activation (`tanh` or `relu`).
 - `ai.training.trainer.logStdInit`: initial log-std for action sampling.

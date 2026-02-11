@@ -1083,7 +1083,155 @@ function assignBreweryJobs(state, config, runtime, brewers, buildQueue) {
   }
 }
 
-// Assign armory jobs to craft expedition kits.
+// Normalize an armory recipe definition from config.
+function normalizeArmoryRecipe(outputId, recipeConfig) {
+  if (!outputId) {
+    return null;
+  }
+  const raw = recipeConfig && typeof recipeConfig === "object"
+    ? recipeConfig
+    : {};
+  const rawCost = raw.cost && typeof raw.cost === "object" ? raw.cost : {};
+  const cost = {};
+  for (const [resource, amount] of Object.entries(rawCost)) {
+    const value = Number(amount || 0);
+    if (!Number.isFinite(value) || value <= 0) {
+      continue;
+    }
+    cost[resource] = value;
+  }
+  const requiredMinerals = Array.isArray(raw.minerals)
+    ? raw.minerals.map((id) => String(id))
+    : [];
+  return {
+    id: String(raw.id || outputId),
+    outputId: String(outputId),
+    type: String(raw.type || "equipment"),
+    tier: Math.max(0, Math.floor(Number(raw.tier || 0))),
+    minLevel: Math.max(1, Math.floor(Number(raw.min_level || 1))),
+    maxStock: Math.max(0, Number(raw.max_stock || 0)),
+    workTicks: Math.max(1, Math.floor(Number(raw.work_ticks || 20))),
+    outputAmount: Math.max(0, Number(raw.output || 1)),
+    requiredMinerals,
+    cost,
+  };
+}
+
+// Build ordered armory recipes (legacy kit + optional equipment recipes).
+function buildArmoryRecipeCatalog(config, armoryConfig, kitResource) {
+  const expeditionConfig = (config.ruins && config.ruins.expedition) || {};
+  const legacyKitResource = String(kitResource || expeditionConfig.kitResource || "expedition_kit");
+  const legacyRecipe = {
+    id: legacyKitResource,
+    outputId: legacyKitResource,
+    type: "kit",
+    tier: 0,
+    minLevel: 1,
+    maxStock: Math.max(0, Number(armoryConfig.kitMax ?? 0)),
+    workTicks: Math.max(1, Math.floor(Number(armoryConfig.kitTicks || 20))),
+    outputAmount: Math.max(0, Number(armoryConfig.kitOutput ?? 1)),
+    requiredMinerals: [],
+    cost: cloneCost(armoryConfig.kitCost || {}),
+  };
+  const recipes = [legacyRecipe];
+
+  const equipment = (armoryConfig && armoryConfig.equipment) || {};
+  if (equipment.enabled === false) {
+    return recipes;
+  }
+  const rawRecipes = equipment.recipes && typeof equipment.recipes === "object"
+    ? equipment.recipes
+    : {};
+  for (const [outputId, rawRecipe] of Object.entries(rawRecipes)) {
+    const normalized = normalizeArmoryRecipe(outputId, rawRecipe);
+    if (!normalized || normalized.outputAmount <= 0) {
+      continue;
+    }
+    recipes.push(normalized);
+  }
+
+  const order = Array.isArray(equipment.craft_order)
+    ? equipment.craft_order.map((id) => String(id))
+    : [];
+  const orderIndex = new Map();
+  for (let index = 0; index < order.length; index += 1) {
+    const outputId = order[index];
+    if (!orderIndex.has(outputId)) {
+      orderIndex.set(outputId, index);
+    }
+  }
+
+  recipes.sort((left, right) => {
+    const leftOrder = orderIndex.has(left.outputId)
+      ? orderIndex.get(left.outputId)
+      : Number.MAX_SAFE_INTEGER;
+    const rightOrder = orderIndex.has(right.outputId)
+      ? orderIndex.get(right.outputId)
+      : Number.MAX_SAFE_INTEGER;
+    if (leftOrder !== rightOrder) {
+      return leftOrder - rightOrder;
+    }
+    if (left.minLevel !== right.minLevel) {
+      return left.minLevel - right.minLevel;
+    }
+    if (left.tier !== right.tier) {
+      return left.tier - right.tier;
+    }
+    return left.outputId.localeCompare(right.outputId);
+  });
+  return recipes;
+}
+
+// Read current armory level with config-aware clamping.
+function getArmoryLevel(armory, armoryConfig) {
+  const maxLevel = Math.max(1, Number(armoryConfig.levelMax || 1));
+  const rawLevel = Math.max(1, Number(armory && armory.level || 1));
+  return Math.min(maxLevel, Math.floor(rawLevel));
+}
+
+// Resolve allowed minerals for a specific armory level.
+function getArmoryAllowedMinerals(armoryConfig, armoryLevel) {
+  const levelConfig = getStructureLevelConfig(armoryConfig, armoryLevel);
+  const minerals = levelConfig && Array.isArray(levelConfig.allowed_minerals)
+    ? levelConfig.allowed_minerals
+    : null;
+  if (!minerals) {
+    return null;
+  }
+  const allowed = new Set();
+  for (const mineral of minerals) {
+    allowed.add(String(mineral));
+  }
+  return allowed;
+}
+
+// Check if an armory recipe is currently craftable.
+function isArmoryRecipeCraftable(state, recipe, armoryLevel, allowedMinerals, reservedByOutput) {
+  if (!recipe || recipe.outputAmount <= 0) {
+    return false;
+  }
+  if (armoryLevel < recipe.minLevel) {
+    return false;
+  }
+  if (allowedMinerals && recipe.requiredMinerals.length > 0) {
+    for (const mineral of recipe.requiredMinerals) {
+      if (!allowedMinerals.has(mineral)) {
+        return false;
+      }
+    }
+  }
+  const reserved = Number((reservedByOutput && reservedByOutput[recipe.outputId]) || 0);
+  const current = Number((state.stockpile && state.stockpile[recipe.outputId]) || 0);
+  if (recipe.maxStock > 0 && current + reserved >= recipe.maxStock) {
+    return false;
+  }
+  if (Object.keys(recipe.cost).length > 0 && !hasInputs(state.stockpile, recipe.cost)) {
+    return false;
+  }
+  return true;
+}
+
+// Assign armory jobs to craft kits and tiered equipment.
 function assignArmoryJobs(state, config, idleDwarves, roleConfig, emergency) {
   const ruinsConfig = config.ruins || {};
   if (ruinsConfig.enabled === false) {
@@ -1109,18 +1257,20 @@ function assignArmoryJobs(state, config, idleDwarves, roleConfig, emergency) {
 
   const expeditionConfig = (config.ruins && config.ruins.expedition) || {};
   const kitResource = expeditionConfig.kitResource || "expedition_kit";
-  const kitMax = Math.max(0, Number(armoryConfig.kitMax ?? 0));
-  let kitReserved = 0;
+  const recipes = buildArmoryRecipeCatalog(config, armoryConfig, kitResource);
+  if (recipes.length === 0) {
+    return;
+  }
+
+  const reservedByOutput = {};
   for (const job of state.jobs) {
     if (job.type !== "armory") {
       continue;
     }
     const outputs = job.outputs || {};
-    kitReserved += Number(outputs[kitResource] || 0);
-  }
-  const kitCurrent = Number(state.stockpile[kitResource] || 0);
-  if (kitMax > 0 && kitCurrent + kitReserved >= kitMax) {
-    return;
+    for (const [resource, amount] of Object.entries(outputs)) {
+      reservedByOutput[resource] = Number(reservedByOutput[resource] || 0) + Number(amount || 0);
+    }
   }
 
   const workersByArmory = {};
@@ -1135,8 +1285,17 @@ function assignArmoryJobs(state, config, idleDwarves, roleConfig, emergency) {
   for (const armory of armories) {
     const active = Number(workersByArmory[armory.id] || 0);
     let openSlots = workersPer - active;
+    const armoryLevel = getArmoryLevel(armory, armoryConfig);
+    const allowedMinerals = getArmoryAllowedMinerals(armoryConfig, armoryLevel);
     while (openSlots > 0 && idleDwarves.length > 0) {
-      if (kitMax > 0 && kitCurrent + kitReserved >= kitMax) {
+      const recipe = recipes.find((entry) => isArmoryRecipeCraftable(
+        state,
+        entry,
+        armoryLevel,
+        allowedMinerals,
+        reservedByOutput,
+      ));
+      if (!recipe) {
         return;
       }
       const preferred = roleConfig.enabled
@@ -1146,17 +1305,12 @@ function assignArmoryJobs(state, config, idleDwarves, roleConfig, emergency) {
       if (!dwarf) {
         return;
       }
-      const job = createArmoryJob(
-        state,
-        config,
-        armory,
-        kitResource,
-        armoryConfig,
-      );
+      const job = createArmoryJob(state, armory, recipe);
       if (!job) {
         return;
       }
-      kitReserved += Number((job.outputs || {})[kitResource] || 0);
+      reservedByOutput[recipe.outputId] = Number(reservedByOutput[recipe.outputId] || 0)
+        + Number(recipe.outputAmount || 0);
       job.dwarfId = dwarf.id;
       dwarf.job = job;
       state.jobs.push(job);
@@ -1399,7 +1553,7 @@ function getStructureUpgradeTicks(structConfig, levelConfig) {
   return structConfig.upgradeTicks;
 }
 
-// Assign upgrade jobs for mines, sawmills, breweries, and mithril forges.
+// Assign upgrade jobs for mines, sawmills, breweries, armories, and mithril forges.
 function assignStructureUpgradeJob(
   state,
   config,
@@ -1418,6 +1572,7 @@ function assignStructureUpgradeJob(
       structure.type === "mine"
       || structure.type === "sawmill"
       || structure.type === "brewery"
+      || structure.type === "armory"
       || structure.type === "mithril_forge"
     ),
   );
@@ -1815,27 +1970,36 @@ function createJobForShortage(
   );
 }
 
-// Create an armory job to craft expedition kits.
-function createArmoryJob(state, config, armory, kitResource, armoryConfig) {
+// Create an armory job to craft kits or tiered equipment.
+function createArmoryJob(state, armory, recipe) {
   if (!armory) {
     return null;
   }
-  const kitCost = armoryConfig.kitCost || {};
-  if (Object.keys(kitCost).length > 0 && !hasInputs(state.stockpile, kitCost)) {
+  if (!recipe || typeof recipe !== "object") {
     return null;
   }
-  if (Object.keys(kitCost).length > 0) {
-    consumeInputs(state.stockpile, kitCost);
+  const cost = recipe.cost || {};
+  if (Object.keys(cost).length > 0 && !hasInputs(state.stockpile, cost)) {
+    return null;
   }
-  const output = Math.max(0, Number(armoryConfig.kitOutput ?? 1));
-  const workTicks = Math.max(1, Math.floor(Number(armoryConfig.kitTicks || 20)));
+  if (Object.keys(cost).length > 0) {
+    consumeInputs(state.stockpile, cost);
+  }
+  const output = Math.max(0, Number(recipe.outputAmount || 0));
+  const workTicks = Math.max(1, Math.floor(Number(recipe.workTicks || 20)));
+  if (output <= 0) {
+    return null;
+  }
   return {
     id: `job_${state.jobCounter++}`,
     type: "armory",
     structureId: armory.id,
     target: { x: armory.x, y: armory.y },
     workRemaining: workTicks,
-    outputs: { [kitResource]: output },
+    outputs: { [recipe.outputId]: output },
+    armoryRecipeId: recipe.id,
+    armoryRecipeType: recipe.type,
+    armoryRecipeTier: recipe.tier,
     dwarfId: null,
   };
 }

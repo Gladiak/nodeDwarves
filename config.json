@@ -1780,6 +1780,15 @@
           "ruinsCooldown",
           "ruinsProgress",
           "ruinsArtifacts",
+          "underrealmDepthProgress",
+          "underrealmChampionProgress",
+          "underrealmFrontierContested",
+          "underrealmChampionCooldown",
+          "underrealmReadinessScore",
+          "underrealmReadinessGap",
+          "underrealmReadinessBlocked",
+          "underrealmReadinessWarning",
+          "underrealmCombatPressure",
           "clanShare_abyssborn",
           "clanShare_khorg_embers",
           "clanShare_threshold_wardens",
@@ -1903,6 +1912,84 @@
       "mined_cost_per_depth": {
         "stone": 44,
         "iron": 22
+      }
+    },
+    "combat": {
+      "enabled": true,
+      "progression_mode": "champion_gate",
+      "readiness": {
+        "hard_min_gate": true,
+        "warning_zone_risk_multiplier": 1.25,
+        "score_weights": {
+          "offense": 1,
+          "defense": 1,
+          "support": 0.75
+        },
+        "formula": {
+          "weapon_avg_tier_scale": 6,
+          "armor_avg_tier_scale": 6,
+          "support_kit_full_scale": 8,
+          "support_armory_level_scale": 1
+        }
+      },
+      "encounter": {
+        "rounds_base": 4,
+        "rounds_per_depth": 1,
+        "retry_cooldown_ticks_base": 90,
+        "retry_cooldown_ticks_per_depth": 22
+      },
+      "dwarf_champion": {
+        "enabled": true,
+        "min_survivals": 2,
+        "attack_bonus_ratio": 0.14,
+        "defense_bonus_ratio": 0.12,
+        "requires_party_presence": true
+      },
+      "floors": {
+        "defaults": {
+          "min_armory_level_base": 1,
+          "min_armory_level_per_depth": 0.35,
+          "readiness": {
+            "min_score_base": 18,
+            "min_score_per_depth": 8,
+            "recommended_score_base": 27,
+            "recommended_score_per_depth": 10
+          },
+          "champion": {
+            "enabled": true,
+            "id_prefix": "under_champion",
+            "label_prefix": "Depth Champion",
+            "hp_base": 105,
+            "hp_per_depth": 28,
+            "attack_base": 9,
+            "attack_per_depth": 2,
+            "defense_base": 7,
+            "defense_per_depth": 2,
+            "penetration_base": 0.03,
+            "penetration_per_depth": 0.01
+          }
+        },
+        "by_depth": {
+          "1": {
+            "readiness": {
+              "min_score": 16,
+              "recommended_score": 24
+            },
+            "champion": {
+              "label": "Gatebreaker Foreman"
+            }
+          },
+          "2": {
+            "champion": {
+              "label": "Basalt Herald"
+            }
+          },
+          "3": {
+            "champion": {
+              "label": "Shardbound Prior"
+            }
+          }
+        }
       }
     },
     "economy": {
@@ -2209,6 +2296,26 @@
       "stone": 6,
       "iron": 0,
       "expedition_kit": 0,
+      "weapon_tier_1": 0,
+      "weapon_tier_2": 0,
+      "weapon_tier_3": 0,
+      "weapon_tier_4": 0,
+      "weapon_tier_5": 0,
+      "weapon_tier_6": 0,
+      "weapon_tier_7": 0,
+      "weapon_tier_8": 0,
+      "weapon_tier_9": 0,
+      "weapon_tier_10": 0,
+      "armor_tier_1": 0,
+      "armor_tier_2": 0,
+      "armor_tier_3": 0,
+      "armor_tier_4": 0,
+      "armor_tier_5": 0,
+      "armor_tier_6": 0,
+      "armor_tier_7": 0,
+      "armor_tier_8": 0,
+      "armor_tier_9": 0,
+      "armor_tier_10": 0,
       "mithril": 0,
       "adamantio": 0,
       "mana_crystal": 0,
@@ -2268,6 +2375,26 @@
       "stone": "Stone",
       "iron": "Iron",
       "expedition_kit": "ExpKit",
+      "weapon_tier_1": "Wpn T1",
+      "weapon_tier_2": "Wpn T2",
+      "weapon_tier_3": "Wpn T3",
+      "weapon_tier_4": "Wpn T4",
+      "weapon_tier_5": "Wpn T5",
+      "weapon_tier_6": "Wpn T6",
+      "weapon_tier_7": "Wpn T7",
+      "weapon_tier_8": "Wpn T8",
+      "weapon_tier_9": "Wpn T9",
+      "weapon_tier_10": "Wpn T10",
+      "armor_tier_1": "Arm T1",
+      "armor_tier_2": "Arm T2",
+      "armor_tier_3": "Arm T3",
+      "armor_tier_4": "Arm T4",
+      "armor_tier_5": "Arm T5",
+      "armor_tier_6": "Arm T6",
+      "armor_tier_7": "Arm T7",
+      "armor_tier_8": "Arm T8",
+      "armor_tier_9": "Arm T9",
+      "armor_tier_10": "Arm T10",
       "mithril": "Mithril",
       "adamantio": "Adamantium",
       "mana_crystal": "ManaCrystal",
@@ -2629,6 +2756,138 @@
         "stone": 18,
         "iron": 14
       },
+      "levelMax": 10,
+      "upgradeTicks": 80,
+      "upgradeCostScale": 1.33,
+      "upgradeBaseCost": {
+        "wood": 18,
+        "stone": 14,
+        "iron": 10
+      },
+      "levels": {
+        "1": {
+          "equipment_tier_max": 1,
+          "allowed_minerals": ["iron"]
+        },
+        "2": {
+          "upgradeTicks": 95,
+          "upgradeCost": {
+            "wood": 24,
+            "stone": 20,
+            "iron": 16
+          },
+          "equipment_tier_max": 2,
+          "allowed_minerals": ["iron", "mithril"]
+        },
+        "3": {
+          "upgradeTicks": 125,
+          "upgradeCost": {
+            "wood": 30,
+            "stone": 24,
+            "iron": 20,
+            "mithril": 6
+          },
+          "equipment_tier_max": 3,
+          "allowed_minerals": ["iron", "mithril", "mana_crystal"]
+        },
+        "4": {
+          "upgradeTicks": 160,
+          "upgradeCost": {
+            "wood": 36,
+            "stone": 28,
+            "iron": 24,
+            "mithril": 10,
+            "mana_crystal": 6
+          },
+          "equipment_tier_max": 4,
+          "allowed_minerals": ["iron", "mithril", "mana_crystal", "adamantio"]
+        },
+        "5": {
+          "upgradeTicks": 205,
+          "upgradeCost": {
+            "wood": 44,
+            "stone": 34,
+            "iron": 28,
+            "mithril": 12,
+            "mana_crystal": 8,
+            "adamantio": 6
+          },
+          "equipment_tier_max": 5,
+          "allowed_minerals": ["iron", "mithril", "mana_crystal", "adamantio"]
+        },
+        "6": {
+          "upgradeTicks": 255,
+          "upgradeCost": {
+            "wood": 54,
+            "stone": 40,
+            "iron": 34,
+            "mithril": 14,
+            "mana_crystal": 10,
+            "adamantio": 8
+          },
+          "equipment_tier_max": 6,
+          "allowed_minerals": ["iron", "mithril", "mana_crystal", "adamantio", "embersteel"]
+        },
+        "7": {
+          "upgradeTicks": 315,
+          "upgradeCost": {
+            "wood": 66,
+            "stone": 48,
+            "iron": 40,
+            "mithril": 16,
+            "mana_crystal": 12,
+            "adamantio": 10,
+            "embersteel": 4
+          },
+          "equipment_tier_max": 7,
+          "allowed_minerals": ["iron", "mithril", "mana_crystal", "adamantio", "embersteel"]
+        },
+        "8": {
+          "upgradeTicks": 390,
+          "upgradeCost": {
+            "wood": 78,
+            "stone": 58,
+            "iron": 48,
+            "mithril": 20,
+            "mana_crystal": 14,
+            "adamantio": 12,
+            "embersteel": 7,
+            "ironshade": 3
+          },
+          "equipment_tier_max": 8,
+          "allowed_minerals": ["iron", "mithril", "mana_crystal", "adamantio", "embersteel", "ironshade"]
+        },
+        "9": {
+          "upgradeTicks": 480,
+          "upgradeCost": {
+            "wood": 94,
+            "stone": 70,
+            "iron": 56,
+            "mithril": 24,
+            "mana_crystal": 18,
+            "adamantio": 15,
+            "embersteel": 10,
+            "ironshade": 5
+          },
+          "equipment_tier_max": 9,
+          "allowed_minerals": ["iron", "mithril", "mana_crystal", "adamantio", "embersteel", "ironshade"]
+        },
+        "10": {
+          "upgradeTicks": 590,
+          "upgradeCost": {
+            "wood": 112,
+            "stone": 82,
+            "iron": 66,
+            "mithril": 28,
+            "mana_crystal": 22,
+            "adamantio": 18,
+            "embersteel": 12,
+            "ironshade": 8
+          },
+          "equipment_tier_max": 10,
+          "allowed_minerals": ["iron", "mithril", "mana_crystal", "adamantio", "embersteel", "ironshade"]
+        }
+      },
       "workersPerArmory": 2,
       "kitTicks": 24,
       "kitOutput": 1.15,
@@ -2636,6 +2895,224 @@
       "kitCost": {
         "iron": 2,
         "wood": 1
+      },
+      "equipment": {
+        "enabled": true,
+        "craft_order": [
+          "expedition_kit",
+          "weapon_tier_1", "armor_tier_1",
+          "weapon_tier_2", "armor_tier_2",
+          "weapon_tier_3", "armor_tier_3",
+          "weapon_tier_4", "armor_tier_4",
+          "weapon_tier_5", "armor_tier_5",
+          "weapon_tier_6", "armor_tier_6",
+          "weapon_tier_7", "armor_tier_7",
+          "weapon_tier_8", "armor_tier_8",
+          "weapon_tier_9", "armor_tier_9",
+          "weapon_tier_10", "armor_tier_10"
+        ],
+        "recipes": {
+          "weapon_tier_1": {
+            "type": "weapon",
+            "tier": 1,
+            "min_level": 1,
+            "max_stock": 18,
+            "work_ticks": 18,
+            "output": 1,
+            "minerals": ["iron"],
+            "cost": { "iron": 2, "wood": 1 }
+          },
+          "armor_tier_1": {
+            "type": "armor",
+            "tier": 1,
+            "min_level": 1,
+            "max_stock": 18,
+            "work_ticks": 18,
+            "output": 1,
+            "minerals": ["iron"],
+            "cost": { "iron": 2, "stone": 1 }
+          },
+          "weapon_tier_2": {
+            "type": "weapon",
+            "tier": 2,
+            "min_level": 2,
+            "max_stock": 16,
+            "work_ticks": 20,
+            "output": 1,
+            "minerals": ["iron", "mithril"],
+            "cost": { "iron": 3, "mithril": 1, "wood": 1 }
+          },
+          "armor_tier_2": {
+            "type": "armor",
+            "tier": 2,
+            "min_level": 2,
+            "max_stock": 16,
+            "work_ticks": 20,
+            "output": 1,
+            "minerals": ["iron", "mithril"],
+            "cost": { "iron": 3, "mithril": 1, "stone": 2 }
+          },
+          "weapon_tier_3": {
+            "type": "weapon",
+            "tier": 3,
+            "min_level": 3,
+            "max_stock": 14,
+            "work_ticks": 22,
+            "output": 1,
+            "minerals": ["mithril", "mana_crystal"],
+            "cost": { "mithril": 2, "mana_crystal": 1, "iron": 1 }
+          },
+          "armor_tier_3": {
+            "type": "armor",
+            "tier": 3,
+            "min_level": 3,
+            "max_stock": 14,
+            "work_ticks": 22,
+            "output": 1,
+            "minerals": ["mithril", "mana_crystal"],
+            "cost": { "mithril": 2, "mana_crystal": 1, "stone": 2 }
+          },
+          "weapon_tier_4": {
+            "type": "weapon",
+            "tier": 4,
+            "min_level": 4,
+            "max_stock": 12,
+            "work_ticks": 24,
+            "output": 1,
+            "minerals": ["adamantio"],
+            "cost": { "adamantio": 2, "mithril": 1, "mana_crystal": 1 }
+          },
+          "armor_tier_4": {
+            "type": "armor",
+            "tier": 4,
+            "min_level": 4,
+            "max_stock": 12,
+            "work_ticks": 24,
+            "output": 1,
+            "minerals": ["adamantio"],
+            "cost": { "adamantio": 2, "mithril": 1, "stone": 3 }
+          },
+          "weapon_tier_5": {
+            "type": "weapon",
+            "tier": 5,
+            "min_level": 5,
+            "max_stock": 10,
+            "work_ticks": 26,
+            "output": 1,
+            "minerals": ["adamantio", "mana_crystal"],
+            "cost": { "adamantio": 3, "mana_crystal": 2, "mithril": 1 }
+          },
+          "armor_tier_5": {
+            "type": "armor",
+            "tier": 5,
+            "min_level": 5,
+            "max_stock": 10,
+            "work_ticks": 26,
+            "output": 1,
+            "minerals": ["adamantio", "mana_crystal"],
+            "cost": { "adamantio": 3, "mana_crystal": 2, "stone": 3 }
+          },
+          "weapon_tier_6": {
+            "type": "weapon",
+            "tier": 6,
+            "min_level": 6,
+            "max_stock": 8,
+            "work_ticks": 28,
+            "output": 1,
+            "minerals": ["embersteel"],
+            "cost": { "embersteel": 2, "adamantio": 2, "mana_crystal": 1 }
+          },
+          "armor_tier_6": {
+            "type": "armor",
+            "tier": 6,
+            "min_level": 6,
+            "max_stock": 8,
+            "work_ticks": 28,
+            "output": 1,
+            "minerals": ["embersteel"],
+            "cost": { "embersteel": 2, "adamantio": 2, "stone": 4 }
+          },
+          "weapon_tier_7": {
+            "type": "weapon",
+            "tier": 7,
+            "min_level": 7,
+            "max_stock": 6,
+            "work_ticks": 30,
+            "output": 1,
+            "minerals": ["embersteel", "mana_crystal"],
+            "cost": { "embersteel": 3, "mana_crystal": 2, "adamantio": 1 }
+          },
+          "armor_tier_7": {
+            "type": "armor",
+            "tier": 7,
+            "min_level": 7,
+            "max_stock": 6,
+            "work_ticks": 30,
+            "output": 1,
+            "minerals": ["embersteel", "mana_crystal"],
+            "cost": { "embersteel": 3, "mana_crystal": 2, "stone": 4 }
+          },
+          "weapon_tier_8": {
+            "type": "weapon",
+            "tier": 8,
+            "min_level": 8,
+            "max_stock": 5,
+            "work_ticks": 33,
+            "output": 1,
+            "minerals": ["ironshade"],
+            "cost": { "ironshade": 2, "embersteel": 2, "mana_crystal": 2 }
+          },
+          "armor_tier_8": {
+            "type": "armor",
+            "tier": 8,
+            "min_level": 8,
+            "max_stock": 5,
+            "work_ticks": 33,
+            "output": 1,
+            "minerals": ["ironshade"],
+            "cost": { "ironshade": 2, "embersteel": 2, "stone": 5 }
+          },
+          "weapon_tier_9": {
+            "type": "weapon",
+            "tier": 9,
+            "min_level": 9,
+            "max_stock": 4,
+            "work_ticks": 36,
+            "output": 1,
+            "minerals": ["ironshade", "embersteel", "mana_crystal"],
+            "cost": { "ironshade": 3, "embersteel": 2, "mana_crystal": 2, "adamantio": 1 }
+          },
+          "armor_tier_9": {
+            "type": "armor",
+            "tier": 9,
+            "min_level": 9,
+            "max_stock": 4,
+            "work_ticks": 36,
+            "output": 1,
+            "minerals": ["ironshade", "embersteel", "mana_crystal"],
+            "cost": { "ironshade": 3, "embersteel": 2, "stone": 5, "adamantio": 1 }
+          },
+          "weapon_tier_10": {
+            "type": "weapon",
+            "tier": 10,
+            "min_level": 10,
+            "max_stock": 3,
+            "work_ticks": 40,
+            "output": 1,
+            "minerals": ["ironshade", "embersteel", "mana_crystal", "adamantio", "mithril", "iron"],
+            "cost": { "ironshade": 3, "embersteel": 3, "mana_crystal": 3, "adamantio": 2, "mithril": 2, "iron": 2 }
+          },
+          "armor_tier_10": {
+            "type": "armor",
+            "tier": 10,
+            "min_level": 10,
+            "max_stock": 3,
+            "work_ticks": 40,
+            "output": 1,
+            "minerals": ["ironshade", "embersteel", "mana_crystal", "adamantio", "mithril", "iron"],
+            "cost": { "ironshade": 3, "embersteel": 3, "mana_crystal": 3, "adamantio": 2, "mithril": 2, "iron": 2, "stone": 6 }
+          }
+        }
       },
       "pauseOnEmergency": true
     },

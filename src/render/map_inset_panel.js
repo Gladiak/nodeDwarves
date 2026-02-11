@@ -353,6 +353,125 @@ function buildPopulationMetricLine(population, moralePct, alertState, width) {
   ]);
 }
 
+// Resolve one combat floor snapshot for map inset combat tokens.
+function getInsetUnderrealmCombatFloor(underrealm, depth) {
+  const combat = underrealm && underrealm.combat;
+  const floors = combat && combat.floorsByDepth && typeof combat.floorsByDepth === 'object'
+    ? combat.floorsByDepth
+    : null;
+  if (!floors) {
+    return null;
+  }
+  const safeDepth = Math.max(1, Math.floor(Number(depth || 1)));
+  return floors[String(safeDepth)] || floors[safeDepth] || null;
+}
+
+// Resolve compact Underrealm progression/combat/readiness tokens for inset rendering.
+function resolveInsetUnderrealmCombatTokens(state) {
+  const underrealm = state && state.underrealm ? state.underrealm : null;
+  if (!underrealm || underrealm.enabled === false) {
+    return {
+      progression: 'P:Off',
+      champion: 'C:Off',
+      readiness: 'R:Off',
+    };
+  }
+
+  const maxDepth = Math.max(0, Math.floor(Number(underrealm.maxDepth || 0)));
+  const maxUnlockedDepth = Math.max(0, Math.floor(Number(underrealm.maxUnlockedDepth || 0)));
+  const frontierDepth = Math.min(maxDepth, maxUnlockedDepth);
+  const lift = underrealm.lift && typeof underrealm.lift === 'object'
+    ? underrealm.lift
+    : null;
+
+  let progression = 'P:-';
+  if (frontierDepth <= 0) {
+    progression = 'P:Gate';
+  } else if (maxDepth > 0 && frontierDepth >= maxDepth) {
+    progression = 'P:Max';
+  } else if (lift && lift.active === true) {
+    const totalTicks = Math.max(1, Number(lift.totalTicks || 1));
+    const remainingTicks = Math.max(0, Number(lift.ticksRemaining || 0));
+    const pct = Math.max(0, Math.min(100, Math.round((1 - remainingTicks / totalTicks) * 100)));
+    progression = `P:Lft${pct}%`;
+  } else {
+    progression = `P:N${frontierDepth + 1}`;
+  }
+
+  const combat = underrealm.combat && typeof underrealm.combat === 'object'
+    ? underrealm.combat
+    : null;
+  let champion = 'C:Off';
+  if (combat && combat.enabled !== false && frontierDepth > 0) {
+    const floor = getInsetUnderrealmCombatFloor(underrealm, frontierDepth);
+    if (!floor) {
+      champion = `C:D${frontierDepth}?`;
+    } else {
+      const championRequired = Boolean(
+        floor.unlock
+        && floor.unlock.required === true
+        && floor.champion
+        && floor.champion.enabled !== false,
+      );
+      const cleared = Boolean(
+        floor.unlock
+        && floor.unlock.cleared === true,
+      );
+      if (!championRequired) {
+        champion = `C:D${frontierDepth}Byp`;
+      } else if (cleared) {
+        champion = `C:D${frontierDepth}Clr`;
+      } else {
+        const stateCode = String(floor.state || 'accessible')
+          .replace('accessible', 'Acc')
+          .replace('contested', 'Cnt')
+          .replace('locked', 'Lck')
+          .replace('cleared', 'Clr');
+        const cooldown = Math.max(
+          0,
+          Math.floor(Number(floor.encounter && floor.encounter.cooldownTicksRemaining || 0)),
+        );
+        champion = cooldown > 0
+          ? `C:D${frontierDepth}${stateCode}${cooldown}t`
+          : `C:D${frontierDepth}${stateCode}`;
+        if (progression.startsWith('P:N')) {
+          progression = 'P:CGate';
+        }
+      }
+    }
+  }
+
+  let readiness = 'R:-';
+  const gate = state
+    && state.ruins
+    && state.ruins.readinessGate
+    && typeof state.ruins.readinessGate === 'object'
+    ? state.ruins.readinessGate
+    : null;
+  if (gate && Number(gate.depth || 0) > 0) {
+    const depth = Math.max(1, Math.floor(Number(gate.depth || 1)));
+    const status = String(gate.status || 'unknown');
+    if (status === 'blocked' && gate.reason === 'champion_cooldown') {
+      const cooldown = Math.max(0, Math.floor(Number(gate.championCooldownTicks || 0)));
+      readiness = `R:D${depth}Cd${cooldown}`;
+    } else if (status === 'blocked') {
+      readiness = `R:D${depth}Blk`;
+    } else if (status === 'warning') {
+      readiness = `R:D${depth}Wrn`;
+    } else {
+      readiness = `R:D${depth}Rdy`;
+    }
+  } else if (frontierDepth > 0) {
+    readiness = `R:D${frontierDepth}Set`;
+  }
+
+  return {
+    progression,
+    champion,
+    readiness,
+  };
+}
+
 // Build a colored alert-summary line for the inset.
 function buildAlertMetricLine(alertState, width) {
   const stockpilePct = Math.max(0, Math.round(Number(alertState.stockpileRatio || 0) * 100));
@@ -467,6 +586,15 @@ function buildInsetDefaultMetricLines(meta, alertState, width) {
     ],
     width,
   ), width));
+  metrics.push(buildInsetTextLine(pickFittingInsetText(
+    [
+      `Deep: ${meta.combatTokens.progression} ${meta.combatTokens.champion} ${meta.combatTokens.readiness}`,
+      `Deep ${meta.combatTokens.progression} ${meta.combatTokens.champion} ${meta.combatTokens.readiness}`,
+      `${meta.combatTokens.progression} ${meta.combatTokens.champion} ${meta.combatTokens.readiness}`,
+      `${meta.combatTokens.champion} ${meta.combatTokens.readiness}`,
+    ],
+    width,
+  ), width));
   metrics.push(buildAlertMetricLine(alertState, width));
   return metrics;
 }
@@ -554,6 +682,7 @@ function buildMapInsetLines(state, config, width, height, themeState) {
     viewLabel,
     depthToken,
     unlockToken,
+    combatTokens: resolveInsetUnderrealmCombatTokens(state),
   };
 
   const focus = themeState && themeState.focus ? themeState.focus : DEFAULT_FOCUS;
