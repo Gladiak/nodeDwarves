@@ -51,7 +51,11 @@
       "height": 28
     },
     "telemetry_panel": {
-      "enabled": true
+      "enabled": true,
+      "dashboard": {
+        "history_points": 32,
+        "snapshot_interval_ticks": 120
+      }
     },
     "save_panel": {
       "enabled": true,

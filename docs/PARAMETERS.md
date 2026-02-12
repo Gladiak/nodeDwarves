@@ -40,6 +40,8 @@ Display and layout:
 - `display.telemetry_panel.enabled`: enable the full telemetry Data Center overlay (toggle with `h`; while open use `←`/`→` to switch pages).
 - `display.telemetry_panel.width`: optional telemetry panel width override in characters (unset = dynamic size, ~98% map width).
 - `display.telemetry_panel.height`: optional telemetry panel height override in lines (unset = dynamic size, ~98% map height).
+- `display.telemetry_panel.dashboard.history_points`: number of stored dashboard trend snapshots (default profile: `32`; higher = longer window, lower = faster trend turnover).
+- `display.telemetry_panel.dashboard.snapshot_interval_ticks`: ticks between dashboard trend snapshots (default profile: `120`; higher = slower chart scrolling, lower = more reactive charts).
 - `display.save_panel.enabled`: enable the map-export confirmation panel.
 - `display.save_panel.width`: save panel width in characters.
 - `display.save_panel.height`: save panel height in lines.

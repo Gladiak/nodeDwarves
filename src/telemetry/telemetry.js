@@ -5,8 +5,8 @@ const { getStockpileTarget } = require("../simulation/resources");
 const { getFestivalStatus } = require("../simulation/festivals");
 const { getAlchemyStatus } = require("../simulation/alchemy");
 const { getWorldEventStatus } = require("../simulation/world_events");
-const { getColorConfig, applyColor } = require("./colors");
-const { fitLine, wrapLine } = require("./format");
+const { getColorConfig, applyColor } = require("../render/colors");
+const { fitLine, wrapLine } = require("../render/format");
 
 const TELEMETRY_LAYOUT = [
   {
@@ -49,48 +49,21 @@ function getTelemetryLayouts() {
 
 // Build the left and right telemetry columns.
 function buildTelemetryColumns(state, config, columnWidth, options = {}) {
-  const dwarves = Array.isArray(state.dwarves) ? state.dwarves : [];
-  const avgMorale = averageValue(dwarves, (d) => d.state.morale);
-  const avgMoraleBoost = averageValue(dwarves, (d) => d.state.moraleBoostBeer);
-  const avgStress = averageValue(dwarves, (d) => d.state.stress);
-  const idleCount = dwarves.filter(
-    (dwarf) => !dwarf.job && !dwarf.expedition,
-  ).length;
-  const structures = state.structures || [];
-  const houses = structures.filter(
-    (structure) => structure.type === "house",
-  );
-  const wellCount = structures.filter(
-    (structure) => structure.type === "well",
-  ).length;
-  const fieldCount = structures.filter(
-    (structure) => structure.type === "field",
-  ).length;
-  const workshopCount = structures.filter(
-    (structure) => structure.type === "workshop",
-  ).length;
-  const breweryCount = structures.filter(
-    (structure) => structure.type === "brewery",
-  ).length;
-  const sawmillCount = structures.filter(
-    (structure) => structure.type === "sawmill",
-  ).length;
-  const mineCount = structures.filter(
-    (structure) => structure.type === "mine",
-  ).length;
-  const armoryCount = structures.filter(
-    (structure) => structure.type === "armory",
-  ).length;
-  const forgeCount = structures.filter(
-    (structure) => structure.type === "mithril_forge",
-  ).length;
-  const alchemyLabCount = structures.filter(
-    (structure) => structure.type === "alchemy_lab",
-  ).length;
-  const ruinsCount = structures.filter(
-    (structure) => structure.type === "ruins",
-  ).length;
-  const housingConfig = (config.population && config.population.housing) || {};
+  const snapshot = collectTelemetrySnapshot(state, config, columnWidth, options);
+  const sectionModels = buildTelemetrySectionModels(snapshot);
+  return renderTelemetryColumns(sectionModels, snapshot.colors);
+}
+
+// Collect normalized telemetry snapshot data in one place.
+function collectTelemetrySnapshot(state, config, columnWidth, options = {}) {
+  const safeState = state && typeof state === "object" ? state : {};
+  const safeConfig = config && typeof config === "object" ? config : {};
+  const dwarves = Array.isArray(safeState.dwarves) ? safeState.dwarves : [];
+  const jobs = Array.isArray(safeState.jobs) ? safeState.jobs : [];
+  const structures = Array.isArray(safeState.structures) ? safeState.structures : [];
+  const structureCounts = countEntriesByValue(structures, (entry) => entry && entry.type);
+  const houses = structures.filter((structure) => structure && structure.type === "house");
+  const housingConfig = (safeConfig.population && safeConfig.population.housing) || {};
   const housingEnabled = housingConfig.enabled !== false;
   const bedsTotal = housingEnabled
     ? houses.reduce(
@@ -103,45 +76,38 @@ function buildTelemetryColumns(state, config, columnWidth, options = {}) {
       ? bedsTotal / Math.max(1, dwarves.length)
       : 0
     : 1;
-  const wildlifeConfig = config.wildlife || {};
+  const wildlifeConfig = safeConfig.wildlife || {};
   const wildlifeEnabled = wildlifeConfig.enabled === true;
-  const herdCount = wildlifeEnabled && state.wildlife && Array.isArray(state.wildlife.herds)
-    ? state.wildlife.herds.filter((herd) => herd && Number(herd.remaining || 0) > 0).length
+  const herdCount = wildlifeEnabled && safeState.wildlife && Array.isArray(safeState.wildlife.herds)
+    ? safeState.wildlife.herds.filter((herd) => herd && Number(herd.remaining || 0) > 0).length
     : 0;
   const huntCount = wildlifeEnabled
-    ? state.jobs.filter((job) => job.type === "hunt").length
+    ? jobs.filter((job) => job && job.type === "hunt").length
     : 0;
-  const seasonLabel = formatSeasonLabel(state.season);
-  const yearLabel = formatYearLabel(state, config);
-  const underrealmTelemetry = getUnderrealmTelemetryLines(state);
+  const seasonLabel = formatSeasonLabel(safeState.season);
+  const yearLabel = formatYearLabel(safeState, safeConfig);
+  const underrealmRows = buildStableUnderrealmRows(getUnderrealmTelemetryLines(safeState));
   const stageCounts = countLifeStages(dwarves);
   const targets =
-    (config.resources &&
-      (config.resources.targets || config.resources.stockpile)) ||
-    {};
-  const resourceLabels = (config.resources && config.resources.labels) || {};
-  const telemetryConfig = (config.display && config.display.telemetry) || {};
+    (safeConfig.resources
+      && (safeConfig.resources.targets || safeConfig.resources.stockpile))
+    || {};
+  const resourceLabels = (safeConfig.resources && safeConfig.resources.labels) || {};
+  const telemetryConfig = (safeConfig.display && safeConfig.display.telemetry) || {};
   const stockBarMax = Number(telemetryConfig.stockBarMax || 0);
-  const colors = getColorConfig(config);
-  const header = (label) => applyColor(label, "hud_header", colors);
-  const pushSection = (lines, label) => {
-    if (lines.length > 0 && lines[lines.length - 1] !== "") {
-      lines.push("");
-    }
-    lines.push(header(label));
-  };
-  const cycleStats = state.cycleStats || {};
+  const colors = getColorConfig(safeConfig);
+  const cycleStats = safeState.cycleStats || {};
   const cycleCount = Math.max(0, Number(cycleStats.count || 0));
-  const villageCount = Array.isArray(state.villages)
-    ? state.villages.length
+  const villageCount = Array.isArray(safeState.villages)
+    ? safeState.villages.length
     : 1;
-  const templeState = state.temple && typeof state.temple === "object"
-    ? state.temple
+  const templeState = safeState.temple && typeof safeState.temple === "object"
+    ? safeState.temple
     : null;
-  const templeMaxStageConfig = config.structures
-    && config.structures.temple_of_ancestors
-    && Array.isArray(config.structures.temple_of_ancestors.stages)
-    ? config.structures.temple_of_ancestors.stages.length
+  const templeMaxStageConfig = safeConfig.structures
+    && safeConfig.structures.temple_of_ancestors
+    && Array.isArray(safeConfig.structures.temple_of_ancestors.stages)
+    ? safeConfig.structures.temple_of_ancestors.stages.length
     : 0;
   const templeMaxStage = Math.max(
     templeMaxStageConfig,
@@ -152,179 +118,68 @@ function buildTelemetryColumns(state, config, columnWidth, options = {}) {
     0,
     Math.max(0, templeMaxStage),
   );
-  const templeJob = state.jobs.find(
+  const templeJob = jobs.find(
     (job) => job.type === "build" && job.structureType === "temple_of_ancestors",
   ) || null;
-  const prestigeState = state.prestige && typeof state.prestige === "object"
-    ? state.prestige
+  const prestigeState = safeState.prestige && typeof safeState.prestige === "object"
+    ? safeState.prestige
     : null;
   const prestigeTotal = Math.max(0, Number(prestigeState && prestigeState.total || 0));
   const prestigeRank = prestigeState && prestigeState.rank
     ? String(prestigeState.rank)
     : "Unproven";
-  const reproductionStats = state.reproductionStats || {};
-  const deathsByCause = state.deathsByCause || {};
-  const birthsCount = Math.max(0, Number(state.birthsCount || 0));
-  const deathsCount = Math.max(0, Number(state.deathsCount || 0));
+  const reproductionStats = safeState.reproductionStats || {};
+  const deathsByCause = safeState.deathsByCause || {};
+  const birthsCount = Math.max(0, Number(safeState.birthsCount || 0));
+  const deathsCount = Math.max(0, Number(safeState.deathsCount || 0));
   const reproAttempts = Math.max(0, Number(reproductionStats.attempts || 0));
   const reproSuccesses = Math.max(0, Number(reproductionStats.successes || 0));
   const reproSuccessRatio = reproAttempts > 0
     ? Math.round((reproSuccesses / reproAttempts) * 100)
     : 0;
-  const raidStats = state.raidStats || {};
-  const merchantStats = state.merchantStats || {};
-  const contractsState = state.contracts && typeof state.contracts === "object"
-    ? state.contracts
+  const raidStats = safeState.raidStats || {};
+  const merchantStats = safeState.merchantStats || {};
+  const contractsState = safeState.contracts && typeof safeState.contracts === "object"
+    ? safeState.contracts
     : null;
   const contractsStats = contractsState && contractsState.stats
     ? contractsState.stats
     : {};
-  const worldEventsState = state.worldEvents && typeof state.worldEvents === "object"
-    ? state.worldEvents
+  const worldEventsState = safeState.worldEvents && typeof safeState.worldEvents === "object"
+    ? safeState.worldEvents
     : null;
   const worldEventsStats = worldEventsState && worldEventsState.stats
     ? worldEventsState.stats
     : null;
   const includeRuins = options.includeRuins !== false;
   const includeMyths = options.includeMyths !== false;
-
-  const left = [];
-  const right = [];
-  const sections = {};
-  const appendFixedSection = (lines, sectionKey, label, rows, rowCount) => {
-    pushSection(lines, label);
-    const normalizedRows = Array.isArray(rows) ? rows : [];
-    const count = Math.max(0, Number(rowCount || normalizedRows.length));
-    const sectionRows = [];
-    let added = 0;
-    for (const row of normalizedRows) {
-      if (added >= count) {
-        break;
-      }
-      const text = row === null || row === undefined || row === ""
-        ? "-"
-        : String(row);
-      lines.push(text);
-      sectionRows.push(text);
-      added += 1;
-    }
-    while (added < count) {
-      lines.push("-");
-      sectionRows.push("-");
-      added += 1;
-    }
-    if (sectionKey) {
-      sections[sectionKey] = {
-        label,
-        rows: sectionRows,
-      };
-    }
-  };
-
-  const festivalStatus = getFestivalStatus(state, config);
-  const worldEventStatus = getWorldEventStatus(state, config);
-  const contractStatus = formatContractStatus(state, config, columnWidth);
-  const alchemyStatus = formatAlchemyStatus(state, config, columnWidth);
-  const underrealmRows = buildStableUnderrealmRows(underrealmTelemetry);
-  const shortages = Array.isArray(state.lastPriorities) ? state.lastPriorities : [];
-  const governorSignals = getGovernorSignals(state);
+  const festivalStatus = getFestivalStatus(safeState, safeConfig);
+  const worldEventStatus = getWorldEventStatus(safeState, safeConfig);
+  const shortages = Array.isArray(safeState.lastPriorities) ? safeState.lastPriorities : [];
+  const governorSignals = getGovernorSignals(safeState);
   const stockRatioLine = [
-    formatStockRatio("food", state, config, resourceLabels),
-    formatStockRatio("water", state, config, resourceLabels),
-    formatStockRatio("beer", state, config, resourceLabels),
+    formatStockRatio("food", safeState, safeConfig, resourceLabels),
+    formatStockRatio("water", safeState, safeConfig, resourceLabels),
+    formatStockRatio("beer", safeState, safeConfig, resourceLabels),
   ].join(" | ");
   const buildRatioLine = [
-    formatStockRatio("wood", state, config, resourceLabels),
-    formatStockRatio("stone", state, config, resourceLabels),
-    formatStockRatio("iron", state, config, resourceLabels),
+    formatStockRatio("wood", safeState, safeConfig, resourceLabels),
+    formatStockRatio("stone", safeState, safeConfig, resourceLabels),
+    formatStockRatio("iron", safeState, safeConfig, resourceLabels),
   ].join(" | ");
-
-  appendFixedSection(left, "world", "World", [
-    `Simulation tick: ${state.tick} | Year ${yearLabel}, ${seasonLabel}`,
-    `Completed cycles: ${cycleCount} | Villages: ${villageCount}`,
-    `Prestige score: ${formatCompactNumber(prestigeTotal)} (${prestigeRank})`,
-    `Weather: ${formatWeatherStatus(state.weather, colors)}`,
-    `Housing ratio: ${housingRatio.toFixed(2)} beds per dwarf`,
-    formatFestivalStatus(festivalStatus),
-    formatWorldEventStatus(worldEventStatus),
-    contractStatus,
-    alchemyStatus,
-    ...buildWorldLogRows(state.events, columnWidth, 3),
-  ], 12);
-
-  appendFixedSection(left, "underrealm", "Underrealm", underrealmRows, 9);
-
-  appendFixedSection(left, "population", "Population", [
-    `Population total: ${dwarves.length} (Adults ${stageCounts.adult}, Children ${stageCounts.child}, Elders ${stageCounts.elder})`,
-    wildlifeEnabled
-      ? `Workforce: ${idleCount} idle, ${state.jobs.length} assigned jobs, ${huntCount} hunting jobs`
-      : `Workforce: ${idleCount} idle, ${state.jobs.length} assigned jobs`,
-    wildlifeEnabled ? `Wildlife status: ${herdCount} active herds` : "Wildlife status: off",
-    `Morale: ${avgMorale.toFixed(2)} (beer boost +${avgMoraleBoost.toFixed(2)}) | Stress: ${avgStress.toFixed(2)}`,
-    `Births / deaths: ${birthsCount} / ${deathsCount}`,
-    `Deaths by cause: starvation ${Math.max(0, Number(deathsByCause.starvation || 0))}, raids ${Math.max(0, Number(deathsByCause.raid || 0))}, deep raids ${Math.max(0, Number(deathsByCause.deepRaid || 0))}`,
-    `Reproduction success: ${reproSuccesses}/${reproAttempts} (${reproSuccessRatio}%)`,
-  ], 7);
-
-  appendFixedSection(left, "pressure", "Pressure", [
-    formatShortageStatus(shortages, 0, state, config, resourceLabels),
-    formatShortageStatus(shortages, 1, state, config, resourceLabels),
-    `Core stock targets: ${stockRatioLine}`,
-    `Build stock targets: ${buildRatioLine}`,
-    formatRaidStatus(raidStats),
-    formatJobsGovernorLine(governorSignals.jobs, resourceLabels),
-  ], 6);
-
-  appendFixedSection(
-    left,
-    "lore",
-    "Lore",
-    buildLoreSectionRows(state, config, columnWidth, {
-      includeRuins,
-      includeMyths,
-    }),
-    11,
-  );
-
-  const templeProgress = formatTempleProgressStatus(templeJob, config) || "Temple construction progress: -";
   const structureLevelSummary = getStructureLevelSummary(structures);
+  const toolState = safeState.tools && typeof safeState.tools === "object"
+    ? safeState.tools
+    : null;
   let toolLine = "Tool upgrade level: -";
-  if (state.tools) {
-    const maxLevel = Math.max(1, Number(state.tools.maxLevel || 1));
-    const level = Math.min(
-      maxLevel,
-      Math.max(1, Number(state.tools.level || 1)),
-    );
+  if (toolState) {
+    const maxLevel = Math.max(1, Number(toolState.maxLevel || 1));
+    const level = Math.min(maxLevel, Math.max(1, Number(toolState.level || 1)));
     toolLine = `Tool upgrade level: ${level}/${maxLevel}`;
   }
-
-  appendFixedSection(right, "structures", "Structures", [
-    `Core structures: Wells ${wellCount}, Fields ${fieldCount}, Mines ${mineCount}`,
-    `Production structures: Workshops ${workshopCount}, Breweries ${breweryCount}, Sawmills ${sawmillCount}`,
-    `Defense structures: Armories ${armoryCount}, Mithril forges ${forgeCount}`,
-    `Arcane structures: Alchemy labs ${alchemyLabCount}, Ruins ${ruinsCount}`,
-    formatTempleStageStatus(templeState, templeStage, templeMaxStage),
-    templeProgress,
-    toolLine,
-    structureLevelSummary ? `Structure levels: ${structureLevelSummary}` : "Structure levels: -",
-  ], 8);
-
-  appendFixedSection(right, "diplomacy", "Diplomacy", [
-    `Merchant status: ${formatMerchantStatus(state.merchant)}`,
-    `Merchant trades completed: ${Math.max(0, Number(merchantStats.trades || 0))}`,
-    formatMerchantFlowLine("Top exported resource", merchantStats.given, resourceLabels),
-    formatMerchantFlowLine("Top imported resource", merchantStats.received, resourceLabels),
-    formatContractStatus(state, config, columnWidth),
-    formatContractReputation(state, config, columnWidth),
-    formatContractRecordLine(contractsStats),
-    formatTradeGovernorLine(governorSignals.trade),
-    formatWorldEventStats(worldEventsStats),
-    formatWorldEventLiveLine(worldEventStatus, worldEventsState, state.tick),
-  ], 10);
-
   const stockpileEntries = buildStockpileTelemetryEntries(
-    state,
-    config,
+    safeState,
+    safeConfig,
     targets,
     resourceLabels,
     stockBarMax,
@@ -335,65 +190,311 @@ function buildTelemetryColumns(state, config, columnWidth, options = {}) {
     entry.detail,
     columnWidth,
   ));
-  appendFixedSection(
-    right,
-    "stockpile",
-    "Stockpile",
-    stockpileLines.length > 0 ? stockpileLines : ["-"],
-    Math.max(10, stockpileLines.length),
-  );
 
-  appendFixedSection(
-    right,
-    "operations",
-    "Operations",
-    buildOperationsSectionRows(
-      state,
-      config,
-      shortages,
-      resourceLabels,
-      templeJob,
-      governorSignals,
-    ),
-    11,
-  );
+  return {
+    state: safeState,
+    config: safeConfig,
+    columnWidth,
+    colors,
+    includeRuins,
+    includeMyths,
+    dwarves,
+    jobs,
+    structures,
+    stageCounts,
+    avgMorale: averageValue(dwarves, (dwarf) => dwarf.state.morale),
+    avgMoraleBoost: averageValue(dwarves, (dwarf) => dwarf.state.moraleBoostBeer),
+    avgStress: averageValue(dwarves, (dwarf) => dwarf.state.stress),
+    idleCount: dwarves.filter((dwarf) => !dwarf.job && !dwarf.expedition).length,
+    wildlifeEnabled,
+    herdCount,
+    huntCount,
+    seasonLabel,
+    yearLabel,
+    underrealmRows,
+    targets,
+    resourceLabels,
+    stockBarMax,
+    cycleCount,
+    villageCount,
+    templeState,
+    templeMaxStage,
+    templeStage,
+    templeJob,
+    prestigeTotal,
+    prestigeRank,
+    birthsCount,
+    deathsCount,
+    reproAttempts,
+    reproSuccesses,
+    reproSuccessRatio,
+    deathsByCause,
+    raidStats,
+    merchantStats,
+    contractsStats,
+    worldEventsState,
+    worldEventsStats,
+    festivalStatus,
+    worldEventStatus,
+    shortages,
+    governorSignals,
+    stockRatioLine,
+    buildRatioLine,
+    housingRatio,
+    structureLevelSummary,
+    toolLine,
+    structureCounts,
+    stockpileLines,
+  };
+}
 
-  appendFixedSection(
-    right,
-    "explainability",
-    "AI Explainability",
-    buildExplainabilitySectionRows(state, governorSignals, shortages, resourceLabels),
-    8,
-  );
+// Build telemetry sections as plain section models (key/label/column/rows).
+function buildTelemetrySectionModels(snapshot) {
+  const templeProgress = formatTempleProgressStatus(snapshot.templeJob, snapshot.config)
+    || "Temple construction progress: -";
+  return [
+    {
+      column: "left",
+      key: "world",
+      label: "World",
+      rows: [
+        `Timeline: tick ${snapshot.state.tick} | year ${snapshot.yearLabel} | ${snapshot.seasonLabel}`,
+        `Cycles: ${snapshot.cycleCount} complete | villages ${snapshot.villageCount}`,
+        `Prestige: ${formatCompactNumber(snapshot.prestigeTotal)} (${snapshot.prestigeRank})`,
+        `Weather: ${formatWeatherStatus(snapshot.state.weather, snapshot.colors)}`,
+        `Housing ratio: ${snapshot.housingRatio.toFixed(2)} beds per dwarf`,
+        formatFestivalStatus(snapshot.festivalStatus),
+        formatWorldEventStatus(snapshot.worldEventStatus),
+        formatContractStatus(snapshot.state, snapshot.config, snapshot.columnWidth),
+        formatAlchemyStatus(snapshot.state, snapshot.config, snapshot.columnWidth),
+        ...buildWorldLogRows(snapshot.state.events, snapshot.columnWidth, 3),
+      ],
+    },
+    {
+      column: "left",
+      key: "underrealm",
+      label: "Underrealm",
+      rows: snapshot.underrealmRows,
+    },
+    {
+      column: "left",
+      key: "population",
+      label: "Population",
+      rows: [
+        `Population total: ${snapshot.dwarves.length}`,
+        `Life stages: adults ${snapshot.stageCounts.adult}, children ${snapshot.stageCounts.child}, elders ${snapshot.stageCounts.elder}`,
+        snapshot.wildlifeEnabled
+          ? `Workforce: ${snapshot.idleCount} idle, ${snapshot.jobs.length} assigned, ${snapshot.huntCount} hunting`
+          : `Workforce: ${snapshot.idleCount} idle, ${snapshot.jobs.length} assigned`,
+        snapshot.wildlifeEnabled
+          ? `Wildlife status: ${snapshot.herdCount} active herds`
+          : "Wildlife status: off",
+        `Morale: ${snapshot.avgMorale.toFixed(2)} (beer +${snapshot.avgMoraleBoost.toFixed(2)}) | Stress: ${snapshot.avgStress.toFixed(2)}`,
+        `Births / deaths: ${snapshot.birthsCount} / ${snapshot.deathsCount}`,
+        `Deaths by cause: starvation ${Math.max(0, Number(snapshot.deathsByCause.starvation || 0))}, raids ${Math.max(0, Number(snapshot.deathsByCause.raid || 0))}, deep raids ${Math.max(0, Number(snapshot.deathsByCause.deepRaid || 0))}`,
+        `Reproduction success: ${snapshot.reproSuccesses}/${snapshot.reproAttempts} (${snapshot.reproSuccessRatio}%)`,
+      ],
+    },
+    {
+      column: "left",
+      key: "pressure",
+      label: "Pressure",
+      rows: [
+        formatShortageStatus(
+          snapshot.shortages,
+          0,
+          snapshot.state,
+          snapshot.config,
+          snapshot.resourceLabels,
+        ),
+        formatShortageStatus(
+          snapshot.shortages,
+          1,
+          snapshot.state,
+          snapshot.config,
+          snapshot.resourceLabels,
+        ),
+        `Core stock targets: ${snapshot.stockRatioLine}`,
+        `Build stock targets: ${snapshot.buildRatioLine}`,
+        formatRaidStatus(snapshot.raidStats),
+        formatJobsGovernorLine(snapshot.governorSignals.jobs, snapshot.resourceLabels),
+      ],
+    },
+    {
+      column: "left",
+      key: "lore",
+      label: "Lore",
+      rows: buildLoreSectionRows(snapshot.state, snapshot.config, snapshot.columnWidth, {
+        includeRuins: snapshot.includeRuins,
+        includeMyths: snapshot.includeMyths,
+      }),
+    },
+    {
+      column: "right",
+      key: "structures",
+      label: "Structures",
+      rows: [
+        `Core structures: Wells ${snapshot.structureCounts.well || 0}, Fields ${snapshot.structureCounts.field || 0}, Mines ${snapshot.structureCounts.mine || 0}`,
+        `Production structures: Workshops ${snapshot.structureCounts.workshop || 0}, Breweries ${snapshot.structureCounts.brewery || 0}, Sawmills ${snapshot.structureCounts.sawmill || 0}`,
+        `Defense structures: Armories ${snapshot.structureCounts.armory || 0}, Mithril forges ${snapshot.structureCounts.mithril_forge || 0}`,
+        `Arcane structures: Alchemy labs ${snapshot.structureCounts.alchemy_lab || 0}, Ruins ${snapshot.structureCounts.ruins || 0}`,
+        formatTempleStageStatus(
+          snapshot.templeState,
+          snapshot.templeStage,
+          snapshot.templeMaxStage,
+        ),
+        templeProgress,
+        snapshot.toolLine,
+        snapshot.structureLevelSummary
+          ? `Structure levels: ${snapshot.structureLevelSummary}`
+          : "Structure levels: -",
+      ],
+    },
+    {
+      column: "right",
+      key: "diplomacy",
+      label: "Diplomacy",
+      rows: [
+        `Merchant status: ${formatMerchantStatus(snapshot.state.merchant)}`,
+        `Merchant trades completed: ${Math.max(0, Number(snapshot.merchantStats.trades || 0))}`,
+        formatMerchantFlowLine(
+          "Top exported resource",
+          snapshot.merchantStats.given,
+          snapshot.resourceLabels,
+        ),
+        formatMerchantFlowLine(
+          "Top imported resource",
+          snapshot.merchantStats.received,
+          snapshot.resourceLabels,
+        ),
+        formatContractStatus(snapshot.state, snapshot.config, snapshot.columnWidth),
+        formatContractReputation(snapshot.state, snapshot.config, snapshot.columnWidth),
+        formatContractRecordLine(snapshot.contractsStats),
+        formatTradeGovernorLine(snapshot.governorSignals.trade),
+        formatWorldEventStats(snapshot.worldEventsStats),
+        formatWorldEventLiveLine(
+          snapshot.worldEventStatus,
+          snapshot.worldEventsState,
+          snapshot.state.tick,
+        ),
+      ],
+    },
+    {
+      column: "right",
+      key: "stockpile",
+      label: "Stockpile",
+      rows: snapshot.stockpileLines,
+    },
+    {
+      column: "right",
+      key: "operations",
+      label: "Operations",
+      rows: buildOperationsSectionRows(
+        snapshot.state,
+        snapshot.config,
+        snapshot.shortages,
+        snapshot.resourceLabels,
+        snapshot.templeJob,
+        snapshot.governorSignals,
+      ),
+    },
+    {
+      column: "right",
+      key: "explainability",
+      label: "AI Explainability",
+      rows: buildExplainabilitySectionRows(
+        snapshot.state,
+        snapshot.governorSignals,
+        snapshot.shortages,
+        snapshot.resourceLabels,
+      ),
+    },
+    {
+      column: "right",
+      key: "endgame",
+      label: "Endgame",
+      rows: buildEndgameSectionRows(snapshot.state, snapshot.config, {
+        templeStage: snapshot.templeStage,
+        templeMaxStage: snapshot.templeMaxStage,
+      }),
+    },
+    {
+      column: "right",
+      key: "deepSignals",
+      label: "Deep Signals",
+      rows: buildDeepSignalsSectionRows(
+        snapshot.state,
+        snapshot.config,
+        snapshot.worldEventStatus,
+        snapshot.worldEventsState,
+        snapshot.worldEventsStats,
+        snapshot.contractsStats,
+        snapshot.columnWidth,
+      ),
+    },
+  ];
+}
 
-  appendFixedSection(
-    right,
-    "endgame",
-    "Endgame",
-    buildEndgameSectionRows(state, config, {
-      templeStage,
-      templeMaxStage,
-    }),
-    11,
-  );
+// Render section models into colored left/right columns plus plain section map.
+function renderTelemetryColumns(sectionModels, colors) {
+  const left = [];
+  const right = [];
+  const sections = {};
+  const header = (label) => applyColor(label, "hud_header", colors);
 
-  appendFixedSection(
-    right,
-    "deepSignals",
-    "Deep Signals",
-    buildDeepSignalsSectionRows(
-      state,
-      config,
-      worldEventStatus,
-      worldEventsState,
-      worldEventsStats,
-      contractsStats,
-      columnWidth,
-    ),
-    6,
-  );
+  for (const model of sectionModels) {
+    if (!model || !model.key || !model.label) {
+      continue;
+    }
+    const column = model.column === "right" ? right : left;
+    if (column.length > 0 && column[column.length - 1] !== "") {
+      column.push("");
+    }
+    column.push(header(model.label));
+    const rows = normalizeTelemetryRows(model.rows);
+    column.push(...rows);
+    sections[model.key] = {
+      label: String(model.label),
+      rows,
+    };
+  }
 
   return { left, right, sections };
+}
+
+// Normalize telemetry rows and avoid sterile repeated placeholders.
+function normalizeTelemetryRows(rows) {
+  const normalized = Array.isArray(rows)
+    ? rows.map((row) => {
+        if (row === null || row === undefined || row === "") {
+          return "-";
+        }
+        return String(row);
+      })
+    : [];
+  if (normalized.length === 0) {
+    return ["-"];
+  }
+  while (normalized.length > 1
+    && normalized[normalized.length - 1] === "-"
+    && normalized[normalized.length - 2] === "-") {
+    normalized.pop();
+  }
+  return normalized;
+}
+
+// Count entries by one string selector value.
+function countEntriesByValue(entries, selector) {
+  const counts = {};
+  const list = Array.isArray(entries) ? entries : [];
+  for (const entry of list) {
+    const value = String(selector(entry) || "").trim();
+    if (!value) {
+      continue;
+    }
+    counts[value] = (counts[value] || 0) + 1;
+  }
+  return counts;
 }
 
 // Build deep-meta signal rows that complement underrealm/lore pages.

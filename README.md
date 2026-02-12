@@ -26,6 +26,9 @@ Think of it as a living systems sandbox: you tune config, press run, and watch t
 - 🏛️ Dwarf Temple of Ancestors: biome-aware multi-stage final work with prestige growth.
 - 🧭 Economy telemetry now includes an Endgame checklist with live step completion and reset ETA.
 - 🔍 AI Explainability in telemetry: top decision drivers, shortage score breakdown, and governor intent sources.
+- 🧼 Telemetry clarity pass: adaptive section rows reduce filler noise, key population/world lines are split for faster scanning, and status words (`critical`, `blocked`, `warning`, `ready`) are highlighted in the Data Center.
+- 📈 Analyst dashboard page in telemetry Data Center: KPI strip, ASCII trend charts (sparklines with slower snapshot sampling by default for cleaner pacing), forecast+bottleneck lens (runway, net flow, volatility, momentum), risk gauge, operations mix bars, event timeline, and deterministic action hints.
+- 🧭 Deep-dive context on `Overview + Deep` and `Economy`: each page now opens with a compact context lens (risk/trend/timeline/shortage posture) before detailed section rows.
 - ⚗️ Alchemy Lab rites: burn rare minerals for powerful global buffs, then survive the backlash.
 - 🛡️ Clan culture traits that create trade-offs without micromanagement.
 - 🕳️ Underrealm Front: 10 depth layers with engineered dwarven halls and dense stone-hewn caverns.
@@ -72,7 +75,7 @@ npm run ai:play
 - `Space`: pause/resume
 - `l`: legend panel
 - `i`: dwarf inspect panel
-- `h`: telemetry Data Center overlay (`Overview + Deep`, `Economy`) with expanded plain-language metric labels, `AI Explainability` drivers, and an `Endgame` progress checklist
+- `h`: telemetry Data Center overlay (`Dashboard`, `Overview + Deep`, `Economy`) with expanded plain-language metric labels, adaptive section sizing, status-token highlights, ASCII mini-charts, `AI Explainability` drivers, and an `Endgame` progress checklist
 - `←` / `→`: change telemetry pages when telemetry is open, or browse dwarves when inspect is open
 - `↑` / `↓`: switch map view between surface and unlocked underrealm depths
 - `m`: export all currently unlocked layers (surface + underrealm) as PNG + SVG
@@ -133,6 +136,7 @@ npm run balance:gate:standard -- --set jobs.gatherTriggerRatio.food=1.1 --set jo
 - `MANUAL.md`: technical and gameplay manual (systems, formulas, workflows).
 - `docs/PARAMETERS.md`: full config reference.
 - `docs/TRAINING_OVERRIDES.md`: training override guide.
+- `docs/TELEMETRY.md`: telemetry operator manual (from zero to hero).
 - `AGENTS.md`: contribution and implementation guidelines.
 
 ## Roadmap ideas 🧭
@@ -154,8 +158,9 @@ npm run balance:gate:standard -- --set jobs.gatherTriggerRatio.food=1.1 --set jo
 - `src/simulation/alchemy.js`: alchemy rites, pact lifecycle, and backlash logic.
 - `src/simulation/temple.js`: Temple of Ancestors stages, map footprint, and prestige system.
 - `src/render/map_inset_panel.js`: carved in-map Ops Snapshot component with compact, width-aware runtime lines.
-- `src/render/telemetry.js`: telemetry section builders and formatting helpers.
-- `src/render/telemetry_panel.js`: in-game paged telemetry Data Center with section pages and full-height telemetry content area.
+- `src/telemetry/`: telemetry engine and Data Center panel modules.
+- `src/telemetry/telemetry.js`: telemetry section builders and formatting helpers.
+- `src/telemetry/telemetry_panel.js`: in-game paged telemetry Data Center with section pages and full-height telemetry content area.
 - `scripts/train_wrapper.js`: safe unified wrapper for all `ai:train:*` profiles.
 - `scripts/regression.js`: baseline-vs-current AI regression checks (deterministic eval + randomized stability pass) with txt/json/markdown reports and live heartbeat progress lines during long phases.
 - `regression/baselines/regression_baseline.json`: durable regression baseline profiles tracked outside `debug/`.
@@ -163,7 +168,7 @@ npm run balance:gate:standard -- --set jobs.gatherTriggerRatio.food=1.1 --set jo
 - `scripts/compare_benchmark_reports.js`: cached report diff utility for baseline/candidate deltas without rerunning both variants.
 - `python/regression_rollout.py`: rollout-only randomized regression runner used by `scripts/regression.js`.
 - `python/`: PPO training + agent example.
-- `docs/`: parameter reference and training overrides.
+- `docs/`: parameter reference, training overrides, and telemetry operator manual.
 - `models/`: policy checkpoints.
 - `scripts/`: utilities and regression tooling.
 
