@@ -40,11 +40,12 @@ This file defines how to implement new features in a consistent, stable way.
 - `src/state/`: state creation and terrain generation.
 - `src/state/index.js`: state orchestrator.
 - `src/state.js`: thin wrapper for `src/state/index.js`.
-- `src/render/`: render helpers (grid, header, telemetry, legend, colors, format).
+- `src/render/`: render helpers (grid, header, legend, colors, format, overlays).
 - `src/render/index.js`: render orchestrator.
 - `src/render/map_inset_panel.js`: carved top-right in-map operations snapshot panel (tick/year/cycle, population age split, underrealm unlock info, keyboard hints).
-- `src/render/telemetry.js`: telemetry section builders and formatting helpers.
-- `src/render/telemetry_panel.js`: in-game telemetry reference overlay panel (section and metric explanations).
+- `src/telemetry/`: telemetry section and Data Center panel builders.
+- `src/telemetry/telemetry.js`: telemetry section builders and formatting helpers.
+- `src/telemetry/telemetry_panel.js`: in-game telemetry reference overlay panel (section and metric explanations).
 - `src/render.js`: thin wrapper for `src/render/index.js`.
 - `src/runtime.js`: terminal sizing and layout.
 - `src/terminal.js`: terminal helpers.
@@ -113,7 +114,7 @@ This file defines how to implement new features in a consistent, stable way.
 - Avoid O(n^2) scans in per-tick logic when possible.
 - Prefer early exits and precomputed counts.
 - Keep telemetry lines short enough for the configured width.
-- Every time telemetry sections, labels, or metrics are changed, verify `src/render/telemetry_panel.js` is coherent with the current telemetry and update it in the same change set.
+- Every time telemetry sections, labels, or metrics are changed, verify `src/telemetry/telemetry_panel.js` is coherent with the current telemetry and update it in the same change set.
 - Update the ASCII legend when new entities are added.
 
 ## Validation checklist

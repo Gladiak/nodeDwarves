@@ -755,7 +755,7 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - History/stats are persisted in `state.alchemy`:
     - `stats.activations`, `stats.stableCompletions`, `stats.backlashes`
     - bounded history via `alchemy.historyLimit` (0 = unlimited)
-  - Telemetry status (`src/render/telemetry.js`) exposes runtime intent clearly:
+  - Telemetry status (`src/telemetry/telemetry.js`) exposes runtime intent clearly:
     - `Alchemy: <label> <ticksLeft>t F<failures>/<threshold>` while active
     - `Alchemy: <backlashLabel> <ticksLeft>t` during backlash
     - `Alchemy: cooldown <ticksLeft>t` during cooldown
@@ -1275,7 +1275,7 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
   - Builds the legend overlay panel (legend and map key sections) and draws it onto the grid.
   - Panel size is controlled by `display.legend_panel.width`/`height`.
 
-- `render/telemetry_panel.js`
+- `telemetry/telemetry_panel.js`
   - Builds a paged telemetry Data Center with three pages: `Dashboard`, `Overview + Deep`, and `Economy`.
   - `Dashboard` is an analyst-style summary layer: KPI snapshot, ASCII trend charts (sparkline rows), forecast/bottleneck context (runway, net flow, volatility, momentum), risk gauge + pressure decomposition, workforce/job distribution bars, event timeline windows, and deterministic action hints.
   - Dashboard trend charts are sampled as snapshots (not every tick): cadence and history window are tunable via `display.telemetry_panel.dashboard.snapshot_interval_ticks` and `display.telemetry_panel.dashboard.history_points` (default profile: `120t` cadence, `32` points).
@@ -1283,7 +1283,7 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
   - `Overview + Deep` and `Economy` prepend a compact context-lens block (`Deep Context` / `Economy Context`) to frame risk posture, trend direction, timeline clocks, shortage drivers, and workload before raw section details.
   - Economy page includes dedicated `AI Explainability` rows (driver ranking, shortage scoring context, governor sources/intents) plus the `Endgame` checklist block.
   - Adds a top static risk row (`Colony risk`) with warning/critical color accents plus a compact cause tag, aligned to the same alert thresholds used by the map inset.
-  - Reuses live section builders from `render/telemetry.js`, so values stay consistent across overlays.
+  - Reuses live section builders from `telemetry/telemetry.js`, so values stay consistent across overlays.
   - Uses the full body area for live telemetry rows (no guide footer); labels are expanded directly in the telemetry rows for readability.
   - Balances multi-column section blocks by current rendered height (shortest-column placement) so pages remain easier to scan when section sizes diverge.
   - Adds inline status-word highlighting (`critical`, `blocked`, `failed`, `warning`, `pending`, `cooldown`, `ready`, `complete`, `cleared`, `online`, `active`) for quicker pressure triage inside dense rows.
@@ -1309,7 +1309,7 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
   - Optional seasonal color overrides via `display.colors.seasonal.*`.
   - Seasonal color palettes are disabled automatically while viewing underrealm depth layers.
 
-- `render/telemetry.js`
+- `telemetry/telemetry.js`
   - Provides telemetry section builders and formatting helpers used by the telemetry panel.
   - Internal build flow is split into explicit phases (`collectTelemetrySnapshot` -> section models -> render), so adding telemetry metrics no longer requires touching all formatting paths.
   - Section set: `World`, `Population`, `Pressure`, `Stockpile`, `Structures`, `Diplomacy`, `Operations`, `AI Explainability`, `Endgame`, `Underrealm`, `Lore`, `Deep Signals`.
@@ -1493,8 +1493,8 @@ If you work on the UI/UX in the terminal:
 - `src/render/index.js` orchestrates the frame.
 - `src/render/map_inset_panel.js` owns the carved in-map Ops Snapshot rendering.
 - `src/render/grid.js` handles terrain symbols and colors.
-- `src/render/telemetry.js` provides telemetry section builders and formatting.
-- `src/render/telemetry_panel.js` is the paged telemetry Data Center overlay.
+- `src/telemetry/telemetry.js` provides telemetry section builders and formatting.
+- `src/telemetry/telemetry_panel.js` is the paged telemetry Data Center overlay.
 - `src/render/legend.js` maps symbols to labels.
 
 Keep telemetry lines compact so the telemetry panel stays readable and update legend symbols when adding new entities.
@@ -1562,7 +1562,7 @@ Most resource logic is generic, but check these spots:
 
 - `src/render/legend.js` uses `resources.nodes` keys for resource legend entries.
   - If your resource is **terrain-based** and mapped to a terrain symbol, it may be omitted from the node legend.
-- `src/render/telemetry.js` lists stockpile resources from `state.stockpile` by default (equipment tiers are intentionally compacted into aggregate `Weapons`/`Armor` rows).
+- `src/telemetry/telemetry.js` lists stockpile resources from `state.stockpile` by default (equipment tiers are intentionally compacted into aggregate `Weapons`/`Armor` rows).
 - If you want special telemetry formatting, add it explicitly.
 
 ### E) AI and training impact 🤖
@@ -1614,9 +1614,11 @@ Quick checklist:
     - `simulation/temple.js` → Temple of Ancestors progression, effects, and prestige
     - `simulation/ruins.js` → expeditions, artifacts, and set bonuses
   - `state/` → initial state + terrain generation
-  - `render/` → ASCII output (grid, telemetry, legend, inspect overlays)
+  - `render/` → ASCII output (grid, legend, inspect overlays, frame orchestration)
     - `render/map_inset_panel.js` → carved in-map Ops Snapshot component (stable counters + keyboard hints)
-    - `render/telemetry_panel.js` → paged in-game telemetry Data Center with section pages and full-height telemetry body
+  - `telemetry/` → telemetry extraction and Data Center composition
+    - `telemetry/telemetry.js` → telemetry section builders and formatting helpers
+    - `telemetry/telemetry_panel.js` → paged in-game telemetry Data Center with section pages and full-height telemetry body
   - `ai/` → observation + policy
   - `runtime.js`, `terminal.js`, `utils.js` → support
 - `scripts/train_wrapper.js` → unified safe wrapper for `ai:train:*` profiles

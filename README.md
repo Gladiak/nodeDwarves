@@ -158,8 +158,9 @@ npm run balance:gate:standard -- --set jobs.gatherTriggerRatio.food=1.1 --set jo
 - `src/simulation/alchemy.js`: alchemy rites, pact lifecycle, and backlash logic.
 - `src/simulation/temple.js`: Temple of Ancestors stages, map footprint, and prestige system.
 - `src/render/map_inset_panel.js`: carved in-map Ops Snapshot component with compact, width-aware runtime lines.
-- `src/render/telemetry.js`: telemetry section builders and formatting helpers.
-- `src/render/telemetry_panel.js`: in-game paged telemetry Data Center with section pages and full-height telemetry content area.
+- `src/telemetry/`: telemetry engine and Data Center panel modules.
+- `src/telemetry/telemetry.js`: telemetry section builders and formatting helpers.
+- `src/telemetry/telemetry_panel.js`: in-game paged telemetry Data Center with section pages and full-height telemetry content area.
 - `scripts/train_wrapper.js`: safe unified wrapper for all `ai:train:*` profiles.
 - `scripts/regression.js`: baseline-vs-current AI regression checks (deterministic eval + randomized stability pass) with txt/json/markdown reports and live heartbeat progress lines during long phases.
 - `regression/baselines/regression_baseline.json`: durable regression baseline profiles tracked outside `debug/`.

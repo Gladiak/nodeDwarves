@@ -5,8 +5,8 @@ const { getStockpileTarget } = require("../simulation/resources");
 const { getFestivalStatus } = require("../simulation/festivals");
 const { getAlchemyStatus } = require("../simulation/alchemy");
 const { getWorldEventStatus } = require("../simulation/world_events");
-const { getColorConfig, applyColor } = require("./colors");
-const { fitLine, wrapLine } = require("./format");
+const { getColorConfig, applyColor } = require("../render/colors");
+const { fitLine, wrapLine } = require("../render/format");
 
 const TELEMETRY_LAYOUT = [
   {

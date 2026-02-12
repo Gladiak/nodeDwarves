@@ -23,8 +23,8 @@ Telemetry is a **read-only operational model** of simulation state.
 
 Telemetry in NodeDwarves has two layers:
 
-1. Section telemetry engine (`src/render/telemetry.js`)
-2. Data Center panel experience (`src/render/telemetry_panel.js`)
+1. Section telemetry engine (`src/telemetry/telemetry.js`)
+2. Data Center panel experience (`src/telemetry/telemetry_panel.js`)
 
 The panel consumes section telemetry and adds higher-level analytics, trend history, context blocks, and operator-centric grouping.
 
@@ -65,7 +65,7 @@ NodeDwarves telemetry is split into a data engine and a presentation shell. This
 
 For operators and developers, this separation also means trust: values exposed on different pages come from shared snapshots and helpers, so cross-page comparisons remain coherent. In practical terms, you avoid the classic “same metric, different number” trap that breaks confidence in dashboards.
 
-## 3.1 Section engine (`src/render/telemetry.js`)
+## 3.1 Section engine (`src/telemetry/telemetry.js`)
 
 The section engine is where raw simulation state becomes structured observability. It normalizes missing fields, applies readable formatting, keeps stable row semantics, and emits canonical section payloads. If you think of the Data Center as the UI, this module is the telemetry API contract behind it.
 
@@ -90,7 +90,7 @@ This produces canonical section rows for:
 - `Endgame`
 - `Deep Signals`
 
-## 3.2 Data Center panel (`src/render/telemetry_panel.js`)
+## 3.2 Data Center panel (`src/telemetry/telemetry_panel.js`)
 
 The panel layer adds operator ergonomics: paging, high-level summary blocks, trend history, context lenses, and inline status highlighting. It does not replace section telemetry; it composes it into decision-friendly views. This is why the same run can be read at multiple zoom levels, from executive summary (Dashboard) to root-cause deep dive (Overview + Deep, Economy).
 
@@ -804,8 +804,8 @@ For contributors, this section is the fast map of where telemetry truth is produ
 
 Main sources:
 
-- `src/render/telemetry.js`
-- `src/render/telemetry_panel.js`
+- `src/telemetry/telemetry.js`
+- `src/telemetry/telemetry_panel.js`
 - `src/render/colors.js`
 
 Important runtime caches in `state.renderState`:

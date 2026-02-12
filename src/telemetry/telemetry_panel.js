@@ -1,8 +1,8 @@
 'use strict';
 
 const { padRight, clamp } = require('../utils');
-const { fitLine, wrapLine } = require('./format');
-const { applyColor, getColorConfig } = require('./colors');
+const { fitLine, wrapLine } = require('../render/format');
+const { applyColor, getColorConfig } = require('../render/colors');
 const { getStockpileTarget } = require('../simulation/resources');
 const { getFestivalStatus } = require('../simulation/festivals');
 const { getAlchemyStatus } = require('../simulation/alchemy');
