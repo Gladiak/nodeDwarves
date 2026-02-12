@@ -879,6 +879,7 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
     - miners contribute `exploration_progress_per_miner`
     - guards contribute `exploration_progress_per_guard`
     - gain is reduced by depth difficulty multiplier
+    - the current frontier depth can receive an additional command multiplier from an active Dwarf Champion (`frontier_exploration_bonus_*`, stacked by champion survivals and capped).
   - Survey alone does not unlock the next depth anymore; it marks the frontier as eligible.
   - Frontier unlock now requires a `Deep Lift` build project (`underrealm.progression.*`) with explicit gates:
     - minimum survey ratio (`required_survey_ratio`)
@@ -889,7 +890,8 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
     - build duration (`build_ticks_base` + per-depth scaling)
   - When all gates pass:
     - stockpile cost is consumed once
-    - Deep Lift enters active build state (`underrealm.lift`) and advances only while miner/raid gates stay valid
+    - Deep Lift enters active build state (`underrealm.lift`) and advances only while miner/raid gates stay valid.
+    - active lift build speed can be accelerated by Dwarf Champion command (`lift_build_speed_bonus_*`, stacked by champion survivals and capped); progress uses fractional carry (`progressRemainder`) so non-integer speedups remain deterministic.
     - on completion, next depth unlocks and layer economy is initialized
   - Unlock threshold formula:
     - `unlock_threshold_base + unlock_threshold_per_depth * (depth-1)`
@@ -930,10 +932,11 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
 - Underrealm V2 readiness dispatch policy (M3):
   - Ruins expedition dispatch evaluates readiness on depth `max(roomIndex + 1, currentFrontierDepth)` (clamped by `underrealm.maxDepth`).
   - When the current frontier floor is `contested`, champion cooldown gating and champion combat target the contested frontier depth first (instead of following room depth growth).
-  - Readiness score uses weighted offense/defense/support components:
+  - Readiness score uses weighted offense/defense/support components plus optional Dwarf Champion command bonus:
     - offense from average best-available weapon tier for party slots,
     - defense from average best-available armor tier for party slots,
-    - support from expedition-kit coverage plus current armory level.
+    - support from expedition-kit coverage plus current armory level,
+    - `dwarfChampionReadinessBonus = min(cap, base + per_survival * survivals)` from `underrealm.combat.dwarf_champion.readiness_score_bonus_*` when an active champion exists.
   - Dispatch is blocked when:
     - armory level is below floor `min_armory_level`, or
     - score is below floor `min_score` and `underrealm.combat.readiness.hard_min_gate=true`.
@@ -956,12 +959,17 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - `scripts/headless_benchmark.js` now includes compact Underrealm KPIs (`underDepth`, `underChamp`, `underFail`, `underBlocked`, `underContested`, `underReady`) in summaries, comparisons, and seed deltas.
 - Underrealm M8 safe Dwarf Champion integration:
   - Adds one optional runtime slot (`underrealm.combat.dwarf_champion`) for a unique active hero.
-  - Promotion is deterministic and requires repeated survival in resolved champion encounters (`min_survivals` threshold).
-  - Bonus is applied to aggregated champion-encounter party stats (`attack_bonus_ratio`, `defense_bonus_ratio`), without switching to per-unit tactical combat.
-  - Default tuning keeps the effect visible but controlled (`min_survivals=2`, `attack_bonus_ratio=0.14`, `defense_bonus_ratio=0.12`, `requires_party_presence=true`).
-  - Default behavior keeps bonus party-bound (`requires_party_presence=true`): if the hero is not in expedition party, the bonus does not apply.
-  - To keep party-bound bonuses practical, active Dwarf Champion is pinned out of Underrealm duty assignment while the party-presence rule is active.
-  - If active champion dies, slot is cleared and can be reassigned only after a later eligible survivor promotion.
+  - Promotion is deterministic and has two entry paths:
+    - battle path: repeated survival in resolved champion encounters (`min_survivals` threshold),
+    - vacancy auto-promotion path: when slot is empty and `auto_promotion` gates pass (`enabled`, `min_unlocked_depth`, `min_survivals`).
+  - M8 now has two impact channels:
+    - tactical channel for champion encounters: bounded additive attack/defense party multipliers (`attack_bonus_ratio`, `defense_bonus_ratio`),
+    - strategic command channel (active champion required): readiness score bonus, champion retry-cooldown reduction, champion HP suppression at encounter start, party-only deterministic duel-round extension, frontier exploration acceleration, and Deep Lift build-speed acceleration.
+  - Strategic command stacking rule (used by all `*_base/*_per_survival/*_cap` triplets): `value = min(cap, base + per_survival * survivals)`.
+  - Current default profile: `min_survivals=1`, `attack_bonus_ratio=0.18`, `defense_bonus_ratio=0.16`, `requires_party_presence=false`, `auto_promotion.enabled=true`, `auto_promotion.min_unlocked_depth=1`, `auto_promotion.min_survivals=0`, `readiness_score_bonus_base=4`, `retry_cooldown_reduction_base=0.25`, `champion_hp_reduction_base=0.12`, `champion_round_bonus_base=1`, `frontier_exploration_bonus_base=0.2`, `lift_build_speed_bonus_base=0.2`.
+  - `requires_party_presence` only gates tactical combat bonuses; strategic command bonuses still apply as long as the active champion is alive.
+  - When party presence is enabled (`requires_party_presence=true`), active Dwarf Champion is pinned out of Underrealm duty assignment to keep party-bound tactical bonuses practical.
+  - If active champion dies, slot is cleared and can be reassigned by later survivor promotion or by vacancy auto-promotion when enabled.
 - Hostile deep faction pressure (`underrealm.hostiles.*`):
   - Raid checks run per unlocked depth on `check_interval` ticks.
   - Spawn prerequisites:
@@ -1088,7 +1096,7 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - Room cost (`ruins.rooms[].cost`) is available.
   - Underrealm readiness gate for mapped floor depth (`max(roomIndex + 1, currentFrontierDepth)`) passes:
     - armory level >= floor `min_armory_level`,
-    - readiness score >= floor `min_score` (when hard gate enabled).
+    - readiness score >= floor `min_score` (when hard gate enabled), where score includes weighted offense/defense/support plus optional Dwarf Champion readiness command bonus.
     - if the contested frontier champion is on retry cooldown, dispatch is blocked with `champion_cooldown`.
 - Party size:
   - Desired size is `ruins.rooms[].partySize`, clamped to `ruins.expedition.partySizeMin/Max`.
@@ -1113,12 +1121,15 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - Champion target depth prioritizes the current contested frontier floor; if no contested frontier gate exists, mapping falls back to the expedition/readiness depth.
   - Resolution is deterministic aggregated rounds using readiness components + expedition bonuses vs champion stats.
   - When M8 is enabled and a valid Dwarf Champion is active, party attack/defense gain bounded additive multipliers before round resolution.
-  - Champion encounter survivors increment per-dwarf champion-survival counters; promotion occurs only when no active Dwarf Champion exists.
+  - Active champion command can also reduce champion HP at encounter start through `underrealm.combat.dwarf_champion.champion_hp_reduction_*` strategic knobs.
+  - Active champion command can also add deterministic party-only extra duel rounds through `underrealm.combat.dwarf_champion.champion_round_bonus_*` strategic knobs.
+  - Champion encounter survivors increment per-dwarf champion-survival counters; promotion can occur when no active Dwarf Champion exists.
+  - When slot is vacant and `underrealm.combat.dwarf_champion.auto_promotion.enabled=true`, runtime lifecycle can appoint a champion deterministically from adult candidates after `min_unlocked_depth` gate is satisfied.
   - Outcomes:
     - `victory`: floor becomes `cleared`, champion clear flag is set, and next depth unlocks.
-    - `retreat|defeat`: floor remains `contested`, retry cooldown is applied, and expedition fails.
+    - `retreat|defeat`: floor remains `contested`, retry cooldown is applied (optionally reduced by Dwarf Champion command ratio), and expedition fails.
   - Retreat casualty hints are capped below total-party wipe (`max losses = partySize - 1`) so resolved retreats can preserve at least one survivor.
-  - Champion retry cooldown is read by dispatch gate and surfaced in telemetry (`Readiness gate: ... BLOCKED champion cd ...`).
+  - Champion retry cooldown is read by dispatch gate and surfaced in telemetry (`Readiness gate: ... BLOCKED champion cd ...`); command-driven reductions are tagged in events as `champion command`.
 - Hazards:
   - Base failure chance per room is `ruins.rooms[].hazardChance`.
   - Hazard chance is reduced by `hazardReduction` bonuses (from artifacts/combos).

@@ -29,7 +29,7 @@ Think of it as a living systems sandbox: you tune config, press run, and watch t
 - ⚗️ Alchemy Lab rites: burn rare minerals for powerful global buffs, then survive the backlash.
 - 🛡️ Clan culture traits that create trade-offs without micromanagement.
 - 🕳️ Underrealm Front: 10 depth layers with engineered dwarven halls and dense stone-hewn caverns.
-- 🧱 Underrealm V2 rollout: champion-gated floor unlock chain + 10-level armory progression + readiness-gated expedition dispatch, now with M8 safe Dwarf Champion progression (single active hero, deterministic promotion, tangible attack/defense boost), contested-frontier-first champion targeting, and dedicated deep telemetry cues.
+- 🧱 Underrealm V2 rollout: champion-gated floor unlock chain + 10-level armory progression + readiness-gated expedition dispatch, now with a high-impact Dwarf Champion command layer (deterministic vacancy auto-promotion, readiness boost, retry-cooldown reduction, champion-HP suppression, party-only duel-round extension, and frontier exploration/Deep Lift acceleration) plus contested-frontier-first champion targeting and dedicated deep telemetry cues.
 - 📦 Telemetry stockpile compaction: weapon/armor tier inventories are grouped into compact aggregate bars so the panel stays readable in long runs.
 - 📊 Underrealm-aware AI loop: PPO observation now includes deep combat/progression signals, with benchmark/regression reports exposing compact underrealm KPIs seed-by-seed.
 - 🗺️ Map Focus default: no side telemetry column; `h` opens a full-screen paged telemetry Data Center while the map keeps full width.

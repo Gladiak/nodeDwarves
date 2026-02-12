@@ -196,6 +196,7 @@ function updateUnderrealm(state, config) {
   ensureUnderrealmRuntimeState(state, config);
   updateUnderrealmDiscovery(state, config);
   updateUnderrealmCombatRuntime(state, config);
+  updateUnderrealmChampionAutoPromotion(state, config);
   updateCrewAssignments(state, config);
   updateUnderrealmShrines(state, config);
   updateUnderrealmEconomy(state, config);
@@ -625,6 +626,10 @@ function ensureUnderrealmRuntimeState(state, config) {
   if (!underrealm.lift || typeof underrealm.lift !== 'object') {
     underrealm.lift = buildIdleLiftState();
   }
+  underrealm.lift.progressRemainder = Math.max(
+    0,
+    Number(underrealm.lift.progressRemainder || 0),
+  );
   if (!underrealm.economy) {
     underrealm.economy = {
       ticks: 0,
@@ -697,10 +702,33 @@ function ensureUnderrealmRuntimeState(state, config) {
       },
       dwarfChampion: {
         enabled: true,
-        minSurvivals: 3,
-        attackBonusRatio: 0.1,
-        defenseBonusRatio: 0.08,
-        requiresPartyPresence: true,
+        minSurvivals: 1,
+        attackBonusRatio: 0.18,
+        defenseBonusRatio: 0.16,
+        autoPromotion: {
+          enabled: true,
+          minUnlockedDepth: 1,
+          minSurvivals: 0,
+        },
+        readinessScoreBonusBase: 4,
+        readinessScoreBonusPerSurvival: 1.5,
+        readinessScoreBonusCap: 10,
+        retryCooldownReductionBase: 0.25,
+        retryCooldownReductionPerSurvival: 0.05,
+        retryCooldownReductionCap: 0.55,
+        championHpReductionBase: 0.12,
+        championHpReductionPerSurvival: 0.03,
+        championHpReductionCap: 0.35,
+        championRoundBonusBase: 1,
+        championRoundBonusPerSurvival: 0.5,
+        championRoundBonusCap: 3,
+        frontierExplorationBonusBase: 0.2,
+        frontierExplorationBonusPerSurvival: 0.04,
+        frontierExplorationBonusCap: 0.5,
+        liftBuildSpeedBonusBase: 0.2,
+        liftBuildSpeedBonusPerSurvival: 0.05,
+        liftBuildSpeedBonusCap: 0.6,
+        requiresPartyPresence: false,
         activeDwarfId: null,
         activeSinceTick: 0,
         promotions: 0,
@@ -768,20 +796,114 @@ function ensureUnderrealmRuntimeState(state, config) {
   underrealm.combat.dwarfChampion.enabled = underrealm.combat.dwarfChampion.enabled !== false;
   underrealm.combat.dwarfChampion.minSurvivals = Math.max(
     1,
-    Math.floor(Number(underrealm.combat.dwarfChampion.minSurvivals ?? 2)),
+    Math.floor(Number(underrealm.combat.dwarfChampion.minSurvivals ?? 1)),
   );
   underrealm.combat.dwarfChampion.attackBonusRatio = clamp(
-    Number(underrealm.combat.dwarfChampion.attackBonusRatio ?? 0.14),
+    Number(underrealm.combat.dwarfChampion.attackBonusRatio ?? 0.18),
     0,
     1,
   );
   underrealm.combat.dwarfChampion.defenseBonusRatio = clamp(
-    Number(underrealm.combat.dwarfChampion.defenseBonusRatio ?? 0.12),
+    Number(underrealm.combat.dwarfChampion.defenseBonusRatio ?? 0.16),
     0,
     1,
   );
+  underrealm.combat.dwarfChampion.readinessScoreBonusBase = Math.max(
+    0,
+    Number(underrealm.combat.dwarfChampion.readinessScoreBonusBase ?? 4),
+  );
+  underrealm.combat.dwarfChampion.readinessScoreBonusPerSurvival = Math.max(
+    0,
+    Number(underrealm.combat.dwarfChampion.readinessScoreBonusPerSurvival ?? 1.5),
+  );
+  underrealm.combat.dwarfChampion.readinessScoreBonusCap = Math.max(
+    0,
+    Number(underrealm.combat.dwarfChampion.readinessScoreBonusCap ?? 10),
+  );
+  underrealm.combat.dwarfChampion.retryCooldownReductionBase = clamp(
+    Number(underrealm.combat.dwarfChampion.retryCooldownReductionBase ?? 0.25),
+    0,
+    0.95,
+  );
+  underrealm.combat.dwarfChampion.retryCooldownReductionPerSurvival = clamp(
+    Number(underrealm.combat.dwarfChampion.retryCooldownReductionPerSurvival ?? 0.05),
+    0,
+    0.95,
+  );
+  underrealm.combat.dwarfChampion.retryCooldownReductionCap = clamp(
+    Number(underrealm.combat.dwarfChampion.retryCooldownReductionCap ?? 0.55),
+    0,
+    0.95,
+  );
+  underrealm.combat.dwarfChampion.championHpReductionBase = clamp(
+    Number(underrealm.combat.dwarfChampion.championHpReductionBase ?? 0.12),
+    0,
+    0.95,
+  );
+  underrealm.combat.dwarfChampion.championHpReductionPerSurvival = clamp(
+    Number(underrealm.combat.dwarfChampion.championHpReductionPerSurvival ?? 0.03),
+    0,
+    0.95,
+  );
+  underrealm.combat.dwarfChampion.championHpReductionCap = clamp(
+    Number(underrealm.combat.dwarfChampion.championHpReductionCap ?? 0.35),
+    0,
+    0.95,
+  );
+  underrealm.combat.dwarfChampion.championRoundBonusBase = Math.max(
+    0,
+    Number(underrealm.combat.dwarfChampion.championRoundBonusBase ?? 1),
+  );
+  underrealm.combat.dwarfChampion.championRoundBonusPerSurvival = Math.max(
+    0,
+    Number(underrealm.combat.dwarfChampion.championRoundBonusPerSurvival ?? 0.5),
+  );
+  underrealm.combat.dwarfChampion.championRoundBonusCap = Math.max(
+    0,
+    Number(underrealm.combat.dwarfChampion.championRoundBonusCap ?? 3),
+  );
+  underrealm.combat.dwarfChampion.frontierExplorationBonusBase = Math.max(
+    0,
+    Number(underrealm.combat.dwarfChampion.frontierExplorationBonusBase ?? 0.2),
+  );
+  underrealm.combat.dwarfChampion.frontierExplorationBonusPerSurvival = Math.max(
+    0,
+    Number(underrealm.combat.dwarfChampion.frontierExplorationBonusPerSurvival ?? 0.04),
+  );
+  underrealm.combat.dwarfChampion.frontierExplorationBonusCap = Math.max(
+    0,
+    Number(underrealm.combat.dwarfChampion.frontierExplorationBonusCap ?? 0.5),
+  );
+  underrealm.combat.dwarfChampion.liftBuildSpeedBonusBase = Math.max(
+    0,
+    Number(underrealm.combat.dwarfChampion.liftBuildSpeedBonusBase ?? 0.2),
+  );
+  underrealm.combat.dwarfChampion.liftBuildSpeedBonusPerSurvival = Math.max(
+    0,
+    Number(underrealm.combat.dwarfChampion.liftBuildSpeedBonusPerSurvival ?? 0.05),
+  );
+  underrealm.combat.dwarfChampion.liftBuildSpeedBonusCap = Math.max(
+    0,
+    Number(underrealm.combat.dwarfChampion.liftBuildSpeedBonusCap ?? 0.6),
+  );
   underrealm.combat.dwarfChampion.requiresPartyPresence =
-    underrealm.combat.dwarfChampion.requiresPartyPresence !== false;
+    underrealm.combat.dwarfChampion.requiresPartyPresence === true;
+  underrealm.combat.dwarfChampion.autoPromotion = (
+    underrealm.combat.dwarfChampion.autoPromotion
+    && typeof underrealm.combat.dwarfChampion.autoPromotion === 'object'
+  )
+    ? underrealm.combat.dwarfChampion.autoPromotion
+    : {};
+  underrealm.combat.dwarfChampion.autoPromotion.enabled =
+    underrealm.combat.dwarfChampion.autoPromotion.enabled !== false;
+  underrealm.combat.dwarfChampion.autoPromotion.minUnlockedDepth = Math.max(
+    1,
+    Math.floor(Number(underrealm.combat.dwarfChampion.autoPromotion.minUnlockedDepth ?? 1)),
+  );
+  underrealm.combat.dwarfChampion.autoPromotion.minSurvivals = Math.max(
+    0,
+    Math.floor(Number(underrealm.combat.dwarfChampion.autoPromotion.minSurvivals ?? 0)),
+  );
   underrealm.combat.dwarfChampion.activeDwarfId =
     typeof underrealm.combat.dwarfChampion.activeDwarfId === 'string'
       ? underrealm.combat.dwarfChampion.activeDwarfId
@@ -862,6 +984,69 @@ function ensureUnderrealmRuntimeState(state, config) {
   if (!Number.isFinite(underrealm.crew.populationBonusPerAssigned)) {
     underrealm.crew.populationBonusPerAssigned = 0;
   }
+}
+
+// Sort Dwarf Champion candidates deterministically by survivals, spawn order, and id.
+function compareUnderrealmDwarfChampionCandidates(left, right) {
+  const leftSurvivals = Math.max(0, Math.floor(Number(left && left.underrealmChampionSurvivals || 0)));
+  const rightSurvivals = Math.max(0, Math.floor(Number(right && right.underrealmChampionSurvivals || 0)));
+  if (rightSurvivals !== leftSurvivals) {
+    return rightSurvivals - leftSurvivals;
+  }
+  const leftAge = Math.max(0, Math.floor(Number(left && left.ageTicks || 0)));
+  const rightAge = Math.max(0, Math.floor(Number(right && right.ageTicks || 0)));
+  if (leftAge !== rightAge) {
+    return leftAge - rightAge;
+  }
+  const leftSpawnIndex = Math.max(0, Math.floor(Number(left && left.spawnIndex || 0)));
+  const rightSpawnIndex = Math.max(0, Math.floor(Number(right && right.spawnIndex || 0)));
+  if (leftSpawnIndex !== rightSpawnIndex) {
+    return rightSpawnIndex - leftSpawnIndex;
+  }
+  return String(left && left.id || '').localeCompare(String(right && right.id || ''));
+}
+
+// Auto-promote one Dwarf Champion when slot is vacant and auto-promotion gates pass.
+function updateUnderrealmChampionAutoPromotion(state, config) {
+  const underrealm = state && state.underrealm;
+  const combat = underrealm && underrealm.combat;
+  const runtime = combat && combat.dwarfChampion;
+  if (!underrealm || !combat || !runtime || runtime.enabled === false) {
+    return;
+  }
+  if (runtime.activeDwarfId) {
+    return;
+  }
+  const autoPromotion = runtime.autoPromotion && typeof runtime.autoPromotion === 'object'
+    ? runtime.autoPromotion
+    : null;
+  if (!autoPromotion || autoPromotion.enabled === false) {
+    return;
+  }
+  const unlockedDepth = Math.max(0, Math.floor(Number(underrealm.maxUnlockedDepth || 0)));
+  const minUnlockedDepth = Math.max(1, Math.floor(Number(autoPromotion.minUnlockedDepth || 1)));
+  if (unlockedDepth < minUnlockedDepth) {
+    return;
+  }
+  const minSurvivals = Math.max(0, Math.floor(Number(autoPromotion.minSurvivals || 0)));
+  const candidates = (Array.isArray(state.dwarves) ? state.dwarves : [])
+    .filter((dwarf) => isAdult(dwarf, config))
+    .filter((dwarf) => Number(dwarf && dwarf.underrealmChampionSurvivals || 0) >= minSurvivals)
+    .sort(compareUnderrealmDwarfChampionCandidates);
+  if (candidates.length === 0) {
+    return;
+  }
+  const champion = candidates[0];
+  runtime.activeDwarfId = champion.id;
+  runtime.activeSinceTick = Math.max(0, Math.floor(Number(state.tick || 0)));
+  runtime.promotions = Math.max(0, Math.floor(Number(runtime.promotions || 0))) + 1;
+  const attackBonusPct = Math.round(clamp(Number(runtime.attackBonusRatio || 0), 0, 1) * 100);
+  const defenseBonusPct = Math.round(clamp(Number(runtime.defenseBonusRatio || 0), 0, 1) * 100);
+  pushEvent(
+    state,
+    config,
+    `Underrealm: ${champion.id} appointed Dwarf Champion command (+${attackBonusPct}% atk, +${defenseBonusPct}% def)`,
+  );
 }
 
 // Discover the first underrealm gate and unlock depth 1 when discovery time is reached.
@@ -1007,6 +1192,7 @@ function updateUnderrealmProgression(state, config) {
     progressionConfig.buildTicksBase
       + progressionConfig.buildTicksPerDepth * Math.max(0, frontierDepth - 1),
   );
+  const championStrategic = resolveUnderrealmDwarfChampionStrategicBonuses(state, combat);
   if (lift.active === true) {
     const matchesFrontier = Number(lift.fromDepth || 0) === frontierDepth
       && Number(lift.targetDepth || 0) === frontierDepth + 1;
@@ -1022,7 +1208,11 @@ function updateUnderrealmProgression(state, config) {
       underrealm.lift = lift;
       return;
     }
-    lift.ticksRemaining = Math.max(0, Math.floor(Number(lift.ticksRemaining || 0)) - 1);
+    const buildSpeedPerTick = 1 + championStrategic.liftBuildSpeedBonusRatio;
+    const progressRemainder = Math.max(0, Number(lift.progressRemainder || 0)) + buildSpeedPerTick;
+    const progressedTicks = Math.max(1, Math.floor(progressRemainder));
+    lift.progressRemainder = Math.max(0, progressRemainder - progressedTicks);
+    lift.ticksRemaining = Math.max(0, Math.floor(Number(lift.ticksRemaining || 0)) - progressedTicks);
     if (lift.ticksRemaining > 0) {
       underrealm.lift = lift;
       return;
@@ -1086,6 +1276,7 @@ function updateUnderrealmProgression(state, config) {
     startedTick: Number(state.tick || 0),
     ticksRemaining: buildTicks,
     totalTicks: buildTicks,
+    progressRemainder: 0,
     requiredSurveyRatio: progressionConfig.requiredSurveyRatio,
     requiredStockpile,
     requiredMined,
@@ -1745,6 +1936,123 @@ function getDepthOathExplorationMultiplier(underrealm, depth, shrineConfig) {
   return 1;
 }
 
+// Resolve one living dwarf by id from state.
+function findLivingDwarfById(state, dwarfId) {
+  const target = String(dwarfId || '');
+  if (!target) {
+    return null;
+  }
+  for (const dwarf of Array.isArray(state && state.dwarves) ? state.dwarves : []) {
+    if (String(dwarf && dwarf.id || '') === target) {
+      return dwarf;
+    }
+  }
+  return null;
+}
+
+// Resolve one stacked champion bonus from base/per-survival/cap values.
+function resolveStackedChampionBonus(baseRaw, perSurvivalRaw, capRaw, survivalsRaw) {
+  const base = Math.max(0, Number(baseRaw || 0));
+  const perSurvival = Math.max(0, Number(perSurvivalRaw || 0));
+  const cap = Math.max(0, Number(capRaw || 0));
+  const survivals = Math.max(0, Math.floor(Number(survivalsRaw || 0)));
+  const value = base + perSurvival * survivals;
+  if (cap <= 0) {
+    return value;
+  }
+  return Math.min(value, cap);
+}
+
+// Resolve active dwarf-champion strategic bonuses used by deep progression loops.
+function resolveUnderrealmDwarfChampionStrategicBonuses(state, combat = null) {
+  const sourceCombat = combat && typeof combat === 'object'
+    ? combat
+    : (
+      state
+      && state.underrealm
+      && state.underrealm.combat
+      && typeof state.underrealm.combat === 'object'
+        ? state.underrealm.combat
+        : null
+    );
+  const runtime = sourceCombat && sourceCombat.dwarfChampion
+    && typeof sourceCombat.dwarfChampion === 'object'
+    ? sourceCombat.dwarfChampion
+    : null;
+  const empty = {
+    active: false,
+    dwarfId: null,
+    survivals: 0,
+    readinessScoreBonus: 0,
+    retryCooldownReductionRatio: 0,
+    championRoundBonus: 0,
+    frontierExplorationBonusRatio: 0,
+    liftBuildSpeedBonusRatio: 0,
+  };
+  if (!runtime || runtime.enabled === false) {
+    return empty;
+  }
+  const dwarfId = typeof runtime.activeDwarfId === 'string'
+    ? runtime.activeDwarfId
+    : null;
+  if (!dwarfId) {
+    return empty;
+  }
+  const champion = findLivingDwarfById(state, dwarfId);
+  if (!champion) {
+    return empty;
+  }
+  const survivals = Math.max(0, Math.floor(Number(champion.underrealmChampionSurvivals || 0)));
+  return {
+    active: true,
+    dwarfId,
+    survivals,
+    readinessScoreBonus: resolveStackedChampionBonus(
+      runtime.readinessScoreBonusBase,
+      runtime.readinessScoreBonusPerSurvival,
+      runtime.readinessScoreBonusCap,
+      survivals,
+    ),
+    retryCooldownReductionRatio: clamp(
+      resolveStackedChampionBonus(
+        runtime.retryCooldownReductionBase,
+        runtime.retryCooldownReductionPerSurvival,
+        runtime.retryCooldownReductionCap,
+        survivals,
+      ),
+      0,
+      0.95,
+    ),
+    championRoundBonus: Math.max(
+      0,
+      resolveStackedChampionBonus(
+        runtime.championRoundBonusBase,
+        runtime.championRoundBonusPerSurvival,
+        runtime.championRoundBonusCap,
+        survivals,
+      ),
+    ),
+    frontierExplorationBonusRatio: Math.max(
+      0,
+      resolveStackedChampionBonus(
+        runtime.frontierExplorationBonusBase,
+        runtime.frontierExplorationBonusPerSurvival,
+        runtime.frontierExplorationBonusCap,
+        survivals,
+      ),
+    ),
+    liftBuildSpeedBonusRatio: Math.max(
+      0,
+      resolveStackedChampionBonus(
+        runtime.liftBuildSpeedBonusBase,
+        runtime.liftBuildSpeedBonusPerSurvival,
+        runtime.liftBuildSpeedBonusCap,
+        survivals,
+      ),
+    ),
+  };
+}
+
 // Compute how many scaled-cost charges can be paid with current stockpile.
 function getAffordableScaledCostCount(stockpile, costPerUnit, maxUnits) {
   const stock = stockpile && typeof stockpile === 'object' ? stockpile : {};
@@ -1806,10 +2114,18 @@ function updateLayerExploration(state, config, layer, economyConfig) {
     layer.depth,
     shrineConfig,
   );
+  const championStrategic = resolveUnderrealmDwarfChampionStrategicBonuses(
+    state,
+    underrealm.combat,
+  );
+  const frontierDepth = Math.max(1, Math.floor(Number(underrealm.maxUnlockedDepth || depth)));
+  const frontierMultiplier = championStrategic.active && depth === frontierDepth
+    ? 1 + championStrategic.frontierExplorationBonusRatio
+    : 1;
   const gain = (
     miners * economyConfig.explorationPerMiner
     + guards * economyConfig.explorationPerGuard
-  ) / Math.max(1, Number(layer.difficultyMultiplier || 1)) * oathMultiplier;
+  ) / Math.max(1, Number(layer.difficultyMultiplier || 1)) * oathMultiplier * frontierMultiplier;
   layer.economy.explorationProgress = Number(layer.economy.explorationProgress || 0) + gain;
   const target = Math.max(1, Number(layer.economy.explorationTarget || 1));
   layer.economy.explored = Number(layer.economy.explorationProgress || 0) >= target;
@@ -2490,6 +2806,7 @@ function buildIdleLiftState() {
     startedTick: 0,
     ticksRemaining: 0,
     totalTicks: 0,
+    progressRemainder: 0,
     requiredSurveyRatio: 0,
     requiredStockpile: {},
     requiredMined: {},
