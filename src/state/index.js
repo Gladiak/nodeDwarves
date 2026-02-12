@@ -1415,19 +1415,121 @@ function createUnderrealmCombatState(config, maxDepth, maxUnlockedDepth, previou
       enabled: dwarfChampionConfig.enabled !== false,
       minSurvivals: Math.max(
         1,
-        Math.floor(Number(dwarfChampionConfig.min_survivals ?? 3)),
+        Math.floor(Number(dwarfChampionConfig.min_survivals ?? 1)),
       ),
       attackBonusRatio: clamp(
-        Number(dwarfChampionConfig.attack_bonus_ratio ?? 0.1),
+        Number(dwarfChampionConfig.attack_bonus_ratio ?? 0.18),
         0,
         1,
       ),
       defenseBonusRatio: clamp(
-        Number(dwarfChampionConfig.defense_bonus_ratio ?? 0.08),
+        Number(dwarfChampionConfig.defense_bonus_ratio ?? 0.16),
         0,
         1,
       ),
-      requiresPartyPresence: dwarfChampionConfig.requires_party_presence !== false,
+      readinessScoreBonusBase: Math.max(
+        0,
+        Number(dwarfChampionConfig.readiness_score_bonus_base ?? 4),
+      ),
+      readinessScoreBonusPerSurvival: Math.max(
+        0,
+        Number(dwarfChampionConfig.readiness_score_bonus_per_survival ?? 1.5),
+      ),
+      readinessScoreBonusCap: Math.max(
+        0,
+        Number(dwarfChampionConfig.readiness_score_bonus_cap ?? 10),
+      ),
+      retryCooldownReductionBase: clamp(
+        Number(dwarfChampionConfig.retry_cooldown_reduction_base ?? 0.25),
+        0,
+        0.95,
+      ),
+      retryCooldownReductionPerSurvival: clamp(
+        Number(dwarfChampionConfig.retry_cooldown_reduction_per_survival ?? 0.05),
+        0,
+        0.95,
+      ),
+      retryCooldownReductionCap: clamp(
+        Number(dwarfChampionConfig.retry_cooldown_reduction_cap ?? 0.55),
+        0,
+        0.95,
+      ),
+      championHpReductionBase: clamp(
+        Number(dwarfChampionConfig.champion_hp_reduction_base ?? 0.12),
+        0,
+        0.95,
+      ),
+      championHpReductionPerSurvival: clamp(
+        Number(dwarfChampionConfig.champion_hp_reduction_per_survival ?? 0.03),
+        0,
+        0.95,
+      ),
+      championHpReductionCap: clamp(
+        Number(dwarfChampionConfig.champion_hp_reduction_cap ?? 0.35),
+        0,
+        0.95,
+      ),
+      championRoundBonusBase: Math.max(
+        0,
+        Number(dwarfChampionConfig.champion_round_bonus_base ?? 1),
+      ),
+      championRoundBonusPerSurvival: Math.max(
+        0,
+        Number(dwarfChampionConfig.champion_round_bonus_per_survival ?? 0.5),
+      ),
+      championRoundBonusCap: Math.max(
+        0,
+        Number(dwarfChampionConfig.champion_round_bonus_cap ?? 3),
+      ),
+      frontierExplorationBonusBase: Math.max(
+        0,
+        Number(dwarfChampionConfig.frontier_exploration_bonus_base ?? 1),
+      ),
+      frontierExplorationBonusPerSurvival: Math.max(
+        0,
+        Number(dwarfChampionConfig.frontier_exploration_bonus_per_survival ?? 0.12),
+      ),
+      frontierExplorationBonusCap: Math.max(
+        0,
+        Number(dwarfChampionConfig.frontier_exploration_bonus_cap ?? 1.5),
+      ),
+      liftBuildSpeedBonusBase: Math.max(
+        0,
+        Number(dwarfChampionConfig.lift_build_speed_bonus_base ?? 1),
+      ),
+      liftBuildSpeedBonusPerSurvival: Math.max(
+        0,
+        Number(dwarfChampionConfig.lift_build_speed_bonus_per_survival ?? 0.12),
+      ),
+      liftBuildSpeedBonusCap: Math.max(
+        0,
+        Number(dwarfChampionConfig.lift_build_speed_bonus_cap ?? 1.5),
+      ),
+      requiresPartyPresence: dwarfChampionConfig.requires_party_presence === true,
+      autoPromotion: {
+        enabled: (
+          dwarfChampionConfig.auto_promotion
+          && dwarfChampionConfig.auto_promotion.enabled
+        ) !== false,
+        minUnlockedDepth: Math.max(
+          1,
+          Math.floor(Number(
+            (
+              dwarfChampionConfig.auto_promotion
+              && dwarfChampionConfig.auto_promotion.min_unlocked_depth
+            ) ?? 1,
+          )),
+        ),
+        minSurvivals: Math.max(
+          0,
+          Math.floor(Number(
+            (
+              dwarfChampionConfig.auto_promotion
+              && dwarfChampionConfig.auto_promotion.min_survivals
+            ) ?? 0,
+          )),
+        ),
+      },
       activeDwarfId: typeof previousDwarfChampion.activeDwarfId === 'string'
         ? previousDwarfChampion.activeDwarfId
         : null,

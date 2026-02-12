@@ -1940,10 +1940,33 @@
       },
       "dwarf_champion": {
         "enabled": true,
-        "min_survivals": 2,
-        "attack_bonus_ratio": 0.14,
-        "defense_bonus_ratio": 0.12,
-        "requires_party_presence": true
+        "min_survivals": 1,
+        "attack_bonus_ratio": 0.18,
+        "defense_bonus_ratio": 0.16,
+        "requires_party_presence": false,
+        "auto_promotion": {
+          "enabled": true,
+          "min_unlocked_depth": 1,
+          "min_survivals": 0
+        },
+        "readiness_score_bonus_base": 4,
+        "readiness_score_bonus_per_survival": 1.5,
+        "readiness_score_bonus_cap": 10,
+        "retry_cooldown_reduction_base": 0.25,
+        "retry_cooldown_reduction_per_survival": 0.05,
+        "retry_cooldown_reduction_cap": 0.55,
+        "champion_hp_reduction_base": 0.12,
+        "champion_hp_reduction_per_survival": 0.03,
+        "champion_hp_reduction_cap": 0.35,
+        "champion_round_bonus_base": 1,
+        "champion_round_bonus_per_survival": 0.5,
+        "champion_round_bonus_cap": 3,
+        "frontier_exploration_bonus_base": 1,
+        "frontier_exploration_bonus_per_survival": 0.12,
+        "frontier_exploration_bonus_cap": 1.5,
+        "lift_build_speed_bonus_base": 1,
+        "lift_build_speed_bonus_per_survival": 0.12,
+        "lift_build_speed_bonus_cap": 1.5
       },
       "floors": {
         "defaults": {

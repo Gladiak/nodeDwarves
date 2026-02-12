@@ -172,6 +172,7 @@ function createDefaultReadinessGateState() {
     offense: 0,
     defense: 0,
     support: 0,
+    dwarfChampionReadinessBonus: 0,
     warningRiskMultiplier: 1,
     championCooldownTicks: 0,
     tick: 0,
@@ -325,6 +326,7 @@ function evaluateExpeditionReadinessGate(state, config, roomIndex, partySize, ki
     offense: 0,
     defense: 0,
     support: 0,
+    dwarfChampionReadinessBonus: 0,
     warningRiskMultiplier: 1,
     championCooldownTicks: 0,
   };
@@ -368,12 +370,18 @@ function evaluateExpeditionReadinessGate(state, config, roomIndex, partySize, ki
     kitCoverage * Math.max(0, Number(formula.supportKitFullScale ?? 8))
       + armoryLevel * Math.max(0, Number(formula.supportArmoryLevelScale ?? 1)),
   );
-  const score = Math.max(
+  const baseScore = Math.max(
     0,
     offense * Math.max(0, Number(weights.offense ?? 1))
       + defense * Math.max(0, Number(weights.defense ?? 1))
       + support * Math.max(0, Number(weights.support ?? 0.8)),
   );
+  const dwarfChampionStrategic = resolveDwarfChampionStrategicBonus(state, combat);
+  const dwarfChampionReadinessBonus = Math.max(
+    0,
+    Number(dwarfChampionStrategic.readinessScoreBonus || 0),
+  );
+  const score = Math.max(0, baseScore + dwarfChampionReadinessBonus);
 
   let status = 'ready';
   let reason = 'recommended_ready';
@@ -406,6 +414,7 @@ function evaluateExpeditionReadinessGate(state, config, roomIndex, partySize, ki
     offense,
     defense,
     support,
+    dwarfChampionReadinessBonus,
     warningRiskMultiplier,
     championCooldownTicks: 0,
   };
@@ -450,6 +459,10 @@ function updateReadinessGateState(state, config, gate) {
       offense: Math.max(0, Number(readinessGate.offense || 0)),
       defense: Math.max(0, Number(readinessGate.defense || 0)),
       support: Math.max(0, Number(readinessGate.support || 0)),
+      dwarfChampionReadinessBonus: Math.max(
+        0,
+        Number(readinessGate.dwarfChampionReadinessBonus || 0),
+      ),
       partySize: Math.max(0, Math.floor(Number(readinessGate.partySize || 0))),
       armoryLevel: Math.max(0, Math.floor(Number(readinessGate.armoryLevel || 0))),
       tick,
@@ -543,6 +556,102 @@ function findDwarfById(state, dwarfId) {
     }
   }
   return null;
+}
+
+// Resolve one stacked champion bonus from base/per-survival/cap values.
+function resolveStackedChampionBonus(baseRaw, perSurvivalRaw, capRaw, survivalsRaw) {
+  const base = Math.max(0, Number(baseRaw || 0));
+  const perSurvival = Math.max(0, Number(perSurvivalRaw || 0));
+  const cap = Math.max(0, Number(capRaw || 0));
+  const survivals = Math.max(0, Math.floor(Number(survivalsRaw || 0)));
+  const value = base + perSurvival * survivals;
+  if (cap <= 0) {
+    return value;
+  }
+  return Math.min(value, cap);
+}
+
+// Resolve active dwarf-champion strategic bonuses used by readiness/cooldown gates.
+function resolveDwarfChampionStrategicBonus(state, combat) {
+  const runtime = getUnderrealmDwarfChampionRuntime(state, combat);
+  if (!runtime || runtime.enabled === false) {
+    return {
+      active: false,
+      dwarfId: null,
+      survivals: 0,
+      readinessScoreBonus: 0,
+      retryCooldownReductionRatio: 0,
+      championHpReductionRatio: 0,
+      championRoundBonus: 0,
+    };
+  }
+  const dwarfId = typeof runtime.activeDwarfId === 'string'
+    ? runtime.activeDwarfId
+    : null;
+  if (!dwarfId) {
+    return {
+      active: false,
+      dwarfId: null,
+      survivals: 0,
+      readinessScoreBonus: 0,
+      retryCooldownReductionRatio: 0,
+      championHpReductionRatio: 0,
+      championRoundBonus: 0,
+    };
+  }
+  const dwarf = findDwarfById(state, dwarfId);
+  if (!dwarf) {
+    return {
+      active: false,
+      dwarfId: null,
+      survivals: 0,
+      readinessScoreBonus: 0,
+      retryCooldownReductionRatio: 0,
+      championHpReductionRatio: 0,
+      championRoundBonus: 0,
+    };
+  }
+  const survivals = Math.max(0, Math.floor(Number(dwarf.underrealmChampionSurvivals || 0)));
+  return {
+    active: true,
+    dwarfId,
+    survivals,
+    readinessScoreBonus: resolveStackedChampionBonus(
+      runtime.readinessScoreBonusBase,
+      runtime.readinessScoreBonusPerSurvival,
+      runtime.readinessScoreBonusCap,
+      survivals,
+    ),
+    retryCooldownReductionRatio: clamp(
+      resolveStackedChampionBonus(
+        runtime.retryCooldownReductionBase,
+        runtime.retryCooldownReductionPerSurvival,
+        runtime.retryCooldownReductionCap,
+        survivals,
+      ),
+      0,
+      0.95,
+    ),
+    championHpReductionRatio: clamp(
+      resolveStackedChampionBonus(
+        runtime.championHpReductionBase,
+        runtime.championHpReductionPerSurvival,
+        runtime.championHpReductionCap,
+        survivals,
+      ),
+      0,
+      0.95,
+    ),
+    championRoundBonus: Math.max(
+      0,
+      resolveStackedChampionBonus(
+        runtime.championRoundBonusBase,
+        runtime.championRoundBonusPerSurvival,
+        runtime.championRoundBonusCap,
+        survivals,
+      ),
+    ),
+  };
 }
 
 // Resolve active dwarf-champion combat bonus for one expedition attempt.
@@ -1002,6 +1111,7 @@ function resolveChampionEncounter(state, config, ruinsConfig, expedition) {
     1 + kitPowerBonus + mithrilPowerBonus + combatBonus,
   );
   const dwarfChampionBonus = resolveDwarfChampionCombatBonus(state, expedition, combat);
+  const dwarfChampionStrategic = resolveDwarfChampionStrategicBonus(state, combat);
   let partyAttack = Math.max(
     1,
     (offense + support + partySize) * partyPowerMultiplier,
@@ -1017,9 +1127,14 @@ function resolveChampionEncounter(state, config, ruinsConfig, expedition) {
     ? floor.champion.stats
     : {};
   const championLabel = String(floor.champion && floor.champion.label || `Depth Champion D${depth}`);
+  const championHpReductionRatio = clamp(
+    Number(dwarfChampionStrategic.championHpReductionRatio || 0),
+    0,
+    0.95,
+  );
   const championHpMax = Math.max(
     1,
-    Number(championStats.hp || 1) * readinessRiskMultiplier,
+    Number(championStats.hp || 1) * readinessRiskMultiplier * (1 - championHpReductionRatio),
   );
   const championAttack = Math.max(
     0,
@@ -1033,6 +1148,10 @@ function resolveChampionEncounter(state, config, ruinsConfig, expedition) {
   const encounterConfig = combat && combat.encounter && typeof combat.encounter === 'object'
     ? combat.encounter
     : {};
+  const championRoundBonus = Math.max(
+    0,
+    Number(dwarfChampionStrategic.championRoundBonus || 0),
+  );
   const rounds = Math.max(
     1,
     Math.floor(
@@ -1051,6 +1170,19 @@ function resolveChampionEncounter(state, config, ruinsConfig, expedition) {
     partyHp = Math.max(0, partyHp - championDamage);
     if (championHp <= 0 || partyHp <= 0) {
       break;
+    }
+  }
+  if (championHp > 0 && partyHp > 0 && championRoundBonus > 0) {
+    const fullBonusRounds = Math.max(0, Math.floor(championRoundBonus));
+    const partialBonusRatio = clamp(championRoundBonus - fullBonusRounds, 0, 1);
+    const bonusIterations = fullBonusRounds + (partialBonusRatio > 0 ? 1 : 0);
+    for (let bonusRound = 0; bonusRound < bonusIterations; bonusRound += 1) {
+      if (championHp <= 0 || partyHp <= 0) {
+        break;
+      }
+      const bonusScale = bonusRound < fullBonusRounds ? 1 : partialBonusRatio;
+      const partyDamage = Math.max(1, partyAttack - championDefense);
+      championHp = Math.max(0, championHp - partyDamage * bonusScale);
     }
   }
 
@@ -1117,19 +1249,26 @@ function resolveChampionEncounter(state, config, ruinsConfig, expedition) {
     encounter.retreats = Math.max(0, Math.floor(Number(encounter.retreats || 0))) + 1;
   }
   floor.state = 'contested';
-  const retryCooldown = Math.max(
+  const retryCooldownBase = Math.max(
     0,
     Math.floor(
       Number(encounterConfig.retryCooldownTicksBase || 90)
         + Number(encounterConfig.retryCooldownTicksPerDepth || 0) * Math.max(0, depth - 1),
     ),
   );
+  const retryCooldown = Math.max(
+    0,
+    Math.floor(
+      retryCooldownBase * (1 - Number(dwarfChampionStrategic.retryCooldownReductionRatio || 0)),
+    ),
+  );
   encounter.cooldownTicksRemaining = retryCooldown;
   const suggestedLosses = resolveChampionLossCount(outcome, partySize, partyHp, partyHpMax);
+  const cooldownTag = retryCooldown < retryCooldownBase ? ' (champion command)' : '';
   pushEvent(
     state,
     config,
-    `Underrealm D${depth}: ${championLabel} ${outcome}, cooldown ${retryCooldown} ticks`,
+    `Underrealm D${depth}: ${championLabel} ${outcome}, cooldown ${retryCooldown} ticks${cooldownTag}`,
   );
   return {
     required: true,
@@ -1203,6 +1342,66 @@ function compareDwarfChampionCandidates(left, right) {
   return String(left && left.id || '').localeCompare(String(right && right.id || ''));
 }
 
+// Resolve whether vacancy auto-promotion may run for Dwarf Champion command.
+function canRunDwarfChampionAutoPromotion(state, runtime) {
+  if (!runtime || runtime.enabled === false || runtime.activeDwarfId) {
+    return false;
+  }
+  const autoPromotion = runtime.autoPromotion && typeof runtime.autoPromotion === 'object'
+    ? runtime.autoPromotion
+    : null;
+  if (!autoPromotion || autoPromotion.enabled === false) {
+    return false;
+  }
+  const underrealm = state && state.underrealm && typeof state.underrealm === 'object'
+    ? state.underrealm
+    : null;
+  const unlockedDepth = Math.max(0, Math.floor(Number(underrealm && underrealm.maxUnlockedDepth || 0)));
+  const minUnlockedDepth = Math.max(1, Math.floor(Number(autoPromotion.minUnlockedDepth || 1)));
+  return unlockedDepth >= minUnlockedDepth;
+}
+
+// Promote one dwarf into the active Dwarf Champion slot from a candidate list.
+function promoteDwarfChampionFromCandidates(
+  state,
+  config,
+  runtime,
+  candidates,
+  minSurvivals,
+  eventMode = 'crowned',
+) {
+  if (!runtime || runtime.activeDwarfId) {
+    return null;
+  }
+  const threshold = Math.max(0, Math.floor(Number(minSurvivals || 0)));
+  const eligible = (Array.isArray(candidates) ? candidates : [])
+    .filter((dwarf) => dwarf && Number(dwarf.underrealmChampionSurvivals || 0) >= threshold)
+    .sort(compareDwarfChampionCandidates);
+  if (eligible.length === 0) {
+    return null;
+  }
+  const champion = eligible[0];
+  runtime.activeDwarfId = champion.id;
+  runtime.activeSinceTick = Math.max(0, Math.floor(Number(state.tick || 0)));
+  runtime.promotions = Math.max(0, Math.floor(Number(runtime.promotions || 0))) + 1;
+  const attackBonusPct = Math.round(clamp(Number(runtime.attackBonusRatio || 0), 0, 1) * 100);
+  const defenseBonusPct = Math.round(clamp(Number(runtime.defenseBonusRatio || 0), 0, 1) * 100);
+  if (eventMode === 'appointed') {
+    pushEvent(
+      state,
+      config,
+      `Underrealm: ${champion.id} appointed Dwarf Champion command (+${attackBonusPct}% atk, +${defenseBonusPct}% def)`,
+    );
+  } else {
+    pushEvent(
+      state,
+      config,
+      `Underrealm: ${champion.id} crowned Dwarf Champion (+${attackBonusPct}% atk, +${defenseBonusPct}% def)`,
+    );
+  }
+  return champion;
+}
+
 // Update dwarf-champion progression after one expedition outcome is finalized.
 function updateDwarfChampionAfterExpedition(state, config, expedition, resultMeta) {
   const runtime = getUnderrealmDwarfChampionRuntime(state);
@@ -1224,51 +1423,51 @@ function updateDwarfChampionAfterExpedition(state, config, expedition, resultMet
   const battleResolved = championResult
     && championResult.required === true
     && championResult.outcome !== 'cooldown';
-  if (!battleResolved) {
-    return;
-  }
-  const expeditionIds = Array.isArray(expedition && expedition.dwarfIds)
-    ? expedition.dwarfIds
-    : [];
-  if (expeditionIds.length === 0) {
-    return;
-  }
   const survivors = [];
-  for (const dwarfIdRaw of expeditionIds) {
-    const dwarfId = String(dwarfIdRaw || '');
-    if (!dwarfId || !aliveById.has(dwarfId)) {
-      continue;
+  if (battleResolved) {
+    const expeditionIds = Array.isArray(expedition && expedition.dwarfIds)
+      ? expedition.dwarfIds
+      : [];
+    for (const dwarfIdRaw of expeditionIds) {
+      const dwarfId = String(dwarfIdRaw || '');
+      if (!dwarfId || !aliveById.has(dwarfId)) {
+        continue;
+      }
+      const dwarf = findDwarfById(state, dwarfId);
+      if (!dwarf) {
+        continue;
+      }
+      dwarf.underrealmChampionSurvivals = Math.max(
+        0,
+        Math.floor(Number(dwarf.underrealmChampionSurvivals || 0)),
+      ) + 1;
+      survivors.push(dwarf);
     }
-    const dwarf = findDwarfById(state, dwarfId);
-    if (!dwarf) {
-      continue;
-    }
-    dwarf.underrealmChampionSurvivals = Math.max(
-      0,
-      Math.floor(Number(dwarf.underrealmChampionSurvivals || 0)),
-    ) + 1;
-    survivors.push(dwarf);
   }
-  if (survivors.length === 0 || runtime.activeDwarfId) {
+  if (!runtime.activeDwarfId && survivors.length > 0) {
+    promoteDwarfChampionFromCandidates(
+      state,
+      config,
+      runtime,
+      survivors,
+      Math.max(1, Math.floor(Number(runtime.minSurvivals || 1))),
+      'crowned',
+    );
+  }
+  if (!canRunDwarfChampionAutoPromotion(state, runtime)) {
     return;
   }
-  const minSurvivals = Math.max(1, Math.floor(Number(runtime.minSurvivals || 3)));
-  const eligible = survivors
-    .filter((dwarf) => Number(dwarf.underrealmChampionSurvivals || 0) >= minSurvivals)
-    .sort(compareDwarfChampionCandidates);
-  if (eligible.length === 0) {
-    return;
-  }
-  const champion = eligible[0];
-  runtime.activeDwarfId = champion.id;
-  runtime.activeSinceTick = Math.max(0, Math.floor(Number(state.tick || 0)));
-  runtime.promotions = Math.max(0, Math.floor(Number(runtime.promotions || 0))) + 1;
-  const attackBonusPct = Math.round(clamp(Number(runtime.attackBonusRatio || 0), 0, 1) * 100);
-  const defenseBonusPct = Math.round(clamp(Number(runtime.defenseBonusRatio || 0), 0, 1) * 100);
-  pushEvent(
+  const autoPromotion = runtime.autoPromotion && typeof runtime.autoPromotion === 'object'
+    ? runtime.autoPromotion
+    : {};
+  const adultCandidates = (state.dwarves || []).filter((dwarf) => isAdult(dwarf, config));
+  promoteDwarfChampionFromCandidates(
     state,
     config,
-    `Underrealm: ${champion.id} crowned Dwarf Champion (+${attackBonusPct}% atk, +${defenseBonusPct}% def)`,
+    runtime,
+    adultCandidates,
+    Math.max(0, Math.floor(Number(autoPromotion.minSurvivals || 0))),
+    'appointed',
   );
 }
 

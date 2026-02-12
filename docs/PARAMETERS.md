@@ -476,7 +476,28 @@ Underrealm:
 - `underrealm.combat.dwarf_champion.attack_bonus_ratio`: additive attack bonus ratio applied to party aggregated attack when Dwarf Champion bonus is active.
 - `underrealm.combat.dwarf_champion.defense_bonus_ratio`: additive defense bonus ratio applied to party aggregated defense when Dwarf Champion bonus is active.
 - `underrealm.combat.dwarf_champion.requires_party_presence`: when true, Dwarf Champion bonus is active only if the champion dwarf is in the expedition party.
-- `underrealm.combat.dwarf_champion` default profile: `min_survivals=2`, `attack_bonus_ratio=0.14`, `defense_bonus_ratio=0.12`, `requires_party_presence=true` (visibility-focused but stability-safe baseline).
+- `underrealm.combat.dwarf_champion.auto_promotion.enabled`: when true, auto-promote a Dwarf Champion while the slot is vacant once the configured Underrealm unlock depth is reached.
+- `underrealm.combat.dwarf_champion.auto_promotion.min_unlocked_depth`: minimum unlocked Underrealm depth required before vacancy auto-promotion can run.
+- `underrealm.combat.dwarf_champion.auto_promotion.min_survivals`: minimum champion-survival stacks required for auto-promotion candidate eligibility (`0` allows first-command appointments without prior champion battle survivals).
+- `underrealm.combat.dwarf_champion.readiness_score_bonus_base`: flat readiness score bonus added while an active Dwarf Champion exists.
+- `underrealm.combat.dwarf_champion.readiness_score_bonus_per_survival`: extra readiness score bonus per champion-survival stack.
+- `underrealm.combat.dwarf_champion.readiness_score_bonus_cap`: cap for total champion readiness bonus.
+- `underrealm.combat.dwarf_champion.retry_cooldown_reduction_base`: base reduction ratio applied to champion retry cooldown after retreat/defeat while champion command is active.
+- `underrealm.combat.dwarf_champion.retry_cooldown_reduction_per_survival`: additional retry-cooldown reduction ratio per champion-survival stack.
+- `underrealm.combat.dwarf_champion.retry_cooldown_reduction_cap`: cap for total retry-cooldown reduction ratio.
+- `underrealm.combat.dwarf_champion.champion_hp_reduction_base`: base reduction ratio applied to champion HP at encounter start while champion command is active.
+- `underrealm.combat.dwarf_champion.champion_hp_reduction_per_survival`: additional champion-HP reduction ratio per champion-survival stack.
+- `underrealm.combat.dwarf_champion.champion_hp_reduction_cap`: cap for total champion-HP reduction ratio.
+- `underrealm.combat.dwarf_champion.champion_round_bonus_base`: base additive offensive round bonus (party-only extra strikes) applied after deterministic champion encounter rounds while champion command is active.
+- `underrealm.combat.dwarf_champion.champion_round_bonus_per_survival`: additional party-only offensive round bonus per champion-survival stack.
+- `underrealm.combat.dwarf_champion.champion_round_bonus_cap`: cap for total party-only offensive round bonus.
+- `underrealm.combat.dwarf_champion.frontier_exploration_bonus_base`: base additive exploration multiplier ratio on the current frontier depth while an active champion exists.
+- `underrealm.combat.dwarf_champion.frontier_exploration_bonus_per_survival`: extra frontier exploration bonus ratio per champion-survival stack.
+- `underrealm.combat.dwarf_champion.frontier_exploration_bonus_cap`: cap for total frontier exploration bonus ratio.
+- `underrealm.combat.dwarf_champion.lift_build_speed_bonus_base`: base additive Deep Lift build-speed ratio while champion command is active.
+- `underrealm.combat.dwarf_champion.lift_build_speed_bonus_per_survival`: additional Deep Lift build-speed ratio per champion-survival stack.
+- `underrealm.combat.dwarf_champion.lift_build_speed_bonus_cap`: cap for total Deep Lift build-speed ratio.
+- `underrealm.combat.dwarf_champion` default profile: `min_survivals=1`, `attack_bonus_ratio=0.18`, `defense_bonus_ratio=0.16`, `requires_party_presence=false`, `auto_promotion.enabled=true`, `auto_promotion.min_unlocked_depth=1`, `auto_promotion.min_survivals=0`, `readiness_score_bonus_base=4`, `retry_cooldown_reduction_base=0.25`, `champion_hp_reduction_base=0.12`, `champion_round_bonus_base=1`, `frontier_exploration_bonus_base=1`, `lift_build_speed_bonus_base=1`.
 - `underrealm.combat.floors.defaults.min_armory_level_base|min_armory_level_per_depth`: baseline and depth scaling for minimum armory level readiness gate.
 - `underrealm.combat.floors.defaults.readiness.min_score_base|min_score_per_depth|recommended_score_base|recommended_score_per_depth`: default readiness threshold growth profile by depth.
 - `underrealm.combat.floors.defaults.champion.enabled`: default champion requirement toggle per floor.
@@ -1377,6 +1398,8 @@ Ruins exploration:
   - blocked when mapped floor is `contested` and champion retry cooldown is active (`champion_cooldown`),
   - warning zone when score is below floor `recommended_score` (dispatch still allowed with risk multiplier).
 - When `underrealm.combat.dwarf_champion.enabled=true`, resolved champion encounters also update deterministic per-dwarf survival counters and single-slot promotion/loss lifecycle (`activeDwarfId`, promotions, losses) in Underrealm combat runtime state.
+- When `underrealm.combat.dwarf_champion.auto_promotion.enabled=true`, a vacant champion slot can also be filled deterministically from adult candidates once `underrealm.maxUnlockedDepth >= auto_promotion.min_unlocked_depth`.
+- When an active Dwarf Champion exists, readiness score, champion retry cooldown, champion encounter HP, and party-only offensive bonus rounds in champion duels can also be modified through `underrealm.combat.dwarf_champion.*` strategic bonus knobs.
 - `ruins.mithrilReinforcement.enabled`: enable mithril reinforcement for expeditions.
 - `ruins.mithrilReinforcement.minRoom`: minimum room index (1-based) to allow mithril use.
 - `ruins.mithrilReinforcement.cost.<resource>`: resources consumed for mithril reinforcement.
