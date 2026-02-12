@@ -58,6 +58,14 @@ def resolve_weight_limit(value, fallback):
         return float(fallback)
 
 
+# Function: build_ai_server_command.
+def build_ai_server_command(config_path):
+    command = ["node", "ai_server.js"]
+    if config_path:
+        command.extend(["--config", str(config_path)])
+    return command
+
+
 # Function: parse_args.
 def parse_args():
     pre_parser = argparse.ArgumentParser(add_help=False)
@@ -146,9 +154,10 @@ def run_rollouts(args, config, model, resources, feature_names, min_weight, max_
     env = os.environ.copy()
     if args.debug_mode:
         env["NODEDWARVES_DEBUG_MODE"] = str(args.debug_mode)
+    server_command = build_ai_server_command(args.config)
 
     proc = subprocess.Popen(
-        ["node", "ai_server.js"],
+        server_command,
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         text=True,

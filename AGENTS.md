@@ -26,7 +26,6 @@ This file defines how to implement new features in a consistent, stable way.
 - Keep this section always aligned with the real repository layout.
 - `app.js`: entrypoint and main loop.
 - `config.json`: single source of truth for tunables.
-- `underrealm_v2.md`: Underrealm V2 blueprint/workbook (requirements, milestones, DoD, decision log, and implementation log).
 - `docs/PARAMETERS.md`: config parameter reference.
 - `docs/TRAINING_OVERRIDES.md`: training overrides guide.
 - `docs/TELEMETRY.md`: telemetry operator manual (from zero to hero).

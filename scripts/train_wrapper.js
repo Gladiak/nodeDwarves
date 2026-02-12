@@ -30,6 +30,11 @@ const PHASE_WORKER_SCALE = {
   consolidation: 0.75,
   benchmark: 1.0,
 };
+const ENDGAME_STEP_TICKS = 2;
+const ENDGAME_TARGET_EPISODE_TICKS = 20000;
+const ENDGAME_MAX_STEPS = Math.ceil(ENDGAME_TARGET_EPISODE_TICKS / ENDGAME_STEP_TICKS);
+// Keep headroom above training horizon so randomized season-start offsets do not truncate episodes.
+const ENDGAME_PROFILE_MAX_TICKS = 24000;
 
 const VALID_PROFILES = new Set([
   PROFILE_FAST,
@@ -477,7 +482,7 @@ function prepareRunFiles(rootDir, profile) {
   }
   if (profile === PROFILE_ENDGAME || profile === PROFILE_FULL) {
     files.endgame = path.join(runDir, "config_endgame.json");
-    const configEndgame = buildProfileConfig(baseConfig, 4800, true);
+    const configEndgame = buildProfileConfig(baseConfig, ENDGAME_PROFILE_MAX_TICKS, true);
     fs.writeFileSync(files.endgame, `${JSON.stringify(configEndgame, null, 2)}\n`);
   }
   if (profile === PROFILE_BENCHMARK) {
@@ -820,14 +825,14 @@ function buildPhases(profile, runDir, files) {
           "--workers", "8",
           "--full-sim",
           "--episodes", "8",
-          "--max-steps", "2400",
-          "--step-ticks", "2",
+          "--max-steps", String(ENDGAME_MAX_STEPS),
+          "--step-ticks", String(ENDGAME_STEP_TICKS),
           "--batch-episodes", "4",
           "--log-every", "4",
           "--save-every", "8",
-          "--eval-every", "8",
+          "--eval-every", "4",
           "--eval-episodes", "1",
-          "--eval-max-steps", "2400",
+          "--eval-max-steps", String(ENDGAME_MAX_STEPS),
           "--eval-difficulty", "1.0",
           "--difficulty-start", "1.0",
           "--difficulty-end", "1.0",
@@ -843,12 +848,12 @@ function buildPhases(profile, runDir, files) {
         promoteArgs: [
           "--config", files.endgame,
           "--eval-episodes", "4",
-          "--eval-max-steps", "2400",
+          "--eval-max-steps", String(ENDGAME_MAX_STEPS),
           "--eval-difficulty", "1.0",
           "--eval-score", "rpt",
-          "--min-improve", "0.040",
-          "--max-steps", "2400",
-          "--step-ticks", "2",
+          "--min-improve", "0.000",
+          "--max-steps", String(ENDGAME_MAX_STEPS),
+          "--step-ticks", String(ENDGAME_STEP_TICKS),
         ],
       },
     ];

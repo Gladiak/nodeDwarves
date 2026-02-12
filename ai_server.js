@@ -10,7 +10,8 @@ const { getTerrainResourceRatio } = require('./src/simulation/terrain');
 const { getFestivalObservation } = require('./src/simulation/festivals');
 const { clamp } = require('./src/utils');
 
-const baseConfig = loadConfig();
+const baseConfigPath = resolveConfigPath(process.argv.slice(2));
+const baseConfig = loadConfig(baseConfigPath || undefined);
 const nativeRandom = Math.random;
 const DEBUG_MODE = resolveDebugMode(process.env.NODEDWARVES_DEBUG_MODE);
 let runtime = buildRuntimeForConfig(baseConfig);
@@ -112,6 +113,25 @@ function applySeed(seed) {
   }
   const intSeed = Number(seed) >>> 0;
   Math.random = mulberry32(intSeed);
+}
+
+// Resolve optional config path from CLI args ("--config <path>" or "--config=<path>").
+function resolveConfigPath(argv) {
+  if (!Array.isArray(argv)) {
+    return null;
+  }
+  for (let index = 0; index < argv.length; index += 1) {
+    const token = String(argv[index] || '');
+    if (token === '--config') {
+      const value = index + 1 < argv.length ? String(argv[index + 1] || '').trim() : '';
+      return value || null;
+    }
+    if (token.startsWith('--config=')) {
+      const value = token.slice('--config='.length).trim();
+      return value || null;
+    }
+  }
+  return null;
 }
 
 // Normalize the debug mode passed via environment variables.

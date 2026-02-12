@@ -10,6 +10,14 @@ import train
 BEST_SAVE_COLOR = getattr(train, "BEST_EVAL_COLOR", "\033[96m")
 
 
+# Function: build_ai_server_command.
+def build_ai_server_command(config_path):
+    command = ["node", "ai_server.js"]
+    if config_path:
+        command.extend(["--config", str(config_path)])
+    return command
+
+
 # Function: load_policy_payload.
 def load_policy_payload(path):
     if not path or not os.path.exists(path):
@@ -204,6 +212,9 @@ def main():
     args = parse_args()
     train.configure_torch_threads()
 
+    if args.config and not os.path.exists(args.config):
+        raise SystemExit(f"Missing config file: {args.config}")
+
     config = train.load_config(args.config)
     defaults = train.build_training_defaults(config)
 
@@ -268,9 +279,10 @@ def main():
     env = os.environ.copy()
     if args.debug_mode:
         env["NODEDWARVES_DEBUG_MODE"] = str(args.debug_mode)
+    server_command = build_ai_server_command(args.config)
 
     proc = subprocess.Popen(
-        ["node", "ai_server.js"],
+        server_command,
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         text=True,

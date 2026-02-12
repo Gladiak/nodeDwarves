@@ -117,6 +117,13 @@ def send(proc, payload):
     return json.loads(line)
 
 
+def build_ai_server_command(config_path):
+    command = ["node", "ai_server.js"]
+    if config_path:
+        command.extend(["--config", str(config_path)])
+    return command
+
+
 def clamp(value, low, high):
     return max(low, min(high, value))
 
@@ -1355,8 +1362,9 @@ def worker_loop(worker_id, task_queue, result_queue, update_queue, resources, se
     debug_mode = settings.get("debug_mode")
     if debug_mode:
         env["NODEDWARVES_DEBUG_MODE"] = str(debug_mode)
+    server_command = build_ai_server_command(settings.get("config_path"))
     proc = subprocess.Popen(
-        ["node", "ai_server.js"],
+        server_command,
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         text=True,
@@ -2326,6 +2334,9 @@ def main():
         random.seed(args.seed)
         torch.manual_seed(args.seed)
 
+    if args.config and not os.path.exists(args.config):
+        raise SystemExit(f"Missing config file: {args.config}")
+
     config = load_config(args.config)
     scenario_defs = get_scenario_definitions(config)
     training_scenarios = get_training_scenarios(scenario_defs)
@@ -2342,8 +2353,9 @@ def main():
 
     resources = get_resources_from_config(config)
     if not resources:
+        temp_server_command = build_ai_server_command(args.config)
         temp_proc = subprocess.Popen(
-            ["node", "ai_server.js"],
+            temp_server_command,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             text=True,
@@ -2481,6 +2493,7 @@ def main():
             pass
 
     worker_settings = {
+        "config_path": args.config,
         "max_steps": args.max_steps,
         "step_ticks": args.step_ticks,
         "min_weight": min_weight,
@@ -2516,8 +2529,9 @@ def main():
         eval_env = os.environ.copy()
         if args.debug_mode:
             eval_env["NODEDWARVES_DEBUG_MODE"] = str(args.debug_mode)
+        eval_server_command = build_ai_server_command(args.config)
         eval_proc = subprocess.Popen(
-            ["node", "ai_server.js"],
+            eval_server_command,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             text=True,

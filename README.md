@@ -100,8 +100,10 @@ For training presets, evaluation, and overrides, see `MANUAL.md` and
 
 Training now highlights every best-checkpoint save with a colored `[BEST SAVED]` line and keeps both `models/policy_best.json` and `models/policy_best.meta.json` in sync.
 
+- 🎯 `ai:train:endgame` now runs a long-horizon specialization preset (`max_steps=10000`, `step_ticks=2`) with eval every 4 episodes, targeting at least 20k ticks per episode.
 - 🧠 Latest-checkpoint writes are now decoupled from log windows (`saveEvery` / `--save-every`) so long curriculum runs spend less time on disk I/O.
 - ⚡ Promote checks now require a phase-specific minimum score gain (`--min-improve`) and use more eval episodes in late phases to reduce statistical-noise promotions.
+- 🧩 Trainer/promote/regression rollouts now pass the same run config to the JS bridge (`ai_server.js --config ...`), so wrapper-generated overrides are applied consistently.
 - 🎯 Training wrappers now auto-tune worker count from CPU capacity (with bounds and manual `--workers` override) to behave better across different machines.
 - ⚙️ In auto mode, workers are also phase-aware (foundation/finetune/endgame/consolidation) and you can force flat behavior with `--workers-flat`.
 - 🧭 Regression runs now stream subprocess logs directly to per-run files, improving stability on long validation passes.
@@ -151,7 +153,6 @@ npm run balance:gate:standard -- --set jobs.gatherTriggerRatio.food=1.1 --set jo
 
 - `app.js`: entrypoint and main loop.
 - `config.json`: single source of truth for tunables.
-- `underrealm_v2.md`: Underrealm V2 implementation workbook (requirements, milestones, DoD, decision log, and execution log).
 - `src/`: simulation, state, rendering, AI.
 - `src/simulation/underrealm.js`: Underrealm crew, shrine doctrine, deep economy, exploration unlocks, and hostile faction pressure.
 - `src/simulation/world_events.js`: world event lifecycle for bards, rival caravans, and time-limited opportunities.
