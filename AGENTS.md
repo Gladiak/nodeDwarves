@@ -29,6 +29,7 @@ This file defines how to implement new features in a consistent, stable way.
 - `underrealm_v2.md`: Underrealm V2 blueprint/workbook (requirements, milestones, DoD, decision log, and implementation log).
 - `docs/PARAMETERS.md`: config parameter reference.
 - `docs/TRAINING_OVERRIDES.md`: training overrides guide.
+- `docs/TELEMETRY.md`: telemetry operator manual (from zero to hero).
 - `src/config.js`: config loader.
 - `src/simulation/`: simulation systems split by theme.
 - `src/simulation/index.js`: simulation orchestrator.
