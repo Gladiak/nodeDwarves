@@ -1961,12 +1961,12 @@
         "champion_round_bonus_base": 1,
         "champion_round_bonus_per_survival": 0.5,
         "champion_round_bonus_cap": 3,
-        "frontier_exploration_bonus_base": 0.2,
-        "frontier_exploration_bonus_per_survival": 0.04,
-        "frontier_exploration_bonus_cap": 0.5,
-        "lift_build_speed_bonus_base": 0.2,
-        "lift_build_speed_bonus_per_survival": 0.05,
-        "lift_build_speed_bonus_cap": 0.6
+        "frontier_exploration_bonus_base": 1,
+        "frontier_exploration_bonus_per_survival": 0.12,
+        "frontier_exploration_bonus_cap": 1.5,
+        "lift_build_speed_bonus_base": 1,
+        "lift_build_speed_bonus_per_survival": 0.12,
+        "lift_build_speed_bonus_cap": 1.5
       },
       "floors": {
         "defaults": {

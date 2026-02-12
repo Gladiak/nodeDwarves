@@ -1483,27 +1483,27 @@ function createUnderrealmCombatState(config, maxDepth, maxUnlockedDepth, previou
       ),
       frontierExplorationBonusBase: Math.max(
         0,
-        Number(dwarfChampionConfig.frontier_exploration_bonus_base ?? 0.2),
+        Number(dwarfChampionConfig.frontier_exploration_bonus_base ?? 1),
       ),
       frontierExplorationBonusPerSurvival: Math.max(
         0,
-        Number(dwarfChampionConfig.frontier_exploration_bonus_per_survival ?? 0.04),
+        Number(dwarfChampionConfig.frontier_exploration_bonus_per_survival ?? 0.12),
       ),
       frontierExplorationBonusCap: Math.max(
         0,
-        Number(dwarfChampionConfig.frontier_exploration_bonus_cap ?? 0.5),
+        Number(dwarfChampionConfig.frontier_exploration_bonus_cap ?? 1.5),
       ),
       liftBuildSpeedBonusBase: Math.max(
         0,
-        Number(dwarfChampionConfig.lift_build_speed_bonus_base ?? 0.2),
+        Number(dwarfChampionConfig.lift_build_speed_bonus_base ?? 1),
       ),
       liftBuildSpeedBonusPerSurvival: Math.max(
         0,
-        Number(dwarfChampionConfig.lift_build_speed_bonus_per_survival ?? 0.05),
+        Number(dwarfChampionConfig.lift_build_speed_bonus_per_survival ?? 0.12),
       ),
       liftBuildSpeedBonusCap: Math.max(
         0,
-        Number(dwarfChampionConfig.lift_build_speed_bonus_cap ?? 0.6),
+        Number(dwarfChampionConfig.lift_build_speed_bonus_cap ?? 1.5),
       ),
       requiresPartyPresence: dwarfChampionConfig.requires_party_presence === true,
       autoPromotion: {

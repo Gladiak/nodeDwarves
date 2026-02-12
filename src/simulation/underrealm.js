@@ -722,12 +722,12 @@ function ensureUnderrealmRuntimeState(state, config) {
         championRoundBonusBase: 1,
         championRoundBonusPerSurvival: 0.5,
         championRoundBonusCap: 3,
-        frontierExplorationBonusBase: 0.2,
-        frontierExplorationBonusPerSurvival: 0.04,
-        frontierExplorationBonusCap: 0.5,
-        liftBuildSpeedBonusBase: 0.2,
-        liftBuildSpeedBonusPerSurvival: 0.05,
-        liftBuildSpeedBonusCap: 0.6,
+        frontierExplorationBonusBase: 1,
+        frontierExplorationBonusPerSurvival: 0.12,
+        frontierExplorationBonusCap: 1.5,
+        liftBuildSpeedBonusBase: 1,
+        liftBuildSpeedBonusPerSurvival: 0.12,
+        liftBuildSpeedBonusCap: 1.5,
         requiresPartyPresence: false,
         activeDwarfId: null,
         activeSinceTick: 0,
@@ -864,27 +864,27 @@ function ensureUnderrealmRuntimeState(state, config) {
   );
   underrealm.combat.dwarfChampion.frontierExplorationBonusBase = Math.max(
     0,
-    Number(underrealm.combat.dwarfChampion.frontierExplorationBonusBase ?? 0.2),
+    Number(underrealm.combat.dwarfChampion.frontierExplorationBonusBase ?? 1),
   );
   underrealm.combat.dwarfChampion.frontierExplorationBonusPerSurvival = Math.max(
     0,
-    Number(underrealm.combat.dwarfChampion.frontierExplorationBonusPerSurvival ?? 0.04),
+    Number(underrealm.combat.dwarfChampion.frontierExplorationBonusPerSurvival ?? 0.12),
   );
   underrealm.combat.dwarfChampion.frontierExplorationBonusCap = Math.max(
     0,
-    Number(underrealm.combat.dwarfChampion.frontierExplorationBonusCap ?? 0.5),
+    Number(underrealm.combat.dwarfChampion.frontierExplorationBonusCap ?? 1.5),
   );
   underrealm.combat.dwarfChampion.liftBuildSpeedBonusBase = Math.max(
     0,
-    Number(underrealm.combat.dwarfChampion.liftBuildSpeedBonusBase ?? 0.2),
+    Number(underrealm.combat.dwarfChampion.liftBuildSpeedBonusBase ?? 1),
   );
   underrealm.combat.dwarfChampion.liftBuildSpeedBonusPerSurvival = Math.max(
     0,
-    Number(underrealm.combat.dwarfChampion.liftBuildSpeedBonusPerSurvival ?? 0.05),
+    Number(underrealm.combat.dwarfChampion.liftBuildSpeedBonusPerSurvival ?? 0.12),
   );
   underrealm.combat.dwarfChampion.liftBuildSpeedBonusCap = Math.max(
     0,
-    Number(underrealm.combat.dwarfChampion.liftBuildSpeedBonusCap ?? 0.6),
+    Number(underrealm.combat.dwarfChampion.liftBuildSpeedBonusCap ?? 1.5),
   );
   underrealm.combat.dwarfChampion.requiresPartyPresence =
     underrealm.combat.dwarfChampion.requiresPartyPresence === true;
