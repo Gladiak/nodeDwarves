@@ -30,6 +30,7 @@ const { updateEndgameDifficulty, maybeHandleEndgameReset } = require('./endgame'
 const { updateMyths, getMythMultiplier } = require('./myths');
 const { updateAlchemy, getAlchemyMultiplier } = require('./alchemy');
 const { updateTemple, getTempleNeedDecayMultiplier } = require('./temple');
+const { updateSchism, getSchismModifier } = require('./schism');
 const { updateVillages } = require('./villages');
 const { updateRoads } = require('./roads');
 const { updateUnderrealm } = require('./underrealm');
@@ -49,6 +50,7 @@ function stepState(state, config, runtime, action, options = {}) {
   updateWeather(state, config);
   updateRaidStart(state, config, runtime);
   updateWorldEvents(state, config, runtime, resolvedAction);
+  updateSchism(state, config);
   updateFestivals(state, config, runtime, resolvedAction);
   updateContracts(state, config, runtime);
   updateAlchemy(state, config);
@@ -62,6 +64,7 @@ function stepState(state, config, runtime, action, options = {}) {
   const worldNeedMultiplier = getWorldEventModifier(state, 'needDecay', 1);
   const festivalNeedMultiplier = getFestivalModifier(state, 'needDecay', 1);
   const templeNeedMultiplier = getTempleNeedDecayMultiplier(state, config);
+  const schismNeedMultiplier = getSchismModifier(state, 'needDecay', 1);
   const stormColdActive = state.weather
     ? state.weather.type === 'storm' || state.weather.type === 'cold'
     : false;
@@ -85,7 +88,8 @@ function stepState(state, config, runtime, action, options = {}) {
         * alchemyNeedMultiplier
         * worldNeedMultiplier
         * festivalNeedMultiplier
-        * templeNeedMultiplier,
+        * templeNeedMultiplier
+        * schismNeedMultiplier,
       weatherNeedByNeed,
     );
     consumeResources(dwarf, state, config);

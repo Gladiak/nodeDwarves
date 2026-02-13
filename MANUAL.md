@@ -251,7 +251,7 @@ Key concepts:
 - **State-first**: the simulation has one authoritative JS world state updated each tick.
 - **Config-first**: tunables live in `config.json` (training overrides act as a controlled overlay).
 - **Shortage-driven economy**: stockpile ratios behave like a feedback controller for priorities and builds.
-- **Soft modifiers**: seasons, weather, clans, ruins, and myths stack as multiplicative layers.
+- **Soft modifiers**: seasons, weather, clans, ruins, myths, and schism stack as multiplicative layers.
 - **Deterministic core**: randomness is localized (weather, raids, ruins) to keep runs comparable for training.
 
 ## 3) Tick flow (diagram + order) ⏱️
@@ -264,27 +264,28 @@ The tick order in code lives in `src/simulation/index.js` and is the execution c
 2. Update **weather** (`weather.js`).
 3. Check raid start conditions (`raids.js`).
 4. Update world events (`world_events.js`).
-5. Update festivals (`festivals.js`).
-6. Update contracts (`contracts.js`).
-7. Update alchemy rites and backlash (`alchemy.js`).
-8. Update temple site/effects/prestige tick (`temple.js`).
-9. Update wildlife season spawns (`wildlife.js`).
-10. For each dwarf:
+5. Update schism arc (`schism.js`).
+6. Update festivals (`festivals.js`).
+7. Update contracts (`contracts.js`).
+8. Update alchemy rites and backlash (`alchemy.js`).
+9. Update temple site/effects/prestige tick (`temple.js`).
+10. Update wildlife season spawns (`wildlife.js`).
+11. For each dwarf:
 
 - Age + life stage updates (`population.js`).
-- Needs decay (season/weather/myth/alchemy/world-event/festival modifiers).
+- Needs decay (season/weather/myth/alchemy/world-event/festival/schism/temple modifiers).
 - Consume resources from stockpile when thresholds hit.
 
-11. Handle deaths, roles, ruins, housing, relationships, reproduction (`population.js`, `roles.js`, `ruins.js`).
-12. Village and road updates (`villages.js`, `roads.js`).
-13. Assign jobs (`jobs.js`).
-14. Move and perform actions (`dwarf_actions.js`).
-15. Merchant update (`merchant.js`).
-16. Stockpile decay + terrain cooldown tick (`resources.js`, `terrain.js`).
-17. House storage + node regen (`resources.js`).
-18. Raid tick + wildlife tick + pasture births (`raids.js`, `wildlife.js`).
-19. Myth update (`myths.js`).
-20. Endgame cycle check (`endgame.js`).
+12. Handle deaths, roles, ruins, housing, relationships, reproduction (`population.js`, `roles.js`, `ruins.js`).
+13. Village and road updates (`villages.js`, `roads.js`).
+14. Assign jobs (`jobs.js`).
+15. Move and perform actions (`dwarf_actions.js`).
+16. Merchant update (`merchant.js`).
+17. Stockpile decay + terrain cooldown tick (`resources.js`, `terrain.js`).
+18. House storage + node regen (`resources.js`).
+19. Raid tick + wildlife tick + pasture births (`raids.js`, `wildlife.js`).
+20. Myth update (`myths.js`).
+21. Endgame cycle check (`endgame.js`).
 
 **Tick flow diagram**
 
@@ -294,24 +295,25 @@ flowchart TD
   B --> C[Weather update]
   C --> D[Raid start check]
   D --> E[World events update]
-  E --> F[Festival update]
-  F --> G[Contracts update]
-  G --> H[Alchemy update]
-  H --> I[Temple update + passive prestige]
-  I --> J[Wildlife season start]
-  J --> K[Per-dwarf: age + needs + consume]
-  K --> L[Population + ruins + relationships]
-  L --> M[Village and road updates]
-  M --> N[Assign jobs]
-  N --> O[Process dwarf actions]
-  O --> P[Merchant update]
-  P --> Q[Stockpile decay + terrain cooldown]
-  Q --> R[House storage + node regen]
-  R --> S[Raid tick + wildlife tick + pasture births]
-  S --> T[Myth update]
-  T --> U[Endgame cycle check]
-  U --> V[Render frame]
-  V --> W[Wait tickMs, next tick]
+  E --> F[Schism update]
+  F --> G[Festival update]
+  G --> H[Contracts update]
+  H --> I[Alchemy update]
+  I --> J[Temple update + passive prestige]
+  J --> K[Wildlife season start]
+  K --> L[Per-dwarf: age + needs + consume]
+  L --> M[Population + ruins + relationships]
+  M --> N[Village and road updates]
+  N --> O[Assign jobs]
+  O --> P[Process dwarf actions]
+  P --> Q[Merchant update]
+  Q --> R[Stockpile decay + terrain cooldown]
+  R --> S[House storage + node regen]
+  S --> T[Raid tick + wildlife tick + pasture births]
+  T --> U[Myth update]
+  U --> V[Endgame cycle check]
+  V --> W[Render frame]
+  W --> X[Wait tickMs, next tick]
 ```
 
 Notes:
@@ -648,18 +650,50 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
 - Weather multipliers are split by granularity:
   - scalar modifiers via `getWeatherModifier(..., key, fallback)`.
   - per-need map via `needDecayByNeed` for asymmetric stress (e.g. thirst vs hunger).
-- `festivals.js` is season-coupled and AI-intent driven:
+- `festivals.js` is season-coupled and AI-intent driven, with schism-council fallback:
   - Trigger source is `action.festivalIntent` normalized against AI weight range.
-  - Activation requires all gates: season allowed, window open, cooldown seasons passed, stockpile ratio guardrails, full cost affordability, optional raid lock.
-  - Costs are paid up-front once at start (`festivals.costs`).
-  - Active festivals apply temporary `effects.*` multipliers until `durationTicks` expires.
+  - During schism ritual windows, council fallback intent can start festivals even with low/no AI intent (if legitimacy/pressure gates allow).
+  - Activation requires all gates: season allowed, window open, cooldown seasons passed, stockpile ratio guardrails (including water-first safety floors), full cost affordability, optional raid lock.
+  - Costs are paid up-front once at start (`festivals.costs`) and can be doctrine-scaled by schism.
+  - Active festivals apply temporary `effects.*` multipliers until `durationTicks` expires (also doctrine-scaled by schism).
   - Start/end events are pushed for telemetry observability.
 - Festival eligibility is exposed to AI:
   - observation contains `festivalActive`, `festivalTimeLeft`, `festivalEligible`, `festivalCostRatio`.
   - This allows policy to time activation near seasonal windows instead of random triggering.
 - Stacking order in the simulation loop:
-  - season and weather update first, festival update runs before per-dwarf needs.
-  - final need decay multiplier stacks season _ weather _ housing _ endgame difficulty _ clan _ myths _ alchemy _ world-events _ festival.
+  - season and weather update first, schism update runs before festival evaluation.
+  - final need decay multiplier stacks season _ weather _ housing _ endgame difficulty _ clan _ myths _ alchemy _ world-events _ festival _ temple _ schism.
+
+### Schism arc 🔥
+
+- `schism.js` models a run-scale social arc driven by pressure and legitimacy:
+  - `pressure`: rises with shortages/raids/failures, drops with temple stability and festival relief.
+  - `legitimacy`: rises from successful governance/events/festivals, drops from deaths and failed diplomacy.
+- Phase model:
+  - `concord -> murmurs -> fracture -> reckoning` based on pressure thresholds (`schism.phase_thresholds.*`).
+  - Each phase applies explicit multiplicative runtime modifiers via `schism.modifiers.phase.<phase>.*`.
+- Doctrine model:
+  - Runtime doctrine (`austerity` or `revelry`) can shift at guarded intervals (`schism.doctrine.*`).
+  - Hysteresis thresholds (`*_enter_*` / `*_exit_*`) reduce doctrine ping-pong by requiring stronger recovery before leaving austerity.
+  - Doctrine affects economy via `schism.modifiers.doctrine.*`, and scales festival costs/effects (`schism.festival.*`).
+- Ritual windows:
+  - Open on configured seasons/ticks (`schism.ritual_windows.*`).
+  - Expose a council-driven fallback festival trigger when legitimacy/pressure gates pass.
+  - During a valid trigger, one branching ritual can be selected from `schism.rituals.definitions`:
+    - weighted by doctrine + context (`pressure`, legitimacy, shortages, active raids),
+    - protected by anti-repeat logic (`schism.rituals.repeat_protection.*`) so recent rituals are de-prioritized or hard-cooled down,
+    - paid with extra upfront ritual costs,
+    - applied as timed global modifiers (`effects.*`) plus festival-only multipliers (`festival_effects.*`),
+    - with immediate pressure/legitimacy narrative deltas (`deltas.*`).
+- Climax lifecycle:
+  - High pressure + low legitimacy can trigger a timed crisis (`schism.climax.*`).
+  - On resolution, pressure/legitimacy are shifted and explicit narrative events are emitted.
+- Integration points:
+  - Tick order: runs before festivals in `simulation/index.js`.
+  - Needs pipeline consumes schism `needDecay` modifier.
+  - Resource systems consume schism `gatherTicks`, `gatherYield`, `nodeRegen/fieldRegen`, and `outputBonus`.
+  - Underrealm bridge consumes schism modifiers for deep exploration pace, deep raid pressure/losses, delver morale shaping, and ruins readiness scoring.
+  - Temple progression can use legitimacy fallback path when artifact gate is not met (`schism.temple.*`).
 
 ### World events 🎭
 
@@ -1066,8 +1100,14 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
 - Construction model:
   - Each stage is config-driven (`structures.temple_of_ancestors.stages[]`) with `radius`, `buildTicks`, `buildCost`, `effects`, and prestige rewards.
   - Jobs are normal build jobs (`structureType=temple_of_ancestors`) so they respect the existing build queue and builder flow.
+  - Temple doctrine-path lock (`structures.temple_of_ancestors.doctrine_path.*`):
+    - path is locked once per run when the first temple stage job is queued (`austerity`, `revelry`, or `follow_schism` policy),
+    - path scales stage build cost/time and stage prestige,
+    - path also scales temple output/need-decay/raid-defense effects for all completed stages.
   - Guardrails before scheduling: `buildMinPopulation`, `buildMinCycles`, `buildMinIdleAdults`,
-    stockpile ratio gates (`buildMinResources`), and optional artifact progress gate (`minArtifactCompletionRatio`).
+    stockpile ratio gates (`buildMinResources`), plus artifact/legitimacy dual gate:
+    - artifact gate: `minArtifactCompletionRatio`
+    - fallback legitimacy path: `schism.temple.legitimacy_path_enabled` + `schism.temple.min_legitimacy_by_stage[]`
 - Runtime effects:
   - Need decay reduction stacks multiplicatively in the main needs pipeline.
   - Output bonus applies to gather yield and crafted/structure outputs (filtered by `outputApplyTo` when configured).
@@ -1419,6 +1459,7 @@ Clan dynamics add heterogeneity and longer-horizon trade-offs. To keep PPO stabl
 - `raids`: wildlife raid settings.
 - `merchant`: spawn cadence and trade behavior (including `neverGive` exclusions).
 - `worldEvents`: global short-arc events (bards, rival caravans, and limited opportunities).
+- `schism`: run-scale social pressure/legitimacy arc, doctrine shifts, ritual windows, and climax tuning.
 - `ai`: runtime policy + training defaults.
 - `myths`: global modifier definitions, triggers, caps, and traditions.
 - `alchemy`: rite formulas, global modifiers, backlash, and cooldown pacing.
@@ -1610,6 +1651,7 @@ Quick checklist:
     - `simulation/alchemy.js` → alchemy rite lifecycle and modifiers
     - `simulation/contracts.js` → contract offers, reputations, and boons
     - `simulation/world_events.js` → global event lifecycle and temporary world modifiers
+    - `simulation/schism.js` → run-scale social schism arc, doctrine shifts, ritual windows, and climax events
     - `simulation/roads.js` → road planning/build queue/pathing
     - `simulation/underrealm.js` → crew assignment, deep economy/exploration, and hostile deep raids
     - `simulation/temple.js` → Temple of Ancestors progression, effects, and prestige
@@ -1632,5 +1674,5 @@ Quick checklist:
 - `python/promote_best.py` → post-train promotion check (latest vs best)
 - `python/regression_rollout.py` → randomized regression rollouts without PPO updates/checkpoint writes
 - `python/bootstrap.py` / `python/agent.py` → venv bootstrap + sample agent
-- `docs/PARAMETERS.md` / `docs/TRAINING_OVERRIDES.md` / `docs/TELEMETRY.md` → config reference, training overrides, and telemetry operator manual
+- `docs/PARAMETERS.md` / `docs/TRAINING_OVERRIDES.md` / `docs/TELEMETRY.md` / `docs/LONG_RUN_STABILITY_BACKLOG.md` → config reference, training overrides, telemetry operator manual, and long-run stability backlog
 - `models/` → `policy.json`, `policy_best.json`, `policy_best.meta.json`

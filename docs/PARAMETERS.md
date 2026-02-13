@@ -729,6 +729,131 @@ Festivals:
 - `festivals.effects.gatherYield`: gather yield multiplier while active.
 - `festivals.ai.enabled`: allow AI to trigger festivals.
 - `festivals.ai.intentThreshold`: normalized threshold (0..1) for the AI festival intent.
+- Festival costs/effects are dynamically scaled at runtime by schism doctrine (`schism.festival.cost_multiplier.*`, `schism.festival.effect_multiplier.*`).
+
+Schism arc:
+
+- `schism.enabled`: enable run-scale social schism simulation.
+- `schism.start_doctrine`: initial doctrine (`austerity` or `revelry`).
+- `schism.start_pressure`: initial social pressure ratio (0..1).
+- `schism.start_legitimacy`: initial council legitimacy ratio (0..1).
+- `schism.phase_thresholds.murmurs`: pressure threshold for `murmurs` phase.
+- `schism.phase_thresholds.fracture`: pressure threshold for `fracture` phase.
+- `schism.phase_thresholds.reckoning`: pressure threshold for `reckoning` phase.
+- `schism.pressure.target`: equilibrium pressure target used by per-tick drift.
+- `schism.pressure.drift_per_tick`: per-tick pressure drift magnitude toward target.
+- `schism.pressure.shortage_score_divisor`: shortage-score normalization denominator.
+- `schism.pressure.shortage_weight`: shortage-to-pressure per-tick weight.
+- `schism.pressure.low_morale_weight`: low-morale-to-pressure per-tick weight.
+- `schism.pressure.raid_active_weight`: per-tick pressure while a surface raid is active.
+- `schism.pressure.deep_raid_active_weight`: per-tick pressure while a deep raid is active.
+- `schism.pressure.festival_relief_per_tick`: pressure relief per active festival tick.
+- `schism.pressure.temple_relief_per_stage_tick`: pressure relief per completed temple stage per tick.
+- `schism.pressure.raid_start_shock`: one-shot pressure spike when a surface raid starts.
+- `schism.pressure.world_failure_shock`: one-shot pressure spike for each failed/expired world event.
+- `schism.pressure.contract_failure_shock`: one-shot pressure spike for each failed contract.
+- `schism.pressure.deep_raid_start_shock`: one-shot pressure spike when a deep raid starts.
+- `schism.pressure.raid_death_shock_per_dwarf`: pressure increase per surface-raid death.
+- `schism.pressure.deep_raid_death_shock_per_dwarf`: pressure increase per deep-raid death.
+- `schism.legitimacy.passive_decay_per_tick`: baseline legitimacy decay per tick.
+- `schism.legitimacy.pressure_decay_scale`: extra legitimacy decay proportional to current pressure.
+- `schism.legitimacy.festival_gain_per_tick`: legitimacy gain per active festival tick.
+- `schism.legitimacy.temple_gain_per_stage_tick`: legitimacy gain per temple stage per tick.
+- `schism.legitimacy.contract_success_gain`: legitimacy gain per contract success.
+- `schism.legitimacy.contract_failure_loss`: legitimacy loss per contract failure.
+- `schism.legitimacy.world_success_gain`: legitimacy gain per completed world event.
+- `schism.legitimacy.world_failure_loss`: legitimacy loss per failed/expired world event.
+- `schism.legitimacy.raid_death_loss_per_dwarf`: legitimacy loss per surface-raid death.
+- `schism.legitimacy.deep_raid_death_loss_per_dwarf`: legitimacy loss per deep-raid death.
+- `schism.doctrine.switch_cooldown_ticks`: minimum ticks between doctrine shifts.
+- `schism.doctrine.switch_only_on_new_season`: if true, doctrine can only shift at season boundary.
+- `schism.doctrine.austerity_enter_stock_floor`: stock-floor threshold that enters austerity.
+- `schism.doctrine.austerity_exit_stock_floor`: stock-floor threshold required to leave austerity.
+- `schism.doctrine.austerity_enter_shortage_score`: shortage threshold that enters austerity.
+- `schism.doctrine.austerity_exit_shortage_score`: shortage threshold required to leave austerity.
+- `schism.doctrine.austerity_enter_legitimacy_floor`: legitimacy floor that enters austerity.
+- `schism.doctrine.austerity_exit_legitimacy_floor`: legitimacy floor required to leave austerity.
+- `schism.doctrine.revelry_enter_morale_floor`: morale gate to enter revelry through need relief.
+- `schism.doctrine.revelry_exit_morale_floor`: morale gate to keep revelry active.
+- `schism.doctrine.revelry_enter_beer_ratio_min`: beer ratio gate to enter revelry through need relief.
+- `schism.doctrine.revelry_exit_beer_ratio_min`: beer ratio gate to keep revelry active.
+- `schism.doctrine.revelry_enter_pressure_threshold`: pressure gate to enter revelry.
+- `schism.doctrine.revelry_exit_pressure_threshold`: pressure gate to keep revelry active.
+- `schism.doctrine.revelry_enter_stock_floor_min`: stock-floor gate to enter revelry through pressure path.
+- `schism.doctrine.revelry_exit_stock_floor_min`: stock-floor gate to keep revelry active.
+- `schism.doctrine.austerity_stock_floor`: stock-floor threshold that forces austerity.
+- `schism.doctrine.austerity_shortage_score`: shortage-score threshold that forces austerity.
+- `schism.doctrine.austerity_legitimacy_floor`: legitimacy floor that forces austerity.
+- `schism.doctrine.revelry_morale_floor`: morale threshold used by revelry switch gate.
+- `schism.doctrine.revelry_beer_ratio_min`: minimum beer ratio required for morale-driven revelry.
+- `schism.doctrine.revelry_pressure_threshold`: pressure threshold that can force revelry.
+- `schism.doctrine.revelry_stock_floor_min`: minimum stock floor required for pressure-driven revelry.
+- `schism.ritual_windows.enabled`: enable council ritual windows.
+- `schism.ritual_windows.season_names[]`: seasons eligible for ritual windows.
+- `schism.ritual_windows.window_ticks`: ticks from season start where ritual window stays open.
+- `schism.ritual_windows.min_legitimacy`: minimum legitimacy for council ritual activation.
+- `schism.ritual_windows.max_pressure`: maximum pressure for council ritual activation.
+- `schism.ritual_windows.festival_intent_fallback`: normalized fallback festival intent during ritual window.
+- `schism.ritual_windows.festival_intent_by_doctrine.austerity`: doctrine-specific fallback intent.
+- `schism.ritual_windows.festival_intent_by_doctrine.revelry`: doctrine-specific fallback intent.
+- `schism.ritual_windows.min_ticks_between_council_festivals`: cooldown between council-driven festivals.
+- `schism.ritual_windows.announce_at_open`: emit event-log announcement when ritual window opens.
+- `schism.rituals.enabled`: enable branching ritual selection during ritual windows.
+- `schism.rituals.duration_mode`: ritual duration mode (`season` or fixed ticks).
+- `schism.rituals.duration_ticks`: fallback fixed duration when `duration_mode` is not seasonal.
+- `schism.rituals.allow_ai_source`: if false, only council-driven festivals can trigger rituals.
+- `schism.rituals.repeat_protection.enabled`: enable anti-repeat ritual weighting/cooldown.
+- `schism.rituals.repeat_protection.recent_window`: number of recent ritual entries considered for repeat penalty.
+- `schism.rituals.repeat_protection.same_ritual_weight_multiplier`: per-repeat weight multiplier for the same ritual id.
+- `schism.rituals.repeat_protection.cooldown_ticks`: hard cooldown ticks for re-selecting the same ritual id.
+- `schism.rituals.history_limit`: max entries retained in `state.schism.ritualHistory`.
+- `schism.rituals.definitions.<ritual>.enabled`: enable one ritual definition.
+- `schism.rituals.definitions.<ritual>.label`: ritual label for event log/telemetry.
+- `schism.rituals.definitions.<ritual>.weight`: base weighted-pick value.
+- `schism.rituals.definitions.<ritual>.doctrine_weight.<doctrine>`: doctrine-specific weight scalar.
+- `schism.rituals.definitions.<ritual>.costs.<resource>`: extra stockpile cost added to festival start cost.
+- `schism.rituals.definitions.<ritual>.min_stockpile_ratios.<resource>`: ratio guardrails required for ritual eligibility.
+- `schism.rituals.definitions.<ritual>.effects.<key>`: runtime schism modifier active while ritual is active.
+- `schism.rituals.definitions.<ritual>.festival_effects.<key>`: extra multipliers applied to the started festival only.
+- `schism.rituals.definitions.<ritual>.deltas.pressure`: immediate pressure delta when ritual starts.
+- `schism.rituals.definitions.<ritual>.deltas.legitimacy`: immediate legitimacy delta when ritual starts.
+- `schism.rituals.definitions.<ritual>.duration_ticks`: optional per-ritual duration override.
+- `schism.rituals.definitions.<ritual>.context.raid_required`: require active surface raid.
+- `schism.rituals.definitions.<ritual>.context.no_raid_required`: require no active surface raid.
+- `schism.rituals.definitions.<ritual>.context.deep_raid_required`: require active deep raid.
+- `schism.rituals.definitions.<ritual>.context.pressure_min` / `pressure_max`: pressure gate range.
+- `schism.rituals.definitions.<ritual>.context.legitimacy_min` / `legitimacy_max`: legitimacy gate range.
+- `schism.rituals.definitions.<ritual>.context.stock_floor_min` / `stock_floor_max`: core stock-floor gate range.
+- `schism.rituals.definitions.<ritual>.context.shortage_min` / `shortage_max`: shortage-score gate range.
+- `schism.rituals.definitions.<ritual>.context.pressure_scale`: contextual weight gain from pressure.
+- `schism.rituals.definitions.<ritual>.context.legitimacy_scale`: contextual weight gain from low legitimacy.
+- `schism.rituals.definitions.<ritual>.context.shortage_scale`: contextual weight gain from shortage score.
+- `schism.rituals.definitions.<ritual>.context.raid_bonus`: contextual weight gain when raid is active.
+- `schism.rituals.definitions.<ritual>.context.deep_raid_bonus`: contextual weight gain when deep raid is active.
+- `schism.rituals.definitions.<ritual>.context.stock_floor_bonus`: contextual weight gain when core stock floor is low.
+- `schism.festival.cost_multiplier.austerity`: festival cost scalar while austerity doctrine is active.
+- `schism.festival.cost_multiplier.revelry`: festival cost scalar while revelry doctrine is active.
+- `schism.festival.effect_multiplier.austerity`: festival effect scalar while austerity doctrine is active.
+- `schism.festival.effect_multiplier.revelry`: festival effect scalar while revelry doctrine is active.
+- `schism.temple.legitimacy_path_enabled`: allow temple staging through legitimacy path when artifacts are below gate.
+- `schism.temple.min_legitimacy_by_stage[]`: stage-indexed legitimacy thresholds for temple legitimacy path.
+- `schism.modifiers.phase.<phase>.<key>`: multiplicative runtime modifiers applied for each schism phase.
+- `schism.modifiers.doctrine.<doctrine>.<key>`: multiplicative runtime modifiers applied for each doctrine.
+- `schism.modifiers.climax.<key>`: multiplicative runtime modifiers while schism climax is active.
+- Underrealm bridge keys currently used by runtime:
+  - `underrealmExploration`
+  - `underrealmReadiness`
+  - `underrealmRaidStrength`
+  - `underrealmRaidLoss`
+  - `underrealmRaidCasualty`
+  - `underrealmMorale`
+- `schism.climax.enabled`: enable climax crisis lifecycle.
+- `schism.climax.trigger_pressure`: pressure threshold to start climax.
+- `schism.climax.trigger_legitimacy`: legitimacy threshold to start climax.
+- `schism.climax.duration_ticks`: active climax duration.
+- `schism.climax.resolution_pressure_drop`: pressure reduction applied on climax resolution.
+- `schism.climax.resolution_legitimacy_gain`: legitimacy gain applied on climax resolution.
+- `schism.climax.allow_multiple`: allow multiple climaxes in one run.
 
 World events:
 
@@ -1023,6 +1148,15 @@ Structures (temple of ancestors):
 - `structures.temple_of_ancestors.buildMinIdleAdults`: minimum idle adults required before queuing a temple stage.
 - `structures.temple_of_ancestors.buildMinResources.<resource>`: minimum stockpile ratios required to queue a stage.
 - `structures.temple_of_ancestors.minArtifactCompletionRatio`: minimum ruins artifact completion ratio required before queuing temple stages (0..1).
+- `structures.temple_of_ancestors.doctrine_path.enabled`: enable temple doctrine-path lock-in.
+- `structures.temple_of_ancestors.doctrine_path.default_path`: doctrine source (`follow_schism`, `austerity`, `revelry`).
+- `structures.temple_of_ancestors.doctrine_path.<path>.buildCostMultiplier`: stage build-cost scalar for this path.
+- `structures.temple_of_ancestors.doctrine_path.<path>.buildTicksMultiplier`: stage build-time scalar for this path.
+- `structures.temple_of_ancestors.doctrine_path.<path>.prestigeMultiplier`: stage prestige scalar for this path.
+- `structures.temple_of_ancestors.doctrine_path.<path>.effects.outputBonusMultiplier`: scalar for temple output bonuses.
+- `structures.temple_of_ancestors.doctrine_path.<path>.effects.needDecayReductionMultiplier`: scalar for temple need-decay reduction.
+- `structures.temple_of_ancestors.doctrine_path.<path>.effects.raidDefenseBonusMultiplier`: scalar for temple raid-defense bonus.
+- Temple stages can also unlock through schism legitimacy fallback when enabled via `schism.temple.legitimacy_path_enabled`.
 - `structures.temple_of_ancestors.reserveMaxFootprint`: reserve the full final footprint from stage 0 so later stages stay buildable.
 - `structures.temple_of_ancestors.outputApplyTo[]`: resource ids affected by temple output bonus.
 - `structures.temple_of_ancestors.footprintShape`: stage footprint shape (`square` or `diamond`).

@@ -29,11 +29,13 @@ This file defines how to implement new features in a consistent, stable way.
 - `docs/PARAMETERS.md`: config parameter reference.
 - `docs/TRAINING_OVERRIDES.md`: training overrides guide.
 - `docs/TELEMETRY.md`: telemetry operator manual (from zero to hero).
+- `docs/LONG_RUN_STABILITY_BACKLOG.md`: long-run stability findings, known issues, and optimization backlog.
 - `src/config.js`: config loader.
 - `src/simulation/`: simulation systems split by theme.
 - `src/simulation/index.js`: simulation orchestrator.
 - `src/simulation/underrealm.js`: underrealm crew assignment, deep economy, exploration unlocks, and hostile deep raids.
 - `src/simulation/world_events.js`: world event lifecycle, timed opportunities, and temporary world modifiers.
+- `src/simulation/schism.js`: run-scale social schism arc (pressure/legitimacy, doctrine shifts, ritual windows, and climax events).
 - `src/simulation/temple.js`: Temple of Ancestors stages, site selection, bonuses, and prestige.
 - `src/simulation.js`: thin wrapper for `src/simulation/index.js`.
 - `src/state/`: state creation and terrain generation.

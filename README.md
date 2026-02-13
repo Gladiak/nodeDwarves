@@ -22,8 +22,9 @@ Think of it as a living systems sandbox: you tune config, press run, and watch t
 - 🌦️ Seasons, weather, festivals, and wildlife that shift priorities (raids optional).
 - 📜 Merchant trading, caravan contracts, and faction reputation.
 - 🎭 World events now live: traveling bards, rival caravans, and short-deadline opportunities.
+- 🔥 Schism arc per run: doctrine shifts with hysteresis, branching anti-repeat festival rituals, social pressure/legitimacy swings, and climax moments that can reshape the economy.
 - 🗝️ Endgame ruins expeditions with artifacts, set bonuses, and cycle resets.
-- 🏛️ Dwarf Temple of Ancestors: biome-aware multi-stage final work with prestige growth.
+- 🏛️ Dwarf Temple of Ancestors: biome-aware multi-stage final work with doctrine-path lock-in and prestige growth.
 - 🧭 Economy telemetry now includes an Endgame checklist with live step completion and reset ETA.
 - 🔍 AI Explainability in telemetry: top decision drivers, shortage score breakdown, and governor intent sources.
 - 🧼 Telemetry clarity pass: adaptive section rows reduce filler noise, key population/world lines are split for faster scanning, and status words (`critical`, `blocked`, `warning`, `ready`) are highlighted in the Data Center.
@@ -139,6 +140,7 @@ npm run balance:gate:standard -- --set jobs.gatherTriggerRatio.food=1.1 --set jo
 - `docs/PARAMETERS.md`: full config reference.
 - `docs/TRAINING_OVERRIDES.md`: training override guide.
 - `docs/TELEMETRY.md`: telemetry operator manual (from zero to hero).
+- `docs/LONG_RUN_STABILITY_BACKLOG.md`: long-run tuning findings and unresolved stability backlog.
 - `AGENTS.md`: contribution and implementation guidelines.
 
 ## Roadmap ideas 🧭
@@ -156,6 +158,7 @@ npm run balance:gate:standard -- --set jobs.gatherTriggerRatio.food=1.1 --set jo
 - `src/`: simulation, state, rendering, AI.
 - `src/simulation/underrealm.js`: Underrealm crew, shrine doctrine, deep economy, exploration unlocks, and hostile faction pressure.
 - `src/simulation/world_events.js`: world event lifecycle for bards, rival caravans, and time-limited opportunities.
+- `src/simulation/schism.js`: run-scale social schism arc (pressure/legitimacy, doctrine shifts, ritual festivals, and climax events).
 - `src/simulation/alchemy.js`: alchemy rites, pact lifecycle, and backlash logic.
 - `src/simulation/temple.js`: Temple of Ancestors stages, map footprint, and prestige system.
 - `src/render/map_inset_panel.js`: carved in-map Ops Snapshot component with compact, width-aware runtime lines.
@@ -169,7 +172,7 @@ npm run balance:gate:standard -- --set jobs.gatherTriggerRatio.food=1.1 --set jo
 - `scripts/compare_benchmark_reports.js`: cached report diff utility for baseline/candidate deltas without rerunning both variants.
 - `python/regression_rollout.py`: rollout-only randomized regression runner used by `scripts/regression.js`.
 - `python/`: PPO training + agent example.
-- `docs/`: parameter reference, training overrides, and telemetry operator manual.
+- `docs/`: parameter reference, training overrides, telemetry operator manual, and long-run stability backlog.
 - `models/`: policy checkpoints.
 - `scripts/`: utilities and regression tooling.
 

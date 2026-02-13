@@ -1,6 +1,7 @@
 'use strict';
 
 const { clamp } = require('../utils');
+const { canTempleAdvanceByLegitimacy, getSchismDoctrine } = require('./schism');
 
 const DEFAULT_PRESTIGE_TIERS = [
   { name: 'Unproven', min: 0 },
@@ -12,6 +13,7 @@ const DEFAULT_PRESTIGE_TIERS = [
 
 const DEFAULT_WATER_TERRAINS = new Set(['river', 'lake']);
 const DEFAULT_HIGHLAND_TERRAINS = new Set(['mountain', 'hill', 'stone']);
+const TEMPLE_DOCTRINE_PATHS = ['austerity', 'revelry'];
 
 // Resolve Temple of Ancestors config.
 function getTempleConfig(config) {
@@ -19,9 +21,112 @@ function getTempleConfig(config) {
   return (structures && structures.temple_of_ancestors) || {};
 }
 
+// Resolve doctrine-path config for temple branching.
+function getTempleDoctrinePathConfig(config) {
+  const temple = getTempleConfig(config);
+  const doctrinePath = temple && temple.doctrine_path && typeof temple.doctrine_path === 'object'
+    ? temple.doctrine_path
+    : {};
+  return doctrinePath;
+}
+
 // Resolve prestige config.
 function getPrestigeConfig(config) {
   return (config && config.prestige) || {};
+}
+
+// Normalize temple doctrine path ids.
+function normalizeTempleDoctrinePath(rawPath) {
+  const value = String(rawPath || '').toLowerCase();
+  if (TEMPLE_DOCTRINE_PATHS.includes(value)) {
+    return value;
+  }
+  return null;
+}
+
+// Resolve normalized doctrine-path profile for active temple branch.
+function getTempleDoctrinePathProfile(config, doctrinePath) {
+  const path = normalizeTempleDoctrinePath(doctrinePath);
+  const doctrineConfig = getTempleDoctrinePathConfig(config);
+  if (doctrineConfig.enabled === false || !path) {
+    return {
+      path: null,
+      buildCostMultiplier: 1,
+      buildTicksMultiplier: 1,
+      prestigeMultiplier: 1,
+      outputBonusMultiplier: 1,
+      needDecayReductionMultiplier: 1,
+      raidDefenseBonusMultiplier: 1,
+    };
+  }
+  const branch = doctrineConfig[path] && typeof doctrineConfig[path] === 'object'
+    ? doctrineConfig[path]
+    : {};
+  const effects = branch.effects && typeof branch.effects === 'object'
+    ? branch.effects
+    : {};
+  return {
+    path,
+    buildCostMultiplier: Math.max(0.1, Number(branch.buildCostMultiplier ?? 1)),
+    buildTicksMultiplier: Math.max(0.1, Number(branch.buildTicksMultiplier ?? 1)),
+    prestigeMultiplier: Math.max(0, Number(branch.prestigeMultiplier ?? 1)),
+    outputBonusMultiplier: Math.max(0, Number(effects.outputBonusMultiplier ?? 1)),
+    needDecayReductionMultiplier: Math.max(0, Number(effects.needDecayReductionMultiplier ?? 1)),
+    raidDefenseBonusMultiplier: Math.max(0, Number(effects.raidDefenseBonusMultiplier ?? 1)),
+  };
+}
+
+// Resolve current doctrine path; when missing, pick according to config policy.
+function resolveTempleDoctrinePath(state, config, stageNumber) {
+  const temple = ensureTempleState(state, config);
+  if (!temple || temple.enabled === false) {
+    return null;
+  }
+  const doctrineConfig = getTempleDoctrinePathConfig(config);
+  if (doctrineConfig.enabled === false) {
+    temple.doctrinePath = null;
+    return null;
+  }
+  const current = normalizeTempleDoctrinePath(temple.doctrinePath);
+  if (current) {
+    return current;
+  }
+  const defaultPathRaw = String(doctrineConfig.default_path || 'follow_schism').toLowerCase();
+  let picked = null;
+  if (defaultPathRaw === 'follow_schism') {
+    picked = normalizeTempleDoctrinePath(getSchismDoctrine(state));
+  } else {
+    picked = normalizeTempleDoctrinePath(defaultPathRaw);
+  }
+  if (!picked) {
+    picked = 'austerity';
+  }
+  temple.doctrinePath = picked;
+  temple.doctrinePathChosenTick = Number.isFinite(Number(state && state.tick))
+    ? Math.max(0, Number(state.tick || 0))
+    : 0;
+  temple.history.push({
+    stage: Math.max(0, Math.floor(Number(stageNumber || 0))),
+    tick: Number(state && state.tick || 0),
+    doctrinePath: picked,
+    marker: 'doctrine_lock',
+  });
+  return picked;
+}
+
+// Scale a temple stage cost map with deterministic integer rounding.
+function scaleTempleCostMap(costMap, multiplierRaw) {
+  const scaled = {};
+  const multiplier = Math.max(0.1, Number(multiplierRaw || 1));
+  const source = costMap && typeof costMap === 'object' ? costMap : {};
+  for (const [resource, amountRaw] of Object.entries(source)) {
+    const amount = Number(amountRaw || 0);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      continue;
+    }
+    scaled[resource] = Math.max(1, Math.round(amount * multiplier));
+  }
+  return scaled;
 }
 
 // Keep only valid positive costs.
@@ -141,6 +246,8 @@ function createTempleState(config) {
     enabled: temple.enabled !== false,
     stage: startStage,
     maxStage,
+    doctrinePath: null,
+    doctrinePathChosenTick: null,
     site: null,
     blockedReason: null,
     lastBuildTick: null,
@@ -174,6 +281,10 @@ function ensureTempleState(state, config) {
   state.temple.enabled = getTempleConfig(config).enabled !== false;
   state.temple.maxStage = maxStage;
   state.temple.stage = clamp(Math.floor(Number(state.temple.stage || 0)), 0, maxStage);
+  state.temple.doctrinePath = normalizeTempleDoctrinePath(state.temple.doctrinePath);
+  if (!Number.isFinite(Number(state.temple.doctrinePathChosenTick))) {
+    state.temple.doctrinePathChosenTick = null;
+  }
   if (!Array.isArray(state.temple.history)) {
     state.temple.history = [];
   }
@@ -810,7 +921,10 @@ function canStartTempleBuild(state, config, nextStage) {
   if (minArtifactRatio > 0) {
     const artifactRatio = getArtifactCompletionRatio(state, config);
     if (artifactRatio < minArtifactRatio) {
-      return false;
+      const stageNumber = Math.max(1, Math.floor(Number(stage.id || nextStage.id || 1)));
+      if (!canTempleAdvanceByLegitimacy(state, config, stageNumber)) {
+        return false;
+      }
     }
   }
 
@@ -840,6 +954,13 @@ function createTempleBuildJob(state, config, runtime, reservedPositions) {
   if (!stage) {
     return null;
   }
+  const doctrinePath = resolveTempleDoctrinePath(state, config, nextStageNumber);
+  const doctrineProfile = getTempleDoctrinePathProfile(config, doctrinePath);
+  const stageBuildCost = scaleTempleCostMap(stage.buildCost, doctrineProfile.buildCostMultiplier);
+  const stageBuildTicks = Math.max(
+    1,
+    Math.round(Number(stage.buildTicks || 1) * doctrineProfile.buildTicksMultiplier),
+  );
 
   const site = ensureTempleSite(state, config, runtime);
   if (!site) {
@@ -855,11 +976,11 @@ function createTempleBuildJob(state, config, runtime, reservedPositions) {
     return null;
   }
 
-  if (!hasCostInputs(state.stockpile, stage.buildCost)) {
+  if (!hasCostInputs(state.stockpile, stageBuildCost)) {
     return null;
   }
 
-  consumeCostInputs(state.stockpile, stage.buildCost);
+  consumeCostInputs(state.stockpile, stageBuildCost);
 
   return {
     id: `job_${state.jobCounter++}`,
@@ -867,10 +988,12 @@ function createTempleBuildJob(state, config, runtime, reservedPositions) {
     structureType: 'temple_of_ancestors',
     templeStage: nextStageNumber,
     templeStageName: stage.name,
+    templeDoctrinePath: doctrinePath,
     target: { x: site.x, y: site.y },
-    workRemaining: Math.max(1, Number(stage.buildTicks || 1)),
+    workRemaining: stageBuildTicks,
+    totalWork: stageBuildTicks,
     dwarfId: null,
-    cost: { ...stage.buildCost },
+    cost: { ...stageBuildCost },
   };
 }
 
@@ -890,13 +1013,26 @@ function completeTempleStageBuild(state, config, job) {
     return { completed: false };
   }
 
+  const doctrinePath = normalizeTempleDoctrinePath(
+    job && job.templeDoctrinePath
+      ? job.templeDoctrinePath
+      : temple.doctrinePath,
+  ) || resolveTempleDoctrinePath(state, config, stageNumber);
+  const doctrineProfile = getTempleDoctrinePathProfile(config, doctrinePath);
+  temple.doctrinePath = doctrinePath;
+
   temple.stage = clamp(stageNumber, 0, temple.maxStage);
   temple.lastBuildTick = Number(state && state.tick || 0);
   if (temple.stage >= temple.maxStage && temple.maxStage > 0) {
     temple.completedAtTick = temple.lastBuildTick;
   }
 
-  const stagePrestige = awardPrestige(state, config, stage.prestige, `temple_stage_${stageNumber}`);
+  const stagePrestige = awardPrestige(
+    state,
+    config,
+    Number(stage.prestige || 0) * doctrineProfile.prestigeMultiplier,
+    `temple_stage_${stageNumber}`,
+  );
   let completionPrestige = 0;
   if (temple.stage >= temple.maxStage && temple.maxStage > 0) {
     const templeConfig = getTempleConfig(config);
@@ -908,6 +1044,7 @@ function completeTempleStageBuild(state, config, job) {
     stage: stageNumber,
     tick: Number(state && state.tick || 0),
     prestige: stagePrestige,
+    doctrinePath: doctrinePath || null,
   });
 
   return {
@@ -915,6 +1052,7 @@ function completeTempleStageBuild(state, config, job) {
     stage: stageNumber,
     maxStage: temple.maxStage,
     stageName: stage.name,
+    doctrinePath: doctrinePath || null,
     stagePrestige,
     completionPrestige,
     fullyCompleted: temple.stage >= temple.maxStage && temple.maxStage > 0,
@@ -934,15 +1072,16 @@ function getTempleEffects(state, config) {
   }
 
   const completedStage = Math.min(temple.stage, stages.length);
+  const doctrineProfile = getTempleDoctrinePathProfile(config, temple.doctrinePath);
   let outputBonus = 0;
   let needDecayReduction = 0;
   let raidDefenseBonus = 0;
 
   for (let i = 0; i < completedStage; i += 1) {
     const effects = stages[i].effects;
-    outputBonus += Number(effects.outputBonus || 0);
-    needDecayReduction += Number(effects.needDecayReduction || 0);
-    raidDefenseBonus += Number(effects.raidDefenseBonus || 0);
+    outputBonus += Number(effects.outputBonus || 0) * doctrineProfile.outputBonusMultiplier;
+    needDecayReduction += Number(effects.needDecayReduction || 0) * doctrineProfile.needDecayReductionMultiplier;
+    raidDefenseBonus += Number(effects.raidDefenseBonus || 0) * doctrineProfile.raidDefenseBonusMultiplier;
   }
 
   return {

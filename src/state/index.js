@@ -3,6 +3,7 @@
 const { clamp } = require('../utils');
 const { pickClanId } = require('../clans');
 const { createTempleState, createPrestigeState } = require('../simulation/temple');
+const { createSchismState } = require('../simulation/schism');
 const {
   createTerrain,
   getTerrainSpawnPredicate,
@@ -1705,6 +1706,7 @@ function createInitialState(config, runtime) {
   const roads = createRoadState(config, runtime);
   const temple = createTempleState(config);
   const prestige = createPrestigeState(config);
+  const schism = createSchismState(config);
   const underrealm = createUnderrealmState(config, runtime, terrain, null);
 
   return {
@@ -1733,6 +1735,7 @@ function createInitialState(config, runtime) {
     roads,
     temple,
     prestige,
+    schism,
     stockpile: buildInitialStockpile(config, mapScaleContext),
     resourceTargets: scaledTargets,
     villages: null,
@@ -2110,6 +2113,9 @@ function createFestivalState(config) {
     startedTick: null,
     durationTicks: 0,
     effects: {},
+    source: null,
+    ritualId: null,
+    ritualLabel: null,
     lastSeasonIndex: null,
     lastSeasonName: null,
   };

@@ -7,6 +7,7 @@ const { pushEvent } = require('./events');
 const { getMythMultiplier } = require('./myths');
 const { getAlchemyMultiplier } = require('./alchemy');
 const { getContractRuinsCombatBonus } = require('./contracts');
+const { getSchismModifier } = require('./schism');
 const { isAdult } = require('./population');
 
 // Resolve a weighted clan bonus for an expedition effect key.
@@ -381,7 +382,24 @@ function evaluateExpeditionReadinessGate(state, config, roomIndex, partySize, ki
     0,
     Number(dwarfChampionStrategic.readinessScoreBonus || 0),
   );
-  const score = Math.max(0, baseScore + dwarfChampionReadinessBonus);
+  const schismReadinessMultiplier = Math.max(
+    0.1,
+    Number(getSchismModifier(state, 'underrealmReadiness', 1) || 1),
+  );
+  const schismReadinessFactor = schismReadinessMultiplier >= 1
+    ? 1 + (schismReadinessMultiplier - 1) * 0.6
+    : 1 - (1 - schismReadinessMultiplier) * 0.78;
+  const schismDepthRiskFactor = schismReadinessFactor >= 1
+    ? 1
+    : clamp(
+      1 - Math.max(0, depth - 1) * (1 - schismReadinessFactor) * 0.28,
+      0.6,
+      1,
+    );
+  const score = Math.max(
+    0,
+    (baseScore + dwarfChampionReadinessBonus) * schismReadinessFactor * schismDepthRiskFactor,
+  );
 
   let status = 'ready';
   let reason = 'recommended_ready';
@@ -1568,8 +1586,32 @@ function finishExpedition(state, config, ruinsConfig, expedition, success, reaso
     const cooldownTicks = Math.max(0, Number((ruinsConfig.expedition || {}).cooldownTicks || 0));
     state.ruins.cooldown = cooldownTicks;
   } else {
-    const cooldownTicks = Math.max(0, Number((ruinsConfig.expedition || {}).failureCooldownTicks || 0));
-    state.ruins.cooldown = cooldownTicks;
+    const baseCooldownTicks = Math.max(
+      0,
+      Number((ruinsConfig.expedition || {}).failureCooldownTicks || 0),
+    );
+    const readinessDepth = Math.max(
+      1,
+      Math.floor(
+        Number(
+          expedition
+          && expedition.readiness
+          && expedition.readiness.depth,
+        ) || 1,
+      ),
+    );
+    const schismReadinessMultiplier = Math.max(
+      0.1,
+      Number(getSchismModifier(state, 'underrealmReadiness', 1) || 1),
+    );
+    const schismPenaltyMultiplier = schismReadinessMultiplier >= 1
+      ? 1
+      : 1 + (1 - schismReadinessMultiplier) * 2.1;
+    const depthPenaltyMultiplier = 1 + Math.max(0, readinessDepth - 1) * 0.18;
+    const adaptiveCooldownTicks = Math.floor(
+      baseCooldownTicks * schismPenaltyMultiplier * depthPenaltyMultiplier,
+    );
+    state.ruins.cooldown = Math.max(baseCooldownTicks, adaptiveCooldownTicks);
   }
 
 }

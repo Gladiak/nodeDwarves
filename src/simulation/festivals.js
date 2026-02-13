@@ -2,6 +2,13 @@
 
 const { clamp } = require('../utils');
 const { pushEvent } = require('./events');
+const {
+  getSchismFestivalIntent,
+  resolveSchismFestivalRitualPlan,
+  getSchismFestivalCostMultiplier,
+  getSchismFestivalEffectMultiplier,
+  notifySchismFestivalStarted,
+} = require('./schism');
 
 // Resolve festivals config with a safe fallback.
 function getFestivalsConfig(config) {
@@ -23,6 +30,94 @@ function consumeInputs(stockpile, inputs) {
   for (const [resource, amount] of Object.entries(inputs)) {
     stockpile[resource] = Number(stockpile[resource] || 0) - Number(amount || 0);
   }
+}
+
+// Merge two positive cost maps.
+function mergeCostMaps(baseCosts, extraCosts) {
+  const merged = {};
+  for (const [resource, amountRaw] of Object.entries(baseCosts || {})) {
+    const amount = Number(amountRaw || 0);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      continue;
+    }
+    merged[resource] = Math.max(1, Math.round(amount));
+  }
+  for (const [resource, amountRaw] of Object.entries(extraCosts || {})) {
+    const amount = Number(amountRaw || 0);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      continue;
+    }
+    merged[resource] = Math.max(1, Math.round(Number(merged[resource] || 0) + amount));
+  }
+  return merged;
+}
+
+// Build an integer cost map after applying an optional scalar.
+function scaleFestivalCosts(rawCosts, scalar) {
+  const scaled = {};
+  const multiplier = Number.isFinite(Number(scalar)) && Number(scalar) > 0 ? Number(scalar) : 1;
+  if (!rawCosts || typeof rawCosts !== 'object') {
+    return scaled;
+  }
+  for (const [resource, amountRaw] of Object.entries(rawCosts)) {
+    const amount = Number(amountRaw || 0);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      continue;
+    }
+    scaled[resource] = Math.max(1, Math.round(amount * multiplier));
+  }
+  return scaled;
+}
+
+// Build a festival effect map after applying an optional scalar.
+function scaleFestivalEffects(rawEffects, scalar) {
+  const scaled = {};
+  const multiplier = Number.isFinite(Number(scalar)) && Number(scalar) > 0 ? Number(scalar) : 1;
+  if (!rawEffects || typeof rawEffects !== 'object') {
+    return scaled;
+  }
+  for (const [key, valueRaw] of Object.entries(rawEffects)) {
+    const value = Number(valueRaw);
+    if (!Number.isFinite(value) || value <= 0) {
+      continue;
+    }
+    if (value >= 1) {
+      scaled[key] = 1 + (value - 1) * multiplier;
+    } else {
+      scaled[key] = 1 - (1 - value) * multiplier;
+    }
+    if (scaled[key] <= 0) {
+      scaled[key] = 0.01;
+    }
+  }
+  return scaled;
+}
+
+// Multiply active effect map by an additional multiplier map.
+function mergeFestivalEffectMultipliers(baseEffects, extraEffects) {
+  const merged = {};
+  for (const [key, valueRaw] of Object.entries(baseEffects || {})) {
+    const value = Number(valueRaw);
+    if (!Number.isFinite(value) || value <= 0) {
+      continue;
+    }
+    merged[key] = value;
+  }
+  for (const [key, valueRaw] of Object.entries(extraEffects || {})) {
+    const value = Number(valueRaw);
+    if (!Number.isFinite(value) || value <= 0) {
+      continue;
+    }
+    merged[key] = Number(merged[key] || 1) * value;
+  }
+  return merged;
+}
+
+// Resolve current festival costs with schism doctrine scaling.
+function getFestivalCosts(state, config, festivalsConfig) {
+  const baseCosts = festivalsConfig && festivalsConfig.costs ? festivalsConfig.costs : {};
+  const costMultiplier = getSchismFestivalCostMultiplier(state, config);
+  return scaleFestivalCosts(baseCosts, costMultiplier);
 }
 
 // Compute the target stockpile amount, optionally scaling per capita.
@@ -57,12 +152,24 @@ function ensureFestivalState(state, config) {
       startedTick: null,
       durationTicks: 0,
       effects: {},
+      source: null,
+      ritualId: null,
+      ritualLabel: null,
       lastSeasonIndex: null,
       lastSeasonName: null,
     };
   }
   if (!state.festival.effects || typeof state.festival.effects !== 'object') {
     state.festival.effects = {};
+  }
+  if (typeof state.festival.source !== 'string') {
+    state.festival.source = null;
+  }
+  if (typeof state.festival.ritualId !== 'string') {
+    state.festival.ritualId = null;
+  }
+  if (typeof state.festival.ritualLabel !== 'string') {
+    state.festival.ritualLabel = null;
   }
   return state.festival;
 }
@@ -108,11 +215,11 @@ function isFestivalWindowOpen(state, festivalsConfig) {
 }
 
 // Compute the cost ratio for the configured festival costs.
-function getFestivalCostRatio(state, festivalsConfig) {
+function getFestivalCostRatio(state, config, festivalsConfig) {
   if (!state || !state.stockpile) {
     return 0;
   }
-  const costs = festivalsConfig.costs || {};
+  const costs = getFestivalCosts(state, config, festivalsConfig);
   const minCostRatio = Math.max(0, Number(festivalsConfig.minCostRatio ?? 1));
   let ratio = Number.POSITIVE_INFINITY;
   let hasCost = false;
@@ -165,56 +272,53 @@ function passesStockpileRatios(state, config, minStockpileRatios) {
 function getFestivalEligibility(state, config, festivalsConfig) {
   const festival = state && state.festival ? state.festival : null;
   if (!state || !festivalsConfig || festivalsConfig.enabled === false) {
-    return { eligible: false, costRatio: 0 };
-  }
-  if (festivalsConfig.ai && festivalsConfig.ai.enabled === false) {
-    return { eligible: false, costRatio: 0 };
+    return { eligible: false, costRatio: 0, costs: {} };
   }
   if (!state.season || !state.season.name) {
-    return { eligible: false, costRatio: 0 };
+    return { eligible: false, costRatio: 0, costs: {} };
   }
   if (festival && festival.active) {
-    return { eligible: false, costRatio: 0 };
+    return { eligible: false, costRatio: 0, costs: {} };
   }
   if (!isSeasonEligible(festivalsConfig, state.season.name)) {
-    return { eligible: false, costRatio: 0 };
+    return { eligible: false, costRatio: 0, costs: {} };
   }
   if (!isFestivalWindowOpen(state, festivalsConfig)) {
-    return { eligible: false, costRatio: 0 };
+    return { eligible: false, costRatio: 0, costs: {} };
   }
   if (festivalsConfig.blockDuringRaid === true && state.raid && state.raid.active) {
-    return { eligible: false, costRatio: 0 };
+    return { eligible: false, costRatio: 0, costs: {} };
   }
   const population = Array.isArray(state.dwarves) ? state.dwarves.length : 0;
   const minPopulation = Math.max(0, Number(festivalsConfig.minPopulation || 0));
   if (population < minPopulation) {
-    return { eligible: false, costRatio: 0 };
+    return { eligible: false, costRatio: 0, costs: {} };
   }
 
   const seasonIndex = getSeasonIndex(state);
   const minSeasonsBetween = Math.max(0, Number(festivalsConfig.cooldownSeasons || 0));
   if (festival && Number.isFinite(festival.lastSeasonIndex)) {
     if (seasonIndex - festival.lastSeasonIndex <= minSeasonsBetween) {
-      return { eligible: false, costRatio: 0 };
+      return { eligible: false, costRatio: 0, costs: {} };
     }
   }
 
   const minStockpileRatios = festivalsConfig.minStockpileRatios || {};
   if (!passesStockpileRatios(state, config, minStockpileRatios)) {
-    return { eligible: false, costRatio: 0 };
+    return { eligible: false, costRatio: 0, costs: {} };
   }
 
-  const costs = festivalsConfig.costs || {};
+  const costs = getFestivalCosts(state, config, festivalsConfig);
   if (!hasInputs(state.stockpile, costs)) {
-    return { eligible: false, costRatio: 0 };
+    return { eligible: false, costRatio: 0, costs };
   }
 
-  const costRatio = getFestivalCostRatio(state, festivalsConfig);
+  const costRatio = getFestivalCostRatio(state, config, festivalsConfig);
   if (costRatio < 1) {
-    return { eligible: false, costRatio };
+    return { eligible: false, costRatio, costs };
   }
 
-  return { eligible: true, costRatio };
+  return { eligible: true, costRatio, costs };
 }
 
 // Normalize festival intent from action into 0..1.
@@ -249,8 +353,10 @@ function updateFestivals(state, config, runtime, action) {
     return;
   }
 
-  const intentRaw = action && action.festivalIntent;
-  const intent = normalizeFestivalIntent(intentRaw, config);
+  const aiIntentRaw = action && action.festivalIntent;
+  const aiIntent = normalizeFestivalIntent(aiIntentRaw, config);
+  const councilIntent = getSchismFestivalIntent(state, config);
+  const intent = Math.max(aiIntent, councilIntent);
 
   if (festival.active) {
     const startedTick = Number(festival.startedTick || 0);
@@ -263,6 +369,9 @@ function updateFestivals(state, config, runtime, action) {
       festival.startedTick = null;
       festival.durationTicks = 0;
       festival.effects = {};
+      festival.source = null;
+      festival.ritualId = null;
+      festival.ritualLabel = null;
       pushEvent(state, config, `Festival ended: ${label}`);
     }
   }
@@ -271,22 +380,22 @@ function updateFestivals(state, config, runtime, action) {
     return;
   }
 
-  if (festivalsConfig.ai && festivalsConfig.ai.enabled === false) {
-    return;
-  }
-
   const eligibility = getFestivalEligibility(state, config, festivalsConfig);
   if (!eligibility.eligible) {
     return;
   }
 
+  const aiEnabled = !(festivalsConfig.ai && festivalsConfig.ai.enabled === false);
   const rawThreshold = (festivalsConfig.ai && festivalsConfig.ai.intentThreshold) ?? 0;
   const threshold = clamp(Number(rawThreshold), 0, 1);
-  if (intent < threshold) {
+  if (intent < threshold || (!aiEnabled && councilIntent <= 0)) {
     return;
   }
 
-  const costs = festivalsConfig.costs || {};
+  const source = councilIntent >= threshold && councilIntent >= aiIntent ? 'council' : 'ai';
+  const baseCosts = eligibility.costs || getFestivalCosts(state, config, festivalsConfig);
+  const ritualPlan = resolveSchismFestivalRitualPlan(state, config, source, baseCosts);
+  const costs = mergeCostMaps(baseCosts, ritualPlan ? ritualPlan.costs : null);
   if (!hasInputs(state.stockpile, costs)) {
     return;
   }
@@ -298,12 +407,31 @@ function updateFestivals(state, config, runtime, action) {
   festival.id = 'festival';
   festival.startedTick = Number(state.tick || 0);
   festival.durationTicks = Math.max(0, Number(festivalsConfig.durationTicks || 0));
-  festival.effects = festivalsConfig.effects && typeof festivalsConfig.effects === 'object'
-    ? { ...festivalsConfig.effects }
-    : {};
+  festival.effects = scaleFestivalEffects(
+    festivalsConfig.effects && typeof festivalsConfig.effects === 'object'
+      ? festivalsConfig.effects
+      : {},
+    getSchismFestivalEffectMultiplier(state, config),
+  );
+  if (ritualPlan && ritualPlan.festivalEffects) {
+    festival.effects = mergeFestivalEffectMultipliers(
+      festival.effects,
+      ritualPlan.festivalEffects,
+    );
+  }
+  festival.source = source;
+  festival.ritualId = ritualPlan && ritualPlan.id ? String(ritualPlan.id) : null;
+  festival.ritualLabel = ritualPlan && ritualPlan.label ? String(ritualPlan.label) : null;
   festival.lastSeasonIndex = getSeasonIndex(state);
   festival.lastSeasonName = state.season ? state.season.name : null;
-  pushEvent(state, config, `Festival started: ${label}`);
+  notifySchismFestivalStarted(state, config, source, ritualPlan);
+  pushEvent(
+    state,
+    config,
+    source === 'council'
+      ? `Festival started: ${label} (council decree${festival.ritualLabel ? `, ${festival.ritualLabel}` : ''})`
+      : `Festival started: ${label}${festival.ritualLabel ? ` (${festival.ritualLabel})` : ''}`,
+  );
 }
 
 // Read a festival modifier value with a safe fallback.
@@ -367,6 +495,8 @@ function getFestivalStatus(state, config) {
   return {
     active,
     label,
+    source: festival && festival.source ? String(festival.source) : null,
+    ritualLabel: festival && festival.ritualLabel ? String(festival.ritualLabel) : null,
     ticksLeft,
     duration,
   };

@@ -5,6 +5,7 @@ const { getStockpileTarget } = require("../simulation/resources");
 const { getFestivalStatus } = require("../simulation/festivals");
 const { getAlchemyStatus } = require("../simulation/alchemy");
 const { getWorldEventStatus } = require("../simulation/world_events");
+const { getSchismStatus } = require("../simulation/schism");
 const { getColorConfig, applyColor } = require("../render/colors");
 const { fitLine, wrapLine } = require("../render/format");
 
@@ -155,6 +156,7 @@ function collectTelemetrySnapshot(state, config, columnWidth, options = {}) {
   const includeMyths = options.includeMyths !== false;
   const festivalStatus = getFestivalStatus(safeState, safeConfig);
   const worldEventStatus = getWorldEventStatus(safeState, safeConfig);
+  const schismStatus = getSchismStatus(safeState, safeConfig);
   const shortages = Array.isArray(safeState.lastPriorities) ? safeState.lastPriorities : [];
   const governorSignals = getGovernorSignals(safeState);
   const stockRatioLine = [
@@ -236,6 +238,7 @@ function collectTelemetrySnapshot(state, config, columnWidth, options = {}) {
     worldEventsStats,
     festivalStatus,
     worldEventStatus,
+    schismStatus,
     shortages,
     governorSignals,
     stockRatioLine,
@@ -264,6 +267,7 @@ function buildTelemetrySectionModels(snapshot) {
         `Weather: ${formatWeatherStatus(snapshot.state.weather, snapshot.colors)}`,
         `Housing ratio: ${snapshot.housingRatio.toFixed(2)} beds per dwarf`,
         formatFestivalStatus(snapshot.festivalStatus),
+        formatSchismStatus(snapshot.schismStatus),
         formatWorldEventStatus(snapshot.worldEventStatus),
         formatContractStatus(snapshot.state, snapshot.config, snapshot.columnWidth),
         formatAlchemyStatus(snapshot.state, snapshot.config, snapshot.columnWidth),
@@ -780,12 +784,30 @@ function formatFestivalStatus(status) {
     return "Festival status: -";
   }
   const label = String(status.label || "Festival");
+  const ritualLabel = status.ritualLabel ? String(status.ritualLabel) : null;
   const ticksLeft = Math.max(0, Number(status.ticksLeft || 0));
   const duration = Math.max(0, Number(status.duration || 0));
   if (duration > 0) {
-    return `Festival status: ${label} (${ticksLeft}/${duration} ticks remaining)`;
+    return `Festival status: ${label}${ritualLabel ? ` | ${ritualLabel}` : ""} (${ticksLeft}/${duration} ticks remaining)`;
   }
-  return `Festival status: ${label} (${ticksLeft} ticks remaining)`;
+  return `Festival status: ${label}${ritualLabel ? ` | ${ritualLabel}` : ""} (${ticksLeft} ticks remaining)`;
+}
+
+// Format schism arc status with compact phase/doctrine metrics.
+function formatSchismStatus(status) {
+  if (!status || status.enabled === false) {
+    return "Schism status: off";
+  }
+  const phase = String(status.phase || "concord");
+  const doctrine = String(status.doctrine || "austerity");
+  const pressure = Math.round(clamp(Number(status.pressure || 0), 0, 1) * 100);
+  const legitimacy = Math.round(clamp(Number(status.legitimacy || 0), 0, 1) * 100);
+  const ritual = status.ritualOpen ? "ritual open" : "ritual closed";
+  const activeRitual = status.ritualActive
+    ? ` | active rite ${String(status.ritualLabel || "Rite")} (${Math.max(0, Number(status.ritualTicksLeft || 0))}t)`
+    : "";
+  const climax = status.climaxActive ? " | climax active" : "";
+  return `Schism status: ${phase}/${doctrine} | pressure ${pressure}% | legitimacy ${legitimacy}% | ${ritual}${activeRitual}${climax}`;
 }
 
 // Format one shortage line with urgency and stock ratio.
@@ -2780,16 +2802,19 @@ function formatTempleStageStatus(templeState, stage, maxStage) {
   if (maxStage <= 0 || !templeState || templeState.enabled === false) {
     return "Temple status: disabled";
   }
+  const doctrinePath = templeState && templeState.doctrinePath
+    ? ` | path ${String(templeState.doctrinePath)}`
+    : "";
   if (!templeState.site) {
-    return `Temple status: stage ${stage}/${maxStage} (site scan in progress)`;
+    return `Temple status: stage ${stage}/${maxStage} (site scan in progress)${doctrinePath}`;
   }
   if (stage <= 0) {
-    return `Temple status: stage 0/${maxStage} (site ready)`;
+    return `Temple status: stage 0/${maxStage} (site ready)${doctrinePath}`;
   }
   if (stage >= maxStage) {
-    return `Temple status: stage ${maxStage}/${maxStage} complete`;
+    return `Temple status: stage ${maxStage}/${maxStage} complete${doctrinePath}`;
   }
-  return `Temple status: stage ${stage}/${maxStage}`;
+  return `Temple status: stage ${stage}/${maxStage}${doctrinePath}`;
 }
 
 // Format temple build progress line while a stage is under construction.
@@ -2803,7 +2828,7 @@ function formatTempleProgressStatus(templeJob, config) {
   const stageConfig = stages[stageIndex] || {};
   const totalTicks = Math.max(
     1,
-    Math.floor(Number(stageConfig.buildTicks || templeJob.workRemaining || 1)),
+    Math.floor(Number(templeJob.totalWork || stageConfig.buildTicks || templeJob.workRemaining || 1)),
   );
   const remainingTicks = clamp(
     Math.floor(Number(templeJob.workRemaining || 0)),
@@ -2811,7 +2836,10 @@ function formatTempleProgressStatus(templeJob, config) {
     totalTicks,
   );
   const progress = clamp((totalTicks - remainingTicks) / totalTicks, 0, 1);
-  return `Temple construction progress: ${Math.round(progress * 100)}%`;
+  const path = templeJob && templeJob.templeDoctrinePath
+    ? ` | ${String(templeJob.templeDoctrinePath)}`
+    : "";
+  return `Temple construction progress: ${Math.round(progress * 100)}%${path}`;
 }
 
 module.exports = {
