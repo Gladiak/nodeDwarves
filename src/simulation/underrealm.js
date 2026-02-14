@@ -630,6 +630,20 @@ function getUnderrealmShrineConfig(config) {
   };
 }
 
+// Normalize one optional per-depth counter map to non-negative integer values.
+function normalizeUnderrealmDepthCounterMap(rawMap) {
+  const source = rawMap && typeof rawMap === 'object' ? rawMap : {};
+  const normalized = {};
+  for (const [depthRaw, valueRaw] of Object.entries(source)) {
+    const depth = Math.max(1, Math.floor(Number(depthRaw || 0)));
+    if (!Number.isFinite(depth) || depth <= 0) {
+      continue;
+    }
+    normalized[String(depth)] = Math.max(0, Math.floor(Number(valueRaw || 0)));
+  }
+  return normalized;
+}
+
 // Initialize or repair runtime fields used by Underrealm simulation.
 function ensureUnderrealmRuntimeState(state, config) {
   const underrealm = state.underrealm;
@@ -704,6 +718,11 @@ function ensureUnderrealmRuntimeState(state, config) {
       readiness: {
         hardMinGate: true,
         warningZoneRiskMultiplier: 1.2,
+        warningZoneHardGuard: {
+          enabled: true,
+          minDepth: 3,
+          minRecommendedScoreRatio: 0.99,
+        },
         scoreWeights: {
           offense: 1,
           defense: 1,
@@ -720,7 +739,7 @@ function ensureUnderrealmRuntimeState(state, config) {
         roundsBase: 4,
         roundsPerDepth: 1,
         retryCooldownTicksBase: 90,
-        retryCooldownTicksPerDepth: 20,
+        retryCooldownTicksPerDepth: 30,
       },
       dwarfChampion: {
         enabled: true,
@@ -761,6 +780,12 @@ function ensureUnderrealmRuntimeState(state, config) {
         championsDefeated: 0,
         failedExpeditions: 0,
         blockedDispatches: 0,
+        hardGuardBlocks: 0,
+        warningDispatches: 0,
+        cooldownEscalations: 0,
+        hardGuardBlocksByDepth: {},
+        warningDispatchesByDepth: {},
+        cooldownEscalationsByDepth: {},
       },
     };
   }
@@ -778,13 +803,51 @@ function ensureUnderrealmRuntimeState(state, config) {
     0,
     Math.floor(Number(underrealm.combat.stats.blockedDispatches || 0)),
   );
+  underrealm.combat.stats.hardGuardBlocks = Math.max(
+    0,
+    Math.floor(Number(underrealm.combat.stats.hardGuardBlocks || 0)),
+  );
+  underrealm.combat.stats.warningDispatches = Math.max(
+    0,
+    Math.floor(Number(underrealm.combat.stats.warningDispatches || 0)),
+  );
+  underrealm.combat.stats.cooldownEscalations = Math.max(
+    0,
+    Math.floor(Number(underrealm.combat.stats.cooldownEscalations || 0)),
+  );
+  underrealm.combat.stats.hardGuardBlocksByDepth = normalizeUnderrealmDepthCounterMap(
+    underrealm.combat.stats.hardGuardBlocksByDepth,
+  );
+  underrealm.combat.stats.warningDispatchesByDepth = normalizeUnderrealmDepthCounterMap(
+    underrealm.combat.stats.warningDispatchesByDepth,
+  );
+  underrealm.combat.stats.cooldownEscalationsByDepth = normalizeUnderrealmDepthCounterMap(
+    underrealm.combat.stats.cooldownEscalationsByDepth,
+  );
   underrealm.combat.readiness = underrealm.combat.readiness || {};
+  underrealm.combat.readiness.warningZoneHardGuard = (
+    underrealm.combat.readiness.warningZoneHardGuard
+    && typeof underrealm.combat.readiness.warningZoneHardGuard === 'object'
+  )
+    ? underrealm.combat.readiness.warningZoneHardGuard
+    : {};
   underrealm.combat.readiness.scoreWeights = underrealm.combat.readiness.scoreWeights || {};
   underrealm.combat.readiness.formula = underrealm.combat.readiness.formula || {};
   underrealm.combat.readiness.hardMinGate = underrealm.combat.readiness.hardMinGate !== false;
   underrealm.combat.readiness.warningZoneRiskMultiplier = Math.max(
     1,
     Number(underrealm.combat.readiness.warningZoneRiskMultiplier ?? 1.2),
+  );
+  underrealm.combat.readiness.warningZoneHardGuard.enabled =
+    underrealm.combat.readiness.warningZoneHardGuard.enabled !== false;
+  underrealm.combat.readiness.warningZoneHardGuard.minDepth = Math.max(
+    1,
+    Math.floor(Number(underrealm.combat.readiness.warningZoneHardGuard.minDepth ?? 3)),
+  );
+  underrealm.combat.readiness.warningZoneHardGuard.minRecommendedScoreRatio = clamp(
+    Number(underrealm.combat.readiness.warningZoneHardGuard.minRecommendedScoreRatio ?? 0.99),
+    0,
+    1,
   );
   underrealm.combat.readiness.scoreWeights.offense = Math.max(
     0,

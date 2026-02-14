@@ -1795,6 +1795,9 @@ function buildRuinsTelemetryLines(state, config, columnWidth) {
   if (readinessGate && Number(readinessGate.depth || 0) > 0) {
     lines.push(formatRuinsReadinessGateLine(readinessGate));
   }
+  for (const line of buildRuinsReadinessCounterLines(state, columnWidth)) {
+    lines.push(line);
+  }
 
   const artifactLines = buildArtifactProgressLines(
     ruins,
@@ -1917,6 +1920,13 @@ function formatRuinsReadinessGateLine(readinessGate) {
       const required = Math.max(1, Math.floor(Number(readinessGate.minArmoryLevel || 1)));
       return `Readiness gate: D${depth} BLOCKED armory ${level}/${required}`;
     }
+    if (readinessGate.reason === "warning_deep_guard") {
+      const threshold = Math.max(
+        0,
+        Number(readinessGate.warningDeepGuardThreshold || recommended),
+      ).toFixed(1);
+      return `Readiness gate: D${depth} BLOCKED deep guard ${score}/${threshold}`;
+    }
     if (readinessGate.reason === "champion_cooldown") {
       const cooldown = Math.max(0, Math.floor(Number(readinessGate.championCooldownTicks || 0)));
       return `Readiness gate: D${depth} BLOCKED champion cd ${cooldown}t`;
@@ -1928,6 +1938,70 @@ function formatRuinsReadinessGateLine(readinessGate) {
     return `Readiness gate: D${depth} warning score ${score}/${recommended} risk x${risk}`;
   }
   return `Readiness gate: D${depth} ready score ${score}/${recommended}`;
+}
+
+// Resolve compact Underrealm readiness counter snapshot from combat stats.
+function getRuinsReadinessCounterSnapshot(state) {
+  const stats = state
+    && state.underrealm
+    && state.underrealm.combat
+    && state.underrealm.combat.stats
+    && typeof state.underrealm.combat.stats === "object"
+    ? state.underrealm.combat.stats
+    : null;
+  if (!stats) {
+    return null;
+  }
+  return {
+    hardGuardBlocks: Math.max(0, Math.floor(Number(stats.hardGuardBlocks || 0))),
+    warningDispatches: Math.max(0, Math.floor(Number(stats.warningDispatches || 0))),
+    cooldownEscalations: Math.max(0, Math.floor(Number(stats.cooldownEscalations || 0))),
+    hardGuardBlocksByDepth: stats.hardGuardBlocksByDepth || {},
+    warningDispatchesByDepth: stats.warningDispatchesByDepth || {},
+    cooldownEscalationsByDepth: stats.cooldownEscalationsByDepth || {},
+  };
+}
+
+// Render one compact per-depth counter map (`D<depth>:<count>`).
+function formatRuinsDepthCounterMap(counterMap, maxEntries = 3) {
+  const entries = Object.entries(counterMap && typeof counterMap === "object" ? counterMap : {})
+    .map(([depthRaw, countRaw]) => ({
+      depth: Math.max(1, Math.floor(Number(depthRaw || 0))),
+      count: Math.max(0, Math.floor(Number(countRaw || 0))),
+    }))
+    .filter((entry) => entry.depth > 0 && entry.count > 0)
+    .sort((left, right) => (right.count - left.count) || (left.depth - right.depth));
+  if (entries.length === 0) {
+    return "-";
+  }
+  return entries
+    .slice(0, Math.max(1, Math.floor(Number(maxEntries || 1))))
+    .map((entry) => `D${entry.depth}:${entry.count}`)
+    .join(" ");
+}
+
+// Build compact readiness counter lines for long-run underrealm diagnostics.
+function buildRuinsReadinessCounterLines(state, columnWidth) {
+  const snapshot = getRuinsReadinessCounterSnapshot(state);
+  if (!snapshot) {
+    return [];
+  }
+  const hasAny = snapshot.hardGuardBlocks > 0
+    || snapshot.warningDispatches > 0
+    || snapshot.cooldownEscalations > 0;
+  if (!hasAny) {
+    return [];
+  }
+  const lines = [];
+  const totalsLine = `Readiness counters: hard guard ${snapshot.hardGuardBlocks} | warning dispatch ${snapshot.warningDispatches} | cooldown esc ${snapshot.cooldownEscalations}`;
+  for (const line of wrapLine(totalsLine, columnWidth)) {
+    lines.push(line);
+  }
+  const depthLine = `Readiness by depth: guard ${formatRuinsDepthCounterMap(snapshot.hardGuardBlocksByDepth)} | warning ${formatRuinsDepthCounterMap(snapshot.warningDispatchesByDepth)} | cdEsc ${formatRuinsDepthCounterMap(snapshot.cooldownEscalationsByDepth)}`;
+  for (const line of wrapLine(depthLine, columnWidth)) {
+    lines.push(line);
+  }
+  return lines;
 }
 
 // Resolve one Underrealm combat floor snapshot by depth.

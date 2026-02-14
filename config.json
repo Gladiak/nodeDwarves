@@ -1924,6 +1924,11 @@
       "readiness": {
         "hard_min_gate": true,
         "warning_zone_risk_multiplier": 1.25,
+        "warning_zone_hard_guard": {
+          "enabled": true,
+          "min_depth": 4,
+          "min_recommended_score_ratio": 0.99
+        },
         "score_weights": {
           "offense": 1,
           "defense": 1,
@@ -1940,7 +1945,7 @@
         "rounds_base": 4,
         "rounds_per_depth": 1,
         "retry_cooldown_ticks_base": 90,
-        "retry_cooldown_ticks_per_depth": 22
+        "retry_cooldown_ticks_per_depth": 30
       },
       "dwarf_champion": {
         "enabled": true,
@@ -3614,6 +3619,14 @@
       "minPopulation": 10,
       "cooldownTicks": 40,
       "failureCooldownTicks": 80,
+      "failureStreakCooldown": {
+        "enabled": true,
+        "minDepth": 3,
+        "windowTicks": 1600,
+        "perFailureMultiplier": 0.35,
+        "maxMultiplier": 2.5,
+        "resetOnSuccess": true
+      },
       "partySizeMin": 3,
       "partySizeMax": 7,
       "maxConcurrentAfterClear": 3,

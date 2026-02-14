@@ -29,7 +29,6 @@ This file defines how to implement new features in a consistent, stable way.
 - `docs/PARAMETERS.md`: config parameter reference.
 - `docs/TRAINING_OVERRIDES.md`: training overrides guide.
 - `docs/TELEMETRY.md`: telemetry operator manual (from zero to hero).
-- `docs/LONG_RUN_STABILITY_BACKLOG.md`: long-run stability findings, known issues, and optimization backlog.
 - `src/config.js`: config loader.
 - `src/simulation/`: simulation systems split by theme.
 - `src/simulation/index.js`: simulation orchestrator.

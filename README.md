@@ -33,7 +33,7 @@ Think of it as a living systems sandbox: you tune config, press run, and watch t
 - ⚗️ Alchemy Lab rites: burn rare minerals for powerful global buffs, then survive the backlash.
 - 🛡️ Clan culture traits that create trade-offs without micromanagement.
 - 🕳️ Underrealm Front: 10 depth layers with engineered dwarven halls and dense stone-hewn caverns.
-- 🧱 Underrealm V2 rollout: champion-gated floor unlock chain + 10-level armory progression + readiness-gated expedition dispatch, now with a high-impact Dwarf Champion command layer (deterministic vacancy auto-promotion, readiness boost, retry-cooldown reduction, champion-HP suppression, party-only duel-round extension, and frontier exploration/Deep Lift acceleration) plus contested-frontier-first champion targeting and dedicated deep telemetry cues.
+- 🧱 Underrealm V2 rollout: champion-gated floor unlock chain + 10-level armory progression + readiness-gated expedition dispatch, now with a high-impact Dwarf Champion command layer (deterministic vacancy auto-promotion, readiness boost, retry-cooldown reduction, champion-HP suppression, party-only duel-round extension, and frontier exploration/Deep Lift acceleration) plus contested-frontier-first champion targeting, deep warning hard-guard dispatch rails, per-depth failure-streak cooldown escalation, and dedicated deep telemetry cues.
 - 📦 Telemetry stockpile compaction: weapon/armor tier inventories are grouped into compact aggregate bars so the panel stays readable in long runs.
 - 📊 Underrealm-aware AI loop: PPO observation now includes deep combat/progression signals, with benchmark/regression reports exposing compact underrealm KPIs seed-by-seed.
 - 🗺️ Map Focus default: no side telemetry column; `h` opens a full-screen paged telemetry Data Center while the map keeps full width.
@@ -127,6 +127,7 @@ Training action heads now include governor pseudo-action IDs when enabled; if fe
 4. `CLI map export`: `npm run map:export -- --width=120 --height=40 --season=spring --layers=surface,d1,d2 --underrealmUnlockedDepth=2`
 5. `Balance gate presets`: `npm run balance:gate:standard` (or `:strict` / `:relaxed`)
 6. `Cached benchmark loop`: `npm run bench:baseline` then `npm run bench:candidate -- --set path=value` and `npm run bench:diff` (baseline/candidate now stream progress logs during execution)
+7. `Underrealm stress loop`: `npm run bench:underrealm:hot` and `npm run bench:underrealm:full` for fixed deep-expedition long-run A/B (`legacy baseline` vs current tuned defaults in the same schism-off profile)
 
 Pass candidate overrides to the active preset with `--set`:
 
@@ -140,7 +141,6 @@ npm run balance:gate:standard -- --set jobs.gatherTriggerRatio.food=1.1 --set jo
 - `docs/PARAMETERS.md`: full config reference.
 - `docs/TRAINING_OVERRIDES.md`: training override guide.
 - `docs/TELEMETRY.md`: telemetry operator manual (from zero to hero).
-- `docs/LONG_RUN_STABILITY_BACKLOG.md`: long-run tuning findings and unresolved stability backlog.
 - `AGENTS.md`: contribution and implementation guidelines.
 
 ## Roadmap ideas 🧭
@@ -172,7 +172,7 @@ npm run balance:gate:standard -- --set jobs.gatherTriggerRatio.food=1.1 --set jo
 - `scripts/compare_benchmark_reports.js`: cached report diff utility for baseline/candidate deltas without rerunning both variants.
 - `python/regression_rollout.py`: rollout-only randomized regression runner used by `scripts/regression.js`.
 - `python/`: PPO training + agent example.
-- `docs/`: parameter reference, training overrides, telemetry operator manual, and long-run stability backlog.
+- `docs/`: parameter reference, training overrides, and telemetry operator manual.
 - `models/`: policy checkpoints.
 - `scripts/`: utilities and regression tooling.
 

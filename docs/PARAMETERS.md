@@ -466,6 +466,9 @@ Underrealm:
 - `underrealm.combat.progression_mode`: combat progression mode (`champion_gate` enforces champion-clear unlock chain for depth progression).
 - `underrealm.combat.readiness.hard_min_gate`: when true, dispatch is blocked if computed readiness score is below floor `min_score`.
 - `underrealm.combat.readiness.warning_zone_risk_multiplier`: risk multiplier applied to warning-zone dispatches (`min_score <= score < recommended_score`).
+- `underrealm.combat.readiness.warning_zone_hard_guard.enabled`: enable extra deep warning-zone block below the configured score ratio threshold.
+- `underrealm.combat.readiness.warning_zone_hard_guard.min_depth`: minimum mapped readiness depth where warning-zone hard guard can block dispatch.
+- `underrealm.combat.readiness.warning_zone_hard_guard.min_recommended_score_ratio`: minimum fraction (`0..1`) of floor `recommended_score` required to avoid deep warning-zone hard block.
 - `underrealm.combat.readiness.score_weights.offense|defense|support`: weighted mix used for final readiness score from computed components.
 - `underrealm.combat.readiness.formula.weapon_avg_tier_scale`: base score scale applied to average equipped weapon tier.
 - `underrealm.combat.readiness.formula.armor_avg_tier_scale`: base score scale applied to average equipped armor tier.
@@ -473,6 +476,11 @@ Underrealm:
 - `underrealm.combat.readiness.formula.support_armory_level_scale`: support score contribution per current armory level.
 - `underrealm.combat.encounter.rounds_base|rounds_per_depth`: base and per-depth combat rounds used by deterministic champion encounter resolution.
 - `underrealm.combat.encounter.retry_cooldown_ticks_base|retry_cooldown_ticks_per_depth`: base and per-depth retry cooldown applied after champion retreat/defeat.
+- Runtime underrealm readiness/dispatch counters are exposed in `underrealm.combat.stats`:
+  - `blockedDispatches` (all blocked transitions),
+  - `hardGuardBlocks` + `hardGuardBlocksByDepth`,
+  - `warningDispatches` + `warningDispatchesByDepth`,
+  - `cooldownEscalations` + `cooldownEscalationsByDepth`.
 - `underrealm.combat.dwarf_champion.enabled`: enable single-slot Dwarf Champion runtime lifecycle and bonus application in champion encounters.
 - `underrealm.combat.dwarf_champion.min_survivals`: minimum resolved champion-battle survivals required before a dwarf can be promoted when no active champion exists.
 - `underrealm.combat.dwarf_champion.attack_bonus_ratio`: additive attack bonus ratio applied to party aggregated attack when Dwarf Champion bonus is active.
@@ -1522,6 +1530,12 @@ Ruins exploration:
 - `ruins.expedition.minPopulation`: minimum population required to start an expedition.
 - `ruins.expedition.cooldownTicks`: cooldown ticks after a successful expedition.
 - `ruins.expedition.failureCooldownTicks`: cooldown ticks after a failed expedition.
+- `ruins.expedition.failureStreakCooldown.enabled`: enable per-depth cooldown escalation when recent failures stack.
+- `ruins.expedition.failureStreakCooldown.minDepth`: minimum readiness depth eligible for per-depth failure cooldown escalation.
+- `ruins.expedition.failureStreakCooldown.windowTicks`: lookback window in ticks used to count recent failures at the same depth.
+- `ruins.expedition.failureStreakCooldown.perFailureMultiplier`: additive cooldown multiplier applied for each extra recent failure after the first in the same depth window.
+- `ruins.expedition.failureStreakCooldown.maxMultiplier`: upper cap for per-depth failure cooldown multiplier.
+- `ruins.expedition.failureStreakCooldown.resetOnSuccess`: when true, a success at the same depth clears recent-failure escalation memory for that depth.
 - `ruins.expedition.partySizeMin`: minimum expedition party size.
 - `ruins.expedition.partySizeMax`: maximum expedition party size.
 - `ruins.expedition.maxConcurrentAfterClear`: max concurrent expeditions after all rooms are cleared (cooldown is ignored).
@@ -1531,6 +1545,7 @@ Ruins exploration:
 - Ruins expedition dispatch now also evaluates Underrealm readiness gate for mapped floor depth `max(roomIndex + 1, currentFrontierDepth)` (clamped by `underrealm.maxDepth`):
   - blocked when armory level is below floor `min_armory_level`,
   - blocked when score is below floor `min_score` and `underrealm.combat.readiness.hard_min_gate=true`,
+  - blocked in deep warning-zone windows when `underrealm.combat.readiness.warning_zone_hard_guard.enabled=true` and score is below `recommended_score * min_recommended_score_ratio`,
   - blocked when mapped floor is `contested` and champion retry cooldown is active (`champion_cooldown`),
   - warning zone when score is below floor `recommended_score` (dispatch still allowed with risk multiplier).
 - When `underrealm.combat.dwarf_champion.enabled=true`, resolved champion encounters also update deterministic per-dwarf survival counters and single-slot promotion/loss lifecycle (`activeDwarfId`, promotions, losses) in Underrealm combat runtime state.

@@ -1323,11 +1323,26 @@ function createUnderrealmCombatFloorState(underrealmConfig, depth, maxUnlockedDe
   };
 }
 
+// Normalize one optional per-depth counter map to non-negative integer values.
+function normalizeUnderrealmDepthCounterMap(rawMap) {
+  const source = rawMap && typeof rawMap === 'object' ? rawMap : {};
+  const normalized = {};
+  for (const [depthRaw, valueRaw] of Object.entries(source)) {
+    const depth = Math.max(1, Math.floor(Number(depthRaw || 0)));
+    if (!Number.isFinite(depth) || depth <= 0) {
+      continue;
+    }
+    normalized[String(depth)] = Math.max(0, Math.floor(Number(valueRaw || 0)));
+  }
+  return normalized;
+}
+
 // Build or refresh top-level Underrealm combat runtime scaffolding.
 function createUnderrealmCombatState(config, maxDepth, maxUnlockedDepth, previousUnderrealm) {
   const underrealmConfig = getUnderrealmConfig(config);
   const combatConfig = underrealmConfig.combat || {};
   const readiness = combatConfig.readiness || {};
+  const warningZoneHardGuard = readiness.warning_zone_hard_guard || {};
   const readinessFormula = readiness.formula || {};
   const scoreWeights = readiness.score_weights || {};
   const encounterConfig = combatConfig.encounter || {};
@@ -1376,6 +1391,15 @@ function createUnderrealmCombatState(config, maxDepth, maxUnlockedDepth, previou
         1,
         Number(readiness.warning_zone_risk_multiplier ?? 1.2),
       ),
+      warningZoneHardGuard: {
+        enabled: warningZoneHardGuard.enabled !== false,
+        minDepth: Math.max(1, Math.floor(Number(warningZoneHardGuard.min_depth ?? 3))),
+        minRecommendedScoreRatio: clamp(
+          Number(warningZoneHardGuard.min_recommended_score_ratio ?? 0.99),
+          0,
+          1,
+        ),
+      },
       scoreWeights: {
         offense: Math.max(0, Number(scoreWeights.offense ?? 1)),
         defense: Math.max(0, Number(scoreWeights.defense ?? 1)),
@@ -1409,7 +1433,7 @@ function createUnderrealmCombatState(config, maxDepth, maxUnlockedDepth, previou
       ),
       retryCooldownTicksPerDepth: Math.max(
         0,
-        Math.floor(Number(encounterConfig.retry_cooldown_ticks_per_depth ?? 20)),
+        Math.floor(Number(encounterConfig.retry_cooldown_ticks_per_depth ?? 30)),
       ),
     },
     dwarfChampion: {
@@ -1560,6 +1584,27 @@ function createUnderrealmCombatState(config, maxDepth, maxUnlockedDepth, previou
       blockedDispatches: Math.max(
         0,
         Math.floor(Number(previousStats.blockedDispatches || 0)),
+      ),
+      hardGuardBlocks: Math.max(
+        0,
+        Math.floor(Number(previousStats.hardGuardBlocks || 0)),
+      ),
+      warningDispatches: Math.max(
+        0,
+        Math.floor(Number(previousStats.warningDispatches || 0)),
+      ),
+      cooldownEscalations: Math.max(
+        0,
+        Math.floor(Number(previousStats.cooldownEscalations || 0)),
+      ),
+      hardGuardBlocksByDepth: normalizeUnderrealmDepthCounterMap(
+        previousStats.hardGuardBlocksByDepth,
+      ),
+      warningDispatchesByDepth: normalizeUnderrealmDepthCounterMap(
+        previousStats.warningDispatchesByDepth,
+      ),
+      cooldownEscalationsByDepth: normalizeUnderrealmDepthCounterMap(
+        previousStats.cooldownEscalationsByDepth,
       ),
     },
   };

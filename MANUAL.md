@@ -223,6 +223,9 @@ npm run bench:diff
 - `bench:baseline` writes `regression/baselines/headless_benchmark_baseline.json|.md`.
 - `bench:candidate` writes `debug/headless_benchmark_candidate.json|.md`.
 - `bench:diff` compares the two saved reports (no baseline rerun) and writes `debug/headless_benchmark_diff.json|.md`.
+- `bench:underrealm:hot` writes `debug/underrealm_stress_hot.json|.md` using fixed hot seeds (`303,404 @ 12000`).
+- `bench:underrealm:full` writes `debug/underrealm_stress_full.json|.md` using fixed full set (`101,202,303,404 @ 8000`).
+- Underrealm stress scripts use symmetric scenario overrides on both variants (`schism=false`, `festivals=true`, doctrine path disabled) and pin legacy underrealm guard/cooldown knobs only on `baseline` so `candidate` reflects active tuned defaults.
 - `bench:run`, `bench:baseline`, and `bench:candidate` stream benchmark progress lines by default (`[progress] variant=... seed=... tick=...`).
 - You can pass horizon/seeds/resources overrides to baseline/candidate scripts:
   - `npm run bench:baseline -- --ticks 20000 --seeds 101,202 --variant baseline`
@@ -234,6 +237,10 @@ General benchmark notes:
 - Default output includes `population`, `morale`, `beerBoost`, needs averages, and selected stockpile resources.
 - Adds a comparative score (baseline vs candidate), per-seed deltas, and optional gate checks.
 - Use `--resources` and `--output json` for machine-readable stdout, or `--report-json` / `--report-md` for saved artifacts.
+- Underrealm long-run review checklist (baseline vs candidate):
+  - `underFail` delta should stay at or below project target for the scenario.
+  - `underReadiness` delta should not collapse beyond project target for the scenario.
+  - `resource_avg_rel` should remain within the accepted downside envelope.
 
 ## 2) Mental model (big picture) 🧠
 
@@ -974,8 +981,15 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - Dispatch is blocked when:
     - armory level is below floor `min_armory_level`, or
     - score is below floor `min_score` and `underrealm.combat.readiness.hard_min_gate=true`.
+  - Dispatch is also blocked by deep warning hard guard when all are true:
+    - gate is in warning zone (`score < recommended_score`),
+    - `underrealm.combat.readiness.warning_zone_hard_guard.enabled=true`,
+    - mapped depth >= `warning_zone_hard_guard.min_depth`,
+    - `score < recommended_score * min_recommended_score_ratio`.
   - Warning zone dispatch (`score < recommended_score`) remains allowed, but applies explicit risk via `warning_zone_risk_multiplier`.
-  - Runtime emits gate snapshots to telemetry (`state.ruins.readinessGate`) and increments `underrealm.combat.stats.blockedDispatches` on blocked transitions.
+  - Runtime emits gate snapshots to telemetry (`state.ruins.readinessGate`) and increments:
+    - `underrealm.combat.stats.blockedDispatches` for any blocked transition,
+    - `underrealm.combat.stats.hardGuardBlocks` (+ per-depth map) for deep warning hard-guard transitions.
   - If a frontier champion is on retry cooldown, dispatch is blocked with reason `champion_cooldown`.
 - Underrealm V2 telemetry/render integration (M5):
   - Underrealm telemetry now keeps a stable 9-row summary focused on combat progression:
@@ -1137,6 +1151,7 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - Underrealm readiness gate for mapped floor depth (`max(roomIndex + 1, currentFrontierDepth)`) passes:
     - armory level >= floor `min_armory_level`,
     - readiness score >= floor `min_score` (when hard gate enabled), where score includes weighted offense/defense/support plus optional Dwarf Champion readiness command bonus.
+    - deep warning hard guard can also block (`warning_deep_guard`) when mapped depth is high and score is below configured warning-zone ratio threshold.
     - if the contested frontier champion is on retry cooldown, dispatch is blocked with `champion_cooldown`.
 - Party size:
   - Desired size is `ruins.rooms[].partySize`, clamped to `ruins.expedition.partySizeMin/Max`.
@@ -1144,6 +1159,10 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
 - Timing:
   - Each room has `ruins.rooms[].expeditionTicks`.
   - Success applies `ruins.expedition.cooldownTicks`; failure applies `ruins.expedition.failureCooldownTicks`.
+  - Failure cooldown can escalate per depth when recent failures accumulate:
+    - windowed by `ruins.expedition.failureStreakCooldown.windowTicks`,
+    - scaled by `perFailureMultiplier` with `maxMultiplier` cap,
+    - active from `minDepth` and optionally reset on same-depth success (`resetOnSuccess`).
   - After all rooms are cleared, expeditions repeat the final room to finish artifact collections.
   - Repeatable expeditions can run concurrently (up to `ruins.expedition.maxConcurrentAfterClear`) and
     are limited by idle adults and resource costs rather than cooldowns.
@@ -1174,6 +1193,10 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - Base failure chance per room is `ruins.rooms[].hazardChance`.
   - Hazard chance is reduced by `hazardReduction` bonuses (from artifacts/combos).
   - For warning-zone dispatches, final hazard chance is multiplied by `underrealm.combat.readiness.warning_zone_risk_multiplier` (clamped to `0..1`).
+- Long-run counters (deep readiness/cooldown diagnostics):
+  - `underrealm.combat.stats.warningDispatches` (+ `warningDispatchesByDepth`) counts warning-zone starts.
+  - `underrealm.combat.stats.hardGuardBlocks` (+ `hardGuardBlocksByDepth`) counts deep warning hard-guard blocks.
+  - `underrealm.combat.stats.cooldownEscalations` (+ `cooldownEscalationsByDepth`) counts per-depth failure cooldown escalation triggers.
 - Mithril reinforcement:
   - Enabled by `ruins.mithrilReinforcement.enabled`.
   - Only available from room index `ruins.mithrilReinforcement.minRoom` (1-based).
@@ -1674,5 +1697,5 @@ Quick checklist:
 - `python/promote_best.py` → post-train promotion check (latest vs best)
 - `python/regression_rollout.py` → randomized regression rollouts without PPO updates/checkpoint writes
 - `python/bootstrap.py` / `python/agent.py` → venv bootstrap + sample agent
-- `docs/PARAMETERS.md` / `docs/TRAINING_OVERRIDES.md` / `docs/TELEMETRY.md` / `docs/LONG_RUN_STABILITY_BACKLOG.md` → config reference, training overrides, telemetry operator manual, and long-run stability backlog
+- `docs/PARAMETERS.md` / `docs/TRAINING_OVERRIDES.md` / `docs/TELEMETRY.md` → config reference, training overrides, and telemetry operator manual
 - `models/` → `policy.json`, `policy_best.json`, `policy_best.meta.json`
