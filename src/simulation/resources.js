@@ -9,6 +9,7 @@ const { getAlchemyOutputBonus, getAlchemyMultiplier } = require('./alchemy');
 const { getFestivalModifier } = require('./festivals');
 const { getContractTargetBoost, getContractProductionBonus } = require('./contracts');
 const { getTempleOutputMultiplier } = require('./temple');
+const { getSchismModifier } = require('./schism');
 const { getWorldEventModifier, getWorldEventTargetBoost } = require('./world_events');
 const { getTerrainResourceRatio, pickTerrainResourceTarget } = require('./terrain');
 
@@ -27,6 +28,8 @@ function regenerateNodes(state, config) {
   const fieldSeason = getSeasonModifier(state, 'fieldRegen', 1);
   const fieldWeather = getWeatherModifier(state, config, 'fieldRegen', 1);
   const mythFieldRegen = getMythMultiplier(state, config, 'fieldRegen', 1);
+  const schismNodeRegen = getSchismModifier(state, 'nodeRegen', 1);
+  const schismFieldRegen = getSchismModifier(state, 'fieldRegen', 1);
   const fieldIrrigation = getFieldIrrigationMultiplier(state, config);
   const perTick = Number(regenConfig.perTick ?? 0);
   const intervalTicks = Math.max(1, Number(regenConfig.intervalTicks ?? 0));
@@ -58,9 +61,9 @@ function regenerateNodes(state, config) {
 
     let baseDelta = baseRegen;
     if (node.source === 'field') {
-      baseDelta *= fieldSeason * fieldIrrigation * fieldWeather * mythFieldRegen;
+      baseDelta *= fieldSeason * fieldIrrigation * fieldWeather * mythFieldRegen * schismFieldRegen;
     } else {
-      baseDelta *= multiplier * weatherRegen * mythRegen;
+      baseDelta *= multiplier * weatherRegen * mythRegen * schismNodeRegen;
     }
 
     let nodeDelta = Math.floor(baseDelta);
@@ -398,6 +401,7 @@ function getGatherTicks(config, resourceId, state) {
     * getMythMultiplier(state, config, 'gatherTicks', 1)
     * getAlchemyMultiplier(state, config, 'gatherTicks', 1)
     * getWorldEventModifier(state, 'gatherTicks', 1)
+    * getSchismModifier(state, 'gatherTicks', 1)
     * moraleMultiplier;
   return Math.max(1, Math.round(base * multiplier));
 }
@@ -466,7 +470,8 @@ function getGatherYield(config, resourceId, node, state) {
     * getWeatherModifier(state, config, 'gatherYield', 1)
     * getMythMultiplier(state, config, 'gatherYield', 1)
     * getWorldEventModifier(state, 'gatherYield', 1)
-    * getFestivalModifier(state, 'gatherYield', 1);
+    * getFestivalModifier(state, 'gatherYield', 1)
+    * getSchismModifier(state, 'gatherYield', 1);
   const toolMultiplier = getToolMultiplier(state, config, resourceId);
   const forgeMultiplier = getForgeMultiplier(state, config);
   const beerMultiplier = getBeerProductionMultiplier(state, config, resourceId);
@@ -585,6 +590,7 @@ function applyOutputs(stockpile, outputs, state, config) {
   const contractMultiplier = 1 + getContractProductionBonus(state);
   const alchemyOutputBonus = getAlchemyOutputBonus(state, config);
   const alchemyMultiplier = Math.max(0, 1 + alchemyOutputBonus);
+  const schismMultiplier = getSchismModifier(state, 'outputBonus', 1);
   for (const [resource, amount] of Object.entries(outputs)) {
     const beerMultiplier = getBeerProductionMultiplier(state, config, resource);
     const ruinsMultiplier = getRuinsOutputMultiplier(state, config, resource);
@@ -597,7 +603,8 @@ function applyOutputs(stockpile, outputs, state, config) {
       * ruinsMultiplier
       * contractMultiplier
       * alchemyMultiplier
-      * templeMultiplier;
+      * templeMultiplier
+      * schismMultiplier;
   }
 }
 

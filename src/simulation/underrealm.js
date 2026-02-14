@@ -4,6 +4,7 @@ const { clamp } = require('../utils');
 const { pushEvent } = require('./events');
 const { isAdult } = require('./population');
 const { getAlchemyMultiplier } = require('./alchemy');
+const { getSchismModifier } = require('./schism');
 
 const DEFAULT_NODE_TEMPLATES = {
   stone: {
@@ -185,6 +186,27 @@ const DEFAULT_SHRINE_SETTINGS = {
 };
 
 const UNDERREALM_FLOOR_STATE_SET = new Set(['locked', 'accessible', 'contested', 'cleared']);
+
+// Resolve one schism-driven Underrealm multiplier with bounded damping.
+function resolveSchismUnderrealmMultiplier(
+  state,
+  key,
+  {
+    boostScale = 0.65,
+    penaltyScale = 0.85,
+    min = 0.25,
+    max = 2,
+  } = {},
+) {
+  const raw = Math.max(0.1, Number(getSchismModifier(state, key, 1) || 1));
+  let adjusted = 1;
+  if (raw >= 1) {
+    adjusted = 1 + (raw - 1) * Math.max(0, Number(boostScale || 0));
+  } else {
+    adjusted = 1 - (1 - raw) * Math.max(0, Number(penaltyScale || 0));
+  }
+  return clamp(adjusted, Math.max(0.05, Number(min || 0.25)), Math.max(0.1, Number(max || 2)));
+}
 
 // Tick all Underrealm systems: crew assignment, economy, exploration, and hostiles.
 function updateUnderrealm(state, config) {
@@ -608,6 +630,20 @@ function getUnderrealmShrineConfig(config) {
   };
 }
 
+// Normalize one optional per-depth counter map to non-negative integer values.
+function normalizeUnderrealmDepthCounterMap(rawMap) {
+  const source = rawMap && typeof rawMap === 'object' ? rawMap : {};
+  const normalized = {};
+  for (const [depthRaw, valueRaw] of Object.entries(source)) {
+    const depth = Math.max(1, Math.floor(Number(depthRaw || 0)));
+    if (!Number.isFinite(depth) || depth <= 0) {
+      continue;
+    }
+    normalized[String(depth)] = Math.max(0, Math.floor(Number(valueRaw || 0)));
+  }
+  return normalized;
+}
+
 // Initialize or repair runtime fields used by Underrealm simulation.
 function ensureUnderrealmRuntimeState(state, config) {
   const underrealm = state.underrealm;
@@ -682,6 +718,11 @@ function ensureUnderrealmRuntimeState(state, config) {
       readiness: {
         hardMinGate: true,
         warningZoneRiskMultiplier: 1.2,
+        warningZoneHardGuard: {
+          enabled: true,
+          minDepth: 3,
+          minRecommendedScoreRatio: 0.99,
+        },
         scoreWeights: {
           offense: 1,
           defense: 1,
@@ -698,7 +739,7 @@ function ensureUnderrealmRuntimeState(state, config) {
         roundsBase: 4,
         roundsPerDepth: 1,
         retryCooldownTicksBase: 90,
-        retryCooldownTicksPerDepth: 20,
+        retryCooldownTicksPerDepth: 30,
       },
       dwarfChampion: {
         enabled: true,
@@ -739,6 +780,12 @@ function ensureUnderrealmRuntimeState(state, config) {
         championsDefeated: 0,
         failedExpeditions: 0,
         blockedDispatches: 0,
+        hardGuardBlocks: 0,
+        warningDispatches: 0,
+        cooldownEscalations: 0,
+        hardGuardBlocksByDepth: {},
+        warningDispatchesByDepth: {},
+        cooldownEscalationsByDepth: {},
       },
     };
   }
@@ -756,13 +803,51 @@ function ensureUnderrealmRuntimeState(state, config) {
     0,
     Math.floor(Number(underrealm.combat.stats.blockedDispatches || 0)),
   );
+  underrealm.combat.stats.hardGuardBlocks = Math.max(
+    0,
+    Math.floor(Number(underrealm.combat.stats.hardGuardBlocks || 0)),
+  );
+  underrealm.combat.stats.warningDispatches = Math.max(
+    0,
+    Math.floor(Number(underrealm.combat.stats.warningDispatches || 0)),
+  );
+  underrealm.combat.stats.cooldownEscalations = Math.max(
+    0,
+    Math.floor(Number(underrealm.combat.stats.cooldownEscalations || 0)),
+  );
+  underrealm.combat.stats.hardGuardBlocksByDepth = normalizeUnderrealmDepthCounterMap(
+    underrealm.combat.stats.hardGuardBlocksByDepth,
+  );
+  underrealm.combat.stats.warningDispatchesByDepth = normalizeUnderrealmDepthCounterMap(
+    underrealm.combat.stats.warningDispatchesByDepth,
+  );
+  underrealm.combat.stats.cooldownEscalationsByDepth = normalizeUnderrealmDepthCounterMap(
+    underrealm.combat.stats.cooldownEscalationsByDepth,
+  );
   underrealm.combat.readiness = underrealm.combat.readiness || {};
+  underrealm.combat.readiness.warningZoneHardGuard = (
+    underrealm.combat.readiness.warningZoneHardGuard
+    && typeof underrealm.combat.readiness.warningZoneHardGuard === 'object'
+  )
+    ? underrealm.combat.readiness.warningZoneHardGuard
+    : {};
   underrealm.combat.readiness.scoreWeights = underrealm.combat.readiness.scoreWeights || {};
   underrealm.combat.readiness.formula = underrealm.combat.readiness.formula || {};
   underrealm.combat.readiness.hardMinGate = underrealm.combat.readiness.hardMinGate !== false;
   underrealm.combat.readiness.warningZoneRiskMultiplier = Math.max(
     1,
     Number(underrealm.combat.readiness.warningZoneRiskMultiplier ?? 1.2),
+  );
+  underrealm.combat.readiness.warningZoneHardGuard.enabled =
+    underrealm.combat.readiness.warningZoneHardGuard.enabled !== false;
+  underrealm.combat.readiness.warningZoneHardGuard.minDepth = Math.max(
+    1,
+    Math.floor(Number(underrealm.combat.readiness.warningZoneHardGuard.minDepth ?? 3)),
+  );
+  underrealm.combat.readiness.warningZoneHardGuard.minRecommendedScoreRatio = clamp(
+    Number(underrealm.combat.readiness.warningZoneHardGuard.minRecommendedScoreRatio ?? 0.99),
+    0,
+    1,
   );
   underrealm.combat.readiness.scoreWeights.offense = Math.max(
     0,
@@ -1568,6 +1653,7 @@ function applyShrineOathStateToDelvers(state, shrineConfig) {
     return;
   }
   const oathConfig = shrineConfig.oath;
+  const schismMoraleMultiplier = Math.max(0.1, Number(getSchismModifier(state, 'underrealmMorale', 1) || 1));
   for (const dwarf of state.dwarves) {
     const duty = dwarf && dwarf.underrealmDuty;
     if (!duty || duty.active === false || Number(duty.depth || 0) <= 0) {
@@ -1581,12 +1667,20 @@ function applyShrineOathStateToDelvers(state, shrineConfig) {
     const morale = clamp(Number(dwarf.state.morale || 0), 0, 1);
     const stress = clamp(Number(dwarf.state.stress || 0), 0, 1);
     if (Number(oathState.activeTicks || 0) > 0) {
-      dwarf.state.morale = clamp(morale + oathConfig.moraleTickBonus, 0, 1);
+      dwarf.state.morale = clamp(
+        morale + oathConfig.moraleTickBonus * schismMoraleMultiplier,
+        0,
+        1,
+      );
       dwarf.state.stress = clamp(stress - oathConfig.stressTickReduction, 0, 1);
       continue;
     }
     if (Number(oathState.penaltyTicks || 0) > 0) {
-      dwarf.state.morale = clamp(morale - oathConfig.failureMoraleTickPenalty, 0, 1);
+      dwarf.state.morale = clamp(
+        morale - oathConfig.failureMoraleTickPenalty / schismMoraleMultiplier,
+        0,
+        1,
+      );
     }
   }
 }
@@ -2122,10 +2216,18 @@ function updateLayerExploration(state, config, layer, economyConfig) {
   const frontierMultiplier = championStrategic.active && depth === frontierDepth
     ? 1 + championStrategic.frontierExplorationBonusRatio
     : 1;
+  const schismExplorationMultiplier = resolveSchismUnderrealmMultiplier(
+    state,
+    'underrealmExploration',
+    { boostScale: 0.55, penaltyScale: 0.8, min: 0.3, max: 1.4 },
+  );
   const gain = (
     miners * economyConfig.explorationPerMiner
     + guards * economyConfig.explorationPerGuard
-  ) / Math.max(1, Number(layer.difficultyMultiplier || 1)) * oathMultiplier * frontierMultiplier;
+  ) / Math.max(1, Number(layer.difficultyMultiplier || 1))
+    * oathMultiplier
+    * frontierMultiplier
+    * schismExplorationMultiplier;
   layer.economy.explorationProgress = Number(layer.economy.explorationProgress || 0) + gain;
   const target = Math.max(1, Number(layer.economy.explorationTarget || 1));
   layer.economy.explored = Number(layer.economy.explorationProgress || 0) >= target;
@@ -2373,7 +2475,12 @@ function createDeepRaid(state, config, depth, layer, hostiles) {
     + hostiles.strengthPerDepth * Math.max(0, depth - 1)
   ) * depthDifficulty;
   const alchemyStrength = getAlchemyMultiplier(state, config, 'underrealmRaidStrength', 1);
-  const strength = Math.max(0, baseStrength * alchemyStrength);
+  const schismStrength = resolveSchismUnderrealmMultiplier(
+    state,
+    'underrealmRaidStrength',
+    { boostScale: 0.6, penaltyScale: 0.9, min: 0.35, max: 1.6 },
+  );
+  const strength = Math.max(0, baseStrength * alchemyStrength * schismStrength);
   return {
     depth,
     factionId: faction.id,
@@ -2441,8 +2548,17 @@ function tickDeepRaid(state, config, hostiles, raid) {
   const members = (crew.membersByDepth && crew.membersByDepth[depthKey]) || [];
   const guards = Math.max(0, Number(roleCounts.guard || 0));
   const mitigation = clamp(guards * hostiles.guardMitigationPerGuard, 0, 0.9);
+  const schismCasualtyMultiplier = resolveSchismUnderrealmMultiplier(
+    state,
+    'underrealmRaidCasualty',
+    { boostScale: 0.5, penaltyScale: 0.85, min: 0.45, max: 1.5 },
+  );
   if (members.length > 0) {
-    const casualtyChance = clamp(hostiles.casualtyRate * raid.strength * (1 - mitigation), 0, 0.95);
+    const casualtyChance = clamp(
+      hostiles.casualtyRate * raid.strength * (1 - mitigation) * schismCasualtyMultiplier,
+      0,
+      0.95,
+    );
     if (Math.random() < casualtyChance) {
       const lossRatio = clamp(hostiles.casualtySeverity * raid.strength * (1 - mitigation), 0, 1);
       const deaths = Math.max(1, Math.floor(members.length * lossRatio));
@@ -2462,12 +2578,18 @@ function tickDeepRaid(state, config, hostiles, raid) {
   }
   if (raid.ticksRemaining % hostiles.stockpileLossTickInterval === 0) {
     const alchemyLoss = getAlchemyMultiplier(state, config, 'underrealmRaidLoss', 1);
+    const schismLossMultiplier = resolveSchismUnderrealmMultiplier(
+      state,
+      'underrealmRaidLoss',
+      { boostScale: 0.5, penaltyScale: 0.85, min: 0.45, max: 1.5 },
+    );
     const wardLossMultiplier = clamp(Number(raid.wardLossMultiplier || 1), 0.05, 1);
     const ratio = clamp(
       (hostiles.stockpileLossBase + hostiles.stockpileLossPerDepth * Math.max(0, raid.depth - 1))
       * raid.strength
       * (1 - mitigation)
       * alchemyLoss
+      * schismLossMultiplier
       * wardLossMultiplier,
       0,
       0.5,

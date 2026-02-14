@@ -5,6 +5,7 @@ const { getStockpileTarget } = require("../simulation/resources");
 const { getFestivalStatus } = require("../simulation/festivals");
 const { getAlchemyStatus } = require("../simulation/alchemy");
 const { getWorldEventStatus } = require("../simulation/world_events");
+const { getSchismStatus } = require("../simulation/schism");
 const { getColorConfig, applyColor } = require("../render/colors");
 const { fitLine, wrapLine } = require("../render/format");
 
@@ -155,6 +156,7 @@ function collectTelemetrySnapshot(state, config, columnWidth, options = {}) {
   const includeMyths = options.includeMyths !== false;
   const festivalStatus = getFestivalStatus(safeState, safeConfig);
   const worldEventStatus = getWorldEventStatus(safeState, safeConfig);
+  const schismStatus = getSchismStatus(safeState, safeConfig);
   const shortages = Array.isArray(safeState.lastPriorities) ? safeState.lastPriorities : [];
   const governorSignals = getGovernorSignals(safeState);
   const stockRatioLine = [
@@ -236,6 +238,7 @@ function collectTelemetrySnapshot(state, config, columnWidth, options = {}) {
     worldEventsStats,
     festivalStatus,
     worldEventStatus,
+    schismStatus,
     shortages,
     governorSignals,
     stockRatioLine,
@@ -264,6 +267,7 @@ function buildTelemetrySectionModels(snapshot) {
         `Weather: ${formatWeatherStatus(snapshot.state.weather, snapshot.colors)}`,
         `Housing ratio: ${snapshot.housingRatio.toFixed(2)} beds per dwarf`,
         formatFestivalStatus(snapshot.festivalStatus),
+        formatSchismStatus(snapshot.schismStatus),
         formatWorldEventStatus(snapshot.worldEventStatus),
         formatContractStatus(snapshot.state, snapshot.config, snapshot.columnWidth),
         formatAlchemyStatus(snapshot.state, snapshot.config, snapshot.columnWidth),
@@ -780,12 +784,30 @@ function formatFestivalStatus(status) {
     return "Festival status: -";
   }
   const label = String(status.label || "Festival");
+  const ritualLabel = status.ritualLabel ? String(status.ritualLabel) : null;
   const ticksLeft = Math.max(0, Number(status.ticksLeft || 0));
   const duration = Math.max(0, Number(status.duration || 0));
   if (duration > 0) {
-    return `Festival status: ${label} (${ticksLeft}/${duration} ticks remaining)`;
+    return `Festival status: ${label}${ritualLabel ? ` | ${ritualLabel}` : ""} (${ticksLeft}/${duration} ticks remaining)`;
   }
-  return `Festival status: ${label} (${ticksLeft} ticks remaining)`;
+  return `Festival status: ${label}${ritualLabel ? ` | ${ritualLabel}` : ""} (${ticksLeft} ticks remaining)`;
+}
+
+// Format schism arc status with compact phase/doctrine metrics.
+function formatSchismStatus(status) {
+  if (!status || status.enabled === false) {
+    return "Schism status: off";
+  }
+  const phase = String(status.phase || "concord");
+  const doctrine = String(status.doctrine || "austerity");
+  const pressure = Math.round(clamp(Number(status.pressure || 0), 0, 1) * 100);
+  const legitimacy = Math.round(clamp(Number(status.legitimacy || 0), 0, 1) * 100);
+  const ritual = status.ritualOpen ? "ritual open" : "ritual closed";
+  const activeRitual = status.ritualActive
+    ? ` | active rite ${String(status.ritualLabel || "Rite")} (${Math.max(0, Number(status.ritualTicksLeft || 0))}t)`
+    : "";
+  const climax = status.climaxActive ? " | climax active" : "";
+  return `Schism status: ${phase}/${doctrine} | pressure ${pressure}% | legitimacy ${legitimacy}% | ${ritual}${activeRitual}${climax}`;
 }
 
 // Format one shortage line with urgency and stock ratio.
@@ -1773,6 +1795,9 @@ function buildRuinsTelemetryLines(state, config, columnWidth) {
   if (readinessGate && Number(readinessGate.depth || 0) > 0) {
     lines.push(formatRuinsReadinessGateLine(readinessGate));
   }
+  for (const line of buildRuinsReadinessCounterLines(state, columnWidth)) {
+    lines.push(line);
+  }
 
   const artifactLines = buildArtifactProgressLines(
     ruins,
@@ -1895,6 +1920,13 @@ function formatRuinsReadinessGateLine(readinessGate) {
       const required = Math.max(1, Math.floor(Number(readinessGate.minArmoryLevel || 1)));
       return `Readiness gate: D${depth} BLOCKED armory ${level}/${required}`;
     }
+    if (readinessGate.reason === "warning_deep_guard") {
+      const threshold = Math.max(
+        0,
+        Number(readinessGate.warningDeepGuardThreshold || recommended),
+      ).toFixed(1);
+      return `Readiness gate: D${depth} BLOCKED deep guard ${score}/${threshold}`;
+    }
     if (readinessGate.reason === "champion_cooldown") {
       const cooldown = Math.max(0, Math.floor(Number(readinessGate.championCooldownTicks || 0)));
       return `Readiness gate: D${depth} BLOCKED champion cd ${cooldown}t`;
@@ -1906,6 +1938,70 @@ function formatRuinsReadinessGateLine(readinessGate) {
     return `Readiness gate: D${depth} warning score ${score}/${recommended} risk x${risk}`;
   }
   return `Readiness gate: D${depth} ready score ${score}/${recommended}`;
+}
+
+// Resolve compact Underrealm readiness counter snapshot from combat stats.
+function getRuinsReadinessCounterSnapshot(state) {
+  const stats = state
+    && state.underrealm
+    && state.underrealm.combat
+    && state.underrealm.combat.stats
+    && typeof state.underrealm.combat.stats === "object"
+    ? state.underrealm.combat.stats
+    : null;
+  if (!stats) {
+    return null;
+  }
+  return {
+    hardGuardBlocks: Math.max(0, Math.floor(Number(stats.hardGuardBlocks || 0))),
+    warningDispatches: Math.max(0, Math.floor(Number(stats.warningDispatches || 0))),
+    cooldownEscalations: Math.max(0, Math.floor(Number(stats.cooldownEscalations || 0))),
+    hardGuardBlocksByDepth: stats.hardGuardBlocksByDepth || {},
+    warningDispatchesByDepth: stats.warningDispatchesByDepth || {},
+    cooldownEscalationsByDepth: stats.cooldownEscalationsByDepth || {},
+  };
+}
+
+// Render one compact per-depth counter map (`D<depth>:<count>`).
+function formatRuinsDepthCounterMap(counterMap, maxEntries = 3) {
+  const entries = Object.entries(counterMap && typeof counterMap === "object" ? counterMap : {})
+    .map(([depthRaw, countRaw]) => ({
+      depth: Math.max(1, Math.floor(Number(depthRaw || 0))),
+      count: Math.max(0, Math.floor(Number(countRaw || 0))),
+    }))
+    .filter((entry) => entry.depth > 0 && entry.count > 0)
+    .sort((left, right) => (right.count - left.count) || (left.depth - right.depth));
+  if (entries.length === 0) {
+    return "-";
+  }
+  return entries
+    .slice(0, Math.max(1, Math.floor(Number(maxEntries || 1))))
+    .map((entry) => `D${entry.depth}:${entry.count}`)
+    .join(" ");
+}
+
+// Build compact readiness counter lines for long-run underrealm diagnostics.
+function buildRuinsReadinessCounterLines(state, columnWidth) {
+  const snapshot = getRuinsReadinessCounterSnapshot(state);
+  if (!snapshot) {
+    return [];
+  }
+  const hasAny = snapshot.hardGuardBlocks > 0
+    || snapshot.warningDispatches > 0
+    || snapshot.cooldownEscalations > 0;
+  if (!hasAny) {
+    return [];
+  }
+  const lines = [];
+  const totalsLine = `Readiness counters: hard guard ${snapshot.hardGuardBlocks} | warning dispatch ${snapshot.warningDispatches} | cooldown esc ${snapshot.cooldownEscalations}`;
+  for (const line of wrapLine(totalsLine, columnWidth)) {
+    lines.push(line);
+  }
+  const depthLine = `Readiness by depth: guard ${formatRuinsDepthCounterMap(snapshot.hardGuardBlocksByDepth)} | warning ${formatRuinsDepthCounterMap(snapshot.warningDispatchesByDepth)} | cdEsc ${formatRuinsDepthCounterMap(snapshot.cooldownEscalationsByDepth)}`;
+  for (const line of wrapLine(depthLine, columnWidth)) {
+    lines.push(line);
+  }
+  return lines;
 }
 
 // Resolve one Underrealm combat floor snapshot by depth.
@@ -2780,16 +2876,19 @@ function formatTempleStageStatus(templeState, stage, maxStage) {
   if (maxStage <= 0 || !templeState || templeState.enabled === false) {
     return "Temple status: disabled";
   }
+  const doctrinePath = templeState && templeState.doctrinePath
+    ? ` | path ${String(templeState.doctrinePath)}`
+    : "";
   if (!templeState.site) {
-    return `Temple status: stage ${stage}/${maxStage} (site scan in progress)`;
+    return `Temple status: stage ${stage}/${maxStage} (site scan in progress)${doctrinePath}`;
   }
   if (stage <= 0) {
-    return `Temple status: stage 0/${maxStage} (site ready)`;
+    return `Temple status: stage 0/${maxStage} (site ready)${doctrinePath}`;
   }
   if (stage >= maxStage) {
-    return `Temple status: stage ${maxStage}/${maxStage} complete`;
+    return `Temple status: stage ${maxStage}/${maxStage} complete${doctrinePath}`;
   }
-  return `Temple status: stage ${stage}/${maxStage}`;
+  return `Temple status: stage ${stage}/${maxStage}${doctrinePath}`;
 }
 
 // Format temple build progress line while a stage is under construction.
@@ -2803,7 +2902,7 @@ function formatTempleProgressStatus(templeJob, config) {
   const stageConfig = stages[stageIndex] || {};
   const totalTicks = Math.max(
     1,
-    Math.floor(Number(stageConfig.buildTicks || templeJob.workRemaining || 1)),
+    Math.floor(Number(templeJob.totalWork || stageConfig.buildTicks || templeJob.workRemaining || 1)),
   );
   const remainingTicks = clamp(
     Math.floor(Number(templeJob.workRemaining || 0)),
@@ -2811,7 +2910,10 @@ function formatTempleProgressStatus(templeJob, config) {
     totalTicks,
   );
   const progress = clamp((totalTicks - remainingTicks) / totalTicks, 0, 1);
-  return `Temple construction progress: ${Math.round(progress * 100)}%`;
+  const path = templeJob && templeJob.templeDoctrinePath
+    ? ` | ${String(templeJob.templeDoctrinePath)}`
+    : "";
+  return `Temple construction progress: ${Math.round(progress * 100)}%${path}`;
 }
 
 module.exports = {

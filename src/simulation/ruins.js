@@ -7,6 +7,7 @@ const { pushEvent } = require('./events');
 const { getMythMultiplier } = require('./myths');
 const { getAlchemyMultiplier } = require('./alchemy');
 const { getContractRuinsCombatBonus } = require('./contracts');
+const { getSchismModifier } = require('./schism');
 const { isAdult } = require('./population');
 
 // Resolve a weighted clan bonus for an expedition effect key.
@@ -70,6 +71,9 @@ function updateRuins(state, config, runtime) {
   if (!ruins.artifactsFound) {
     ruins.artifactsFound = {};
   }
+  if (!ruins.failureHistoryByDepth || typeof ruins.failureHistoryByDepth !== 'object') {
+    ruins.failureHistoryByDepth = {};
+  }
   if (!ruins.readinessGate || typeof ruins.readinessGate !== 'object') {
     ruins.readinessGate = createDefaultReadinessGateState();
   }
@@ -131,6 +135,7 @@ function createDefaultRuinsState(ruinsConfig) {
     roomCount: rooms.length,
     expeditions: [],
     cooldown: 0,
+    failureHistoryByDepth: {},
     artifactsFound: {},
     setCounts: {},
     bonuses: {
@@ -174,6 +179,7 @@ function createDefaultReadinessGateState() {
     support: 0,
     dwarfChampionReadinessBonus: 0,
     warningRiskMultiplier: 1,
+    warningDeepGuardThreshold: 0,
     championCooldownTicks: 0,
     tick: 0,
     lastBlockedTick: 0,
@@ -328,6 +334,7 @@ function evaluateExpeditionReadinessGate(state, config, roomIndex, partySize, ki
     support: 0,
     dwarfChampionReadinessBonus: 0,
     warningRiskMultiplier: 1,
+    warningDeepGuardThreshold: 0,
     championCooldownTicks: 0,
   };
   const underrealm = state && state.underrealm;
@@ -381,11 +388,29 @@ function evaluateExpeditionReadinessGate(state, config, roomIndex, partySize, ki
     0,
     Number(dwarfChampionStrategic.readinessScoreBonus || 0),
   );
-  const score = Math.max(0, baseScore + dwarfChampionReadinessBonus);
+  const schismReadinessMultiplier = Math.max(
+    0.1,
+    Number(getSchismModifier(state, 'underrealmReadiness', 1) || 1),
+  );
+  const schismReadinessFactor = schismReadinessMultiplier >= 1
+    ? 1 + (schismReadinessMultiplier - 1) * 0.6
+    : 1 - (1 - schismReadinessMultiplier) * 0.78;
+  const schismDepthRiskFactor = schismReadinessFactor >= 1
+    ? 1
+    : clamp(
+      1 - Math.max(0, depth - 1) * (1 - schismReadinessFactor) * 0.28,
+      0.6,
+      1,
+    );
+  const score = Math.max(
+    0,
+    (baseScore + dwarfChampionReadinessBonus) * schismReadinessFactor * schismDepthRiskFactor,
+  );
 
   let status = 'ready';
   let reason = 'recommended_ready';
   let warningRiskMultiplier = 1;
+  let warningDeepGuardThreshold = 0;
   if (armoryLevel < minArmoryLevel) {
     status = 'blocked';
     reason = 'armory_level';
@@ -399,6 +424,32 @@ function evaluateExpeditionReadinessGate(state, config, roomIndex, partySize, ki
       1,
       Number(combat.readiness.warningZoneRiskMultiplier ?? 1),
     );
+    const warningZoneHardGuard = combat.readiness
+      && combat.readiness.warningZoneHardGuard
+      && typeof combat.readiness.warningZoneHardGuard === 'object'
+      ? combat.readiness.warningZoneHardGuard
+      : {};
+    const hardGuardEnabled = warningZoneHardGuard.enabled !== false;
+    const hardGuardMinDepth = Math.max(
+      1,
+      Math.floor(Number(warningZoneHardGuard.minDepth ?? 3)),
+    );
+    const hardGuardMinRecommendedScoreRatio = clamp(
+      Number(warningZoneHardGuard.minRecommendedScoreRatio ?? 0.99),
+      0,
+      1,
+    );
+    warningDeepGuardThreshold = Math.max(0, recommendedScore * hardGuardMinRecommendedScoreRatio);
+    if (
+      hardGuardEnabled
+      && depth >= hardGuardMinDepth
+      && recommendedScore > 0
+      && score < warningDeepGuardThreshold
+    ) {
+      status = 'blocked';
+      reason = 'warning_deep_guard';
+      warningRiskMultiplier = 1;
+    }
   }
   return {
     depth,
@@ -416,6 +467,7 @@ function evaluateExpeditionReadinessGate(state, config, roomIndex, partySize, ki
     support,
     dwarfChampionReadinessBonus,
     warningRiskMultiplier,
+    warningDeepGuardThreshold,
     championCooldownTicks: 0,
   };
 }
@@ -483,6 +535,20 @@ function updateReadinessGateState(state, config, gate) {
     combatStats.blockedDispatches = Number(combatStats.blockedDispatches || 0) + 1;
   }
   const depth = Math.max(1, Math.floor(Number(readinessGate.depth || 1)));
+  if (readinessGate.reason === 'warning_deep_guard') {
+    incrementUnderrealmDepthStatCounter(state, 'hardGuardBlocks', depth);
+    const score = Math.max(0, Number(readinessGate.score || 0)).toFixed(1);
+    const threshold = Math.max(
+      0,
+      Number(readinessGate.warningDeepGuardThreshold || 0),
+    ).toFixed(1);
+    pushEvent(
+      state,
+      config,
+      `Ruins: readiness gate blocked D${depth} (deep guard ${score}/${threshold})`,
+    );
+    return;
+  }
   if (readinessGate.reason === 'armory_level') {
     pushEvent(
       state,
@@ -519,6 +585,30 @@ function getUnderrealmCombatStats(state) {
     return null;
   }
   return stats;
+}
+
+// Increment one Underrealm combat counter and its optional per-depth map.
+function incrementUnderrealmDepthStatCounter(state, counterKey, depth, amount = 1) {
+  const stats = getUnderrealmCombatStats(state);
+  if (!stats || !counterKey) {
+    return;
+  }
+  const increment = Math.max(0, Math.floor(Number(amount || 0)));
+  if (increment <= 0) {
+    return;
+  }
+  const totalKey = String(counterKey);
+  const depthKey = `${totalKey}ByDepth`;
+  const safeDepth = Math.max(1, Math.floor(Number(depth || 1)));
+  stats[totalKey] = Math.max(0, Math.floor(Number(stats[totalKey] || 0))) + increment;
+  const byDepth = stats[depthKey] && typeof stats[depthKey] === 'object'
+    ? stats[depthKey]
+    : {};
+  byDepth[String(safeDepth)] = Math.max(
+    0,
+    Math.floor(Number(byDepth[String(safeDepth)] || 0)),
+  ) + increment;
+  stats[depthKey] = byDepth;
 }
 
 // Resolve dwarf-champion runtime state when Underrealm combat is available.
@@ -926,6 +1016,7 @@ function startExpedition(state, config, ruinsConfig, rooms, startContext = null)
   state.ruins.stats.started = Number(state.ruins.stats.started || 0) + 1;
   if (readinessGate.status === 'warning') {
     const depth = Math.max(1, Math.floor(Number(readinessGate.depth || roomIndex + 1)));
+    incrementUnderrealmDepthStatCounter(state, 'warningDispatches', depth);
     const score = Math.max(0, Number(readinessGate.score || 0)).toFixed(1);
     const target = Math.max(0, Number(readinessGate.recommendedScore || 0)).toFixed(1);
     pushEvent(
@@ -1471,10 +1562,115 @@ function updateDwarfChampionAfterExpedition(state, config, expedition, resultMet
   );
 }
 
+// Resolve the mapped readiness depth for one expedition.
+function resolveExpeditionReadinessDepth(expedition) {
+  return Math.max(
+    1,
+    Math.floor(
+      Number(
+        expedition
+        && expedition.readiness
+        && expedition.readiness.depth,
+      ) || 1,
+    ),
+  );
+}
+
+// Resolve failure-streak cooldown escalation settings.
+function resolveFailureStreakCooldownConfig(ruinsConfig) {
+  const expeditionConfig = ruinsConfig && ruinsConfig.expedition
+    ? ruinsConfig.expedition
+    : {};
+  const failureStreakConfig = expeditionConfig.failureStreakCooldown
+    && typeof expeditionConfig.failureStreakCooldown === 'object'
+    ? expeditionConfig.failureStreakCooldown
+    : {};
+  return {
+    enabled: failureStreakConfig.enabled !== false,
+    minDepth: Math.max(1, Math.floor(Number(failureStreakConfig.minDepth ?? 3))),
+    windowTicks: Math.max(1, Math.floor(Number(failureStreakConfig.windowTicks ?? 2200))),
+    perFailureMultiplier: Math.max(
+      0,
+      Number(failureStreakConfig.perFailureMultiplier ?? 0.8),
+    ),
+    maxMultiplier: Math.max(1, Number(failureStreakConfig.maxMultiplier ?? 4)),
+    resetOnSuccess: failureStreakConfig.resetOnSuccess === true,
+  };
+}
+
+// Keep only failure ticks newer than minTick for one depth history.
+function pruneFailureHistoryDepthTicks(history, minTick) {
+  const source = Array.isArray(history) ? history : [];
+  const pruned = [];
+  for (const tickRaw of source) {
+    const tick = Math.max(0, Math.floor(Number(tickRaw || 0)));
+    if (tick >= minTick) {
+      pruned.push(tick);
+    }
+  }
+  return pruned;
+}
+
+// Register one depth failure and return cooldown escalation metadata.
+function registerFailureDepthCooldownEscalation(ruins, ruinsConfig, depth, tick) {
+  const settings = resolveFailureStreakCooldownConfig(ruinsConfig);
+  const safeDepth = Math.max(1, Math.floor(Number(depth || 1)));
+  const safeTick = Math.max(0, Math.floor(Number(tick || 0)));
+  if (!ruins || settings.enabled === false || safeDepth < settings.minDepth) {
+    return {
+      escalated: false,
+      escalationMultiplier: 1,
+      recentFailures: 0,
+    };
+  }
+  ruins.failureHistoryByDepth = ruins.failureHistoryByDepth
+    && typeof ruins.failureHistoryByDepth === 'object'
+    ? ruins.failureHistoryByDepth
+    : {};
+  const depthKey = String(safeDepth);
+  const minTick = Math.max(0, safeTick - settings.windowTicks + 1);
+  const history = pruneFailureHistoryDepthTicks(ruins.failureHistoryByDepth[depthKey], minTick);
+  history.push(safeTick);
+  ruins.failureHistoryByDepth[depthKey] = history;
+  const recentFailures = history.length;
+  const escalationMultiplier = Math.min(
+    settings.maxMultiplier,
+    1 + Math.max(0, recentFailures - 1) * settings.perFailureMultiplier,
+  );
+  return {
+    escalated: escalationMultiplier > 1,
+    escalationMultiplier,
+    recentFailures,
+  };
+}
+
+// Optionally clear per-depth failure streak memory after a successful expedition.
+function clearFailureDepthCooldownEscalation(ruins, ruinsConfig, depth) {
+  const settings = resolveFailureStreakCooldownConfig(ruinsConfig);
+  const safeDepth = Math.max(1, Math.floor(Number(depth || 1)));
+  if (
+    !ruins
+    || !ruins.failureHistoryByDepth
+    || settings.enabled === false
+    || settings.resetOnSuccess === false
+    || safeDepth < settings.minDepth
+  ) {
+    return;
+  }
+  delete ruins.failureHistoryByDepth[String(safeDepth)];
+}
+
 function finishExpedition(state, config, ruinsConfig, expedition, success, reason, resultMeta = null) {
   const roomIndex = expedition.roomIndex;
   const room = Array.isArray(ruinsConfig.rooms) ? ruinsConfig.rooms[roomIndex] : null;
+  const tick = Math.max(0, Math.floor(Number(state.tick || 0)));
+  const readinessDepth = resolveExpeditionReadinessDepth(expedition);
   let artifactsFound = 0;
+  let cooldownEscalation = {
+    escalated: false,
+    escalationMultiplier: 1,
+    recentFailures: 0,
+  };
 
   if (success) {
     state.ruins.roomsCleared = Math.max(state.ruins.roomsCleared, roomIndex + 1);
@@ -1511,6 +1707,7 @@ function finishExpedition(state, config, ruinsConfig, expedition, success, reaso
         recomputeBonuses(state, ruinsConfig);
       }
     }
+    clearFailureDepthCooldownEscalation(state.ruins, ruinsConfig, readinessDepth);
   } else {
     state.ruins.stats.failures = Number(state.ruins.stats.failures || 0) + 1;
     const combatStats = getUnderrealmCombatStats(state);
@@ -1541,12 +1738,17 @@ function finishExpedition(state, config, ruinsConfig, expedition, success, reaso
     } else {
       pushEvent(state, config, 'Ruins: expedition failed');
     }
+    cooldownEscalation = registerFailureDepthCooldownEscalation(
+      state.ruins,
+      ruinsConfig,
+      readinessDepth,
+      tick,
+    );
   }
 
   updateDwarfChampionAfterExpedition(state, config, expedition, resultMeta);
 
   const stats = state.ruins.stats || {};
-  const tick = Number(state.tick || 0);
   if (stats.lastOutcomeTick !== tick) {
     stats.lastOutcomeTick = tick;
     stats.lastSuccesses = 0;
@@ -1568,8 +1770,35 @@ function finishExpedition(state, config, ruinsConfig, expedition, success, reaso
     const cooldownTicks = Math.max(0, Number((ruinsConfig.expedition || {}).cooldownTicks || 0));
     state.ruins.cooldown = cooldownTicks;
   } else {
-    const cooldownTicks = Math.max(0, Number((ruinsConfig.expedition || {}).failureCooldownTicks || 0));
-    state.ruins.cooldown = cooldownTicks;
+    const baseCooldownTicks = Math.max(
+      0,
+      Number((ruinsConfig.expedition || {}).failureCooldownTicks || 0),
+    );
+    const schismReadinessMultiplier = Math.max(
+      0.1,
+      Number(getSchismModifier(state, 'underrealmReadiness', 1) || 1),
+    );
+    const schismPenaltyMultiplier = schismReadinessMultiplier >= 1
+      ? 1
+      : 1 + (1 - schismReadinessMultiplier) * 2.1;
+    const depthPenaltyMultiplier = 1 + Math.max(0, readinessDepth - 1) * 0.18;
+    const adaptiveCooldownTicks = Math.floor(
+      baseCooldownTicks * schismPenaltyMultiplier * depthPenaltyMultiplier,
+    );
+    const escalationMultiplier = Math.max(
+      1,
+      Number(cooldownEscalation.escalationMultiplier || 1),
+    );
+    const escalatedCooldownTicks = Math.floor(adaptiveCooldownTicks * escalationMultiplier);
+    state.ruins.cooldown = Math.max(baseCooldownTicks, adaptiveCooldownTicks, escalatedCooldownTicks);
+    if (cooldownEscalation.escalated) {
+      incrementUnderrealmDepthStatCounter(state, 'cooldownEscalations', readinessDepth);
+      pushEvent(
+        state,
+        config,
+        `Ruins: depth D${readinessDepth} failure streak cooldown x${escalationMultiplier.toFixed(2)} (${cooldownEscalation.recentFailures} recent)`,
+      );
+    }
   }
 
 }

@@ -7,6 +7,7 @@ const { getMythMultiplier } = require('./myths');
 const { getAlchemyMultiplier } = require('./alchemy');
 const { getContractRaidDeathRateReduction } = require('./contracts');
 const { getTempleRaidDefenseBonus } = require('./temple');
+const { getSchismModifier } = require('./schism');
 const { shuffleInPlace } = require('./random');
 const { isAdult } = require('./population');
 const { moveDwarf, findEdgeWalkablePosition, findAnyWalkablePosition } = require('./movement');
@@ -183,7 +184,12 @@ function finishRaid(state, config, raidState) {
   const towerDefense = clamp(towerCount * towerDefensePer, 0, towerDefenseMax);
   const clanDefenseBonus = getClanRaidBonus(state, config, 'raid_defense_bonus');
   const templeDefenseBonus = getTempleRaidDefenseBonus(state, config);
-  const totalDefense = clamp(defense + towerDefense + clanDefenseBonus + templeDefenseBonus, 0, 1);
+  const schismDefenseMultiplier = Math.max(0.1, Number(getSchismModifier(state, 'raidDefense', 1) || 1));
+  const totalDefense = clamp(
+    (defense + towerDefense + clanDefenseBonus + templeDefenseBonus) * schismDefenseMultiplier,
+    0,
+    1,
+  );
 
   const difficulty = getRaidDifficulty(config, state);
   const deathConfig = raidConfig.deathRate || {};
@@ -197,6 +203,7 @@ function finishRaid(state, config, raidState) {
       * (1 - totalDefense)
       * mythDeathMultiplier
       * alchemyDeathMultiplier
+      * getSchismModifier(state, 'raidDeathRate', 1)
       * (1 - contractReduction),
     0,
     1,
@@ -227,7 +234,15 @@ function finishRaid(state, config, raidState) {
   const baseLoss = lerp(lossMin, lossMax, difficulty);
   const mythLossMultiplier = getMythMultiplier(state, config, 'raidResourceLoss', 1);
   const alchemyLossMultiplier = getAlchemyMultiplier(state, config, 'raidResourceLoss', 1);
-  const lossRatio = clamp(baseLoss * (1 - totalDefense) * mythLossMultiplier * alchemyLossMultiplier, 0, 1);
+  const lossRatio = clamp(
+    baseLoss
+      * (1 - totalDefense)
+      * mythLossMultiplier
+      * alchemyLossMultiplier
+      * getSchismModifier(state, 'raidResourceLoss', 1),
+    0,
+    1,
+  );
   const stolen = applyRaidResourceLoss(state, lossRatio, lossConfig.weights || {});
   addRaidLoot(raidStats, stolen);
   const stolenLabel = formatRaidLoot(stolen);

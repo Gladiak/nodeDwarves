@@ -1924,6 +1924,11 @@
       "readiness": {
         "hard_min_gate": true,
         "warning_zone_risk_multiplier": 1.25,
+        "warning_zone_hard_guard": {
+          "enabled": true,
+          "min_depth": 4,
+          "min_recommended_score_ratio": 0.99
+        },
         "score_weights": {
           "offense": 1,
           "defense": 1,
@@ -1940,7 +1945,7 @@
         "rounds_base": 4,
         "rounds_per_depth": 1,
         "retry_cooldown_ticks_base": 90,
-        "retry_cooldown_ticks_per_depth": 22
+        "retry_cooldown_ticks_per_depth": 30
       },
       "dwarf_champion": {
         "enabled": true,
@@ -3467,6 +3472,30 @@
         "stone": 0.85
       },
       "minArtifactCompletionRatio": 0.35,
+      "doctrine_path": {
+        "enabled": true,
+        "default_path": "follow_schism",
+        "austerity": {
+          "buildCostMultiplier": 1.07,
+          "buildTicksMultiplier": 1.05,
+          "prestigeMultiplier": 1.08,
+          "effects": {
+            "outputBonusMultiplier": 1.25,
+            "needDecayReductionMultiplier": 0.85,
+            "raidDefenseBonusMultiplier": 1.35
+          }
+        },
+        "revelry": {
+          "buildCostMultiplier": 0.93,
+          "buildTicksMultiplier": 0.9,
+          "prestigeMultiplier": 0.97,
+          "effects": {
+            "outputBonusMultiplier": 0.82,
+            "needDecayReductionMultiplier": 1.42,
+            "raidDefenseBonusMultiplier": 0.78
+          }
+        }
+      },
       "reserveMaxFootprint": true,
       "outputApplyTo": [
         "wood",
@@ -3590,6 +3619,14 @@
       "minPopulation": 10,
       "cooldownTicks": 40,
       "failureCooldownTicks": 80,
+      "failureStreakCooldown": {
+        "enabled": true,
+        "minDepth": 3,
+        "windowTicks": 1600,
+        "perFailureMultiplier": 0.35,
+        "maxMultiplier": 2.5,
+        "resetOnSuccess": true
+      },
       "partySizeMin": 3,
       "partySizeMax": 7,
       "maxConcurrentAfterClear": 3,
@@ -4209,23 +4246,347 @@
     "enabled": true,
     "label": "Seasonal Festival",
     "seasonNames": ["spring", "autumn"],
-    "seasonWindowTicks": 20,
-    "durationTicks": 40,
+    "seasonWindowTicks": 28,
+    "durationTicks": 52,
     "cooldownSeasons": 0,
     "minPopulation": 12,
     "blockDuringRaid": true,
-    "minStockpileRatios": {},
-    "costs": {
-      "beer": 400
+    "minStockpileRatios": {
+      "water": 0.7,
+      "food": 0.6
     },
-    "minCostRatio": 2.5,
+    "costs": {
+      "beer": 260
+    },
+    "minCostRatio": 1.8,
     "effects": {
-      "needDecay": 0.85,
-      "gatherYield": 1.45
+      "needDecay": 0.88,
+      "gatherYield": 1.35
     },
     "ai": {
       "enabled": true,
       "intentThreshold": 0.45
+    }
+  },
+  "schism": {
+    "enabled": true,
+    "start_doctrine": "austerity",
+    "start_pressure": 0.22,
+    "start_legitimacy": 0.46,
+    "phase_thresholds": {
+      "murmurs": 0.34,
+      "fracture": 0.58,
+      "reckoning": 0.79
+    },
+    "pressure": {
+      "target": 0.34,
+      "drift_per_tick": 0.00085,
+      "shortage_score_divisor": 2.4,
+      "shortage_weight": 0.014,
+      "low_morale_weight": 0.009,
+      "raid_active_weight": 0.004,
+      "deep_raid_active_weight": 0.005,
+      "festival_relief_per_tick": 0.0025,
+      "temple_relief_per_stage_tick": 0.0006,
+      "raid_start_shock": 0.08,
+      "world_failure_shock": 0.05,
+      "contract_failure_shock": 0.045,
+      "deep_raid_start_shock": 0.07,
+      "raid_death_shock_per_dwarf": 0.004,
+      "deep_raid_death_shock_per_dwarf": 0.006
+    },
+    "legitimacy": {
+      "passive_decay_per_tick": 0.00045,
+      "pressure_decay_scale": 0.00035,
+      "festival_gain_per_tick": 0.0014,
+      "temple_gain_per_stage_tick": 0.0004,
+      "contract_success_gain": 0.03,
+      "contract_failure_loss": 0.045,
+      "world_success_gain": 0.018,
+      "world_failure_loss": 0.026,
+      "raid_death_loss_per_dwarf": 0.01,
+      "deep_raid_death_loss_per_dwarf": 0.014
+    },
+    "doctrine": {
+      "switch_cooldown_ticks": 120,
+      "switch_only_on_new_season": true,
+      "austerity_enter_stock_floor": 0.72,
+      "austerity_exit_stock_floor": 0.82,
+      "austerity_enter_shortage_score": 2.1,
+      "austerity_exit_shortage_score": 1.45,
+      "austerity_enter_legitimacy_floor": 0.28,
+      "austerity_exit_legitimacy_floor": 0.42,
+      "austerity_stock_floor": 0.72,
+      "austerity_shortage_score": 2.1,
+      "austerity_legitimacy_floor": 0.28,
+      "revelry_enter_morale_floor": 0.52,
+      "revelry_exit_morale_floor": 0.6,
+      "revelry_enter_beer_ratio_min": 0.55,
+      "revelry_exit_beer_ratio_min": 0.46,
+      "revelry_enter_pressure_threshold": 0.63,
+      "revelry_exit_pressure_threshold": 0.54,
+      "revelry_enter_stock_floor_min": 0.55,
+      "revelry_exit_stock_floor_min": 0.5,
+      "revelry_morale_floor": 0.52,
+      "revelry_beer_ratio_min": 0.55,
+      "revelry_pressure_threshold": 0.63,
+      "revelry_stock_floor_min": 0.55
+    },
+    "ritual_windows": {
+      "enabled": true,
+      "season_names": ["spring", "autumn"],
+      "window_ticks": 28,
+      "min_legitimacy": 0.22,
+      "max_pressure": 0.92,
+      "festival_intent_fallback": 0.62,
+      "festival_intent_by_doctrine": {
+        "austerity": 0.58,
+        "revelry": 0.72
+      },
+      "min_ticks_between_council_festivals": 180,
+      "announce_at_open": true
+    },
+    "rituals": {
+      "enabled": true,
+      "duration_mode": "season",
+      "duration_ticks": 220,
+      "allow_ai_source": true,
+      "repeat_protection": {
+        "enabled": true,
+        "recent_window": 3,
+        "same_ritual_weight_multiplier": 0.42,
+        "cooldown_ticks": 180
+      },
+      "history_limit": 16,
+      "definitions": {
+        "prosperity": {
+          "enabled": true,
+          "label": "Rite of Prosperity",
+          "weight": 1.1,
+          "doctrine_weight": {
+            "austerity": 0.8,
+            "revelry": 1.4
+          },
+          "costs": {
+            "beer": 55,
+            "food": 28
+          },
+          "min_stockpile_ratios": {
+            "food": 0.65,
+            "water": 0.67
+          },
+          "effects": {
+            "gatherYield": 1.08,
+            "outputBonus": 1.06,
+            "needDecay": 0.985
+          },
+          "festival_effects": {
+            "gatherYield": 1.06,
+            "needDecay": 0.965
+          },
+          "deltas": {
+            "pressure": -0.04,
+            "legitimacy": 0.05
+          },
+          "context": {
+            "stock_floor_below": 0.75,
+            "pressure_scale": 0.5,
+            "stock_floor_bonus": 0.2
+          }
+        },
+        "war": {
+          "enabled": true,
+          "label": "Rite of Iron Oaths",
+          "weight": 0.95,
+          "doctrine_weight": {
+            "austerity": 1.45,
+            "revelry": 0.75
+          },
+          "costs": {
+            "beer": 35,
+            "iron": 22,
+            "stone": 24
+          },
+          "min_stockpile_ratios": {
+            "water": 0.64
+          },
+          "effects": {
+            "raidDefense": 1.14,
+            "gatherYield": 0.98,
+            "needDecay": 1.015,
+            "outputBonus": 1.03
+          },
+          "festival_effects": {
+            "gatherYield": 0.96
+          },
+          "deltas": {
+            "pressure": 0.02,
+            "legitimacy": 0.035
+          },
+          "context": {
+            "raid_required": true,
+            "raid_bonus": 0.75,
+            "deep_raid_bonus": 0.45,
+            "pressure_scale": 0.35
+          }
+        },
+        "atonement": {
+          "enabled": true,
+          "label": "Rite of Atonement",
+          "weight": 1,
+          "doctrine_weight": {
+            "austerity": 0.95,
+            "revelry": 0.95
+          },
+          "costs": {
+            "beer": 45,
+            "water": 52
+          },
+          "min_stockpile_ratios": {
+            "water": 0.7
+          },
+          "effects": {
+            "needDecay": 0.97,
+            "gatherTicks": 0.98,
+            "outputBonus": 0.97
+          },
+          "festival_effects": {
+            "needDecay": 0.95
+          },
+          "deltas": {
+            "pressure": -0.07,
+            "legitimacy": 0.07
+          },
+          "context": {
+            "pressure_min": 0.52,
+            "legitimacy_max": 0.55,
+            "pressure_scale": 0.55,
+            "legitimacy_scale": 0.7,
+            "shortage_scale": 0.2
+          }
+        }
+      }
+    },
+    "festival": {
+      "cost_multiplier": {
+        "austerity": 1.18,
+        "revelry": 0.86
+      },
+      "effect_multiplier": {
+        "austerity": 0.94,
+        "revelry": 1.14
+      }
+    },
+    "temple": {
+      "legitimacy_path_enabled": true,
+      "min_legitimacy_by_stage": [0.32, 0.45, 0.58, 0.7]
+    },
+    "modifiers": {
+      "phase": {
+        "concord": {
+          "needDecay": 1,
+          "gatherYield": 1,
+          "gatherTicks": 1,
+          "nodeRegen": 1,
+          "fieldRegen": 1,
+          "outputBonus": 1,
+          "underrealmExploration": 1,
+          "underrealmReadiness": 1,
+          "underrealmRaidStrength": 1,
+          "underrealmRaidLoss": 1,
+          "underrealmRaidCasualty": 1,
+          "underrealmMorale": 1
+        },
+        "murmurs": {
+          "needDecay": 1.015,
+          "gatherYield": 0.995,
+          "gatherTicks": 1.01,
+          "nodeRegen": 1,
+          "fieldRegen": 1,
+          "outputBonus": 1,
+          "underrealmExploration": 0.99,
+          "underrealmReadiness": 1,
+          "underrealmRaidStrength": 1.01,
+          "underrealmRaidLoss": 1.01,
+          "underrealmRaidCasualty": 1.01,
+          "underrealmMorale": 0.99
+        },
+        "fracture": {
+          "needDecay": 1.035,
+          "gatherYield": 0.98,
+          "gatherTicks": 1.03,
+          "nodeRegen": 0.98,
+          "fieldRegen": 0.98,
+          "outputBonus": 0.99,
+          "underrealmExploration": 0.96,
+          "underrealmReadiness": 0.97,
+          "underrealmRaidStrength": 1.025,
+          "underrealmRaidLoss": 1.03,
+          "underrealmRaidCasualty": 1.03,
+          "underrealmMorale": 0.96
+        },
+        "reckoning": {
+          "needDecay": 1.06,
+          "gatherYield": 0.95,
+          "gatherTicks": 1.06,
+          "nodeRegen": 0.95,
+          "fieldRegen": 0.95,
+          "outputBonus": 0.97,
+          "underrealmExploration": 0.92,
+          "underrealmReadiness": 0.94,
+          "underrealmRaidStrength": 1.05,
+          "underrealmRaidLoss": 1.05,
+          "underrealmRaidCasualty": 1.06,
+          "underrealmMorale": 0.93
+        }
+      },
+      "doctrine": {
+        "austerity": {
+          "needDecay": 1.01,
+          "gatherYield": 1.02,
+          "gatherTicks": 1.01,
+          "outputBonus": 1.03,
+          "underrealmExploration": 0.99,
+          "underrealmReadiness": 1.05,
+          "underrealmRaidStrength": 0.96,
+          "underrealmRaidLoss": 0.99,
+          "underrealmRaidCasualty": 0.97,
+          "underrealmMorale": 0.96
+        },
+        "revelry": {
+          "needDecay": 0.99,
+          "gatherYield": 0.99,
+          "gatherTicks": 0.98,
+          "outputBonus": 0.99,
+          "underrealmExploration": 1.04,
+          "underrealmReadiness": 1,
+          "underrealmRaidStrength": 1.01,
+          "underrealmRaidLoss": 0.99,
+          "underrealmRaidCasualty": 1,
+          "underrealmMorale": 1.1
+        }
+      },
+      "climax": {
+        "needDecay": 1.09,
+        "gatherYield": 0.93,
+        "gatherTicks": 1.07,
+        "outputBonus": 0.95,
+        "underrealmExploration": 0.88,
+        "underrealmReadiness": 0.93,
+        "underrealmRaidStrength": 1.08,
+        "underrealmRaidLoss": 1.08,
+        "underrealmRaidCasualty": 1.08,
+        "underrealmMorale": 0.9
+      }
+    },
+    "climax": {
+      "enabled": true,
+      "trigger_pressure": 0.84,
+      "trigger_legitimacy": 0.38,
+      "duration_ticks": 90,
+      "resolution_pressure_drop": 0.22,
+      "resolution_legitimacy_gain": 0.09,
+      "allow_multiple": false
     }
   },
   "worldEvents": {

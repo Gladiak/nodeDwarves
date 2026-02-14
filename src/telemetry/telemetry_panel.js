@@ -7,6 +7,7 @@ const { getStockpileTarget } = require('../simulation/resources');
 const { getFestivalStatus } = require('../simulation/festivals');
 const { getAlchemyStatus } = require('../simulation/alchemy');
 const { getWorldEventStatus } = require('../simulation/world_events');
+const { getSchismStatus } = require('../simulation/schism');
 const {
   buildTelemetrySections,
   formatColumns,
@@ -84,7 +85,7 @@ const TELEMETRY_PANEL_PAGES = [
   {
     id: 'overview_deep',
     title: 'Overview + Deep',
-    subtitle: 'Core world, underrealm combat gates, population, pressure, lore, and deep signals.',
+    subtitle: 'Core world, underrealm combat gates/readiness counters, population, pressure, lore, and deep signals.',
     sections: ['world', 'underrealm', 'population', 'lore', 'pressure', 'deepSignals'],
     preferredColumns: 2,
     minColumnWidth: 38,
@@ -560,6 +561,7 @@ function collectDashboardSnapshot(state, config, alertState, alertConfig) {
   const festivalStatus = getFestivalStatus(safeState, safeConfig);
   const alchemyStatus = getAlchemyStatus(safeState, safeConfig);
   const worldEventStatus = getWorldEventStatus(safeState, safeConfig);
+  const schismStatus = getSchismStatus(safeState, safeConfig);
   const worldEventsState = safeState.worldEvents && typeof safeState.worldEvents === 'object'
     ? safeState.worldEvents
     : null;
@@ -595,6 +597,7 @@ function collectDashboardSnapshot(state, config, alertState, alertConfig) {
     festivalStatus,
     alchemyStatus,
     worldEventStatus,
+    schismStatus,
     worldEventsState,
     contract,
     risk,
@@ -611,6 +614,7 @@ function buildDashboardKpiRows(snapshot) {
     `Morale ${formatRatioPct(snapshot.moraleRatio)} | Stress ${formatRatioPct(snapshot.stressRatio)} | Stock floor ${formatRatioPct(snapshot.stockMinRatio)}`,
     `Risk ${snapshot.alertLevel.toUpperCase()} (${snapshot.alertCause}) | Score ${formatRatioPct(snapshot.risk.score)}`,
     `Underrealm ${underrealmText} | Deep raids ${snapshot.underrealm.deepRaidCount}`,
+    `Schism ${buildContextSchismSummary(snapshot)}`,
     `${snapshot.food.label} ${formatRatioPct(snapshot.food.ratio)} | ${snapshot.water.label} ${formatRatioPct(snapshot.water.ratio)} | ${snapshot.beer.label} ${formatRatioPct(snapshot.beer.ratio)}`,
   ];
 }
@@ -861,6 +865,8 @@ function buildDashboardTimelineRows(snapshot) {
   } else {
     rows.push('Festival: off');
   }
+
+  rows.push(`Schism: ${buildContextSchismSummary(snapshot)}`);
 
   if (snapshot.alchemyStatus && snapshot.alchemyStatus.mode === 'active') {
     const label = String(snapshot.alchemyStatus.label || 'Rite');
@@ -1626,7 +1632,7 @@ function buildOverviewContextRows(snapshot, history, deltaWindowTicks) {
     `Frontier posture: ${underrealmText}`,
     `Raid status: surface ${snapshot.alertState.raidActive ? 'ACTIVE' : 'off'} | deep ${snapshot.alertState.deepRaidActive ? 'ACTIVE' : 'off'}`,
     `Core stock floor: ${formatRatioPct(snapshot.stockMinRatio)} | ${snapshot.food.label} ${formatRatioPct(snapshot.food.ratio)} | ${snapshot.water.label} ${formatRatioPct(snapshot.water.ratio)} | ${snapshot.beer.label} ${formatRatioPct(snapshot.beer.ratio)}`,
-    `Timeline: contract ${buildContextContractSummary(snapshot)} | event ${buildContextWorldEventSummary(snapshot)}`,
+    `Timeline: contract ${buildContextContractSummary(snapshot)} | event ${buildContextWorldEventSummary(snapshot)} | schism ${buildContextSchismSummary(snapshot)}`,
   ];
 }
 
@@ -1655,7 +1661,7 @@ function buildEconomyContextRows(snapshot, history, deltaWindowTicks) {
     `Trend context (${formatCompactNumber(deltaWindowTicks)}t): ${snapshot.food.label} ${foodDelta} | ${snapshot.water.label} ${waterDelta} | ${snapshot.beer.label} ${beerDelta} | risk ${riskDelta}`,
     `Workforce load: utilization ${formatRatioPct(utilization)} | active jobs ${snapshot.jobMix.total} | I${snapshot.workforce.idle} J${snapshot.workforce.job} U${snapshot.workforce.under} E${snapshot.workforce.exped}`,
     `Shortage drivers: primary ${buildContextShortageSummary(snapshot.shortages[0])} | secondary ${buildContextShortageSummary(snapshot.shortages[1])}`,
-    `Ops clocks: contract ${buildContextContractSummary(snapshot)} | festival ${buildContextFestivalSummary(snapshot)} | alchemy ${buildContextAlchemySummary(snapshot)}`,
+    `Ops clocks: contract ${buildContextContractSummary(snapshot)} | festival ${buildContextFestivalSummary(snapshot)} | schism ${buildContextSchismSummary(snapshot)} | alchemy ${buildContextAlchemySummary(snapshot)}`,
   ];
 }
 
@@ -1691,6 +1697,24 @@ function buildContextWorldEventSummary(snapshot) {
   }
   const tick = Math.max(0, Number(snapshot && snapshot.tick || 0));
   return `next ${Math.max(0, nextSpawnTick - tick)}t`;
+}
+
+// Build one compact schism summary token for context blocks.
+function buildContextSchismSummary(snapshot) {
+  if (!(snapshot && snapshot.schismStatus && snapshot.schismStatus.enabled !== false)) {
+    return 'off';
+  }
+  const schism = snapshot.schismStatus;
+  const phase = String(schism.phase || 'concord');
+  const doctrine = String(schism.doctrine || 'austerity');
+  const pressure = Math.round(clampUnit(schism.pressure, 0) * 100);
+  const legitimacy = Math.round(clampUnit(schism.legitimacy, 0) * 100);
+  const ritual = schism.ritualOpen ? 'ritual' : 'quiet';
+  const activeRitual = schism.ritualActive
+    ? `:${String(schism.ritualLabel || 'rite').slice(0, 6).toLowerCase()}`
+    : '';
+  const climax = schism.climaxActive ? '+crisis' : '';
+  return `${phase}/${doctrine} p${pressure} l${legitimacy} ${ritual}${activeRitual}${climax}`;
 }
 
 // Build one compact festival summary token for context blocks.
