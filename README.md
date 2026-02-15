@@ -21,6 +21,7 @@ Think of it as a living systems sandbox: you tune config, press run, and watch t
 - 🏘️ Village growth with structures, roads, and organic placement.
 - 🌦️ Seasons, weather, festivals, and wildlife that shift priorities (raids optional).
 - 📜 Merchant trading, caravan contracts, and faction reputation.
+- ⛺ Long-lived external faction camps: trade hubs, militia outposts, and raider pressure points with tuned cadence/hostility for livelier but stable long runs.
 - 🎭 World events now live: traveling bards, rival caravans, and short-deadline opportunities.
 - 🔥 Schism arc per run: doctrine shifts with hysteresis, branching anti-repeat festival rituals, social pressure/legitimacy swings, and climax moments that can reshape the economy.
 - 🗝️ Endgame ruins expeditions with artifacts, set bonuses, and cycle resets.
@@ -158,6 +159,7 @@ npm run balance:gate:standard -- --set jobs.gatherTriggerRatio.food=1.1 --set jo
 - `src/`: simulation, state, rendering, AI.
 - `src/simulation/underrealm.js`: Underrealm crew, shrine doctrine, deep economy, exploration unlocks, and hostile faction pressure.
 - `src/simulation/world_events.js`: world event lifecycle for bards, rival caravans, and time-limited opportunities.
+- `src/simulation/external_camps.js`: long-lived external faction camps with trade, militia support, and raider pressure.
 - `src/simulation/schism.js`: run-scale social schism arc (pressure/legitimacy, doctrine shifts, ritual festivals, and climax events).
 - `src/simulation/alchemy.js`: alchemy rites, pact lifecycle, and backlash logic.
 - `src/simulation/temple.js`: Temple of Ancestors stages, map footprint, and prestige system.

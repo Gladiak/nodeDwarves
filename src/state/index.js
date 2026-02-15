@@ -1747,6 +1747,7 @@ function createInitialState(config, runtime) {
   const alchemy = createAlchemyState(config);
   const festival = createFestivalState(config);
   const worldEvents = createWorldEventsState(config);
+  const externalCamps = createExternalCampsState(config);
   const wildlife = createWildlifeState(config);
   const roads = createRoadState(config, runtime);
   const temple = createTempleState(config);
@@ -1773,6 +1774,7 @@ function createInitialState(config, runtime) {
     alchemy,
     festival,
     worldEvents,
+    externalCamps,
     pasture,
     wildlife,
     terrain,
@@ -1898,6 +1900,74 @@ function createWorldEventsState(config) {
         rival_caravans: { spawned: 0, completed: 0, failed: 0, expired: 0 },
         limited_opportunities: { spawned: 0, completed: 0, failed: 0, expired: 0 },
       },
+    },
+  };
+}
+
+// Create the initial external camps state.
+function createExternalCampsState(config) {
+  const externalConfig = (config && config.externalCamps) || {};
+  if (externalConfig.enabled !== true) {
+    return null;
+  }
+  const spawnRange = externalConfig.spawnRangeTicks || {};
+  const minSpawn = Math.max(0, Number(spawnRange.min ?? 420));
+  const maxSpawn = Math.max(minSpawn, Number(spawnRange.max ?? minSpawn));
+  return {
+    camps: [],
+    nextSpawnTick: randomBetween(minSpawn, maxSpawn),
+    cooldownUntilTick: 0,
+    factionCooldownById: {},
+    counter: 1,
+    history: [],
+    stats: {
+      spawned: 0,
+      departed: 0,
+      skirmishes: 0,
+      losses: {},
+      byRole: {
+        trade: {
+          spawned: 0,
+          departed: 0,
+          actions: 0,
+          rejected: 0,
+          paid: 0,
+          defenseTicks: 0,
+          given: {},
+          received: {},
+          losses: {},
+        },
+        militia: {
+          spawned: 0,
+          departed: 0,
+          actions: 0,
+          rejected: 0,
+          paid: 0,
+          defenseTicks: 0,
+          given: {},
+          received: {},
+          losses: {},
+        },
+        raider: {
+          spawned: 0,
+          departed: 0,
+          actions: 0,
+          rejected: 0,
+          paid: 0,
+          defenseTicks: 0,
+          given: {},
+          received: {},
+          losses: {},
+        },
+      },
+    },
+    modifiers: {
+      merchantTradeRate: 1,
+      contractReward: 1,
+      raidDefenseBonus: 0,
+      raidDeathRate: 1,
+      raidResourceLoss: 1,
+      raiderPressure: 0,
     },
   };
 }
@@ -2508,6 +2578,10 @@ function fitStateToGrid(state, runtime, config) {
   if (state.merchant && state.merchant.phase && state.merchant.phase !== 'idle') {
     clampMerchantState(state.merchant, runtime);
   }
+
+  if (state.externalCamps && Array.isArray(state.externalCamps.camps)) {
+    clampExternalCampsState(state.externalCamps, runtime);
+  }
 }
 
 // Sync terrain data to the current runtime grid size.
@@ -2654,6 +2728,23 @@ function clampMerchantState(merchant, runtime) {
   }
   if (merchant.exitTarget) {
     merchant.exitTarget = clampPoint(merchant.exitTarget, runtime);
+  }
+}
+
+// Clamp external camp positions inside the map bounds.
+function clampExternalCampsState(externalCamps, runtime) {
+  const camps = Array.isArray(externalCamps && externalCamps.camps) ? externalCamps.camps : [];
+  for (const camp of camps) {
+    if (!camp || typeof camp !== 'object') {
+      continue;
+    }
+    const radius = Math.max(0, Math.floor(Number(camp.radius || 0)));
+    const minX = Math.min(runtime.gridWidth - 1, Math.max(0, radius));
+    const maxX = Math.max(minX, runtime.gridWidth - 1 - radius);
+    const minY = Math.min(runtime.gridHeight - 1, Math.max(0, radius));
+    const maxY = Math.max(minY, runtime.gridHeight - 1 - radius);
+    camp.x = clamp(Number(camp.x || 0), minX, maxX);
+    camp.y = clamp(Number(camp.y || 0), minY, maxY);
   }
 }
 

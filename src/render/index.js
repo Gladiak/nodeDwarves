@@ -50,6 +50,63 @@ function getUnderrealmGateRenderData(state, config) {
   return { x, y, symbol, colorKey };
 }
 
+// Resolve center symbol and color key for an external camp role.
+function getExternalCampRenderStyle(symbols, role) {
+  if (role === 'militia') {
+    return {
+      symbol: String(symbols.external_camp_militia || 'M'),
+      colorKey: 'external_camp_militia',
+    };
+  }
+  if (role === 'raider') {
+    return {
+      symbol: String(symbols.external_camp_raider || 'R'),
+      colorKey: 'external_camp_raider',
+    };
+  }
+  return {
+    symbol: String(symbols.external_camp_trade || 'T'),
+    colorKey: 'external_camp_trade',
+  };
+}
+
+// Draw external camp footprints and role symbols on the surface map.
+function renderExternalCamps(grid, state, config, colors, symbols) {
+  const external = state && state.externalCamps && typeof state.externalCamps === 'object'
+    ? state.externalCamps
+    : null;
+  const camps = external && Array.isArray(external.camps) ? external.camps : [];
+  if (camps.length === 0) {
+    return;
+  }
+  const outlineSymbol = String(symbols.external_camp_outline || '^');
+
+  for (const camp of camps) {
+    if (!camp || camp.phase === 'withdrawing') {
+      continue;
+    }
+    const radius = Math.max(0, Math.floor(Number(camp.radius || 1)));
+    const centerX = Math.floor(Number(camp.x || 0));
+    const centerY = Math.floor(Number(camp.y || 0));
+    const style = getExternalCampRenderStyle(symbols, camp.role);
+
+    for (let dy = -radius; dy <= radius; dy += 1) {
+      for (let dx = -radius; dx <= radius; dx += 1) {
+        const x = centerX + dx;
+        const y = centerY + dy;
+        if (!grid[y] || grid[y][x] === undefined) {
+          continue;
+        }
+        if (dx === 0 && dy === 0) {
+          grid[y][x] = applyColor(style.symbol, style.colorKey, colors);
+          continue;
+        }
+        grid[y][x] = applyColor(outlineSymbol, 'external_camp_outline', colors);
+      }
+    }
+  }
+}
+
 // Resolve one underrealm terrain layer by depth.
 function getUnderrealmLayerByDepth(state, depth) {
   const underrealm = state && state.underrealm;
@@ -636,6 +693,8 @@ function renderFrame(state, config, runtime) {
         colors,
       );
     }
+
+    renderExternalCamps(grid, state, config, colors, symbols);
 
     const visibleDwarves = selectVisibleDwarves(state, config, runtime);
     for (const dwarf of visibleDwarves) {

@@ -35,6 +35,7 @@ const { updateVillages } = require('./villages');
 const { updateRoads } = require('./roads');
 const { updateUnderrealm } = require('./underrealm');
 const { updateWorldEvents, getWorldEventModifier } = require('./world_events');
+const { updateExternalCamps } = require('./external_camps');
 const { clamp } = require('../utils');
 
 const BUILD_CLASS_ORDER = ['housing', 'economy', 'defense', 'special'];
@@ -50,6 +51,7 @@ function stepState(state, config, runtime, action, options = {}) {
   updateWeather(state, config);
   updateRaidStart(state, config, runtime);
   updateWorldEvents(state, config, runtime, resolvedAction);
+  updateExternalCamps(state, config, runtime, resolvedAction);
   updateSchism(state, config);
   updateFestivals(state, config, runtime, resolvedAction);
   updateContracts(state, config, runtime);

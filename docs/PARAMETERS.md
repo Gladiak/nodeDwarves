@@ -303,6 +303,7 @@ Display and layout:
 - `display.colors.enabled`: enable ANSI colors in the render.
 - `display.colors.reset`: ANSI reset sequence (defaults to `\u001b[0m`).
 - `display.colors.map.<key>`: ANSI color for an entity key (e.g. `dwarf`, `merchant`, `house`, `alchemy_lab`, `food`, `hud_header`).
+- `display.colors.map.external_camp_trade|external_camp_militia|external_camp_raider|external_camp_outline`: colors for external camp role markers and footprint outline.
 - `display.colors.map.weather_<type>`: ANSI color for telemetry weather labels (e.g. `weather_rain`).
 - `display.colors.map.terrain_<type>`: ANSI color for terrain tiles (`terrain_river`, `terrain_lake`, `terrain_road`, `terrain_bridge`, `terrain_ford`, `terrain_mountain`, `terrain_hill`, `terrain_plain`, `terrain_fertile`, `terrain_food`, `terrain_forest`, `terrain_stone`).
 - `display.colors.map.terrain_wall|terrain_cave|terrain_corridor|terrain_chasm|terrain_crystal|terrain_magma|terrain_shrine`: dedicated underrealm terrain colors (used when depth view is active; unaffected by seasonal palettes).
@@ -421,6 +422,61 @@ Contracts:
 - `contracts.factions.<id>.label`: display label for the faction.
 - `contracts.factions.<id>.role`: `production` or `war` (determines the boon type).
 - `contracts.factions.<id>.mineral`: mineral reward id granted at high reputation.
+
+External Camps:
+
+- `externalCamps.enabled`: enable long-lived external faction camps.
+- `externalCamps.minTick`: minimum tick before external camps can spawn.
+- `externalCamps.spawnRangeTicks.min|max`: spawn cadence range for camp spawn checks.
+- `externalCamps.maxActive`: maximum simultaneously active camps.
+- `externalCamps.globalCooldownTicks`: global cooldown after each camp spawn.
+- `externalCamps.historyLimit`: max retained history entries in `state.externalCamps.history` (`0` = unlimited).
+- `externalCamps.blockDuringRaid`: block new camp spawns while a surface raid is active.
+- `externalCamps.footprintRadius`: rendered/placement footprint radius (`1` = 3x3 footprint).
+- `externalCamps.minDistanceBetween`: minimum Manhattan distance between active camp centers.
+- `externalCamps.minDistanceFromVillage`: minimum Manhattan distance from village center for camp placement.
+- `externalCamps.factionCooldownTicks.min|max`: per-faction cooldown window before same faction can respawn.
+- `externalCamps.durationTicks.setupMin|setupMax`: setup-phase duration range.
+- `externalCamps.durationTicks.activeMin|activeMax`: active-phase duration range (long-lifetime core window).
+- `externalCamps.durationTicks.withdrawMin|withdrawMax`: withdrawal-phase duration range.
+- `externalCamps.trade.enabled`: enable trade-role camp behavior.
+- `externalCamps.trade.tickInterval`: ticks between trade camp barter attempts.
+- `externalCamps.trade.merchantTradeRateBonusPerCamp`: additive merchant-trade-rate bonus per active trade camp.
+- `externalCamps.trade.merchantTradeRateBonusMax`: cap for aggregate merchant trade bonus from camps.
+- `externalCamps.trade.contractRewardBonusPerCamp`: additive contract-reward bonus per active trade camp.
+- `externalCamps.trade.contractRewardBonusMax`: cap for aggregate contract reward bonus from camps.
+- `externalCamps.trade.reserveRatioFloor.default|<resource>`: minimum keep ratio used before camps can trade away a resource.
+- `externalCamps.trade.baseTradeAmount`: baseline trade size for each barter cycle.
+- `externalCamps.trade.protectedGiveResources[]`: resources camps are never allowed to take from stockpile.
+- `externalCamps.trade.allowReceiveResources[]`: optional whitelist of resources camps can provide (`[]` = all target resources).
+- `externalCamps.trade.eventEveryTrades`: event cadence for trade-camp log lines.
+- `externalCamps.militia.enabled`: enable militia-role camp behavior.
+- `externalCamps.militia.contractIntervalTicks`: ticks between militia support contract checks.
+- `externalCamps.militia.supportCosts.<resource>`: stockpile costs paid to keep militia support active.
+- `externalCamps.militia.supportMinStockpileRatios.<resource>`: safety guardrails required before paying militia support.
+- `externalCamps.militia.baseRaidDefenseBonus`: base additive raid-defense bonus from militia support.
+- `externalCamps.militia.reputationBonusScale`: extra raid-defense bonus per positive faction reputation unit.
+- `externalCamps.militia.maxRaidDefenseBonus`: cap for one militia camp defense bonus.
+- `externalCamps.militia.defenseBonusDecayOnMiss`: defense bonus decay when support payment is skipped.
+- `externalCamps.militia.eventEveryContracts`: event cadence for militia-camp log lines.
+- `externalCamps.raider.enabled`: enable raider-role camp behavior.
+- `externalCamps.raider.demandIntervalTicks`: ticks between tribute demands.
+- `externalCamps.raider.tributeCosts.<resource>`: tribute resource costs when demands are paid.
+- `externalCamps.raider.tributeMinStockpileRatios.<resource>`: safety guardrails required before tribute payment.
+- `externalCamps.raider.hostilityInitial`: starting hostility for raider camps.
+- `externalCamps.raider.hostilityGainOnReject`: hostility gain per rejected tribute demand.
+- `externalCamps.raider.hostilityDecayOnPay`: hostility reduction when tribute is paid.
+- `externalCamps.raider.hostilityDecayPerTick`: passive hostility decay while camp is active.
+- `externalCamps.raider.hostilityMin|hostilityMax`: hostility clamp bounds.
+- `externalCamps.raider.skirmishLossRatioBase`: base stockpile loss ratio when tribute is rejected.
+- `externalCamps.raider.skirmishLossRatioPerHostility`: extra loss ratio scaling by hostility.
+- `externalCamps.raider.skirmishLossWeights.<resource>`: weighted stockpile loss map for raider skirmishes.
+- `externalCamps.raider.raidDeathRateBonusMax`: max multiplicative raid-death-rate pressure from raider hostility.
+- `externalCamps.raider.raidResourceLossBonusMax`: max multiplicative raid-loot-loss pressure from raider hostility.
+- `externalCamps.raider.eventEveryDemands`: event cadence for raider demand lines.
+- `externalCamps.factions.<id>.label`: display label for a camp faction.
+- `externalCamps.factions.<id>.role`: camp role (`trade`, `militia`, `raider`).
+- `externalCamps.factions.<id>.weight`: weighted spawn chance for that faction.
 
 Endgame cycles:
 
@@ -1513,6 +1569,8 @@ Structures (ruins):
 Symbols:
 
 - `symbols.<entity>`: map and legend symbol for entities/resources/structures.
+- `symbols.external_camp_trade|external_camp_militia|external_camp_raider`: role-specific symbols for external camp centers.
+- `symbols.external_camp_outline`: footprint/outline symbol for external camps.
 - `symbols.alchemy_lab`: symbol used for the alchemy lab structure.
 - `symbols.temple_of_ancestors`: core symbol for temple center tile.
 - `symbols.temple_of_ancestors_outline`: symbol for non-center temple footprint tiles.

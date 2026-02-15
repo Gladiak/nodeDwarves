@@ -7,6 +7,7 @@ const { getStockpileTarget } = require('../simulation/resources');
 const { getFestivalStatus } = require('../simulation/festivals');
 const { getAlchemyStatus } = require('../simulation/alchemy');
 const { getWorldEventStatus } = require('../simulation/world_events');
+const { getExternalCampStatus } = require('../simulation/external_camps');
 const { getSchismStatus } = require('../simulation/schism');
 const {
   buildTelemetrySections,
@@ -561,6 +562,7 @@ function collectDashboardSnapshot(state, config, alertState, alertConfig) {
   const festivalStatus = getFestivalStatus(safeState, safeConfig);
   const alchemyStatus = getAlchemyStatus(safeState, safeConfig);
   const worldEventStatus = getWorldEventStatus(safeState, safeConfig);
+  const externalCampStatus = getExternalCampStatus(safeState, safeConfig);
   const schismStatus = getSchismStatus(safeState, safeConfig);
   const worldEventsState = safeState.worldEvents && typeof safeState.worldEvents === 'object'
     ? safeState.worldEvents
@@ -597,6 +599,7 @@ function collectDashboardSnapshot(state, config, alertState, alertConfig) {
     festivalStatus,
     alchemyStatus,
     worldEventStatus,
+    externalCampStatus,
     schismStatus,
     worldEventsState,
     contract,
@@ -853,6 +856,22 @@ function buildDashboardTimelineRows(snapshot) {
     rows.push(`Contract: ${snapshot.contract.label} (${snapshot.contract.ticksLeft}t left)`);
   } else {
     rows.push('Contract: none active');
+  }
+
+  if (snapshot.externalCampStatus) {
+    const status = snapshot.externalCampStatus;
+    const byRole = status.byRole || {};
+    const activeCount = Math.max(
+      0,
+      Number(byRole.trade || 0) + Number(byRole.militia || 0) + Number(byRole.raider || 0),
+    );
+    if (activeCount > 0) {
+      rows.push(
+        `External camps: T${Math.max(0, Number(byRole.trade || 0))} M${Math.max(0, Number(byRole.militia || 0))} R${Math.max(0, Number(byRole.raider || 0))}`,
+      );
+    } else {
+      rows.push(`External camps: none | next spawn ${Math.max(0, Number(status.nextSpawnIn || 0))}t`);
+    }
   }
 
   if (snapshot.festivalStatus && snapshot.festivalStatus.active === true) {

@@ -259,7 +259,7 @@ Key concepts:
 - **Config-first**: tunables live in `config.json` (training overrides act as a controlled overlay).
 - **Shortage-driven economy**: stockpile ratios behave like a feedback controller for priorities and builds.
 - **Soft modifiers**: seasons, weather, clans, ruins, myths, and schism stack as multiplicative layers.
-- **Deterministic core**: randomness is localized (weather, raids, ruins) to keep runs comparable for training.
+- **Deterministic core**: randomness is localized (weather, raids, ruins, external camps) to keep runs comparable for training.
 
 ## 3) Tick flow (diagram + order) ⏱️
 
@@ -271,28 +271,29 @@ The tick order in code lives in `src/simulation/index.js` and is the execution c
 2. Update **weather** (`weather.js`).
 3. Check raid start conditions (`raids.js`).
 4. Update world events (`world_events.js`).
-5. Update schism arc (`schism.js`).
-6. Update festivals (`festivals.js`).
-7. Update contracts (`contracts.js`).
-8. Update alchemy rites and backlash (`alchemy.js`).
-9. Update temple site/effects/prestige tick (`temple.js`).
-10. Update wildlife season spawns (`wildlife.js`).
-11. For each dwarf:
+5. Update external camps (`external_camps.js`).
+6. Update schism arc (`schism.js`).
+7. Update festivals (`festivals.js`).
+8. Update contracts (`contracts.js`).
+9. Update alchemy rites and backlash (`alchemy.js`).
+10. Update temple site/effects/prestige tick (`temple.js`).
+11. Update wildlife season spawns (`wildlife.js`).
+12. For each dwarf:
 
 - Age + life stage updates (`population.js`).
 - Needs decay (season/weather/myth/alchemy/world-event/festival/schism/temple modifiers).
 - Consume resources from stockpile when thresholds hit.
 
-12. Handle deaths, roles, ruins, housing, relationships, reproduction (`population.js`, `roles.js`, `ruins.js`).
-13. Village and road updates (`villages.js`, `roads.js`).
-14. Assign jobs (`jobs.js`).
-15. Move and perform actions (`dwarf_actions.js`).
-16. Merchant update (`merchant.js`).
-17. Stockpile decay + terrain cooldown tick (`resources.js`, `terrain.js`).
-18. House storage + node regen (`resources.js`).
-19. Raid tick + wildlife tick + pasture births (`raids.js`, `wildlife.js`).
-20. Myth update (`myths.js`).
-21. Endgame cycle check (`endgame.js`).
+13. Handle deaths, roles, ruins, housing, relationships, reproduction (`population.js`, `roles.js`, `ruins.js`).
+14. Village and road updates (`villages.js`, `roads.js`).
+15. Assign jobs (`jobs.js`).
+16. Move and perform actions (`dwarf_actions.js`).
+17. Merchant update (`merchant.js`).
+18. Stockpile decay + terrain cooldown tick (`resources.js`, `terrain.js`).
+19. House storage + node regen (`resources.js`).
+20. Raid tick + wildlife tick + pasture births (`raids.js`, `wildlife.js`).
+21. Myth update (`myths.js`).
+22. Endgame cycle check (`endgame.js`).
 
 **Tick flow diagram**
 
@@ -302,25 +303,26 @@ flowchart TD
   B --> C[Weather update]
   C --> D[Raid start check]
   D --> E[World events update]
-  E --> F[Schism update]
-  F --> G[Festival update]
-  G --> H[Contracts update]
-  H --> I[Alchemy update]
-  I --> J[Temple update + passive prestige]
-  J --> K[Wildlife season start]
-  K --> L[Per-dwarf: age + needs + consume]
-  L --> M[Population + ruins + relationships]
-  M --> N[Village and road updates]
-  N --> O[Assign jobs]
-  O --> P[Process dwarf actions]
-  P --> Q[Merchant update]
-  Q --> R[Stockpile decay + terrain cooldown]
-  R --> S[House storage + node regen]
-  S --> T[Raid tick + wildlife tick + pasture births]
-  T --> U[Myth update]
-  U --> V[Endgame cycle check]
-  V --> W[Render frame]
-  W --> X[Wait tickMs, next tick]
+  E --> F[External camps update]
+  F --> G[Schism update]
+  G --> H[Festival update]
+  H --> I[Contracts update]
+  I --> J[Alchemy update]
+  J --> K[Temple update + passive prestige]
+  K --> L[Wildlife season start]
+  L --> M[Per-dwarf: age + needs + consume]
+  M --> N[Population + ruins + relationships]
+  N --> O[Village and road updates]
+  O --> P[Assign jobs]
+  P --> Q[Process dwarf actions]
+  Q --> R[Merchant update]
+  R --> S[Stockpile decay + terrain cooldown]
+  S --> T[House storage + node regen]
+  T --> U[Raid tick + wildlife tick + pasture births]
+  U --> V[Myth update]
+  V --> W[Endgame cycle check]
+  W --> X[Render frame]
+  X --> Y[Wait tickMs, next tick]
 ```
 
 Notes:
@@ -361,9 +363,9 @@ Notes:
 
 ### Core state builder 🧱
 
-- `src/state/index.js`
+  - `src/state/index.js`
   - `createInitialState(config, runtime)` builds the authoritative world state:
-    - `dwarves`, `nodes`, `structures`, `merchant`, `worldEvents`, `weather`, `raid`, `tools`, etc.
+    - `dwarves`, `nodes`, `structures`, `merchant`, `worldEvents`, `externalCamps`, `weather`, `raid`, `tools`, etc.
     - `temple` and `prestige` meta-state for Temple of Ancestors progression.
     - `underrealm` depth metadata (active depth, unlocked depths, full-size layer terrains), plus deep economy/faction runtime.
     - `stockpile` initialized from `config.resources.stockpile`.
@@ -726,7 +728,7 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
 - Integration points:
   - need decay pipeline consumes `world_events` multipliers in `simulation/index.js`.
   - gather ticks/yield and stockpile target steering consume `world_events` multipliers/boosts in `resources.js`.
-  - merchant trade sizing consumes `merchantTradeRate`; contract rewards consume `contractReward`.
+  - merchant trade sizing consumes `merchantTradeRate`; contract rewards consume `contractReward` (both stack multiplicatively with external-camp economy modifiers when camps are active).
   - Telemetry shows active world event status (label, timer, and offer summary when relevant).
 - Observability:
   - event stream logs start/end and opportunity completion/expiry outcomes.
@@ -1285,6 +1287,36 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - completion/failure events include faction label.
   - boon event prints compact effect summary with remaining ticks.
 
+### External camps ⛺
+
+- `external_camps.js` adds persistent surface-map faction encampments with long lifetimes and role-specific behavior.
+- Lifecycle:
+  - `setting_up -> active -> withdrawing -> despawn`.
+  - Durations are sampled from `externalCamps.durationTicks.*` (setup/active/withdraw ranges).
+  - Spawn cadence uses `externalCamps.spawnRangeTicks`, `minTick`, `maxActive`, global cooldown, and per-faction cooldown.
+  - Current default tuning targets higher map presence with stability guardrails: faster spawn cadence, up to 3 active camps, faster militia support checks, lighter militia beer upkeep, and reduced raider hostility gain on tribute rejection.
+- Placement model:
+  - camps are spawned near map edges and moved inward by a fixed offset.
+  - footprint size is controlled by `externalCamps.footprintRadius` (rendered as a square).
+  - guardrails enforce minimum spacing from village center and from other active camps.
+  - spawn cells must be spawnable/buildable, so camps avoid structures/nodes/temple footprint tiles.
+- Role behavior:
+  - `trade`: periodic barter cycles that sell surplus resources and buy shortage resources using stockpile target ratios.
+    - safety floors use `externalCamps.trade.reserveRatioFloor` and protected-resource exclusions (`protectedGiveResources`).
+    - deal pricing uses scarcity/surplus/reputation terms and is clamped for stability.
+  - `militia`: periodic support contracts consume configured supplies and maintain additive raid-defense bonus.
+    - bonus scales with positive faction reputation (`contracts.reputations`) and decays when support is skipped.
+  - `raider`: periodic tribute demands; refusal raises hostility and can trigger skirmish stockpile losses.
+    - hostility drives ongoing raid pressure multipliers and decays slowly over time.
+- Runtime modifiers exposed to other systems:
+  - `merchantTradeRate` and `contractReward` (economic multipliers).
+  - `raidDefenseBonus`, `raidDeathRate`, `raidResourceLoss`, `raiderPressure` (combat pressure).
+  - merchant/contract systems consume economy multipliers; surface raids consume defense/death/loss multipliers.
+- Observability:
+  - `state.externalCamps.stats` tracks spawned/departed counts, role actions, and skirmish losses.
+  - `state.externalCamps.history` stores compact per-camp run records.
+  - telemetry `Diplomacy` and dashboard `Event Timeline` expose active camp mix, next spawn ETA, and live modifier summary.
+
 ### Terrain helpers 🧰
 
 - `terrain.js`
@@ -1312,7 +1344,7 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
   - With `display.autoSize=true`, the map follows terminal size; `display.maxWidth` / `display.maxHeight`
     are optional caps, and values `<= 0` mean uncapped.
   - `display.width` / `display.height` stay as fallback dimensions (and as fixed dimensions when `autoSize=false`).
-  - Places nodes, structures, temple footprint overlay, dwarves, merchant, and raid beasts on the grid.
+  - Places nodes, structures, temple footprint overlay, external camp footprints, dwarves, merchant, and raid beasts on the grid.
   - When underrealm depth view is active, it renders the selected depth terrain layer and hides surface entities.
   - Selects a stable subset of dwarves to keep the map readable (`display.dwarves.maxVisible`; set `< 0` to skip dwarf rendering).
   - Applies the dwarf inspect overlay when `display.inspect_panel.enabled` is true.
@@ -1385,7 +1417,7 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
   - `World` keeps contract/alchemy windows and one `World log` line for the latest event signal.
     - Long `World log` entries wrap up to 3 telemetry rows (instead of hard truncation) for readability.
   - `Pressure` reports shortage priorities (`state.lastPriorities`), key stockpile target ratios, raid pressure, and compact jobs-governor priorities.
-  - `Diplomacy` is the single merchant-focused block (status, trade totals, top give/recv flows, contracts, world-event cadence/counters, plus trade-governor intents).
+  - `Diplomacy` is the trade/diplomacy block (merchant status/flows, external camp mix/effects, contracts, world-event cadence/counters, plus trade-governor intents).
   - `Deep Signals` consolidates world-event cadence/totals plus contract reliability for late-game monitoring.
     - Its `World log` mirror also wraps to multiple rows (up to 3).
   - `Operations` reports adult workforce split, job mix, build pipeline, 200-tick stockpile deltas, building-governor ranking/bias signals, and production-vs-infrastructure load split.
@@ -1481,6 +1513,7 @@ Clan dynamics add heterogeneity and longer-horizon trade-offs. To keep PPO stabl
 - `seasons` + `weather`: cycle durations and modifiers.
 - `raids`: wildlife raid settings.
 - `merchant`: spawn cadence and trade behavior (including `neverGive` exclusions).
+- `externalCamps`: long-lived external faction camps (trade/militia/raider), spawn cadence, and pressure/economy knobs.
 - `worldEvents`: global short-arc events (bards, rival caravans, and limited opportunities).
 - `schism`: run-scale social pressure/legitimacy arc, doctrine shifts, ritual windows, and climax tuning.
 - `ai`: runtime policy + training defaults.
@@ -1674,6 +1707,7 @@ Quick checklist:
     - `simulation/alchemy.js` → alchemy rite lifecycle and modifiers
     - `simulation/contracts.js` → contract offers, reputations, and boons
     - `simulation/world_events.js` → global event lifecycle and temporary world modifiers
+    - `simulation/external_camps.js` → long-lived external faction camps and map-level diplomacy pressure
     - `simulation/schism.js` → run-scale social schism arc, doctrine shifts, ritual windows, and climax events
     - `simulation/roads.js` → road planning/build queue/pathing
     - `simulation/underrealm.js` → crew assignment, deep economy/exploration, and hostile deep raids

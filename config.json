@@ -493,6 +493,10 @@
         "underrealm_delver": "\u001b[38;2;180;212;188m",
         "underrealm_hostile": "\u001b[38;2;198;92;168m",
         "merchant": "\u001b[96m",
+        "external_camp_trade": "\u001b[38;2;244;196;98m",
+        "external_camp_militia": "\u001b[38;2;122;175;212m",
+        "external_camp_raider": "\u001b[38;2;224;95;95m",
+        "external_camp_outline": "\u001b[38;2;161;130;103m",
         "hud_header": "\u001b[96m",
         "house": "\u001b[90m",
         "mine": "\u001b[37m",
@@ -3972,6 +3976,119 @@
       }
     }
   },
+  "externalCamps": {
+    "enabled": true,
+    "minTick": 320,
+    "spawnRangeTicks": {
+      "min": 340,
+      "max": 560
+    },
+    "maxActive": 3,
+    "globalCooldownTicks": 140,
+    "historyLimit": 40,
+    "blockDuringRaid": false,
+    "footprintRadius": 1,
+    "minDistanceBetween": 10,
+    "minDistanceFromVillage": 16,
+    "factionCooldownTicks": {
+      "min": 380,
+      "max": 620
+    },
+    "durationTicks": {
+      "setupMin": 40,
+      "setupMax": 70,
+      "activeMin": 650,
+      "activeMax": 1050,
+      "withdrawMin": 50,
+      "withdrawMax": 90
+    },
+    "trade": {
+      "enabled": true,
+      "tickInterval": 28,
+      "merchantTradeRateBonusPerCamp": 0.03,
+      "merchantTradeRateBonusMax": 0.18,
+      "contractRewardBonusPerCamp": 0.025,
+      "contractRewardBonusMax": 0.15,
+      "reserveRatioFloor": {
+        "default": 0.65,
+        "food": 0.7,
+        "water": 0.75
+      },
+      "baseTradeAmount": 14,
+      "protectedGiveResources": [
+        "food",
+        "water"
+      ],
+      "eventEveryTrades": 2
+    },
+    "militia": {
+      "enabled": true,
+      "contractIntervalTicks": 72,
+      "supportCosts": {
+        "wood": 16,
+        "stone": 12,
+        "beer": 6
+      },
+      "supportMinStockpileRatios": {
+        "food": 0.65,
+        "water": 0.7
+      },
+      "baseRaidDefenseBonus": 0.05,
+      "reputationBonusScale": 0.04,
+      "maxRaidDefenseBonus": 0.18,
+      "defenseBonusDecayOnMiss": 0.015,
+      "eventEveryContracts": 2
+    },
+    "raider": {
+      "enabled": true,
+      "demandIntervalTicks": 70,
+      "tributeCosts": {
+        "wood": 24,
+        "stone": 18,
+        "beer": 12
+      },
+      "tributeMinStockpileRatios": {
+        "food": 0.75,
+        "water": 0.78
+      },
+      "hostilityInitial": 0.35,
+      "hostilityGainOnReject": 0.14,
+      "hostilityDecayOnPay": 0.1,
+      "hostilityDecayPerTick": 0.0008,
+      "hostilityMin": 0,
+      "hostilityMax": 1,
+      "skirmishLossRatioBase": 0.015,
+      "skirmishLossRatioPerHostility": 0.03,
+      "skirmishLossWeights": {
+        "food": 1,
+        "water": 1,
+        "wood": 0.8,
+        "stone": 0.7,
+        "beer": 0.9,
+        "iron": 0.4
+      },
+      "raidDeathRateBonusMax": 0.16,
+      "raidResourceLossBonusMax": 0.2,
+      "eventEveryDemands": 1
+    },
+    "factions": {
+      "thronesteel_concord": {
+        "label": "Thronesteel Concord Encampment",
+        "role": "trade",
+        "weight": 1.2
+      },
+      "shadowdeep_vanguard": {
+        "label": "Shadowdeep Vanguard Outpost",
+        "role": "militia",
+        "weight": 0.8
+      },
+      "ashen_marauders": {
+        "label": "Ashen Marauders Camp",
+        "role": "raider",
+        "weight": 0.5
+      }
+    }
+  },
   "population": {
     "initialAgeRange": {
       "min": 180,
@@ -4853,6 +4970,10 @@
     "empty": "·",
     "dwarf": "☻",
     "merchant": "$",
+    "external_camp_trade": "¢",
+    "external_camp_militia": "¶",
+    "external_camp_raider": "☼",
+    "external_camp_outline": "^",
     "beast": "☠",
     "herd": "&",
     "food": "φ",
