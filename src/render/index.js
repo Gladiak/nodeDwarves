@@ -70,15 +70,88 @@ function getExternalCampRenderStyle(symbols, role) {
   };
 }
 
+// Resolve map color key for one external-camp influence role.
+function getExternalCampInfluenceColorKey(role) {
+  if (role === 'militia') {
+    return 'external_camp_influence_militia';
+  }
+  if (role === 'raider') {
+    return 'external_camp_influence_raider';
+  }
+  return 'external_camp_influence_trade';
+}
+
+// Resolve influence radius by camp role from config.
+function getExternalCampInfluenceRadius(externalConfig, role) {
+  const influenceConfig = externalConfig && externalConfig.influence ? externalConfig.influence : {};
+  if (role === 'militia') {
+    return Math.max(0, Math.floor(Number(influenceConfig.militiaRadius || 0)));
+  }
+  if (role === 'raider') {
+    return Math.max(0, Math.floor(Number(influenceConfig.raiderRadius || 0)));
+  }
+  return Math.max(0, Math.floor(Number(influenceConfig.tradeRadius || 0)));
+}
+
+// Draw role-colored external-camp influence rings.
+function renderExternalCampInfluence(grid, camps, externalConfig, colors, symbols) {
+  const influenceConfig = externalConfig && externalConfig.influence ? externalConfig.influence : {};
+  if (influenceConfig.enabled === false || influenceConfig.renderEnabled === false) {
+    return;
+  }
+  const ringOnly = influenceConfig.renderRingOnly !== false;
+  const step = Math.max(1, Math.floor(Number(influenceConfig.renderStep || 2)));
+  const influenceSymbol = String(symbols.external_camp_influence || '.');
+
+  for (const camp of camps) {
+    if (!camp || camp.phase !== 'active') {
+      continue;
+    }
+    const radius = getExternalCampInfluenceRadius(externalConfig, camp.role);
+    if (radius <= 0) {
+      continue;
+    }
+    const colorKey = getExternalCampInfluenceColorKey(camp.role);
+    const centerX = Math.floor(Number(camp.x || 0));
+    const centerY = Math.floor(Number(camp.y || 0));
+    const campRadius = Math.max(0, Math.floor(Number(camp.radius || 0)));
+
+    for (let dy = -radius; dy <= radius; dy += 1) {
+      for (let dx = -radius; dx <= radius; dx += 1) {
+        const x = centerX + dx;
+        const y = centerY + dy;
+        if (!grid[y] || grid[y][x] === undefined) {
+          continue;
+        }
+        if ((Math.abs(x + y) % step) !== 0) {
+          continue;
+        }
+        const distance = Math.abs(dx) + Math.abs(dy);
+        if (distance <= campRadius || distance > radius) {
+          continue;
+        }
+        if (ringOnly && distance !== radius) {
+          continue;
+        }
+        grid[y][x] = applyColor(influenceSymbol, colorKey, colors);
+      }
+    }
+  }
+}
+
 // Draw external camp footprints and role symbols on the surface map.
 function renderExternalCamps(grid, state, config, colors, symbols) {
   const external = state && state.externalCamps && typeof state.externalCamps === 'object'
     ? state.externalCamps
     : null;
+  const externalConfig = config && config.externalCamps ? config.externalCamps : {};
   const camps = external && Array.isArray(external.camps) ? external.camps : [];
-  if (camps.length === 0) {
+  const caravans = external && Array.isArray(external.caravans) ? external.caravans : [];
+  if (camps.length === 0 && caravans.length === 0) {
     return;
   }
+  renderExternalCampInfluence(grid, camps, externalConfig, colors, symbols);
+
   const outlineSymbol = String(symbols.external_camp_outline || '^');
 
   for (const camp of camps) {
@@ -103,6 +176,22 @@ function renderExternalCamps(grid, state, config, colors, symbols) {
         }
         grid[y][x] = applyColor(outlineSymbol, 'external_camp_outline', colors);
       }
+    }
+  }
+
+  const caravanConfig = externalConfig && externalConfig.caravans ? externalConfig.caravans : {};
+  if (caravanConfig.enabled !== false) {
+    const caravanSymbol = String(symbols.external_camp_caravan || '*');
+    for (const caravan of caravans) {
+      if (!caravan) {
+        continue;
+      }
+      const x = Math.floor(Number(caravan.x || 0));
+      const y = Math.floor(Number(caravan.y || 0));
+      if (!grid[y] || grid[y][x] === undefined) {
+        continue;
+      }
+      grid[y][x] = applyColor(caravanSymbol, 'external_camp_caravan', colors);
     }
   }
 }

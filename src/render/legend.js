@@ -178,6 +178,26 @@ function buildLegendSections(config, options = {}) {
         "external_camp_raider",
       ),
     );
+    const caravansConfig = externalCampsConfig.caravans || {};
+    if (caravansConfig.enabled !== false) {
+      legendParts.push(
+        formatEntry(
+          symbols.external_camp_caravan || "*",
+          "trade caravan",
+          "external_camp_caravan",
+        ),
+      );
+    }
+    const influenceConfig = externalCampsConfig.influence || {};
+    if (influenceConfig.enabled !== false && influenceConfig.renderEnabled !== false) {
+      legendParts.push(
+        formatEntry(
+          symbols.external_camp_influence || ".",
+          "camp influence",
+          "external_camp_influence_trade",
+        ),
+      );
+    }
   }
 
   const raidConfig = config.raids || {};

@@ -1822,16 +1822,20 @@ def evaluate(
     min_weight,
     max_weight,
     scenarios,
+    score_mode=None,
+    collect_episode_scores=False,
 ):
     total_reward = 0.0
     total_steps = 0.0
     total_ticks = 0.0
     total_births = 0.0
     total_deaths = 0.0
+    episode_scores = [] if collect_episode_scores else None
     scenario_plan = []
     if scenarios:
-        per_scenario = max(1, episodes // max(1, len(scenarios)))
-        remainder = max(0, episodes - per_scenario * len(scenarios))
+        scenario_count = max(1, len(scenarios))
+        per_scenario = episodes // scenario_count
+        remainder = episodes % scenario_count
         for idx, name in enumerate(scenarios):
             count = per_scenario + (1 if idx < remainder else 0)
             if count > 0:
@@ -1845,6 +1849,9 @@ def evaluate(
             for _ in range(scenario_episodes):
                 seed = seed_base + episode_idx if seed_base is not None else None
                 episode_idx += 1
+                episode_reward = 0.0
+                episode_steps = 0.0
+                episode_ticks = 0.0
                 reset_payload = {
                     "cmd": "reset",
                     "seed": seed,
@@ -1885,20 +1892,35 @@ def evaluate(
                     total_reward += reward
                     total_steps += 1
                     total_ticks += float(step_ticks)
+                    episode_reward += reward
+                    episode_steps += 1
+                    episode_ticks += float(step_ticks)
                     if response.get("done"):
                         break
 
                 info = response.get("info", {})
                 total_births += int(info.get("births", 0))
                 total_deaths += int(info.get("deaths", 0))
+                if collect_episode_scores:
+                    episode_scores.append(
+                        compute_score(
+                            episode_reward,
+                            episode_steps,
+                            episode_ticks,
+                            score_mode,
+                        )
+                    )
 
-    return {
+    result = {
         "avg_reward": total_reward / max(1, episodes),
         "avg_steps": total_steps / max(1, episodes),
         "avg_ticks": total_ticks / max(1, episodes),
         "avg_births": total_births / max(1, episodes),
         "avg_deaths": total_deaths / max(1, episodes),
     }
+    if collect_episode_scores:
+        result["episode_scores"] = episode_scores
+    return result
 
 
 def apply_ppo_update(
@@ -2104,12 +2126,21 @@ def build_training_defaults(config):
             to_int(training.get("difficultyRampEpisodes"), 60000),
         ),
         "model_path": to_str(trainer.get("modelPath"), "models/policy.json"),
+        "model_state_path": to_str(trainer.get("modelStatePath"), "models/policy.state.pt"),
         "best_model_path": to_str(trainer.get("bestModelPath"), "models/policy_best.json"),
         "best_model_meta_path": to_str(
             trainer.get("bestModelMetaPath"),
             "models/policy_best.meta.json",
         ),
+        "best_model_state_path": to_str(
+            trainer.get("bestModelStatePath"),
+            "models/policy_best.state.pt",
+        ),
         "resume_from_best": to_bool(trainer.get("resumeFromBest"), False),
+        "save_best_during_training": to_bool(
+            trainer.get("saveBestDuringTraining"),
+            True,
+        ),
         "seed": to_int(trainer.get("seed"), 0),
         "log_every": to_int(trainer.get("logEvery"), 500),
         "save_every": to_int(trainer.get("saveEvery"), None),
@@ -2170,9 +2201,34 @@ def parse_args():
     parser.add_argument("--difficulty-end", type=float, default=defaults["difficulty_end"])
     parser.add_argument("--difficulty-ramp", type=int, default=defaults["difficulty_ramp"])
     parser.add_argument("--model-path", type=str, default=defaults["model_path"])
+    parser.add_argument("--model-state-path", type=str, default=defaults["model_state_path"])
     parser.add_argument("--best-model-path", type=str, default=defaults["best_model_path"])
     parser.add_argument("--best-model-meta-path", type=str, default=defaults["best_model_meta_path"])
-    parser.add_argument("--resume-from-best", action="store_true", default=defaults["resume_from_best"])
+    parser.add_argument("--best-model-state-path", type=str, default=defaults["best_model_state_path"])
+    parser.add_argument(
+        "--resume-from-best",
+        dest="resume_from_best",
+        action="store_true",
+        default=defaults["resume_from_best"],
+    )
+    parser.add_argument(
+        "--resume-from-latest",
+        dest="resume_from_best",
+        action="store_false",
+        help="Prefer latest checkpoint resume (modelPath) instead of best checkpoint resume.",
+    )
+    parser.add_argument(
+        "--save-best-during-training",
+        dest="save_best_during_training",
+        action="store_true",
+        default=defaults["save_best_during_training"],
+    )
+    parser.add_argument(
+        "--no-save-best-during-training",
+        dest="save_best_during_training",
+        action="store_false",
+        help="Disable best checkpoint writes in train.py (use promote_best.py as the only promotion gate).",
+    )
     parser.add_argument("--seed", type=int, default=defaults["seed"])
     parser.add_argument("--log-every", type=int, default=defaults["log_every"])
     parser.add_argument("--save-every", type=int, default=defaults["save_every"])
@@ -2233,7 +2289,7 @@ def load_best_meta(path, model_path):
         return None
 
 
-def save_best_meta(path, stats, episode, score=None, score_mode=None):
+def save_best_meta(path, stats, episode, score=None, score_mode=None, extra_fields=None):
     if not path:
         return
     directory = os.path.dirname(path)
@@ -2250,8 +2306,50 @@ def save_best_meta(path, stats, episode, score=None, score_mode=None):
         "avgDeaths": float(stats["avg_deaths"]),
         "savedAt": int(time.time()),
     }
+    if isinstance(score_mode, str):
+        payload["scoreMode"] = score_mode
+    if isinstance(extra_fields, dict):
+        for key, value in extra_fields.items():
+            if key:
+                payload[str(key)] = value
     with open(path, "w", encoding="utf-8") as handle:
         json.dump(payload, handle, indent=2)
+
+
+# Persist optimizer/training state alongside policy checkpoints for true long-run resume continuity.
+def save_training_state(path, optimizer, episode, model_path):
+    if not path or optimizer is None:
+        return
+    directory = os.path.dirname(path)
+    if directory:
+        os.makedirs(directory, exist_ok=True)
+    payload = {
+        "optimizer": optimizer.state_dict(),
+        "episode": int(episode),
+        "modelPath": str(model_path or ""),
+        "savedAt": int(time.time()),
+    }
+    torch.save(payload, path)
+
+
+# Restore optimizer/training state; returns True when state is loaded.
+def load_training_state(path, optimizer):
+    if not path or optimizer is None or not os.path.exists(path):
+        return False
+    try:
+        payload = torch.load(path, map_location="cpu")
+    except Exception:
+        return False
+    if not isinstance(payload, dict):
+        return False
+    state = payload.get("optimizer")
+    if not state:
+        return False
+    try:
+        optimizer.load_state_dict(state)
+        return True
+    except (RuntimeError, ValueError):
+        return False
 
 
 def save_policy(path, model, resources, feature_names, min_weight, max_weight, activation, log_std):
@@ -2344,7 +2442,13 @@ def main():
     scenario_rng = random.Random(args.seed) if args.seed is not None else random.Random()
 
     if args.fresh:
-        for stale_path in (args.model_path, args.best_model_path, args.best_model_meta_path):
+        for stale_path in (
+            args.model_path,
+            args.model_state_path,
+            args.best_model_path,
+            args.best_model_meta_path,
+            args.best_model_state_path,
+        ):
             if stale_path and os.path.exists(stale_path):
                 try:
                     os.remove(stale_path)
@@ -2396,10 +2500,16 @@ def main():
 
     resume_path = None
     if not args.fresh:
-        if args.resume_from_best and os.path.exists(args.best_model_path):
-            resume_path = args.best_model_path
-        elif os.path.exists(args.model_path):
-            resume_path = args.model_path
+        if args.resume_from_best:
+            if os.path.exists(args.best_model_path):
+                resume_path = args.best_model_path
+            elif os.path.exists(args.model_path):
+                resume_path = args.model_path
+        else:
+            if os.path.exists(args.model_path):
+                resume_path = args.model_path
+            elif os.path.exists(args.best_model_path):
+                resume_path = args.best_model_path
 
     if resume_path:
         resume_features = load_policy_feature_names(resume_path)
@@ -2421,7 +2531,19 @@ def main():
                 "Resume checkpoint shape mismatch. Run with --fresh."
             ) from exc
 
+    resume_state_path = None
+    if not args.fresh:
+        if resume_path == args.best_model_path:
+            resume_state_path = args.best_model_state_path
+        elif resume_path == args.model_path:
+            resume_state_path = args.model_state_path
+    if resume_state_path and load_training_state(resume_state_path, optimizer):
+        if TRAINING_LOGS_ENABLED:
+            print(f"optimizer state resumed from {resume_state_path}")
+
     best_eval = None if args.fresh else load_best_meta(args.best_model_meta_path, args.best_model_path)
+    if TRAINING_LOGS_ENABLED and not args.save_best_during_training:
+        print("best checkpoint writes disabled in train.py; promotion is delegated to promote_best.py")
 
     reward_window = 0.0
     steps_window = 0
@@ -2707,6 +2829,12 @@ def main():
                         args.activation,
                         model.log_std,
                     )
+                    save_training_state(
+                        args.model_state_path,
+                        optimizer,
+                        next_expected,
+                        args.model_path,
+                    )
                     policy_dirty = False
 
                 if (
@@ -2851,7 +2979,7 @@ def main():
                             if TRAINING_LOGS_ENABLED:
                                 pending_detail_events.append(f"eval_regression={drop:.2f}")
                     last_eval_score = eval_score
-                    if args.best_model_path:
+                    if args.save_best_during_training and args.best_model_path:
                         if best_eval is None or eval_score > best_eval:
                             best_eval = eval_score
                             save_policy(
@@ -2863,6 +2991,12 @@ def main():
                                 max_weight,
                                 args.activation,
                                 model.log_std,
+                            )
+                            save_training_state(
+                                args.best_model_state_path,
+                                optimizer,
+                                next_expected,
+                                args.best_model_path,
                             )
                             save_best_meta(
                                 args.best_model_meta_path,

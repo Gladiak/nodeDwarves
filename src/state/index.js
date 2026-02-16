@@ -1915,15 +1915,24 @@ function createExternalCampsState(config) {
   const maxSpawn = Math.max(minSpawn, Number(spawnRange.max ?? minSpawn));
   return {
     camps: [],
+    caravans: [],
     nextSpawnTick: randomBetween(minSpawn, maxSpawn),
     cooldownUntilTick: 0,
     factionCooldownById: {},
     counter: 1,
+    caravanCounter: 1,
     history: [],
     stats: {
       spawned: 0,
       departed: 0,
       skirmishes: 0,
+      caravans: {
+        dispatched: 0,
+        arrived: 0,
+        intercepted: 0,
+        returned: 0,
+        payloadDelivered: {},
+      },
       losses: {},
       byRole: {
         trade: {
@@ -1933,6 +1942,9 @@ function createExternalCampsState(config) {
           rejected: 0,
           paid: 0,
           defenseTicks: 0,
+          caravanDispatches: 0,
+          caravanArrivals: 0,
+          caravanIntercepts: 0,
           given: {},
           received: {},
           losses: {},
@@ -1944,6 +1956,9 @@ function createExternalCampsState(config) {
           rejected: 0,
           paid: 0,
           defenseTicks: 0,
+          caravanDispatches: 0,
+          caravanArrivals: 0,
+          caravanIntercepts: 0,
           given: {},
           received: {},
           losses: {},
@@ -1955,6 +1970,9 @@ function createExternalCampsState(config) {
           rejected: 0,
           paid: 0,
           defenseTicks: 0,
+          caravanDispatches: 0,
+          caravanArrivals: 0,
+          caravanIntercepts: 0,
           given: {},
           received: {},
           losses: {},
@@ -1968,6 +1986,10 @@ function createExternalCampsState(config) {
       raidDeathRate: 1,
       raidResourceLoss: 1,
       raiderPressure: 0,
+      tradeInfluence: 0,
+      militiaInfluence: 0,
+      raiderInfluence: 0,
+      caravanInterceptRisk: 0,
     },
   };
 }
@@ -2745,6 +2767,19 @@ function clampExternalCampsState(externalCamps, runtime) {
     const maxY = Math.max(minY, runtime.gridHeight - 1 - radius);
     camp.x = clamp(Number(camp.x || 0), minX, maxX);
     camp.y = clamp(Number(camp.y || 0), minY, maxY);
+  }
+
+  const caravans = Array.isArray(externalCamps && externalCamps.caravans) ? externalCamps.caravans : [];
+  for (const caravan of caravans) {
+    if (!caravan || typeof caravan !== 'object') {
+      continue;
+    }
+    caravan.x = clamp(Number(caravan.x || 0), 0, runtime.gridWidth - 1);
+    caravan.y = clamp(Number(caravan.y || 0), 0, runtime.gridHeight - 1);
+    caravan.targetX = clamp(Number(caravan.targetX || caravan.x || 0), 0, runtime.gridWidth - 1);
+    caravan.targetY = clamp(Number(caravan.targetY || caravan.y || 0), 0, runtime.gridHeight - 1);
+    caravan.originX = clamp(Number(caravan.originX || caravan.x || 0), 0, runtime.gridWidth - 1);
+    caravan.originY = clamp(Number(caravan.originY || caravan.y || 0), 0, runtime.gridHeight - 1);
   }
 }
 

@@ -20,6 +20,8 @@ function getExternalCampsConfig(config) {
   const tradeRaw = source.trade || {};
   const militiaRaw = source.militia || {};
   const raiderRaw = source.raider || {};
+  const influenceRaw = source.influence || {};
+  const caravansRaw = source.caravans || {};
 
   const reserveRatioFloor = {
     default: clamp(Number(tradeRaw.reserveRatioFloor && tradeRaw.reserveRatioFloor.default), 0, 1),
@@ -111,11 +113,46 @@ function getExternalCampsConfig(config) {
       raidResourceLossBonusMax: Math.max(0, Number(raiderRaw.raidResourceLossBonusMax || 0.2)),
       eventEveryDemands: Math.max(1, Math.floor(Number(raiderRaw.eventEveryDemands || 1))),
     },
+    influence: {
+      enabled: influenceRaw.enabled !== false,
+      useForModifiers: influenceRaw.useForModifiers !== false,
+      tradeRadius: Math.max(0, Math.floor(Number(influenceRaw.tradeRadius || 17))),
+      militiaRadius: Math.max(0, Math.floor(Number(influenceRaw.militiaRadius || 15))),
+      raiderRadius: Math.max(0, Math.floor(Number(influenceRaw.raiderRadius || 14))),
+      minStrength: clamp(Number(influenceRaw.minStrength || 0.2), 0, 1),
+      renderEnabled: influenceRaw.renderEnabled !== false,
+      renderRingOnly: influenceRaw.renderRingOnly !== false,
+      renderStep: Math.max(1, Math.floor(Number(influenceRaw.renderStep || 2))),
+    },
+    caravans: {
+      enabled: caravansRaw.enabled !== false,
+      dispatchIntervalTicks: Math.max(1, Math.floor(Number(caravansRaw.dispatchIntervalTicks || 70))),
+      maxConcurrent: Math.max(1, Math.floor(Number(caravansRaw.maxConcurrent || 6))),
+      maxPerCamp: Math.max(1, Math.floor(Number(caravansRaw.maxPerCamp || 1))),
+      stepEveryTicks: Math.max(1, Math.floor(Number(caravansRaw.stepEveryTicks || 2))),
+      payloadAmountRange: normalizeRange(caravansRaw.payloadAmountRange, { min: 6, max: 12 }, 1),
+      payloadMultiplierFromDeal: Math.max(0, Number(caravansRaw.payloadMultiplierFromDeal || 0.35)),
+      eventEveryArrivals: Math.max(1, Math.floor(Number(caravansRaw.eventEveryArrivals || 2))),
+      eventEveryInterceptions: Math.max(1, Math.floor(Number(caravansRaw.eventEveryInterceptions || 1))),
+      intercept: {
+        enabled: !caravansRaw.intercept || caravansRaw.intercept.enabled !== false,
+        baseChancePerStep: clamp(Number(
+          caravansRaw.intercept && caravansRaw.intercept.baseChancePerStep || 0,
+        ), 0, 1),
+        raiderPressureScale: clamp(Number(
+          caravansRaw.intercept && caravansRaw.intercept.raiderPressureScale || 0.03,
+        ), 0, 1),
+        militiaMitigationScale: clamp(Number(
+          caravansRaw.intercept && caravansRaw.intercept.militiaMitigationScale || 0.02,
+        ), 0, 1),
+      },
+    },
   };
 
   externalConfig.duration.setupMax = Math.max(externalConfig.duration.setupMin, externalConfig.duration.setupMax);
   externalConfig.duration.activeMax = Math.max(externalConfig.duration.activeMin, externalConfig.duration.activeMax);
   externalConfig.duration.withdrawMax = Math.max(externalConfig.duration.withdrawMin, externalConfig.duration.withdrawMax);
+  externalConfig.caravans.enabled = externalConfig.caravans.enabled && externalConfig.trade.enabled;
   externalConfig.factions = normalizeFactions(source.factions, config, externalConfig);
 
   return externalConfig;
@@ -270,7 +307,9 @@ function ensureExternalCampsState(state, config) {
 
   const runtime = state.externalCamps;
   runtime.camps = Array.isArray(runtime.camps) ? runtime.camps : [];
+  runtime.caravans = Array.isArray(runtime.caravans) ? runtime.caravans : [];
   runtime.counter = Math.max(1, Math.floor(Number(runtime.counter || 1)));
+  runtime.caravanCounter = Math.max(1, Math.floor(Number(runtime.caravanCounter || 1)));
   runtime.history = Array.isArray(runtime.history) ? runtime.history : [];
   runtime.factionCooldownById = runtime.factionCooldownById && typeof runtime.factionCooldownById === 'object'
     ? runtime.factionCooldownById
@@ -291,10 +330,12 @@ function ensureExternalCampsState(state, config) {
 function createExternalCampsState(externalConfig, currentTick) {
   return {
     camps: [],
+    caravans: [],
     nextSpawnTick: scheduleNextCampSpawnTick(externalConfig, currentTick),
     cooldownUntilTick: 0,
     factionCooldownById: {},
     counter: 1,
+    caravanCounter: 1,
     history: [],
     stats: normalizeExternalCampStats(null),
     modifiers: normalizeExternalCampModifiers(null),
@@ -319,6 +360,7 @@ function normalizeExternalCampStats(statsRaw) {
     spawned: Math.max(0, Number(stats.spawned || 0)),
     departed: Math.max(0, Number(stats.departed || 0)),
     skirmishes: Math.max(0, Number(stats.skirmishes || 0)),
+    caravans: normalizeCaravanStats(stats.caravans),
     losses: normalizeAmountMap(stats.losses),
     byRole: normalizedByRole,
   };
@@ -334,9 +376,24 @@ function normalizeRoleStats(rawRoleStats) {
     rejected: Math.max(0, Number(roleStats.rejected || 0)),
     paid: Math.max(0, Number(roleStats.paid || 0)),
     defenseTicks: Math.max(0, Number(roleStats.defenseTicks || 0)),
+    caravanDispatches: Math.max(0, Number(roleStats.caravanDispatches || 0)),
+    caravanArrivals: Math.max(0, Number(roleStats.caravanArrivals || 0)),
+    caravanIntercepts: Math.max(0, Number(roleStats.caravanIntercepts || 0)),
     given: normalizeAmountMap(roleStats.given),
     received: normalizeAmountMap(roleStats.received),
     losses: normalizeAmountMap(roleStats.losses),
+  };
+}
+
+// Normalize caravan-related stats payload.
+function normalizeCaravanStats(rawCaravanStats) {
+  const caravanStats = rawCaravanStats && typeof rawCaravanStats === 'object' ? rawCaravanStats : {};
+  return {
+    dispatched: Math.max(0, Number(caravanStats.dispatched || 0)),
+    arrived: Math.max(0, Number(caravanStats.arrived || 0)),
+    intercepted: Math.max(0, Number(caravanStats.intercepted || 0)),
+    returned: Math.max(0, Number(caravanStats.returned || 0)),
+    payloadDelivered: normalizeAmountMap(caravanStats.payloadDelivered),
   };
 }
 
@@ -350,6 +407,10 @@ function normalizeExternalCampModifiers(rawModifiers) {
     raidDeathRate: Math.max(0.1, Number(modifiers.raidDeathRate || 1)),
     raidResourceLoss: Math.max(0.1, Number(modifiers.raidResourceLoss || 1)),
     raiderPressure: clamp(Number(modifiers.raiderPressure || 0), 0, 1),
+    tradeInfluence: clamp(Number(modifiers.tradeInfluence || 0), 0, 1),
+    militiaInfluence: clamp(Number(modifiers.militiaInfluence || 0), 0, 1),
+    raiderInfluence: clamp(Number(modifiers.raiderInfluence || 0), 0, 1),
+    caravanInterceptRisk: clamp(Number(modifiers.caravanInterceptRisk || 0), 0, 1),
   };
 }
 
@@ -364,7 +425,8 @@ function updateExternalCamps(state, config, runtime, action) {
   const tick = Math.max(0, Math.floor(Number(state.tick || 0)));
   updateExistingCamps(state, config, runtime, action, externalConfig, externalState, tick);
   spawnCampIfEligible(state, config, runtime, externalConfig, externalState, tick);
-  rebuildExternalCampModifiers(externalConfig, externalState);
+  rebuildExternalCampModifiers(state, runtime, externalConfig, externalState);
+  updateCaravans(state, config, runtime, externalConfig, externalState, tick);
 }
 
 // Advance existing camps and drop ones that completed withdrawal.
@@ -410,7 +472,7 @@ function updateSingleCamp(state, config, runtime, action, externalConfig, extern
     }
 
     if (tick >= Number(camp.nextActionTick || 0)) {
-      runCampRoleTick(state, config, action, externalConfig, externalState, camp, tick);
+      runCampRoleTick(state, config, runtime, action, externalConfig, externalState, camp, tick);
       camp.nextActionTick = tick + getRoleInterval(externalConfig, camp.role);
     }
 
@@ -446,9 +508,15 @@ function normalizeCampRuntimeState(camp, externalConfig) {
   if (!Number.isFinite(camp.nextActionTick)) {
     camp.nextActionTick = 0;
   }
+  if (!Number.isFinite(camp.nextCaravanTick)) {
+    camp.nextCaravanTick = 0;
+  }
   camp.tradeActions = Math.max(0, Math.floor(Number(camp.tradeActions || 0)));
   camp.militiaContracts = Math.max(0, Math.floor(Number(camp.militiaContracts || 0)));
   camp.raiderDemands = Math.max(0, Math.floor(Number(camp.raiderDemands || 0)));
+  camp.caravanDispatches = Math.max(0, Math.floor(Number(camp.caravanDispatches || 0)));
+  camp.caravanArrivals = Math.max(0, Math.floor(Number(camp.caravanArrivals || 0)));
+  camp.caravanIntercepts = Math.max(0, Math.floor(Number(camp.caravanIntercepts || 0)));
   camp.militiaDefenseBonus = Math.max(0, Number(camp.militiaDefenseBonus || 0));
   camp.hostility = clamp(Number(camp.hostility || 0), 0, 1);
   camp.radius = Math.max(0, Math.floor(Number(camp.radius || externalConfig.footprintRadius)));
@@ -469,9 +537,9 @@ function getRoleInterval(externalConfig, role) {
 }
 
 // Run one role-specific periodic action for a camp.
-function runCampRoleTick(state, config, action, externalConfig, externalState, camp, tick) {
+function runCampRoleTick(state, config, runtime, action, externalConfig, externalState, camp, tick) {
   if (camp.role === 'trade') {
-    runTradeCampTick(state, config, externalConfig, externalState, camp);
+    runTradeCampTick(state, config, runtime, externalConfig, externalState, camp, tick);
     return;
   }
   if (camp.role === 'militia') {
@@ -484,17 +552,38 @@ function runCampRoleTick(state, config, action, externalConfig, externalState, c
 }
 
 // Execute one trade-camp exchange based on surplus/shortage ratios.
-function runTradeCampTick(state, config, externalConfig, externalState, camp) {
+function runTradeCampTick(state, config, runtime, externalConfig, externalState, camp, tick) {
   const tradeConfig = externalConfig.trade;
   const deal = resolveTradeCampDeal(state, config, tradeConfig, camp);
   if (!deal) {
     return;
   }
 
+  const roleStats = externalState.stats.byRole.trade;
+  const caravan = dispatchTradeCaravan(state, config, runtime, externalConfig, externalState, camp, deal, tick);
+  if (caravan) {
+    applyTradeCampGiveCost(state.stockpile, deal);
+    camp.tradeActions = Number(camp.tradeActions || 0) + 1;
+    camp.caravanDispatches = Number(camp.caravanDispatches || 0) + 1;
+    roleStats.actions = Number(roleStats.actions || 0) + 1;
+    roleStats.caravanDispatches = Number(roleStats.caravanDispatches || 0) + 1;
+    roleStats.given[deal.giveResource] = Number(roleStats.given[deal.giveResource] || 0) + deal.giveAmount;
+
+    externalState.stats.caravans.dispatched = Number(externalState.stats.caravans.dispatched || 0) + 1;
+    const convoyCount = Number(externalState.stats.caravans.dispatched || 0);
+    if (convoyCount === 1 || convoyCount % tradeConfig.eventEveryTrades === 0) {
+      pushEvent(
+        state,
+        config,
+        `Trade caravan departed: ${camp.factionLabel} (${deal.giveResource} -${deal.giveAmount} for ${deal.receiveResource})`,
+      );
+    }
+    return;
+  }
+
   applyTradeCampDeal(state.stockpile, deal);
 
   camp.tradeActions = Number(camp.tradeActions || 0) + 1;
-  const roleStats = externalState.stats.byRole.trade;
   roleStats.actions = Number(roleStats.actions || 0) + 1;
   roleStats.given[deal.giveResource] = Number(roleStats.given[deal.giveResource] || 0) + deal.giveAmount;
   roleStats.received[deal.receiveResource] = Number(roleStats.received[deal.receiveResource] || 0) + deal.receiveAmount;
@@ -506,6 +595,80 @@ function runTradeCampTick(state, config, externalConfig, externalState, camp) {
       `Trade camp: ${camp.factionLabel} ${deal.giveResource} -${deal.giveAmount}, ${deal.receiveResource} +${deal.receiveAmount}`,
     );
   }
+}
+
+// Spend only the give side of a trade deal at caravan dispatch.
+function applyTradeCampGiveCost(stockpile, deal) {
+  if (!stockpile || !deal) {
+    return;
+  }
+  stockpile[deal.giveResource] = Math.max(0, Number(stockpile[deal.giveResource] || 0) - Number(deal.giveAmount || 0));
+}
+
+// Dispatch one trade caravan when config and capacity constraints allow.
+function dispatchTradeCaravan(state, config, runtime, externalConfig, externalState, camp, deal, tick) {
+  const caravanConfig = externalConfig.caravans;
+  if (!caravanConfig || caravanConfig.enabled !== true || !camp || !deal) {
+    return null;
+  }
+  if (tick < Number(camp.nextCaravanTick || 0)) {
+    return null;
+  }
+
+  const activeCaravans = Array.isArray(externalState.caravans) ? externalState.caravans : [];
+  if (activeCaravans.length >= caravanConfig.maxConcurrent) {
+    return null;
+  }
+  const campCaravans = activeCaravans.filter((entry) => entry && String(entry.campId || '') === String(camp.id || ''));
+  if (campCaravans.length >= caravanConfig.maxPerCamp) {
+    return null;
+  }
+
+  const giveTarget = getCampStockpileTarget(state, config, deal.giveResource);
+  const giveCurrent = Math.max(0, Number(state && state.stockpile && state.stockpile[deal.giveResource] || 0));
+  const postGiveRatio = giveTarget > 0
+    ? (giveCurrent - Math.max(0, Number(deal.giveAmount || 0))) / Math.max(1, giveTarget)
+    : 1;
+  if (postGiveRatio < 1) {
+    return null;
+  }
+
+  const villageCenter = getCampVillageCenter(state, runtime);
+  const payloadRange = caravanConfig.payloadAmountRange || { min: 6, max: 12 };
+  const targetAmount = Math.max(1, Math.round(Number(deal.receiveAmount || 0) * Number(caravanConfig.payloadMultiplierFromDeal || 0)));
+  const payloadAmount = clamp(
+    targetAmount,
+    Math.max(1, Number(payloadRange.min || 1)),
+    Math.max(1, Number(payloadRange.max || payloadRange.min || 1)),
+  );
+  if (payloadAmount <= 0) {
+    return null;
+  }
+
+  const caravan = {
+    id: `caravan_${Math.max(1, Number(externalState.caravanCounter || 1))}`,
+    campId: camp.id,
+    campLabel: camp.factionLabel,
+    factionId: camp.factionId,
+    role: camp.role,
+    phase: 'to_village',
+    x: Math.floor(Number(camp.x || 0)),
+    y: Math.floor(Number(camp.y || 0)),
+    originX: Math.floor(Number(camp.x || 0)),
+    originY: Math.floor(Number(camp.y || 0)),
+    targetX: Math.floor(Number(villageCenter.x || 0)),
+    targetY: Math.floor(Number(villageCenter.y || 0)),
+    receiveResource: deal.receiveResource,
+    receiveAmount: payloadAmount,
+    stepEveryTicks: Math.max(1, Number(caravanConfig.stepEveryTicks || 2)),
+    stepCooldown: 0,
+    dispatchedTick: tick,
+  };
+
+  externalState.caravanCounter = Number(externalState.caravanCounter || 1) + 1;
+  externalState.caravans.push(caravan);
+  camp.nextCaravanTick = tick + Math.max(1, Number(caravanConfig.dispatchIntervalTicks || 1));
+  return caravan;
 }
 
 // Resolve one viable trade exchange for a trade camp.
@@ -583,6 +746,7 @@ function pickNeedResource(state, config, resourceIds) {
 
 // Choose the resource with the highest surplus ratio.
 function pickSurplusResource(state, config, resourceIds, excludedResourceId, protectedSet) {
+  const minSurplusRatio = 1.15;
   const candidates = [];
   for (const resourceId of resourceIds) {
     if (resourceId === excludedResourceId || protectedSet.has(resourceId)) {
@@ -594,7 +758,7 @@ function pickSurplusResource(state, config, resourceIds, excludedResourceId, pro
     }
     const current = Math.max(0, Number(state.stockpile[resourceId] || 0));
     const ratio = current / Math.max(1, target);
-    if (ratio <= 1) {
+    if (ratio < minSurplusRatio) {
       continue;
     }
     candidates.push({ resourceId, ratio });
@@ -719,6 +883,241 @@ function runRaiderCampTick(state, config, action, externalConfig, externalState,
   } else {
     pushEvent(state, config, `Raider camp: ${camp.factionLabel} pressure rises`);
   }
+}
+
+// Advance all active caravan entities on the map.
+function updateCaravans(state, config, runtime, externalConfig, externalState, tick) {
+  void tick;
+  const caravanConfig = externalConfig.caravans;
+  if (!caravanConfig || caravanConfig.enabled !== true) {
+    externalState.caravans = [];
+    return;
+  }
+  const caravans = Array.isArray(externalState.caravans) ? externalState.caravans : [];
+  if (caravans.length === 0) {
+    return;
+  }
+
+  const kept = [];
+  for (const caravan of caravans) {
+    if (!caravan || typeof caravan !== 'object') {
+      continue;
+    }
+    const keep = updateSingleCaravan(state, config, runtime, externalConfig, externalState, caravan);
+    if (keep) {
+      kept.push(caravan);
+    }
+  }
+  externalState.caravans = kept;
+}
+
+// Tick one caravan and return true while it remains active.
+function updateSingleCaravan(state, config, runtime, externalConfig, externalState, caravan) {
+  normalizeCaravanRuntimeState(caravan, externalConfig);
+
+  if (caravan.stepCooldown > 0) {
+    caravan.stepCooldown -= 1;
+    return true;
+  }
+
+  stepCaravanTowardsTarget(caravan, state, runtime);
+  caravan.stepCooldown = Math.max(0, Number(caravan.stepEveryTicks || 1) - 1);
+
+  if (caravan.phase === 'to_village') {
+    if (tryInterceptCaravan(state, config, externalConfig, externalState, caravan)) {
+      return false;
+    }
+    if (caravan.x === caravan.targetX && caravan.y === caravan.targetY) {
+      finalizeCaravanArrival(state, config, externalConfig, externalState, caravan);
+    }
+    return true;
+  }
+
+  if (caravan.phase === 'returning' && caravan.x === caravan.targetX && caravan.y === caravan.targetY) {
+    finalizeCaravanReturn(externalState);
+    return false;
+  }
+
+  return true;
+}
+
+// Ensure one caravan object has all expected runtime fields.
+function normalizeCaravanRuntimeState(caravan, externalConfig) {
+  const caravanConfig = externalConfig.caravans || {};
+  if (!caravan.phase) {
+    caravan.phase = 'to_village';
+  }
+  caravan.stepEveryTicks = Math.max(1, Math.floor(Number(caravan.stepEveryTicks || caravanConfig.stepEveryTicks || 2)));
+  caravan.stepCooldown = Math.max(0, Math.floor(Number(caravan.stepCooldown || 0)));
+  caravan.targetX = Math.floor(Number(caravan.targetX || 0));
+  caravan.targetY = Math.floor(Number(caravan.targetY || 0));
+  caravan.originX = Math.floor(Number(caravan.originX || caravan.x || 0));
+  caravan.originY = Math.floor(Number(caravan.originY || caravan.y || 0));
+  caravan.receiveAmount = Math.max(1, Math.floor(Number(caravan.receiveAmount || 1)));
+}
+
+// Move one caravan one tile towards its current target.
+function stepCaravanTowardsTarget(caravan, state, runtime) {
+  const x = Math.floor(Number(caravan.x || 0));
+  const y = Math.floor(Number(caravan.y || 0));
+  const targetX = Math.floor(Number(caravan.targetX || x));
+  const targetY = Math.floor(Number(caravan.targetY || y));
+  if (x === targetX && y === targetY) {
+    caravan.x = x;
+    caravan.y = y;
+    return;
+  }
+
+  const dx = targetX - x;
+  const dy = targetY - y;
+  const xStep = dx === 0 ? 0 : (dx > 0 ? 1 : -1);
+  const yStep = dy === 0 ? 0 : (dy > 0 ? 1 : -1);
+
+  const candidates = [];
+  if (Math.abs(dx) >= Math.abs(dy)) {
+    candidates.push({ x: x + xStep, y });
+    candidates.push({ x, y: y + yStep });
+  } else {
+    candidates.push({ x, y: y + yStep });
+    candidates.push({ x: x + xStep, y });
+  }
+
+  for (const candidate of candidates) {
+    if (!candidate || !Number.isFinite(candidate.x) || !Number.isFinite(candidate.y)) {
+      continue;
+    }
+    if (candidate.x < 0 || candidate.y < 0 || candidate.x >= runtime.gridWidth || candidate.y >= runtime.gridHeight) {
+      continue;
+    }
+    if (!isSpawnableTile(state, candidate.x, candidate.y)) {
+      continue;
+    }
+    caravan.x = candidate.x;
+    caravan.y = candidate.y;
+    return;
+  }
+
+  caravan.x = clamp(x, 0, runtime.gridWidth - 1);
+  caravan.y = clamp(y, 0, runtime.gridHeight - 1);
+}
+
+// Apply caravan-delivered resources and switch the caravan to return phase.
+function finalizeCaravanArrival(state, config, externalConfig, externalState, caravan) {
+  const receiveResource = String(caravan.receiveResource || '');
+  const receiveAmount = Math.max(1, Number(caravan.receiveAmount || 1));
+  if (receiveResource) {
+    state.stockpile[receiveResource] = Math.max(0, Number(state.stockpile[receiveResource] || 0) + receiveAmount);
+    externalState.stats.caravans.payloadDelivered[receiveResource] = Number(
+      externalState.stats.caravans.payloadDelivered[receiveResource] || 0,
+    ) + receiveAmount;
+    externalState.stats.byRole.trade.received[receiveResource] = Number(
+      externalState.stats.byRole.trade.received[receiveResource] || 0,
+    ) + receiveAmount;
+  }
+
+  externalState.stats.caravans.arrived = Number(externalState.stats.caravans.arrived || 0) + 1;
+  externalState.stats.byRole.trade.caravanArrivals = Number(
+    externalState.stats.byRole.trade.caravanArrivals || 0,
+  ) + 1;
+
+  const camp = findCampById(externalState, caravan.campId);
+  if (camp) {
+    camp.caravanArrivals = Number(camp.caravanArrivals || 0) + 1;
+  }
+
+  const arrivalCount = Number(externalState.stats.caravans.arrived || 0);
+  const caravanConfig = externalConfig.caravans || {};
+  if (arrivalCount === 1 || arrivalCount % Math.max(1, Number(caravanConfig.eventEveryArrivals || 1)) === 0) {
+    pushEvent(
+      state,
+      config,
+      `Trade caravan arrived: ${caravan.campLabel} delivered ${receiveResource} +${Math.floor(receiveAmount)}`,
+    );
+  }
+
+  caravan.phase = 'returning';
+  caravan.targetX = Math.floor(Number(caravan.originX || caravan.x || 0));
+  caravan.targetY = Math.floor(Number(caravan.originY || caravan.y || 0));
+}
+
+// Finalize one caravan that successfully returned to its camp.
+function finalizeCaravanReturn(externalState) {
+  externalState.stats.caravans.returned = Number(externalState.stats.caravans.returned || 0) + 1;
+}
+
+// Resolve whether a caravan gets intercepted while crossing raider influence.
+function tryInterceptCaravan(state, config, externalConfig, externalState, caravan) {
+  const caravanConfig = externalConfig.caravans || {};
+  const intercept = caravanConfig.intercept || {};
+  if (intercept.enabled !== true) {
+    return false;
+  }
+  if (caravan.phase !== 'to_village') {
+    return false;
+  }
+  if (!isPointInsideRaiderInfluence(externalState, externalConfig, caravan.x, caravan.y)) {
+    return false;
+  }
+
+  const modifiers = normalizeExternalCampModifiers(externalState.modifiers);
+  const chance = clamp(
+    Number(intercept.baseChancePerStep || 0)
+      + modifiers.raiderPressure * Number(intercept.raiderPressureScale || 0)
+      - Math.max(0, Number(modifiers.raidDefenseBonus || 0)) * Number(intercept.militiaMitigationScale || 0),
+    0,
+    0.85,
+  );
+  if (chance <= 0 || Math.random() >= chance) {
+    return false;
+  }
+
+  externalState.stats.caravans.intercepted = Number(externalState.stats.caravans.intercepted || 0) + 1;
+  externalState.stats.byRole.trade.caravanIntercepts = Number(
+    externalState.stats.byRole.trade.caravanIntercepts || 0,
+  ) + 1;
+  const camp = findCampById(externalState, caravan.campId);
+  if (camp) {
+    camp.caravanIntercepts = Number(camp.caravanIntercepts || 0) + 1;
+  }
+
+  const interceptedCount = Number(externalState.stats.caravans.intercepted || 0);
+  if (interceptedCount === 1 || interceptedCount % Math.max(1, Number(caravanConfig.eventEveryInterceptions || 1)) === 0) {
+    pushEvent(state, config, `Trade caravan intercepted: ${caravan.campLabel} lost ${caravan.receiveResource}`);
+  }
+  return true;
+}
+
+// Check whether a position lies inside any active raider influence area.
+function isPointInsideRaiderInfluence(externalState, externalConfig, x, y) {
+  const influenceConfig = externalConfig.influence || {};
+  if (influenceConfig.enabled === false) {
+    return false;
+  }
+  const radius = Math.max(0, Math.floor(Number(influenceConfig.raiderRadius || 0)));
+  if (radius <= 0) {
+    return false;
+  }
+  const activeCamps = Array.isArray(externalState && externalState.camps) ? externalState.camps : [];
+  for (const camp of activeCamps) {
+    if (!camp || camp.phase !== 'active' || camp.role !== 'raider') {
+      continue;
+    }
+    const distance = Math.abs(Number(camp.x || 0) - Number(x || 0)) + Math.abs(Number(camp.y || 0) - Number(y || 0));
+    if (distance <= radius) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Find one camp by id from active runtime state.
+function findCampById(externalState, campId) {
+  const camps = Array.isArray(externalState && externalState.camps) ? externalState.camps : [];
+  const target = String(campId || '');
+  if (!target) {
+    return null;
+  }
+  return camps.find((camp) => camp && String(camp.id || '') === target) || null;
 }
 
 // Check if stockpile covers all resource costs.
@@ -893,12 +1292,16 @@ function buildCampDescriptor(counter, faction, center, externalConfig, tick) {
     activeTicks,
     withdrawTicks,
     nextActionTick: tick + getRoleInterval(externalConfig, faction.role),
+    nextCaravanTick: tick + Math.max(1, Number(externalConfig.caravans && externalConfig.caravans.dispatchIntervalTicks || 1)),
     x: center.x,
     y: center.y,
     radius: externalConfig.footprintRadius,
     tradeActions: 0,
     militiaContracts: 0,
     raiderDemands: 0,
+    caravanDispatches: 0,
+    caravanArrivals: 0,
+    caravanIntercepts: 0,
     militiaDefenseBonus: 0,
     hostility: faction.role === 'raider' ? raiderConfig.hostilityInitial : 0,
     spawnedTick: tick,
@@ -1063,6 +1466,9 @@ function finalizeCampDeparture(state, config, externalConfig, externalState, cam
     spawnedTick: Number(camp.spawnedTick || 0),
     endedTick: tick,
     tradeActions: Number(camp.tradeActions || 0),
+    caravanDispatches: Number(camp.caravanDispatches || 0),
+    caravanArrivals: Number(camp.caravanArrivals || 0),
+    caravanIntercepts: Number(camp.caravanIntercepts || 0),
     militiaContracts: Number(camp.militiaContracts || 0),
     raiderDemands: Number(camp.raiderDemands || 0),
     hostility: Number(camp.hostility || 0),
@@ -1077,7 +1483,7 @@ function buildCampDepartureSummary(camp) {
     return '';
   }
   if (camp.role === 'trade') {
-    return `${camp.factionLabel} trade x${Math.max(0, Number(camp.tradeActions || 0))}`;
+    return `${camp.factionLabel} trade x${Math.max(0, Number(camp.tradeActions || 0))}, convoys ${Math.max(0, Number(camp.caravanArrivals || 0))}/${Math.max(0, Number(camp.caravanDispatches || 0))}`;
   }
   if (camp.role === 'militia') {
     const defensePct = Math.round(Math.max(0, Number(camp.militiaDefenseBonus || 0)) * 100);
@@ -1102,38 +1508,114 @@ function trimCampHistory(externalState, limitRaw) {
 }
 
 // Compute aggregate modifiers exposed to other simulation systems.
-function rebuildExternalCampModifiers(externalConfig, externalState) {
+function rebuildExternalCampModifiers(state, runtime, externalConfig, externalState) {
   const activeCamps = externalState.camps.filter((camp) => camp && camp.phase === 'active');
-  const tradeCount = activeCamps.filter((camp) => camp.role === 'trade').length;
-  const militiaCamps = activeCamps.filter((camp) => camp.role === 'militia');
-  const raiderCamps = activeCamps.filter((camp) => camp.role === 'raider');
+  const villageCenter = getCampVillageCenter(state, runtime);
+  const influenceConfig = externalConfig.influence || {};
+  const useInfluence = influenceConfig.enabled !== false && influenceConfig.useForModifiers !== false;
+
+  let tradeStrengthSum = 0;
+  let tradeCampCount = 0;
+  let militiaWeightedBonus = 0;
+  let militiaStrengthSum = 0;
+  let militiaCampCount = 0;
+  let raiderWeightedPressure = 0;
+  let raiderStrengthSum = 0;
+  let raiderCampCount = 0;
+
+  for (const camp of activeCamps) {
+    if (!camp) {
+      continue;
+    }
+    const strength = useInfluence
+      ? getCampInfluenceStrength(camp, villageCenter, influenceConfig)
+      : 1;
+    if (camp.role === 'trade') {
+      tradeCampCount += 1;
+      tradeStrengthSum += strength;
+      continue;
+    }
+    if (camp.role === 'militia') {
+      militiaCampCount += 1;
+      militiaStrengthSum += strength;
+      militiaWeightedBonus += Math.max(0, Number(camp.militiaDefenseBonus || 0)) * strength;
+      continue;
+    }
+    if (camp.role === 'raider') {
+      raiderCampCount += 1;
+      raiderStrengthSum += strength;
+      raiderWeightedPressure += clamp(Number(camp.hostility || 0), 0, 1) * strength;
+    }
+  }
 
   const tradeBonus = Math.min(
     externalConfig.trade.merchantTradeRateBonusMax,
-    tradeCount * externalConfig.trade.merchantTradeRateBonusPerCamp,
+    tradeStrengthSum * externalConfig.trade.merchantTradeRateBonusPerCamp,
   );
   const contractBonus = Math.min(
     externalConfig.trade.contractRewardBonusMax,
-    tradeCount * externalConfig.trade.contractRewardBonusPerCamp,
+    tradeStrengthSum * externalConfig.trade.contractRewardBonusPerCamp,
   );
-
-  const militiaBonus = militiaCamps.reduce(
-    (sum, camp) => sum + Math.max(0, Number(camp.militiaDefenseBonus || 0)),
-    0,
-  );
-
-  const raiderPressure = raiderCamps.length > 0
-    ? raiderCamps.reduce((sum, camp) => sum + clamp(Number(camp.hostility || 0), 0, 1), 0) / raiderCamps.length
+  const militiaBonus = clamp(militiaWeightedBonus, 0, 1);
+  const raiderPressure = raiderStrengthSum > 0
+    ? clamp(raiderWeightedPressure / raiderStrengthSum, 0, 1)
     : 0;
+
+  const interceptConfig = externalConfig.caravans && externalConfig.caravans.intercept
+    ? externalConfig.caravans.intercept
+    : {};
+  const caravanInterceptRisk = clamp(
+    Number(interceptConfig.baseChancePerStep || 0)
+      + raiderPressure * Number(interceptConfig.raiderPressureScale || 0)
+      - militiaBonus * Number(interceptConfig.militiaMitigationScale || 0),
+    0,
+    1,
+  );
 
   externalState.modifiers = {
     merchantTradeRate: 1 + tradeBonus,
     contractReward: 1 + contractBonus,
-    raidDefenseBonus: clamp(militiaBonus, 0, 1),
+    raidDefenseBonus: militiaBonus,
     raidDeathRate: 1 + clamp(raiderPressure, 0, 1) * externalConfig.raider.raidDeathRateBonusMax,
     raidResourceLoss: 1 + clamp(raiderPressure, 0, 1) * externalConfig.raider.raidResourceLossBonusMax,
     raiderPressure: clamp(raiderPressure, 0, 1),
+    tradeInfluence: tradeCampCount > 0 ? clamp(tradeStrengthSum / tradeCampCount, 0, 1) : 0,
+    militiaInfluence: militiaCampCount > 0 ? clamp(militiaStrengthSum / militiaCampCount, 0, 1) : 0,
+    raiderInfluence: raiderCampCount > 0 ? clamp(raiderStrengthSum / raiderCampCount, 0, 1) : 0,
+    caravanInterceptRisk: clamp(caravanInterceptRisk, 0, 1),
   };
+}
+
+// Resolve one role-specific influence radius.
+function getCampInfluenceRadius(influenceConfig, role) {
+  if (!influenceConfig || typeof influenceConfig !== 'object') {
+    return 0;
+  }
+  if (role === 'militia') {
+    return Math.max(0, Math.floor(Number(influenceConfig.militiaRadius || 0)));
+  }
+  if (role === 'raider') {
+    return Math.max(0, Math.floor(Number(influenceConfig.raiderRadius || 0)));
+  }
+  return Math.max(0, Math.floor(Number(influenceConfig.tradeRadius || 0)));
+}
+
+// Compute linear influence strength of a camp at one map point.
+function getCampInfluenceStrength(camp, point, influenceConfig) {
+  if (!camp || !point) {
+    return 0;
+  }
+  const radius = getCampInfluenceRadius(influenceConfig, camp.role);
+  if (radius <= 0) {
+    return 0;
+  }
+  const distance = Math.abs(Number(camp.x || 0) - Number(point.x || 0)) + Math.abs(Number(camp.y || 0) - Number(point.y || 0));
+  if (distance > radius) {
+    return 0;
+  }
+  const minStrength = clamp(Number(influenceConfig && influenceConfig.minStrength || 0), 0, 1);
+  const linear = clamp(1 - distance / Math.max(1, radius), 0, 1);
+  return clamp(minStrength + (1 - minStrength) * linear, 0, 1);
 }
 
 // Resolve one external-camp modifier value with fallback.
@@ -1171,6 +1653,14 @@ function getExternalCampStatus(state, config) {
       byRole: { trade: 0, militia: 0, raider: 0 },
       nextSpawnIn: 0,
       modifiers: normalizeExternalCampModifiers(null),
+      caravans: {
+        active: 0,
+        toVillage: 0,
+        returning: 0,
+        dispatched: 0,
+        arrived: 0,
+        intercepted: 0,
+      },
       camps: [],
     };
   }
@@ -1185,6 +1675,12 @@ function getExternalCampStatus(state, config) {
       byRole[camp.role] += 1;
     }
   }
+  const caravans = Array.isArray(externalState.caravans) ? externalState.caravans : [];
+  const toVillage = caravans.filter((caravan) => caravan && caravan.phase === 'to_village').length;
+  const returning = caravans.filter((caravan) => caravan && caravan.phase === 'returning').length;
+  const caravanStats = externalState.stats && externalState.stats.caravans
+    ? externalState.stats.caravans
+    : normalizeCaravanStats(null);
 
   return {
     active: activeCamps.length > 0,
@@ -1192,6 +1688,14 @@ function getExternalCampStatus(state, config) {
     byRole,
     nextSpawnIn: Math.max(0, Number(externalState.nextSpawnTick || 0) - tick),
     modifiers: normalizeExternalCampModifiers(externalState.modifiers),
+    caravans: {
+      active: caravans.length,
+      toVillage,
+      returning,
+      dispatched: Math.max(0, Number(caravanStats.dispatched || 0)),
+      arrived: Math.max(0, Number(caravanStats.arrived || 0)),
+      intercepted: Math.max(0, Number(caravanStats.intercepted || 0)),
+    },
     camps: activeCamps
       .slice()
       .sort((left, right) => Number(left.phaseTicksRemaining || 0) - Number(right.phaseTicksRemaining || 0))

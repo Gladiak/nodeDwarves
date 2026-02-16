@@ -497,6 +497,10 @@
         "external_camp_militia": "\u001b[38;2;122;175;212m",
         "external_camp_raider": "\u001b[38;2;224;95;95m",
         "external_camp_outline": "\u001b[38;2;161;130;103m",
+        "external_camp_caravan": "\u001b[38;2;255;226;122m",
+        "external_camp_influence_trade": "\u001b[38;2;184;147;76m",
+        "external_camp_influence_militia": "\u001b[38;2;98;148;188m",
+        "external_camp_influence_raider": "\u001b[38;2;176;82;82m",
         "hud_header": "\u001b[96m",
         "house": "\u001b[90m",
         "mine": "\u001b[37m",
@@ -1746,6 +1750,23 @@
         "ruins_focus",
         "clan_lantern"
       ],
+      "promotion": {
+        "canonical": {
+          "enabled": true,
+          "evalEpisodes": 20,
+          "evalMaxSteps": 2200,
+          "stepTicks": 2,
+          "maxSteps": 2200,
+          "maxTicks": 5600,
+          "evalDifficulty": 1,
+          "evalScore": "rpt",
+          "minImprove": 0.005,
+          "seed": 0,
+          "endgameEnabled": false,
+          "requirePositiveLcb": true,
+          "lcbZ": 1.96
+        }
+      },
       "trainer": {
         "algorithm": "ppo",
         "episodes": 40000,
@@ -1816,9 +1837,12 @@
         "evalScore": "rpt",
         "sampleScore": "rpt",
         "modelPath": "models/policy.json",
+        "modelStatePath": "models/policy.state.pt",
         "bestModelPath": "models/policy_best.json",
         "bestModelMetaPath": "models/policy_best.meta.json",
+        "bestModelStatePath": "models/policy_best.state.pt",
         "resumeFromBest": true,
+        "saveBestDuringTraining": true,
         "seed": 0
       }
     }
@@ -4010,9 +4034,9 @@
       "contractRewardBonusPerCamp": 0.025,
       "contractRewardBonusMax": 0.15,
       "reserveRatioFloor": {
-        "default": 0.65,
-        "food": 0.7,
-        "water": 0.75
+        "default": 0.75,
+        "food": 0.78,
+        "water": 0.8
       },
       "baseTradeAmount": 14,
       "protectedGiveResources": [
@@ -4025,8 +4049,8 @@
       "enabled": true,
       "contractIntervalTicks": 72,
       "supportCosts": {
-        "wood": 16,
-        "stone": 12,
+        "wood": 12,
+        "stone": 8,
         "beer": 6
       },
       "supportMinStockpileRatios": {
@@ -4041,35 +4065,66 @@
     },
     "raider": {
       "enabled": true,
-      "demandIntervalTicks": 70,
+      "demandIntervalTicks": 88,
       "tributeCosts": {
-        "wood": 24,
-        "stone": 18,
-        "beer": 12
+        "wood": 16,
+        "stone": 12,
+        "beer": 8
       },
       "tributeMinStockpileRatios": {
         "food": 0.75,
         "water": 0.78
       },
       "hostilityInitial": 0.35,
-      "hostilityGainOnReject": 0.14,
+      "hostilityGainOnReject": 0.1,
       "hostilityDecayOnPay": 0.1,
       "hostilityDecayPerTick": 0.0008,
       "hostilityMin": 0,
       "hostilityMax": 1,
-      "skirmishLossRatioBase": 0.015,
-      "skirmishLossRatioPerHostility": 0.03,
+      "skirmishLossRatioBase": 0.01,
+      "skirmishLossRatioPerHostility": 0.02,
       "skirmishLossWeights": {
         "food": 1,
         "water": 1,
         "wood": 0.8,
-        "stone": 0.7,
+        "stone": 0.5,
         "beer": 0.9,
         "iron": 0.4
       },
       "raidDeathRateBonusMax": 0.16,
       "raidResourceLossBonusMax": 0.2,
       "eventEveryDemands": 1
+    },
+    "influence": {
+      "enabled": true,
+      "useForModifiers": true,
+      "tradeRadius": 17,
+      "militiaRadius": 15,
+      "raiderRadius": 14,
+      "minStrength": 0.2,
+      "renderEnabled": true,
+      "renderRingOnly": true,
+      "renderStep": 2
+    },
+    "caravans": {
+      "enabled": true,
+      "dispatchIntervalTicks": 84,
+      "maxConcurrent": 5,
+      "maxPerCamp": 1,
+      "stepEveryTicks": 2,
+      "payloadAmountRange": {
+        "min": 6,
+        "max": 12
+      },
+      "payloadMultiplierFromDeal": 0.4,
+      "eventEveryArrivals": 2,
+      "eventEveryInterceptions": 1,
+      "intercept": {
+        "enabled": true,
+        "baseChancePerStep": 0,
+        "raiderPressureScale": 0.03,
+        "militiaMitigationScale": 0.02
+      }
     },
     "factions": {
       "thronesteel_concord": {
@@ -4974,6 +5029,8 @@
     "external_camp_militia": "¶",
     "external_camp_raider": "☼",
     "external_camp_outline": "^",
+    "external_camp_caravan": "¤",
+    "external_camp_influence": ".",
     "beast": "☠",
     "herd": "&",
     "food": "φ",

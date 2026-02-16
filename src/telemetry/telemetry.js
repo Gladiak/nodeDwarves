@@ -2505,11 +2505,14 @@ function formatExternalCampStatus(status) {
   const trade = Math.max(0, Number(status.byRole && status.byRole.trade || 0));
   const militia = Math.max(0, Number(status.byRole && status.byRole.militia || 0));
   const raider = Math.max(0, Number(status.byRole && status.byRole.raider || 0));
+  const caravans = status.caravans || {};
+  const caravanActive = Math.max(0, Number(caravans.active || 0));
+  const inbound = Math.max(0, Number(caravans.toVillage || 0));
   const nextSpawn = Math.max(0, Number(status.nextSpawnIn || 0));
   if (Math.max(trade + militia + raider, 0) <= 0) {
-    return `External camps: none active | next in ${nextSpawn} ticks`;
+    return `External camps: none active | caravans ${caravanActive} (inbound ${inbound}) | next in ${nextSpawn} ticks`;
   }
-  return `External camps: trade ${trade}, militia ${militia}, raider ${raider} | next in ${nextSpawn} ticks`;
+  return `External camps: trade ${trade}, militia ${militia}, raider ${raider} | caravans ${caravanActive} (inbound ${inbound}) | next in ${nextSpawn} ticks`;
 }
 
 // Format active external-camp modifier outputs.
@@ -2522,7 +2525,8 @@ function formatExternalCampModifiers(status) {
   const contractReward = Math.max(0, Number(modifiers.contractReward || 1));
   const defense = Math.max(0, Number(modifiers.raidDefenseBonus || 0));
   const pressure = Math.max(0, Number(modifiers.raiderPressure || 0));
-  return `External camp effects: trade x${tradeRate.toFixed(2)} | contracts x${contractReward.toFixed(2)} | defense +${Math.round(defense * 100)}% | raider pressure ${Math.round(pressure * 100)}%`;
+  const risk = Math.max(0, Number(modifiers.caravanInterceptRisk || 0));
+  return `External camp effects: trade x${tradeRate.toFixed(2)} | contracts x${contractReward.toFixed(2)} | defense +${Math.round(defense * 100)}% | raider pressure ${Math.round(pressure * 100)}% | convoy risk ${Math.round(risk * 100)}%`;
 }
 
 // Format the current contract status line.

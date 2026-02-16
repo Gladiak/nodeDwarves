@@ -22,6 +22,9 @@ const USE_COLOR = process.stdout.isTTY && !process.env.NO_COLOR;
 const DEFAULT_WORKERS_AUTO_MIN = 2;
 const DEFAULT_WORKERS_AUTO_MAX = 12;
 const DEFAULT_WORKERS_RESERVE = 1;
+const DEFAULT_TRAIN_SEED_ROTATION = true;
+const TRAIN_SEED_MODULUS = 2147483647;
+const TRAIN_PHASE_SEED_STEP = 10007;
 const PHASE_WORKER_MIN = 2;
 const PHASE_WORKER_SCALE = {
   foundation: 1.0,
@@ -35,6 +38,13 @@ const ENDGAME_TARGET_EPISODE_TICKS = 20000;
 const ENDGAME_MAX_STEPS = Math.ceil(ENDGAME_TARGET_EPISODE_TICKS / ENDGAME_STEP_TICKS);
 // Keep headroom above training horizon so randomized season-start offsets do not truncate episodes.
 const ENDGAME_PROFILE_MAX_TICKS = 24000;
+const CANONICAL_PROMOTE_EVAL_EPISODES = 20;
+const CANONICAL_PROMOTE_EVAL_MAX_STEPS = 2200;
+const CANONICAL_PROMOTE_STEP_TICKS = 2;
+const CANONICAL_PROMOTE_MAX_STEPS = 2200;
+const CANONICAL_PROMOTE_MIN_IMPROVE = 0.005;
+const CANONICAL_PROMOTE_MAX_TICKS =
+  (CANONICAL_PROMOTE_MAX_STEPS * CANONICAL_PROMOTE_STEP_TICKS) + 1200;
 
 const VALID_PROFILES = new Set([
   PROFILE_FAST,
@@ -79,6 +89,141 @@ function clampInt(value, minValue, maxValue) {
   }
   const rounded = Math.floor(numeric);
   return Math.max(minValue, Math.min(maxValue, rounded));
+}
+
+// Parse one finite number from mixed config input.
+function toFiniteNumber(value, fallback) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : fallback;
+}
+
+// Parse one boolean-ish config value with fallback.
+function toBoolean(value, fallback) {
+  if (typeof value === "boolean") {
+    return value;
+  }
+  if (typeof value === "number") {
+    return value !== 0;
+  }
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["1", "true", "yes", "y", "on"].includes(normalized)) {
+      return true;
+    }
+    if (["0", "false", "no", "n", "off"].includes(normalized)) {
+      return false;
+    }
+  }
+  return fallback;
+}
+
+// Resolve canonical promotion settings from config with stable defaults.
+function resolveCanonicalPromotion(baseConfig) {
+  const ai = (baseConfig && baseConfig.ai) || {};
+  const training = (ai && ai.training) || {};
+  const promotion = (training && training.promotion) || {};
+  const canonical = (promotion && promotion.canonical) || {};
+
+  const evalEpisodes = clampInt(
+    toFiniteNumber(canonical.evalEpisodes, CANONICAL_PROMOTE_EVAL_EPISODES),
+    1,
+    200,
+  );
+  const evalMaxSteps = clampInt(
+    toFiniteNumber(canonical.evalMaxSteps, CANONICAL_PROMOTE_EVAL_MAX_STEPS),
+    1,
+    20000,
+  );
+  const stepTicks = clampInt(
+    toFiniteNumber(canonical.stepTicks, CANONICAL_PROMOTE_STEP_TICKS),
+    1,
+    100,
+  );
+  const maxSteps = clampInt(
+    toFiniteNumber(canonical.maxSteps, CANONICAL_PROMOTE_MAX_STEPS),
+    1,
+    20000,
+  );
+  const minTicksFloor = (maxSteps * stepTicks) + 200;
+  const maxTicksDefault = Math.max(
+    CANONICAL_PROMOTE_MAX_TICKS,
+    minTicksFloor,
+  );
+  const maxTicks = clampInt(
+    toFiniteNumber(canonical.maxTicks, maxTicksDefault),
+    minTicksFloor,
+    200000,
+  );
+  const evalDifficulty = toFiniteNumber(canonical.evalDifficulty, 1.0);
+  const minImprove = toFiniteNumber(canonical.minImprove, CANONICAL_PROMOTE_MIN_IMPROVE);
+  const lcbZ = toFiniteNumber(canonical.lcbZ, 1.96);
+  const evalScoreRaw = String(canonical.evalScore || "rpt").toLowerCase();
+  const evalScore = ["reward", "rps", "rpt"].includes(evalScoreRaw) ? evalScoreRaw : "rpt";
+  const seedRaw = Number(canonical.seed);
+  const seed = Number.isFinite(seedRaw) ? Math.floor(seedRaw) : 0;
+
+  return {
+    enabled: toBoolean(canonical.enabled, true),
+    evalEpisodes,
+    evalMaxSteps,
+    stepTicks,
+    maxSteps,
+    maxTicks,
+    evalDifficulty,
+    evalScore,
+    minImprove,
+    seed,
+    endgameEnabled: toBoolean(canonical.endgameEnabled, false),
+    requirePositiveLcb: toBoolean(canonical.requirePositiveLcb, true),
+    lcbZ,
+  };
+}
+
+// Build a stable canonical promotion arg list used for every phase.
+function buildCanonicalPromoteArgs(canonicalPromote, files) {
+  if (!canonicalPromote || canonicalPromote.enabled !== true) {
+    return null;
+  }
+  const configPath = files.canonical
+    || files.fast
+    || files.finetune
+    || files.endgame
+    || files.benchmark;
+  if (!configPath) {
+    return null;
+  }
+  const args = [
+    "--config", configPath,
+    "--eval-episodes", String(canonicalPromote.evalEpisodes),
+    "--eval-max-steps", String(canonicalPromote.evalMaxSteps),
+    "--eval-difficulty", String(canonicalPromote.evalDifficulty),
+    "--eval-score", String(canonicalPromote.evalScore),
+    "--min-improve", String(canonicalPromote.minImprove),
+    "--max-steps", String(canonicalPromote.maxSteps),
+    "--step-ticks", String(canonicalPromote.stepTicks),
+    "--seed", String(canonicalPromote.seed),
+  ];
+  if (canonicalPromote.requirePositiveLcb) {
+    args.push("--require-positive-lcb");
+    args.push("--lcb-z", String(canonicalPromote.lcbZ));
+  }
+  return args;
+}
+
+// Hash one string into a positive 31-bit seed.
+function hashStringToSeed(text) {
+  const source = String(text || "");
+  let hash = 0;
+  for (let i = 0; i < source.length; i += 1) {
+    hash = (hash * 31 + source.charCodeAt(i)) % TRAIN_SEED_MODULUS;
+  }
+  return Math.max(1, hash);
+}
+
+// Derive one deterministic base seed from a run directory id.
+function resolveRunSeedBase(runDir) {
+  const runId = path.basename(String(runDir || ""));
+  return hashStringToSeed(runId);
 }
 
 // Detect available CPU parallelism for auto worker tuning.
@@ -253,6 +398,7 @@ function parseArgs(argv) {
     workersAutoMax: DEFAULT_WORKERS_AUTO_MAX,
     workersReserve: DEFAULT_WORKERS_RESERVE,
     workersProfileAware: true,
+    trainSeedRotation: DEFAULT_TRAIN_SEED_ROTATION,
   };
   const args = Array.isArray(argv) ? [...argv] : [];
   if (args.length > 0 && !String(args[0]).startsWith("-")) {
@@ -330,6 +476,14 @@ function parseArgs(argv) {
       result.workersProfileAware = true;
       continue;
     }
+    if (arg === "--train-seed-fixed") {
+      result.trainSeedRotation = false;
+      continue;
+    }
+    if (arg === "--train-seed-rotate") {
+      result.trainSeedRotation = true;
+      continue;
+    }
     result.trainExtraArgs.push(arg);
   }
   result.workersAutoMax = Math.max(result.workersAutoMin, result.workersAutoMax);
@@ -355,6 +509,8 @@ function printHelp() {
     `  --workers-reserve <n>   Keep CPU slots free (default: ${DEFAULT_WORKERS_RESERVE})`,
     "  --workers-flat          Disable phase-aware worker scaling",
     "  --workers-profile-aware Enable phase-aware worker scaling (default)",
+    "  --train-seed-fixed      Keep trainer seed exactly as configured/passed",
+    "  --train-seed-rotate     Auto-rotate per-phase trainer seeds each run (default)",
     "  --help, -h              Show this help",
     "  --dry-run               Print commands without executing",
     "",
@@ -362,6 +518,8 @@ function printHelp() {
     "  - Extra args are forwarded only to python/train.py calls.",
     "  - Forward --workers <n> to force a manual worker count on every phase.",
     "  - promote_best.py never receives forwarded args.",
+    "  - Wrapper enforces --no-save-best-during-training and uses a canonical promote profile from ai.training.promotion.canonical.",
+    "  - Promotion reports are written per phase plus one run summary in the run directory.",
   ];
   process.stdout.write(`${lines.join("\n")}\n`);
 }
@@ -410,6 +568,158 @@ function runCommand(command, args, options = {}) {
   if (typeof result.status === "number" && result.status !== 0) {
     process.exit(result.status);
   }
+}
+
+// Convert one free-form label into a filesystem-safe token.
+function toPathToken(value, fallback = "item") {
+  const text = String(value || "").trim().toLowerCase();
+  const normalized = text.replace(/[^a-z0-9._-]+/g, "_").replace(/^_+|_+$/g, "");
+  return normalized || fallback;
+}
+
+// Read one JSON file and return null on parse/read errors.
+function readJsonFileSafe(filePath) {
+  try {
+    const raw = fs.readFileSync(filePath, "utf8");
+    return JSON.parse(raw);
+  } catch (error) {
+    return null;
+  }
+}
+
+// Ensure the parent directory exists for the provided output path.
+function ensureParentDir(filePath) {
+  const directory = path.dirname(filePath);
+  if (directory && directory !== ".") {
+    fs.mkdirSync(directory, { recursive: true });
+  }
+}
+
+// Write one JSON payload with stable formatting.
+function writeJsonFile(filePath, payload) {
+  ensureParentDir(filePath);
+  fs.writeFileSync(filePath, `${JSON.stringify(payload, null, 2)}\n`);
+}
+
+// Format one numeric value for markdown reports.
+function fmtNumber(value, digits = 4) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return "-";
+  }
+  return numeric.toFixed(digits);
+}
+
+// Build one run-level promotion summary payload.
+function buildRunPromotionSummary(profile, runDir, canonicalPromote, phaseReports) {
+  const phases = Array.isArray(phaseReports) ? phaseReports.map((entry) => {
+    const report = entry && entry.report ? entry.report : {};
+    const paired = report.paired || {};
+    return {
+      index: Number(entry.index),
+      phase: String(entry.phase || ""),
+      promoted: report.promoted === true,
+      reason: String(report.reason || ""),
+      latest_score: Number(report.latest && report.latest.score),
+      best_score_before: Number(report.best_score_before),
+      best_score_after: Number(report.best_score_after),
+      delta_score: Number(report.delta_score),
+      paired_lcb: Number(paired.lower_bound),
+      paired_mean_delta: Number(paired.mean_delta),
+      report_json: String(entry.reportJsonPath || ""),
+      report_md: String(entry.reportMarkdownPath || ""),
+    };
+  }) : [];
+
+  const promotedCount = phases.filter((phase) => phase.promoted).length;
+  const deltas = phases
+    .map((phase) => phase.delta_score)
+    .filter((value) => Number.isFinite(value));
+  const avgDelta = deltas.length > 0
+    ? deltas.reduce((sum, value) => sum + value, 0) / deltas.length
+    : null;
+  const finalBest = phases.length > 0 ? phases[phases.length - 1].best_score_after : null;
+
+  return {
+    version: 1,
+    profile: String(profile || ""),
+    runDir: String(runDir || ""),
+    generatedAt: new Date().toISOString(),
+    canonicalPromotion: canonicalPromote || null,
+    totals: {
+      phases: phases.length,
+      promoted: promotedCount,
+      retained: Math.max(0, phases.length - promotedCount),
+      avgDeltaScore: avgDelta,
+      finalBestScore: Number.isFinite(finalBest) ? finalBest : null,
+    },
+    phases,
+  };
+}
+
+// Render one markdown run-level promotion summary with metric glossary.
+function renderRunPromotionSummaryMarkdown(summary) {
+  const canonical = summary.canonicalPromotion || {};
+  const lines = [
+    "# Training Promotion Summary",
+    "",
+    `- Generated at: \`${summary.generatedAt}\``,
+    `- Profile: \`${summary.profile}\``,
+    `- Run dir: \`${summary.runDir}\``,
+    "",
+    "## Canonical Benchmark",
+    "",
+    `- Enabled: \`${canonical.enabled === true}\``,
+    `- Eval episodes: \`${canonical.evalEpisodes ?? "-"}\``,
+    `- Eval max steps: \`${canonical.evalMaxSteps ?? "-"}\``,
+    `- Score mode: \`${canonical.evalScore ?? "-"}\``,
+    `- Min improve: \`${fmtNumber(canonical.minImprove)}\``,
+    `- Require positive LCB: \`${canonical.requirePositiveLcb === true}\``,
+    `- LCB z: \`${fmtNumber(canonical.lcbZ)}\``,
+    "",
+    "## Totals",
+    "",
+    `- Phases: \`${summary.totals.phases}\``,
+    `- Promoted: \`${summary.totals.promoted}\``,
+    `- Retained: \`${summary.totals.retained}\``,
+    `- Avg delta score: \`${fmtNumber(summary.totals.avgDeltaScore)}\``,
+    `- Final best score: \`${fmtNumber(summary.totals.finalBestScore)}\``,
+    "",
+    "## Phase Results",
+    "",
+    "| # | Phase | Promoted | Reason | Latest | Best before | Best after | Delta | Paired LCB |",
+    "|---|---|---:|---|---:|---:|---:|---:|---:|",
+  ];
+  summary.phases.forEach((phase) => {
+    lines.push(
+      `| ${phase.index} | ${phase.phase} | ${phase.promoted ? "yes" : "no"} | ${phase.reason} | `
+      + `${fmtNumber(phase.latest_score)} | ${fmtNumber(phase.best_score_before)} | `
+      + `${fmtNumber(phase.best_score_after)} | ${fmtNumber(phase.delta_score)} | ${fmtNumber(phase.paired_lcb)} |`,
+    );
+  });
+  lines.push(
+    "",
+    "## Metric Glossary",
+    "",
+    "- `Latest`: canonical benchmark score for `models/policy.json`.",
+    "- `Best before`: canonical benchmark score for `models/policy_best.json` before the check.",
+    "- `Best after`: best score tracked after this phase check.",
+    "- `Delta`: `latest - best_before` on the same canonical benchmark.",
+    "- `Paired LCB`: lower confidence bound of paired episode deltas (`latest_i - best_i`).",
+    "- `Promoted`: checkpoint replacement decision for this phase.",
+    "",
+  );
+  return `${lines.join("\n")}\n`;
+}
+
+// Write one run-level promotion summary (JSON + Markdown) into the run directory.
+function writeRunPromotionSummary(runDir, summary) {
+  const jsonPath = path.join(runDir, "report_training_promotion_summary.json");
+  const mdPath = path.join(runDir, "report_training_promotion_summary.md");
+  writeJsonFile(jsonPath, summary);
+  ensureParentDir(mdPath);
+  fs.writeFileSync(mdPath, renderRunPromotionSummaryMarkdown(summary));
+  return { jsonPath, mdPath };
 }
 
 // Deep-clone plain JSON-like objects.
@@ -469,6 +779,7 @@ function prepareRunFiles(rootDir, profile) {
   const configPath = path.join(rootDir, "config.json");
   const baseConfig = JSON.parse(fs.readFileSync(configPath, "utf8"));
   const files = {};
+  const canonicalPromote = resolveCanonicalPromotion(baseConfig);
 
   if (profile === PROFILE_FAST || profile === PROFILE_QUALITY || profile === PROFILE_FULL) {
     files.fast = path.join(runDir, "config_fast.json");
@@ -491,7 +802,17 @@ function prepareRunFiles(rootDir, profile) {
     fs.writeFileSync(files.benchmark, `${JSON.stringify(configBenchmark, null, 2)}\n`);
   }
 
-  return { runDir, files };
+  if (canonicalPromote.enabled) {
+    files.canonical = path.join(runDir, "config_canonical_promote.json");
+    const configCanonical = buildProfileConfig(
+      baseConfig,
+      canonicalPromote.maxTicks,
+      canonicalPromote.endgameEnabled,
+    );
+    fs.writeFileSync(files.canonical, `${JSON.stringify(configCanonical, null, 2)}\n`);
+  }
+
+  return { runDir, files, canonicalPromote };
 }
 
 // Build the training/promote phase list for the selected profile.
@@ -529,11 +850,11 @@ function buildPhases(profile, runDir, files) {
         ],
         promoteArgs: [
           "--config", files.fast,
-          "--eval-episodes", "3",
+          "--eval-episodes", "5",
           "--eval-max-steps", "1600",
           "--eval-difficulty", "1.0",
           "--eval-score", "rpt",
-          "--min-improve", "0.025",
+          "--min-improve", "0.010",
           "--max-steps", "1600",
           "--step-ticks", "2",
         ],
@@ -567,18 +888,18 @@ function buildPhases(profile, runDir, files) {
           "--model-path", "models/policy.json",
           "--best-model-path", "models/policy_best.json",
           "--best-model-meta-path", "models/policy_best.meta.json",
-          "--resume-from-best",
+          "--resume-from-latest",
           "--debug-run-dir", runDir,
           "--debug-summary-name", "summary_train.log",
           "--debug-prefix", "train",
         ],
         promoteArgs: [
           "--config", files.fast,
-          "--eval-episodes", "3",
+          "--eval-episodes", "5",
           "--eval-max-steps", "1600",
           "--eval-difficulty", "1.0",
           "--eval-score", "rpt",
-          "--min-improve", "0.025",
+          "--min-improve", "0.010",
           "--max-steps", "1600",
           "--step-ticks", "2",
         ],
@@ -613,18 +934,18 @@ function buildPhases(profile, runDir, files) {
           "--model-path", "models/policy.json",
           "--best-model-path", "models/policy_best.json",
           "--best-model-meta-path", "models/policy_best.meta.json",
-          "--resume-from-best",
+          "--resume-from-latest",
           "--debug-run-dir", runDir,
           "--debug-summary-name", "summary_finetune.log",
           "--debug-prefix", "finetune",
         ],
         promoteArgs: [
           "--config", files.finetune,
-          "--eval-episodes", "4",
+          "--eval-episodes", "6",
           "--eval-max-steps", "1800",
           "--eval-difficulty", "1.0",
           "--eval-score", "rpt",
-          "--min-improve", "0.030",
+          "--min-improve", "0.012",
           "--max-steps", "1800",
           "--step-ticks", "2",
         ],
@@ -658,18 +979,18 @@ function buildPhases(profile, runDir, files) {
           "--model-path", "models/policy.json",
           "--best-model-path", "models/policy_best.json",
           "--best-model-meta-path", "models/policy_best.meta.json",
-          "--resume-from-best",
+          "--resume-from-latest",
           "--debug-run-dir", runDir,
           "--debug-summary-name", "summary_full_phase1_foundation.log",
           "--debug-prefix", "full_p1",
         ],
         promoteArgs: [
           "--config", files.fast,
-          "--eval-episodes", "4",
+          "--eval-episodes", "6",
           "--eval-max-steps", "1700",
           "--eval-difficulty", "1.0",
           "--eval-score", "rpt",
-          "--min-improve", "0.025",
+          "--min-improve", "0.010",
           "--max-steps", "1700",
           "--step-ticks", "2",
         ],
@@ -704,18 +1025,18 @@ function buildPhases(profile, runDir, files) {
           "--model-path", "models/policy.json",
           "--best-model-path", "models/policy_best.json",
           "--best-model-meta-path", "models/policy_best.meta.json",
-          "--resume-from-best",
+          "--resume-from-latest",
           "--debug-run-dir", runDir,
           "--debug-summary-name", "summary_full_phase2_finetune.log",
           "--debug-prefix", "full_p2",
         ],
         promoteArgs: [
           "--config", files.finetune,
-          "--eval-episodes", "5",
+          "--eval-episodes", "8",
           "--eval-max-steps", "2100",
           "--eval-difficulty", "1.0",
           "--eval-score", "rpt",
-          "--min-improve", "0.030",
+          "--min-improve", "0.012",
           "--max-steps", "2100",
           "--step-ticks", "2",
         ],
@@ -750,18 +1071,18 @@ function buildPhases(profile, runDir, files) {
           "--model-path", "models/policy.json",
           "--best-model-path", "models/policy_best.json",
           "--best-model-meta-path", "models/policy_best.meta.json",
-          "--resume-from-best",
+          "--resume-from-latest",
           "--debug-run-dir", runDir,
           "--debug-summary-name", "summary_full_phase3_endgame.log",
           "--debug-prefix", "full_p3",
         ],
         promoteArgs: [
           "--config", files.endgame,
-          "--eval-episodes", "6",
+          "--eval-episodes", "10",
           "--eval-max-steps", "2800",
           "--eval-difficulty", "1.0",
           "--eval-score", "rpt",
-          "--min-improve", "0.040",
+          "--min-improve", "0.015",
           "--max-steps", "2800",
           "--step-ticks", "2",
         ],
@@ -796,18 +1117,18 @@ function buildPhases(profile, runDir, files) {
           "--model-path", "models/policy.json",
           "--best-model-path", "models/policy_best.json",
           "--best-model-meta-path", "models/policy_best.meta.json",
-          "--resume-from-best",
+          "--resume-from-latest",
           "--debug-run-dir", runDir,
           "--debug-summary-name", "summary_full_phase4_consolidate.log",
           "--debug-prefix", "full_p4",
         ],
         promoteArgs: [
           "--config", files.finetune,
-          "--eval-episodes", "8",
+          "--eval-episodes", "12",
           "--eval-max-steps", "2200",
           "--eval-difficulty", "1.0",
           "--eval-score", "rpt",
-          "--min-improve", "0.040",
+          "--min-improve", "0.015",
           "--max-steps", "2200",
           "--step-ticks", "2",
         ],
@@ -951,9 +1272,27 @@ function runProfile(rootDir, profile, trainExtraArgs, dryRun, workerOptions = {}
     tagColor: ANSI_CYAN,
   });
 
-  const { runDir, files } = prepareRunFiles(rootDir, profile);
+  const { runDir, files, canonicalPromote } = prepareRunFiles(rootDir, profile);
   printStatus("run-dir", runDir, ANSI_CYAN);
   const phases = buildPhases(profile, runDir, files);
+  const canonicalPromoteArgs = buildCanonicalPromoteArgs(canonicalPromote, files);
+  const phaseReports = [];
+  if (canonicalPromoteArgs) {
+    printStatus(
+      "promote",
+      `mode=canonical episodes=${canonicalPromote.evalEpisodes} `
+      + `maxSteps=${canonicalPromote.evalMaxSteps} score=${canonicalPromote.evalScore} `
+      + `minImprove=${canonicalPromote.minImprove.toFixed(4)} lcb=${canonicalPromote.requirePositiveLcb ? "on" : "off"}`,
+      ANSI_CYAN,
+    );
+  }
+  const seedRotationEnabled = workerOptions.trainSeedRotation !== false;
+  const runSeedBase = resolveRunSeedBase(runDir);
+  if (seedRotationEnabled) {
+    printStatus("seed", `mode=rotate base=${runSeedBase}`, ANSI_CYAN);
+  } else {
+    printStatus("seed", "mode=fixed", ANSI_CYAN);
+  }
 
   phases.forEach((phase, index) => {
     const phaseName = String(phase.name || `phase-${index + 1}`);
@@ -980,8 +1319,19 @@ function runProfile(rootDir, profile, trainExtraArgs, dryRun, workerOptions = {}
       ...process.env,
       SUMMARY_LOG_EVERY: phase.summaryLogEvery,
     };
+    const trainArgsBase = [
+      ...phase.trainArgs,
+      ...phaseExtras,
+      "--no-save-best-during-training",
+    ];
+    let trainArgsWithSeed = trainArgsBase;
+    if (seedRotationEnabled && findOptionValue(trainArgsBase, "--seed") === null) {
+      const phaseSeed = (runSeedBase + (index + 1) * TRAIN_PHASE_SEED_STEP) % (TRAIN_SEED_MODULUS - 1) + 1;
+      trainArgsWithSeed = upsertCliOption(trainArgsWithSeed, "--seed", phaseSeed);
+      printStatus("seed", `phase=${phaseName} seed=${phaseSeed}`, ANSI_CYAN);
+    }
     const trainArgs = upsertCliOption(
-      [...phase.trainArgs, ...phaseExtras],
+      trainArgsWithSeed,
       "--workers",
       phaseWorkers.workers,
     );
@@ -992,13 +1342,61 @@ function runProfile(rootDir, profile, trainExtraArgs, dryRun, workerOptions = {}
       { cwd: rootDir, env: trainEnv, dryRun, tag: "train", tagColor: ANSI_YELLOW },
     );
     printStatus("promote", "Evaluating latest checkpoint against best", ANSI_GREEN);
+    const promoteArgs = canonicalPromoteArgs || phase.promoteArgs;
+    const phaseToken = toPathToken(phaseName, `phase_${index + 1}`);
+    const phaseReportJsonPath = path.join(
+      runDir,
+      `report_promote_${String(index + 1).padStart(2, "0")}_${phaseToken}.json`,
+    );
+    const phaseReportMdPath = path.join(
+      runDir,
+      `report_promote_${String(index + 1).padStart(2, "0")}_${phaseToken}.md`,
+    );
+    const promoteArgsWithReport = [
+      ...promoteArgs,
+      "--report-json", phaseReportJsonPath,
+      "--report-md", phaseReportMdPath,
+      "--report-tag", phaseName,
+    ];
     runCommand(
       pythonCommand,
-      ["python/promote_best.py", ...phase.promoteArgs],
+      ["python/promote_best.py", ...promoteArgsWithReport],
       { cwd: rootDir, dryRun, tag: "promote", tagColor: ANSI_GREEN },
     );
+    if (!dryRun) {
+      const reportPayload = readJsonFileSafe(phaseReportJsonPath);
+      if (reportPayload) {
+        phaseReports.push({
+          index: index + 1,
+          phase: phaseName,
+          reportJsonPath: phaseReportJsonPath,
+          reportMarkdownPath: phaseReportMdPath,
+          report: reportPayload,
+        });
+        const deltaLabel = fmtNumber(reportPayload.delta_score);
+        const bestAfterLabel = fmtNumber(reportPayload.best_score_after);
+        printStatus(
+          "report",
+          `phase=${phaseName} promoted=${reportPayload.promoted === true ? "yes" : "no"} `
+          + `delta=${deltaLabel} best_after=${bestAfterLabel}`,
+          ANSI_CYAN,
+        );
+      } else {
+        printStatus(
+          "report",
+          `phase=${phaseName} missing promotion report: ${phaseReportJsonPath}`,
+          ANSI_YELLOW,
+        );
+      }
+    }
     printStatus("phase", `Completed ${phaseName}`, ANSI_GREEN);
   });
+  if (!dryRun) {
+    const summary = buildRunPromotionSummary(profile, runDir, canonicalPromote, phaseReports);
+    const summaryPaths = writeRunPromotionSummary(runDir, summary);
+    printStatus("report", `summary json=${summaryPaths.jsonPath}`, ANSI_CYAN);
+    printStatus("report", `summary md=${summaryPaths.mdPath}`, ANSI_CYAN);
+  }
   process.stdout.write("\n");
   printStatus("done", `Training profile completed: ${profile}`, ANSI_GREEN);
 }
@@ -1028,6 +1426,7 @@ function main() {
     workersAutoMax: args.workersAutoMax,
     workersReserve: args.workersReserve,
     workersProfileAware: args.workersProfileAware,
+    trainSeedRotation: args.trainSeedRotation,
   });
 }
 

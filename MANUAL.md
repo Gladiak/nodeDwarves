@@ -1304,18 +1304,25 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - `trade`: periodic barter cycles that sell surplus resources and buy shortage resources using stockpile target ratios.
     - safety floors use `externalCamps.trade.reserveRatioFloor` and protected-resource exclusions (`protectedGiveResources`).
     - deal pricing uses scarcity/surplus/reputation terms and is clamped for stability.
+    - trade camps can dispatch physical caravans toward the village; dispatch spends trade-give resources up front and payload is delivered on arrival.
+    - caravans can be intercepted while crossing active raider influence zones.
   - `militia`: periodic support contracts consume configured supplies and maintain additive raid-defense bonus.
     - bonus scales with positive faction reputation (`contracts.reputations`) and decays when support is skipped.
   - `raider`: periodic tribute demands; refusal raises hostility and can trigger skirmish stockpile losses.
     - hostility drives ongoing raid pressure multipliers and decays slowly over time.
+- Influence zones:
+  - each role projects a Manhattan-radius zone (`externalCamps.influence.*Radius`).
+  - influence can scale village-facing external-camp modifiers (`useForModifiers`), so map position matters in addition to role mix.
+  - optional role-colored influence rings are rendered on the surface map.
 - Runtime modifiers exposed to other systems:
   - `merchantTradeRate` and `contractReward` (economic multipliers).
   - `raidDefenseBonus`, `raidDeathRate`, `raidResourceLoss`, `raiderPressure` (combat pressure).
+  - influence telemetry also exposes `tradeInfluence`, `militiaInfluence`, `raiderInfluence`, and caravan interception risk.
   - merchant/contract systems consume economy multipliers; surface raids consume defense/death/loss multipliers.
 - Observability:
-  - `state.externalCamps.stats` tracks spawned/departed counts, role actions, and skirmish losses.
+  - `state.externalCamps.stats` tracks spawned/departed counts, role actions, skirmish losses, and caravan dispatch/arrival/interception counters.
   - `state.externalCamps.history` stores compact per-camp run records.
-  - telemetry `Diplomacy` and dashboard `Event Timeline` expose active camp mix, next spawn ETA, and live modifier summary.
+  - telemetry `Diplomacy` and dashboard `Event Timeline` expose active camp mix, convoy activity, next spawn ETA, and live modifier summary.
 
 ### Terrain helpers 🧰
 
@@ -1344,7 +1351,7 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
   - With `display.autoSize=true`, the map follows terminal size; `display.maxWidth` / `display.maxHeight`
     are optional caps, and values `<= 0` mean uncapped.
   - `display.width` / `display.height` stay as fallback dimensions (and as fixed dimensions when `autoSize=false`).
-  - Places nodes, structures, temple footprint overlay, external camp footprints, dwarves, merchant, and raid beasts on the grid.
+  - Places nodes, structures, temple footprint overlay, external camp footprints + influence rings + caravans, dwarves, merchant, and raid beasts on the grid.
   - When underrealm depth view is active, it renders the selected depth terrain layer and hides surface entities.
   - Selects a stable subset of dwarves to keep the map readable (`display.dwarves.maxVisible`; set `< 0` to skip dwarf rendering).
   - Applies the dwarf inspect overlay when `display.inspect_panel.enabled` is true.
@@ -1417,7 +1424,7 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
   - `World` keeps contract/alchemy windows and one `World log` line for the latest event signal.
     - Long `World log` entries wrap up to 3 telemetry rows (instead of hard truncation) for readability.
   - `Pressure` reports shortage priorities (`state.lastPriorities`), key stockpile target ratios, raid pressure, and compact jobs-governor priorities.
-  - `Diplomacy` is the trade/diplomacy block (merchant status/flows, external camp mix/effects, contracts, world-event cadence/counters, plus trade-governor intents).
+  - `Diplomacy` is the trade/diplomacy block (merchant status/flows, external camp mix/effects, convoy activity/interception risk, contracts, world-event cadence/counters, plus trade-governor intents).
   - `Deep Signals` consolidates world-event cadence/totals plus contract reliability for late-game monitoring.
     - Its `World log` mirror also wraps to multiple rows (up to 3).
   - `Operations` reports adult workforce split, job mix, build pipeline, 200-tick stockpile deltas, building-governor ranking/bias signals, and production-vs-infrastructure load split.
@@ -1559,18 +1566,35 @@ Training presets:
 - `ai:train:fresh` runs the same fast preset but clears existing policy and best-eval snapshots first.
 - `ai:train:fast:quality` runs the fast phase plus a short full-sim finetune at max difficulty (40 episodes, max_steps=1800). Eval cadence is 20 episodes in the fast phase and 10 episodes in finetune, with the promotion check after each phase.
 - `ai:train:full` runs the quality-first full curriculum in four phases: foundation (280 episodes), full-sim finetune (90), endgame specialization (24), and final consolidation (40). It is optimized for model quality over runtime and keeps promote checks after every phase.
-- `ai:train:full:fresh` runs the same full curriculum but starts from a clean checkpoint set (`--fresh` is applied to phase 1 only, then resume-from-best continues through later phases).
+- `ai:train:full:fresh` runs the same full curriculum but starts from a clean checkpoint set (`--fresh` is applied to phase 1 only, then latest-resume carries forward across later phases).
 - `ai:train:endgame` runs an endgame-enabled long-horizon pass (8 episodes, max_steps=10000, step_ticks=2, target horizon 20k ticks per episode) with eval every 4 episodes. It is tuned to specialize on late-game pressure while keeping the profile compact.
 - `ai:promote:best` runs just the promotion check manually.
-- Presets generate a run-specific config in `debug/run_<timestamp>/`, set `ai.training.*Overrides.ai.maxTicks` to cover the phase horizon (`max_steps * step_ticks`, with extra headroom where needed), and reuse that same config for `promote_best`.
-- All presets save the best model to `models/policy_best.json` (with meta in `models/policy_best.meta.json`) and resume from it unless `--fresh` is used.
-- Best-checkpoint writes are explicit in logs: `train.py` prints a colored `[BEST SAVED]` line on eval improvement, and `promote_best.py` prints the same marker when latest is promoted.
+- Presets generate run-specific configs in `debug/run_<timestamp>/`: per-phase training configs plus a dedicated canonical promotion config (`config_canonical_promote.json`) driven by `ai.training.promotion.canonical`.
+- All presets save the best model to `models/policy_best.json` (with meta in `models/policy_best.meta.json`); resume source depends on profile policy and CLI override (`--resume-from-best` / `--resume-from-latest`).
+- Trainer CLI resume source can be forced per run: `--resume-from-best` or `--resume-from-latest` (the latter is useful to keep incremental momentum when best-gate promotion is temporarily blocked).
+- Wrapper resume policy now favors cumulative learning on multi-phase profiles: `ai:train:fast` stays anchored to best-resume, while `ai:train:fast:quality` and `ai:train:full` use latest-resume for every phase so non-promoted progress can still carry forward within and across runs.
+- Trainer resume continuity now includes optimizer state snapshots: latest (`modelStatePath`) and best (`bestModelStatePath`) are saved/restored alongside policy weights to avoid restart-from-scratch optimizer behavior across runs.
+- Wrapper enforces promote-only best updates (`--no-save-best-during-training`), so `train.py` keeps eval diagnostics while `promote_best.py` remains the single checkpoint promotion gate.
+- `ai.training.trainer.saveBestDuringTraining` still exists for manual `python/train.py` workflows, but wrapper presets keep it off at runtime for metric consistency.
+- Best-checkpoint writes are explicit in logs: `promote_best.py` prints a colored `[BEST SAVED]` line when latest is promoted on the canonical benchmark.
+- `models/policy_best.meta.json` now stores promotion context (config path, eval episodes/steps, seed base, min improve, and optional paired-LCB stats) so score provenance is auditable.
+- Wrapper promotion reporting is automatic per phase:
+  - `report_promote_<phase>.json` and `report_promote_<phase>.md` inside the run directory.
+  - run aggregate outputs: `report_training_promotion_summary.json` and `report_training_promotion_summary.md`.
+- Report metrics:
+  - `latest_score`: canonical score for `models/policy.json`.
+  - `best_score_before`: canonical score for `models/policy_best.json` before the check.
+  - `best_score_after`: canonical best score after the decision.
+  - `delta_score`: `latest_score - best_score_before`.
+  - `paired.lower_bound`: one-sided lower confidence bound over paired episode deltas (`latest_i - best_i`).
+  - `promoted`: whether latest replaced best on this check.
 - `promote_best.py` uses the same action-head contract as training (`resources` + optional `festival` + enabled governor pseudo action-ids), so multi-phase governor profiles do not fail on false resource-shape mismatches.
 - Wrapper phase progress is explicit in console logs (`== Phase x/n: <name> ==`) so long curriculum runs are easier to monitor.
 - Wrapper logs now use colorized status tags (`PROFILE`, `PHASE`, `TRAIN`, `PROMOTE`, `DONE`) in TTY terminals for clearer long-run progress tracking.
 - Checkpoint cadence is decoupled: `--log-every` controls summary windows, while `--save-every` controls how often `modelPath` is written; final episode save is always enforced.
-- Promote robustness guardrail: wrapper presets pass phase-specific `--min-improve` and increase `--eval-episodes` in later phases (especially endgame/consolidation) to avoid promoting checkpoints on pure eval noise.
-- Endgame promote strictness: `ai:train:endgame` uses `--min-improve 0.000`, so any measured improvement over current best promotes the latest checkpoint.
+- Promote robustness guardrail: wrapper runs `promote_best.py` with one canonical benchmark across all phases (same eval episodes/steps/score/difficulty/seed), and promotion can require a positive paired lower-confidence bound (`requirePositiveLcb` + `lcbZ`) in addition to `minImprove`.
+- Canonical promotion knobs are config-driven under `ai.training.promotion.canonical` and are used both by wrapper phase promotion and standalone `ai:promote:best` defaults.
+- Wrapper seed policy for long-horizon learning: per-phase training seeds rotate automatically every wrapper run (while promote/regression eval seeds remain deterministic for fair comparison); use `--train-seed-fixed` to disable rotation.
 - Runtime config wiring: Python trainer/promotion/regression rollouts now launch `ai_server.js` with the same `--config` path used by the wrapper phase, so run-specific training overrides are applied consistently by the JS simulator.
 - Worker allocation guardrail: wrapper auto-tunes `--workers` from CPU parallelism (`auto-min`/`auto-max` bounds plus reserved cores), and a manual `--workers <n>` override always takes precedence.
 - Profile-aware worker policy: in auto mode the wrapper scales workers by phase category (`foundation` > `finetune` > `consolidation` > `endgame`) and also caps by PPO batch window (`batchEpisodes * 2`) to limit over-queued rollouts; use `--workers-flat` to disable this behavior.

@@ -872,6 +872,11 @@ function buildDashboardTimelineRows(snapshot) {
     } else {
       rows.push(`External camps: none | next spawn ${Math.max(0, Number(status.nextSpawnIn || 0))}t`);
     }
+    const caravans = status.caravans || {};
+    const activeCaravans = Math.max(0, Number(caravans.active || 0));
+    if (activeCaravans > 0) {
+      rows.push(`Caravans: ${activeCaravans} active | inbound ${Math.max(0, Number(caravans.toVillage || 0))}`);
+    }
   }
 
   if (snapshot.festivalStatus && snapshot.festivalStatus.active === true) {

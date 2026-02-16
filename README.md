@@ -21,7 +21,7 @@ Think of it as a living systems sandbox: you tune config, press run, and watch t
 - 🏘️ Village growth with structures, roads, and organic placement.
 - 🌦️ Seasons, weather, festivals, and wildlife that shift priorities (raids optional).
 - 📜 Merchant trading, caravan contracts, and faction reputation.
-- ⛺ Long-lived external faction camps: trade hubs, militia outposts, and raider pressure points with tuned cadence/hostility for livelier but stable long runs.
+- ⛺ Long-lived external faction camps: trade hubs, militia outposts, and raider pressure points with moving trade caravans, interception risk, and role-based influence zones on the map.
 - 🎭 World events now live: traveling bards, rival caravans, and short-deadline opportunities.
 - 🔥 Schism arc per run: doctrine shifts with hysteresis, branching anti-repeat festival rituals, social pressure/legitimacy swings, and climax moments that can reshape the economy.
 - 🗝️ Endgame ruins expeditions with artifacts, set bonuses, and cycle resets.
@@ -42,7 +42,7 @@ Think of it as a living systems sandbox: you tune config, press run, and watch t
 - 🪟 In-map Ops Snapshot: a top-right status stack with core runtime signals (time, population, underrealm + view) and a fixed keyboard-command row, without letting roads/buildings/pathing use that carved space.
 - 🎨 Visual theme presets: switchable terminal identity with coherent palette overrides, static warning/critical alert accents, and a compact focus-style Ops Snapshot under pressure.
 - 🚨 Alert clarity upgrade: risk lines now expose a compact cause tag (`raid`, `shortage`, `stockpile`, `morale`, `mixed`) so critical states are easier to diagnose at a glance.
-- 🤖 AI training in Python (PPO) with JS-only inference.
+- 🤖 AI training in Python (PPO) with JS-only inference, now tuned for longer-horizon learning continuity (optimizer-state resume + rotating train seeds across runs + cumulative latest-resume on multi-phase quality/full profiles + one canonical promotion benchmark).
 - 🧩 Modular architecture (simulation, state, render, AI) for sane iteration.
 - ⚡ Late-game pathing cache optimizations for smoother high-population ticks.
 - 🔧 Configurable performance knobs for heavy profiling runs.
@@ -100,11 +100,12 @@ npm run ai:train:full:fresh
 For training presets, evaluation, and overrides, see `MANUAL.md` and
 `docs/TRAINING_OVERRIDES.md`.
 
-Training now highlights every best-checkpoint save with a colored `[BEST SAVED]` line and keeps both `models/policy_best.json` and `models/policy_best.meta.json` in sync.
+Canonical promotion now owns best-checkpoint writes: wrapper training disables in-train best saves and `promote_best.py` updates `models/policy_best.json` + `models/policy_best.meta.json` only after canonical checks.
+📊 Automatic promotion reports are written in each run folder (`debug/run_*/report_promote_*.json/.md`) plus one run summary (`report_training_promotion_summary.json/.md`) with metric glossary.
 
 - 🎯 `ai:train:endgame` now runs a long-horizon specialization preset (`max_steps=10000`, `step_ticks=2`) with eval every 4 episodes, targeting at least 20k ticks per episode.
 - 🧠 Latest-checkpoint writes are now decoupled from log windows (`saveEvery` / `--save-every`) so long curriculum runs spend less time on disk I/O.
-- ⚡ Promote checks now require a phase-specific minimum score gain (`--min-improve`) and use more eval episodes in late phases to reduce statistical-noise promotions.
+- ⚡ Promote checks now run on one canonical benchmark across phases (same config/episodes/steps/seed) and can enforce a positive paired lower-confidence bound before promoting.
 - 🧩 Trainer/promote/regression rollouts now pass the same run config to the JS bridge (`ai_server.js --config ...`), so wrapper-generated overrides are applied consistently.
 - 🎯 Training wrappers now auto-tune worker count from CPU capacity (with bounds and manual `--workers` override) to behave better across different machines.
 - ⚙️ In auto mode, workers are also phase-aware (foundation/finetune/endgame/consolidation) and you can force flat behavior with `--workers-flat`.
@@ -159,7 +160,7 @@ npm run balance:gate:standard -- --set jobs.gatherTriggerRatio.food=1.1 --set jo
 - `src/`: simulation, state, rendering, AI.
 - `src/simulation/underrealm.js`: Underrealm crew, shrine doctrine, deep economy, exploration unlocks, and hostile faction pressure.
 - `src/simulation/world_events.js`: world event lifecycle for bards, rival caravans, and time-limited opportunities.
-- `src/simulation/external_camps.js`: long-lived external faction camps with trade, militia support, and raider pressure.
+- `src/simulation/external_camps.js`: long-lived external faction camps with trade, militia support, raider pressure, moving caravans, and influence-zone modifiers.
 - `src/simulation/schism.js`: run-scale social schism arc (pressure/legitimacy, doctrine shifts, ritual festivals, and climax events).
 - `src/simulation/alchemy.js`: alchemy rites, pact lifecycle, and backlash logic.
 - `src/simulation/temple.js`: Temple of Ancestors stages, map footprint, and prestige system.

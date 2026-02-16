@@ -304,6 +304,8 @@ Display and layout:
 - `display.colors.reset`: ANSI reset sequence (defaults to `\u001b[0m`).
 - `display.colors.map.<key>`: ANSI color for an entity key (e.g. `dwarf`, `merchant`, `house`, `alchemy_lab`, `food`, `hud_header`).
 - `display.colors.map.external_camp_trade|external_camp_militia|external_camp_raider|external_camp_outline`: colors for external camp role markers and footprint outline.
+- `display.colors.map.external_camp_caravan`: color for active trade caravans.
+- `display.colors.map.external_camp_influence_trade|external_camp_influence_militia|external_camp_influence_raider`: role-colored influence ring colors around active camps.
 - `display.colors.map.weather_<type>`: ANSI color for telemetry weather labels (e.g. `weather_rain`).
 - `display.colors.map.terrain_<type>`: ANSI color for terrain tiles (`terrain_river`, `terrain_lake`, `terrain_road`, `terrain_bridge`, `terrain_ford`, `terrain_mountain`, `terrain_hill`, `terrain_plain`, `terrain_fertile`, `terrain_food`, `terrain_forest`, `terrain_stone`).
 - `display.colors.map.terrain_wall|terrain_cave|terrain_corridor|terrain_chasm|terrain_crystal|terrain_magma|terrain_shrine`: dedicated underrealm terrain colors (used when depth view is active; unaffected by seasonal palettes).
@@ -474,6 +476,26 @@ External Camps:
 - `externalCamps.raider.raidDeathRateBonusMax`: max multiplicative raid-death-rate pressure from raider hostility.
 - `externalCamps.raider.raidResourceLossBonusMax`: max multiplicative raid-loot-loss pressure from raider hostility.
 - `externalCamps.raider.eventEveryDemands`: event cadence for raider demand lines.
+- `externalCamps.influence.enabled`: enable external-camp influence zones.
+- `externalCamps.influence.useForModifiers`: scale camp modifiers by village-facing influence strength.
+- `externalCamps.influence.tradeRadius|militiaRadius|raiderRadius`: Manhattan-radius influence range by camp role.
+- `externalCamps.influence.minStrength`: minimum strength applied at the edge of an influence zone.
+- `externalCamps.influence.renderEnabled`: render influence rings on the surface map.
+- `externalCamps.influence.renderRingOnly`: render only influence ring edge (`true`) or fill interior sparsely (`false`).
+- `externalCamps.influence.renderStep`: sparse render stride for influence glyph placement.
+- `externalCamps.caravans.enabled`: enable trade caravans dispatched by active trade camps.
+- `externalCamps.caravans.dispatchIntervalTicks`: minimum ticks between caravan dispatches per camp.
+- `externalCamps.caravans.maxConcurrent`: max active caravans globally.
+- `externalCamps.caravans.maxPerCamp`: max active caravans from one camp.
+- `externalCamps.caravans.stepEveryTicks`: caravan movement cadence in ticks-per-step.
+- `externalCamps.caravans.payloadAmountRange.min|max`: min/max payload delivered per caravan arrival.
+- `externalCamps.caravans.payloadMultiplierFromDeal`: fraction of a resolved trade deal converted into caravan payload.
+- `externalCamps.caravans.eventEveryArrivals`: event cadence for caravan-arrival messages.
+- `externalCamps.caravans.eventEveryInterceptions`: event cadence for interception messages.
+- `externalCamps.caravans.intercept.enabled`: enable caravan interception checks inside raider influence.
+- `externalCamps.caravans.intercept.baseChancePerStep`: flat interception chance per caravan step.
+- `externalCamps.caravans.intercept.raiderPressureScale`: extra interception chance scaled by current raider pressure.
+- `externalCamps.caravans.intercept.militiaMitigationScale`: interception chance reduction scaled by militia defense bonus.
 - `externalCamps.factions.<id>.label`: display label for a camp faction.
 - `externalCamps.factions.<id>.role`: camp role (`trade`, `militia`, `raider`).
 - `externalCamps.factions.<id>.weight`: weighted spawn chance for that faction.
@@ -1571,6 +1593,8 @@ Symbols:
 - `symbols.<entity>`: map and legend symbol for entities/resources/structures.
 - `symbols.external_camp_trade|external_camp_militia|external_camp_raider`: role-specific symbols for external camp centers.
 - `symbols.external_camp_outline`: footprint/outline symbol for external camps.
+- `symbols.external_camp_caravan`: symbol for moving trade caravans.
+- `symbols.external_camp_influence`: symbol used for camp influence rings.
 - `symbols.alchemy_lab`: symbol used for the alchemy lab structure.
 - `symbols.temple_of_ancestors`: core symbol for temple center tile.
 - `symbols.temple_of_ancestors_outline`: symbol for non-center temple footprint tiles.
@@ -1737,6 +1761,19 @@ AI and training:
 - `ai.training.scenarioSampling.exponent`: curve exponent for adaptive weighting.
 - `ai.training.scenarioSampling.minWeightRatio`: minimum weight ratio vs base weight.
 - `ai.training.scenarioSampling.maxWeightRatio`: maximum weight ratio vs base weight.
+- `ai.training.promotion.canonical.enabled`: enable one canonical promotion benchmark for wrapper/promote flows.
+- `ai.training.promotion.canonical.evalEpisodes`: canonical episode count for `promote_best.py`.
+- `ai.training.promotion.canonical.evalMaxSteps`: canonical max steps per episode for promotion checks.
+- `ai.training.promotion.canonical.stepTicks`: canonical step tick size used during promotion checks.
+- `ai.training.promotion.canonical.maxSteps`: fallback max steps passed to promotion when `evalMaxSteps` resolves to 0.
+- `ai.training.promotion.canonical.maxTicks`: max tick horizon injected into wrapper-generated canonical config.
+- `ai.training.promotion.canonical.evalDifficulty`: fixed difficulty for canonical promotion checks.
+- `ai.training.promotion.canonical.evalScore`: canonical score mode (`reward`, `rps`, or `rpt`).
+- `ai.training.promotion.canonical.minImprove`: minimum mean score delta required before promoting latest to best.
+- `ai.training.promotion.canonical.seed`: deterministic seed base for canonical promotion checks.
+- `ai.training.promotion.canonical.endgameEnabled`: whether canonical promotion runs with endgame enabled.
+- `ai.training.promotion.canonical.requirePositiveLcb`: require positive paired lower confidence bound in promotion checks.
+- `ai.training.promotion.canonical.lcbZ`: z-value used for paired lower confidence bound (e.g. `1.96` for ~95% one-sided).
 - `ai.training.trainer.algorithm`: training algorithm (PPO only right now).
 - `ai.training.trainer.episodes`: training episodes per run.
 - `ai.training.trainer.maxSteps`: max steps per episode.
@@ -1770,9 +1807,12 @@ AI and training:
 - `ai.training.trainer.evalScore`: metric used for best-eval selection (`reward`, `rps`, or `rpt`).
 - `ai.training.trainer.sampleScore`: metric used for adaptive scenario weighting (`reward`, `rps`, or `rpt`).
 - `ai.training.trainer.modelPath`: policy output path.
+- `ai.training.trainer.modelStatePath`: optimizer/training-state output path paired with `modelPath` for long-run resume continuity.
 - `ai.training.trainer.bestModelPath`: best-eval policy output path.
 - `ai.training.trainer.bestModelMetaPath`: best-eval metadata output path.
-- `ai.training.trainer.resumeFromBest`: resume training from the best snapshot.
+- `ai.training.trainer.bestModelStatePath`: optimizer/training-state output path paired with `bestModelPath`.
+- `ai.training.trainer.resumeFromBest`: default resume source (`true` = best snapshot, `false` = latest snapshot); CLI flags `--resume-from-best` and `--resume-from-latest` can override per run.
+- `ai.training.trainer.saveBestDuringTraining`: when `true`, `train.py` can directly update best checkpoints during periodic eval; wrapper runs typically disable this and delegate best promotion to `promote_best.py`.
 - `ai.training.trainer.seed`: base RNG seed (0 = random).
 - `ai.priorityBoosts.<resource>.threshold`: stockpile ratio below which to boost a resource.
 - `ai.priorityBoosts.<resource>.multiplier`: max multiplier for boosted priority.
