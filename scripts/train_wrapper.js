@@ -210,6 +210,9 @@ function applyLowLoadPreset(args) {
   if (typeof args.canonicalRequirePositiveLcb !== "boolean") {
     args.canonicalRequirePositiveLcb = false;
   }
+  if (typeof args.phasePromoteRequirePositiveLcb !== "boolean") {
+    args.phasePromoteRequirePositiveLcb = false;
+  }
   args.promoteEvalProgress = true;
   if (!Number.isInteger(args.promoteEvalProgressEvery)) {
     args.promoteEvalProgressEvery = LOW_LOAD_PROMOTE_PROGRESS_EVERY;
@@ -396,6 +399,57 @@ function upsertCliOption(args, optionName, optionValue) {
   return cleaned;
 }
 
+// Remove one CLI option pair ("--name value" or "--name=value").
+function removeCliOption(args, optionName) {
+  const cleaned = [];
+  const prefix = `${optionName}=`;
+  for (let index = 0; index < args.length; index += 1) {
+    const token = String(args[index] || "");
+    if (token === optionName) {
+      index += 1;
+      continue;
+    }
+    if (token.startsWith(prefix)) {
+      continue;
+    }
+    cleaned.push(token);
+  }
+  return cleaned;
+}
+
+// Remove one boolean CLI flag ("--name" or "--name=value").
+function removeCliFlag(args, flagName) {
+  const prefix = `${flagName}=`;
+  return (Array.isArray(args) ? args : []).filter((token) => {
+    const text = String(token || "");
+    if (text === flagName) {
+      return false;
+    }
+    if (text.startsWith(prefix)) {
+      return false;
+    }
+    return true;
+  });
+}
+
+// Apply paired-LCB override for non-canonical phase promote checks.
+function applyPhasePromoteLcbOptions(args, promoteOptions = {}) {
+  if (typeof promoteOptions.phasePromoteRequirePositiveLcb !== "boolean") {
+    return Array.isArray(args) ? [...args] : [];
+  }
+  const requirePositiveLcb = promoteOptions.phasePromoteRequirePositiveLcb === true;
+  let nextArgs = Array.isArray(args) ? [...args] : [];
+  nextArgs = removeCliFlag(nextArgs, "--require-positive-lcb");
+  nextArgs = removeCliFlag(nextArgs, "--no-require-positive-lcb");
+  if (!requirePositiveLcb) {
+    nextArgs = removeCliOption(nextArgs, "--lcb-z");
+    nextArgs.push("--no-require-positive-lcb");
+  } else {
+    nextArgs.push("--require-positive-lcb");
+  }
+  return nextArgs;
+}
+
 // Append promote eval-progress knobs without duplicating options.
 function applyPromoteProgressOptions(args, promoteOptions = {}) {
   let nextArgs = Array.isArray(args) ? [...args] : [];
@@ -540,6 +594,7 @@ function parseArgs(argv) {
     canonicalEvalEpisodes: null,
     canonicalEvalMaxSteps: null,
     canonicalRequirePositiveLcb: null,
+    phasePromoteRequirePositiveLcb: null,
     promoteEvalProgress: false,
     promoteEvalProgressEvery: null,
     lowLoad: false,
@@ -682,6 +737,14 @@ function parseArgs(argv) {
       result.canonicalRequirePositiveLcb = false;
       continue;
     }
+    if (arg === "--phase-promote-require-positive-lcb") {
+      result.phasePromoteRequirePositiveLcb = true;
+      continue;
+    }
+    if (arg === "--phase-promote-no-positive-lcb") {
+      result.phasePromoteRequirePositiveLcb = false;
+      continue;
+    }
     if (arg === "--promote-eval-progress") {
       result.promoteEvalProgress = true;
       continue;
@@ -746,6 +809,8 @@ function printHelp() {
     "  --canonical-eval-max-steps <n> Override canonical eval/max steps for this run",
     "  --canonical-no-positive-lcb    Disable paired-LCB guardrail for this run",
     "  --canonical-require-positive-lcb Enable paired-LCB guardrail for this run",
+    "  --phase-promote-no-positive-lcb Disable paired-LCB guard on non-canonical phase promotes",
+    "  --phase-promote-require-positive-lcb Enable paired-LCB guard on non-canonical phase promotes",
     "  --promote-eval-progress         Enable partial eval progress logs on promote",
     "  --promote-no-eval-progress      Disable partial eval progress logs on promote",
     "  --promote-eval-progress-every <n> Promote progress cadence in episodes",
@@ -1099,7 +1164,7 @@ function buildPhases(profile, runDir, files) {
         ],
         promoteArgs: [
           "--config", files.fast,
-          "--eval-episodes", "5",
+          "--eval-episodes", "8",
           "--eval-max-steps", "1600",
           "--eval-difficulty", "1.0",
           "--eval-score", "rpt",
@@ -1144,7 +1209,7 @@ function buildPhases(profile, runDir, files) {
         ],
         promoteArgs: [
           "--config", files.fast,
-          "--eval-episodes", "5",
+          "--eval-episodes", "10",
           "--eval-max-steps", "1600",
           "--eval-difficulty", "1.0",
           "--eval-score", "rpt",
@@ -1190,7 +1255,7 @@ function buildPhases(profile, runDir, files) {
         ],
         promoteArgs: [
           "--config", files.finetune,
-          "--eval-episodes", "6",
+          "--eval-episodes", "12",
           "--eval-max-steps", "1800",
           "--eval-difficulty", "1.0",
           "--eval-score", "rpt",
@@ -1235,7 +1300,7 @@ function buildPhases(profile, runDir, files) {
         ],
         promoteArgs: [
           "--config", files.fast,
-          "--eval-episodes", "5",
+          "--eval-episodes", "10",
           "--eval-max-steps", "1400",
           "--eval-difficulty", "1.0",
           "--eval-score", "rpt",
@@ -1281,7 +1346,7 @@ function buildPhases(profile, runDir, files) {
         ],
         promoteArgs: [
           "--config", files.finetune,
-          "--eval-episodes", "6",
+          "--eval-episodes", "12",
           "--eval-max-steps", "1800",
           "--eval-difficulty", "1.0",
           "--eval-score", "rpt",
@@ -1641,6 +1706,13 @@ function runProfile(rootDir, profile, trainExtraArgs, dryRun, workerOptions = {}
       : "-";
     printStatus("promote", `eval-progress=on cadence=${cadence}`, ANSI_CYAN);
   }
+  if (typeof workerOptions.phasePromoteRequirePositiveLcb === "boolean") {
+    printStatus(
+      "promote",
+      `phase-lcb=${workerOptions.phasePromoteRequirePositiveLcb ? "on" : "off"} (non-canonical phases)`,
+      ANSI_CYAN,
+    );
+  }
   if (workerOptions.lowLoad === true) {
     printStatus("profile", "low-load preset enabled", ANSI_CYAN);
   }
@@ -1651,10 +1723,15 @@ function runProfile(rootDir, profile, trainExtraArgs, dryRun, workerOptions = {}
   } else {
     printStatus("seed", "mode=fixed", ANSI_CYAN);
   }
-  const executePromoteCheck = (phaseName, promoteArgs, reportIndex) => {
+  const executePromoteCheck = (phaseName, promoteArgs, reportIndex, options = {}) => {
+    const isCanonical = options.isCanonical === true;
     const safePhaseName = String(phaseName || `phase-${reportIndex}`);
     printStatus("promote", `Evaluating latest checkpoint against best (${safePhaseName})`, ANSI_GREEN);
-    const promoteArgsResolved = applyPromoteProgressOptions(promoteArgs, workerOptions);
+    let promoteArgsResolved = Array.isArray(promoteArgs) ? [...promoteArgs] : [];
+    if (!isCanonical) {
+      promoteArgsResolved = applyPhasePromoteLcbOptions(promoteArgsResolved, workerOptions);
+    }
+    promoteArgsResolved = applyPromoteProgressOptions(promoteArgsResolved, workerOptions);
     const phaseToken = toPathToken(safePhaseName, `phase_${reportIndex}`);
     const phaseReportJsonPath = path.join(
       runDir,
@@ -1751,11 +1828,15 @@ function runProfile(rootDir, profile, trainExtraArgs, dryRun, workerOptions = {}
       { cwd: rootDir, env: trainEnv, dryRun, tag: "train", tagColor: ANSI_YELLOW },
     );
     const promoteArgs = canonicalPerPhaseEnabled ? canonicalPromoteArgs : phase.promoteArgs;
-    executePromoteCheck(phaseName, promoteArgs, index + 1);
+    executePromoteCheck(phaseName, promoteArgs, index + 1, {
+      isCanonical: canonicalPerPhaseEnabled === true,
+    });
     printStatus("phase", `Completed ${phaseName}`, ANSI_GREEN);
   });
   if (canonicalFinalEnabled) {
-    executePromoteCheck("canonical-final", canonicalPromoteArgs, phases.length + 1);
+    executePromoteCheck("canonical-final", canonicalPromoteArgs, phases.length + 1, {
+      isCanonical: true,
+    });
   }
   if (!dryRun) {
     const summary = buildRunPromotionSummary(profile, runDir, canonicalPromote, phaseReports);
@@ -1797,6 +1878,7 @@ function main() {
     canonicalEvalEpisodes: args.canonicalEvalEpisodes,
     canonicalEvalMaxSteps: args.canonicalEvalMaxSteps,
     canonicalRequirePositiveLcb: args.canonicalRequirePositiveLcb,
+    phasePromoteRequirePositiveLcb: args.phasePromoteRequirePositiveLcb,
     promoteEvalProgress: args.promoteEvalProgress,
     promoteEvalProgressEvery: args.promoteEvalProgressEvery,
     lowLoad: args.lowLoad,

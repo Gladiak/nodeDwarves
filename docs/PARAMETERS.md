@@ -1842,7 +1842,7 @@ AI and training:
 - `ai.training.trainer.logStdInit`: initial log-std for action sampling.
 - `ai.training.trainer.maxGradNorm`: gradient norm clip.
 - `ai.training.trainer.workers`: number of parallel rollout workers.
-- `ai.training.trainer.transport`: trainer/AI-server IPC transport mode (`legacy` for full JSON obs/action envelopes, `compact` for flattened observation vectors + fixed-order action arrays).
+- `ai.training.trainer.transport`: trainer/AI-server IPC transport mode (`compact` default, flattened observation vectors + fixed-order action arrays; `legacy` for full JSON obs/action envelopes).
 - `ai.training.trainer.logEvery`: episodes between training summary windows (`diag`/debug aggregation reset).
 - `ai.training.trainer.saveEvery`: episodes between writing the latest policy checkpoint (`modelPath`); `0` disables periodic saves and still writes at the final episode.
 - `ai.training.trainer.debugMode`: debug payload mode for ai_server (`full`, `summary`, `final`, `off`).

@@ -7,6 +7,7 @@ Scope: End-to-end implementation tracking for the 3 approved optimization soluti
 Artifact retention note (2026-02-17):
 - Historical `debug/` raw artifacts from older gates were pruned to keep the repository lean.
 - Workbook entries keep original artifact paths for traceability, but some legacy paths can point to archived/removed local files.
+- Runtime note (2026-02-17): trainer transport default is now `compact`; `legacy` remains available as explicit fallback/compat mode.
 
 ## 1) Goals
 

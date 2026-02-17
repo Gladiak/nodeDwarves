@@ -293,6 +293,28 @@ def compute_paired_delta_stats(latest_scores, best_scores, z_value):
     }
 
 
+# Function: print_paired_episode_deltas.
+def print_paired_episode_deltas(latest_scores, best_scores):
+    if not isinstance(latest_scores, list) or not isinstance(best_scores, list):
+        return
+    count = min(len(latest_scores), len(best_scores))
+    if count <= 0:
+        return
+    print("Paired episodes (latest vs best):", flush=True)
+    for idx in range(count):
+        try:
+            latest_value = float(latest_scores[idx])
+            best_value = float(best_scores[idx])
+        except (TypeError, ValueError):
+            continue
+        delta = latest_value - best_value
+        print(
+            f"  ep={idx + 1} latest={latest_value:.4f} "
+            f"best={best_value:.4f} delta={delta:+.4f}",
+            flush=True,
+        )
+
+
 # Function: ensure_parent_dir.
 def ensure_parent_dir(path):
     if not path:
@@ -853,6 +875,10 @@ def main():
                 "Paired check: "
                 f"n={paired_stats['count']} mean_delta={paired_stats['mean_delta']:.4f} "
                 f"se={paired_stats['se_delta']:.4f} lcb={paired_stats['lower_bound']:.4f}"
+            )
+            print_paired_episode_deltas(
+                latest_stats.get("episode_scores"),
+                best_stats.get("episode_scores"),
             )
         promote_allowed = delta >= args.min_improve
         promote_reason = "score_improved"

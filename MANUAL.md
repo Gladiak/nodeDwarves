@@ -42,10 +42,23 @@ Fastest loop (same as `fast` profile):
 npm run ai:train
 ```
 
+Recommended two-scenario shortcuts:
+
+```bash
+npm run ai:train:quality:daily
+npm run ai:train:quality:acceptance
+```
+
 Pass extra trainer flags safely through any profile command (for example):
 
 ```bash
 npm run ai:train:fast:fresh
+```
+
+Force legacy transport fallback for troubleshooting/comparison:
+
+```bash
+npm run ai:train:quality -- --transport legacy
 ```
 
 Force a manual worker count for all phases:
@@ -1587,10 +1600,12 @@ Important rule: if you change **resource/action lists** or **observation feature
 Training presets:
 
 - `ai:train` (alias of `ai:train:fast`) runs a fast baseline loop tuned for sub-5-minute runs (auto-tuned workers by CPU, 200 episodes, max_steps=1600, step_ticks=2). The difficulty ramp reaches 1.0 by episode 120 and eval runs every 20 episodes at difficulty 1.0, followed by a post-run promotion check comparing the latest policy to the best snapshot.
-- `ai:train:fresh` / `ai:train:fast:fresh` run the same fast preset but clear existing policy and best-eval snapshots first.
-- `ai:train:quality` (legacy alias: `ai:train:fast:quality`) runs the fast phase plus a short full-sim finetune at max difficulty (40 episodes, max_steps=1800). Eval cadence is 20 episodes in the fast phase and 10 episodes in finetune, with the promotion check after each phase.
-- `ai:train:quality:mixed` runs a mixed curriculum profile with ~`76/24` episode split between a lighter foundation phase (`160` episodes, non-full-sim) and a full-sim finetune phase (`50` episodes, max difficulty).
+- `ai:train:fast:fresh` (or `ai:train -- --fresh`) runs the same fast preset but clears existing policy and best-eval snapshots first.
+- `ai:train:quality` runs the fast phase plus a short full-sim finetune at max difficulty (40 episodes, max_steps=1800). Eval cadence is 20 episodes in the fast phase and 10 episodes in finetune, with phase promote checks now using `10` (foundation) and `12` (finetune) eval episodes for better promotion stability.
+- `ai:train:quality:mixed` runs a mixed curriculum profile with ~`76/24` episode split between a lighter foundation phase (`160` episodes, non-full-sim) and a full-sim finetune phase (`50` episodes, max difficulty); phase promote checks use `10` (foundation) and `12` (finetune) eval episodes.
 - `ai:train:quality:lite` runs the quality profile with a low-load wrapper preset (worker cap, lighter canonical benchmark defaults, canonical check at run end, and partial promote progress logs) for laptops/interactive sessions.
+- `ai:train:quality:daily` runs the recommended daily loop shortcut: quality profile with final-only canonical promote and lighter canonical eval (`8x1600`), disables paired-LCB on both canonical and non-canonical phase promotes, and enables promote progress every episode for easier diagnosis.
+- `ai:train:quality:acceptance` runs the strict acceptance shortcut: quality profile with final-only canonical promote (default strict canonical settings), then full benchmark+regression gate via `ai:validate:gate`.
 - `ai:train:full` runs the quality-first full curriculum in four phases: foundation (280 episodes), full-sim finetune (90), endgame specialization (24), and final consolidation (40). It is optimized for model quality over runtime and keeps promote checks after every phase.
 - `ai:train:full:fresh` runs the same full curriculum but starts from a clean checkpoint set (`--fresh` is applied to phase 1 only, then latest-resume carries forward across later phases).
 - `ai:train:endgame` runs an endgame-enabled long-horizon pass (8 episodes, max_steps=10000, step_ticks=2, target horizon 20k ticks per episode) with eval every 4 episodes. It is tuned to specialize on late-game pressure while keeping the profile compact.
@@ -1620,9 +1635,11 @@ Training presets:
 - Wrapper logs now use colorized status tags (`PROFILE`, `PHASE`, `TRAIN`, `PROMOTE`, `DONE`) in TTY terminals for clearer long-run progress tracking.
 - Checkpoint cadence is decoupled: `--log-every` controls summary windows, while `--save-every` controls how often `modelPath` is written; final episode save is always enforced.
 - Promote robustness guardrail: wrapper can run `promote_best.py` with one canonical benchmark (same eval episodes/steps/score/difficulty/seed), and promotion can require a positive paired lower-confidence bound (`requirePositiveLcb` + `lcbZ`) in addition to `minImprove`.
+- When paired-LCB is active, `promote_best.py` now prints per-episode paired score deltas (`latest`, `best`, `delta`) so retain/promote outcomes are easier to interpret.
 - Canonical mode defaults to per-phase checks, but wrapper CLI can switch to final-only (`--canonical-final-only`) or disable canonical checks for the run (`--no-canonical-promote`).
 - Canonical promotion knobs are config-driven under `ai.training.promotion.canonical` and are used both by wrapper phase promotion and standalone `ai:promote:best` defaults.
 - Wrapper canonical knobs can be overridden per run without editing `config.json` (`--canonical-eval-episodes`, `--canonical-eval-max-steps`, `--canonical-no-positive-lcb`), and promote progress logs can be forced with `--promote-eval-progress`.
+- Wrapper can override paired-LCB behavior for non-canonical phase promotes too (`--phase-promote-no-positive-lcb` / `--phase-promote-require-positive-lcb`) without changing canonical settings.
 - Wrapper seed policy for long-horizon learning: per-phase training seeds rotate automatically every wrapper run (while promote/regression eval seeds remain deterministic for fair comparison); use `--train-seed-fixed` to disable rotation.
 - Runtime config wiring: Python trainer/promotion/regression rollouts now launch `ai_server.js` with the same `--config` path used by the wrapper phase, so run-specific training overrides are applied consistently by the JS simulator.
 - Wrapper can inject a training-only smart early-termination profile from `ai.training.terminationProfile` into generated run configs, while eval overrides keep termination disabled to avoid canonical benchmark bias.
@@ -1631,11 +1648,25 @@ Training presets:
   - `eps_pm`: episodes per minute per log window.
   - `thr[...]`: env step and IPC latency (`env`, `ipc_w`, `ipc_r`, `ipc_p`, milliseconds).
   - PPO window includes `upd_ms` (mean PPO update latency per batch).
+  - Console line legend (example: `episode=... avg_reward=... eps_pm=... lr=... diff=... tick=... pop=... thr[...]`):
+    - `episode`: current episode index when the window is logged.
+    - `avg_reward` / `avg_steps` / `avg_births` / `avg_deaths`: episode means over the current log window.
+    - `eps_pm`: throughput in episodes/minute for the current log window.
+    - `lr`: optimizer learning rate at log time.
+    - `diff`: curriculum difficulty factor (`0..1`) used for the current rollout.
+    - `tick` / `pop`: latest tick and population from the last environment response in the window.
+    - `thr[env=... ipc_w=... ipc_r=... ipc_p=...]` (all milliseconds, averaged over steps):
+      - `env`: total step round-trip time (`write + read + parse`).
+      - `ipc_w`: Python -> `ai_server.js` write+flush time.
+      - `ipc_r`: wait/read time for the JS response (usually includes most simulation time).
+      - `ipc_p`: JSON parse time for the received response.
+    - Practical read: training is faster when `eps_pm` rises and `thr[env]` drops; if `ipc_r` dominates, the bottleneck is mostly JS simulation/response time.
 - Throughput increment C7 adds low-risk hot-path optimizations without changing policy/simulation semantics:
   - `ai_server.js` now precompiles compact action slots + feature specs per reset and avoids duplicate observation materialization in compact mode.
   - `python/train.py` uses compact fast paths for `obsVector` and `actionValues`, reducing per-step conversion overhead in train/eval/promote loops.
   - Gate closure evidence is archived in `debug/gateC7_throughput_compare_1771360179.md` and `debug/gateC7_validation_1771360179.md`.
 - Trainer/eval/regression transport mode is now explicit (`ai.training.trainer.transport` or CLI `--transport`):
+  - default: `compact` (recommended).
   - `legacy`: full JSON observation/action envelopes (backward-compatible).
   - `compact`: flattened `obsVector` + fixed-order `actionValues`, with `ai_server.js` still accepting legacy payloads for compatibility.
 - Rollout payload between workers and learner is now packed (`dict` of arrays) and GAE is computed in workers, reducing Python object churn while preserving deterministic seed behavior.

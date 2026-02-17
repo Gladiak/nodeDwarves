@@ -1869,7 +1869,7 @@
         "logStdInit": -0.8,
         "maxGradNorm": 0.5,
         "workers": 6,
-        "transport": "legacy",
+        "transport": "compact",
         "logEvery": 2000,
         "saveEvery": 4000,
         "debugMode": "summary",

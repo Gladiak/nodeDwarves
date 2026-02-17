@@ -43,6 +43,7 @@ Throughput + resume continuity (Phase 3):
 - Worker/learner rollout payload is now packed (`dict` of arrays) and GAE is computed in workers before queue transfer, reducing per-episode serialization overhead.
 - Promotion continuity now includes optimizer state copy: on best promotion, `python/promote_best.py` mirrors `modelStatePath` to `bestModelStatePath` when present.
 - Transport mode is configurable via `ai.training.trainer.transport` or CLI `--transport`:
+  - default: `compact` (higher-throughput path).
   - `legacy`: backward-compatible full JSON observation/action envelopes.
   - `compact`: flattened `obsVector` + fixed-order `actionValues` transport, with legacy fallback still accepted by `ai_server.js`.
 
@@ -64,6 +65,8 @@ Wrapper low-load tuning (no config edit needed):
   - `--canonical-eval-episodes <n>`
   - `--canonical-eval-max-steps <n>`
   - `--canonical-no-positive-lcb` / `--canonical-require-positive-lcb`
+- Phase promote paired-LCB overrides:
+  - `--phase-promote-no-positive-lcb` / `--phase-promote-require-positive-lcb`
 - Promote progress overrides:
   - `--promote-eval-progress` / `--promote-no-eval-progress`
   - `--promote-eval-progress-every <n>`
