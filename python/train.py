@@ -114,7 +114,7 @@ def print_best_saved_line(episode, score, avg_reward, model_path, meta_path):
 def send(proc, payload, timing=None):
     start_time = time.perf_counter()
     write_start = time.perf_counter()
-    proc.stdin.write(json.dumps(payload) + "\n")
+    proc.stdin.write(json.dumps(payload, separators=(",", ":"), ensure_ascii=False) + "\n")
     proc.stdin.flush()
     write_elapsed = time.perf_counter() - write_start
     read_start = time.perf_counter()
@@ -1397,14 +1397,17 @@ def build_reset_payload(
 def build_step_message(action, resources, step_ticks, transport=TRANSPORT_LEGACY, debug=False):
     mode = normalize_transport_mode(transport)
     if mode == TRANSPORT_COMPACT:
-        action_values = []
-        for idx in range(len(resources)):
-            raw = action[idx] if idx < len(action) else 0.0
-            try:
-                value = float(raw)
-            except (TypeError, ValueError):
-                value = 0.0
-            action_values.append(value)
+        if isinstance(action, list) and len(action) == len(resources):
+            action_values = action
+        else:
+            action_values = []
+            for idx in range(len(resources)):
+                raw = action[idx] if idx < len(action) else 0.0
+                try:
+                    value = float(raw)
+                except (TypeError, ValueError):
+                    value = 0.0
+                action_values.append(value)
         payload = {
             "cmd": "step",
             "actionValues": action_values,
@@ -1427,25 +1430,13 @@ def build_step_message(action, resources, step_ticks, transport=TRANSPORT_LEGACY
     return {"cmd": "step", "action": action_payload}
 
 
-def parse_obs_vector(value):
-    if not isinstance(value, list):
-        return None
-    parsed = []
-    for item in value:
-        try:
-            parsed.append(float(item))
-        except (TypeError, ValueError):
-            return None
-    return parsed
-
-
 def vector_from_response(response, resources, feature_names, transport):
     mode = normalize_transport_mode(transport)
     expected_size = len(resources) * len(feature_names)
     if mode == TRANSPORT_COMPACT:
-        parsed = parse_obs_vector((response or {}).get("obsVector"))
-        if parsed is not None and (expected_size <= 0 or len(parsed) == expected_size):
-            return parsed
+        obs_vector = (response or {}).get("obsVector")
+        if isinstance(obs_vector, list) and (expected_size <= 0 or len(obs_vector) == expected_size):
+            return obs_vector
     obs = (response or {}).get("obs", {}) or {}
     return build_obs_vector(obs, resources, feature_names)
 
@@ -1465,12 +1456,16 @@ def ratio_map_from_signal(value):
 def signals_from_response(response):
     info = (response or {}).get("info", {}) or {}
     raw_signals = info.get("trainingSignals")
+    stockpile_ratio = {}
+    if isinstance(raw_signals, dict):
+        raw_stockpile_ratio = raw_signals.get("stockpileRatio")
+        stockpile_ratio = raw_stockpile_ratio if isinstance(raw_stockpile_ratio, dict) else {}
     if isinstance(raw_signals, dict):
         return {
             "criticalNeedsFraction": float(raw_signals.get("criticalNeedsFraction", 0.0) or 0.0),
             "idleAdultsFraction": float(raw_signals.get("idleAdultsFraction", 0.0) or 0.0),
             "populationBalance": float(raw_signals.get("populationBalance", 0.0) or 0.0),
-            "stockpileRatio": ratio_map_from_signal(raw_signals.get("stockpileRatio")),
+            "stockpileRatio": stockpile_ratio,
         }
     obs = (response or {}).get("obs", {}) or {}
     return {
@@ -2196,7 +2191,7 @@ def run_episode(
         for step in range(max_steps):
             raw_vector = vector_from_response(response, resources, feature_names, mode)
             vector = normalize_vector(raw_vector, obs_normalization)
-            obs_tensor = torch.tensor([vector], dtype=torch.float32)
+            obs_tensor = torch.as_tensor(vector, dtype=torch.float32).unsqueeze(0)
             action_tensor, log_prob, value = model.act(
                 obs_tensor,
                 min_weight,
@@ -2219,7 +2214,8 @@ def run_episode(
             critical_sum += float(signals.get("criticalNeedsFraction", 0.0) or 0.0)
             idle_sum += float(signals.get("idleAdultsFraction", 0.0) or 0.0)
             population_balance_sum += float(signals.get("populationBalance", 0.0) or 0.0)
-            ratios = ratio_map_from_signal(signals.get("stockpileRatio"))
+            raw_ratios = signals.get("stockpileRatio")
+            ratios = raw_ratios if isinstance(raw_ratios, dict) else {}
             for resource in tracked_resources:
                 ratio = float(ratios.get(resource, 1.0) or 0.0)
                 shortage_sum[resource] += clamp(1.0 - ratio, 0.0, 1.0)
@@ -2247,7 +2243,7 @@ def run_episode(
                 vector_from_response(response, resources, feature_names, mode),
                 obs_normalization,
             )
-            obs_tensor = torch.tensor([vector], dtype=torch.float32)
+            obs_tensor = torch.as_tensor(vector, dtype=torch.float32).unsqueeze(0)
             bootstrap_value = float(model.value(obs_tensor).squeeze(-1).item())
     advantages, returns = compute_gae(
         rollout["rewards"],
@@ -2381,7 +2377,7 @@ def evaluate(
                         vector_from_response(response, resources, feature_names, mode),
                         obs_normalization,
                     )
-                    obs_tensor = torch.tensor([vector], dtype=torch.float32)
+                    obs_tensor = torch.as_tensor(vector, dtype=torch.float32).unsqueeze(0)
                     action_tensor, _, _ = model.act(
                         obs_tensor,
                         min_weight,

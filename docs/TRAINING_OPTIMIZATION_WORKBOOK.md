@@ -4,6 +4,10 @@ Last updated: 2026-02-17
 Project: NodeDwarves AI training pipeline
 Scope: End-to-end implementation tracking for the 3 approved optimization solutions
 
+Artifact retention note (2026-02-17):
+- Historical `debug/` raw artifacts from older gates were pruned to keep the repository lean.
+- Workbook entries keep original artifact paths for traceability, but some legacy paths can point to archived/removed local files.
+
 ## 1) Goals
 
 Primary goal: deliver a measurable and stable training quality boost without breaking runtime inference compatibility.
@@ -245,7 +249,7 @@ Exit criteria:
 
 ## 6) Workstream C - Throughput + Resume Continuity
 
-Status: In Progress (C.1/C.2/C.3 done, C.4 executed; throughput target still open)
+Status: Completed (C.1/C.2/C.3/C.4 done, C7 throughput increment validated, target met with quality gates green)
 
 ### C.1 Throughput bottleneck instrumentation
 
@@ -323,6 +327,7 @@ Use this section to record every non-trivial technical decision.
 | 2026-02-17 | D-007 | Persist observation/return normalization metadata in checkpoint payload and enforce runtime/eval shape checks | Keep trainer-only normalization or silent runtime fallback | Prevent train/eval/runtime drift and surface incompatibilities early | Stability + compatibility | Team | Implemented |
 | 2026-02-17 | D-008 | Use packed rollout payloads (`dict` of arrays) + worker-side GAE to reduce learner deserialization cost | Keep list-of-dict transitions and learner-side GAE | Lower Python object churn and queue payload overhead without changing PPO math | Throughput + determinism | Team | Implemented |
 | 2026-02-17 | D-009 | Promote optimizer state together with best policy in `promote_best.py` | Keep best-state writes only inside train loop | Ensure true resume-from-best continuity after canonical promotion | Resume continuity | Team | Implemented |
+| 2026-02-17 | D-013 | Optimize compact IPC hot paths (precompiled action/feature slots, removed duplicate observation builds, fast-path vector/action handling) and close gate against frozen C+ baseline | Keep C+ state and continue with wrapper-level-only tweaks | Highest low-risk CPU/IPC leverage in eval/promote + rollout loops without changing reward/simulation semantics | Throughput + maintainability | Team | Implemented |
 
 Status vocabulary:
 
@@ -358,6 +363,7 @@ Track real execution at commit/PR granularity.
 | 2026-02-17 | P3.4 | Gate C+ throughput A/B (compact vs legacy) on quality-like and IPC-heavy probes | `debug/gateCplus_throughput_compare_1771345693.md` | `train.py` profile A/B with fixed seed (`legacy` + `compact`) | Partial | n/a | Throughput improved (`+18.5%`, `+2.9%`) but still below target `+25%` |
 | 2026-02-17 | P3.5 | Workstream C6 implementation: mixed curriculum wrapper preset (`quality-mixed`) with ~`76/24` episode split | `scripts/train_wrapper.js`, `package.json`, `docs/TRAINING_OVERRIDES.md`, `README.md`, `MANUAL.md`, `docs/TRAINING_OPTIMIZATION_WORKBOOK.md` | `node --check scripts/train_wrapper.js`, `node scripts/train_wrapper.js quality-mixed --dry-run --low-load`, `npm run ai:train:quality:mixed -- --dry-run --low-load` | Done | n/a | Canonical promotion contract remains unchanged via wrapper canonical config path |
 | 2026-02-17 | P3.6 | Gate C+ full validation rerun (benchmark + regression + mixed preset smoke) | `debug/gateCplus_headless_benchmark_1771347287.json`, `debug/gateCplus_headless_benchmark_1771347287.md`, `debug/gateCplus_headless_benchmark_1771347287.log`, `debug/regression_report_1771346860187.md`, `debug/regression_report_1771347278009.md`, `debug/gateCplus_smoke_quality_mixed_1771347914.log`, `debug/run_1771347914555_24155_962090/report_training_promotion_summary.md`, `debug/gateCplus_validation_1771347914.md`, `docs/TRAINING_OPTIMIZATION_WORKBOOK.md` | `headless_benchmark --ticks 8000 --seeds 101,202,303,404`, `regression --profile standard`, `regression --profile underrealm`, `ai:train:quality:mixed` smoke (`low-load`, reduced episodes) | Partial | n/a | Quality guardrails pass; throughput objective (`>= +25%`) remains open |
+| 2026-02-17 | P3.7 | C7 throughput increment: compact-path CPU/IPC hot-path optimization (`ai_server.js` + trainer fast paths), fresh throughput compare, eval/promote IPC probe, and full quality gate rerun | `ai_server.js`, `python/train.py`, `debug/gateC7_throughput_compare_1771360179.md`, `debug/gateC7_eval_promote_profile_1771360179.md`, `debug/gateC7_headless_benchmark_1771359150.{json,md}`, `debug/regression_report_1771360039305.{json,md}`, `debug/regression_report_1771360039866.{json,md}`, `debug/gateC7_validation_1771360179.md`, `docs/TRAINING_OPTIMIZATION_WORKBOOK.md` | `node --check ai_server.js`, `py_compile`, throughput A/B microprofiles (`30x140`, `120x25`), eval-only short promote probe (`4x400`, legacy vs compact), `headless_benchmark --ticks 8000 --seeds 101,202,303,404`, `regression --profile standard`, `regression --profile underrealm` | Done | n/a | Throughput target met vs frozen C+ baseline (`A +52.2%`, `B +85.0%`) with benchmark/regression guardrails PASS |
 
 ## 9) Risk Register
 
@@ -365,19 +371,19 @@ Track real execution at commit/PR granularity.
 | --- | --- | --- | --- | --- | --- | --- |
 | R-001 | Reward redesign causes policy collapse | Medium | High | Incremental rollout + A/B gate each substep | TBD | Open |
 | R-002 | Normalization mismatch breaks JS inference | Medium | High | Persist stats in model + runtime compatibility test | TBD | Open |
-| R-003 | Throughput refactor introduces nondeterminism | Medium | Medium | Seed reproducibility checks before merge | TBD | Open |
+| R-003 | Throughput refactor introduces nondeterminism | Medium | Medium | Seed reproducibility checks before merge | TBD | Mitigated |
 | R-004 | Promotion continuity mismatch (best state missing) | High | Medium | Save/copy best optimizer state on promote | TBD | Mitigated |
 
 ## 10) Definition of Done (Global)
 
 All items required for closure:
 
-- [ ] Workstreams A, B, C completed with passing gates.
+- [x] Workstreams A, B, C completed with passing gates.
 - [ ] Canonical benchmark score improved vs baseline freeze.
-- [ ] Regression profiles pass with no critical blockers.
-- [ ] Throughput gain documented with before/after numbers.
-- [ ] Docs updated (`README.md`, `MANUAL.md`, `docs/PARAMETERS.md`, `docs/TRAINING_OVERRIDES.md` as needed).
-- [ ] Final summary report archived under `debug/` with links to relevant artifacts.
+- [x] Regression profiles pass with no critical blockers.
+- [x] Throughput gain documented with before/after numbers.
+- [x] Docs updated (`README.md`, `MANUAL.md`, `docs/PARAMETERS.md`, `docs/TRAINING_OVERRIDES.md` as needed).
+- [x] Final summary report archived under `debug/` with links to relevant artifacts.
 
 ## 11) Weekly Checkpoint Template
 
@@ -394,7 +400,7 @@ Week of: YYYY-MM-DD
 
 ## 12) Phase 3.1 - Throughput Recovery Plan (Compact IPC + Curriculum Mix)
 
-Status: In Progress (C5/C6 implemented, Gate C+ validation completed, throughput target still unmet)
+Status: Completed (C5/C6/C7 implemented; throughput target met with benchmark/regression guardrails PASS)
 Window: 2026-02-18 to 2026-02-22
 Milestone: reach throughput target (`+25% eps/min`) without quality regression.
 
@@ -477,7 +483,7 @@ Validation snapshot (2026-02-17):
 
 Exit criteria:
 
-- [ ] Throughput delta `>= +25%` vs current Phase-3 baseline.
+- [x] Throughput delta `>= +25%` vs current Phase-3 baseline.
 - [x] Regression gates pass with no blocker metrics.
 - [x] Canonical quality not degraded beyond configured guardrails.
 
@@ -491,6 +497,8 @@ Exit criteria:
 6. [x] If throughput gain is below target, implement C6 mixed-curriculum wrapper preset.
 7. [x] Re-run Gate C+ full validation (benchmark + regression + smoke).
 8. [x] Update Decision Log + Implementation Log + risk statuses.
+9. [x] Implement C7 hot-path optimization (`ai_server.js` + `train.py`) and rerun throughput microprofiles.
+10. [x] Re-run benchmark + regression and archive C7 validation report.
 
 ### 12.6 Decision Placeholders (Phase 3.1)
 
@@ -499,3 +507,17 @@ Exit criteria:
 | 2026-02-18 | D-010 | Introduce compact IPC protocol with legacy fallback | Keep JSON legacy only | Highest expected throughput ROI without inference contract break | Throughput | Team | Implemented |
 | 2026-02-18 | D-011 | Add mixed curriculum throughput preset for slow hardware | Keep full-sim-heavy schedule | Better wall-clock efficiency while preserving final quality checks | Throughput + quality | Team | Implemented |
 | 2026-02-17 | D-012 | Keep Gate C+ open after full validation; continue with next throughput increment | Close gate with partial gain (`+18.5%`, `+2.9%`) | Milestone requires explicit `>= +25%` throughput delta while guardrails stay green | Planning discipline + throughput | Team | Implemented |
+| 2026-02-17 | D-013 | Close Gate C+ with C7 increment after hot-path optimization + full gate rerun (`A +52.2%`, `B +85.0%` vs frozen C+ baseline) | Keep gate open until larger structural rewrite (C8) | C7 reached target with low-risk code-level changes and preserved quality guardrails | Throughput + delivery confidence | Team | Implemented |
+
+### 12.7 C7 Validation Snapshot (2026-02-17)
+
+- Throughput compare: `debug/gateC7_throughput_compare_1771360179.md`.
+  - Profile A (`30x140`, workers `4`, seed `4242`), conservative candidate (`legacy`): `266.4 eps_pm` vs C+ baseline `175.0` -> `+52.2%`.
+  - Profile B (`120x25`, workers `8`, seed `4242`), conservative candidate (`legacy`): `1175.8 eps_pm` vs C+ baseline `635.6` -> `+85.0%`.
+- Eval/promote IPC probe: `debug/gateC7_eval_promote_profile_1771360179.md`.
+  - `promote_best.py --eval-only --eval-episodes 4 --eval-max-steps 400` shows compact path about `4-5%` faster than legacy with identical score payload.
+- Benchmark gate rerun: `debug/gateC7_headless_benchmark_1771359150.md` (avg pop `716.00`, morale `0.8865`, hunger `0.1528`, thirst `0.1093`).
+- Regression rerun:
+  - `standard` PASS (`debug/regression_report_1771360039305.md`)
+  - `underrealm` PASS (`debug/regression_report_1771360039866.md`)
+- Final validation report: `debug/gateC7_validation_1771360179.md`.

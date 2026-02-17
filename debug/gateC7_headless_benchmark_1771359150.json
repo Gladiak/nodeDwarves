@@ -7,7 +7,7 @@
       303,
       404
     ],
-    "configPath": "/Users/filippoverni/ProgettiLavoro/nodeDwarves/config.json",
+    "configPath": "/Users/gladiak/ProgettiLavoro/NodeDwarves/config.json",
     "resources": [
       "beer",
       "food",
@@ -15,7 +15,7 @@
     ],
     "width": 120,
     "height": 40,
-    "generatedAt": "2026-02-17T16:45:01.251Z"
+    "generatedAt": "2026-02-17T20:21:07.276Z"
   },
   "variants": [
     {

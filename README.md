@@ -91,6 +91,15 @@ npm run ai:train
 npm run ai:play
 ```
 
+Recommended order after C7 (fast feedback + full gate):
+
+```bash
+npm run ai:bootstrap          # once per machine / venv refresh
+npm run ai:train:quality      # or npm run ai:train for fastest loop
+npm run ai:validate:gate      # benchmark + regression gate
+npm run ai:play
+```
+
 Quality-first full curriculum (early game + endgame + consolidation):
 
 ```bash
@@ -108,10 +117,12 @@ Canonical promotion now owns best-checkpoint writes: wrapper training disables i
 - ⚡ Promote checks use one canonical benchmark contract (same config/episodes/steps/seed), with wrapper modes for per-phase or final-only canonical checks and optional paired lower-confidence promotion guardrails.
 - 🪶 `ai:train:quality:lite` adds a laptop-friendly low-load preset (worker cap, lighter canonical defaults, canonical-final check, and promote progress heartbeat).
 - 🧬 `ai:train:quality:mixed` adds a mixed curriculum preset (~76% light foundation, ~24% full-sim finetune) for better throughput/quality trade-off on slower machines.
+- 🧭 Validation flow is now explicit in npm scripts: `ai:validate:benchmark`, `ai:validate:regression`, and `ai:validate:gate` (sequential benchmark + regression).
 - 🛰️ `python/promote_best.py --eval-only` now supports controllable partial progress logs via `--eval-progress/--no-eval-progress` and `--eval-progress-every`.
 - 🧪 Phase-1 training optimization adds bounded delta reward shaping (stockpile/population/deep signals) plus training-only smart plateau termination from `ai.training.terminationProfile`.
 - 🧪 Phase-2 training optimization adds PPO stability controls (obs/return normalization, value clipping + optional Huber, target-KL early stop) with normalization metadata shared across trainer, promotion eval, regression rollout, and JS runtime inference.
 - 🧪 Phase-3 training optimization adds compact throughput diagnostics (`eps_pm`, `thr[...]`, PPO `upd_ms`), packed worker rollouts with worker-side GAE, promotion-time optimizer-state copy (`modelStatePath -> bestModelStatePath`) for true resume-from-best continuity, and dual IPC transport modes (`legacy` / `compact`) for trainer-eval-regression parity.
+- ⚡ C7 throughput increment hardens compact hot paths (precompiled action/feature slots, lean compact observation build, trainer fast-path vector/action handling) and closes the `>= +25%` throughput gate against the frozen C+ baseline while keeping benchmark/regression guardrails green.
 - 🧩 Trainer/promote/regression rollouts now pass the same run config to the JS bridge (`ai_server.js --config ...`), so wrapper-generated overrides are applied consistently.
 - 🎯 Training wrappers now auto-tune worker count from CPU capacity (with bounds and manual `--workers` override) to behave better across different machines.
 - ⚙️ In auto mode, workers are also phase-aware (foundation/finetune/endgame/consolidation) and you can force flat behavior with `--workers-flat`.

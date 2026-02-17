@@ -33,13 +33,19 @@ unlocked layers with structures/roads.
 ### Run training 🏋️
 
 ```bash
+npm run ai:train:quality
+```
+
+Fastest loop (same as `fast` profile):
+
+```bash
 npm run ai:train
 ```
 
 Pass extra trainer flags safely through any profile command (for example):
 
 ```bash
-npm run ai:train:fast -- --fresh
+npm run ai:train:fast:fresh
 ```
 
 Force a manual worker count for all phases:
@@ -52,6 +58,21 @@ Disable profile-aware worker scaling (keep one flat worker count in all phases):
 
 ```bash
 npm run ai:train:full -- --workers-flat
+```
+
+### Run post-training validation gate ✅
+
+```bash
+npm run ai:validate:gate
+```
+
+Run benchmark/regression independently when needed:
+
+```bash
+npm run ai:validate:benchmark
+npm run ai:validate:regression
+npm run ai:validate:regression:standard
+npm run ai:validate:regression:underrealm
 ```
 
 ### Run trained policy 🧠
@@ -1566,8 +1587,8 @@ Important rule: if you change **resource/action lists** or **observation feature
 Training presets:
 
 - `ai:train` (alias of `ai:train:fast`) runs a fast baseline loop tuned for sub-5-minute runs (auto-tuned workers by CPU, 200 episodes, max_steps=1600, step_ticks=2). The difficulty ramp reaches 1.0 by episode 120 and eval runs every 20 episodes at difficulty 1.0, followed by a post-run promotion check comparing the latest policy to the best snapshot.
-- `ai:train:fresh` runs the same fast preset but clears existing policy and best-eval snapshots first.
-- `ai:train:fast:quality` runs the fast phase plus a short full-sim finetune at max difficulty (40 episodes, max_steps=1800). Eval cadence is 20 episodes in the fast phase and 10 episodes in finetune, with the promotion check after each phase.
+- `ai:train:fresh` / `ai:train:fast:fresh` run the same fast preset but clear existing policy and best-eval snapshots first.
+- `ai:train:quality` (legacy alias: `ai:train:fast:quality`) runs the fast phase plus a short full-sim finetune at max difficulty (40 episodes, max_steps=1800). Eval cadence is 20 episodes in the fast phase and 10 episodes in finetune, with the promotion check after each phase.
 - `ai:train:quality:mixed` runs a mixed curriculum profile with ~`76/24` episode split between a lighter foundation phase (`160` episodes, non-full-sim) and a full-sim finetune phase (`50` episodes, max difficulty).
 - `ai:train:quality:lite` runs the quality profile with a low-load wrapper preset (worker cap, lighter canonical benchmark defaults, canonical check at run end, and partial promote progress logs) for laptops/interactive sessions.
 - `ai:train:full` runs the quality-first full curriculum in four phases: foundation (280 episodes), full-sim finetune (90), endgame specialization (24), and final consolidation (40). It is optimized for model quality over runtime and keeps promote checks after every phase.
@@ -1577,7 +1598,7 @@ Training presets:
 - Presets generate run-specific configs in `debug/run_<timestamp>/`: per-phase training configs plus a dedicated canonical promotion config (`config_canonical_promote.json`) driven by `ai.training.promotion.canonical`.
 - All presets save the best model to `models/policy_best.json` (with meta in `models/policy_best.meta.json`); resume source depends on profile policy and CLI override (`--resume-from-best` / `--resume-from-latest`).
 - Trainer CLI resume source can be forced per run: `--resume-from-best` or `--resume-from-latest` (the latter is useful to keep incremental momentum when best-gate promotion is temporarily blocked).
-- Wrapper resume policy now favors cumulative learning on multi-phase profiles: `ai:train:fast` stays anchored to best-resume, while `ai:train:fast:quality` and `ai:train:full` use latest-resume for every phase so non-promoted progress can still carry forward within and across runs.
+- Wrapper resume policy now favors cumulative learning on multi-phase profiles: `ai:train:fast` stays anchored to best-resume, while `ai:train:quality` and `ai:train:full` use latest-resume for every phase so non-promoted progress can still carry forward within and across runs.
 - Trainer resume continuity now includes optimizer state snapshots: latest (`modelStatePath`) and best (`bestModelStatePath`) are saved/restored alongside policy weights to avoid restart-from-scratch optimizer behavior across runs.
 - Promotion continuity now mirrors optimizer state too: when `promote_best.py` promotes `policy.json` to `policy_best.json`, it also copies `modelStatePath` to `bestModelStatePath` when available.
 - Wrapper enforces promote-only best updates (`--no-save-best-during-training`), so `train.py` keeps eval diagnostics while `promote_best.py` remains the single checkpoint promotion gate.
@@ -1610,6 +1631,10 @@ Training presets:
   - `eps_pm`: episodes per minute per log window.
   - `thr[...]`: env step and IPC latency (`env`, `ipc_w`, `ipc_r`, `ipc_p`, milliseconds).
   - PPO window includes `upd_ms` (mean PPO update latency per batch).
+- Throughput increment C7 adds low-risk hot-path optimizations without changing policy/simulation semantics:
+  - `ai_server.js` now precompiles compact action slots + feature specs per reset and avoids duplicate observation materialization in compact mode.
+  - `python/train.py` uses compact fast paths for `obsVector` and `actionValues`, reducing per-step conversion overhead in train/eval/promote loops.
+  - Gate closure evidence is archived in `debug/gateC7_throughput_compare_1771360179.md` and `debug/gateC7_validation_1771360179.md`.
 - Trainer/eval/regression transport mode is now explicit (`ai.training.trainer.transport` or CLI `--transport`):
   - `legacy`: full JSON observation/action envelopes (backward-compatible).
   - `compact`: flattened `obsVector` + fixed-order `actionValues`, with `ai_server.js` still accepting legacy payloads for compatibility.
@@ -1627,6 +1652,10 @@ Training presets:
 - Regression now writes `.txt`, `.json`, and `.md` reports for each run (defaults next to the txt report; override with `--report-json` / `--report-md`).
 - Randomized regression summary parsing also captures `under_*` metrics from trainer `under=` diagnostics when present.
 - Headless benchmark summaries/comparisons now include Underrealm KPIs (`underDepth`, `underChamp`, `underFail`, `underBlocked`, `underContested`, `underReady`) for seed-by-seed balancing review.
+- Validation npm commands are rationalized for post-training gates:
+  - `ai:validate:benchmark` runs the 8k/4-seed deterministic benchmark snapshot.
+  - `ai:validate:regression` runs all stored regression profiles (`--all`).
+  - `ai:validate:gate` runs benchmark then regression sequentially (`&&`) and fails fast on the first non-zero exit.
 
 ### Rendering 🖼️
 

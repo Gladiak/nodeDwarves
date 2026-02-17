@@ -47,6 +47,59 @@ const BUILDING_DEFENSE_WEIGHT_ACTION_ID = 'gov_building_defense_weight';
 const BUILDING_SPECIAL_WEIGHT_ACTION_ID = 'gov_building_special_weight';
 const BUILDING_MINE_BIAS_ACTION_ID = 'gov_building_mine_bias';
 const BUILDING_UPGRADE_BIAS_ACTION_ID = 'gov_building_upgrade_bias';
+const ACTION_SLOT_WEIGHT = 'weight';
+const ACTION_SLOT_FESTIVAL = 'festivalIntent';
+const ACTION_SLOT_TRADE_RESERVE = 'tradeReserveRatioBias';
+const ACTION_SLOT_TRADE_CONTEST = 'tradeContestIntent';
+const ACTION_SLOT_TRADE_OPPORTUNITY = 'tradeOpportunityIntent';
+const ACTION_SLOT_BUILDING_HOUSING = 'buildingHousingWeight';
+const ACTION_SLOT_BUILDING_ECONOMY = 'buildingEconomyWeight';
+const ACTION_SLOT_BUILDING_DEFENSE = 'buildingDefenseWeight';
+const ACTION_SLOT_BUILDING_SPECIAL = 'buildingSpecialWeight';
+const ACTION_SLOT_BUILDING_MINE = 'buildingMineBias';
+const ACTION_SLOT_BUILDING_UPGRADE = 'buildingUpgradeBias';
+const FEATURE_KIND_SHORTAGE = 'shortage';
+const FEATURE_KIND_NODE_SCARCITY = 'nodeScarcity';
+const FEATURE_KIND_STATIC = 'static';
+const FEATURE_KIND_MYTH_FLAG = 'mythFlag';
+const FEATURE_KIND_CLAN_SHARE = 'clanShare';
+const FEATURE_KIND_ZERO = 'zero';
+const MYTH_FLAG_PREFIX = 'mythFlag_';
+const CLAN_SHARE_PREFIX = 'clanShare_';
+const STATIC_FEATURE_NAMES = new Set([
+  'criticalNeeds',
+  'idleAdults',
+  'populationBalance',
+  'seasonIndex',
+  'seasonProgress',
+  'weatherSeverity',
+  'weatherTimeLeft',
+  'raidActive',
+  'raidTimeLeft',
+  'raidExposed',
+  'raidDefense',
+  'housingShortage',
+  'seasonEligible',
+  'festivalActive',
+  'festivalTimeLeft',
+  'festivalEligible',
+  'festivalCostRatio',
+  'ruinsActive',
+  'ruinsCooldown',
+  'ruinsProgress',
+  'ruinsArtifacts',
+  'underrealmDepthProgress',
+  'underrealmChampionProgress',
+  'underrealmFrontierContested',
+  'underrealmChampionCooldown',
+  'underrealmReadinessScore',
+  'underrealmReadinessGap',
+  'underrealmReadinessBlocked',
+  'underrealmReadinessWarning',
+  'underrealmCombatPressure',
+  'mythsActiveRatio',
+  'mythsSeverity',
+]);
 let runtime = buildRuntimeForConfig(baseConfig);
 
 let state = null;
@@ -79,7 +132,6 @@ rl.on('line', (line) => {
 
   const cmd = payload && payload.cmd;
   if (cmd === 'reset') {
-    configureTransport(payload.transport);
     applySeed(payload.seed);
     resetState({
       training: payload.training,
@@ -88,12 +140,13 @@ rl.on('line', (line) => {
       randomize: payload.randomize,
       scenario: payload.scenario,
     });
+    configureTransport(payload.transport, activeConfig);
     writeResponse(buildResponse(0, false));
     return;
   }
 
   if (cmd === 'step') {
-    const action = decodeStepAction(payload, activeConfig);
+    const action = decodeStepAction(payload);
     const forceDebug = Boolean(payload.debug)
       || Boolean(payload.action && payload.action.debug)
       || Boolean(action.debug);
@@ -216,6 +269,10 @@ function createTransportState() {
     mode: TRANSPORT_LEGACY,
     resources: [],
     featureNames: [],
+    featureSpecs: [],
+    actionSlots: [],
+    actionClampLow: 0,
+    actionClampHigh: 2,
   };
 }
 
@@ -243,8 +300,112 @@ function parseStringList(value) {
   return parsed;
 }
 
+// Resolve one action slot kind for compact action decoding.
+function resolveActionSlotKind(actionId) {
+  if (actionId === FESTIVAL_ACTION_ID) {
+    return ACTION_SLOT_FESTIVAL;
+  }
+  if (actionId === TRADE_RESERVE_BIAS_ACTION_ID) {
+    return ACTION_SLOT_TRADE_RESERVE;
+  }
+  if (actionId === TRADE_CONTEST_INTENT_ACTION_ID) {
+    return ACTION_SLOT_TRADE_CONTEST;
+  }
+  if (actionId === TRADE_OPPORTUNITY_INTENT_ACTION_ID) {
+    return ACTION_SLOT_TRADE_OPPORTUNITY;
+  }
+  if (actionId === BUILDING_HOUSING_WEIGHT_ACTION_ID) {
+    return ACTION_SLOT_BUILDING_HOUSING;
+  }
+  if (actionId === BUILDING_ECONOMY_WEIGHT_ACTION_ID) {
+    return ACTION_SLOT_BUILDING_ECONOMY;
+  }
+  if (actionId === BUILDING_DEFENSE_WEIGHT_ACTION_ID) {
+    return ACTION_SLOT_BUILDING_DEFENSE;
+  }
+  if (actionId === BUILDING_SPECIAL_WEIGHT_ACTION_ID) {
+    return ACTION_SLOT_BUILDING_SPECIAL;
+  }
+  if (actionId === BUILDING_MINE_BIAS_ACTION_ID) {
+    return ACTION_SLOT_BUILDING_MINE;
+  }
+  if (actionId === BUILDING_UPGRADE_BIAS_ACTION_ID) {
+    return ACTION_SLOT_BUILDING_UPGRADE;
+  }
+  return ACTION_SLOT_WEIGHT;
+}
+
+// Compile resource slots for compact action decoding.
+function compileActionSlots(resources) {
+  const slots = [];
+  for (const rawResource of resources) {
+    const actionId = String(rawResource || '');
+    if (!actionId) {
+      continue;
+    }
+    slots.push({
+      kind: resolveActionSlotKind(actionId),
+      actionId,
+    });
+  }
+  return slots;
+}
+
+// Build one compact feature spec list for fast vector encoding.
+function compileFeatureSpecs(featureNames) {
+  const names = Array.isArray(featureNames) && featureNames.length > 0
+    ? featureNames
+    : DEFAULT_FEATURE_NAMES;
+  const specs = [];
+  for (const rawName of names) {
+    const name = String(rawName || '');
+    if (!name) {
+      continue;
+    }
+    if (name === FEATURE_KIND_SHORTAGE) {
+      specs.push({ kind: FEATURE_KIND_SHORTAGE });
+      continue;
+    }
+    if (name === FEATURE_KIND_NODE_SCARCITY) {
+      specs.push({ kind: FEATURE_KIND_NODE_SCARCITY });
+      continue;
+    }
+    if (STATIC_FEATURE_NAMES.has(name)) {
+      specs.push({ kind: FEATURE_KIND_STATIC, key: name });
+      continue;
+    }
+    if (name.startsWith(MYTH_FLAG_PREFIX)) {
+      specs.push({
+        kind: FEATURE_KIND_MYTH_FLAG,
+        key: name.slice(MYTH_FLAG_PREFIX.length),
+      });
+      continue;
+    }
+    if (name.startsWith(CLAN_SHARE_PREFIX)) {
+      specs.push({
+        kind: FEATURE_KIND_CLAN_SHARE,
+        key: name.slice(CLAN_SHARE_PREFIX.length),
+      });
+      continue;
+    }
+    specs.push({ kind: FEATURE_KIND_ZERO });
+  }
+  return specs;
+}
+
+// Resolve action clamp range once per reset/config.
+function getActionClampBounds(config) {
+  const ai = (config && config.ai) || {};
+  const minWeight = Number(ai.minWeight ?? 0);
+  const maxWeight = Number(ai.maxWeight ?? 2);
+  return {
+    low: Math.min(minWeight, maxWeight),
+    high: Math.max(minWeight, maxWeight),
+  };
+}
+
 // Apply transport config for current session.
-function configureTransport(rawTransport) {
+function configureTransport(rawTransport, config) {
   const mode = normalizeTransportMode(rawTransport && rawTransport.mode ? rawTransport.mode : rawTransport);
   const resources = rawTransport && typeof rawTransport === 'object'
     ? parseStringList(rawTransport.resources)
@@ -252,10 +413,15 @@ function configureTransport(rawTransport) {
   const featureNames = rawTransport && typeof rawTransport === 'object'
     ? parseStringList(rawTransport.featureNames)
     : [];
+  const bounds = getActionClampBounds(config);
   transportState = {
     mode,
     resources,
     featureNames,
+    featureSpecs: compileFeatureSpecs(featureNames),
+    actionSlots: compileActionSlots(resources),
+    actionClampLow: bounds.low,
+    actionClampHigh: bounds.high,
   };
 }
 
@@ -265,101 +431,103 @@ function isCompactTransport() {
 }
 
 // Decode one step action payload with legacy + compact compatibility.
-function decodeStepAction(payload, config) {
+function decodeStepAction(payload) {
   if (Array.isArray(payload && payload.actionValues)) {
-    return decodeCompactActionPayload(payload.actionValues, payload, config);
+    return decodeCompactActionPayload(payload.actionValues, payload);
   }
   const legacy = payload && payload.action && typeof payload.action === 'object'
     ? payload.action
     : {};
   if (Array.isArray(legacy.actionValues)) {
-    return decodeCompactActionPayload(legacy.actionValues, legacy, config);
+    return decodeCompactActionPayload(legacy.actionValues, legacy);
   }
   return legacy;
 }
 
-// Clamp one policy action scalar to configured weight range.
-function clampActionWeight(value, config) {
-  const ai = (config && config.ai) || {};
-  const minWeight = Number(ai.minWeight ?? 0);
-  const maxWeight = Number(ai.maxWeight ?? 2);
-  const low = Math.min(minWeight, maxWeight);
-  const high = Math.max(minWeight, maxWeight);
-  const numeric = Number(value);
-  const safe = Number.isFinite(numeric) ? numeric : 0;
-  return clamp(safe, low, high);
-}
-
 // Decode compact action vector into the legacy action envelope expected by stepState.
-function decodeCompactActionPayload(actionValues, sourcePayload, config) {
-  const resources = Array.isArray(transportState && transportState.resources)
-    ? transportState.resources
+function decodeCompactActionPayload(actionValues, sourcePayload) {
+  const slots = Array.isArray(transportState && transportState.actionSlots)
+    ? transportState.actionSlots
     : [];
-  const weights = {};
+  const low = Number.isFinite(transportState && transportState.actionClampLow)
+    ? Number(transportState.actionClampLow)
+    : 0;
+  const high = Number.isFinite(transportState && transportState.actionClampHigh)
+    ? Number(transportState.actionClampHigh)
+    : 2;
+
+  let weights;
   let festivalIntent;
-  const trade = {};
-  const building = {};
+  let trade;
+  let building;
   const action = {};
 
-  for (let idx = 0; idx < resources.length; idx += 1) {
-    const actionId = String(resources[idx] || '');
-    if (!actionId) {
+  for (let idx = 0; idx < slots.length; idx += 1) {
+    const slot = slots[idx];
+    if (!slot) {
       continue;
     }
-    const value = clampActionWeight(actionValues[idx], config);
-    if (actionId === FESTIVAL_ACTION_ID) {
-      festivalIntent = value;
-      continue;
+    const rawValue = Number(actionValues[idx]);
+    const safeValue = Number.isFinite(rawValue) ? rawValue : 0;
+    const value = clamp(safeValue, low, high);
+    switch (slot.kind) {
+      case ACTION_SLOT_FESTIVAL:
+        festivalIntent = value;
+        break;
+      case ACTION_SLOT_TRADE_RESERVE:
+        trade = trade || {};
+        trade.reserveRatioBias = value;
+        break;
+      case ACTION_SLOT_TRADE_CONTEST:
+        trade = trade || {};
+        trade.contestIntent = value;
+        break;
+      case ACTION_SLOT_TRADE_OPPORTUNITY:
+        trade = trade || {};
+        trade.opportunityIntent = value;
+        break;
+      case ACTION_SLOT_BUILDING_HOUSING:
+        building = building || {};
+        building.housingWeight = value;
+        break;
+      case ACTION_SLOT_BUILDING_ECONOMY:
+        building = building || {};
+        building.economyWeight = value;
+        break;
+      case ACTION_SLOT_BUILDING_DEFENSE:
+        building = building || {};
+        building.defenseWeight = value;
+        break;
+      case ACTION_SLOT_BUILDING_SPECIAL:
+        building = building || {};
+        building.specialWeight = value;
+        break;
+      case ACTION_SLOT_BUILDING_MINE:
+        building = building || {};
+        building.mineBias = value;
+        break;
+      case ACTION_SLOT_BUILDING_UPGRADE:
+        building = building || {};
+        building.upgradeBias = value;
+        break;
+      case ACTION_SLOT_WEIGHT:
+      default:
+        weights = weights || {};
+        weights[slot.actionId] = value;
+        break;
     }
-    if (actionId === TRADE_RESERVE_BIAS_ACTION_ID) {
-      trade.reserveRatioBias = value;
-      continue;
-    }
-    if (actionId === TRADE_CONTEST_INTENT_ACTION_ID) {
-      trade.contestIntent = value;
-      continue;
-    }
-    if (actionId === TRADE_OPPORTUNITY_INTENT_ACTION_ID) {
-      trade.opportunityIntent = value;
-      continue;
-    }
-    if (actionId === BUILDING_HOUSING_WEIGHT_ACTION_ID) {
-      building.housingWeight = value;
-      continue;
-    }
-    if (actionId === BUILDING_ECONOMY_WEIGHT_ACTION_ID) {
-      building.economyWeight = value;
-      continue;
-    }
-    if (actionId === BUILDING_DEFENSE_WEIGHT_ACTION_ID) {
-      building.defenseWeight = value;
-      continue;
-    }
-    if (actionId === BUILDING_SPECIAL_WEIGHT_ACTION_ID) {
-      building.specialWeight = value;
-      continue;
-    }
-    if (actionId === BUILDING_MINE_BIAS_ACTION_ID) {
-      building.mineBias = value;
-      continue;
-    }
-    if (actionId === BUILDING_UPGRADE_BIAS_ACTION_ID) {
-      building.upgradeBias = value;
-      continue;
-    }
-    weights[actionId] = value;
   }
 
-  if (Object.keys(weights).length > 0) {
+  if (weights && Object.keys(weights).length > 0) {
     action.weights = weights;
   }
   if (festivalIntent !== undefined) {
     action.festivalIntent = festivalIntent;
   }
-  if (Object.keys(trade).length > 0) {
+  if (trade && Object.keys(trade).length > 0) {
     action.trade = trade;
   }
-  if (Object.keys(building).length > 0) {
+  if (building && Object.keys(building).length > 0) {
     action.building = building;
   }
 
@@ -376,7 +544,8 @@ function decodeCompactActionPayload(actionValues, sourcePayload, config) {
 // Function: buildResponse.
 function buildResponse(reward, done, doneReason, forceDebug) {
   const metrics = computeMetrics(state, activeConfig);
-  const obs = buildObservation(state, activeConfig, metrics);
+  const compactTransport = isCompactTransport();
+  const obs = compactTransport ? null : buildObservation(state, activeConfig, metrics);
   const debugPayload = getDebugPayload(state, activeConfig, metrics, done, forceDebug);
   const info = {
     tick: state.tick,
@@ -393,8 +562,8 @@ function buildResponse(reward, done, doneReason, forceDebug) {
     done: Boolean(done),
     info,
   };
-  if (isCompactTransport()) {
-    response.obsVector = buildCompactObservationVector(obs, activeConfig);
+  if (compactTransport) {
+    response.obsVector = buildCompactObservationVector(metrics, activeConfig);
   } else {
     response.obs = obs;
   }
@@ -617,10 +786,8 @@ function scaleMerchantMap(values, ticks) {
 
 // Resolve underrealm debug metrics with stable numeric defaults.
 function getUnderrealmDebugMetrics(state, config) {
-  const aiObservation = buildAiObservation(state, config) || {};
-  const underrealm = aiObservation.underrealm && typeof aiObservation.underrealm === 'object'
-    ? aiObservation.underrealm
-    : {};
+  const aiObservation = resolveAiObservation(state, config);
+  const underrealm = aiObservation.underrealm;
   return {
     depthProgress: Number(underrealm.depthProgress || 0),
     championProgress: Number(underrealm.championProgress || 0),
@@ -634,13 +801,31 @@ function getUnderrealmDebugMetrics(state, config) {
   };
 }
 
-// Resolve compact AI reward signals from observation channels.
-function getAiRewardSignals(state, config) {
+// Resolve AI observation channels once with stable object defaults.
+function resolveAiObservation(state, config) {
   const aiObservation = buildAiObservation(state, config) || {};
-  const underrealm = aiObservation.underrealm && typeof aiObservation.underrealm === 'object'
+  return {
+    ruins: aiObservation.ruins && typeof aiObservation.ruins === 'object'
+      ? aiObservation.ruins
+      : {},
+    underrealm: aiObservation.underrealm && typeof aiObservation.underrealm === 'object'
+      ? aiObservation.underrealm
+      : {},
+    myths: aiObservation.myths && typeof aiObservation.myths === 'object'
+      ? aiObservation.myths
+      : {},
+    clanShares: aiObservation.clanShares && typeof aiObservation.clanShares === 'object'
+      ? aiObservation.clanShares
+      : {},
+  };
+}
+
+// Resolve compact AI reward signals from observation channels.
+function getAiRewardSignals(aiObservation) {
+  const underrealm = aiObservation && aiObservation.underrealm
     ? aiObservation.underrealm
     : {};
-  const myths = aiObservation.myths && typeof aiObservation.myths === 'object'
+  const myths = aiObservation && aiObservation.myths
     ? aiObservation.myths
     : {};
   return {
@@ -853,13 +1038,13 @@ function getRaidLootRatio(deltaLoot, config) {
 
 // Function: buildObservation.
 function buildObservation(state, config, metrics) {
-  const weatherSeverity = getWeatherSeverity(state, config);
-  const weatherTimeLeft = getWeatherTimeLeft(state);
-  const festivalObservation = getFestivalObservation(state, config);
-  const aiObservation = buildAiObservation(state, config) || {};
+  const weatherSeverity = Number(metrics.weatherSeverity ?? getWeatherSeverity(state, config));
+  const weatherTimeLeft = Number(metrics.weatherTimeLeft ?? getWeatherTimeLeft(state));
+  const festivalObservation = metrics.festivalObservation || getFestivalObservation(state, config);
+  const aiObservation = metrics.aiObservation || resolveAiObservation(state, config);
   return {
     tick: state.tick,
-    season: state.season || null,
+    season: metrics.season || state.season || null,
     weather: {
       type: state.weather ? state.weather.type : null,
       severity: weatherSeverity,
@@ -904,131 +1089,114 @@ function buildObservation(state, config, metrics) {
 }
 
 // Build a compact flattened observation vector ordered by transport resources/features.
-function buildCompactObservationVector(obs, config) {
+function buildCompactObservationVector(metrics, config) {
   const resources = Array.isArray(transportState && transportState.resources) && transportState.resources.length > 0
     ? transportState.resources
-    : Object.keys((obs && obs.stockpileRatio) || {});
-  const featureNames = Array.isArray(transportState && transportState.featureNames)
-    && transportState.featureNames.length > 0
-    ? transportState.featureNames
-    : DEFAULT_FEATURE_NAMES;
-  const vector = [];
-  for (const resource of resources) {
-    const values = buildCompactFeatures(obs, resource, config, featureNames);
-    for (const value of values) {
-      vector.push(Number(value || 0));
-    }
+    : Object.keys((metrics && metrics.stockpileRatio) || {});
+  const featureSpecs = Array.isArray(transportState && transportState.featureSpecs)
+    && transportState.featureSpecs.length > 0
+    ? transportState.featureSpecs
+    : compileFeatureSpecs(DEFAULT_FEATURE_NAMES);
+  const featureCount = featureSpecs.length;
+  if (resources.length === 0 || featureCount === 0) {
+    return [];
   }
-  return vector;
-}
 
-// Build per-resource feature values using the same channels as Python build_features().
-function buildCompactFeatures(obs, resource, config, featureNames) {
-  const ratios = (obs && obs.stockpileRatio) || {};
-  const nodeRatios = (obs && obs.nodes) || {};
-  const ratio = Number(ratios[resource] ?? 1);
-  const nodeRatio = Number(nodeRatios[resource] ?? 1);
-  const shortage = clamp(1 - ratio, 0, 1);
-  const nodeScarcity = clamp(1 - nodeRatio, 0, 1);
-  const criticalNeeds = clamp(Number(obs && obs.criticalNeedsFraction || 0), 0, 1);
-  const idleAdults = clamp(Number(obs && obs.idleAdultsFraction || 0), 0, 1);
-  const populationBalance = clamp(Number(obs && obs.populationBalance || 0), 0, 1);
-  const { seasonIndex, seasonProgress } = compactSeasonFeatures(obs && obs.season);
-  const weather = (obs && obs.weather) || {};
-  const weatherSeverity = clamp(Number(weather.severity || 0), 0, 1);
-  const weatherTimeLeft = clamp(Number(weather.timeLeft || 0), 0, 1);
-  const raid = (obs && obs.raid) || {};
-  const raidActive = raid.active ? 1 : 0;
-  const raidTimeLeft = clamp(Number(raid.timeLeftRatio || 0), 0, 1);
-  const raidExposed = clamp(Number(raid.exposedRatio || 0), 0, 1);
-  const raidDefense = clamp(Number(raid.defenseRatio || 0), 0, 1);
-  const seasonEligible = clamp(Number(raid.seasonEligible || 0), 0, 1);
-  const housingRatio = Number(obs && obs.housingRatio || 0);
-  const housingShortage = clamp(1 - housingRatio, 0, 1);
-  const festival = (obs && obs.festival) || {};
-  const festivalActive = festival.active ? 1 : 0;
-  const festivalTimeLeft = clamp(Number(festival.timeLeft || 0), 0, 1);
-  const festivalEligible = clamp(Number(festival.eligible || 0), 0, 1);
-  const festivalCostRatio = clamp(Number(festival.costRatio || 0), 0, 1);
-  const ruins = (obs && obs.ruins) || {};
-  const ruinsActive = ruins.active ? 1 : 0;
-  const ruinsCooldown = clamp(Number(ruins.cooldownRatio || 0), 0, 1);
-  const ruinsProgress = clamp(Number(ruins.progress || 0), 0, 1);
-  const ruinsArtifacts = clamp(Number(ruins.artifacts || 0), 0, 1);
-  const underrealm = (obs && obs.underrealm) || {};
-  const underrealmDepthProgress = clamp(Number(underrealm.depthProgress || 0), 0, 1);
-  const underrealmChampionProgress = clamp(Number(underrealm.championProgress || 0), 0, 1);
-  const underrealmFrontierContested = clamp(Number(underrealm.frontierContested || 0), 0, 1);
-  const underrealmChampionCooldown = clamp(Number(underrealm.championCooldown || 0), 0, 1);
-  const underrealmReadinessScore = clamp(Number(underrealm.readinessScore || 0), 0, 1);
-  const underrealmReadinessGap = clamp(Number(underrealm.readinessGap || 0), 0, 1);
-  const underrealmReadinessBlocked = clamp(Number(underrealm.readinessBlocked || 0), 0, 1);
-  const underrealmReadinessWarning = clamp(Number(underrealm.readinessWarning || 0), 0, 1);
-  const underrealmCombatPressure = clamp(Number(underrealm.combatPressure || 0), 0, 1);
-  const myths = (obs && obs.myths) || {};
-  const mythsActiveRatio = clamp(Number(myths.activeRatio || 0), 0, 1);
-  const mythsSeverity = clamp(Number(myths.severity || 0), 0, 1);
-  const mythFlags = myths.flags && typeof myths.flags === 'object' ? myths.flags : {};
-  const clanShares = obs && obs.clanShares && typeof obs.clanShares === 'object'
-    ? obs.clanShares
+  const ratios = (metrics && metrics.stockpileRatio) || {};
+  const nodeRatios = (metrics && metrics.nodeRatio) || {};
+  const raid = (metrics && metrics.raid) || {};
+  const festival = (metrics && metrics.festivalObservation) || {};
+  const aiObservation = (metrics && metrics.aiObservation) || {};
+  const ruins = aiObservation.ruins && typeof aiObservation.ruins === 'object'
+    ? aiObservation.ruins
     : {};
-
-  const featureMap = {
-    shortage,
-    nodeScarcity,
-    criticalNeeds,
-    idleAdults,
-    populationBalance,
+  const underrealm = aiObservation.underrealm && typeof aiObservation.underrealm === 'object'
+    ? aiObservation.underrealm
+    : {};
+  const myths = aiObservation.myths && typeof aiObservation.myths === 'object'
+    ? aiObservation.myths
+    : {};
+  const mythFlags = myths.flags && typeof myths.flags === 'object' ? myths.flags : {};
+  const clanShares = aiObservation.clanShares && typeof aiObservation.clanShares === 'object'
+    ? aiObservation.clanShares
+    : {};
+  const { seasonIndex, seasonProgress } = compactSeasonFeatures(
+    (metrics && metrics.season) || (state && state.season),
+  );
+  const staticValues = {
+    criticalNeeds: clamp(Number(metrics && metrics.criticalNeedsFraction || 0), 0, 1),
+    idleAdults: clamp(Number(metrics && metrics.idleAdultsFraction || 0), 0, 1),
+    populationBalance: clamp(Number(metrics && metrics.populationBalance || 0), 0, 1),
     seasonIndex,
     seasonProgress,
-    weatherSeverity,
-    weatherTimeLeft,
-    raidActive,
-    raidTimeLeft,
-    raidExposed,
-    raidDefense,
-    housingShortage,
-    seasonEligible,
-    festivalActive,
-    festivalTimeLeft,
-    festivalEligible,
-    festivalCostRatio,
-    ruinsActive,
-    ruinsCooldown,
-    ruinsProgress,
-    ruinsArtifacts,
-    underrealmDepthProgress,
-    underrealmChampionProgress,
-    underrealmFrontierContested,
-    underrealmChampionCooldown,
-    underrealmReadinessScore,
-    underrealmReadinessGap,
-    underrealmReadinessBlocked,
-    underrealmReadinessWarning,
-    underrealmCombatPressure,
-    mythsActiveRatio,
-    mythsSeverity,
+    weatherSeverity: clamp(
+      Number(metrics && metrics.weatherSeverity !== undefined
+        ? metrics.weatherSeverity
+        : getWeatherSeverity(state, config)),
+      0,
+      1,
+    ),
+    weatherTimeLeft: clamp(
+      Number(metrics && metrics.weatherTimeLeft !== undefined
+        ? metrics.weatherTimeLeft
+        : getWeatherTimeLeft(state)),
+      0,
+      1,
+    ),
+    raidActive: raid.active ? 1 : 0,
+    raidTimeLeft: clamp(Number(raid.timeLeftRatio || 0), 0, 1),
+    raidExposed: clamp(Number(raid.exposedRatio || 0), 0, 1),
+    raidDefense: clamp(Number(raid.defenseRatio || 0), 0, 1),
+    seasonEligible: clamp(Number(raid.seasonEligible || 0), 0, 1),
+    housingShortage: clamp(1 - Number(metrics && metrics.housingRatio || 0), 0, 1),
+    festivalActive: festival.active ? 1 : 0,
+    festivalTimeLeft: clamp(Number(festival.timeLeft || 0), 0, 1),
+    festivalEligible: clamp(Number(festival.eligible || 0), 0, 1),
+    festivalCostRatio: clamp(Number(festival.costRatio || 0), 0, 1),
+    ruinsActive: ruins.active ? 1 : 0,
+    ruinsCooldown: clamp(Number(ruins.cooldownRatio || 0), 0, 1),
+    ruinsProgress: clamp(Number(ruins.progress || 0), 0, 1),
+    ruinsArtifacts: clamp(Number(ruins.artifacts || 0), 0, 1),
+    underrealmDepthProgress: clamp(Number(underrealm.depthProgress || 0), 0, 1),
+    underrealmChampionProgress: clamp(Number(underrealm.championProgress || 0), 0, 1),
+    underrealmFrontierContested: clamp(Number(underrealm.frontierContested || 0), 0, 1),
+    underrealmChampionCooldown: clamp(Number(underrealm.championCooldown || 0), 0, 1),
+    underrealmReadinessScore: clamp(Number(underrealm.readinessScore || 0), 0, 1),
+    underrealmReadinessGap: clamp(Number(underrealm.readinessGap || 0), 0, 1),
+    underrealmReadinessBlocked: clamp(Number(underrealm.readinessBlocked || 0), 0, 1),
+    underrealmReadinessWarning: clamp(Number(underrealm.readinessWarning || 0), 0, 1),
+    underrealmCombatPressure: clamp(Number(underrealm.combatPressure || 0), 0, 1),
+    mythsActiveRatio: clamp(Number(myths.activeRatio || 0), 0, 1),
+    mythsSeverity: clamp(Number(myths.severity || 0), 0, 1),
   };
 
-  const values = [];
-  for (const name of featureNames) {
-    if (Object.prototype.hasOwnProperty.call(featureMap, name)) {
-      values.push(Number(featureMap[name] || 0));
-      continue;
+  const vector = new Array(resources.length * featureCount);
+  let cursor = 0;
+
+  for (const resource of resources) {
+    const ratio = Number(ratios[resource] ?? 1);
+    const nodeRatio = Number(nodeRatios[resource] ?? 1);
+    const shortage = clamp(1 - ratio, 0, 1);
+    const nodeScarcity = clamp(1 - nodeRatio, 0, 1);
+    for (const spec of featureSpecs) {
+      if (spec.kind === FEATURE_KIND_SHORTAGE) {
+        vector[cursor] = shortage;
+      } else if (spec.kind === FEATURE_KIND_NODE_SCARCITY) {
+        vector[cursor] = nodeScarcity;
+      } else if (spec.kind === FEATURE_KIND_STATIC) {
+        vector[cursor] = Number(staticValues[spec.key] || 0);
+      } else if (spec.kind === FEATURE_KIND_MYTH_FLAG) {
+        vector[cursor] = clamp(Number(mythFlags[spec.key] || 0), 0, 1);
+      } else if (spec.kind === FEATURE_KIND_CLAN_SHARE) {
+        vector[cursor] = clamp(Number(clanShares[spec.key] || 0), 0, 1);
+      } else {
+        vector[cursor] = 0;
+      }
+      cursor += 1;
     }
-    if (String(name).startsWith('mythFlag_')) {
-      const mythId = String(name).slice('mythFlag_'.length);
-      values.push(clamp(Number(mythFlags[mythId] || 0), 0, 1));
-      continue;
-    }
-    if (String(name).startsWith('clanShare_')) {
-      const clanId = String(name).slice('clanShare_'.length);
-      values.push(clamp(Number(clanShares[clanId] || 0), 0, 1));
-      continue;
-    }
-    values.push(0);
   }
-  return values;
+
+  return vector;
 }
 
 // Build season index/progress scalars aligned with Python trainer feature extraction.
@@ -1095,7 +1263,8 @@ function computeMetrics(state, config) {
   const festivalActive = festival && festival.active ? 1 : 0;
   const festivalObservation = getFestivalObservation(state, config);
   const festivalEligible = festivalObservation && festivalObservation.eligible ? 1 : 0;
-  const aiSignals = getAiRewardSignals(state, config);
+  const aiObservation = resolveAiObservation(state, config);
+  const aiSignals = getAiRewardSignals(aiObservation);
 
   return {
     stockpileAvg,
@@ -1111,10 +1280,15 @@ function computeMetrics(state, config) {
     raid: raidObservation,
     raidDeaths: Number(state.deathsByCause && state.deathsByCause.raid || 0),
     raidLoot: cloneLootMap(state.raidStats && state.raidStats.loot),
+    weatherSeverity: getWeatherSeverity(state, config),
+    weatherTimeLeft: getWeatherTimeLeft(state),
+    season: state.season || null,
+    festivalObservation,
     ruinsSuccesses: Number(ruinsStats.successes || 0),
     ruinsFailures: Number(ruinsStats.failures || 0),
     ruinsArtifacts,
     ruinsRoomsCleared,
+    aiObservation,
     underrealmDepthProgress: aiSignals.underrealmDepthProgress,
     underrealmChampionProgress: aiSignals.underrealmChampionProgress,
     underrealmReadinessScore: aiSignals.underrealmReadinessScore,

@@ -1,6 +1,6 @@
 # NodeDwarves Regression Report
 
-Generated: 2026-02-17T16:47:20.928Z
+Generated: 2026-02-17T20:27:19.306Z
 All profiles mode: no
 Gate result: PASS
 Average profile score: 100.0
