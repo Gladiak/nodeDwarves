@@ -2,7 +2,6 @@
 venv/
 __pycache__/
 *.py[cod]
-debug/
 .DS_Store
 node_modules/
 maps/*/**/*.png

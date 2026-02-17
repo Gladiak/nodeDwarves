@@ -11,6 +11,8 @@
     "ai:train:fresh": "node scripts/train_wrapper.js fast --fresh",
     "ai:train:fast": "node scripts/train_wrapper.js fast",
     "ai:train:fast:quality": "node scripts/train_wrapper.js quality",
+    "ai:train:quality:mixed": "node scripts/train_wrapper.js quality-mixed",
+    "ai:train:quality:lite": "node scripts/train_wrapper.js quality --low-load",
     "ai:train:full": "node scripts/train_wrapper.js full",
     "ai:train:full:fresh": "node scripts/train_wrapper.js full --fresh",
     "ai:train:endgame": "node scripts/train_wrapper.js endgame",

@@ -14,12 +14,46 @@ const baseConfigPath = resolveConfigPath(process.argv.slice(2));
 const baseConfig = loadConfig(baseConfigPath || undefined);
 const nativeRandom = Math.random;
 const DEBUG_MODE = resolveDebugMode(process.env.NODEDWARVES_DEBUG_MODE);
+const TRANSPORT_LEGACY = 'legacy';
+const TRANSPORT_COMPACT = 'compact';
+const DEFAULT_FEATURE_NAMES = [
+  'shortage',
+  'nodeScarcity',
+  'criticalNeeds',
+  'idleAdults',
+  'populationBalance',
+  'seasonIndex',
+  'seasonProgress',
+  'weatherSeverity',
+  'weatherTimeLeft',
+  'raidActive',
+  'raidTimeLeft',
+  'raidExposed',
+  'raidDefense',
+  'housingShortage',
+  'seasonEligible',
+  'festivalActive',
+  'festivalTimeLeft',
+  'festivalEligible',
+  'festivalCostRatio',
+];
+const FESTIVAL_ACTION_ID = 'festival';
+const TRADE_RESERVE_BIAS_ACTION_ID = 'gov_trade_reserve_ratio_bias';
+const TRADE_CONTEST_INTENT_ACTION_ID = 'gov_trade_contest_intent';
+const TRADE_OPPORTUNITY_INTENT_ACTION_ID = 'gov_trade_opportunity_intent';
+const BUILDING_HOUSING_WEIGHT_ACTION_ID = 'gov_building_housing_weight';
+const BUILDING_ECONOMY_WEIGHT_ACTION_ID = 'gov_building_economy_weight';
+const BUILDING_DEFENSE_WEIGHT_ACTION_ID = 'gov_building_defense_weight';
+const BUILDING_SPECIAL_WEIGHT_ACTION_ID = 'gov_building_special_weight';
+const BUILDING_MINE_BIAS_ACTION_ID = 'gov_building_mine_bias';
+const BUILDING_UPGRADE_BIAS_ACTION_ID = 'gov_building_upgrade_bias';
 let runtime = buildRuntimeForConfig(baseConfig);
 
 let state = null;
 let prevMetrics = null;
 let activeConfig = baseConfig;
 let scenarioMeta = null;
+let transportState = createTransportState();
 
 resetState();
 
@@ -45,6 +79,7 @@ rl.on('line', (line) => {
 
   const cmd = payload && payload.cmd;
   if (cmd === 'reset') {
+    configureTransport(payload.transport);
     applySeed(payload.seed);
     resetState({
       training: payload.training,
@@ -58,8 +93,10 @@ rl.on('line', (line) => {
   }
 
   if (cmd === 'step') {
-    const action = payload.action || {};
-    const forceDebug = Boolean(payload.debug) || Boolean(action.debug);
+    const action = decodeStepAction(payload, activeConfig);
+    const forceDebug = Boolean(payload.debug)
+      || Boolean(payload.action && payload.action.debug)
+      || Boolean(action.debug);
     const stepAction = { ...action };
     delete stepAction.debug;
     const ticks = getStepTicks(stepAction, activeConfig);
@@ -173,24 +210,204 @@ function getStepTicks(action, config) {
   return Math.max(1, Number(aiConfig.stepTicks || 10));
 }
 
+// Build default transport state.
+function createTransportState() {
+  return {
+    mode: TRANSPORT_LEGACY,
+    resources: [],
+    featureNames: [],
+  };
+}
+
+// Normalize transport mode to one of supported values.
+function normalizeTransportMode(rawMode) {
+  const mode = String(rawMode || '').trim().toLowerCase();
+  if (mode === TRANSPORT_COMPACT) {
+    return TRANSPORT_COMPACT;
+  }
+  return TRANSPORT_LEGACY;
+}
+
+// Parse a list of non-empty string ids.
+function parseStringList(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const parsed = [];
+  for (const item of value) {
+    const text = String(item || '').trim();
+    if (text) {
+      parsed.push(text);
+    }
+  }
+  return parsed;
+}
+
+// Apply transport config for current session.
+function configureTransport(rawTransport) {
+  const mode = normalizeTransportMode(rawTransport && rawTransport.mode ? rawTransport.mode : rawTransport);
+  const resources = rawTransport && typeof rawTransport === 'object'
+    ? parseStringList(rawTransport.resources)
+    : [];
+  const featureNames = rawTransport && typeof rawTransport === 'object'
+    ? parseStringList(rawTransport.featureNames)
+    : [];
+  transportState = {
+    mode,
+    resources,
+    featureNames,
+  };
+}
+
+// Check if current session uses compact transport.
+function isCompactTransport() {
+  return transportState && transportState.mode === TRANSPORT_COMPACT;
+}
+
+// Decode one step action payload with legacy + compact compatibility.
+function decodeStepAction(payload, config) {
+  if (Array.isArray(payload && payload.actionValues)) {
+    return decodeCompactActionPayload(payload.actionValues, payload, config);
+  }
+  const legacy = payload && payload.action && typeof payload.action === 'object'
+    ? payload.action
+    : {};
+  if (Array.isArray(legacy.actionValues)) {
+    return decodeCompactActionPayload(legacy.actionValues, legacy, config);
+  }
+  return legacy;
+}
+
+// Clamp one policy action scalar to configured weight range.
+function clampActionWeight(value, config) {
+  const ai = (config && config.ai) || {};
+  const minWeight = Number(ai.minWeight ?? 0);
+  const maxWeight = Number(ai.maxWeight ?? 2);
+  const low = Math.min(minWeight, maxWeight);
+  const high = Math.max(minWeight, maxWeight);
+  const numeric = Number(value);
+  const safe = Number.isFinite(numeric) ? numeric : 0;
+  return clamp(safe, low, high);
+}
+
+// Decode compact action vector into the legacy action envelope expected by stepState.
+function decodeCompactActionPayload(actionValues, sourcePayload, config) {
+  const resources = Array.isArray(transportState && transportState.resources)
+    ? transportState.resources
+    : [];
+  const weights = {};
+  let festivalIntent;
+  const trade = {};
+  const building = {};
+  const action = {};
+
+  for (let idx = 0; idx < resources.length; idx += 1) {
+    const actionId = String(resources[idx] || '');
+    if (!actionId) {
+      continue;
+    }
+    const value = clampActionWeight(actionValues[idx], config);
+    if (actionId === FESTIVAL_ACTION_ID) {
+      festivalIntent = value;
+      continue;
+    }
+    if (actionId === TRADE_RESERVE_BIAS_ACTION_ID) {
+      trade.reserveRatioBias = value;
+      continue;
+    }
+    if (actionId === TRADE_CONTEST_INTENT_ACTION_ID) {
+      trade.contestIntent = value;
+      continue;
+    }
+    if (actionId === TRADE_OPPORTUNITY_INTENT_ACTION_ID) {
+      trade.opportunityIntent = value;
+      continue;
+    }
+    if (actionId === BUILDING_HOUSING_WEIGHT_ACTION_ID) {
+      building.housingWeight = value;
+      continue;
+    }
+    if (actionId === BUILDING_ECONOMY_WEIGHT_ACTION_ID) {
+      building.economyWeight = value;
+      continue;
+    }
+    if (actionId === BUILDING_DEFENSE_WEIGHT_ACTION_ID) {
+      building.defenseWeight = value;
+      continue;
+    }
+    if (actionId === BUILDING_SPECIAL_WEIGHT_ACTION_ID) {
+      building.specialWeight = value;
+      continue;
+    }
+    if (actionId === BUILDING_MINE_BIAS_ACTION_ID) {
+      building.mineBias = value;
+      continue;
+    }
+    if (actionId === BUILDING_UPGRADE_BIAS_ACTION_ID) {
+      building.upgradeBias = value;
+      continue;
+    }
+    weights[actionId] = value;
+  }
+
+  if (Object.keys(weights).length > 0) {
+    action.weights = weights;
+  }
+  if (festivalIntent !== undefined) {
+    action.festivalIntent = festivalIntent;
+  }
+  if (Object.keys(trade).length > 0) {
+    action.trade = trade;
+  }
+  if (Object.keys(building).length > 0) {
+    action.building = building;
+  }
+
+  const ticksRaw = Number(sourcePayload && sourcePayload.ticks);
+  if (Number.isFinite(ticksRaw) && ticksRaw > 0) {
+    action.ticks = Math.floor(ticksRaw);
+  }
+  if (sourcePayload && sourcePayload.debug) {
+    action.debug = true;
+  }
+  return action;
+}
+
 // Function: buildResponse.
 function buildResponse(reward, done, doneReason, forceDebug) {
   const metrics = computeMetrics(state, activeConfig);
   const obs = buildObservation(state, activeConfig, metrics);
   const debugPayload = getDebugPayload(state, activeConfig, metrics, done, forceDebug);
-  return {
-    obs,
+  const info = {
+    tick: state.tick,
+    population: metrics.population.total,
+    births: Number(state.birthsCount || 0),
+    deaths: Number(state.deathsCount || 0),
+    doneReason: doneReason || null,
+    scenario: scenarioMeta,
+    trainingSignals: buildTrainingSignals(metrics),
+    ...(debugPayload ? { debug: debugPayload } : {}),
+  };
+  const response = {
     reward: Number(reward || 0),
     done: Boolean(done),
-    info: {
-      tick: state.tick,
-      population: metrics.population.total,
-      births: Number(state.birthsCount || 0),
-      deaths: Number(state.deathsCount || 0),
-      doneReason: doneReason || null,
-      scenario: scenarioMeta,
-      ...(debugPayload ? { debug: debugPayload } : {}),
-    },
+    info,
+  };
+  if (isCompactTransport()) {
+    response.obsVector = buildCompactObservationVector(obs, activeConfig);
+  } else {
+    response.obs = obs;
+  }
+  return response;
+}
+
+// Build compact training signals consumed by Python throughput diagnostics.
+function buildTrainingSignals(metrics) {
+  return {
+    criticalNeedsFraction: Number(metrics.criticalNeedsFraction || 0),
+    idleAdultsFraction: Number(metrics.idleAdultsFraction || 0),
+    populationBalance: Number(metrics.populationBalance || 0),
+    stockpileRatio: { ...(metrics.stockpileRatio || {}) },
   };
 }
 
@@ -414,6 +631,25 @@ function getUnderrealmDebugMetrics(state, config) {
     readinessBlocked: Number(underrealm.readinessBlocked || 0),
     readinessWarning: Number(underrealm.readinessWarning || 0),
     combatPressure: Number(underrealm.combatPressure || 0),
+  };
+}
+
+// Resolve compact AI reward signals from observation channels.
+function getAiRewardSignals(state, config) {
+  const aiObservation = buildAiObservation(state, config) || {};
+  const underrealm = aiObservation.underrealm && typeof aiObservation.underrealm === 'object'
+    ? aiObservation.underrealm
+    : {};
+  const myths = aiObservation.myths && typeof aiObservation.myths === 'object'
+    ? aiObservation.myths
+    : {};
+  return {
+    underrealmDepthProgress: clamp(Number(underrealm.depthProgress || 0), 0, 1),
+    underrealmChampionProgress: clamp(Number(underrealm.championProgress || 0), 0, 1),
+    underrealmReadinessScore: clamp(Number(underrealm.readinessScore || 0), 0, 1),
+    underrealmCombatPressure: clamp(Number(underrealm.combatPressure || 0), 0, 1),
+    mythsActiveRatio: clamp(Number(myths.activeRatio || 0), 0, 1),
+    mythsSeverity: clamp(Number(myths.severity || 0), 0, 1),
   };
 }
 
@@ -667,6 +903,148 @@ function buildObservation(state, config, metrics) {
   };
 }
 
+// Build a compact flattened observation vector ordered by transport resources/features.
+function buildCompactObservationVector(obs, config) {
+  const resources = Array.isArray(transportState && transportState.resources) && transportState.resources.length > 0
+    ? transportState.resources
+    : Object.keys((obs && obs.stockpileRatio) || {});
+  const featureNames = Array.isArray(transportState && transportState.featureNames)
+    && transportState.featureNames.length > 0
+    ? transportState.featureNames
+    : DEFAULT_FEATURE_NAMES;
+  const vector = [];
+  for (const resource of resources) {
+    const values = buildCompactFeatures(obs, resource, config, featureNames);
+    for (const value of values) {
+      vector.push(Number(value || 0));
+    }
+  }
+  return vector;
+}
+
+// Build per-resource feature values using the same channels as Python build_features().
+function buildCompactFeatures(obs, resource, config, featureNames) {
+  const ratios = (obs && obs.stockpileRatio) || {};
+  const nodeRatios = (obs && obs.nodes) || {};
+  const ratio = Number(ratios[resource] ?? 1);
+  const nodeRatio = Number(nodeRatios[resource] ?? 1);
+  const shortage = clamp(1 - ratio, 0, 1);
+  const nodeScarcity = clamp(1 - nodeRatio, 0, 1);
+  const criticalNeeds = clamp(Number(obs && obs.criticalNeedsFraction || 0), 0, 1);
+  const idleAdults = clamp(Number(obs && obs.idleAdultsFraction || 0), 0, 1);
+  const populationBalance = clamp(Number(obs && obs.populationBalance || 0), 0, 1);
+  const { seasonIndex, seasonProgress } = compactSeasonFeatures(obs && obs.season);
+  const weather = (obs && obs.weather) || {};
+  const weatherSeverity = clamp(Number(weather.severity || 0), 0, 1);
+  const weatherTimeLeft = clamp(Number(weather.timeLeft || 0), 0, 1);
+  const raid = (obs && obs.raid) || {};
+  const raidActive = raid.active ? 1 : 0;
+  const raidTimeLeft = clamp(Number(raid.timeLeftRatio || 0), 0, 1);
+  const raidExposed = clamp(Number(raid.exposedRatio || 0), 0, 1);
+  const raidDefense = clamp(Number(raid.defenseRatio || 0), 0, 1);
+  const seasonEligible = clamp(Number(raid.seasonEligible || 0), 0, 1);
+  const housingRatio = Number(obs && obs.housingRatio || 0);
+  const housingShortage = clamp(1 - housingRatio, 0, 1);
+  const festival = (obs && obs.festival) || {};
+  const festivalActive = festival.active ? 1 : 0;
+  const festivalTimeLeft = clamp(Number(festival.timeLeft || 0), 0, 1);
+  const festivalEligible = clamp(Number(festival.eligible || 0), 0, 1);
+  const festivalCostRatio = clamp(Number(festival.costRatio || 0), 0, 1);
+  const ruins = (obs && obs.ruins) || {};
+  const ruinsActive = ruins.active ? 1 : 0;
+  const ruinsCooldown = clamp(Number(ruins.cooldownRatio || 0), 0, 1);
+  const ruinsProgress = clamp(Number(ruins.progress || 0), 0, 1);
+  const ruinsArtifacts = clamp(Number(ruins.artifacts || 0), 0, 1);
+  const underrealm = (obs && obs.underrealm) || {};
+  const underrealmDepthProgress = clamp(Number(underrealm.depthProgress || 0), 0, 1);
+  const underrealmChampionProgress = clamp(Number(underrealm.championProgress || 0), 0, 1);
+  const underrealmFrontierContested = clamp(Number(underrealm.frontierContested || 0), 0, 1);
+  const underrealmChampionCooldown = clamp(Number(underrealm.championCooldown || 0), 0, 1);
+  const underrealmReadinessScore = clamp(Number(underrealm.readinessScore || 0), 0, 1);
+  const underrealmReadinessGap = clamp(Number(underrealm.readinessGap || 0), 0, 1);
+  const underrealmReadinessBlocked = clamp(Number(underrealm.readinessBlocked || 0), 0, 1);
+  const underrealmReadinessWarning = clamp(Number(underrealm.readinessWarning || 0), 0, 1);
+  const underrealmCombatPressure = clamp(Number(underrealm.combatPressure || 0), 0, 1);
+  const myths = (obs && obs.myths) || {};
+  const mythsActiveRatio = clamp(Number(myths.activeRatio || 0), 0, 1);
+  const mythsSeverity = clamp(Number(myths.severity || 0), 0, 1);
+  const mythFlags = myths.flags && typeof myths.flags === 'object' ? myths.flags : {};
+  const clanShares = obs && obs.clanShares && typeof obs.clanShares === 'object'
+    ? obs.clanShares
+    : {};
+
+  const featureMap = {
+    shortage,
+    nodeScarcity,
+    criticalNeeds,
+    idleAdults,
+    populationBalance,
+    seasonIndex,
+    seasonProgress,
+    weatherSeverity,
+    weatherTimeLeft,
+    raidActive,
+    raidTimeLeft,
+    raidExposed,
+    raidDefense,
+    housingShortage,
+    seasonEligible,
+    festivalActive,
+    festivalTimeLeft,
+    festivalEligible,
+    festivalCostRatio,
+    ruinsActive,
+    ruinsCooldown,
+    ruinsProgress,
+    ruinsArtifacts,
+    underrealmDepthProgress,
+    underrealmChampionProgress,
+    underrealmFrontierContested,
+    underrealmChampionCooldown,
+    underrealmReadinessScore,
+    underrealmReadinessGap,
+    underrealmReadinessBlocked,
+    underrealmReadinessWarning,
+    underrealmCombatPressure,
+    mythsActiveRatio,
+    mythsSeverity,
+  };
+
+  const values = [];
+  for (const name of featureNames) {
+    if (Object.prototype.hasOwnProperty.call(featureMap, name)) {
+      values.push(Number(featureMap[name] || 0));
+      continue;
+    }
+    if (String(name).startsWith('mythFlag_')) {
+      const mythId = String(name).slice('mythFlag_'.length);
+      values.push(clamp(Number(mythFlags[mythId] || 0), 0, 1));
+      continue;
+    }
+    if (String(name).startsWith('clanShare_')) {
+      const clanId = String(name).slice('clanShare_'.length);
+      values.push(clamp(Number(clanShares[clanId] || 0), 0, 1));
+      continue;
+    }
+    values.push(0);
+  }
+  return values;
+}
+
+// Build season index/progress scalars aligned with Python trainer feature extraction.
+function compactSeasonFeatures(season) {
+  if (!season || typeof season !== 'object') {
+    return { seasonIndex: 0, seasonProgress: 0 };
+  }
+  const index = Number(season.index || 0);
+  const tick = Number(season.tickInSeason || 0);
+  const duration = Math.max(1, Number(season.duration || 1));
+  return {
+    seasonIndex: clamp(index / 3, 0, 1),
+    seasonProgress: clamp(tick / duration, 0, 1),
+  };
+}
+
 // Function: computeMetrics.
 function computeMetrics(state, config) {
   const targets = (config.resources && config.resources.targets) || {};
@@ -717,6 +1095,7 @@ function computeMetrics(state, config) {
   const festivalActive = festival && festival.active ? 1 : 0;
   const festivalObservation = getFestivalObservation(state, config);
   const festivalEligible = festivalObservation && festivalObservation.eligible ? 1 : 0;
+  const aiSignals = getAiRewardSignals(state, config);
 
   return {
     stockpileAvg,
@@ -736,9 +1115,35 @@ function computeMetrics(state, config) {
     ruinsFailures: Number(ruinsStats.failures || 0),
     ruinsArtifacts,
     ruinsRoomsCleared,
+    underrealmDepthProgress: aiSignals.underrealmDepthProgress,
+    underrealmChampionProgress: aiSignals.underrealmChampionProgress,
+    underrealmReadinessScore: aiSignals.underrealmReadinessScore,
+    underrealmCombatPressure: aiSignals.underrealmCombatPressure,
+    mythsActiveRatio: aiSignals.mythsActiveRatio,
+    mythsSeverity: aiSignals.mythsSeverity,
     festivalActive,
     festivalEligible,
   };
+}
+
+// Clamp one reward contribution to a symmetric absolute cap when provided.
+function clampRewardAbs(value, maxAbs) {
+  const numeric = Number(value || 0);
+  const cap = Number(maxAbs || 0);
+  if (!(cap > 0)) {
+    return numeric;
+  }
+  return clamp(numeric, -cap, cap);
+}
+
+// Build one signed delta with optional clipping.
+function getMetricDelta(current, previous, clipAbs) {
+  return clampRewardAbs(Number(current || 0) - Number(previous || 0), clipAbs);
+}
+
+// Build one improvement delta (positive when current is lower than previous).
+function getImprovementDelta(previous, current, clipAbs) {
+  return clampRewardAbs(Number(previous || 0) - Number(current || 0), clipAbs);
 }
 
 // Function: computeReward.
@@ -756,6 +1161,11 @@ function computeReward(prevMetrics, metrics, config, action) {
   const populationWeight = Number(rewardConfig.populationBalance ?? 1);
   const criticalNeedsWeight = Number(rewardConfig.criticalNeeds ?? 2);
   const idleWeight = Number(rewardConfig.idleAdults ?? 0.2);
+  const stockpileAvgDeltaWeight = Number(rewardConfig.stockpileAvgDelta ?? 0);
+  const stockpileMinDeltaWeight = Number(rewardConfig.stockpileMinDelta ?? 0);
+  const populationBalanceDeltaWeight = Number(rewardConfig.populationBalanceDelta ?? 0);
+  const criticalNeedsDeltaWeight = Number(rewardConfig.criticalNeedsDelta ?? 0);
+  const idleAdultsDeltaWeight = Number(rewardConfig.idleAdultsDelta ?? 0);
   const raidExposureWeight = Number(rewardConfig.raidExposure ?? 0);
   const raidExposureEligibleWeight = Number(rewardConfig.raidExposureEligible ?? 0);
   const raidDeathsWeight = Number(rewardConfig.raidDeaths ?? 0);
@@ -768,6 +1178,15 @@ function computeReward(prevMetrics, metrics, config, action) {
   const ruinsArtifactWeight = Number(rewardConfig.ruinsArtifact ?? 0);
   const ruinsFailureWeight = Number(rewardConfig.ruinsFailure ?? 0);
   const ruinsRoomClearWeight = Number(rewardConfig.ruinsRoomClear ?? 0);
+  const underrealmDepthDeltaWeight = Number(rewardConfig.underrealmDepthDelta ?? 0);
+  const underrealmChampionDeltaWeight = Number(rewardConfig.underrealmChampionDelta ?? 0);
+  const underrealmReadinessDeltaWeight = Number(rewardConfig.underrealmReadinessDelta ?? 0);
+  const underrealmPressureWeight = Number(rewardConfig.underrealmCombatPressure ?? 0);
+  const underrealmPressureDeltaWeight = Number(rewardConfig.underrealmPressureDelta ?? 0);
+  const mythsSeverityWeight = Number(rewardConfig.mythsSeverity ?? 0);
+  const mythsSeverityDeltaWeight = Number(rewardConfig.mythsSeverityDelta ?? 0);
+  const mythsActiveWeight = Number(rewardConfig.mythsActive ?? 0);
+  const mythsActiveDeltaWeight = Number(rewardConfig.mythsActiveDelta ?? 0);
   const festivalActiveWeight = Number(
     rewardConfig.festival_active ?? rewardConfig.festivalActive ?? 0,
   );
@@ -777,6 +1196,9 @@ function computeReward(prevMetrics, metrics, config, action) {
   const festivalIntentWeight = Number(
     rewardConfig.festival_intent ?? rewardConfig.festivalIntent ?? 0,
   );
+  const deltaClip = Math.max(0, Number(rewardConfig.deltaClip ?? 0));
+  const eventClip = Math.max(0, Number(rewardConfig.eventClip ?? 0));
+  const totalClip = Math.max(0, Number(rewardConfig.totalClip ?? 0));
 
   const prevPop = prevMetrics ? prevMetrics.population.total : metrics.population.total;
   const deaths = Math.max(0, prevPop - metrics.population.total);
@@ -831,16 +1253,109 @@ function computeReward(prevMetrics, metrics, config, action) {
     }
   }
   const festivalIntentBonus = festivalEligible > 0 ? festivalIntent * festivalIntentWeight : 0;
-  const reward = ((metrics.stockpileAvg * stockpileAvgWeight)
+
+  const prevStockpileAvg = prevMetrics ? Number(prevMetrics.stockpileAvg || 0) : Number(metrics.stockpileAvg || 0);
+  const prevStockpileMin = prevMetrics ? Number(prevMetrics.stockpileMin || 0) : Number(metrics.stockpileMin || 0);
+  const prevPopulationBalance = prevMetrics
+    ? Number(prevMetrics.populationBalance || 0)
+    : Number(metrics.populationBalance || 0);
+  const prevCriticalNeeds = prevMetrics
+    ? Number(prevMetrics.criticalNeedsFraction || 0)
+    : Number(metrics.criticalNeedsFraction || 0);
+  const prevIdleAdults = prevMetrics
+    ? Number(prevMetrics.idleAdultsFraction || 0)
+    : Number(metrics.idleAdultsFraction || 0);
+  const prevUnderrealmDepth = prevMetrics
+    ? Number(prevMetrics.underrealmDepthProgress || 0)
+    : Number(metrics.underrealmDepthProgress || 0);
+  const prevUnderrealmChampion = prevMetrics
+    ? Number(prevMetrics.underrealmChampionProgress || 0)
+    : Number(metrics.underrealmChampionProgress || 0);
+  const prevUnderrealmReadiness = prevMetrics
+    ? Number(prevMetrics.underrealmReadinessScore || 0)
+    : Number(metrics.underrealmReadinessScore || 0);
+  const prevUnderrealmPressure = prevMetrics
+    ? Number(prevMetrics.underrealmCombatPressure || 0)
+    : Number(metrics.underrealmCombatPressure || 0);
+  const prevMythsSeverity = prevMetrics
+    ? Number(prevMetrics.mythsSeverity || 0)
+    : Number(metrics.mythsSeverity || 0);
+  const prevMythsActive = prevMetrics
+    ? Number(prevMetrics.mythsActiveRatio || 0)
+    : Number(metrics.mythsActiveRatio || 0);
+
+  const stockpileAvgDelta = getMetricDelta(metrics.stockpileAvg, prevStockpileAvg, deltaClip);
+  const stockpileMinDelta = getMetricDelta(metrics.stockpileMin, prevStockpileMin, deltaClip);
+  const populationBalanceDelta = getMetricDelta(
+    metrics.populationBalance,
+    prevPopulationBalance,
+    deltaClip,
+  );
+  const criticalNeedsDelta = getImprovementDelta(
+    prevCriticalNeeds,
+    metrics.criticalNeedsFraction,
+    deltaClip,
+  );
+  const idleAdultsDelta = getImprovementDelta(
+    prevIdleAdults,
+    metrics.idleAdultsFraction,
+    deltaClip,
+  );
+  const underrealmDepthDelta = Math.max(
+    0,
+    getMetricDelta(metrics.underrealmDepthProgress, prevUnderrealmDepth, deltaClip),
+  );
+  const underrealmChampionDelta = Math.max(
+    0,
+    getMetricDelta(metrics.underrealmChampionProgress, prevUnderrealmChampion, deltaClip),
+  );
+  const underrealmReadinessDelta = getMetricDelta(
+    metrics.underrealmReadinessScore,
+    prevUnderrealmReadiness,
+    deltaClip,
+  );
+  const underrealmPressureDelta = getImprovementDelta(
+    prevUnderrealmPressure,
+    metrics.underrealmCombatPressure,
+    deltaClip,
+  );
+  const mythsSeverityDelta = getImprovementDelta(
+    prevMythsSeverity,
+    metrics.mythsSeverity,
+    deltaClip,
+  );
+  const mythsActiveDelta = getImprovementDelta(
+    prevMythsActive,
+    metrics.mythsActiveRatio,
+    deltaClip,
+  );
+
+  const coreReward = (((metrics.stockpileAvg * stockpileAvgWeight)
     + (metrics.stockpileMin * stockpileMinWeight)
-    + (waterRatio * waterStockpileWeight)) * stockpileFactor
+    + (waterRatio * waterStockpileWeight)) * stockpileFactor)
     + (populationFactor * survivalWeight)
     + (populationDelta * populationDeltaWeight)
     + (metrics.populationBalance * populationWeight)
     - (metrics.criticalNeedsFraction * criticalNeedsWeight)
     - (metrics.idleAdultsFraction * idleWeight)
     - (waterDeficit * waterLowPenalty * stockpileFactor)
-    + raidPrepShelter
+    + (stockpileAvgDelta * stockpileAvgDeltaWeight)
+    + (stockpileMinDelta * stockpileMinDeltaWeight)
+    + (populationBalanceDelta * populationBalanceDeltaWeight)
+    + (criticalNeedsDelta * criticalNeedsDeltaWeight)
+    + (idleAdultsDelta * idleAdultsDeltaWeight);
+
+  const progressionReward = (underrealmDepthDelta * underrealmDepthDeltaWeight)
+    + (underrealmChampionDelta * underrealmChampionDeltaWeight)
+    + (underrealmReadinessDelta * underrealmReadinessDeltaWeight)
+    + (underrealmPressureDelta * underrealmPressureDeltaWeight)
+    - (Number(metrics.underrealmCombatPressure || 0) * underrealmPressureWeight)
+    + (mythsSeverityDelta * mythsSeverityDeltaWeight)
+    + (mythsActiveDelta * mythsActiveDeltaWeight)
+    - (Number(metrics.mythsSeverity || 0) * mythsSeverityWeight)
+    - (Number(metrics.mythsActiveRatio || 0) * mythsActiveWeight);
+
+  const eventRewardRaw = raidPrepShelter
     + raidPrepDefense
     + (ruinsSuccessDelta * ruinsSuccessWeight)
     + (ruinsArtifactDelta * ruinsArtifactWeight)
@@ -848,14 +1363,18 @@ function computeReward(prevMetrics, metrics, config, action) {
     + (festivalActive * festivalActiveWeight)
     + (festivalStarted * festivalStartWeight)
     + festivalIntentBonus
+    + progressionReward
     - raidExposurePenalty
     - raidDeathsPenalty
     - raidLootPenalty
-    - (ruinsFailureDelta * ruinsFailureWeight)
+    - (ruinsFailureDelta * ruinsFailureWeight);
+  const eventReward = clampRewardAbs(eventRewardRaw, eventClip);
+
+  const rewardRaw = coreReward
+    + eventReward
     - (deaths * deathWeight)
     - (extinct * extinctionPenalty);
-
-  return reward;
+  return clampRewardAbs(rewardRaw, totalClip);
 }
 
 // Function: getPopulationFactor.
@@ -904,16 +1423,28 @@ function shouldTerminateStable(state, metrics, termination) {
   const maxCriticalNeeds = clamp(Number(termination.maxCriticalNeeds ?? 1), 0, 1);
   const maxIdleAdults = clamp(Number(termination.maxIdleAdults ?? 1), 0, 1);
   const minPopulationBalance = clamp(Number(termination.minPopulationBalance ?? 0), 0, 1);
+  const maxUnderrealmCombatPressure = clamp(
+    Number(termination.maxUnderrealmCombatPressure ?? 1),
+    0,
+    1,
+  );
+  const maxMythsSeverity = clamp(Number(termination.maxMythsSeverity ?? 1), 0, 1);
+  const allowDuringRaid = termination.allowDuringRaid === true;
   const stockpileEps = Math.max(0, Number(termination.stockpileEps ?? 0.01));
   const resourceEps = Math.max(0, Number(termination.resourceEps ?? stockpileEps));
+  const progressEps = Math.max(0, Number(termination.progressEps ?? stockpileEps));
 
   const populationTotal = metrics.population && Number(metrics.population.total || 0);
+  const raidActive = Boolean(metrics.raid && metrics.raid.active);
   const healthy = populationTotal > 0
     && Number(metrics.stockpileAvg || 0) >= minStockpileAvg
     && Number(metrics.stockpileMin || 0) >= minStockpileMin
     && Number(metrics.criticalNeedsFraction || 0) <= maxCriticalNeeds
     && Number(metrics.idleAdultsFraction || 0) <= maxIdleAdults
-    && Number(metrics.populationBalance || 0) >= minPopulationBalance;
+    && Number(metrics.populationBalance || 0) >= minPopulationBalance
+    && Number(metrics.underrealmCombatPressure || 0) <= maxUnderrealmCombatPressure
+    && Number(metrics.mythsSeverity || 0) <= maxMythsSeverity
+    && (allowDuringRaid || !raidActive);
 
   const tracker = state.termination || {};
   const lastTick = Number.isFinite(tracker.lastTick) ? tracker.lastTick : state.tick;
@@ -941,11 +1472,25 @@ function shouldTerminateStable(state, metrics, termination) {
   }
   const scaledResourceEps = resourceEps <= 0 ? Infinity : resourceEps * Math.max(1, deltaTicks);
   const stableResources = maxResourceDelta <= scaledResourceEps;
+  const progressScore = clamp(
+    (Number(metrics.populationBalance || 0) * 0.4)
+      + (Number(metrics.underrealmDepthProgress || 0) * 0.3)
+      + (Number(metrics.underrealmChampionProgress || 0) * 0.2)
+      + (Number(metrics.underrealmReadinessScore || 0) * 0.1),
+    0,
+    1,
+  );
+  const prevProgressScore = Number(tracker.progressScore);
+  const progressDelta = Number.isFinite(prevProgressScore)
+    ? Math.abs(progressScore - prevProgressScore)
+    : 0;
+  const scaledProgressEps = progressEps <= 0 ? Infinity : progressEps * Math.max(1, deltaTicks);
+  const stableProgress = progressDelta <= scaledProgressEps;
 
   let stableTicks = Number(tracker.stableTicks || 0);
   if (state.tick < minTicks) {
     stableTicks = 0;
-  } else if (healthy && stableDelta && stableResources) {
+  } else if (healthy && stableDelta && stableResources && stableProgress) {
     stableTicks += deltaTicks > 0 ? deltaTicks : 1;
   } else {
     stableTicks = 0;
@@ -955,6 +1500,7 @@ function shouldTerminateStable(state, metrics, termination) {
     lastTick: state.tick,
     stockpileAvg: avg,
     stockpileRatios: nextRatios,
+    progressScore,
     stableTicks,
   };
 

@@ -1,0 +1,3 @@
+[eval_latest] episode=10/20 scenario=baseline ep_reward=9657.94 ep_steps=1200 ep_ticks=2400 avg_reward=9457.90 avg_score=3.9408 elapsed=104.3s eta=104.3s
+[eval_latest] episode=20/20 scenario=full_sim ep_reward=9632.56 ep_steps=1200 ep_ticks=2400 avg_reward=9479.18 avg_score=3.9497 elapsed=202.6s eta=0.0s
+EVAL_ONLY {"avg_births": 50.6, "avg_deaths": 1.75, "avg_reward": 9479.182485161657, "avg_steps": 1200.0, "score": 3.949659368817357}

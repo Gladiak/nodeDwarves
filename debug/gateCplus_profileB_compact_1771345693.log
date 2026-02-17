@@ -1,0 +1,4 @@
+
+episode=1 avg_reward=125.52 avg_steps=25.0 avg_births=0.00 avg_deaths=0.00 eps_pm=22.3 lr=0.000249 diff=0.12 tick=808 pop=20 thr[env=28.83 ipc_w=0.05 ipc_r=28.68 ipc_p=0.10]
+
+episode=120 avg_reward=131.88 avg_steps=25.0 avg_births=0.00 avg_deaths=0.00 eps_pm=653.9 lr=0.000100 diff=0.13 tick=426 pop=22 thr[env=24.61 ipc_w=0.04 ipc_r=24.47 ipc_p=0.10] ppo[kl=0.0162 clip=0.211 v=1.7599 pg=-0.0106 ent=8.6737 upd_ms=32.88 stop=5]

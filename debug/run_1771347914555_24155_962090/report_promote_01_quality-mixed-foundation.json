@@ -1,0 +1,75 @@
+{
+  "version": 1,
+  "timestamp": 1771348007,
+  "timestamp_iso": "2026-02-17T17:06:47.362975+00:00",
+  "promoted": false,
+  "reason": "best_retained",
+  "model_path": "models/policy.json",
+  "model_state_path": "models/policy.state.pt",
+  "best_model_path": "models/policy_best.json",
+  "best_model_meta_path": "models/policy_best.meta.json",
+  "best_model_state_path": "models/policy_best.state.pt",
+  "eval_context": {
+    "source": "promote_best",
+    "config": "/Users/filippoverni/ProgettiLavoro/nodeDwarves/debug/run_1771347914555_24155_962090/config_fast.json",
+    "reportTag": "quality-mixed-foundation",
+    "evalEpisodes": 5,
+    "evalMaxSteps": 1400,
+    "evalDifficulty": 1.0,
+    "evalScore": "rpt",
+    "maxSteps": 1400,
+    "stepTicks": 2,
+    "seedBase": 100000,
+    "minImprove": 0.01,
+    "requirePositiveLcb": true,
+    "lcbZ": 1.96,
+    "evalProgress": true,
+    "evalProgressEvery": 1,
+    "transport": "legacy"
+  },
+  "thresholds": {
+    "min_improve": 0.01,
+    "require_positive_lcb": true,
+    "lcb_z": 1.96
+  },
+  "latest": {
+    "avg_reward": 11175.779616348347,
+    "avg_steps": 1400.0,
+    "avg_ticks": 2800.0,
+    "avg_births": 59.8,
+    "avg_deaths": 2.6,
+    "score": 3.9913498629815525,
+    "episode_scores": [
+      3.98259313000054,
+      4.080795963279659,
+      4.001045569592033,
+      4.043593078203323,
+      3.8487215738322416
+    ]
+  },
+  "best_before": {
+    "avg_reward": 11035.763846365804,
+    "avg_steps": 1400.0,
+    "avg_ticks": 2800.0,
+    "avg_births": 55.6,
+    "avg_deaths": 2.0,
+    "score": 3.9413442308449302,
+    "episode_scores": [
+      3.994431236045989,
+      3.915734084140387,
+      3.8531136725422943,
+      4.062558265366107,
+      3.8808838961299896
+    ]
+  },
+  "best_score_before": 3.9413442308449302,
+  "best_score_after": 3.9413442308449302,
+  "delta_score": 0.050005632136622236,
+  "paired": {
+    "count": 5,
+    "mean_delta": 0.050005632136605895,
+    "std_delta": 0.0976738039820057,
+    "se_delta": 0.043681053064950875,
+    "lower_bound": -0.03560923187069782
+  }
+}

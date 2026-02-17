@@ -14,6 +14,65 @@ Evaluation resets also disable randomization (`randomize=false`) for stable,
 repeatable eval passes unless you explicitly re-enable it in code.
 If you omit display overrides, training uses the base `display` settings.
 
+AI reward + smart termination (Phase 1):
+
+- `ai.reward.*Delta` channels reward step-to-step progress (stockpile, population balance, Underrealm, myths) while preserving legacy static reward terms.
+- `ai.reward.deltaClip`: symmetric clip for each delta channel (`0` disables clipping).
+- `ai.reward.eventClip`: symmetric clip for aggregated event/progression channels (`0` disables clipping).
+- `ai.reward.totalClip`: symmetric clip for final per-step reward (`0` disables clipping).
+- `ai.training.terminationProfile.*`: training-only smart early-termination profile injected by `scripts/train_wrapper.js` into `ai.training.configOverrides.ai.termination`.
+- Wrapper keeps `ai.training.evalOverrides.ai.termination.enabled=false` so canonical eval/promotion/regression runs still measure long-horizon quality without early-stop bias.
+- Smart termination plateau gating supports deep-signal guardrails (`maxUnderrealmCombatPressure`, `maxMythsSeverity`) and raid guard (`allowDuringRaid`).
+
+PPO v2 stability stack (Phase 2):
+
+- `ai.training.trainer.obsNorm` + `obsNormClip` + `obsNormEpsilon`: running observation normalization for rollout/eval/inference parity.
+- `ai.training.trainer.returnNorm` + `returnNormClip` + `returnNormEpsilon`: running return normalization for value-loss scale stability.
+- `ai.training.trainer.targetKl`: PPO update early-stop based on approximate KL.
+- `ai.training.trainer.valueClipRange`: PPO-style value clipping (normalized domain).
+- `ai.training.trainer.valueHuberDelta`: optional Huber value loss (`0` keeps MSE).
+- Policy payloads now persist normalization metadata (`normalization.observation` / `normalization.returns`).
+- Compatibility note: if normalization metadata shape mismatches the current feature/action contract, resume/eval fails fast and training must restart with `--fresh`.
+
+Throughput + resume continuity (Phase 3):
+
+- Trainer console and summary windows now emit throughput diagnostics by default:
+  - `eps_pm`: episodes/minute over the current log window.
+  - `thr[...]`: average env/IPC latency metrics (`env`, `ipc_w`, `ipc_r`, `ipc_p`, milliseconds).
+  - PPO diagnostics now include `upd_ms` (mean PPO update latency per batch in the current window).
+- Worker/learner rollout payload is now packed (`dict` of arrays) and GAE is computed in workers before queue transfer, reducing per-episode serialization overhead.
+- Promotion continuity now includes optimizer state copy: on best promotion, `python/promote_best.py` mirrors `modelStatePath` to `bestModelStatePath` when present.
+- Transport mode is configurable via `ai.training.trainer.transport` or CLI `--transport`:
+  - `legacy`: backward-compatible full JSON observation/action envelopes.
+  - `compact`: flattened `obsVector` + fixed-order `actionValues` transport, with legacy fallback still accepted by `ai_server.js`.
+
+Wrapper low-load tuning (no config edit needed):
+
+- `npm run ai:train:quality:lite`: quality preset with wrapper low-load mode.
+- `npm run ai:train:quality:mixed`: mixed curriculum preset (`quality-mixed`) with ~`76/24` episode split between light foundation (`160` episodes, non-full-sim) and full-sim finetune (`50` episodes).
+- `--low-load`: one-shot preset for reduced machine pressure:
+  - caps auto workers (`workersAutoMin/Max <= 4`) and reserves at least 3 CPU slots;
+  - switches canonical promotion from per-phase to final-only;
+  - lowers canonical eval defaults to `8` episodes and `1600` max steps;
+  - disables paired-LCB by default for that run;
+  - enables promote partial progress logs every `2` episodes.
+- Canonical mode overrides:
+  - `--canonical-final-only`
+  - `--canonical-per-phase`
+  - `--no-canonical-promote`
+- Canonical load overrides:
+  - `--canonical-eval-episodes <n>`
+  - `--canonical-eval-max-steps <n>`
+  - `--canonical-no-positive-lcb` / `--canonical-require-positive-lcb`
+- Promote progress overrides:
+  - `--promote-eval-progress` / `--promote-no-eval-progress`
+  - `--promote-eval-progress-every <n>`
+- High-visibility run tracking (slow machines):
+  - keep wrapper progress always on: `--promote-eval-progress --promote-eval-progress-every 1`
+  - increase trainer console cadence through forwarded args: `--log-every 10 --eval-every 5`
+  - example:
+    - `npm run ai:train:quality:lite -- --promote-eval-progress --promote-eval-progress-every 1 --log-every 10 --eval-every 5`
+
 Display:
 
 - `display.width`: fixed render width used by the training runtime.

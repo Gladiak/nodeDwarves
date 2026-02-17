@@ -1704,6 +1704,11 @@ AI and training:
 - `ai.reward.populationBalance`: reward for staying near soft cap.
 - `ai.reward.criticalNeeds`: penalty for critical needs fraction.
 - `ai.reward.idleAdults`: penalty for idle adults fraction.
+- `ai.reward.stockpileAvgDelta`: reward weight for step-to-step change in average stockpile ratio.
+- `ai.reward.stockpileMinDelta`: reward weight for step-to-step change in minimum stockpile ratio.
+- `ai.reward.populationBalanceDelta`: reward weight for step-to-step change in population-balance ratio.
+- `ai.reward.criticalNeedsDelta`: reward weight for reducing critical-needs fraction.
+- `ai.reward.idleAdultsDelta`: reward weight for reducing idle-adults fraction.
 - `ai.reward.raidExposure`: penalty for exposed ratio while a raid is active.
 - `ai.reward.raidExposureEligible`: penalty for exposed ratio when the season is raid-eligible.
 - `ai.reward.raidDeaths`: extra penalty per raid death (delta).
@@ -1714,9 +1719,21 @@ AI and training:
 - `ai.reward.ruinsArtifact`: reward per artifact found (delta).
 - `ai.reward.ruinsFailure`: penalty per failed expedition (delta).
 - `ai.reward.ruinsRoomClear`: reward per room cleared (delta).
+- `ai.reward.underrealmDepthDelta`: reward per positive Underrealm depth-progression delta.
+- `ai.reward.underrealmChampionDelta`: reward per positive Underrealm champion-progression delta.
+- `ai.reward.underrealmReadinessDelta`: reward for readiness-score improvements (can be negative on regressions).
+- `ai.reward.underrealmCombatPressure`: penalty for current Underrealm combat pressure.
+- `ai.reward.underrealmPressureDelta`: reward for reducing Underrealm combat pressure.
+- `ai.reward.mythsSeverity`: penalty for current myths severity.
+- `ai.reward.mythsSeverityDelta`: reward for reducing myths severity.
+- `ai.reward.mythsActive`: penalty for current myths active-ratio pressure.
+- `ai.reward.mythsActiveDelta`: reward for reducing myths active-ratio pressure.
 - `ai.reward.festival_active`: reward per step while a festival is active.
 - `ai.reward.festival_start`: reward when a festival starts (edge-triggered).
 - `ai.reward.festival_intent`: reward per step for higher festival intent while eligible.
+- `ai.reward.deltaClip`: symmetric clip for per-step delta channels (`0` disables clipping).
+- `ai.reward.eventClip`: symmetric clip for aggregated event/progression channels (`0` disables clipping).
+- `ai.reward.totalClip`: symmetric clip for final step reward (`0` disables clipping).
 - `ai.reward.death`: penalty per death.
 - `ai.reward.extinction`: penalty when population hits zero.
 - `ai.termination.enabled`: enable early termination when the sim is stable.
@@ -1729,11 +1746,30 @@ AI and training:
 - `ai.termination.minPopulationBalance`: minimum population balance ratio for stability.
 - `ai.termination.stockpileEps`: max change in average stockpile ratio to count as stable.
 - `ai.termination.resourceEps`: max per-resource ratio change to count as stable (defaults to `stockpileEps`).
+- `ai.termination.progressEps`: max change in composite progression score to count as plateau-stable.
+- `ai.termination.allowDuringRaid`: allow stable termination while a raid is active.
+- `ai.termination.maxUnderrealmCombatPressure`: max Underrealm pressure allowed for stable termination.
+- `ai.termination.maxMythsSeverity`: max myths severity allowed for stable termination.
 - `ai.termination.resources`: resource list for per-resource stability (empty = all resources).
 - `ai.training.enabled`: enable curriculum randomization.
 - `ai.training.difficultyStart`: starting difficulty (0..1).
 - `ai.training.difficultyEnd`: ending difficulty (0..1).
 - `ai.training.difficultyRampEpisodes`: episodes to reach max difficulty.
+- `ai.training.terminationProfile.enabled`: enable training-only smart early termination injection in wrapper-generated configs.
+- `ai.training.terminationProfile.minTicks`: minimum ticks before training-only smart termination can trigger.
+- `ai.training.terminationProfile.stableTicks`: required stable plateau ticks for training-only smart termination.
+- `ai.training.terminationProfile.minStockpileAvg`: minimum average stockpile ratio required by training-only smart termination.
+- `ai.training.terminationProfile.minStockpileMin`: minimum minimum stockpile ratio required by training-only smart termination.
+- `ai.training.terminationProfile.maxCriticalNeeds`: max critical-needs fraction allowed by training-only smart termination.
+- `ai.training.terminationProfile.maxIdleAdults`: max idle-adults fraction allowed by training-only smart termination.
+- `ai.training.terminationProfile.minPopulationBalance`: minimum population-balance ratio for training-only smart termination.
+- `ai.training.terminationProfile.stockpileEps`: avg-stockpile epsilon for plateau detection in training-only smart termination.
+- `ai.training.terminationProfile.resourceEps`: per-resource epsilon for plateau detection in training-only smart termination.
+- `ai.training.terminationProfile.progressEps`: composite progression epsilon for plateau detection in training-only smart termination.
+- `ai.training.terminationProfile.allowDuringRaid`: allow training-only smart termination during active raids.
+- `ai.training.terminationProfile.maxUnderrealmCombatPressure`: max Underrealm pressure allowed by training-only smart termination.
+- `ai.training.terminationProfile.maxMythsSeverity`: max myths severity allowed by training-only smart termination.
+- `ai.training.terminationProfile.resources`: resources tracked for per-resource plateau checks in training-only smart termination.
 - `ai.training.randomization.stockpileScale`: scale range for starting stockpiles.
 - `ai.training.randomization.stockpileFloor`: minimum stockpile after scaling.
 - `ai.training.randomization.nodeCountScale`: scale range for node counts.
@@ -1781,10 +1817,19 @@ AI and training:
 - `ai.training.trainer.gamma`: discount factor for PPO.
 - `ai.training.trainer.gaeLambda`: GAE lambda for advantage estimation.
 - `ai.training.trainer.clipRange`: PPO clip range.
+- `ai.training.trainer.targetKl`: target KL threshold for PPO update early-stop (`0` disables KL stop).
 - `ai.training.trainer.entropyCoef`: entropy bonus coefficient.
 - `ai.training.trainer.entropyCoefFinal`: final entropy coefficient after decay.
 - `ai.training.trainer.entropyRampEpisodes`: episodes to reach the final entropy coefficient.
 - `ai.training.trainer.valueCoef`: value loss coefficient.
+- `ai.training.trainer.valueClipRange`: optional value-head PPO clip range (`0` disables value clipping).
+- `ai.training.trainer.valueHuberDelta`: optional Huber delta for value loss (`0` keeps MSE value loss).
+- `ai.training.trainer.obsNorm`: enable observation running normalization.
+- `ai.training.trainer.obsNormClip`: symmetric clip for normalized observation features (`0` disables clipping).
+- `ai.training.trainer.obsNormEpsilon`: epsilon used in observation normalization denominator.
+- `ai.training.trainer.returnNorm`: enable running normalization for value targets/returns.
+- `ai.training.trainer.returnNormClip`: symmetric clip for normalized return targets (`0` disables clipping).
+- `ai.training.trainer.returnNormEpsilon`: epsilon used in return normalization denominator.
 - `ai.training.trainer.lr`: learning rate.
 - `ai.training.trainer.lrFinal`: final learning rate after linear decay.
 - `ai.training.trainer.epochs`: PPO epochs per update.
@@ -1797,6 +1842,7 @@ AI and training:
 - `ai.training.trainer.logStdInit`: initial log-std for action sampling.
 - `ai.training.trainer.maxGradNorm`: gradient norm clip.
 - `ai.training.trainer.workers`: number of parallel rollout workers.
+- `ai.training.trainer.transport`: trainer/AI-server IPC transport mode (`legacy` for full JSON obs/action envelopes, `compact` for flattened observation vectors + fixed-order action arrays).
 - `ai.training.trainer.logEvery`: episodes between training summary windows (`diag`/debug aggregation reset).
 - `ai.training.trainer.saveEvery`: episodes between writing the latest policy checkpoint (`modelPath`); `0` disables periodic saves and still writes at the final episode.
 - `ai.training.trainer.debugMode`: debug payload mode for ai_server (`full`, `summary`, `final`, `off`).

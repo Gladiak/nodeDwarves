@@ -1,0 +1,33 @@
+# NodeDwarves training summary log
+start_time=2026-02-17 17:30:04
+config=config.json
+settings episodes=30 max_steps=140 step_ticks=4 batch_episodes=5 workers=4 gamma=0.995 gae_lambda=0.97 clip_range=0.2 target_kl=0.03 value_clip_range=0.2 value_huber_delta=1.0 obs_norm=True obs_norm_clip=5.0 return_norm=True return_norm_clip=5.0 entropy_coef=0.008 entropy_coef_final=0.002 entropy_ramp=15000 value_coef=0.5 lr=0.00025 lr_final=0.0001 difficulty_start=0.12 difficulty_end=1.0 difficulty_ramp=8000 min_weight=0.0 max_weight=2.0 eval_max_steps=0 eval_difficulty=1.0 eval_score=rpt sample_score=rpt full_sim=False save_every=0
+resources=food stone water wood festival gov_trade_reserve_ratio_bias gov_trade_contest_intent gov_trade_opportunity_intent gov_building_housing_weight gov_building_economy_weight gov_building_defense_weight gov_building_special_weight gov_building_mine_bias gov_building_upgrade_bias
+scenarios=baseline:0.15 full_sim:0.10 mid_sim:0.10 wildlife_raid:0.18 ruins_focus:0.14 clan_abyssborn:0.08 clan_embers:0.08 clan_wardens:0.08 clan_lantern:0.08 water_scarce:0.22 food_scarce:0.20 low_stockpile:0.18 housing_pressure:0.20
+scenario_target_mix=baseline:8% clan_abyssborn:4% clan_embers:4% clan_lantern:4% clan_wardens:4% food_scarce:11% full_sim:6% housing_pressure:11% low_stockpile:10% mid_sim:6% ruins_focus:8% water_scarce:12% wildlife_raid:10%
+scenario_sampling=adaptive update_every=1500 ema_alpha=0.15 boost=0.8 exponent=1.1 min_ratio=0.8 max_ratio=1.2
+eval_scenarios=baseline full_sim water_scarce food_scarce ruins_focus clan_lantern
+log_every_console=30 log_every_summary=500
+
+# Legend (values are averaged over each summary window)
+# ep: end episode of the window.
+# win: window start-end episodes.
+# count: episodes in the window.
+# avg_reward/avg_steps/avg_ticks/avg_births/avg_deaths: mean episode metrics.
+# rps/rpt: reward per step / reward per tick.
+# eps_pm: episodes per minute in the summary window.
+# lr: optimizer learning rate at log time.
+# diff: curriculum difficulty factor (0..1).
+# tick/pop: last tick and population seen in the window.
+# thr: compact throughput diagnostics (env step + IPC + PPO update latency, ms).
+# stock[min|avg]: min/mean stockpile ratio across resources.
+# crit/idle/pop_bal: avg critical needs, idle adults, and population balance.
+# raid: avg raid count/deaths/loot/exposure/defense in the window.
+# short: average shortage per resource (1 - stockpile ratio).
+# under: average Underrealm combat/progression signal bundle (depth/champion/readiness/pressure).
+# term: termination reason mix within the window.
+# scenario_target_mix: target distribution based on base weights.
+# weather/scenario: top label and share in the window.
+# scenario_delta: L1/2 distance between target mix and window mix.
+# events: notable triggers (best_eval, eval_regression, scenario_shift).
+ep=30 win=1-30 count=30 avg_reward=903.15 avg_steps=140.0 avg_ticks=560.0 eps_pm=141.5 rps=6.451 rpt=1.613 avg_births=6.33 avg_deaths=0.43 lr=0.000100 diff=0.12 tick=730 pop=28 thr[env=8.47 ipc_w=0.04 ipc_r=8.35 ipc_p=0.09 ppo_upd=60.38] stock[min=0.81 avg=0.93] crit=0.00 idle=0.10 pop_bal=0.70 raid[count=0.23 deaths=0.43 exp=0.96 def=0.60 loot=beer=0.8 food=0.5 water=0.6] short=food=0.03 stone=0.06 water=0.01 wood=0.26 nodes=food=0.46 stone=0.06 water=0.06 wood=0.16 under=championCooldown=0.00 championProgress=0.00 combatPressure=0.15 depthProgress=0.00 frontierContested=0.00 readinessBlocked=0.53 readinessGap=0.80 readinessScore=0.20 readinessWarning=0.00 term=max_steps:100% weather=clear:53% scenario=clan_embers:23% scenario_target=water_scarce:12% scenario_delta=0.37 events=-

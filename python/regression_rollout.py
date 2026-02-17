@@ -83,10 +83,13 @@ def parse_args():
     parser.add_argument("--episodes", type=int, default=defaults["episodes"])
     parser.add_argument("--max-steps", type=int, default=defaults["max_steps"])
     parser.add_argument("--step-ticks", type=int, default=defaults["step_ticks"])
+    parser.add_argument("--transport", type=str, default=defaults.get("transport", train.TRANSPORT_LEGACY))
     parser.add_argument("--seed", type=int, default=defaults["seed"])
     parser.add_argument("--difficulty-start", type=float, default=defaults["difficulty_start"])
     parser.add_argument("--difficulty-end", type=float, default=defaults["difficulty_end"])
     parser.add_argument("--difficulty-ramp", type=int, default=defaults["difficulty_ramp"])
+    parser.add_argument("--gamma", type=float, default=defaults["gamma"])
+    parser.add_argument("--gae-lambda", type=float, default=defaults["gae_lambda"])
     parser.add_argument("--lr", type=float, default=defaults["lr"])
     parser.add_argument("--lr-final", type=float, default=defaults["lr_final"])
     parser.add_argument("--debug-mode", type=str, default=defaults["debug_mode"])
@@ -138,12 +141,51 @@ def build_model_and_policy_settings(args, config, defaults):
         activation,
         -0.5,
     )
-    train.load_policy(args.model_path, model)
-    return model, resources, feature_names, min_weight, max_weight
+    obs_fallback = train.create_running_stats(
+        input_size,
+        enabled=defaults["obs_norm"],
+        clip=defaults["obs_norm_clip"],
+        epsilon=defaults["obs_norm_epsilon"],
+    )
+    return_fallback = train.create_running_stats(
+        1,
+        enabled=defaults["return_norm"],
+        clip=defaults["return_norm_clip"],
+        epsilon=defaults["return_norm_epsilon"],
+    )
+    load_meta = train.load_policy(
+        args.model_path,
+        model,
+        obs_fallback=obs_fallback,
+        return_fallback=return_fallback,
+    )
+    if load_meta.get("normalization_obs_mismatch"):
+        raise SystemExit(
+            "Policy observation normalization shape mismatch. "
+            "Run training with --fresh before regression."
+        )
+    if load_meta.get("normalization_return_mismatch"):
+        raise SystemExit(
+            "Policy return normalization shape mismatch. "
+            "Run training with --fresh before regression."
+        )
+    if load_meta.get("normalization_version") not in (None, 1):
+        raise SystemExit("Unsupported policy normalization metadata version.")
+    obs_normalization = load_meta.get("obs_normalization") or obs_fallback
+    return model, resources, feature_names, min_weight, max_weight, obs_normalization
 
 
 # Function: run_rollouts.
-def run_rollouts(args, config, model, resources, feature_names, min_weight, max_weight):
+def run_rollouts(
+    args,
+    config,
+    model,
+    resources,
+    feature_names,
+    min_weight,
+    max_weight,
+    obs_normalization,
+):
     scenario_defs = train.get_scenario_definitions(config)
     training_scenarios = train.get_training_scenarios(scenario_defs)
     scenario_rng = random.Random(args.seed) if args.seed is not None else random.Random()
@@ -184,7 +226,7 @@ def run_rollouts(args, config, model, resources, feature_names, min_weight, max_
                 difficulty = train.clamp(float(difficulty), 0.0, 1.0)
                 seed = (args.seed + episode) if args.seed is not None else None
                 scenario = train.select_scenario(training_scenarios, scenario_rng, difficulty)
-                _, reward, steps, info, _ = train.run_episode(
+                _, reward, steps, info = train.run_episode(
                     proc,
                     model,
                     resources,
@@ -197,6 +239,10 @@ def run_rollouts(args, config, model, resources, feature_names, min_weight, max_
                     max_weight,
                     scenario,
                     args.full_sim,
+                    args.gamma,
+                    args.gae_lambda,
+                    obs_normalization=obs_normalization,
+                    transport=args.transport,
                 )
                 total_reward += reward
                 total_steps += float(steps)
@@ -267,7 +313,11 @@ def main():
 
     config = train.load_config(args.config)
     defaults = train.build_training_defaults(config)
-    model, resources, feature_names, min_weight, max_weight = build_model_and_policy_settings(
+    args.transport = train.normalize_transport_mode(
+        args.transport,
+        defaults.get("transport", train.TRANSPORT_LEGACY),
+    )
+    model, resources, feature_names, min_weight, max_weight, obs_normalization = build_model_and_policy_settings(
         args, config, defaults
     )
     metrics = run_rollouts(
@@ -278,6 +328,7 @@ def main():
         feature_names,
         min_weight,
         max_weight,
+        obs_normalization,
     )
     write_summary(args.summary_path, metrics["summary_line"], args.config)
     print(

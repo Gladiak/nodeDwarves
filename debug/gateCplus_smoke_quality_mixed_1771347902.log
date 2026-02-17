@@ -1,0 +1,52 @@
+[PROFILE] Starting training profile: quality-mixed
+[WORKERS] manual=2 cpu=10 auto=4 (min=2, max=4, reserve=3)
+[BOOTSTRAP] $ npm run ai:bootstrap --silent
+ai:bootstrap: dependencies already installed
+[RUN-DIR] /Users/filippoverni/ProgettiLavoro/nodeDwarves/debug/run_1771347902683_23881_47265
+[PROMOTE] mode=canonical-final-only episodes=4 maxSteps=1000 score=rpt minImprove=0.0050 lcb=off
+[PROMOTE] eval-progress=on cadence=1
+[PROFILE] low-load preset enabled
+[SEED] mode=rotate base=1028539048
+
+[PHASE] 1/2 quality-mixed-foundation
+[SEED] phase=quality-mixed-foundation seed=1028549056
+[TRAIN] Launching optimizer loop (quality-mixed-foundation)
+[TRAIN] $ /Users/filippoverni/ProgettiLavoro/nodeDwarves/.venv/bin/python python/train.py --config /Users/filippoverni/ProgettiLavoro/nodeDwarves/debug/run_1771347902683_23881_47265/config_fast.json --episodes 160 --max-steps 1400 --step-ticks 2 --epochs 3 --batch-episodes 8 --mini-batch-size 1024 --log-every 40 --save-every 80 --eval-every 20 --eval-episodes 2 --eval-max-steps 1400 --eval-difficulty 1.0 --difficulty-start 0.12 --difficulty-end 1.0 --difficulty-ramp 120 --model-path models/policy.json --best-model-path models/policy_best.json --best-model-meta-path models/policy_best.meta.json --resume-from-latest --debug-run-dir /Users/filippoverni/ProgettiLavoro/nodeDwarves/debug/run_1771347902683_23881_47265 --debug-summary-name summary_quality_mixed_foundation.log --debug-prefix quality_mixed_foundation --episodes 8 --batch-episodes 2 --eval-episodes 1 --max-steps 600 --max-ticks 1200 --log-every 1 --no-save-best-during-training --seed 1028549056 --workers 2
+usage: train.py [-h] [--config CONFIG] [--episodes EPISODES]
+                [--max-steps MAX_STEPS] [--step-ticks STEP_TICKS]
+                [--gamma GAMMA] [--gae-lambda GAE_LAMBDA]
+                [--clip-range CLIP_RANGE] [--target-kl TARGET_KL]
+                [--entropy-coef ENTROPY_COEF]
+                [--entropy-coef-final ENTROPY_COEF_FINAL]
+                [--entropy-ramp ENTROPY_RAMP] [--value-coef VALUE_COEF]
+                [--value-clip-range VALUE_CLIP_RANGE]
+                [--value-huber-delta VALUE_HUBER_DELTA] [--obs-norm]
+                [--no-obs-norm] [--obs-norm-clip OBS_NORM_CLIP]
+                [--obs-norm-epsilon OBS_NORM_EPSILON] [--return-norm]
+                [--no-return-norm] [--return-norm-clip RETURN_NORM_CLIP]
+                [--return-norm-epsilon RETURN_NORM_EPSILON] [--lr LR]
+                [--lr-final LR_FINAL] [--epochs EPOCHS]
+                [--mini-batch-size MINI_BATCH_SIZE]
+                [--batch-episodes BATCH_EPISODES]
+                [--hidden-sizes HIDDEN_SIZES] [--feature-names FEATURE_NAMES]
+                [--activation ACTIVATION] [--log-std-init LOG_STD_INIT]
+                [--max-grad-norm MAX_GRAD_NORM] [--workers WORKERS]
+                [--transport TRANSPORT] [--difficulty-start DIFFICULTY_START]
+                [--difficulty-end DIFFICULTY_END]
+                [--difficulty-ramp DIFFICULTY_RAMP] [--model-path MODEL_PATH]
+                [--model-state-path MODEL_STATE_PATH]
+                [--best-model-path BEST_MODEL_PATH]
+                [--best-model-meta-path BEST_MODEL_META_PATH]
+                [--best-model-state-path BEST_MODEL_STATE_PATH]
+                [--resume-from-best] [--resume-from-latest]
+                [--save-best-during-training] [--no-save-best-during-training]
+                [--seed SEED] [--log-every LOG_EVERY]
+                [--save-every SAVE_EVERY] [--debug-mode DEBUG_MODE]
+                [--eval-every EVAL_EVERY] [--eval-episodes EVAL_EPISODES]
+                [--eval-max-steps EVAL_MAX_STEPS]
+                [--eval-difficulty EVAL_DIFFICULTY] [--eval-score EVAL_SCORE]
+                [--sample-score SAMPLE_SCORE] [--full-sim] [--fresh]
+                [--debug-run-dir DEBUG_RUN_DIR]
+                [--debug-summary-name DEBUG_SUMMARY_NAME]
+                [--debug-prefix DEBUG_PREFIX]
+train.py: error: unrecognized arguments: --max-ticks 1200

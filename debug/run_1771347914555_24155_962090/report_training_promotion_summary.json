@@ -1,0 +1,72 @@
+{
+  "version": 1,
+  "profile": "quality-mixed",
+  "runDir": "/Users/filippoverni/ProgettiLavoro/nodeDwarves/debug/run_1771347914555_24155_962090",
+  "generatedAt": "2026-02-17T17:09:54.502Z",
+  "canonicalPromotion": {
+    "enabled": true,
+    "evalEpisodes": 4,
+    "evalMaxSteps": 1000,
+    "stepTicks": 2,
+    "maxSteps": 1000,
+    "maxTicks": 5600,
+    "evalDifficulty": 1,
+    "evalScore": "rpt",
+    "minImprove": 0.005,
+    "seed": 0,
+    "endgameEnabled": false,
+    "requirePositiveLcb": false,
+    "lcbZ": 1.96
+  },
+  "totals": {
+    "phases": 3,
+    "promoted": 0,
+    "retained": 3,
+    "avgDeltaScore": 0.004273006054368977,
+    "finalBestScore": 3.839562506422786
+  },
+  "phases": [
+    {
+      "index": 1,
+      "phase": "quality-mixed-foundation",
+      "promoted": false,
+      "reason": "best_retained",
+      "latest_score": 3.9913498629815525,
+      "best_score_before": 3.9413442308449302,
+      "best_score_after": 3.9413442308449302,
+      "delta_score": 0.050005632136622236,
+      "paired_lcb": -0.03560923187069782,
+      "paired_mean_delta": 0.050005632136605895,
+      "report_json": "/Users/filippoverni/ProgettiLavoro/nodeDwarves/debug/run_1771347914555_24155_962090/report_promote_01_quality-mixed-foundation.json",
+      "report_md": "/Users/filippoverni/ProgettiLavoro/nodeDwarves/debug/run_1771347914555_24155_962090/report_promote_01_quality-mixed-foundation.md"
+    },
+    {
+      "index": 2,
+      "phase": "quality-mixed-finetune",
+      "promoted": false,
+      "reason": "best_retained",
+      "latest_score": 3.8095801321201646,
+      "best_score_before": 3.8461222868049676,
+      "best_score_after": 3.8461222868049676,
+      "delta_score": -0.03654215468480304,
+      "paired_lcb": -0.179425046063287,
+      "paired_mean_delta": -0.036542154684812,
+      "report_json": "/Users/filippoverni/ProgettiLavoro/nodeDwarves/debug/run_1771347914555_24155_962090/report_promote_02_quality-mixed-finetune.json",
+      "report_md": "/Users/filippoverni/ProgettiLavoro/nodeDwarves/debug/run_1771347914555_24155_962090/report_promote_02_quality-mixed-finetune.md"
+    },
+    {
+      "index": 3,
+      "phase": "canonical-final",
+      "promoted": false,
+      "reason": "best_retained",
+      "latest_score": 3.8389180471340736,
+      "best_score_before": 3.839562506422786,
+      "best_score_after": 3.839562506422786,
+      "delta_score": -0.0006444592887122624,
+      "paired_lcb": -0.12435442499559052,
+      "paired_mean_delta": -0.0006444592887073775,
+      "report_json": "/Users/filippoverni/ProgettiLavoro/nodeDwarves/debug/run_1771347914555_24155_962090/report_promote_03_canonical-final.json",
+      "report_md": "/Users/filippoverni/ProgettiLavoro/nodeDwarves/debug/run_1771347914555_24155_962090/report_promote_03_canonical-final.md"
+    }
+  ]
+}

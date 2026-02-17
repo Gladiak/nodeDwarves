@@ -1,0 +1,77 @@
+{
+  "version": 1,
+  "timestamp": 1771348152,
+  "timestamp_iso": "2026-02-17T17:09:12.243210+00:00",
+  "promoted": false,
+  "reason": "best_retained",
+  "model_path": "models/policy.json",
+  "model_state_path": "models/policy.state.pt",
+  "best_model_path": "models/policy_best.json",
+  "best_model_meta_path": "models/policy_best.meta.json",
+  "best_model_state_path": "models/policy_best.state.pt",
+  "eval_context": {
+    "source": "promote_best",
+    "config": "/Users/filippoverni/ProgettiLavoro/nodeDwarves/debug/run_1771347914555_24155_962090/config_finetune.json",
+    "reportTag": "quality-mixed-finetune",
+    "evalEpisodes": 6,
+    "evalMaxSteps": 1800,
+    "evalDifficulty": 1.0,
+    "evalScore": "rpt",
+    "maxSteps": 1800,
+    "stepTicks": 2,
+    "seedBase": 100000,
+    "minImprove": 0.012,
+    "requirePositiveLcb": true,
+    "lcbZ": 1.96,
+    "evalProgress": true,
+    "evalProgressEvery": 1,
+    "transport": "legacy"
+  },
+  "thresholds": {
+    "min_improve": 0.012,
+    "require_positive_lcb": true,
+    "lcb_z": 1.96
+  },
+  "latest": {
+    "avg_reward": 13714.488475632592,
+    "avg_steps": 1800.0,
+    "avg_ticks": 3600.0,
+    "avg_births": 81.66666666666667,
+    "avg_deaths": 3.5,
+    "score": 3.8095801321201646,
+    "episode_scores": [
+      3.767280069625938,
+      3.8389280367914163,
+      3.777134180275668,
+      3.7211459723915934,
+      4.025821965469795,
+      3.727170568166474
+    ]
+  },
+  "best_before": {
+    "avg_reward": 13846.040232497884,
+    "avg_steps": 1800.0,
+    "avg_ticks": 3600.0,
+    "avg_births": 78.83333333333333,
+    "avg_deaths": 2.6666666666666665,
+    "score": 3.8461222868049676,
+    "episode_scores": [
+      3.9387817827290728,
+      3.8710179198338333,
+      3.8333129475768133,
+      3.9563848861257713,
+      3.7456676162951763,
+      3.73156856826909
+    ]
+  },
+  "best_score_before": 3.8461222868049676,
+  "best_score_after": 3.8461222868049676,
+  "delta_score": -0.03654215468480304,
+  "paired": {
+    "count": 6,
+    "mean_delta": -0.036542154684812,
+    "std_delta": 0.17856641676060075,
+    "se_delta": 0.07289943437677296,
+    "lower_bound": -0.179425046063287
+  }
+}

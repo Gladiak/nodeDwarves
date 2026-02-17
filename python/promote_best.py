@@ -86,6 +86,7 @@ def build_promote_defaults(config, train_defaults):
         "require_positive_lcb": False,
         "lcb_z": 1.96,
         "canonical_enabled": False,
+        "eval_progress_every": 10,
     }
     if canonical:
         defaults["canonical_enabled"] = train.to_bool(canonical.get("enabled"), True)
@@ -130,17 +131,60 @@ def resolve_policy_settings(payload, config, defaults, resources):
         payload.get("featureNames"),
         defaults["feature_names"],
     )
+    resolved_resources = resolve_policy_list(payload.get("resources"), resources)
+    input_size = len(resolved_resources) * len(feature_names)
     ai_config = (config.get("ai", {}) or {}) if isinstance(config, dict) else {}
     min_weight = resolve_weight_limit(payload.get("minWeight"), ai_config.get("minWeight", 0.0))
     max_weight = resolve_weight_limit(payload.get("maxWeight"), ai_config.get("maxWeight", 2.0))
+    normalization_payload = payload.get("normalization")
+    obs_payload = None
+    ret_payload = None
+    normalization_version = None
+    obs_mismatch = False
+    return_mismatch = False
+    if isinstance(normalization_payload, dict):
+        normalization_version = train.to_int(normalization_payload.get("version"), None)
+        obs_payload = normalization_payload.get("observation")
+        ret_payload = normalization_payload.get("returns")
+    if isinstance(obs_payload, dict):
+        obs_mean = obs_payload.get("mean")
+        obs_var = obs_payload.get("var")
+        if isinstance(obs_mean, list) and isinstance(obs_var, list):
+            if len(obs_mean) != input_size or len(obs_var) != input_size:
+                obs_mismatch = True
+    if isinstance(ret_payload, dict):
+        ret_mean = ret_payload.get("mean")
+        ret_var = ret_payload.get("var")
+        if isinstance(ret_mean, list) and isinstance(ret_var, list):
+            if len(ret_mean) != 1 or len(ret_var) != 1:
+                return_mismatch = True
+    obs_normalization = train.parse_running_stats(
+        obs_payload,
+        input_size,
+        enabled_fallback=defaults["obs_norm"],
+        clip_fallback=defaults["obs_norm_clip"],
+        epsilon_fallback=defaults["obs_norm_epsilon"],
+    )
+    return_normalization = train.parse_running_stats(
+        ret_payload,
+        1,
+        enabled_fallback=defaults["return_norm"],
+        clip_fallback=defaults["return_norm_clip"],
+        epsilon_fallback=defaults["return_norm_epsilon"],
+    )
     return {
-        "resources": resolve_policy_list(payload.get("resources"), resources),
+        "resources": resolved_resources,
         "feature_names": feature_names,
         "invalid_features": invalid,
         "hidden_sizes": resolve_hidden_sizes(payload.get("hiddenSizes"), defaults["hidden_sizes"]),
         "activation": str(payload.get("activation") or defaults["activation"] or "tanh").lower(),
         "min_weight": min_weight,
         "max_weight": max_weight,
+        "obs_normalization": obs_normalization,
+        "return_normalization": return_normalization,
+        "normalization_version": normalization_version,
+        "normalization_obs_mismatch": obs_mismatch,
+        "normalization_return_mismatch": return_mismatch,
     }
 
 
@@ -171,6 +215,11 @@ def evaluate_policy(
     eval_score_mode,
     eval_scenarios,
     collect_episode_scores=False,
+    progress=False,
+    progress_every=0,
+    progress_prefix="eval",
+    obs_normalization=None,
+    transport=train.TRANSPORT_LEGACY,
 ):
     model = build_model_from_policy(payload, resources, feature_names, hidden_sizes, activation)
     stats = train.evaluate(
@@ -188,6 +237,11 @@ def evaluate_policy(
         eval_scenarios,
         eval_score_mode,
         collect_episode_scores,
+        progress=progress,
+        progress_every=progress_every,
+        progress_prefix=progress_prefix,
+        obs_normalization=obs_normalization,
+        transport=transport,
     )
     score = train.compute_score(
         stats["avg_reward"],
@@ -295,8 +349,10 @@ def build_report_payload(
         "promoted": bool(promoted),
         "reason": str(reason or ""),
         "model_path": str(args.model_path),
+        "model_state_path": str(args.model_state_path),
         "best_model_path": str(args.best_model_path),
         "best_model_meta_path": str(args.best_model_meta_path),
+        "best_model_state_path": str(args.best_model_state_path),
         "eval_context": dict(eval_context or {}),
         "thresholds": {
             "min_improve": float(args.min_improve),
@@ -427,14 +483,17 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Evaluate latest policy and promote to best if improved.")
     parser.add_argument("--config", type=str, default=pre_args.config)
     parser.add_argument("--model-path", type=str, default=train_defaults["model_path"])
+    parser.add_argument("--model-state-path", type=str, default=train_defaults["model_state_path"])
     parser.add_argument("--best-model-path", type=str, default=train_defaults["best_model_path"])
     parser.add_argument("--best-model-meta-path", type=str, default=train_defaults["best_model_meta_path"])
+    parser.add_argument("--best-model-state-path", type=str, default=train_defaults["best_model_state_path"])
     parser.add_argument("--eval-episodes", type=int, default=defaults["eval_episodes"])
     parser.add_argument("--eval-max-steps", type=int, default=defaults["eval_max_steps"])
     parser.add_argument("--eval-difficulty", type=float, default=defaults["eval_difficulty"])
     parser.add_argument("--eval-score", type=str, default=defaults["eval_score"])
     parser.add_argument("--max-steps", type=int, default=defaults["max_steps"])
     parser.add_argument("--step-ticks", type=int, default=defaults["step_ticks"])
+    parser.add_argument("--transport", type=str, default=train_defaults.get("transport", train.TRANSPORT_LEGACY))
     parser.add_argument("--difficulty-end", type=float, default=defaults["difficulty_end"])
     parser.add_argument("--seed", type=int, default=defaults["seed"])
     parser.add_argument("--debug-mode", type=str, default=train_defaults["debug_mode"])
@@ -452,6 +511,25 @@ def parse_args():
         help="Disable paired lower-confidence-bound promotion guard.",
     )
     parser.add_argument("--lcb-z", type=float, default=defaults["lcb_z"])
+    parser.add_argument(
+        "--eval-progress",
+        dest="eval_progress",
+        action="store_true",
+        default=None,
+        help="Enable partial episode progress logs (auto-enabled for --eval-only).",
+    )
+    parser.add_argument(
+        "--no-eval-progress",
+        dest="eval_progress",
+        action="store_false",
+        help="Disable partial episode progress logs.",
+    )
+    parser.add_argument(
+        "--eval-progress-every",
+        type=int,
+        default=defaults["eval_progress_every"],
+        help="Emit partial eval logs every N episodes when progress logs are enabled.",
+    )
     parser.add_argument("--eval-only", action="store_true", default=False)
     parser.add_argument("--report-json", type=str, default=None)
     parser.add_argument("--report-md", type=str, default=None)
@@ -495,6 +573,18 @@ def promote_latest_to_best(
     if best_dir:
         os.makedirs(best_dir, exist_ok=True)
     shutil.copyfile(args.model_path, args.best_model_path)
+    if (
+        args.model_state_path
+        and args.best_model_state_path
+        and os.path.exists(args.model_state_path)
+    ):
+        best_state_dir = os.path.dirname(args.best_model_state_path)
+        if best_state_dir:
+            os.makedirs(best_state_dir, exist_ok=True)
+        shutil.copyfile(args.model_state_path, args.best_model_state_path)
+        print(
+            f"Promoted optimizer state: {args.model_state_path} -> {args.best_model_state_path}"
+        )
     train.save_best_meta(
         args.best_model_meta_path,
         latest_stats,
@@ -545,12 +635,40 @@ def main():
             "Latest policy resources do not match config resources. "
             "Run with --fresh after changing resource lists."
         )
+    if model_settings.get("normalization_obs_mismatch"):
+        raise SystemExit(
+            "Latest policy observation normalization shape mismatch. "
+            "Run with --fresh."
+        )
+    if model_settings.get("normalization_return_mismatch"):
+        raise SystemExit(
+            "Latest policy return normalization shape mismatch. "
+            "Run with --fresh."
+        )
+    if model_settings.get("normalization_version") not in (None, 1):
+        raise SystemExit(
+            "Latest policy normalization metadata version is unsupported."
+        )
     if best_payload:
         best_settings = resolve_policy_settings(best_payload, config, train_defaults, resources)
         if config_resources and best_settings["resources"] != config_resources:
             raise SystemExit(
                 "Best policy resources do not match config resources. "
                 "Run with --fresh after changing resource lists."
+            )
+        if best_settings.get("normalization_obs_mismatch"):
+            raise SystemExit(
+                "Best policy observation normalization shape mismatch. "
+                "Run with --fresh."
+            )
+        if best_settings.get("normalization_return_mismatch"):
+            raise SystemExit(
+                "Best policy return normalization shape mismatch. "
+                "Run with --fresh."
+            )
+        if best_settings.get("normalization_version") not in (None, 1):
+            raise SystemExit(
+                "Best policy normalization metadata version is unsupported."
             )
     else:
         best_settings = None
@@ -578,6 +696,14 @@ def main():
     if eval_difficulty is not None:
         eval_difficulty = train.clamp(float(eval_difficulty), 0.0, 1.0)
     eval_score_mode = str(args.eval_score or train_defaults["eval_score"] or "rpt").lower()
+    args.transport = train.normalize_transport_mode(
+        args.transport,
+        train_defaults.get("transport", train.TRANSPORT_LEGACY),
+    )
+    eval_progress = args.eval_progress
+    if eval_progress is None:
+        eval_progress = bool(args.eval_only)
+    eval_progress_every = max(1, int(args.eval_progress_every))
     seed_base = (args.seed + 100000) if args.seed is not None else None
     eval_context = {
         "source": "promote_best",
@@ -593,6 +719,9 @@ def main():
         "minImprove": float(args.min_improve),
         "requirePositiveLcb": bool(args.require_positive_lcb),
         "lcbZ": float(args.lcb_z),
+        "evalProgress": bool(eval_progress),
+        "evalProgressEvery": int(eval_progress_every),
+        "transport": str(args.transport),
     }
 
     env = os.environ.copy()
@@ -626,7 +755,12 @@ def main():
             eval_difficulty,
             eval_score_mode,
             eval_scenarios,
-            args.require_positive_lcb,
+            collect_episode_scores=args.require_positive_lcb,
+            progress=eval_progress,
+            progress_every=eval_progress_every,
+            progress_prefix="eval_latest",
+            obs_normalization=model_settings["obs_normalization"],
+            transport=args.transport,
         )
 
         if args.eval_only:
@@ -668,7 +802,12 @@ def main():
                 eval_difficulty,
                 eval_score_mode,
                 eval_scenarios,
-                args.require_positive_lcb,
+                collect_episode_scores=args.require_positive_lcb,
+                progress=eval_progress,
+                progress_every=eval_progress_every,
+                progress_prefix="eval_best",
+                obs_normalization=best_settings["obs_normalization"],
+                transport=args.transport,
             )
 
         if best_score is None:

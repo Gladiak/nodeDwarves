@@ -1463,6 +1463,8 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
 - `src/ai/policy.js`
   - Loads JSON policies (linear or MLP) and maps outputs to the governor action envelope.
   - Feature order is defined by `featureNames`; defaults live in the file.
+  - Applies policy-side observation normalization when `normalization.observation` metadata is present in the checkpoint.
+  - Emits fail-fast warnings if normalization metadata version/shape is incompatible with runtime feature shape.
   - Normalizes actions to a governor-ready envelope (`jobs.weights`, `festivalIntent`, optional `trade`/`building`) and mirrors legacy `weights` for compatibility.
   - Supports explicit governor pseudo action-ids in policy `resources`:
     - trade: `gov_trade_reserve_ratio_bias`, `gov_trade_contest_intent`, `gov_trade_opportunity_intent`
@@ -1504,6 +1506,7 @@ Clan dynamics add heterogeneity and longer-horizon trade-offs. To keep PPO stabl
 - Use slightly higher entropy early to explore clan/role/job combinations.
 - Observations include clan shares and ruins status (active, cooldown, progress, artifacts); retrain with `--fresh` if you change them.
 - Reward shaping can emphasize ruins outcomes via `ai.reward.ruinsSuccess`, `ai.reward.ruinsArtifact`, `ai.reward.ruinsFailure`, and `ai.reward.ruinsRoomClear`, plus festivals via `ai.reward.festival_active`, `ai.reward.festival_start`, and `ai.reward.festival_intent`.
+- Reward stack now supports bounded delta channels (`ai.reward.*Delta`) and deep progression signals (Underrealm/Myths) with optional clipping guardrails (`deltaClip`, `eventClip`, `totalClip`) to reduce reward spikes.
 
 ## 9) Configuration (single source of truth) ⚙️
 
@@ -1565,6 +1568,8 @@ Training presets:
 - `ai:train` (alias of `ai:train:fast`) runs a fast baseline loop tuned for sub-5-minute runs (auto-tuned workers by CPU, 200 episodes, max_steps=1600, step_ticks=2). The difficulty ramp reaches 1.0 by episode 120 and eval runs every 20 episodes at difficulty 1.0, followed by a post-run promotion check comparing the latest policy to the best snapshot.
 - `ai:train:fresh` runs the same fast preset but clears existing policy and best-eval snapshots first.
 - `ai:train:fast:quality` runs the fast phase plus a short full-sim finetune at max difficulty (40 episodes, max_steps=1800). Eval cadence is 20 episodes in the fast phase and 10 episodes in finetune, with the promotion check after each phase.
+- `ai:train:quality:mixed` runs a mixed curriculum profile with ~`76/24` episode split between a lighter foundation phase (`160` episodes, non-full-sim) and a full-sim finetune phase (`50` episodes, max difficulty).
+- `ai:train:quality:lite` runs the quality profile with a low-load wrapper preset (worker cap, lighter canonical benchmark defaults, canonical check at run end, and partial promote progress logs) for laptops/interactive sessions.
 - `ai:train:full` runs the quality-first full curriculum in four phases: foundation (280 episodes), full-sim finetune (90), endgame specialization (24), and final consolidation (40). It is optimized for model quality over runtime and keeps promote checks after every phase.
 - `ai:train:full:fresh` runs the same full curriculum but starts from a clean checkpoint set (`--fresh` is applied to phase 1 only, then latest-resume carries forward across later phases).
 - `ai:train:endgame` runs an endgame-enabled long-horizon pass (8 episodes, max_steps=10000, step_ticks=2, target horizon 20k ticks per episode) with eval every 4 episodes. It is tuned to specialize on late-game pressure while keeping the profile compact.
@@ -1574,6 +1579,7 @@ Training presets:
 - Trainer CLI resume source can be forced per run: `--resume-from-best` or `--resume-from-latest` (the latter is useful to keep incremental momentum when best-gate promotion is temporarily blocked).
 - Wrapper resume policy now favors cumulative learning on multi-phase profiles: `ai:train:fast` stays anchored to best-resume, while `ai:train:fast:quality` and `ai:train:full` use latest-resume for every phase so non-promoted progress can still carry forward within and across runs.
 - Trainer resume continuity now includes optimizer state snapshots: latest (`modelStatePath`) and best (`bestModelStatePath`) are saved/restored alongside policy weights to avoid restart-from-scratch optimizer behavior across runs.
+- Promotion continuity now mirrors optimizer state too: when `promote_best.py` promotes `policy.json` to `policy_best.json`, it also copies `modelStatePath` to `bestModelStatePath` when available.
 - Wrapper enforces promote-only best updates (`--no-save-best-during-training`), so `train.py` keeps eval diagnostics while `promote_best.py` remains the single checkpoint promotion gate.
 - `ai.training.trainer.saveBestDuringTraining` still exists for manual `python/train.py` workflows, but wrapper presets keep it off at runtime for metric consistency.
 - Best-checkpoint writes are explicit in logs: `promote_best.py` prints a colored `[BEST SAVED]` line when latest is promoted on the canonical benchmark.
@@ -1592,12 +1598,25 @@ Training presets:
 - Wrapper phase progress is explicit in console logs (`== Phase x/n: <name> ==`) so long curriculum runs are easier to monitor.
 - Wrapper logs now use colorized status tags (`PROFILE`, `PHASE`, `TRAIN`, `PROMOTE`, `DONE`) in TTY terminals for clearer long-run progress tracking.
 - Checkpoint cadence is decoupled: `--log-every` controls summary windows, while `--save-every` controls how often `modelPath` is written; final episode save is always enforced.
-- Promote robustness guardrail: wrapper runs `promote_best.py` with one canonical benchmark across all phases (same eval episodes/steps/score/difficulty/seed), and promotion can require a positive paired lower-confidence bound (`requirePositiveLcb` + `lcbZ`) in addition to `minImprove`.
+- Promote robustness guardrail: wrapper can run `promote_best.py` with one canonical benchmark (same eval episodes/steps/score/difficulty/seed), and promotion can require a positive paired lower-confidence bound (`requirePositiveLcb` + `lcbZ`) in addition to `minImprove`.
+- Canonical mode defaults to per-phase checks, but wrapper CLI can switch to final-only (`--canonical-final-only`) or disable canonical checks for the run (`--no-canonical-promote`).
 - Canonical promotion knobs are config-driven under `ai.training.promotion.canonical` and are used both by wrapper phase promotion and standalone `ai:promote:best` defaults.
+- Wrapper canonical knobs can be overridden per run without editing `config.json` (`--canonical-eval-episodes`, `--canonical-eval-max-steps`, `--canonical-no-positive-lcb`), and promote progress logs can be forced with `--promote-eval-progress`.
 - Wrapper seed policy for long-horizon learning: per-phase training seeds rotate automatically every wrapper run (while promote/regression eval seeds remain deterministic for fair comparison); use `--train-seed-fixed` to disable rotation.
 - Runtime config wiring: Python trainer/promotion/regression rollouts now launch `ai_server.js` with the same `--config` path used by the wrapper phase, so run-specific training overrides are applied consistently by the JS simulator.
+- Wrapper can inject a training-only smart early-termination profile from `ai.training.terminationProfile` into generated run configs, while eval overrides keep termination disabled to avoid canonical benchmark bias.
+- PPO stability stack (Phase 2): trainer now supports observation/return running normalization, value clipping + optional Huber value loss, and target-KL early stop; rollout/eval/runtime inference share the same observation normalization metadata from checkpoint payloads.
+- Throughput stack (Phase 3): trainer summary/console now includes compact latency diagnostics:
+  - `eps_pm`: episodes per minute per log window.
+  - `thr[...]`: env step and IPC latency (`env`, `ipc_w`, `ipc_r`, `ipc_p`, milliseconds).
+  - PPO window includes `upd_ms` (mean PPO update latency per batch).
+- Trainer/eval/regression transport mode is now explicit (`ai.training.trainer.transport` or CLI `--transport`):
+  - `legacy`: full JSON observation/action envelopes (backward-compatible).
+  - `compact`: flattened `obsVector` + fixed-order `actionValues`, with `ai_server.js` still accepting legacy payloads for compatibility.
+- Rollout payload between workers and learner is now packed (`dict` of arrays) and GAE is computed in workers, reducing Python object churn while preserving deterministic seed behavior.
 - Worker allocation guardrail: wrapper auto-tunes `--workers` from CPU parallelism (`auto-min`/`auto-max` bounds plus reserved cores), and a manual `--workers <n>` override always takes precedence.
 - Profile-aware worker policy: in auto mode the wrapper scales workers by phase category (`foundation` > `finetune` > `consolidation` > `endgame`) and also caps by PPO batch window (`batchEpisodes * 2`) to limit over-queued rollouts; use `--workers-flat` to disable this behavior.
+- `promote_best.py` partial eval logs are now controllable with `--eval-progress` / `--no-eval-progress` and cadence `--eval-progress-every <N>`; in `--eval-only` mode, progress logs default to enabled.
 - Regression deterministic pass is eval-only: `scripts/regression.js` calls `python/promote_best.py --eval-only` for policy quality checks instead of running a quasi-train loop.
 - Regression temp artifacts are isolated per seed via `mkdtemp` workspaces (config + transient policy files), removing static `/tmp` filename collisions and cross-run side effects.
 - Regression randomized pass is rollout-only: `scripts/regression.js` calls `python/regression_rollout.py`, avoiding PPO optimizer/update overhead and checkpoint side effects.
@@ -1755,5 +1774,5 @@ Quick checklist:
 - `python/promote_best.py` → post-train promotion check (latest vs best)
 - `python/regression_rollout.py` → randomized regression rollouts without PPO updates/checkpoint writes
 - `python/bootstrap.py` / `python/agent.py` → venv bootstrap + sample agent
-- `docs/PARAMETERS.md` / `docs/TRAINING_OVERRIDES.md` / `docs/TELEMETRY.md` → config reference, training overrides, and telemetry operator manual
+- `docs/PARAMETERS.md` / `docs/TRAINING_OVERRIDES.md` / `docs/TRAINING_OPTIMIZATION_WORKBOOK.md` / `docs/TELEMETRY.md` → config reference, training overrides, training optimization workbook, and telemetry operator manual
 - `models/` → `policy.json`, `policy_best.json`, `policy_best.meta.json`

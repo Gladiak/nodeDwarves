@@ -28,6 +28,7 @@ This file defines how to implement new features in a consistent, stable way.
 - `config.json`: single source of truth for tunables.
 - `docs/PARAMETERS.md`: config parameter reference.
 - `docs/TRAINING_OVERRIDES.md`: training overrides guide.
+- `docs/TRAINING_OPTIMIZATION_WORKBOOK.md`: step-by-step implementation workbook, decision log, and timeline for training optimization workstreams.
 - `docs/TELEMETRY.md`: telemetry operator manual (from zero to hero).
 - `src/config.js`: config loader.
 - `src/simulation/`: simulation systems split by theme.

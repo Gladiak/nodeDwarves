@@ -1,0 +1,1 @@
+rollout episodes=40 avg_reward=3976.377 avg_steps=520.000 avg_births=13.650 avg_deaths=0.550 elapsed=115.73s

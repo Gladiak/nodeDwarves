@@ -1,16 +1,16 @@
 {
-  "bestReward": 16449.081103285946,
-  "bestScore": 3.7384275234740785,
+  "bestReward": 15839.674592314055,
+  "bestScore": 3.5999260437077396,
   "scoreMode": "rpt",
   "bestEpisode": 0,
   "avgSteps": 2200.0,
   "avgTicks": 4400.0,
-  "avgBirths": 99.7,
-  "avgDeaths": 5.1,
-  "savedAt": 1771263851,
+  "avgBirths": 103.15,
+  "avgDeaths": 4.7,
+  "savedAt": 1771323860,
   "source": "promote_best",
-  "config": "/Users/gladiak/ProgettiLavoro/NodeDwarves/debug/run_1771263146528_85439_236297/config_canonical_promote.json",
-  "reportTag": null,
+  "config": "/Users/filippoverni/ProgettiLavoro/nodeDwarves/debug/run_1771323067259_13234_926728/config_canonical_promote.json",
+  "reportTag": "quality-foundation",
   "evalEpisodes": 20,
   "evalMaxSteps": 2200,
   "evalDifficulty": 1.0,
@@ -20,5 +20,7 @@
   "seedBase": 100000,
   "minImprove": 0.005,
   "requirePositiveLcb": true,
-  "lcbZ": 1.96
+  "lcbZ": 1.96,
+  "evalProgress": false,
+  "evalProgressEvery": 10
 }

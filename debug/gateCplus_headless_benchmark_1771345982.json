@@ -1,0 +1,163 @@
+{
+  "meta": {
+    "ticks": 8000,
+    "seeds": [
+      101,
+      202,
+      303,
+      404
+    ],
+    "configPath": "/Users/filippoverni/ProgettiLavoro/nodeDwarves/config.json",
+    "resources": [
+      "beer",
+      "food",
+      "water"
+    ],
+    "width": 120,
+    "height": 40,
+    "generatedAt": "2026-02-17T16:45:01.251Z"
+  },
+  "variants": [
+    {
+      "label": "current",
+      "assignments": [],
+      "rows": [
+        {
+          "seed": 101,
+          "tick": 8000,
+          "population": 718,
+          "morale": 0.8921399774023252,
+          "beerBoost": 0.02261002785515322,
+          "hunger": 0.1499822195202926,
+          "thirst": 0.10320020097767964,
+          "underrealmDepth": 1,
+          "underrealmChampions": 0,
+          "underrealmFailedExpeditions": 1,
+          "underrealmBlockedDispatches": 2,
+          "underrealmFrontierContested": 1,
+          "underrealmReadinessScore": 0.7162162162162162,
+          "underrealmHeroPromotions": 2,
+          "underrealmHeroLosses": 1,
+          "underrealmHeroActive": 1,
+          "underrealmHeroSurvivals": 0,
+          "resources": {
+            "beer": 38349.196581696124,
+            "food": 802.1114913673362,
+            "water": 795.4846993725852
+          }
+        },
+        {
+          "seed": 202,
+          "tick": 8000,
+          "population": 705,
+          "morale": 0.8878028778885595,
+          "beerBoost": 0.022079716312056727,
+          "hunger": 0.1515007323954026,
+          "thirst": 0.11137803044784189,
+          "underrealmDepth": 1,
+          "underrealmChampions": 0,
+          "underrealmFailedExpeditions": 1,
+          "underrealmBlockedDispatches": 2,
+          "underrealmFrontierContested": 1,
+          "underrealmReadinessScore": 0.9594594594594594,
+          "underrealmHeroPromotions": 1,
+          "underrealmHeroLosses": 0,
+          "underrealmHeroActive": 1,
+          "underrealmHeroSurvivals": 0,
+          "resources": {
+            "beer": 36717.30437251289,
+            "food": 897.9129578253884,
+            "water": 829.4525104117806
+          }
+        },
+        {
+          "seed": 303,
+          "tick": 8000,
+          "population": 731,
+          "morale": 0.8830933918528501,
+          "beerBoost": 0.019567168262653884,
+          "hunger": 0.1571358288271691,
+          "thirst": 0.11106623979351232,
+          "underrealmDepth": 2,
+          "underrealmChampions": 1,
+          "underrealmFailedExpeditions": 0,
+          "underrealmBlockedDispatches": 13,
+          "underrealmFrontierContested": 1,
+          "underrealmReadinessScore": 0.9909970714666666,
+          "underrealmHeroPromotions": 1,
+          "underrealmHeroLosses": 0,
+          "underrealmHeroActive": 1,
+          "underrealmHeroSurvivals": 0,
+          "resources": {
+            "beer": 34717.12669317783,
+            "food": 908.9610477535598,
+            "water": 888.2943455612007
+          }
+        },
+        {
+          "seed": 404,
+          "tick": 8000,
+          "population": 710,
+          "morale": 0.883079633263182,
+          "beerBoost": 0.01789746478873239,
+          "hunger": 0.15245760099803932,
+          "thirst": 0.11143370634589604,
+          "underrealmDepth": 2,
+          "underrealmChampions": 1,
+          "underrealmFailedExpeditions": 7,
+          "underrealmBlockedDispatches": 5,
+          "underrealmFrontierContested": 1,
+          "underrealmReadinessScore": 1,
+          "underrealmHeroPromotions": 1,
+          "underrealmHeroLosses": 0,
+          "underrealmHeroActive": 1,
+          "underrealmHeroSurvivals": 0,
+          "resources": {
+            "beer": 37781.14617095147,
+            "food": 801.2586977473931,
+            "water": 782.7806728001401
+          }
+        }
+      ],
+      "summary": {
+        "population": 716,
+        "morale": 0.8865289701017292,
+        "beerBoost": 0.020538594304649053,
+        "hunger": 0.1527690954352259,
+        "thirst": 0.10926954439123247,
+        "underrealmDepth": 1.5,
+        "underrealmChampions": 0.5,
+        "underrealmFailedExpeditions": 2.25,
+        "underrealmBlockedDispatches": 5.5,
+        "underrealmFrontierContested": 1,
+        "underrealmReadinessScore": 0.9166681867855856,
+        "underrealmHeroPromotions": 1.25,
+        "underrealmHeroLosses": 0.25,
+        "underrealmHeroActive": 1,
+        "underrealmHeroSurvivals": 0,
+        "resources": {
+          "beer": 36891.19345458457,
+          "food": 852.5610486734194,
+          "water": 824.0030570364266
+        }
+      }
+    }
+  ],
+  "deltas": [],
+  "comparisons": [],
+  "seedDeltas": [],
+  "gate": {
+    "enabled": false,
+    "thresholds": {
+      "minScore": -2,
+      "maxPopulationDrop": 0.08,
+      "maxMoraleDrop": 0.05,
+      "maxHungerRise": 0.1,
+      "maxThirstRise": 0.1,
+      "maxResourceDrop": 0.12
+    },
+    "results": [],
+    "failed": [],
+    "allPassed": true
+  }
+}

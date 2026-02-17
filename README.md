@@ -105,7 +105,13 @@ Canonical promotion now owns best-checkpoint writes: wrapper training disables i
 
 - 🎯 `ai:train:endgame` now runs a long-horizon specialization preset (`max_steps=10000`, `step_ticks=2`) with eval every 4 episodes, targeting at least 20k ticks per episode.
 - 🧠 Latest-checkpoint writes are now decoupled from log windows (`saveEvery` / `--save-every`) so long curriculum runs spend less time on disk I/O.
-- ⚡ Promote checks now run on one canonical benchmark across phases (same config/episodes/steps/seed) and can enforce a positive paired lower-confidence bound before promoting.
+- ⚡ Promote checks use one canonical benchmark contract (same config/episodes/steps/seed), with wrapper modes for per-phase or final-only canonical checks and optional paired lower-confidence promotion guardrails.
+- 🪶 `ai:train:quality:lite` adds a laptop-friendly low-load preset (worker cap, lighter canonical defaults, canonical-final check, and promote progress heartbeat).
+- 🧬 `ai:train:quality:mixed` adds a mixed curriculum preset (~76% light foundation, ~24% full-sim finetune) for better throughput/quality trade-off on slower machines.
+- 🛰️ `python/promote_best.py --eval-only` now supports controllable partial progress logs via `--eval-progress/--no-eval-progress` and `--eval-progress-every`.
+- 🧪 Phase-1 training optimization adds bounded delta reward shaping (stockpile/population/deep signals) plus training-only smart plateau termination from `ai.training.terminationProfile`.
+- 🧪 Phase-2 training optimization adds PPO stability controls (obs/return normalization, value clipping + optional Huber, target-KL early stop) with normalization metadata shared across trainer, promotion eval, regression rollout, and JS runtime inference.
+- 🧪 Phase-3 training optimization adds compact throughput diagnostics (`eps_pm`, `thr[...]`, PPO `upd_ms`), packed worker rollouts with worker-side GAE, promotion-time optimizer-state copy (`modelStatePath -> bestModelStatePath`) for true resume-from-best continuity, and dual IPC transport modes (`legacy` / `compact`) for trainer-eval-regression parity.
 - 🧩 Trainer/promote/regression rollouts now pass the same run config to the JS bridge (`ai_server.js --config ...`), so wrapper-generated overrides are applied consistently.
 - 🎯 Training wrappers now auto-tune worker count from CPU capacity (with bounds and manual `--workers` override) to behave better across different machines.
 - ⚙️ In auto mode, workers are also phase-aware (foundation/finetune/endgame/consolidation) and you can force flat behavior with `--workers-flat`.
@@ -142,6 +148,7 @@ npm run balance:gate:standard -- --set jobs.gatherTriggerRatio.food=1.1 --set jo
 - `MANUAL.md`: technical and gameplay manual (systems, formulas, workflows).
 - `docs/PARAMETERS.md`: full config reference.
 - `docs/TRAINING_OVERRIDES.md`: training override guide.
+- `docs/TRAINING_OPTIMIZATION_WORKBOOK.md`: operational workbook for end-to-end training optimization, timeline tracking, and decision logging.
 - `docs/TELEMETRY.md`: telemetry operator manual (from zero to hero).
 - `AGENTS.md`: contribution and implementation guidelines.
 
@@ -175,7 +182,7 @@ npm run balance:gate:standard -- --set jobs.gatherTriggerRatio.food=1.1 --set jo
 - `scripts/compare_benchmark_reports.js`: cached report diff utility for baseline/candidate deltas without rerunning both variants.
 - `python/regression_rollout.py`: rollout-only randomized regression runner used by `scripts/regression.js`.
 - `python/`: PPO training + agent example.
-- `docs/`: parameter reference, training overrides, and telemetry operator manual.
+- `docs/`: parameter reference, training overrides, training optimization workbook, and telemetry operator manual.
 - `models/`: policy checkpoints.
 - `scripts/`: utilities and regression tooling.
 

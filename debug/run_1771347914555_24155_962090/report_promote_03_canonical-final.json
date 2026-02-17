@@ -1,0 +1,73 @@
+{
+  "version": 1,
+  "timestamp": 1771348194,
+  "timestamp_iso": "2026-02-17T17:09:54.374054+00:00",
+  "promoted": false,
+  "reason": "best_retained",
+  "model_path": "models/policy.json",
+  "model_state_path": "models/policy.state.pt",
+  "best_model_path": "models/policy_best.json",
+  "best_model_meta_path": "models/policy_best.meta.json",
+  "best_model_state_path": "models/policy_best.state.pt",
+  "eval_context": {
+    "source": "promote_best",
+    "config": "/Users/filippoverni/ProgettiLavoro/nodeDwarves/debug/run_1771347914555_24155_962090/config_canonical_promote.json",
+    "reportTag": "canonical-final",
+    "evalEpisodes": 4,
+    "evalMaxSteps": 1000,
+    "evalDifficulty": 1.0,
+    "evalScore": "rpt",
+    "maxSteps": 1000,
+    "stepTicks": 2,
+    "seedBase": 100000,
+    "minImprove": 0.005,
+    "requirePositiveLcb": true,
+    "lcbZ": 1.96,
+    "evalProgress": true,
+    "evalProgressEvery": 1,
+    "transport": "legacy"
+  },
+  "thresholds": {
+    "min_improve": 0.005,
+    "require_positive_lcb": true,
+    "lcb_z": 1.96
+  },
+  "latest": {
+    "avg_reward": 7677.8360942681475,
+    "avg_steps": 1000.0,
+    "avg_ticks": 2000.0,
+    "avg_births": 46.75,
+    "avg_deaths": 1.25,
+    "score": 3.8389180471340736,
+    "episode_scores": [
+      3.853074498208077,
+      3.908158947417769,
+      3.683524845696737,
+      3.9109138972137116
+    ]
+  },
+  "best_before": {
+    "avg_reward": 7679.125012845571,
+    "avg_steps": 1000.0,
+    "avg_ticks": 2000.0,
+    "avg_births": 39.75,
+    "avg_deaths": 2.25,
+    "score": 3.839562506422786,
+    "episode_scores": [
+      3.884140847123475,
+      3.7268899780907914,
+      3.7259096540347,
+      4.021309546442158
+    ]
+  },
+  "best_score_before": 3.839562506422786,
+  "best_score_after": 3.839562506422786,
+  "delta_score": -0.0006444592887122624,
+  "paired": {
+    "count": 4,
+    "mean_delta": -0.0006444592887073775,
+    "std_delta": 0.12623465888457464,
+    "se_delta": 0.06311732944228732,
+    "lower_bound": -0.12435442499559052
+  }
+}
