@@ -303,6 +303,9 @@ Display and layout:
 - `display.colors.enabled`: enable ANSI colors in the render.
 - `display.colors.reset`: ANSI reset sequence (defaults to `\u001b[0m`).
 - `display.colors.map.<key>`: ANSI color for an entity key (e.g. `dwarf`, `merchant`, `house`, `alchemy_lab`, `food`, `hud_header`).
+- `display.colors.map.external_camp_trade|external_camp_militia|external_camp_raider|external_camp_outline`: colors for external camp role markers and footprint outline.
+- `display.colors.map.external_camp_caravan`: color for active trade caravans.
+- `display.colors.map.external_camp_influence_trade|external_camp_influence_militia|external_camp_influence_raider`: role-colored influence ring colors around active camps.
 - `display.colors.map.weather_<type>`: ANSI color for telemetry weather labels (e.g. `weather_rain`).
 - `display.colors.map.terrain_<type>`: ANSI color for terrain tiles (`terrain_river`, `terrain_lake`, `terrain_road`, `terrain_bridge`, `terrain_ford`, `terrain_mountain`, `terrain_hill`, `terrain_plain`, `terrain_fertile`, `terrain_food`, `terrain_forest`, `terrain_stone`).
 - `display.colors.map.terrain_wall|terrain_cave|terrain_corridor|terrain_chasm|terrain_crystal|terrain_magma|terrain_shrine`: dedicated underrealm terrain colors (used when depth view is active; unaffected by seasonal palettes).
@@ -421,6 +424,81 @@ Contracts:
 - `contracts.factions.<id>.label`: display label for the faction.
 - `contracts.factions.<id>.role`: `production` or `war` (determines the boon type).
 - `contracts.factions.<id>.mineral`: mineral reward id granted at high reputation.
+
+External Camps:
+
+- `externalCamps.enabled`: enable long-lived external faction camps.
+- `externalCamps.minTick`: minimum tick before external camps can spawn.
+- `externalCamps.spawnRangeTicks.min|max`: spawn cadence range for camp spawn checks.
+- `externalCamps.maxActive`: maximum simultaneously active camps.
+- `externalCamps.globalCooldownTicks`: global cooldown after each camp spawn.
+- `externalCamps.historyLimit`: max retained history entries in `state.externalCamps.history` (`0` = unlimited).
+- `externalCamps.blockDuringRaid`: block new camp spawns while a surface raid is active.
+- `externalCamps.footprintRadius`: rendered/placement footprint radius (`1` = 3x3 footprint).
+- `externalCamps.minDistanceBetween`: minimum Manhattan distance between active camp centers.
+- `externalCamps.minDistanceFromVillage`: minimum Manhattan distance from village center for camp placement.
+- `externalCamps.factionCooldownTicks.min|max`: per-faction cooldown window before same faction can respawn.
+- `externalCamps.durationTicks.setupMin|setupMax`: setup-phase duration range.
+- `externalCamps.durationTicks.activeMin|activeMax`: active-phase duration range (long-lifetime core window).
+- `externalCamps.durationTicks.withdrawMin|withdrawMax`: withdrawal-phase duration range.
+- `externalCamps.trade.enabled`: enable trade-role camp behavior.
+- `externalCamps.trade.tickInterval`: ticks between trade camp barter attempts.
+- `externalCamps.trade.merchantTradeRateBonusPerCamp`: additive merchant-trade-rate bonus per active trade camp.
+- `externalCamps.trade.merchantTradeRateBonusMax`: cap for aggregate merchant trade bonus from camps.
+- `externalCamps.trade.contractRewardBonusPerCamp`: additive contract-reward bonus per active trade camp.
+- `externalCamps.trade.contractRewardBonusMax`: cap for aggregate contract reward bonus from camps.
+- `externalCamps.trade.reserveRatioFloor.default|<resource>`: minimum keep ratio used before camps can trade away a resource.
+- `externalCamps.trade.baseTradeAmount`: baseline trade size for each barter cycle.
+- `externalCamps.trade.protectedGiveResources[]`: resources camps are never allowed to take from stockpile.
+- `externalCamps.trade.allowReceiveResources[]`: optional whitelist of resources camps can provide (`[]` = all target resources).
+- `externalCamps.trade.eventEveryTrades`: event cadence for trade-camp log lines.
+- `externalCamps.militia.enabled`: enable militia-role camp behavior.
+- `externalCamps.militia.contractIntervalTicks`: ticks between militia support contract checks.
+- `externalCamps.militia.supportCosts.<resource>`: stockpile costs paid to keep militia support active.
+- `externalCamps.militia.supportMinStockpileRatios.<resource>`: safety guardrails required before paying militia support.
+- `externalCamps.militia.baseRaidDefenseBonus`: base additive raid-defense bonus from militia support.
+- `externalCamps.militia.reputationBonusScale`: extra raid-defense bonus per positive faction reputation unit.
+- `externalCamps.militia.maxRaidDefenseBonus`: cap for one militia camp defense bonus.
+- `externalCamps.militia.defenseBonusDecayOnMiss`: defense bonus decay when support payment is skipped.
+- `externalCamps.militia.eventEveryContracts`: event cadence for militia-camp log lines.
+- `externalCamps.raider.enabled`: enable raider-role camp behavior.
+- `externalCamps.raider.demandIntervalTicks`: ticks between tribute demands.
+- `externalCamps.raider.tributeCosts.<resource>`: tribute resource costs when demands are paid.
+- `externalCamps.raider.tributeMinStockpileRatios.<resource>`: safety guardrails required before tribute payment.
+- `externalCamps.raider.hostilityInitial`: starting hostility for raider camps.
+- `externalCamps.raider.hostilityGainOnReject`: hostility gain per rejected tribute demand.
+- `externalCamps.raider.hostilityDecayOnPay`: hostility reduction when tribute is paid.
+- `externalCamps.raider.hostilityDecayPerTick`: passive hostility decay while camp is active.
+- `externalCamps.raider.hostilityMin|hostilityMax`: hostility clamp bounds.
+- `externalCamps.raider.skirmishLossRatioBase`: base stockpile loss ratio when tribute is rejected.
+- `externalCamps.raider.skirmishLossRatioPerHostility`: extra loss ratio scaling by hostility.
+- `externalCamps.raider.skirmishLossWeights.<resource>`: weighted stockpile loss map for raider skirmishes.
+- `externalCamps.raider.raidDeathRateBonusMax`: max multiplicative raid-death-rate pressure from raider hostility.
+- `externalCamps.raider.raidResourceLossBonusMax`: max multiplicative raid-loot-loss pressure from raider hostility.
+- `externalCamps.raider.eventEveryDemands`: event cadence for raider demand lines.
+- `externalCamps.influence.enabled`: enable external-camp influence zones.
+- `externalCamps.influence.useForModifiers`: scale camp modifiers by village-facing influence strength.
+- `externalCamps.influence.tradeRadius|militiaRadius|raiderRadius`: Manhattan-radius influence range by camp role.
+- `externalCamps.influence.minStrength`: minimum strength applied at the edge of an influence zone.
+- `externalCamps.influence.renderEnabled`: render influence rings on the surface map.
+- `externalCamps.influence.renderRingOnly`: render only influence ring edge (`true`) or fill interior sparsely (`false`).
+- `externalCamps.influence.renderStep`: sparse render stride for influence glyph placement.
+- `externalCamps.caravans.enabled`: enable trade caravans dispatched by active trade camps.
+- `externalCamps.caravans.dispatchIntervalTicks`: minimum ticks between caravan dispatches per camp.
+- `externalCamps.caravans.maxConcurrent`: max active caravans globally.
+- `externalCamps.caravans.maxPerCamp`: max active caravans from one camp.
+- `externalCamps.caravans.stepEveryTicks`: caravan movement cadence in ticks-per-step.
+- `externalCamps.caravans.payloadAmountRange.min|max`: min/max payload delivered per caravan arrival.
+- `externalCamps.caravans.payloadMultiplierFromDeal`: fraction of a resolved trade deal converted into caravan payload.
+- `externalCamps.caravans.eventEveryArrivals`: event cadence for caravan-arrival messages.
+- `externalCamps.caravans.eventEveryInterceptions`: event cadence for interception messages.
+- `externalCamps.caravans.intercept.enabled`: enable caravan interception checks inside raider influence.
+- `externalCamps.caravans.intercept.baseChancePerStep`: flat interception chance per caravan step.
+- `externalCamps.caravans.intercept.raiderPressureScale`: extra interception chance scaled by current raider pressure.
+- `externalCamps.caravans.intercept.militiaMitigationScale`: interception chance reduction scaled by militia defense bonus.
+- `externalCamps.factions.<id>.label`: display label for a camp faction.
+- `externalCamps.factions.<id>.role`: camp role (`trade`, `militia`, `raider`).
+- `externalCamps.factions.<id>.weight`: weighted spawn chance for that faction.
 
 Endgame cycles:
 
@@ -1513,6 +1591,10 @@ Structures (ruins):
 Symbols:
 
 - `symbols.<entity>`: map and legend symbol for entities/resources/structures.
+- `symbols.external_camp_trade|external_camp_militia|external_camp_raider`: role-specific symbols for external camp centers.
+- `symbols.external_camp_outline`: footprint/outline symbol for external camps.
+- `symbols.external_camp_caravan`: symbol for moving trade caravans.
+- `symbols.external_camp_influence`: symbol used for camp influence rings.
 - `symbols.alchemy_lab`: symbol used for the alchemy lab structure.
 - `symbols.temple_of_ancestors`: core symbol for temple center tile.
 - `symbols.temple_of_ancestors_outline`: symbol for non-center temple footprint tiles.
@@ -1622,6 +1704,11 @@ AI and training:
 - `ai.reward.populationBalance`: reward for staying near soft cap.
 - `ai.reward.criticalNeeds`: penalty for critical needs fraction.
 - `ai.reward.idleAdults`: penalty for idle adults fraction.
+- `ai.reward.stockpileAvgDelta`: reward weight for step-to-step change in average stockpile ratio.
+- `ai.reward.stockpileMinDelta`: reward weight for step-to-step change in minimum stockpile ratio.
+- `ai.reward.populationBalanceDelta`: reward weight for step-to-step change in population-balance ratio.
+- `ai.reward.criticalNeedsDelta`: reward weight for reducing critical-needs fraction.
+- `ai.reward.idleAdultsDelta`: reward weight for reducing idle-adults fraction.
 - `ai.reward.raidExposure`: penalty for exposed ratio while a raid is active.
 - `ai.reward.raidExposureEligible`: penalty for exposed ratio when the season is raid-eligible.
 - `ai.reward.raidDeaths`: extra penalty per raid death (delta).
@@ -1632,9 +1719,21 @@ AI and training:
 - `ai.reward.ruinsArtifact`: reward per artifact found (delta).
 - `ai.reward.ruinsFailure`: penalty per failed expedition (delta).
 - `ai.reward.ruinsRoomClear`: reward per room cleared (delta).
+- `ai.reward.underrealmDepthDelta`: reward per positive Underrealm depth-progression delta.
+- `ai.reward.underrealmChampionDelta`: reward per positive Underrealm champion-progression delta.
+- `ai.reward.underrealmReadinessDelta`: reward for readiness-score improvements (can be negative on regressions).
+- `ai.reward.underrealmCombatPressure`: penalty for current Underrealm combat pressure.
+- `ai.reward.underrealmPressureDelta`: reward for reducing Underrealm combat pressure.
+- `ai.reward.mythsSeverity`: penalty for current myths severity.
+- `ai.reward.mythsSeverityDelta`: reward for reducing myths severity.
+- `ai.reward.mythsActive`: penalty for current myths active-ratio pressure.
+- `ai.reward.mythsActiveDelta`: reward for reducing myths active-ratio pressure.
 - `ai.reward.festival_active`: reward per step while a festival is active.
 - `ai.reward.festival_start`: reward when a festival starts (edge-triggered).
 - `ai.reward.festival_intent`: reward per step for higher festival intent while eligible.
+- `ai.reward.deltaClip`: symmetric clip for per-step delta channels (`0` disables clipping).
+- `ai.reward.eventClip`: symmetric clip for aggregated event/progression channels (`0` disables clipping).
+- `ai.reward.totalClip`: symmetric clip for final step reward (`0` disables clipping).
 - `ai.reward.death`: penalty per death.
 - `ai.reward.extinction`: penalty when population hits zero.
 - `ai.termination.enabled`: enable early termination when the sim is stable.
@@ -1647,11 +1746,30 @@ AI and training:
 - `ai.termination.minPopulationBalance`: minimum population balance ratio for stability.
 - `ai.termination.stockpileEps`: max change in average stockpile ratio to count as stable.
 - `ai.termination.resourceEps`: max per-resource ratio change to count as stable (defaults to `stockpileEps`).
+- `ai.termination.progressEps`: max change in composite progression score to count as plateau-stable.
+- `ai.termination.allowDuringRaid`: allow stable termination while a raid is active.
+- `ai.termination.maxUnderrealmCombatPressure`: max Underrealm pressure allowed for stable termination.
+- `ai.termination.maxMythsSeverity`: max myths severity allowed for stable termination.
 - `ai.termination.resources`: resource list for per-resource stability (empty = all resources).
 - `ai.training.enabled`: enable curriculum randomization.
 - `ai.training.difficultyStart`: starting difficulty (0..1).
 - `ai.training.difficultyEnd`: ending difficulty (0..1).
 - `ai.training.difficultyRampEpisodes`: episodes to reach max difficulty.
+- `ai.training.terminationProfile.enabled`: enable training-only smart early termination injection in wrapper-generated configs.
+- `ai.training.terminationProfile.minTicks`: minimum ticks before training-only smart termination can trigger.
+- `ai.training.terminationProfile.stableTicks`: required stable plateau ticks for training-only smart termination.
+- `ai.training.terminationProfile.minStockpileAvg`: minimum average stockpile ratio required by training-only smart termination.
+- `ai.training.terminationProfile.minStockpileMin`: minimum minimum stockpile ratio required by training-only smart termination.
+- `ai.training.terminationProfile.maxCriticalNeeds`: max critical-needs fraction allowed by training-only smart termination.
+- `ai.training.terminationProfile.maxIdleAdults`: max idle-adults fraction allowed by training-only smart termination.
+- `ai.training.terminationProfile.minPopulationBalance`: minimum population-balance ratio for training-only smart termination.
+- `ai.training.terminationProfile.stockpileEps`: avg-stockpile epsilon for plateau detection in training-only smart termination.
+- `ai.training.terminationProfile.resourceEps`: per-resource epsilon for plateau detection in training-only smart termination.
+- `ai.training.terminationProfile.progressEps`: composite progression epsilon for plateau detection in training-only smart termination.
+- `ai.training.terminationProfile.allowDuringRaid`: allow training-only smart termination during active raids.
+- `ai.training.terminationProfile.maxUnderrealmCombatPressure`: max Underrealm pressure allowed by training-only smart termination.
+- `ai.training.terminationProfile.maxMythsSeverity`: max myths severity allowed by training-only smart termination.
+- `ai.training.terminationProfile.resources`: resources tracked for per-resource plateau checks in training-only smart termination.
 - `ai.training.randomization.stockpileScale`: scale range for starting stockpiles.
 - `ai.training.randomization.stockpileFloor`: minimum stockpile after scaling.
 - `ai.training.randomization.nodeCountScale`: scale range for node counts.
@@ -1679,6 +1797,19 @@ AI and training:
 - `ai.training.scenarioSampling.exponent`: curve exponent for adaptive weighting.
 - `ai.training.scenarioSampling.minWeightRatio`: minimum weight ratio vs base weight.
 - `ai.training.scenarioSampling.maxWeightRatio`: maximum weight ratio vs base weight.
+- `ai.training.promotion.canonical.enabled`: enable one canonical promotion benchmark for wrapper/promote flows.
+- `ai.training.promotion.canonical.evalEpisodes`: canonical episode count for `promote_best.py`.
+- `ai.training.promotion.canonical.evalMaxSteps`: canonical max steps per episode for promotion checks.
+- `ai.training.promotion.canonical.stepTicks`: canonical step tick size used during promotion checks.
+- `ai.training.promotion.canonical.maxSteps`: fallback max steps passed to promotion when `evalMaxSteps` resolves to 0.
+- `ai.training.promotion.canonical.maxTicks`: max tick horizon injected into wrapper-generated canonical config.
+- `ai.training.promotion.canonical.evalDifficulty`: fixed difficulty for canonical promotion checks.
+- `ai.training.promotion.canonical.evalScore`: canonical score mode (`reward`, `rps`, or `rpt`).
+- `ai.training.promotion.canonical.minImprove`: minimum mean score delta required before promoting latest to best.
+- `ai.training.promotion.canonical.seed`: deterministic seed base for canonical promotion checks.
+- `ai.training.promotion.canonical.endgameEnabled`: whether canonical promotion runs with endgame enabled.
+- `ai.training.promotion.canonical.requirePositiveLcb`: require positive paired lower confidence bound in promotion checks.
+- `ai.training.promotion.canonical.lcbZ`: z-value used for paired lower confidence bound (e.g. `1.96` for ~95% one-sided).
 - `ai.training.trainer.algorithm`: training algorithm (PPO only right now).
 - `ai.training.trainer.episodes`: training episodes per run.
 - `ai.training.trainer.maxSteps`: max steps per episode.
@@ -1686,10 +1817,19 @@ AI and training:
 - `ai.training.trainer.gamma`: discount factor for PPO.
 - `ai.training.trainer.gaeLambda`: GAE lambda for advantage estimation.
 - `ai.training.trainer.clipRange`: PPO clip range.
+- `ai.training.trainer.targetKl`: target KL threshold for PPO update early-stop (`0` disables KL stop).
 - `ai.training.trainer.entropyCoef`: entropy bonus coefficient.
 - `ai.training.trainer.entropyCoefFinal`: final entropy coefficient after decay.
 - `ai.training.trainer.entropyRampEpisodes`: episodes to reach the final entropy coefficient.
 - `ai.training.trainer.valueCoef`: value loss coefficient.
+- `ai.training.trainer.valueClipRange`: optional value-head PPO clip range (`0` disables value clipping).
+- `ai.training.trainer.valueHuberDelta`: optional Huber delta for value loss (`0` keeps MSE value loss).
+- `ai.training.trainer.obsNorm`: enable observation running normalization.
+- `ai.training.trainer.obsNormClip`: symmetric clip for normalized observation features (`0` disables clipping).
+- `ai.training.trainer.obsNormEpsilon`: epsilon used in observation normalization denominator.
+- `ai.training.trainer.returnNorm`: enable running normalization for value targets/returns.
+- `ai.training.trainer.returnNormClip`: symmetric clip for normalized return targets (`0` disables clipping).
+- `ai.training.trainer.returnNormEpsilon`: epsilon used in return normalization denominator.
 - `ai.training.trainer.lr`: learning rate.
 - `ai.training.trainer.lrFinal`: final learning rate after linear decay.
 - `ai.training.trainer.epochs`: PPO epochs per update.
@@ -1702,6 +1842,7 @@ AI and training:
 - `ai.training.trainer.logStdInit`: initial log-std for action sampling.
 - `ai.training.trainer.maxGradNorm`: gradient norm clip.
 - `ai.training.trainer.workers`: number of parallel rollout workers.
+- `ai.training.trainer.transport`: trainer/AI-server IPC transport mode (`compact` default, flattened observation vectors + fixed-order action arrays; `legacy` for full JSON obs/action envelopes).
 - `ai.training.trainer.logEvery`: episodes between training summary windows (`diag`/debug aggregation reset).
 - `ai.training.trainer.saveEvery`: episodes between writing the latest policy checkpoint (`modelPath`); `0` disables periodic saves and still writes at the final episode.
 - `ai.training.trainer.debugMode`: debug payload mode for ai_server (`full`, `summary`, `final`, `off`).
@@ -1712,9 +1853,12 @@ AI and training:
 - `ai.training.trainer.evalScore`: metric used for best-eval selection (`reward`, `rps`, or `rpt`).
 - `ai.training.trainer.sampleScore`: metric used for adaptive scenario weighting (`reward`, `rps`, or `rpt`).
 - `ai.training.trainer.modelPath`: policy output path.
+- `ai.training.trainer.modelStatePath`: optimizer/training-state output path paired with `modelPath` for long-run resume continuity.
 - `ai.training.trainer.bestModelPath`: best-eval policy output path.
 - `ai.training.trainer.bestModelMetaPath`: best-eval metadata output path.
-- `ai.training.trainer.resumeFromBest`: resume training from the best snapshot.
+- `ai.training.trainer.bestModelStatePath`: optimizer/training-state output path paired with `bestModelPath`.
+- `ai.training.trainer.resumeFromBest`: default resume source (`true` = best snapshot, `false` = latest snapshot); CLI flags `--resume-from-best` and `--resume-from-latest` can override per run.
+- `ai.training.trainer.saveBestDuringTraining`: when `true`, `train.py` can directly update best checkpoints during periodic eval; wrapper runs typically disable this and delegate best promotion to `promote_best.py`.
 - `ai.training.trainer.seed`: base RNG seed (0 = random).
 - `ai.priorityBoosts.<resource>.threshold`: stockpile ratio below which to boost a resource.
 - `ai.priorityBoosts.<resource>.multiplier`: max multiplier for boosted priority.

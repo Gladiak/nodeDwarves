@@ -2,8 +2,14 @@
 venv/
 __pycache__/
 *.py[cod]
-debug/
 .DS_Store
 node_modules/
 maps/*/**/*.png
 maps/*/**/*.svg
+
+# Debug artifacts (keep curated reports explicit)
+debug/run_*/
+debug/regression_eval_*/
+debug/regression_random_*/
+debug/*.log
+debug/regression_report_*.txt

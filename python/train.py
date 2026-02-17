@@ -1,5 +1,6 @@
 import argparse
 import json
+import math
 import multiprocessing as mp
 import os
 import queue
@@ -79,11 +80,13 @@ GOVERNOR_ACTION_ID_SET = {
     BUILDING_MINE_BIAS_ACTION_ID,
     BUILDING_UPGRADE_BIAS_ACTION_ID,
 }
+TRANSPORT_LEGACY = "legacy"
+TRANSPORT_COMPACT = "compact"
+TRANSPORT_MODES = {TRANSPORT_LEGACY, TRANSPORT_COMPACT}
 
 DEBUG_LOG_DIRNAME = "debug"
 DEBUG_LOG_EVERY = 500
 SUMMARY_LOG_EVERY = max(1, int(os.getenv("SUMMARY_LOG_EVERY", DEBUG_LOG_EVERY)))
-LOG_RATE = os.getenv("TRAIN_LOG_RATE", "").strip().lower() in ("1", "true", "yes", "on")
 DEBUG_LOG_KEEP = 5
 TRAINING_LOGS_ENABLED = True
 DETAIL_EVAL_REGRESSION_ABS = 25.0
@@ -108,13 +111,90 @@ def print_best_saved_line(episode, score, avg_reward, model_path, meta_path):
     print(tint(line, BEST_EVAL_COLOR))
 
 
-def send(proc, payload):
-    proc.stdin.write(json.dumps(payload) + "\n")
+def send(proc, payload, timing=None):
+    start_time = time.perf_counter()
+    write_start = time.perf_counter()
+    proc.stdin.write(json.dumps(payload, separators=(",", ":"), ensure_ascii=False) + "\n")
     proc.stdin.flush()
+    write_elapsed = time.perf_counter() - write_start
+    read_start = time.perf_counter()
     line = proc.stdout.readline()
+    read_elapsed = time.perf_counter() - read_start
     if not line:
         raise RuntimeError("Server closed")
-    return json.loads(line)
+    parse_start = time.perf_counter()
+    response = json.loads(line)
+    parse_elapsed = time.perf_counter() - parse_start
+    total_elapsed = time.perf_counter() - start_time
+    if isinstance(timing, dict):
+        timing["write"] = float(timing.get("write", 0.0) or 0.0) + write_elapsed
+        timing["read"] = float(timing.get("read", 0.0) or 0.0) + read_elapsed
+        timing["parse"] = float(timing.get("parse", 0.0) or 0.0) + parse_elapsed
+        timing["total"] = float(timing.get("total", 0.0) or 0.0) + total_elapsed
+        timing["count"] = int(timing.get("count", 0) or 0) + 1
+    return response
+
+
+def init_ppo_window():
+    return {
+        "policy_loss": 0.0,
+        "value_loss": 0.0,
+        "entropy": 0.0,
+        "approx_kl": 0.0,
+        "clip_frac": 0.0,
+        "loss": 0.0,
+        "updates": 0,
+        "epochs": 0,
+        "early_stops": 0,
+        "update_seconds": 0.0,
+        "batches": 0,
+    }
+
+
+def update_ppo_window(window, ppo_stats, update_seconds):
+    if not isinstance(window, dict) or not isinstance(ppo_stats, dict):
+        return
+    stats_updates = int(ppo_stats.get("updates", 0) or 0)
+    stats_updates = max(0, stats_updates)
+    window["policy_loss"] += float(ppo_stats.get("policy_loss", 0.0) or 0.0) * stats_updates
+    window["value_loss"] += float(ppo_stats.get("value_loss", 0.0) or 0.0) * stats_updates
+    window["entropy"] += float(ppo_stats.get("entropy", 0.0) or 0.0) * stats_updates
+    window["approx_kl"] += float(ppo_stats.get("approx_kl", 0.0) or 0.0) * stats_updates
+    window["clip_frac"] += float(ppo_stats.get("clip_frac", 0.0) or 0.0) * stats_updates
+    window["loss"] += float(ppo_stats.get("loss", 0.0) or 0.0) * stats_updates
+    window["updates"] += stats_updates
+    window["epochs"] += int(ppo_stats.get("epochs_completed", 0) or 0)
+    if ppo_stats.get("early_stop"):
+        window["early_stops"] += 1
+    if stats_updates > 0:
+        window["update_seconds"] += max(0.0, float(update_seconds or 0.0))
+        window["batches"] += 1
+
+
+def ppo_update_ms(window):
+    if not isinstance(window, dict):
+        return 0.0
+    batches = max(1, int(window.get("batches", 0) or 0))
+    return float(window.get("update_seconds", 0.0) or 0.0) / batches * 1000.0
+
+
+def format_ppo_label(window):
+    if not isinstance(window, dict):
+        return ""
+    updates = int(window.get("updates", 0) or 0)
+    if updates <= 0:
+        return ""
+    denom = max(1, updates)
+    return (
+        " "
+        f"ppo[kl={window['approx_kl'] / denom:.4f} "
+        f"clip={window['clip_frac'] / denom:.3f} "
+        f"v={window['value_loss'] / denom:.4f} "
+        f"pg={window['policy_loss'] / denom:.4f} "
+        f"ent={window['entropy'] / denom:.4f} "
+        f"upd_ms={ppo_update_ms(window):.2f} "
+        f"stop={int(window.get('early_stops', 0) or 0)}]"
+    )
 
 
 def build_ai_server_command(config_path):
@@ -147,6 +227,192 @@ def configure_torch_threads(default_threads=2, default_interop=1):
         torch.set_num_interop_threads(max(1, interop))
     except (TypeError, ValueError, RuntimeError):
         pass
+
+
+def create_running_stats(size, enabled=False, clip=5.0, epsilon=1e-8):
+    safe_size = max(0, int(size or 0))
+    safe_clip = max(0.0, float(clip or 0.0))
+    safe_epsilon = max(1e-12, float(epsilon or 1e-8))
+    return {
+        "enabled": bool(enabled),
+        "size": safe_size,
+        "mean": [0.0] * safe_size,
+        "var": [1.0] * safe_size,
+        "count": 0.0,
+        "clip": safe_clip,
+        "epsilon": safe_epsilon,
+    }
+
+
+def copy_running_stats(stats):
+    if not isinstance(stats, dict):
+        return None
+    size = max(0, int(stats.get("size", 0) or 0))
+    payload = create_running_stats(
+        size,
+        enabled=bool(stats.get("enabled")),
+        clip=float(stats.get("clip", 0.0) or 0.0),
+        epsilon=float(stats.get("epsilon", 1e-8) or 1e-8),
+    )
+    mean = stats.get("mean")
+    var = stats.get("var")
+    if isinstance(mean, list) and len(mean) == size:
+        payload["mean"] = [float(value or 0.0) for value in mean]
+    if isinstance(var, list) and len(var) == size:
+        payload["var"] = [max(1e-12, float(value or 0.0)) for value in var]
+    try:
+        payload["count"] = max(0.0, float(stats.get("count", 0.0) or 0.0))
+    except (TypeError, ValueError):
+        payload["count"] = 0.0
+    return payload
+
+
+def update_running_stats(stats, samples):
+    if not isinstance(stats, dict):
+        return
+    if not stats.get("enabled"):
+        return
+    size = max(0, int(stats.get("size", 0) or 0))
+    if size <= 0:
+        return
+    if samples is None:
+        return
+    tensor = torch.as_tensor(samples, dtype=torch.float32)
+    if tensor.ndim == 1:
+        tensor = tensor.unsqueeze(0)
+    if tensor.numel() == 0 or tensor.shape[0] <= 0:
+        return
+    if int(tensor.shape[1]) != size:
+        return
+
+    batch_count = float(tensor.shape[0])
+    batch_mean = tensor.mean(dim=0)
+    batch_var = tensor.var(dim=0, unbiased=False)
+
+    count = max(0.0, float(stats.get("count", 0.0) or 0.0))
+    if count <= 0.0:
+        stats["mean"] = batch_mean.tolist()
+        stats["var"] = torch.clamp(batch_var, min=1e-12).tolist()
+        stats["count"] = batch_count
+        return
+
+    mean = torch.tensor(stats.get("mean"), dtype=torch.float32)
+    var = torch.tensor(stats.get("var"), dtype=torch.float32)
+    if mean.numel() != size or var.numel() != size:
+        return
+    var = torch.clamp(var, min=1e-12)
+    total = count + batch_count
+    delta = batch_mean - mean
+    new_mean = mean + delta * (batch_count / total)
+    m_a = var * count
+    m_b = batch_var * batch_count
+    m2 = m_a + m_b + delta.pow(2) * (count * batch_count / total)
+    new_var = torch.clamp(m2 / total, min=1e-12)
+    stats["mean"] = new_mean.tolist()
+    stats["var"] = new_var.tolist()
+    stats["count"] = total
+
+
+def normalize_vector(vector, stats):
+    if not isinstance(stats, dict) or not stats.get("enabled"):
+        return list(vector)
+    size = max(0, int(stats.get("size", 0) or 0))
+    if size <= 0:
+        return list(vector)
+    if len(vector) != size:
+        return list(vector)
+
+    mean = stats.get("mean") or []
+    var = stats.get("var") or []
+    epsilon = max(1e-12, float(stats.get("epsilon", 1e-8) or 1e-8))
+    clip_value = max(0.0, float(stats.get("clip", 0.0) or 0.0))
+    normalized = []
+    for idx in range(size):
+        mu = float(mean[idx] if idx < len(mean) else 0.0)
+        sigma2 = max(1e-12, float(var[idx] if idx < len(var) else 1.0))
+        value = (float(vector[idx]) - mu) / math.sqrt(sigma2 + epsilon)
+        if clip_value > 0.0:
+            value = clamp(value, -clip_value, clip_value)
+        normalized.append(value)
+    return normalized
+
+
+def normalize_value_tensor(values, stats):
+    if not isinstance(stats, dict) or not stats.get("enabled"):
+        return values
+    mean = stats.get("mean") or [0.0]
+    var = stats.get("var") or [1.0]
+    mu = float(mean[0] if mean else 0.0)
+    sigma2 = max(1e-12, float(var[0] if var else 1.0))
+    epsilon = max(1e-12, float(stats.get("epsilon", 1e-8) or 1e-8))
+    normalized = (values - mu) / math.sqrt(sigma2 + epsilon)
+    clip_value = max(0.0, float(stats.get("clip", 0.0) or 0.0))
+    if clip_value > 0:
+        normalized = torch.clamp(normalized, -clip_value, clip_value)
+    return normalized
+
+
+def parse_running_stats(
+    payload,
+    expected_size,
+    enabled_fallback=False,
+    clip_fallback=5.0,
+    epsilon_fallback=1e-8,
+):
+    state = create_running_stats(
+        expected_size,
+        enabled=enabled_fallback,
+        clip=clip_fallback,
+        epsilon=epsilon_fallback,
+    )
+    if not isinstance(payload, dict):
+        return state
+    if "enabled" in payload:
+        state["enabled"] = to_bool(payload.get("enabled"), state["enabled"])
+    if "clip" in payload:
+        try:
+            state["clip"] = max(0.0, float(payload.get("clip")))
+        except (TypeError, ValueError):
+            pass
+    if "epsilon" in payload:
+        try:
+            state["epsilon"] = max(1e-12, float(payload.get("epsilon")))
+        except (TypeError, ValueError):
+            pass
+    mean = payload.get("mean")
+    var = payload.get("var")
+    if isinstance(mean, list) and isinstance(var, list):
+        if len(mean) == state["size"] and len(var) == state["size"]:
+            try:
+                state["mean"] = [float(value) for value in mean]
+                state["var"] = [max(1e-12, float(value)) for value in var]
+            except (TypeError, ValueError):
+                pass
+    try:
+        state["count"] = max(0.0, float(payload.get("count", state["count"])))
+    except (TypeError, ValueError):
+        pass
+    return state
+
+
+def export_running_stats(stats):
+    if not isinstance(stats, dict):
+        return None
+    size = max(0, int(stats.get("size", 0) or 0))
+    mean = stats.get("mean")
+    var = stats.get("var")
+    if not isinstance(mean, list) or not isinstance(var, list):
+        return None
+    if len(mean) != size or len(var) != size:
+        return None
+    return {
+        "enabled": bool(stats.get("enabled")),
+        "count": max(0.0, float(stats.get("count", 0.0) or 0.0)),
+        "mean": [float(value or 0.0) for value in mean],
+        "var": [max(1e-12, float(value or 0.0)) for value in var],
+        "clip": max(0.0, float(stats.get("clip", 0.0) or 0.0)),
+        "epsilon": max(1e-12, float(stats.get("epsilon", 1e-8) or 1e-8)),
+    }
 
 
 def format_debug(info, resources):
@@ -412,6 +678,7 @@ def format_summary_line(
     events,
     scenario_target_mix,
     eps_per_min=None,
+    ppo_update_ms_value=None,
 ):
     def fmt(value, digits=2):
         try:
@@ -431,6 +698,7 @@ def format_summary_line(
     ticks_avg = debug.get("ticksAvg", 0.0)
     reward_per_step = avg_reward / avg_steps if avg_steps > 0 else 0.0
     reward_per_tick = avg_reward / ticks_avg if ticks_avg else 0.0
+    throughput = debug.get("throughput") or {}
     shortage_label = format_map_label(debug.get("shortageAvg") or {}, digits=2)
     nodes_label = format_map_label(debug.get("nodes") or {}, digits=2)
     underrealm_label = format_map_label(debug.get("underrealm") or {}, digits=2)
@@ -445,7 +713,15 @@ def format_summary_line(
     event_label = ",".join(events) if events else "-"
     raid_loot_label = format_map_label(raid_loot, digits=1)
 
-    rate_label = f" eps_pm={fmt(eps_per_min, 1)}" if eps_per_min is not None else ""
+    rate_label = f" eps_pm={fmt(eps_per_min, 1)}" if eps_per_min is not None else " eps_pm=0.0"
+    ppo_update_label = fmt(ppo_update_ms_value if ppo_update_ms_value is not None else 0.0, 2)
+    throughput_label = (
+        f"thr[env={fmt(throughput.get('envStepMsAvg', 0.0), 2)} "
+        f"ipc_w={fmt(throughput.get('ipcWriteMsAvg', 0.0), 2)} "
+        f"ipc_r={fmt(throughput.get('ipcReadMsAvg', 0.0), 2)} "
+        f"ipc_p={fmt(throughput.get('ipcParseMsAvg', 0.0), 2)} "
+        f"ppo_upd={ppo_update_label}]"
+    )
 
     return (
         f"ep={episode} win={window_start}-{episode} count={window_count} "
@@ -453,7 +729,7 @@ def format_summary_line(
         f"rps={fmt(reward_per_step, 3)} rpt={fmt(reward_per_tick, 3)} "
         f"avg_births={fmt(avg_births)} avg_deaths={fmt(avg_deaths)} "
         f"lr={fmt(lr, 6)} diff={fmt(difficulty, 2)} "
-        f"tick={info.get('tick')} pop={info.get('population')} "
+        f"tick={info.get('tick')} pop={info.get('population')} {throughput_label} "
         f"stock[min={fmt(stockpile.get('minRatio', 0))} avg={fmt(stockpile.get('avgRatio', 0))}] "
         f"crit={fmt(crit)} idle={fmt(idle)} "
         f"pop_bal={fmt(pop_balance) if pop_balance is not None else fmt(0.0)} "
@@ -602,6 +878,10 @@ def write_summary_header(
         f"episodes={args.episodes} max_steps={args.max_steps} step_ticks={args.step_ticks} "
         f"batch_episodes={args.batch_episodes} workers={args.workers} "
         f"gamma={args.gamma} gae_lambda={args.gae_lambda} clip_range={args.clip_range} "
+        f"target_kl={args.target_kl} value_clip_range={args.value_clip_range} "
+        f"value_huber_delta={args.value_huber_delta} "
+        f"obs_norm={args.obs_norm} obs_norm_clip={args.obs_norm_clip} "
+        f"return_norm={args.return_norm} return_norm_clip={args.return_norm_clip} "
         f"entropy_coef={args.entropy_coef} entropy_coef_final={args.entropy_coef_final} "
         f"entropy_ramp={args.entropy_ramp} value_coef={args.value_coef} "
         f"lr={args.lr} lr_final={args.lr_final} "
@@ -627,19 +907,17 @@ def write_summary_header(
         handle.write(f"scenario_sampling={sampling_label}\n")
     handle.write(f"eval_scenarios={' '.join(eval_scenarios) if eval_scenarios else 'n/a'}\n")
     handle.write(f"log_every_console={args.log_every} log_every_summary={SUMMARY_LOG_EVERY}\n")
-    if LOG_RATE:
-        handle.write("log_rate=enabled\n")
     handle.write("\n# Legend (values are averaged over each summary window)\n")
     handle.write("# ep: end episode of the window.\n")
     handle.write("# win: window start-end episodes.\n")
     handle.write("# count: episodes in the window.\n")
     handle.write("# avg_reward/avg_steps/avg_ticks/avg_births/avg_deaths: mean episode metrics.\n")
     handle.write("# rps/rpt: reward per step / reward per tick.\n")
-    if LOG_RATE:
-        handle.write("# eps_pm: episodes per minute in the summary window.\n")
+    handle.write("# eps_pm: episodes per minute in the summary window.\n")
     handle.write("# lr: optimizer learning rate at log time.\n")
     handle.write("# diff: curriculum difficulty factor (0..1).\n")
     handle.write("# tick/pop: last tick and population seen in the window.\n")
+    handle.write("# thr: compact throughput diagnostics (env step + IPC + PPO update latency, ms).\n")
     handle.write("# stock[min|avg]: min/mean stockpile ratio across resources.\n")
     handle.write("# crit/idle/pop_bal: avg critical needs, idle adults, and population balance.\n")
     handle.write("# raid: avg raid count/deaths/loot/exposure/defense in the window.\n")
@@ -670,6 +948,10 @@ def write_detail_header(
         f"episodes={args.episodes} max_steps={args.max_steps} step_ticks={args.step_ticks} "
         f"batch_episodes={args.batch_episodes} workers={args.workers} "
         f"gamma={args.gamma} gae_lambda={args.gae_lambda} clip_range={args.clip_range} "
+        f"target_kl={args.target_kl} value_clip_range={args.value_clip_range} "
+        f"value_huber_delta={args.value_huber_delta} "
+        f"obs_norm={args.obs_norm} obs_norm_clip={args.obs_norm_clip} "
+        f"return_norm={args.return_norm} return_norm_clip={args.return_norm_clip} "
         f"entropy_coef={args.entropy_coef} entropy_coef_final={args.entropy_coef_final} "
         f"entropy_ramp={args.entropy_ramp} value_coef={args.value_coef} "
         f"lr={args.lr} lr_final={args.lr_final} "
@@ -771,6 +1053,7 @@ def init_debug_accumulator():
         "underrealm": {},
         "signals": {},
         "ticks": 0.0,
+        "throughput": {},
     }
 
 
@@ -794,9 +1077,6 @@ def add_map(target, values):
 def accumulate_debug(accumulator, info):
     if not isinstance(info, dict):
         return
-    debug = info.get("debug") or {}
-    if not debug:
-        return
     accumulator["count"] += 1
     done_reason = info.get("doneReason")
     if done_reason:
@@ -807,6 +1087,12 @@ def accumulate_debug(accumulator, info):
     add_numeric(accumulator["signals"], "criticalAvg", episode_metrics.get("criticalAvg"))
     add_numeric(accumulator["signals"], "idleAvg", episode_metrics.get("idleAvg"))
     add_numeric(accumulator["signals"], "populationBalanceAvg", episode_metrics.get("populationBalanceAvg"))
+    throughput = episode_metrics.get("throughput") or {}
+    add_numeric(accumulator["throughput"], "envStepMsAvg", throughput.get("envStepMsAvg"))
+    add_numeric(accumulator["throughput"], "ipcWriteMsAvg", throughput.get("ipcWriteMsAvg"))
+    add_numeric(accumulator["throughput"], "ipcReadMsAvg", throughput.get("ipcReadMsAvg"))
+    add_numeric(accumulator["throughput"], "ipcParseMsAvg", throughput.get("ipcParseMsAvg"))
+    debug = info.get("debug") or {}
     scenario_meta = info.get("scenario")
     scenario_name = None
     if isinstance(scenario_meta, dict):
@@ -815,6 +1101,8 @@ def accumulate_debug(accumulator, info):
         scenario_name = scenario_meta
     if scenario_name:
         accumulator["scenarios"][scenario_name] = accumulator["scenarios"].get(scenario_name, 0) + 1
+    if not debug:
+        return
     weather = debug.get("weather") or {}
     weather_type = None
     if isinstance(weather, dict):
@@ -950,6 +1238,12 @@ def average_debug(accumulator):
             "populationBalanceAvg": signals.get("populationBalanceAvg", 0.0) / count,
         },
         "ticksAvg": accumulator.get("ticks", 0.0) / count,
+        "throughput": {
+            "envStepMsAvg": (accumulator.get("throughput") or {}).get("envStepMsAvg", 0.0) / count,
+            "ipcWriteMsAvg": (accumulator.get("throughput") or {}).get("ipcWriteMsAvg", 0.0) / count,
+            "ipcReadMsAvg": (accumulator.get("throughput") or {}).get("ipcReadMsAvg", 0.0) / count,
+            "ipcParseMsAvg": (accumulator.get("throughput") or {}).get("ipcParseMsAvg", 0.0) / count,
+        },
     }
 
 
@@ -1055,6 +1349,131 @@ def split_action_payload(action, resources):
         else:
             weights[resource] = value
     return weights, festival_intent, trade, building
+
+
+def normalize_transport_mode(value, fallback=TRANSPORT_LEGACY):
+    mode = str(value or "").strip().lower()
+    if mode in TRANSPORT_MODES:
+        return mode
+    fallback_mode = str(fallback or TRANSPORT_LEGACY).strip().lower()
+    if fallback_mode in TRANSPORT_MODES:
+        return fallback_mode
+    return TRANSPORT_LEGACY
+
+
+def build_reset_payload(
+    seed,
+    training=False,
+    eval_mode=False,
+    randomize=None,
+    difficulty=None,
+    scenario=None,
+    full_sim=False,
+    transport=TRANSPORT_LEGACY,
+    resources=None,
+    feature_names=None,
+):
+    payload = {"cmd": "reset", "seed": seed}
+    if training:
+        payload["training"] = True
+    if eval_mode or full_sim:
+        payload["eval"] = True
+    if randomize is not None:
+        payload["randomize"] = bool(randomize)
+    if difficulty is not None:
+        payload["difficulty"] = difficulty
+    if scenario:
+        payload["scenario"] = scenario
+    mode = normalize_transport_mode(transport)
+    if mode == TRANSPORT_COMPACT:
+        payload["transport"] = {
+            "mode": TRANSPORT_COMPACT,
+            "resources": list(resources or []),
+            "featureNames": list(feature_names or []),
+        }
+    return payload
+
+
+def build_step_message(action, resources, step_ticks, transport=TRANSPORT_LEGACY, debug=False):
+    mode = normalize_transport_mode(transport)
+    if mode == TRANSPORT_COMPACT:
+        if isinstance(action, list) and len(action) == len(resources):
+            action_values = action
+        else:
+            action_values = []
+            for idx in range(len(resources)):
+                raw = action[idx] if idx < len(action) else 0.0
+                try:
+                    value = float(raw)
+                except (TypeError, ValueError):
+                    value = 0.0
+                action_values.append(value)
+        payload = {
+            "cmd": "step",
+            "actionValues": action_values,
+            "ticks": step_ticks,
+        }
+        if debug:
+            payload["debug"] = True
+        return payload
+
+    weights, festival_intent, trade_payload, building_payload = split_action_payload(action, resources)
+    action_payload = {"weights": weights, "ticks": step_ticks}
+    if festival_intent is not None:
+        action_payload["festivalIntent"] = festival_intent
+    if trade_payload:
+        action_payload["trade"] = trade_payload
+    if building_payload:
+        action_payload["building"] = building_payload
+    if debug:
+        action_payload["debug"] = True
+    return {"cmd": "step", "action": action_payload}
+
+
+def vector_from_response(response, resources, feature_names, transport):
+    mode = normalize_transport_mode(transport)
+    expected_size = len(resources) * len(feature_names)
+    if mode == TRANSPORT_COMPACT:
+        obs_vector = (response or {}).get("obsVector")
+        if isinstance(obs_vector, list) and (expected_size <= 0 or len(obs_vector) == expected_size):
+            return obs_vector
+    obs = (response or {}).get("obs", {}) or {}
+    return build_obs_vector(obs, resources, feature_names)
+
+
+def ratio_map_from_signal(value):
+    if not isinstance(value, dict):
+        return {}
+    parsed = {}
+    for key, raw in value.items():
+        try:
+            parsed[str(key)] = clamp(float(raw), 0.0, 1.0)
+        except (TypeError, ValueError):
+            parsed[str(key)] = 0.0
+    return parsed
+
+
+def signals_from_response(response):
+    info = (response or {}).get("info", {}) or {}
+    raw_signals = info.get("trainingSignals")
+    stockpile_ratio = {}
+    if isinstance(raw_signals, dict):
+        raw_stockpile_ratio = raw_signals.get("stockpileRatio")
+        stockpile_ratio = raw_stockpile_ratio if isinstance(raw_stockpile_ratio, dict) else {}
+    if isinstance(raw_signals, dict):
+        return {
+            "criticalNeedsFraction": float(raw_signals.get("criticalNeedsFraction", 0.0) or 0.0),
+            "idleAdultsFraction": float(raw_signals.get("idleAdultsFraction", 0.0) or 0.0),
+            "populationBalance": float(raw_signals.get("populationBalance", 0.0) or 0.0),
+            "stockpileRatio": stockpile_ratio,
+        }
+    obs = (response or {}).get("obs", {}) or {}
+    return {
+        "criticalNeedsFraction": float(obs.get("criticalNeedsFraction", 0.0) or 0.0),
+        "idleAdultsFraction": float(obs.get("idleAdultsFraction", 0.0) or 0.0),
+        "populationBalance": float(obs.get("populationBalance", 0.0) or 0.0),
+        "stockpileRatio": ratio_map_from_signal(obs.get("stockpileRatio")),
+    }
 
 
 def get_scenario_definitions(config):
@@ -1282,15 +1701,19 @@ def update_scenario_weights(sampler, scenario_defs):
     return updated
 
 
-def get_model_payload(model):
-    return {
+def get_model_payload(model, obs_normalization=None):
+    payload = {
         "policy": model.policy.export_layers(),
         "value": model.value.export_layers(),
         "logStd": model.log_std.detach().cpu().tolist(),
     }
+    obs_payload = export_running_stats(obs_normalization)
+    if obs_payload is not None:
+        payload["obsNormalization"] = obs_payload
+    return payload
 
 
-def load_model_payload(model, payload):
+def load_model_payload(model, payload, obs_normalization=None):
     if not payload:
         return
     policy_layers = payload.get("policy") or []
@@ -1302,6 +1725,18 @@ def load_model_payload(model, payload):
     log_std = payload.get("logStd")
     if isinstance(log_std, list) and len(log_std) == model.log_std.shape[0]:
         model.log_std.data.copy_(torch.tensor(log_std, dtype=torch.float32, device=model.log_std.device))
+    if isinstance(obs_normalization, dict):
+        obs_payload = payload.get("obsNormalization")
+        if isinstance(obs_payload, dict):
+            parsed = parse_running_stats(
+                obs_payload,
+                obs_normalization.get("size", 0),
+                enabled_fallback=obs_normalization.get("enabled", False),
+                clip_fallback=obs_normalization.get("clip", 0.0),
+                epsilon_fallback=obs_normalization.get("epsilon", 1e-8),
+            )
+            obs_normalization.clear()
+            obs_normalization.update(parsed)
 
 
 def queue_get_nowait(queue_obj):
@@ -1377,6 +1812,13 @@ def worker_loop(worker_id, task_queue, result_queue, update_queue, resources, se
             feature_names = settings.get("feature_names") or DEFAULT_FEATURE_NAMES
             input_size = len(resources) * len(feature_names)
             action_size = len(resources)
+            obs_normalization = parse_running_stats(
+                settings.get("obs_normalization"),
+                input_size,
+                enabled_fallback=False,
+                clip_fallback=5.0,
+                epsilon_fallback=1e-8,
+            )
             model = ActorCritic(
                 input_size,
                 action_size,
@@ -1387,7 +1829,7 @@ def worker_loop(worker_id, task_queue, result_queue, update_queue, resources, se
 
             latest_payload = drain_queue(update_queue)
             if latest_payload:
-                load_model_payload(model, latest_payload)
+                load_model_payload(model, latest_payload, obs_normalization=obs_normalization)
 
             while True:
                 try:
@@ -1399,11 +1841,11 @@ def worker_loop(worker_id, task_queue, result_queue, update_queue, resources, se
 
                 latest_payload = drain_queue(update_queue)
                 if latest_payload:
-                    load_model_payload(model, latest_payload)
+                    load_model_payload(model, latest_payload, obs_normalization=obs_normalization)
 
                 episode_number, seed, difficulty, scenario = task
                 try:
-                    transitions, reward, steps, info, bootstrap_value = run_episode(
+                    rollout, reward, steps, info = run_episode(
                         proc,
                         model,
                         resources,
@@ -1416,11 +1858,15 @@ def worker_loop(worker_id, task_queue, result_queue, update_queue, resources, se
                         settings["max_weight"],
                         scenario,
                         settings.get("full_sim", False),
+                        settings["gamma"],
+                        settings["gae_lambda"],
+                        obs_normalization=obs_normalization,
+                        transport=settings.get("transport", TRANSPORT_LEGACY),
                     )
                 except (BrokenPipeError, EOFError, OSError, RuntimeError):
                     break
                 try:
-                    result_queue.put((episode_number, transitions, reward, steps, info, bootstrap_value))
+                    result_queue.put((episode_number, rollout, reward, steps, info))
                 except (BrokenPipeError, EOFError, OSError):
                     break
         except (BrokenPipeError, EOFError, OSError, RuntimeError):
@@ -1695,14 +2141,22 @@ def run_episode(
     max_weight,
     scenario,
     full_sim,
+    gamma,
+    gae_lambda,
+    obs_normalization=None,
+    transport=TRANSPORT_LEGACY,
 ):
-    reset_payload = {"cmd": "reset", "seed": seed, "training": True}
-    if full_sim:
-        reset_payload["eval"] = True
-    if difficulty is not None:
-        reset_payload["difficulty"] = difficulty
-    if scenario:
-        reset_payload["scenario"] = scenario
+    mode = normalize_transport_mode(transport)
+    reset_payload = build_reset_payload(
+        seed,
+        training=True,
+        full_sim=full_sim,
+        difficulty=difficulty,
+        scenario=scenario,
+        transport=mode,
+        resources=resources,
+        feature_names=feature_names,
+    )
     response = send(proc, reset_payload)
     start_tick = 0
     try:
@@ -1710,7 +2164,15 @@ def run_episode(
     except (TypeError, ValueError):
         start_tick = 0
 
-    transitions = []
+    rollout = {
+        "obs": [],
+        "obs_raw": [],
+        "actions": [],
+        "log_probs": [],
+        "values": [],
+        "rewards": [],
+        "dones": [],
+    }
     total_reward = 0.0
     steps = 0
     done = False
@@ -1719,12 +2181,17 @@ def run_episode(
     critical_sum = 0.0
     idle_sum = 0.0
     population_balance_sum = 0.0
+    env_step_seconds = 0.0
+    ipc_write_seconds = 0.0
+    ipc_read_seconds = 0.0
+    ipc_parse_seconds = 0.0
+    ipc_calls = 0
 
     with inference_mode():
         for step in range(max_steps):
-            obs = response.get("obs", {})
-            vector = build_obs_vector(obs, resources, feature_names)
-            obs_tensor = torch.tensor([vector], dtype=torch.float32)
+            raw_vector = vector_from_response(response, resources, feature_names, mode)
+            vector = normalize_vector(raw_vector, obs_normalization)
+            obs_tensor = torch.as_tensor(vector, dtype=torch.float32).unsqueeze(0)
             action_tensor, log_prob, value = model.act(
                 obs_tensor,
                 min_weight,
@@ -1732,36 +2199,39 @@ def run_episode(
                 deterministic=False,
             )
             action = action_tensor.squeeze(0).tolist()
-            weights, festival_intent, trade_payload, building_payload = split_action_payload(action, resources)
-            action_payload = {"weights": weights, "ticks": step_ticks}
-            if festival_intent is not None:
-                action_payload["festivalIntent"] = festival_intent
-            if trade_payload:
-                action_payload["trade"] = trade_payload
-            if building_payload:
-                action_payload["building"] = building_payload
-            if step == max_steps - 1:
-                action_payload["debug"] = True
-            response = send(proc, {"cmd": "step", "action": action_payload})
+            step_message = build_step_message(
+                action,
+                resources,
+                step_ticks,
+                transport=mode,
+                debug=(step == max_steps - 1),
+            )
+            step_timing = {}
+            response = send(proc, step_message, timing=step_timing)
             reward = float(response.get("reward", 0.0))
             done = bool(response.get("done"))
-            obs = response.get("obs", {}) or {}
-            critical_sum += float(obs.get("criticalNeedsFraction", 0.0) or 0.0)
-            idle_sum += float(obs.get("idleAdultsFraction", 0.0) or 0.0)
-            population_balance_sum += float(obs.get("populationBalance", 0.0) or 0.0)
-            ratios = obs.get("stockpileRatio", {}) or {}
+            signals = signals_from_response(response)
+            critical_sum += float(signals.get("criticalNeedsFraction", 0.0) or 0.0)
+            idle_sum += float(signals.get("idleAdultsFraction", 0.0) or 0.0)
+            population_balance_sum += float(signals.get("populationBalance", 0.0) or 0.0)
+            raw_ratios = signals.get("stockpileRatio")
+            ratios = raw_ratios if isinstance(raw_ratios, dict) else {}
             for resource in tracked_resources:
                 ratio = float(ratios.get(resource, 1.0) or 0.0)
                 shortage_sum[resource] += clamp(1.0 - ratio, 0.0, 1.0)
+            env_step_seconds += float(step_timing.get("total", 0.0) or 0.0)
+            ipc_write_seconds += float(step_timing.get("write", 0.0) or 0.0)
+            ipc_read_seconds += float(step_timing.get("read", 0.0) or 0.0)
+            ipc_parse_seconds += float(step_timing.get("parse", 0.0) or 0.0)
+            ipc_calls += int(step_timing.get("count", 0) or 0)
 
-            transitions.append({
-                "obs": vector,
-                "actions": action,
-                "log_prob": float(log_prob.item()),
-                "value": float(value.item()),
-                "reward": reward,
-                "done": done,
-            })
+            rollout["obs"].append(vector)
+            rollout["obs_raw"].append(raw_vector)
+            rollout["actions"].append(action)
+            rollout["log_probs"].append(float(log_prob.item()))
+            rollout["values"].append(float(value.item()))
+            rollout["rewards"].append(reward)
+            rollout["dones"].append(done)
             total_reward += reward
             steps = step + 1
             if done:
@@ -1769,10 +2239,22 @@ def run_episode(
 
         bootstrap_value = 0.0
         if not done and steps > 0:
-            obs = response.get("obs", {})
-            vector = build_obs_vector(obs, resources, feature_names)
-            obs_tensor = torch.tensor([vector], dtype=torch.float32)
+            vector = normalize_vector(
+                vector_from_response(response, resources, feature_names, mode),
+                obs_normalization,
+            )
+            obs_tensor = torch.as_tensor(vector, dtype=torch.float32).unsqueeze(0)
             bootstrap_value = float(model.value(obs_tensor).squeeze(-1).item())
+    advantages, returns = compute_gae(
+        rollout["rewards"],
+        rollout["values"],
+        rollout["dones"],
+        gamma,
+        gae_lambda,
+        bootstrap_value,
+    )
+    rollout["advantages"] = advantages
+    rollout["returns"] = returns
 
     info = response.get("info", {})
     done_reason = info.get("doneReason")
@@ -1798,6 +2280,8 @@ def run_episode(
         critical_avg = 0.0
         idle_avg = 0.0
         population_balance_avg = 0.0
+    step_count = max(1, steps)
+    ipc_count = max(1, ipc_calls if ipc_calls > 0 else steps)
     info["episodeMetrics"] = {
         "steps": steps,
         "ticks": ticks_elapsed,
@@ -1805,8 +2289,14 @@ def run_episode(
         "criticalAvg": critical_avg,
         "idleAvg": idle_avg,
         "populationBalanceAvg": population_balance_avg,
+        "throughput": {
+            "envStepMsAvg": env_step_seconds / step_count * 1000.0 if steps > 0 else 0.0,
+            "ipcWriteMsAvg": ipc_write_seconds / ipc_count * 1000.0 if ipc_calls > 0 else 0.0,
+            "ipcReadMsAvg": ipc_read_seconds / ipc_count * 1000.0 if ipc_calls > 0 else 0.0,
+            "ipcParseMsAvg": ipc_parse_seconds / ipc_count * 1000.0 if ipc_calls > 0 else 0.0,
+        },
     }
-    return transitions, total_reward, steps, info, bootstrap_value
+    return rollout, total_reward, steps, info
 
 
 def evaluate(
@@ -1822,16 +2312,26 @@ def evaluate(
     min_weight,
     max_weight,
     scenarios,
+    score_mode=None,
+    collect_episode_scores=False,
+    progress=False,
+    progress_every=0,
+    progress_prefix="eval",
+    obs_normalization=None,
+    transport=TRANSPORT_LEGACY,
 ):
+    mode = normalize_transport_mode(transport)
     total_reward = 0.0
     total_steps = 0.0
     total_ticks = 0.0
     total_births = 0.0
     total_deaths = 0.0
+    episode_scores = [] if collect_episode_scores else None
     scenario_plan = []
     if scenarios:
-        per_scenario = max(1, episodes // max(1, len(scenarios)))
-        remainder = max(0, episodes - per_scenario * len(scenarios))
+        scenario_count = max(1, len(scenarios))
+        per_scenario = episodes // scenario_count
+        remainder = episodes % scenario_count
         for idx, name in enumerate(scenarios):
             count = per_scenario + (1 if idx < remainder else 0)
             if count > 0:
@@ -1839,29 +2339,45 @@ def evaluate(
     else:
         scenario_plan.append((None, episodes))
 
+    progress_enabled = bool(progress)
+    try:
+        progress_every_value = int(progress_every)
+    except (TypeError, ValueError):
+        progress_every_value = 0
+    if progress_enabled:
+        progress_every_value = max(1, progress_every_value)
+    progress_label = str(progress_prefix or "eval").strip() or "eval"
+    progress_start_time = time.perf_counter() if progress_enabled else 0.0
+    progress_score_total = 0.0
+
     episode_idx = 0
     with inference_mode():
         for scenario_name, scenario_episodes in scenario_plan:
             for _ in range(scenario_episodes):
                 seed = seed_base + episode_idx if seed_base is not None else None
                 episode_idx += 1
-                reset_payload = {
-                    "cmd": "reset",
-                    "seed": seed,
-                    "training": True,
-                    "eval": True,
-                    "randomize": False,
-                }
-                if difficulty is not None:
-                    reset_payload["difficulty"] = difficulty
-                if scenario_name:
-                    reset_payload["scenario"] = scenario_name
+                episode_reward = 0.0
+                episode_steps = 0.0
+                episode_ticks = 0.0
+                reset_payload = build_reset_payload(
+                    seed,
+                    training=True,
+                    eval_mode=True,
+                    randomize=False,
+                    difficulty=difficulty,
+                    scenario=scenario_name,
+                    transport=mode,
+                    resources=resources,
+                    feature_names=feature_names,
+                )
                 response = send(proc, reset_payload)
 
                 for step in range(max_steps):
-                    obs = response.get("obs", {})
-                    vector = build_obs_vector(obs, resources, feature_names)
-                    obs_tensor = torch.tensor([vector], dtype=torch.float32)
+                    vector = normalize_vector(
+                        vector_from_response(response, resources, feature_names, mode),
+                        obs_normalization,
+                    )
+                    obs_tensor = torch.as_tensor(vector, dtype=torch.float32).unsqueeze(0)
                     action_tensor, _, _ = model.act(
                         obs_tensor,
                         min_weight,
@@ -1869,36 +2385,70 @@ def evaluate(
                         deterministic=True,
                     )
                     action = action_tensor.squeeze(0).tolist()
-                    weights, festival_intent, trade_payload, building_payload = split_action_payload(
+                    step_message = build_step_message(
                         action,
                         resources,
+                        step_ticks,
+                        transport=mode,
                     )
-                    action_payload = {"weights": weights, "ticks": step_ticks}
-                    if festival_intent is not None:
-                        action_payload["festivalIntent"] = festival_intent
-                    if trade_payload:
-                        action_payload["trade"] = trade_payload
-                    if building_payload:
-                        action_payload["building"] = building_payload
-                    response = send(proc, {"cmd": "step", "action": action_payload})
+                    response = send(proc, step_message)
                     reward = float(response.get("reward", 0.0))
                     total_reward += reward
                     total_steps += 1
                     total_ticks += float(step_ticks)
+                    episode_reward += reward
+                    episode_steps += 1
+                    episode_ticks += float(step_ticks)
                     if response.get("done"):
                         break
 
                 info = response.get("info", {})
                 total_births += int(info.get("births", 0))
                 total_deaths += int(info.get("deaths", 0))
+                episode_score = None
+                if collect_episode_scores or progress_enabled:
+                    episode_score = compute_score(
+                        episode_reward,
+                        episode_steps,
+                        episode_ticks,
+                        score_mode,
+                    )
+                if collect_episode_scores and episode_score is not None:
+                    episode_scores.append(episode_score)
+                if progress_enabled and episode_score is not None:
+                    progress_score_total += episode_score
+                    episodes_done = episode_idx
+                    should_log_progress = (
+                        episodes_done == episodes
+                        or episodes_done % progress_every_value == 0
+                    )
+                    if should_log_progress:
+                        elapsed = time.perf_counter() - progress_start_time
+                        avg_seconds = elapsed / max(1, episodes_done)
+                        eta_seconds = max(0.0, (episodes - episodes_done) * avg_seconds)
+                        scenario_label = str(scenario_name or "default")
+                        avg_reward_so_far = total_reward / max(1, episodes_done)
+                        avg_score_so_far = progress_score_total / max(1, episodes_done)
+                        print(
+                            f"[{progress_label}] episode={episodes_done}/{episodes} "
+                            f"scenario={scenario_label} "
+                            f"ep_reward={episode_reward:.2f} ep_steps={episode_steps:.0f} "
+                            f"ep_ticks={episode_ticks:.0f} avg_reward={avg_reward_so_far:.2f} "
+                            f"avg_score={avg_score_so_far:.4f} elapsed={elapsed:.1f}s "
+                            f"eta={eta_seconds:.1f}s",
+                            flush=True,
+                        )
 
-    return {
+    result = {
         "avg_reward": total_reward / max(1, episodes),
         "avg_steps": total_steps / max(1, episodes),
         "avg_ticks": total_ticks / max(1, episodes),
         "avg_births": total_births / max(1, episodes),
         "avg_deaths": total_deaths / max(1, episodes),
     }
+    if collect_episode_scores:
+        result["episode_scores"] = episode_scores
+    return result
 
 
 def apply_ppo_update(
@@ -1913,36 +2463,113 @@ def apply_ppo_update(
     epochs,
     mini_batch_size,
     max_grad_norm,
+    value_clip_range=0.0,
+    value_huber_delta=0.0,
+    target_kl=0.0,
+    return_normalization=None,
 ):
+    def value_loss_elements(prediction, target, huber_delta):
+        error = prediction - target
+        if huber_delta > 0:
+            abs_error = torch.abs(error)
+            quadratic = torch.clamp(abs_error, max=huber_delta)
+            linear = abs_error - quadratic
+            return 0.5 * quadratic.pow(2) + huber_delta * linear
+        return error.pow(2)
+
     obs = torch.tensor(batch["obs"], dtype=torch.float32)
     actions = torch.tensor(batch["actions"], dtype=torch.float32)
     old_log_probs = torch.tensor(batch["log_probs"], dtype=torch.float32)
-    returns = torch.tensor(batch["returns"], dtype=torch.float32)
+    returns_raw = torch.tensor(batch["returns"], dtype=torch.float32)
+    old_values_raw = torch.tensor(batch.get("values", []), dtype=torch.float32)
     advantages = torch.tensor(batch["advantages"], dtype=torch.float32)
 
-    advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+    if advantages.numel() > 1:
+        advantages = (advantages - advantages.mean()) / (advantages.std(unbiased=False) + 1e-8)
+    else:
+        advantages = advantages * 0.0
 
     batch_size = obs.shape[0]
+    if batch_size <= 0:
+        return {
+            "policy_loss": 0.0,
+            "value_loss": 0.0,
+            "entropy": 0.0,
+            "approx_kl": 0.0,
+            "clip_frac": 0.0,
+            "loss": 0.0,
+            "updates": 0,
+            "epochs_completed": 0,
+            "early_stop": False,
+        }
+
+    if old_values_raw.numel() != batch_size:
+        old_values_raw = torch.zeros_like(returns_raw)
+
+    mini_batch_size = max(1, int(mini_batch_size))
+    value_clip_range = max(0.0, float(value_clip_range or 0.0))
+    value_huber_delta = max(0.0, float(value_huber_delta or 0.0))
+    target_kl = max(0.0, float(target_kl or 0.0))
+
+    stats = {
+        "policy_loss": 0.0,
+        "value_loss": 0.0,
+        "entropy": 0.0,
+        "approx_kl": 0.0,
+        "clip_frac": 0.0,
+        "loss": 0.0,
+        "updates": 0,
+        "epochs_completed": 0,
+        "early_stop": False,
+    }
+
     for _ in range(epochs):
+        epoch_kl_sum = 0.0
+        epoch_kl_batches = 0
         indices = torch.randperm(batch_size)
         for start in range(0, batch_size, mini_batch_size):
             idx = indices[start:start + mini_batch_size]
             batch_obs = obs[idx]
             batch_actions = actions[idx]
             batch_old_log = old_log_probs[idx]
-            batch_returns = returns[idx]
+            batch_returns_raw = returns_raw[idx]
+            batch_old_values_raw = old_values_raw[idx]
             batch_adv = advantages[idx]
 
             mean = model.policy(batch_obs)
             log_prob = compute_log_prob(mean, model.log_std, batch_actions, min_weight, max_weight)
-            ratio = torch.exp(log_prob - batch_old_log)
+            log_ratio = log_prob - batch_old_log
+            ratio = torch.exp(log_ratio)
+            approx_kl = ((ratio - 1.0) - log_ratio).mean()
+            clip_frac = (torch.abs(ratio - 1.0) > clip_range).float().mean()
 
             unclipped = ratio * batch_adv
             clipped = torch.clamp(ratio, 1 - clip_range, 1 + clip_range) * batch_adv
             policy_loss = -torch.min(unclipped, clipped).mean()
 
-            value_pred = model.value(batch_obs).squeeze(-1)
-            value_loss = (batch_returns - value_pred).pow(2).mean()
+            value_pred_raw = model.value(batch_obs).squeeze(-1)
+            value_pred = normalize_value_tensor(value_pred_raw, return_normalization)
+            batch_returns = normalize_value_tensor(batch_returns_raw, return_normalization)
+            batch_old_values = normalize_value_tensor(batch_old_values_raw, return_normalization)
+            value_loss_unclipped = value_loss_elements(
+                value_pred,
+                batch_returns,
+                value_huber_delta,
+            )
+            if value_clip_range > 0:
+                value_pred_clipped = batch_old_values + torch.clamp(
+                    value_pred - batch_old_values,
+                    -value_clip_range,
+                    value_clip_range,
+                )
+                value_loss_clipped = value_loss_elements(
+                    value_pred_clipped,
+                    batch_returns,
+                    value_huber_delta,
+                )
+                value_loss = torch.max(value_loss_unclipped, value_loss_clipped).mean()
+            else:
+                value_loss = value_loss_unclipped.mean()
 
             entropy = compute_entropy(model.log_std, mean).mean()
 
@@ -1953,6 +2580,28 @@ def apply_ppo_update(
             if max_grad_norm > 0:
                 nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
             optimizer.step()
+
+            stats["policy_loss"] += float(policy_loss.item())
+            stats["value_loss"] += float(value_loss.item())
+            stats["entropy"] += float(entropy.item())
+            stats["approx_kl"] += float(approx_kl.item())
+            stats["clip_frac"] += float(clip_frac.item())
+            stats["loss"] += float(loss.item())
+            stats["updates"] += 1
+            epoch_kl_sum += float(approx_kl.item())
+            epoch_kl_batches += 1
+
+        stats["epochs_completed"] += 1
+        if target_kl > 0 and epoch_kl_batches > 0:
+            epoch_kl = epoch_kl_sum / max(1, epoch_kl_batches)
+            if epoch_kl > target_kl:
+                stats["early_stop"] = True
+                break
+
+    updates = max(1, stats["updates"])
+    for key in ("policy_loss", "value_loss", "entropy", "approx_kl", "clip_frac", "loss"):
+        stats[key] /= updates
+    return stats
 
 
 def load_config(path):
@@ -2076,10 +2725,19 @@ def build_training_defaults(config):
         "gamma": to_float(trainer.get("gamma"), 0.99),
         "gae_lambda": to_float(trainer.get("gaeLambda"), 0.95),
         "clip_range": to_float(trainer.get("clipRange"), 0.2),
+        "target_kl": to_float(trainer.get("targetKl"), 0.03),
         "entropy_coef": to_float(trainer.get("entropyCoef"), 0.01),
         "entropy_coef_final": to_float(trainer.get("entropyCoefFinal"), None),
         "entropy_ramp": to_int(trainer.get("entropyRampEpisodes"), None),
         "value_coef": to_float(trainer.get("valueCoef"), 0.5),
+        "value_clip_range": to_float(trainer.get("valueClipRange"), 0.2),
+        "value_huber_delta": to_float(trainer.get("valueHuberDelta"), 1.0),
+        "obs_norm": to_bool(trainer.get("obsNorm"), True),
+        "obs_norm_clip": to_float(trainer.get("obsNormClip"), 5.0),
+        "obs_norm_epsilon": to_float(trainer.get("obsNormEpsilon"), 1e-8),
+        "return_norm": to_bool(trainer.get("returnNorm"), True),
+        "return_norm_clip": to_float(trainer.get("returnNormClip"), 5.0),
+        "return_norm_epsilon": to_float(trainer.get("returnNormEpsilon"), 1e-8),
         "lr": to_float(trainer.get("lr"), 0.0003),
         "lr_final": to_float(trainer.get("lrFinal"), 0.0001),
         "epochs": to_int(trainer.get("epochs"), 4),
@@ -2091,6 +2749,10 @@ def build_training_defaults(config):
         "log_std_init": to_float(trainer.get("logStdInit"), -0.5),
         "max_grad_norm": to_float(trainer.get("maxGradNorm"), 0.5),
         "workers": to_int(trainer.get("workers"), 1),
+        "transport": normalize_transport_mode(
+            to_str(trainer.get("transport"), TRANSPORT_LEGACY),
+            TRANSPORT_LEGACY,
+        ),
         "difficulty_start": to_float(
             trainer.get("difficultyStart"),
             to_float(training.get("difficultyStart"), 0.1),
@@ -2104,12 +2766,21 @@ def build_training_defaults(config):
             to_int(training.get("difficultyRampEpisodes"), 60000),
         ),
         "model_path": to_str(trainer.get("modelPath"), "models/policy.json"),
+        "model_state_path": to_str(trainer.get("modelStatePath"), "models/policy.state.pt"),
         "best_model_path": to_str(trainer.get("bestModelPath"), "models/policy_best.json"),
         "best_model_meta_path": to_str(
             trainer.get("bestModelMetaPath"),
             "models/policy_best.meta.json",
         ),
+        "best_model_state_path": to_str(
+            trainer.get("bestModelStatePath"),
+            "models/policy_best.state.pt",
+        ),
         "resume_from_best": to_bool(trainer.get("resumeFromBest"), False),
+        "save_best_during_training": to_bool(
+            trainer.get("saveBestDuringTraining"),
+            True,
+        ),
         "seed": to_int(trainer.get("seed"), 0),
         "log_every": to_int(trainer.get("logEvery"), 500),
         "save_every": to_int(trainer.get("saveEvery"), None),
@@ -2151,10 +2822,39 @@ def parse_args():
     parser.add_argument("--gamma", type=float, default=defaults["gamma"])
     parser.add_argument("--gae-lambda", type=float, default=defaults["gae_lambda"])
     parser.add_argument("--clip-range", type=float, default=defaults["clip_range"])
+    parser.add_argument("--target-kl", type=float, default=defaults["target_kl"])
     parser.add_argument("--entropy-coef", type=float, default=defaults["entropy_coef"])
     parser.add_argument("--entropy-coef-final", type=float, default=defaults["entropy_coef_final"])
     parser.add_argument("--entropy-ramp", type=int, default=defaults["entropy_ramp"])
     parser.add_argument("--value-coef", type=float, default=defaults["value_coef"])
+    parser.add_argument("--value-clip-range", type=float, default=defaults["value_clip_range"])
+    parser.add_argument("--value-huber-delta", type=float, default=defaults["value_huber_delta"])
+    parser.add_argument(
+        "--obs-norm",
+        dest="obs_norm",
+        action="store_true",
+        default=defaults["obs_norm"],
+    )
+    parser.add_argument(
+        "--no-obs-norm",
+        dest="obs_norm",
+        action="store_false",
+    )
+    parser.add_argument("--obs-norm-clip", type=float, default=defaults["obs_norm_clip"])
+    parser.add_argument("--obs-norm-epsilon", type=float, default=defaults["obs_norm_epsilon"])
+    parser.add_argument(
+        "--return-norm",
+        dest="return_norm",
+        action="store_true",
+        default=defaults["return_norm"],
+    )
+    parser.add_argument(
+        "--no-return-norm",
+        dest="return_norm",
+        action="store_false",
+    )
+    parser.add_argument("--return-norm-clip", type=float, default=defaults["return_norm_clip"])
+    parser.add_argument("--return-norm-epsilon", type=float, default=defaults["return_norm_epsilon"])
     parser.add_argument("--lr", type=float, default=defaults["lr"])
     parser.add_argument("--lr-final", type=float, default=defaults["lr_final"])
     parser.add_argument("--epochs", type=int, default=defaults["epochs"])
@@ -2166,13 +2866,39 @@ def parse_args():
     parser.add_argument("--log-std-init", type=float, default=defaults["log_std_init"])
     parser.add_argument("--max-grad-norm", type=float, default=defaults["max_grad_norm"])
     parser.add_argument("--workers", type=int, default=defaults["workers"])
+    parser.add_argument("--transport", type=str, default=defaults["transport"])
     parser.add_argument("--difficulty-start", type=float, default=defaults["difficulty_start"])
     parser.add_argument("--difficulty-end", type=float, default=defaults["difficulty_end"])
     parser.add_argument("--difficulty-ramp", type=int, default=defaults["difficulty_ramp"])
     parser.add_argument("--model-path", type=str, default=defaults["model_path"])
+    parser.add_argument("--model-state-path", type=str, default=defaults["model_state_path"])
     parser.add_argument("--best-model-path", type=str, default=defaults["best_model_path"])
     parser.add_argument("--best-model-meta-path", type=str, default=defaults["best_model_meta_path"])
-    parser.add_argument("--resume-from-best", action="store_true", default=defaults["resume_from_best"])
+    parser.add_argument("--best-model-state-path", type=str, default=defaults["best_model_state_path"])
+    parser.add_argument(
+        "--resume-from-best",
+        dest="resume_from_best",
+        action="store_true",
+        default=defaults["resume_from_best"],
+    )
+    parser.add_argument(
+        "--resume-from-latest",
+        dest="resume_from_best",
+        action="store_false",
+        help="Prefer latest checkpoint resume (modelPath) instead of best checkpoint resume.",
+    )
+    parser.add_argument(
+        "--save-best-during-training",
+        dest="save_best_during_training",
+        action="store_true",
+        default=defaults["save_best_during_training"],
+    )
+    parser.add_argument(
+        "--no-save-best-during-training",
+        dest="save_best_during_training",
+        action="store_false",
+        help="Disable best checkpoint writes in train.py (use promote_best.py as the only promotion gate).",
+    )
     parser.add_argument("--seed", type=int, default=defaults["seed"])
     parser.add_argument("--log-every", type=int, default=defaults["log_every"])
     parser.add_argument("--save-every", type=int, default=defaults["save_every"])
@@ -2207,8 +2933,16 @@ def parse_args():
     args.save_every = int(args.save_every)
     if args.save_every < 0:
         args.save_every = 0
+    args.target_kl = max(0.0, float(args.target_kl))
+    args.value_clip_range = max(0.0, float(args.value_clip_range))
+    args.value_huber_delta = max(0.0, float(args.value_huber_delta))
+    args.obs_norm_clip = max(0.0, float(args.obs_norm_clip))
+    args.obs_norm_epsilon = max(1e-12, float(args.obs_norm_epsilon))
+    args.return_norm_clip = max(0.0, float(args.return_norm_clip))
+    args.return_norm_epsilon = max(1e-12, float(args.return_norm_epsilon))
     if args.eval_difficulty is not None:
         args.eval_difficulty = clamp(float(args.eval_difficulty), 0.0, 1.0)
+    args.transport = normalize_transport_mode(args.transport, defaults["transport"])
     args.eval_score = to_str(args.eval_score, defaults["eval_score"]).lower()
     args.sample_score = to_str(args.sample_score, defaults["sample_score"]).lower()
     return args
@@ -2233,7 +2967,7 @@ def load_best_meta(path, model_path):
         return None
 
 
-def save_best_meta(path, stats, episode, score=None, score_mode=None):
+def save_best_meta(path, stats, episode, score=None, score_mode=None, extra_fields=None):
     if not path:
         return
     directory = os.path.dirname(path)
@@ -2250,13 +2984,71 @@ def save_best_meta(path, stats, episode, score=None, score_mode=None):
         "avgDeaths": float(stats["avg_deaths"]),
         "savedAt": int(time.time()),
     }
+    if isinstance(score_mode, str):
+        payload["scoreMode"] = score_mode
+    if isinstance(extra_fields, dict):
+        for key, value in extra_fields.items():
+            if key:
+                payload[str(key)] = value
     with open(path, "w", encoding="utf-8") as handle:
         json.dump(payload, handle, indent=2)
 
 
-def save_policy(path, model, resources, feature_names, min_weight, max_weight, activation, log_std):
+# Persist optimizer/training state alongside policy checkpoints for true long-run resume continuity.
+def save_training_state(path, optimizer, episode, model_path):
+    if not path or optimizer is None:
+        return
+    directory = os.path.dirname(path)
+    if directory:
+        os.makedirs(directory, exist_ok=True)
     payload = {
-        "version": 2,
+        "optimizer": optimizer.state_dict(),
+        "episode": int(episode),
+        "modelPath": str(model_path or ""),
+        "savedAt": int(time.time()),
+    }
+    torch.save(payload, path)
+
+
+# Restore optimizer/training state; returns True when state is loaded.
+def load_training_state(path, optimizer):
+    if not path or optimizer is None or not os.path.exists(path):
+        return False
+    try:
+        payload = torch.load(path, map_location="cpu")
+    except Exception:
+        return False
+    if not isinstance(payload, dict):
+        return False
+    state = payload.get("optimizer")
+    if not state:
+        return False
+    try:
+        optimizer.load_state_dict(state)
+        return True
+    except (RuntimeError, ValueError):
+        return False
+
+
+def save_policy(
+    path,
+    model,
+    resources,
+    feature_names,
+    min_weight,
+    max_weight,
+    activation,
+    log_std,
+    obs_normalization=None,
+    return_normalization=None,
+):
+    normalization = {
+        "version": 1,
+        "observation": export_running_stats(obs_normalization),
+        "returns": export_running_stats(return_normalization),
+    }
+    payload = {
+        "version": 3,
         "type": "mlp",
         "resources": resources,
         "featureNames": feature_names,
@@ -2270,12 +3062,14 @@ def save_policy(path, model, resources, feature_names, min_weight, max_weight, a
         "logStd": log_std.detach().cpu().tolist(),
         "trainedAt": int(time.time()),
     }
+    if normalization["observation"] is not None or normalization["returns"] is not None:
+        payload["normalization"] = normalization
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as handle:
         json.dump(payload, handle, indent=2)
 
 
-def load_policy(path, model):
+def load_policy(path, model, obs_fallback=None, return_fallback=None):
     with open(path, "r", encoding="utf-8") as handle:
         payload = json.load(handle)
     layers = payload.get("layers") or []
@@ -2287,6 +3081,62 @@ def load_policy(path, model):
     log_std = payload.get("logStd")
     if isinstance(log_std, list) and len(log_std) == model.log_std.shape[0]:
         model.log_std.data.copy_(torch.tensor(log_std, dtype=torch.float32, device=model.log_std.device))
+    input_size = 0
+    policy_modules = getattr(model.policy, "model", [])
+    for module in policy_modules:
+        if isinstance(module, nn.Linear):
+            input_size = int(module.in_features)
+            break
+    obs_enabled = bool(obs_fallback.get("enabled")) if isinstance(obs_fallback, dict) else False
+    obs_clip = float(obs_fallback.get("clip", 5.0)) if isinstance(obs_fallback, dict) else 5.0
+    obs_epsilon = float(obs_fallback.get("epsilon", 1e-8)) if isinstance(obs_fallback, dict) else 1e-8
+    ret_enabled = bool(return_fallback.get("enabled")) if isinstance(return_fallback, dict) else False
+    ret_clip = float(return_fallback.get("clip", 5.0)) if isinstance(return_fallback, dict) else 5.0
+    ret_epsilon = float(return_fallback.get("epsilon", 1e-8)) if isinstance(return_fallback, dict) else 1e-8
+    normalization_payload = payload.get("normalization")
+    obs_payload = None
+    ret_payload = None
+    normalization_version = None
+    obs_mismatch = False
+    return_mismatch = False
+    if isinstance(normalization_payload, dict):
+        normalization_version = to_int(normalization_payload.get("version"), None)
+        obs_payload = normalization_payload.get("observation")
+        ret_payload = normalization_payload.get("returns")
+    if isinstance(obs_payload, dict):
+        obs_mean = obs_payload.get("mean")
+        obs_var = obs_payload.get("var")
+        if isinstance(obs_mean, list) and isinstance(obs_var, list):
+            if len(obs_mean) != input_size or len(obs_var) != input_size:
+                obs_mismatch = True
+    if isinstance(ret_payload, dict):
+        ret_mean = ret_payload.get("mean")
+        ret_var = ret_payload.get("var")
+        if isinstance(ret_mean, list) and isinstance(ret_var, list):
+            if len(ret_mean) != 1 or len(ret_var) != 1:
+                return_mismatch = True
+    obs_state = parse_running_stats(
+        obs_payload,
+        input_size,
+        enabled_fallback=obs_enabled,
+        clip_fallback=obs_clip,
+        epsilon_fallback=obs_epsilon,
+    )
+    return_state = parse_running_stats(
+        ret_payload,
+        1,
+        enabled_fallback=ret_enabled,
+        clip_fallback=ret_clip,
+        epsilon_fallback=ret_epsilon,
+    )
+    return {
+        "payload": payload,
+        "normalization_version": normalization_version,
+        "normalization_obs_mismatch": obs_mismatch,
+        "normalization_return_mismatch": return_mismatch,
+        "obs_normalization": obs_state,
+        "return_normalization": return_state,
+    }
 
 
 def load_policy_feature_names(path):
@@ -2344,7 +3194,13 @@ def main():
     scenario_rng = random.Random(args.seed) if args.seed is not None else random.Random()
 
     if args.fresh:
-        for stale_path in (args.model_path, args.best_model_path, args.best_model_meta_path):
+        for stale_path in (
+            args.model_path,
+            args.model_state_path,
+            args.best_model_path,
+            args.best_model_meta_path,
+            args.best_model_state_path,
+        ):
             if stale_path and os.path.exists(stale_path):
                 try:
                     os.remove(stale_path)
@@ -2388,6 +3244,18 @@ def main():
         args.activation,
         args.log_std_init,
     )
+    obs_normalization = create_running_stats(
+        input_size,
+        enabled=args.obs_norm,
+        clip=args.obs_norm_clip,
+        epsilon=args.obs_norm_epsilon,
+    )
+    return_normalization = create_running_stats(
+        1,
+        enabled=args.return_norm,
+        clip=args.return_norm_clip,
+        epsilon=args.return_norm_epsilon,
+    )
 
     min_weight = float(config.get("ai", {}).get("minWeight", 0.0))
     max_weight = float(config.get("ai", {}).get("maxWeight", 2.0))
@@ -2396,10 +3264,16 @@ def main():
 
     resume_path = None
     if not args.fresh:
-        if args.resume_from_best and os.path.exists(args.best_model_path):
-            resume_path = args.best_model_path
-        elif os.path.exists(args.model_path):
-            resume_path = args.model_path
+        if args.resume_from_best:
+            if os.path.exists(args.best_model_path):
+                resume_path = args.best_model_path
+            elif os.path.exists(args.model_path):
+                resume_path = args.model_path
+        else:
+            if os.path.exists(args.model_path):
+                resume_path = args.model_path
+            elif os.path.exists(args.best_model_path):
+                resume_path = args.best_model_path
 
     if resume_path:
         resume_features = load_policy_feature_names(resume_path)
@@ -2415,13 +3289,52 @@ def main():
                 "Run with --fresh."
             )
         try:
-            load_policy(resume_path, model)
+            resume_meta = load_policy(
+                resume_path,
+                model,
+                obs_fallback=obs_normalization,
+                return_fallback=return_normalization,
+            )
+            if resume_meta.get("normalization_obs_mismatch"):
+                raise SystemExit(
+                    "Observation normalization shape mismatch in resume checkpoint. "
+                    "Run with --fresh."
+                )
+            if resume_meta.get("normalization_return_mismatch"):
+                raise SystemExit(
+                    "Return normalization shape mismatch in resume checkpoint. "
+                    "Run with --fresh."
+                )
+            obs_normalization = resume_meta.get("obs_normalization") or obs_normalization
+            return_normalization = resume_meta.get("return_normalization") or return_normalization
+            norm_version = resume_meta.get("normalization_version")
+            if norm_version not in (None, 1):
+                raise SystemExit(
+                    "Unsupported normalization metadata version in resume checkpoint. "
+                    "Run with --fresh or regenerate checkpoint."
+                )
         except ValueError as exc:
             raise SystemExit(
                 "Resume checkpoint shape mismatch. Run with --fresh."
             ) from exc
+    if not args.obs_norm:
+        obs_normalization["enabled"] = False
+    if not args.return_norm:
+        return_normalization["enabled"] = False
+
+    resume_state_path = None
+    if not args.fresh:
+        if resume_path == args.best_model_path:
+            resume_state_path = args.best_model_state_path
+        elif resume_path == args.model_path:
+            resume_state_path = args.model_state_path
+    if resume_state_path and load_training_state(resume_state_path, optimizer):
+        if TRAINING_LOGS_ENABLED:
+            print(f"optimizer state resumed from {resume_state_path}")
 
     best_eval = None if args.fresh else load_best_meta(args.best_model_meta_path, args.best_model_path)
+    if TRAINING_LOGS_ENABLED and not args.save_best_during_training:
+        print("best checkpoint writes disabled in train.py; promotion is delegated to promote_best.py")
 
     reward_window = 0.0
     steps_window = 0
@@ -2474,12 +3387,16 @@ def main():
     prev_scenario_mix = None
 
     batch_obs = []
+    batch_obs_raw = []
     batch_actions = []
     batch_log_probs = []
     batch_rewards = []
     batch_values = []
+    batch_old_values = []
     batch_episode_count = 0
     policy_dirty = False
+    ppo_window = init_ppo_window()
+    file_ppo_window = init_ppo_window()
 
     worker_count = max(1, int(args.workers))
     ctx = mp.get_context("spawn")
@@ -2498,12 +3415,16 @@ def main():
         "step_ticks": args.step_ticks,
         "min_weight": min_weight,
         "max_weight": max_weight,
+        "gamma": args.gamma,
+        "gae_lambda": args.gae_lambda,
         "hidden_sizes": args.hidden_sizes,
         "feature_names": feature_names,
         "activation": args.activation,
         "log_std_init": args.log_std_init,
         "full_sim": args.full_sim,
         "debug_mode": args.debug_mode,
+        "obs_normalization": copy_running_stats(obs_normalization),
+        "transport": args.transport,
     }
 
     processes = []
@@ -2522,7 +3443,11 @@ def main():
         process.start()
         processes.append(process)
 
-    broadcast_weights(update_queues, get_model_payload(model), processes)
+    broadcast_weights(
+        update_queues,
+        get_model_payload(model, obs_normalization=obs_normalization),
+        processes,
+    )
 
     eval_proc = None
     if args.eval_every > 0:
@@ -2562,37 +3487,34 @@ def main():
 
         while completed < args.episodes:
             result = result_queue.get()
-            episode_number, transitions, reward, steps, info, bootstrap_value = result
+            episode_number, rollout, reward, steps, info = result
             in_flight -= 1
-            results_buffer[episode_number] = (transitions, reward, steps, info, bootstrap_value)
+            results_buffer[episode_number] = (rollout, reward, steps, info)
             schedule_tasks()
 
             while next_expected in results_buffer:
-                transitions, reward, steps, info, bootstrap_value = results_buffer.pop(next_expected)
+                rollout, reward, steps, info = results_buffer.pop(next_expected)
                 completed += 1
 
                 progress = min(1.0, (next_expected - 1) / max(1, args.difficulty_ramp))
                 difficulty = args.difficulty_start + (args.difficulty_end - args.difficulty_start) * progress
                 difficulty = clamp(difficulty, 0.0, 1.0)
 
-                rewards = [t["reward"] for t in transitions]
-                values = [t["value"] for t in transitions]
-                dones = [t["done"] for t in transitions]
-                advantages, returns = compute_gae(
-                    rewards,
-                    values,
-                    dones,
-                    args.gamma,
-                    args.gae_lambda,
-                    bootstrap_value,
-                )
-
-                for idx, transition in enumerate(transitions):
-                    batch_obs.append(transition["obs"])
-                    batch_actions.append(transition["actions"])
-                    batch_log_probs.append(transition["log_prob"])
-                    batch_rewards.append(returns[idx])
-                    batch_values.append(advantages[idx])
+                rollout_obs = rollout.get("obs") or []
+                rollout_obs_raw = rollout.get("obs_raw") or rollout_obs
+                rollout_actions = rollout.get("actions") or []
+                rollout_log_probs = rollout.get("log_probs") or []
+                rollout_returns = rollout.get("returns") or []
+                rollout_advantages = rollout.get("advantages") or []
+                rollout_values = rollout.get("values") or []
+                if rollout_obs:
+                    batch_obs.extend(rollout_obs)
+                    batch_obs_raw.extend(rollout_obs_raw)
+                    batch_actions.extend(rollout_actions)
+                    batch_log_probs.extend(rollout_log_probs)
+                    batch_rewards.extend(rollout_returns)
+                    batch_values.extend(rollout_advantages)
+                    batch_old_values.extend(rollout_values)
 
                 batch_episode_count += 1
 
@@ -2633,8 +3555,10 @@ def main():
                         "log_probs": batch_log_probs,
                         "returns": batch_rewards,
                         "advantages": batch_values,
+                        "values": batch_old_values,
                     }
-                    apply_ppo_update(
+                    ppo_start_time = time.perf_counter()
+                    ppo_stats = apply_ppo_update(
                         model,
                         optimizer,
                         batch,
@@ -2646,14 +3570,31 @@ def main():
                         args.epochs,
                         args.mini_batch_size,
                         args.max_grad_norm,
+                        value_clip_range=args.value_clip_range,
+                        value_huber_delta=args.value_huber_delta,
+                        target_kl=args.target_kl,
+                        return_normalization=return_normalization,
                     )
+                    ppo_elapsed = time.perf_counter() - ppo_start_time
+                    if obs_normalization.get("enabled"):
+                        update_running_stats(obs_normalization, batch_obs_raw)
+                    if return_normalization.get("enabled"):
+                        update_running_stats(return_normalization, [[value] for value in batch_rewards])
+                    update_ppo_window(ppo_window, ppo_stats, ppo_elapsed)
+                    update_ppo_window(file_ppo_window, ppo_stats, ppo_elapsed)
                     batch_obs.clear()
+                    batch_obs_raw.clear()
                     batch_actions.clear()
                     batch_log_probs.clear()
                     batch_rewards.clear()
                     batch_values.clear()
+                    batch_old_values.clear()
                     batch_episode_count = 0
-                    broadcast_weights(update_queues, get_model_payload(model), processes)
+                    broadcast_weights(
+                        update_queues,
+                        get_model_payload(model, obs_normalization=obs_normalization),
+                        processes,
+                    )
                     policy_dirty = True
 
                 if args.lr_final is not None:
@@ -2669,26 +3610,34 @@ def main():
                 ):
                     if TRAINING_LOGS_ENABLED:
                         window_count = next_expected - window_start + 1
-                        eps_per_min = None
-                        if LOG_RATE:
-                            elapsed = time.perf_counter() - window_start_time
-                            eps_per_min = window_count / elapsed * 60.0 if elapsed > 0 else 0.0
+                        elapsed = time.perf_counter() - window_start_time
+                        eps_per_min = window_count / elapsed * 60.0 if elapsed > 0 else 0.0
                         avg_reward = reward_window / window_count
                         avg_steps = steps_window / window_count
                         avg_births = births_window / window_count
                         avg_deaths = deaths_window / window_count
-                        rate_label = f" eps_pm={eps_per_min:.1f} " if eps_per_min is not None else ""
+                        debug_avg = average_debug(debug_window) or {}
+                        throughput = debug_avg.get("throughput") or {}
+                        throughput_label = (
+                            " "
+                            f"thr[env={float(throughput.get('envStepMsAvg', 0.0) or 0.0):.2f} "
+                            f"ipc_w={float(throughput.get('ipcWriteMsAvg', 0.0) or 0.0):.2f} "
+                            f"ipc_r={float(throughput.get('ipcReadMsAvg', 0.0) or 0.0):.2f} "
+                            f"ipc_p={float(throughput.get('ipcParseMsAvg', 0.0) or 0.0):.2f}]"
+                        )
+                        ppo_label = format_ppo_label(ppo_window)
                         print(
                             f"\nepisode={next_expected} avg_reward={avg_reward:.2f} avg_steps={avg_steps:.1f} "
                             f"avg_births={avg_births:.2f} avg_deaths={avg_deaths:.2f} "
-                            f"{rate_label}lr={optimizer.param_groups[0]['lr']:.6f} diff={difficulty:.2f} "
-                            f"tick={info.get('tick')} pop={info.get('population')}"
+                            f"eps_pm={eps_per_min:.1f} lr={optimizer.param_groups[0]['lr']:.6f} diff={difficulty:.2f} "
+                            f"tick={info.get('tick')} pop={info.get('population')}{throughput_label}{ppo_label}"
                         )
                     reward_window = 0.0
                     steps_window = 0
                     births_window = 0
                     deaths_window = 0
                     debug_window = init_debug_accumulator()
+                    ppo_window = init_ppo_window()
                     window_start = next_expected + 1
                     window_start_time = time.perf_counter()
 
@@ -2706,6 +3655,14 @@ def main():
                         max_weight,
                         args.activation,
                         model.log_std,
+                        obs_normalization=obs_normalization,
+                        return_normalization=return_normalization,
+                    )
+                    save_training_state(
+                        args.model_state_path,
+                        optimizer,
+                        next_expected,
+                        args.model_path,
                     )
                     policy_dirty = False
 
@@ -2715,10 +3672,8 @@ def main():
                     and (next_expected % SUMMARY_LOG_EVERY == 0 or next_expected == args.episodes)
                 ):
                     file_window_count = next_expected - file_window_start + 1
-                    eps_per_min = None
-                    if LOG_RATE:
-                        elapsed = time.perf_counter() - file_window_start_time
-                        eps_per_min = file_window_count / elapsed * 60.0 if elapsed > 0 else 0.0
+                    elapsed = time.perf_counter() - file_window_start_time
+                    eps_per_min = file_window_count / elapsed * 60.0 if elapsed > 0 else 0.0
                     file_avg_reward = file_reward_window / file_window_count
                     file_avg_steps = file_steps_window / file_window_count
                     file_avg_births = file_births_window / file_window_count
@@ -2754,6 +3709,7 @@ def main():
                         events,
                         get_scenario_target_mix(scenario_defs),
                         eps_per_min,
+                        ppo_update_ms_value=ppo_update_ms(file_ppo_window),
                     )
                     summary_log_handle.write(summary_line + "\n")
                     summary_log_handle.flush()
@@ -2801,6 +3757,7 @@ def main():
                     file_births_window = 0
                     file_deaths_window = 0
                     file_debug_window = init_debug_accumulator()
+                    file_ppo_window = init_ppo_window()
                     file_window_start = next_expected + 1
                     file_window_start_time = time.perf_counter()
 
@@ -2828,6 +3785,8 @@ def main():
                         min_weight,
                         max_weight,
                         eval_scenarios,
+                        obs_normalization=obs_normalization,
+                        transport=args.transport,
                     )
                     eval_score = compute_score(
                         stats["avg_reward"],
@@ -2851,7 +3810,7 @@ def main():
                             if TRAINING_LOGS_ENABLED:
                                 pending_detail_events.append(f"eval_regression={drop:.2f}")
                     last_eval_score = eval_score
-                    if args.best_model_path:
+                    if args.save_best_during_training and args.best_model_path:
                         if best_eval is None or eval_score > best_eval:
                             best_eval = eval_score
                             save_policy(
@@ -2863,6 +3822,14 @@ def main():
                                 max_weight,
                                 args.activation,
                                 model.log_std,
+                                obs_normalization=obs_normalization,
+                                return_normalization=return_normalization,
+                            )
+                            save_training_state(
+                                args.best_model_state_path,
+                                optimizer,
+                                next_expected,
+                                args.best_model_path,
                             )
                             save_best_meta(
                                 args.best_model_meta_path,

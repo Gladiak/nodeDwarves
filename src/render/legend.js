@@ -155,6 +155,51 @@ function buildLegendSections(config, options = {}) {
     );
   }
 
+  const externalCampsConfig = config.externalCamps || {};
+  if (externalCampsConfig.enabled === true) {
+    legendParts.push(
+      formatEntry(
+        symbols.external_camp_trade || "T",
+        "trade camp",
+        "external_camp_trade",
+      ),
+    );
+    legendParts.push(
+      formatEntry(
+        symbols.external_camp_militia || "M",
+        "militia camp",
+        "external_camp_militia",
+      ),
+    );
+    legendParts.push(
+      formatEntry(
+        symbols.external_camp_raider || "R",
+        "raider camp",
+        "external_camp_raider",
+      ),
+    );
+    const caravansConfig = externalCampsConfig.caravans || {};
+    if (caravansConfig.enabled !== false) {
+      legendParts.push(
+        formatEntry(
+          symbols.external_camp_caravan || "*",
+          "trade caravan",
+          "external_camp_caravan",
+        ),
+      );
+    }
+    const influenceConfig = externalCampsConfig.influence || {};
+    if (influenceConfig.enabled !== false && influenceConfig.renderEnabled !== false) {
+      legendParts.push(
+        formatEntry(
+          symbols.external_camp_influence || ".",
+          "camp influence",
+          "external_camp_influence_trade",
+        ),
+      );
+    }
+  }
+
   const raidConfig = config.raids || {};
   const beastSymbol = getBeastSymbol(config);
   if (raidConfig.enabled === true && beastSymbol) {

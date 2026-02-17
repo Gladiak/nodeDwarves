@@ -33,13 +33,32 @@ unlocked layers with structures/roads.
 ### Run training 🏋️
 
 ```bash
+npm run ai:train:quality
+```
+
+Fastest loop (same as `fast` profile):
+
+```bash
 npm run ai:train
+```
+
+Recommended two-scenario shortcuts:
+
+```bash
+npm run ai:train:quality:daily
+npm run ai:train:quality:acceptance
 ```
 
 Pass extra trainer flags safely through any profile command (for example):
 
 ```bash
-npm run ai:train:fast -- --fresh
+npm run ai:train:fast:fresh
+```
+
+Force legacy transport fallback for troubleshooting/comparison:
+
+```bash
+npm run ai:train:quality -- --transport legacy
 ```
 
 Force a manual worker count for all phases:
@@ -52,6 +71,21 @@ Disable profile-aware worker scaling (keep one flat worker count in all phases):
 
 ```bash
 npm run ai:train:full -- --workers-flat
+```
+
+### Run post-training validation gate ✅
+
+```bash
+npm run ai:validate:gate
+```
+
+Run benchmark/regression independently when needed:
+
+```bash
+npm run ai:validate:benchmark
+npm run ai:validate:regression
+npm run ai:validate:regression:standard
+npm run ai:validate:regression:underrealm
 ```
 
 ### Run trained policy 🧠
@@ -259,7 +293,7 @@ Key concepts:
 - **Config-first**: tunables live in `config.json` (training overrides act as a controlled overlay).
 - **Shortage-driven economy**: stockpile ratios behave like a feedback controller for priorities and builds.
 - **Soft modifiers**: seasons, weather, clans, ruins, myths, and schism stack as multiplicative layers.
-- **Deterministic core**: randomness is localized (weather, raids, ruins) to keep runs comparable for training.
+- **Deterministic core**: randomness is localized (weather, raids, ruins, external camps) to keep runs comparable for training.
 
 ## 3) Tick flow (diagram + order) ⏱️
 
@@ -271,28 +305,29 @@ The tick order in code lives in `src/simulation/index.js` and is the execution c
 2. Update **weather** (`weather.js`).
 3. Check raid start conditions (`raids.js`).
 4. Update world events (`world_events.js`).
-5. Update schism arc (`schism.js`).
-6. Update festivals (`festivals.js`).
-7. Update contracts (`contracts.js`).
-8. Update alchemy rites and backlash (`alchemy.js`).
-9. Update temple site/effects/prestige tick (`temple.js`).
-10. Update wildlife season spawns (`wildlife.js`).
-11. For each dwarf:
+5. Update external camps (`external_camps.js`).
+6. Update schism arc (`schism.js`).
+7. Update festivals (`festivals.js`).
+8. Update contracts (`contracts.js`).
+9. Update alchemy rites and backlash (`alchemy.js`).
+10. Update temple site/effects/prestige tick (`temple.js`).
+11. Update wildlife season spawns (`wildlife.js`).
+12. For each dwarf:
 
 - Age + life stage updates (`population.js`).
 - Needs decay (season/weather/myth/alchemy/world-event/festival/schism/temple modifiers).
 - Consume resources from stockpile when thresholds hit.
 
-12. Handle deaths, roles, ruins, housing, relationships, reproduction (`population.js`, `roles.js`, `ruins.js`).
-13. Village and road updates (`villages.js`, `roads.js`).
-14. Assign jobs (`jobs.js`).
-15. Move and perform actions (`dwarf_actions.js`).
-16. Merchant update (`merchant.js`).
-17. Stockpile decay + terrain cooldown tick (`resources.js`, `terrain.js`).
-18. House storage + node regen (`resources.js`).
-19. Raid tick + wildlife tick + pasture births (`raids.js`, `wildlife.js`).
-20. Myth update (`myths.js`).
-21. Endgame cycle check (`endgame.js`).
+13. Handle deaths, roles, ruins, housing, relationships, reproduction (`population.js`, `roles.js`, `ruins.js`).
+14. Village and road updates (`villages.js`, `roads.js`).
+15. Assign jobs (`jobs.js`).
+16. Move and perform actions (`dwarf_actions.js`).
+17. Merchant update (`merchant.js`).
+18. Stockpile decay + terrain cooldown tick (`resources.js`, `terrain.js`).
+19. House storage + node regen (`resources.js`).
+20. Raid tick + wildlife tick + pasture births (`raids.js`, `wildlife.js`).
+21. Myth update (`myths.js`).
+22. Endgame cycle check (`endgame.js`).
 
 **Tick flow diagram**
 
@@ -302,25 +337,26 @@ flowchart TD
   B --> C[Weather update]
   C --> D[Raid start check]
   D --> E[World events update]
-  E --> F[Schism update]
-  F --> G[Festival update]
-  G --> H[Contracts update]
-  H --> I[Alchemy update]
-  I --> J[Temple update + passive prestige]
-  J --> K[Wildlife season start]
-  K --> L[Per-dwarf: age + needs + consume]
-  L --> M[Population + ruins + relationships]
-  M --> N[Village and road updates]
-  N --> O[Assign jobs]
-  O --> P[Process dwarf actions]
-  P --> Q[Merchant update]
-  Q --> R[Stockpile decay + terrain cooldown]
-  R --> S[House storage + node regen]
-  S --> T[Raid tick + wildlife tick + pasture births]
-  T --> U[Myth update]
-  U --> V[Endgame cycle check]
-  V --> W[Render frame]
-  W --> X[Wait tickMs, next tick]
+  E --> F[External camps update]
+  F --> G[Schism update]
+  G --> H[Festival update]
+  H --> I[Contracts update]
+  I --> J[Alchemy update]
+  J --> K[Temple update + passive prestige]
+  K --> L[Wildlife season start]
+  L --> M[Per-dwarf: age + needs + consume]
+  M --> N[Population + ruins + relationships]
+  N --> O[Village and road updates]
+  O --> P[Assign jobs]
+  P --> Q[Process dwarf actions]
+  Q --> R[Merchant update]
+  R --> S[Stockpile decay + terrain cooldown]
+  S --> T[House storage + node regen]
+  T --> U[Raid tick + wildlife tick + pasture births]
+  U --> V[Myth update]
+  V --> W[Endgame cycle check]
+  W --> X[Render frame]
+  X --> Y[Wait tickMs, next tick]
 ```
 
 Notes:
@@ -361,9 +397,9 @@ Notes:
 
 ### Core state builder 🧱
 
-- `src/state/index.js`
+  - `src/state/index.js`
   - `createInitialState(config, runtime)` builds the authoritative world state:
-    - `dwarves`, `nodes`, `structures`, `merchant`, `worldEvents`, `weather`, `raid`, `tools`, etc.
+    - `dwarves`, `nodes`, `structures`, `merchant`, `worldEvents`, `externalCamps`, `weather`, `raid`, `tools`, etc.
     - `temple` and `prestige` meta-state for Temple of Ancestors progression.
     - `underrealm` depth metadata (active depth, unlocked depths, full-size layer terrains), plus deep economy/faction runtime.
     - `stockpile` initialized from `config.resources.stockpile`.
@@ -726,7 +762,7 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
 - Integration points:
   - need decay pipeline consumes `world_events` multipliers in `simulation/index.js`.
   - gather ticks/yield and stockpile target steering consume `world_events` multipliers/boosts in `resources.js`.
-  - merchant trade sizing consumes `merchantTradeRate`; contract rewards consume `contractReward`.
+  - merchant trade sizing consumes `merchantTradeRate`; contract rewards consume `contractReward` (both stack multiplicatively with external-camp economy modifiers when camps are active).
   - Telemetry shows active world event status (label, timer, and offer summary when relevant).
 - Observability:
   - event stream logs start/end and opportunity completion/expiry outcomes.
@@ -1285,6 +1321,43 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - completion/failure events include faction label.
   - boon event prints compact effect summary with remaining ticks.
 
+### External camps ⛺
+
+- `external_camps.js` adds persistent surface-map faction encampments with long lifetimes and role-specific behavior.
+- Lifecycle:
+  - `setting_up -> active -> withdrawing -> despawn`.
+  - Durations are sampled from `externalCamps.durationTicks.*` (setup/active/withdraw ranges).
+  - Spawn cadence uses `externalCamps.spawnRangeTicks`, `minTick`, `maxActive`, global cooldown, and per-faction cooldown.
+  - Current default tuning targets higher map presence with stability guardrails: faster spawn cadence, up to 3 active camps, faster militia support checks, lighter militia beer upkeep, and reduced raider hostility gain on tribute rejection.
+- Placement model:
+  - camps are spawned near map edges and moved inward by a fixed offset.
+  - footprint size is controlled by `externalCamps.footprintRadius` (rendered as a square).
+  - guardrails enforce minimum spacing from village center and from other active camps.
+  - spawn cells must be spawnable/buildable, so camps avoid structures/nodes/temple footprint tiles.
+- Role behavior:
+  - `trade`: periodic barter cycles that sell surplus resources and buy shortage resources using stockpile target ratios.
+    - safety floors use `externalCamps.trade.reserveRatioFloor` and protected-resource exclusions (`protectedGiveResources`).
+    - deal pricing uses scarcity/surplus/reputation terms and is clamped for stability.
+    - trade camps can dispatch physical caravans toward the village; dispatch spends trade-give resources up front and payload is delivered on arrival.
+    - caravans can be intercepted while crossing active raider influence zones.
+  - `militia`: periodic support contracts consume configured supplies and maintain additive raid-defense bonus.
+    - bonus scales with positive faction reputation (`contracts.reputations`) and decays when support is skipped.
+  - `raider`: periodic tribute demands; refusal raises hostility and can trigger skirmish stockpile losses.
+    - hostility drives ongoing raid pressure multipliers and decays slowly over time.
+- Influence zones:
+  - each role projects a Manhattan-radius zone (`externalCamps.influence.*Radius`).
+  - influence can scale village-facing external-camp modifiers (`useForModifiers`), so map position matters in addition to role mix.
+  - optional role-colored influence rings are rendered on the surface map.
+- Runtime modifiers exposed to other systems:
+  - `merchantTradeRate` and `contractReward` (economic multipliers).
+  - `raidDefenseBonus`, `raidDeathRate`, `raidResourceLoss`, `raiderPressure` (combat pressure).
+  - influence telemetry also exposes `tradeInfluence`, `militiaInfluence`, `raiderInfluence`, and caravan interception risk.
+  - merchant/contract systems consume economy multipliers; surface raids consume defense/death/loss multipliers.
+- Observability:
+  - `state.externalCamps.stats` tracks spawned/departed counts, role actions, skirmish losses, and caravan dispatch/arrival/interception counters.
+  - `state.externalCamps.history` stores compact per-camp run records.
+  - telemetry `Diplomacy` and dashboard `Event Timeline` expose active camp mix, convoy activity, next spawn ETA, and live modifier summary.
+
 ### Terrain helpers 🧰
 
 - `terrain.js`
@@ -1312,7 +1385,7 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
   - With `display.autoSize=true`, the map follows terminal size; `display.maxWidth` / `display.maxHeight`
     are optional caps, and values `<= 0` mean uncapped.
   - `display.width` / `display.height` stay as fallback dimensions (and as fixed dimensions when `autoSize=false`).
-  - Places nodes, structures, temple footprint overlay, dwarves, merchant, and raid beasts on the grid.
+  - Places nodes, structures, temple footprint overlay, external camp footprints + influence rings + caravans, dwarves, merchant, and raid beasts on the grid.
   - When underrealm depth view is active, it renders the selected depth terrain layer and hides surface entities.
   - Selects a stable subset of dwarves to keep the map readable (`display.dwarves.maxVisible`; set `< 0` to skip dwarf rendering).
   - Applies the dwarf inspect overlay when `display.inspect_panel.enabled` is true.
@@ -1385,7 +1458,7 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
   - `World` keeps contract/alchemy windows and one `World log` line for the latest event signal.
     - Long `World log` entries wrap up to 3 telemetry rows (instead of hard truncation) for readability.
   - `Pressure` reports shortage priorities (`state.lastPriorities`), key stockpile target ratios, raid pressure, and compact jobs-governor priorities.
-  - `Diplomacy` is the single merchant-focused block (status, trade totals, top give/recv flows, contracts, world-event cadence/counters, plus trade-governor intents).
+  - `Diplomacy` is the trade/diplomacy block (merchant status/flows, external camp mix/effects, convoy activity/interception risk, contracts, world-event cadence/counters, plus trade-governor intents).
   - `Deep Signals` consolidates world-event cadence/totals plus contract reliability for late-game monitoring.
     - Its `World log` mirror also wraps to multiple rows (up to 3).
   - `Operations` reports adult workforce split, job mix, build pipeline, 200-tick stockpile deltas, building-governor ranking/bias signals, and production-vs-infrastructure load split.
@@ -1424,6 +1497,8 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
 - `src/ai/policy.js`
   - Loads JSON policies (linear or MLP) and maps outputs to the governor action envelope.
   - Feature order is defined by `featureNames`; defaults live in the file.
+  - Applies policy-side observation normalization when `normalization.observation` metadata is present in the checkpoint.
+  - Emits fail-fast warnings if normalization metadata version/shape is incompatible with runtime feature shape.
   - Normalizes actions to a governor-ready envelope (`jobs.weights`, `festivalIntent`, optional `trade`/`building`) and mirrors legacy `weights` for compatibility.
   - Supports explicit governor pseudo action-ids in policy `resources`:
     - trade: `gov_trade_reserve_ratio_bias`, `gov_trade_contest_intent`, `gov_trade_opportunity_intent`
@@ -1465,6 +1540,7 @@ Clan dynamics add heterogeneity and longer-horizon trade-offs. To keep PPO stabl
 - Use slightly higher entropy early to explore clan/role/job combinations.
 - Observations include clan shares and ruins status (active, cooldown, progress, artifacts); retrain with `--fresh` if you change them.
 - Reward shaping can emphasize ruins outcomes via `ai.reward.ruinsSuccess`, `ai.reward.ruinsArtifact`, `ai.reward.ruinsFailure`, and `ai.reward.ruinsRoomClear`, plus festivals via `ai.reward.festival_active`, `ai.reward.festival_start`, and `ai.reward.festival_intent`.
+- Reward stack now supports bounded delta channels (`ai.reward.*Delta`) and deep progression signals (Underrealm/Myths) with optional clipping guardrails (`deltaClip`, `eventClip`, `totalClip`) to reduce reward spikes.
 
 ## 9) Configuration (single source of truth) ⚙️
 
@@ -1481,6 +1557,7 @@ Clan dynamics add heterogeneity and longer-horizon trade-offs. To keep PPO stabl
 - `seasons` + `weather`: cycle durations and modifiers.
 - `raids`: wildlife raid settings.
 - `merchant`: spawn cadence and trade behavior (including `neverGive` exclusions).
+- `externalCamps`: long-lived external faction camps (trade/militia/raider), spawn cadence, and pressure/economy knobs.
 - `worldEvents`: global short-arc events (bards, rival caravans, and limited opportunities).
 - `schism`: run-scale social pressure/legitimacy arc, doctrine shifts, ritual windows, and climax tuning.
 - `ai`: runtime policy + training defaults.
@@ -1523,24 +1600,79 @@ Important rule: if you change **resource/action lists** or **observation feature
 Training presets:
 
 - `ai:train` (alias of `ai:train:fast`) runs a fast baseline loop tuned for sub-5-minute runs (auto-tuned workers by CPU, 200 episodes, max_steps=1600, step_ticks=2). The difficulty ramp reaches 1.0 by episode 120 and eval runs every 20 episodes at difficulty 1.0, followed by a post-run promotion check comparing the latest policy to the best snapshot.
-- `ai:train:fresh` runs the same fast preset but clears existing policy and best-eval snapshots first.
-- `ai:train:fast:quality` runs the fast phase plus a short full-sim finetune at max difficulty (40 episodes, max_steps=1800). Eval cadence is 20 episodes in the fast phase and 10 episodes in finetune, with the promotion check after each phase.
+- `ai:train:fast:fresh` (or `ai:train -- --fresh`) runs the same fast preset but clears existing policy and best-eval snapshots first.
+- `ai:train:quality` runs the fast phase plus a short full-sim finetune at max difficulty (40 episodes, max_steps=1800). Eval cadence is 20 episodes in the fast phase and 10 episodes in finetune, with phase promote checks now using `10` (foundation) and `12` (finetune) eval episodes for better promotion stability.
+- `ai:train:quality:mixed` runs a mixed curriculum profile with ~`76/24` episode split between a lighter foundation phase (`160` episodes, non-full-sim) and a full-sim finetune phase (`50` episodes, max difficulty); phase promote checks use `10` (foundation) and `12` (finetune) eval episodes.
+- `ai:train:quality:lite` runs the quality profile with a low-load wrapper preset (worker cap, lighter canonical benchmark defaults, canonical check at run end, and partial promote progress logs) for laptops/interactive sessions.
+- `ai:train:quality:daily` runs the recommended daily loop shortcut: quality profile with final-only canonical promote and lighter canonical eval (`8x1600`), disables paired-LCB on both canonical and non-canonical phase promotes, and enables promote progress every episode for easier diagnosis.
+- `ai:train:quality:acceptance` runs the strict acceptance shortcut: quality profile with final-only canonical promote (default strict canonical settings), then full benchmark+regression gate via `ai:validate:gate`.
 - `ai:train:full` runs the quality-first full curriculum in four phases: foundation (280 episodes), full-sim finetune (90), endgame specialization (24), and final consolidation (40). It is optimized for model quality over runtime and keeps promote checks after every phase.
-- `ai:train:full:fresh` runs the same full curriculum but starts from a clean checkpoint set (`--fresh` is applied to phase 1 only, then resume-from-best continues through later phases).
+- `ai:train:full:fresh` runs the same full curriculum but starts from a clean checkpoint set (`--fresh` is applied to phase 1 only, then latest-resume carries forward across later phases).
 - `ai:train:endgame` runs an endgame-enabled long-horizon pass (8 episodes, max_steps=10000, step_ticks=2, target horizon 20k ticks per episode) with eval every 4 episodes. It is tuned to specialize on late-game pressure while keeping the profile compact.
 - `ai:promote:best` runs just the promotion check manually.
-- Presets generate a run-specific config in `debug/run_<timestamp>/`, set `ai.training.*Overrides.ai.maxTicks` to cover the phase horizon (`max_steps * step_ticks`, with extra headroom where needed), and reuse that same config for `promote_best`.
-- All presets save the best model to `models/policy_best.json` (with meta in `models/policy_best.meta.json`) and resume from it unless `--fresh` is used.
-- Best-checkpoint writes are explicit in logs: `train.py` prints a colored `[BEST SAVED]` line on eval improvement, and `promote_best.py` prints the same marker when latest is promoted.
+- Presets generate run-specific configs in `debug/run_<timestamp>/`: per-phase training configs plus a dedicated canonical promotion config (`config_canonical_promote.json`) driven by `ai.training.promotion.canonical`.
+- All presets save the best model to `models/policy_best.json` (with meta in `models/policy_best.meta.json`); resume source depends on profile policy and CLI override (`--resume-from-best` / `--resume-from-latest`).
+- Trainer CLI resume source can be forced per run: `--resume-from-best` or `--resume-from-latest` (the latter is useful to keep incremental momentum when best-gate promotion is temporarily blocked).
+- Wrapper resume policy now favors cumulative learning on multi-phase profiles: `ai:train:fast` stays anchored to best-resume, while `ai:train:quality` and `ai:train:full` use latest-resume for every phase so non-promoted progress can still carry forward within and across runs.
+- Trainer resume continuity now includes optimizer state snapshots: latest (`modelStatePath`) and best (`bestModelStatePath`) are saved/restored alongside policy weights to avoid restart-from-scratch optimizer behavior across runs.
+- Promotion continuity now mirrors optimizer state too: when `promote_best.py` promotes `policy.json` to `policy_best.json`, it also copies `modelStatePath` to `bestModelStatePath` when available.
+- Wrapper enforces promote-only best updates (`--no-save-best-during-training`), so `train.py` keeps eval diagnostics while `promote_best.py` remains the single checkpoint promotion gate.
+- `ai.training.trainer.saveBestDuringTraining` still exists for manual `python/train.py` workflows, but wrapper presets keep it off at runtime for metric consistency.
+- Best-checkpoint writes are explicit in logs: `promote_best.py` prints a colored `[BEST SAVED]` line when latest is promoted on the canonical benchmark.
+- `models/policy_best.meta.json` now stores promotion context (config path, eval episodes/steps, seed base, min improve, and optional paired-LCB stats) so score provenance is auditable.
+- Wrapper promotion reporting is automatic per phase:
+  - `report_promote_<phase>.json` and `report_promote_<phase>.md` inside the run directory.
+  - run aggregate outputs: `report_training_promotion_summary.json` and `report_training_promotion_summary.md`.
+- Report metrics:
+  - `latest_score`: canonical score for `models/policy.json`.
+  - `best_score_before`: canonical score for `models/policy_best.json` before the check.
+  - `best_score_after`: canonical best score after the decision.
+  - `delta_score`: `latest_score - best_score_before`.
+  - `paired.lower_bound`: one-sided lower confidence bound over paired episode deltas (`latest_i - best_i`).
+  - `promoted`: whether latest replaced best on this check.
 - `promote_best.py` uses the same action-head contract as training (`resources` + optional `festival` + enabled governor pseudo action-ids), so multi-phase governor profiles do not fail on false resource-shape mismatches.
 - Wrapper phase progress is explicit in console logs (`== Phase x/n: <name> ==`) so long curriculum runs are easier to monitor.
 - Wrapper logs now use colorized status tags (`PROFILE`, `PHASE`, `TRAIN`, `PROMOTE`, `DONE`) in TTY terminals for clearer long-run progress tracking.
 - Checkpoint cadence is decoupled: `--log-every` controls summary windows, while `--save-every` controls how often `modelPath` is written; final episode save is always enforced.
-- Promote robustness guardrail: wrapper presets pass phase-specific `--min-improve` and increase `--eval-episodes` in later phases (especially endgame/consolidation) to avoid promoting checkpoints on pure eval noise.
-- Endgame promote strictness: `ai:train:endgame` uses `--min-improve 0.000`, so any measured improvement over current best promotes the latest checkpoint.
+- Promote robustness guardrail: wrapper can run `promote_best.py` with one canonical benchmark (same eval episodes/steps/score/difficulty/seed), and promotion can require a positive paired lower-confidence bound (`requirePositiveLcb` + `lcbZ`) in addition to `minImprove`.
+- When paired-LCB is active, `promote_best.py` now prints per-episode paired score deltas (`latest`, `best`, `delta`) so retain/promote outcomes are easier to interpret.
+- Canonical mode defaults to per-phase checks, but wrapper CLI can switch to final-only (`--canonical-final-only`) or disable canonical checks for the run (`--no-canonical-promote`).
+- Canonical promotion knobs are config-driven under `ai.training.promotion.canonical` and are used both by wrapper phase promotion and standalone `ai:promote:best` defaults.
+- Wrapper canonical knobs can be overridden per run without editing `config.json` (`--canonical-eval-episodes`, `--canonical-eval-max-steps`, `--canonical-no-positive-lcb`), and promote progress logs can be forced with `--promote-eval-progress`.
+- Wrapper can override paired-LCB behavior for non-canonical phase promotes too (`--phase-promote-no-positive-lcb` / `--phase-promote-require-positive-lcb`) without changing canonical settings.
+- Wrapper seed policy for long-horizon learning: per-phase training seeds rotate automatically every wrapper run (while promote/regression eval seeds remain deterministic for fair comparison); use `--train-seed-fixed` to disable rotation.
 - Runtime config wiring: Python trainer/promotion/regression rollouts now launch `ai_server.js` with the same `--config` path used by the wrapper phase, so run-specific training overrides are applied consistently by the JS simulator.
+- Wrapper can inject a training-only smart early-termination profile from `ai.training.terminationProfile` into generated run configs, while eval overrides keep termination disabled to avoid canonical benchmark bias.
+- PPO stability stack (Phase 2): trainer now supports observation/return running normalization, value clipping + optional Huber value loss, and target-KL early stop; rollout/eval/runtime inference share the same observation normalization metadata from checkpoint payloads.
+- Throughput stack (Phase 3): trainer summary/console now includes compact latency diagnostics:
+  - `eps_pm`: episodes per minute per log window.
+  - `thr[...]`: env step and IPC latency (`env`, `ipc_w`, `ipc_r`, `ipc_p`, milliseconds).
+  - PPO window includes `upd_ms` (mean PPO update latency per batch).
+  - Console line legend (example: `episode=... avg_reward=... eps_pm=... lr=... diff=... tick=... pop=... thr[...]`):
+    - `episode`: current episode index when the window is logged.
+    - `avg_reward` / `avg_steps` / `avg_births` / `avg_deaths`: episode means over the current log window.
+    - `eps_pm`: throughput in episodes/minute for the current log window.
+    - `lr`: optimizer learning rate at log time.
+    - `diff`: curriculum difficulty factor (`0..1`) used for the current rollout.
+    - `tick` / `pop`: latest tick and population from the last environment response in the window.
+    - `thr[env=... ipc_w=... ipc_r=... ipc_p=...]` (all milliseconds, averaged over steps):
+      - `env`: total step round-trip time (`write + read + parse`).
+      - `ipc_w`: Python -> `ai_server.js` write+flush time.
+      - `ipc_r`: wait/read time for the JS response (usually includes most simulation time).
+      - `ipc_p`: JSON parse time for the received response.
+    - Practical read: training is faster when `eps_pm` rises and `thr[env]` drops; if `ipc_r` dominates, the bottleneck is mostly JS simulation/response time.
+- Throughput increment C7 adds low-risk hot-path optimizations without changing policy/simulation semantics:
+  - `ai_server.js` now precompiles compact action slots + feature specs per reset and avoids duplicate observation materialization in compact mode.
+  - `python/train.py` uses compact fast paths for `obsVector` and `actionValues`, reducing per-step conversion overhead in train/eval/promote loops.
+  - Gate closure evidence is archived in `debug/gateC7_throughput_compare_1771360179.md` and `debug/gateC7_validation_1771360179.md`.
+- Trainer/eval/regression transport mode is now explicit (`ai.training.trainer.transport` or CLI `--transport`):
+  - default: `compact` (recommended).
+  - `legacy`: full JSON observation/action envelopes (backward-compatible).
+  - `compact`: flattened `obsVector` + fixed-order `actionValues`, with `ai_server.js` still accepting legacy payloads for compatibility.
+- Rollout payload between workers and learner is now packed (`dict` of arrays) and GAE is computed in workers, reducing Python object churn while preserving deterministic seed behavior.
 - Worker allocation guardrail: wrapper auto-tunes `--workers` from CPU parallelism (`auto-min`/`auto-max` bounds plus reserved cores), and a manual `--workers <n>` override always takes precedence.
 - Profile-aware worker policy: in auto mode the wrapper scales workers by phase category (`foundation` > `finetune` > `consolidation` > `endgame`) and also caps by PPO batch window (`batchEpisodes * 2`) to limit over-queued rollouts; use `--workers-flat` to disable this behavior.
+- `promote_best.py` partial eval logs are now controllable with `--eval-progress` / `--no-eval-progress` and cadence `--eval-progress-every <N>`; in `--eval-only` mode, progress logs default to enabled.
 - Regression deterministic pass is eval-only: `scripts/regression.js` calls `python/promote_best.py --eval-only` for policy quality checks instead of running a quasi-train loop.
 - Regression temp artifacts are isolated per seed via `mkdtemp` workspaces (config + transient policy files), removing static `/tmp` filename collisions and cross-run side effects.
 - Regression randomized pass is rollout-only: `scripts/regression.js` calls `python/regression_rollout.py`, avoiding PPO optimizer/update overhead and checkpoint side effects.
@@ -1551,6 +1683,10 @@ Training presets:
 - Regression now writes `.txt`, `.json`, and `.md` reports for each run (defaults next to the txt report; override with `--report-json` / `--report-md`).
 - Randomized regression summary parsing also captures `under_*` metrics from trainer `under=` diagnostics when present.
 - Headless benchmark summaries/comparisons now include Underrealm KPIs (`underDepth`, `underChamp`, `underFail`, `underBlocked`, `underContested`, `underReady`) for seed-by-seed balancing review.
+- Validation npm commands are rationalized for post-training gates:
+  - `ai:validate:benchmark` runs the 8k/4-seed deterministic benchmark snapshot.
+  - `ai:validate:regression` runs all stored regression profiles (`--all`).
+  - `ai:validate:gate` runs benchmark then regression sequentially (`&&`) and fails fast on the first non-zero exit.
 
 ### Rendering 🖼️
 
@@ -1674,6 +1810,7 @@ Quick checklist:
     - `simulation/alchemy.js` → alchemy rite lifecycle and modifiers
     - `simulation/contracts.js` → contract offers, reputations, and boons
     - `simulation/world_events.js` → global event lifecycle and temporary world modifiers
+    - `simulation/external_camps.js` → long-lived external faction camps and map-level diplomacy pressure
     - `simulation/schism.js` → run-scale social schism arc, doctrine shifts, ritual windows, and climax events
     - `simulation/roads.js` → road planning/build queue/pathing
     - `simulation/underrealm.js` → crew assignment, deep economy/exploration, and hostile deep raids
@@ -1697,5 +1834,5 @@ Quick checklist:
 - `python/promote_best.py` → post-train promotion check (latest vs best)
 - `python/regression_rollout.py` → randomized regression rollouts without PPO updates/checkpoint writes
 - `python/bootstrap.py` / `python/agent.py` → venv bootstrap + sample agent
-- `docs/PARAMETERS.md` / `docs/TRAINING_OVERRIDES.md` / `docs/TELEMETRY.md` → config reference, training overrides, and telemetry operator manual
+- `docs/PARAMETERS.md` / `docs/TRAINING_OVERRIDES.md` / `docs/TRAINING_OPTIMIZATION_WORKBOOK.md` / `docs/TELEMETRY.md` → config reference, training overrides, training optimization workbook, and telemetry operator manual
 - `models/` → `policy.json`, `policy_best.json`, `policy_best.meta.json`

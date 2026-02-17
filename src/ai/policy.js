@@ -43,6 +43,53 @@ const DEFAULT_FEATURES = [
   'mythFlag_relic_fever',
   'mythFlag_dry_wells',
 ];
+const OBS_NORM_VERSION = 1;
+const WARNED_KEYS = new Set();
+
+// Emit one warning per key to avoid noisy logs on long runs.
+function warnOnce(key, message) {
+  if (!key || WARNED_KEYS.has(key)) {
+    return;
+  }
+  WARNED_KEYS.add(key);
+  console.warn(message);
+}
+
+// Parse observation normalization metadata from the policy payload.
+function parseObservationNormalization(raw, policyPath) {
+  if (!raw || typeof raw !== 'object') {
+    return null;
+  }
+  const mean = Array.isArray(raw.mean) ? raw.mean : null;
+  const variance = Array.isArray(raw.var) ? raw.var : null;
+  if (!mean || !variance || mean.length === 0 || mean.length !== variance.length) {
+    warnOnce(
+      `obs-norm-invalid:${policyPath}`,
+      `[ai-policy] Invalid observation normalization metadata in ${policyPath}; using raw observations.`,
+    );
+    return null;
+  }
+  const parsedMean = mean.map((value) => {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : 0;
+  });
+  const parsedVar = variance.map((value) => {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric) || numeric <= 0) {
+      return 1;
+    }
+    return numeric;
+  });
+  const clipRaw = Number(raw.clip ?? 0);
+  const epsilonRaw = Number(raw.epsilon ?? 1e-8);
+  return {
+    enabled: Boolean(raw.enabled),
+    mean: parsedMean,
+    variance: parsedVar,
+    clip: Number.isFinite(clipRaw) ? Math.max(0, clipRaw) : 0,
+    epsilon: Number.isFinite(epsilonRaw) ? Math.max(1e-12, epsilonRaw) : 1e-8,
+  };
+}
 
 // Load a policy definition from disk.
 function loadPolicy(policyPath) {
@@ -60,6 +107,24 @@ function loadPolicy(policyPath) {
   const minWeight = Number(raw.minWeight ?? 0);
   const maxWeight = Number(raw.maxWeight ?? 2);
   const type = raw.type || (Array.isArray(raw.layers) ? 'mlp' : 'linear');
+  const normalization = raw.normalization && typeof raw.normalization === 'object'
+    ? raw.normalization
+    : null;
+  let observationNormalization = null;
+  if (normalization) {
+    const version = Number(normalization.version ?? 0);
+    if (version && version !== OBS_NORM_VERSION) {
+      warnOnce(
+        `obs-norm-version:${resolved}`,
+        `[ai-policy] Unsupported normalization version (${version}) in ${resolved}; using raw observations.`,
+      );
+    } else {
+      observationNormalization = parseObservationNormalization(
+        normalization.observation,
+        resolved,
+      );
+    }
+  }
 
   if (type === 'mlp') {
     return {
@@ -72,6 +137,7 @@ function loadPolicy(policyPath) {
       activation: raw.activation || 'tanh',
       outputActivation: raw.outputActivation || 'tanh',
       layers: Array.isArray(raw.layers) ? raw.layers : [],
+      observationNormalization,
     };
   }
 
@@ -98,7 +164,15 @@ function selectAction(state, config, policy) {
     : Object.keys(obs.stockpileRatio || {});
 
   if (policy.type === 'mlp') {
-    const input = buildObservationVector(obs, resources, config, policy.featureNames);
+    const rawInput = buildObservationVector(obs, resources, config, policy.featureNames);
+    const input = normalizeObservationInput(
+      rawInput,
+      policy.observationNormalization,
+      policy.path,
+    );
+    if (!input) {
+      return null;
+    }
     const output = forwardNetwork(
       policy.layers,
       input,
@@ -279,6 +353,42 @@ function buildObservationVector(obs, resources, config, featureNames) {
     vector.push(...buildFeatures(obs, resource, config, featureNames));
   }
   return vector;
+}
+
+// Apply policy-side observation normalization when metadata is available.
+function normalizeObservationInput(input, normalization, policyPath) {
+  if (!normalization || !normalization.enabled) {
+    return input;
+  }
+  if (!Array.isArray(input)) {
+    return null;
+  }
+  const mean = normalization.mean || [];
+  const variance = normalization.variance || [];
+  if (input.length !== mean.length || input.length !== variance.length) {
+    warnOnce(
+      `obs-norm-shape:${policyPath}`,
+      `[ai-policy] Observation normalization shape mismatch for ${policyPath}; ignoring policy action.`,
+    );
+    return null;
+  }
+  const epsilon = Number(normalization.epsilon ?? 1e-8);
+  const clip = Number(normalization.clip ?? 0);
+  const safeEpsilon = Number.isFinite(epsilon) ? Math.max(1e-12, epsilon) : 1e-8;
+  const clipValue = Number.isFinite(clip) ? Math.max(0, clip) : 0;
+  const normalized = new Array(input.length);
+  for (let i = 0; i < input.length; i += 1) {
+    const value = Number(input[i] ?? 0);
+    const mu = Number(mean[i] ?? 0);
+    const sigma2 = Number(variance[i] ?? 1);
+    const safeVar = Number.isFinite(sigma2) && sigma2 > 0 ? sigma2 : 1;
+    let scaled = (value - mu) / Math.sqrt(safeVar + safeEpsilon);
+    if (clipValue > 0) {
+      scaled = clamp(scaled, -clipValue, clipValue);
+    }
+    normalized[i] = scaled;
+  }
+  return normalized;
 }
 
 // Run a simple MLP forward pass.

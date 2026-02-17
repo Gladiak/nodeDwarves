@@ -6,6 +6,7 @@ const { pushEvent } = require('./events');
 const { getMythMultiplier } = require('./myths');
 const { getAlchemyMultiplier } = require('./alchemy');
 const { getContractRaidDeathRateReduction } = require('./contracts');
+const { getExternalCampModifier } = require('./external_camps');
 const { getTempleRaidDefenseBonus } = require('./temple');
 const { getSchismModifier } = require('./schism');
 const { shuffleInPlace } = require('./random');
@@ -184,9 +185,10 @@ function finishRaid(state, config, raidState) {
   const towerDefense = clamp(towerCount * towerDefensePer, 0, towerDefenseMax);
   const clanDefenseBonus = getClanRaidBonus(state, config, 'raid_defense_bonus');
   const templeDefenseBonus = getTempleRaidDefenseBonus(state, config);
+  const externalDefenseBonus = Math.max(0, Number(getExternalCampModifier(state, 'raidDefenseBonus', 0) || 0));
   const schismDefenseMultiplier = Math.max(0.1, Number(getSchismModifier(state, 'raidDefense', 1) || 1));
   const totalDefense = clamp(
-    (defense + towerDefense + clanDefenseBonus + templeDefenseBonus) * schismDefenseMultiplier,
+    (defense + towerDefense + clanDefenseBonus + templeDefenseBonus + externalDefenseBonus) * schismDefenseMultiplier,
     0,
     1,
   );
@@ -197,6 +199,7 @@ function finishRaid(state, config, raidState) {
   const deathMax = clamp(Number(deathConfig.max ?? deathMin), 0, 1);
   const mythDeathMultiplier = getMythMultiplier(state, config, 'raidDeathRate', 1);
   const alchemyDeathMultiplier = getAlchemyMultiplier(state, config, 'raidDeathRate', 1);
+  const externalDeathMultiplier = Math.max(0.1, Number(getExternalCampModifier(state, 'raidDeathRate', 1) || 1));
   const contractReduction = clamp(getContractRaidDeathRateReduction(state), 0, 0.95);
   const deathRate = clamp(
     lerp(deathMin, deathMax, difficulty)
@@ -204,6 +207,7 @@ function finishRaid(state, config, raidState) {
       * mythDeathMultiplier
       * alchemyDeathMultiplier
       * getSchismModifier(state, 'raidDeathRate', 1)
+      * externalDeathMultiplier
       * (1 - contractReduction),
     0,
     1,
@@ -234,12 +238,14 @@ function finishRaid(state, config, raidState) {
   const baseLoss = lerp(lossMin, lossMax, difficulty);
   const mythLossMultiplier = getMythMultiplier(state, config, 'raidResourceLoss', 1);
   const alchemyLossMultiplier = getAlchemyMultiplier(state, config, 'raidResourceLoss', 1);
+  const externalLossMultiplier = Math.max(0.1, Number(getExternalCampModifier(state, 'raidResourceLoss', 1) || 1));
   const lossRatio = clamp(
     baseLoss
       * (1 - totalDefense)
       * mythLossMultiplier
       * alchemyLossMultiplier
-      * getSchismModifier(state, 'raidResourceLoss', 1),
+      * getSchismModifier(state, 'raidResourceLoss', 1)
+      * externalLossMultiplier,
     0,
     1,
   );
