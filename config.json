@@ -1654,6 +1654,226 @@
           }
         },
         {
+          "name": "underrealm_push",
+          "weight": 0.16,
+          "difficultyMin": 0.45,
+          "difficultyMax": 1,
+          "difficultyMinMultiplier": 0.25,
+          "difficultyMaxMultiplier": 1,
+          "overrides": {
+            "dwarves": {
+              "count": 22
+            },
+            "structures": {
+              "armory": {
+                "kitTicks": 16,
+                "kitOutput": 2,
+                "kitMax": 42
+              }
+            },
+            "ruins": {
+              "expedition": {
+                "cooldownTicks": 10,
+                "failureCooldownTicks": 20,
+                "minStockpileRatio": {
+                  "food": 0.38,
+                  "water": 0.38,
+                  "wood": 0.33,
+                  "stone": 0.33
+                }
+              }
+            },
+            "underrealm": {
+              "discovery": {
+                "min_tick": 90,
+                "max_tick": 220
+              },
+              "progression": {
+                "min_frontier_miners": 1,
+                "build_ticks_base": 170,
+                "build_ticks_per_depth": 110,
+                "stockpile_cost_base": {
+                  "stone": 34,
+                  "iron": 12
+                },
+                "stockpile_cost_per_depth": {
+                  "stone": 22,
+                  "iron": 10
+                },
+                "mined_cost_base": {
+                  "stone": 56,
+                  "iron": 20
+                },
+                "mined_cost_per_depth": {
+                  "stone": 34,
+                  "iron": 16
+                }
+              },
+              "combat": {
+                "encounter": {
+                  "retry_cooldown_ticks_base": 70,
+                  "retry_cooldown_ticks_per_depth": 24
+                },
+                "floors": {
+                  "defaults": {
+                    "readiness": {
+                      "min_score_base": 15,
+                      "min_score_per_depth": 7,
+                      "recommended_score_base": 24,
+                      "recommended_score_per_depth": 9
+                    }
+                  }
+                }
+              },
+              "crew": {
+                "surface_reserve_ratio": 0.5,
+                "max_underrealm_ratio": 0.4,
+                "roles": {
+                  "miner_ratio": 0.15,
+                  "hauler_ratio": 0.1,
+                  "guard_ratio": 0.07
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "compound_crisis",
+          "weight": 0.12,
+          "difficultyMin": 0.2,
+          "difficultyMax": 1,
+          "difficultyMinMultiplier": 0.45,
+          "difficultyMaxMultiplier": 1,
+          "overrides": {
+            "resources": {
+              "stockpile": {
+                "food": 38,
+                "water": 40,
+                "wood": 11,
+                "stone": 11
+              },
+              "nodes": {
+                "food": 28,
+                "water": 24
+              },
+              "nodeCapacity": {
+                "food": 7,
+                "water": 8
+              }
+            },
+            "needs": {
+              "decayPerTick": {
+                "hunger": 0.0025,
+                "thirst": 0.0038
+              }
+            },
+            "population": {
+              "housing": {
+                "buildTargetRatio": 1.95
+              }
+            },
+            "structures": {
+              "house": {
+                "buildTicks": 34,
+                "buildCost": {
+                  "wood": 9,
+                  "stone": 7
+                }
+              }
+            },
+            "raids": {
+              "chance": {
+                "min": 0.2,
+                "max": 0.36
+              },
+              "deathRate": {
+                "min": 0.3,
+                "max": 0.56
+              },
+              "resourceLoss": {
+                "min": 0.05,
+                "max": 0.13
+              }
+            },
+            "weather": {
+              "states": {
+                "clear": {
+                  "weight": 1.5
+                },
+                "storm": {
+                  "weight": 0.45
+                },
+                "drought": {
+                  "weight": 0.7
+                },
+                "cold": {
+                  "weight": 0.65
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "governance_pressure",
+          "weight": 0.1,
+          "difficultyMin": 0.55,
+          "difficultyMax": 1,
+          "difficultyMinMultiplier": 0.2,
+          "difficultyMaxMultiplier": 1,
+          "overrides": {
+            "worldEvents": {
+              "spawnRangeTicks": {
+                "min": 200,
+                "max": 300
+              },
+              "globalCooldownTicks": 90,
+              "traveling_bards": {
+                "cooldownTicks": 250
+              },
+              "rival_caravans": {
+                "cooldownTicks": 280
+              },
+              "limited_opportunities": {
+                "cooldownTicks": 220,
+                "expiryTicks": 95,
+                "failureLossRatio": 0.055
+              }
+            },
+            "externalCamps": {
+              "spawnRangeTicks": {
+                "min": 260,
+                "max": 420
+              },
+              "maxActive": 4,
+              "globalCooldownTicks": 100,
+              "factionCooldownTicks": {
+                "min": 300,
+                "max": 520
+              },
+              "raider": {
+                "hostilityInitial": 0.45,
+                "hostilityGainOnReject": 0.12,
+                "raidDeathRateBonusMax": 0.22,
+                "raidResourceLossBonusMax": 0.26
+              }
+            },
+            "schism": {
+              "start_pressure": 0.28,
+              "start_legitimacy": 0.4,
+              "phase_thresholds": {
+                "murmurs": 0.32,
+                "fracture": 0.54,
+                "reckoning": 0.74
+              },
+              "pressure": {
+                "drift_per_tick": 0.001,
+                "world_failure_shock": 0.065,
+                "contract_failure_shock": 0.055
+              }
+            }
+          }
+        },
+        {
           "name": "clan_abyssborn",
           "weight": 0.08,
           "overrides": {
@@ -1778,10 +1998,12 @@
       "evalScenarios": [
         "baseline",
         "full_sim",
+        "wildlife_raid",
         "water_scarce",
         "food_scarce",
         "ruins_focus",
-        "clan_lantern"
+        "underrealm_push",
+        "compound_crisis"
       ],
       "promotion": {
         "canonical": {

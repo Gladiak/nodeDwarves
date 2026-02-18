@@ -58,6 +58,7 @@ This file defines how to implement new features in a consistent, stable way.
 - `src/utils.js`: shared helpers.
 - `ai_server.js`: JS inference bridge for training.
 - `scripts/export_map.js`: CLI map export pipeline (PNG + SVG).
+- `scripts/train_continuous.js`: cycle orchestrator for continuous AI training cadence and periodic validation gates.
 - `scripts/regression.js`: AI regression harness and profile recording.
 - `scripts/headless_benchmark.js`: deterministic headless benchmark CLI for long-run tuning and validation.
 - `scripts/compare_benchmark_reports.js`: report-to-report benchmark diff CLI for cached baseline/candidate comparisons.

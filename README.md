@@ -101,11 +101,13 @@ npm run ai:train:endgame -- --episodes 16   # endgame (16 episodes)
 npm run ai:play
 ```
 
-Two practical quality scenarios:
+Four practical quality scenarios:
 
 ```bash
 npm run ai:train:quality:daily              # fast daily loop (phase+canonical LCB off, promote progress every episode)
+npm run ai:train:quality:high               # high-quality loop (full curriculum + stricter final canonical promote)
 npm run ai:train:quality:acceptance         # strict final-only canonical + full validation gate
+npm run ai:train:continuous -- --cycles 24 --full-every 4 --high-every 8 --gate-every 8  # continuous loop with periodic consolidation/gate
 ```
 
 Quality-first full curriculum (early game + endgame + consolidation):
@@ -126,6 +128,9 @@ Canonical promotion now owns best-checkpoint writes: wrapper training disables i
 - 📈 Quality profile phase-promotion windows now use more episodes (`10` foundation, `12` finetune) to reduce noisy retain decisions when deltas are small-but-real.
 - 🪶 `ai:train:quality:lite` adds a laptop-friendly low-load preset (worker cap, lighter canonical defaults, canonical-final check, and promote progress heartbeat).
 - 🧬 `ai:train:quality:mixed` adds a mixed curriculum preset (~76% light foundation, ~24% full-sim finetune) for better throughput/quality trade-off on slower machines.
+- 🧱 `ai:train:quality:high` runs the full 4-phase curriculum with stricter promotion guardrails (positive LCB on canonical and phase checks) plus heavier final canonical eval (`32x2400`), aimed at maximizing checkpoint quality before promotion.
+- ♻️ `ai:train:continuous` orchestrates long-running incremental learning (`daily` baseline, periodic `full` consolidation, periodic `high` certification, optional gate cadence, and auto-stop guardrails) with run reports in `debug/continuous_train_*.json/.md`.
+- 🧪 Training scenario curriculum now includes dedicated deep/governance stress slices (`underrealm_push`, `compound_crisis`, `governance_pressure`), and canonical eval covers high-risk survival/deep cases (`wildlife_raid`, `compound_crisis`, `underrealm_push`).
 - 🧭 Validation flow is now explicit in npm scripts: `ai:validate:benchmark`, `ai:validate:regression`, and `ai:validate:gate` (sequential benchmark + regression).
 - 🛰️ `python/promote_best.py --eval-only` now supports controllable partial progress logs via `--eval-progress/--no-eval-progress` and `--eval-progress-every`.
 - 🔎 Promote output now prints paired per-episode score deltas (`latest` vs `best`) when paired-LCB checks are enabled.
@@ -198,6 +203,7 @@ npm run balance:gate:standard -- --set jobs.gatherTriggerRatio.food=1.1 --set jo
 - `src/telemetry/telemetry.js`: telemetry section builders and formatting helpers.
 - `src/telemetry/telemetry_panel.js`: in-game paged telemetry Data Center with section pages and full-height telemetry content area.
 - `scripts/train_wrapper.js`: safe unified wrapper for all `ai:train:*` profiles.
+- `scripts/train_continuous.js`: continuous training orchestrator for daily/full/high cadence, validation gates, and stop-rule automation.
 - `scripts/regression.js`: baseline-vs-current AI regression checks (deterministic eval + randomized stability pass) with txt/json/markdown reports and live heartbeat progress lines during long phases.
 - `regression/baselines/regression_baseline.json`: durable regression baseline profiles tracked outside `debug/`.
 - `scripts/headless_benchmark.js`: deterministic headless benchmark with comparative score, seed deltas, and optional gate for long-run balance tuning.

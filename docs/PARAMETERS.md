@@ -1789,7 +1789,16 @@ AI and training:
 - `ai.training.scenarios[].difficultyMinMultiplier`: weight multiplier at `difficultyMin`.
 - `ai.training.scenarios[].difficultyMaxMultiplier`: weight multiplier at `difficultyMax`.
 - `ai.training.scenarios[].overrides`: config overrides merged into the base config.
+- Current default scenario catalog:
+  - `baseline`, `full_sim`, `mid_sim`
+  - `wildlife_raid`, `ruins_focus`
+  - `underrealm_push`, `compound_crisis`, `governance_pressure`
+  - `clan_abyssborn`, `clan_embers`, `clan_wardens`, `clan_lantern`
+  - `water_scarce`, `food_scarce`, `low_stockpile`, `housing_pressure`
 - `ai.training.evalScenarios`: list of scenario names evaluated at eval checkpoints.
+- Default eval scenario list:
+  - `baseline`, `full_sim`, `wildlife_raid`, `water_scarce`
+  - `food_scarce`, `ruins_focus`, `underrealm_push`, `compound_crisis`
 - `ai.training.scenarioSampling.mode`: `static` or `adaptive` scenario reweighting.
 - `ai.training.scenarioSampling.updateEvery`: episodes between adaptive weight updates.
 - `ai.training.scenarioSampling.emaAlpha`: EMA smoothing for per-scenario reward.

@@ -47,10 +47,29 @@ Throughput + resume continuity (Phase 3):
   - `legacy`: backward-compatible full JSON observation/action envelopes.
   - `compact`: flattened `obsVector` + fixed-order `actionValues` transport, with legacy fallback still accepted by `ai_server.js`.
 
+Scenario curriculum defaults:
+
+- `ai.training.scenarios` now includes three dedicated stress slices on top of legacy scarcity/clan/ruins mixes:
+  - `underrealm_push`: accelerates deep unlock/readiness loops so Underrealm progression/combat signals are sampled more often.
+  - `compound_crisis`: combines low stockpiles, food/water scarcity, harsher needs/weather, stronger raids, and housing pressure.
+  - `governance_pressure`: increases world-event and external-camp churn with higher schism pressure to stress diplomacy/governance control paths.
+- Default canonical eval scenario list (`ai.training.evalScenarios`) is now:
+  - `baseline`, `full_sim`, `wildlife_raid`, `water_scarce`, `food_scarce`, `ruins_focus`, `underrealm_push`, `compound_crisis`.
+- Design intent: keep daily training focused on robustness under multi-system stress while still preserving baseline/full-sim comparability.
+
 Wrapper low-load tuning (no config edit needed):
 
 - `npm run ai:train:quality:lite`: quality preset with wrapper low-load mode.
 - `npm run ai:train:quality:mixed`: mixed curriculum preset (`quality-mixed`) with ~`76/24` episode split between light foundation (`160` episodes, non-full-sim) and full-sim finetune (`50` episodes).
+- `npm run ai:train:continuous`: cycle orchestrator for cumulative learning using existing presets (`daily` by default, periodic `full`, periodic `high`, optional `ai:validate:gate` cadence).
+  - Key options:
+    - `--cycles <n>`
+    - `--full-every <n>` / `--high-every <n>` (high takes precedence when both match)
+    - `--gate-every <n>`
+    - `--max-no-improve <n>` with `--improve-threshold <x>`
+    - `--max-gate-fail <n>`
+    - `--fresh-first`
+  - Emits run reports in `debug/continuous_train_<timestamp>.json/.md`.
 - `--low-load`: one-shot preset for reduced machine pressure:
   - caps auto workers (`workersAutoMin/Max <= 4`) and reserves at least 3 CPU slots;
   - switches canonical promotion from per-phase to final-only;

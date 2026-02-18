@@ -42,11 +42,13 @@ Fastest loop (same as `fast` profile):
 npm run ai:train
 ```
 
-Recommended two-scenario shortcuts:
+Recommended quality shortcuts:
 
 ```bash
 npm run ai:train:quality:daily
+npm run ai:train:quality:high
 npm run ai:train:quality:acceptance
+npm run ai:train:continuous -- --cycles 24 --full-every 4 --high-every 8 --gate-every 8
 ```
 
 Pass extra trainer flags safely through any profile command (for example):
@@ -1541,6 +1543,12 @@ Clan dynamics add heterogeneity and longer-horizon trade-offs. To keep PPO stabl
 - Observations include clan shares and ruins status (active, cooldown, progress, artifacts); retrain with `--fresh` if you change them.
 - Reward shaping can emphasize ruins outcomes via `ai.reward.ruinsSuccess`, `ai.reward.ruinsArtifact`, `ai.reward.ruinsFailure`, and `ai.reward.ruinsRoomClear`, plus festivals via `ai.reward.festival_active`, `ai.reward.festival_start`, and `ai.reward.festival_intent`.
 - Reward stack now supports bounded delta channels (`ai.reward.*Delta`) and deep progression signals (Underrealm/Myths) with optional clipping guardrails (`deltaClip`, `eventClip`, `totalClip`) to reduce reward spikes.
+- Training curriculum now includes dedicated stress slices:
+  - `underrealm_push`: earlier/faster deep unlock-readiness exposure.
+  - `compound_crisis`: stacked scarcity + housing + weather + raid pressure.
+  - `governance_pressure`: faster world-event/external-camp churn and higher schism pressure.
+- Canonical eval checkpoints now target this compact stress set by default:
+  - `baseline`, `full_sim`, `wildlife_raid`, `water_scarce`, `food_scarce`, `ruins_focus`, `underrealm_push`, `compound_crisis`.
 
 ## 9) Configuration (single source of truth) ⚙️
 
@@ -1605,7 +1613,11 @@ Training presets:
 - `ai:train:quality:mixed` runs a mixed curriculum profile with ~`76/24` episode split between a lighter foundation phase (`160` episodes, non-full-sim) and a full-sim finetune phase (`50` episodes, max difficulty); phase promote checks use `10` (foundation) and `12` (finetune) eval episodes.
 - `ai:train:quality:lite` runs the quality profile with a low-load wrapper preset (worker cap, lighter canonical benchmark defaults, canonical check at run end, and partial promote progress logs) for laptops/interactive sessions.
 - `ai:train:quality:daily` runs the recommended daily loop shortcut: quality profile with final-only canonical promote and lighter canonical eval (`8x1600`), disables paired-LCB on both canonical and non-canonical phase promotes, and enables promote progress every episode for easier diagnosis.
+- `ai:train:quality:high` runs a high-quality shortcut on top of the full 4-phase curriculum, keeps canonical promote final-only, enables paired-LCB on canonical and non-canonical phase promotes, and uses heavier canonical eval (`32` episodes, `2400` max steps).
 - `ai:train:quality:acceptance` runs the strict acceptance shortcut: quality profile with final-only canonical promote (default strict canonical settings), then full benchmark+regression gate via `ai:validate:gate`.
+- `ai:train:continuous` runs a cycle orchestrator over existing presets for long-horizon cumulative learning: each cycle picks `daily` by default, upgrades to `full` every `--full-every N` cycles (with `--canonical-final-only --phase-promote-no-positive-lcb`), upgrades to `high` every `--high-every N` cycles (high takes precedence when both match), and can run `ai:validate:gate` every `--gate-every N` cycles.
+- Continuous stop rules are CLI-driven: `--max-no-improve` halts after N consecutive non-improving canonical deltas (threshold set by `--improve-threshold`), and `--max-gate-fail` halts after N consecutive validation-gate failures.
+- Continuous reports are emitted to `debug/continuous_train_<timestamp>.json/.md` with per-cycle command selection, canonical delta/promote outcome, gate status, and final stop reason.
 - `ai:train:full` runs the quality-first full curriculum in four phases: foundation (280 episodes), full-sim finetune (90), endgame specialization (24), and final consolidation (40). It is optimized for model quality over runtime and keeps promote checks after every phase.
 - `ai:train:full:fresh` runs the same full curriculum but starts from a clean checkpoint set (`--fresh` is applied to phase 1 only, then latest-resume carries forward across later phases).
 - `ai:train:endgame` runs an endgame-enabled long-horizon pass (8 episodes, max_steps=10000, step_ticks=2, target horizon 20k ticks per episode) with eval every 4 episodes. It is tuned to specialize on late-game pressure while keeping the profile compact.
@@ -1825,6 +1837,7 @@ Quick checklist:
   - `ai/` → observation + policy
   - `runtime.js`, `terminal.js`, `utils.js` → support
 - `scripts/train_wrapper.js` → unified safe wrapper for `ai:train:*` profiles
+- `scripts/train_continuous.js` → cycle orchestrator for long-running `daily/full/high` training cadence, periodic validation gates, and stop-rule automation
 - `scripts/regression.js` → AI regression harness and profile recording with txt/json/markdown reports
 - `regression/baselines/regression_baseline.json` → durable profile baselines used by regression checks
 - `scripts/export_map.js` → map export pipeline (PNG + SVG)
