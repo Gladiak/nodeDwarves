@@ -99,6 +99,7 @@ npm run ai:train:quality                    # or npm run ai:train for fastest lo
 npm run ai:validate:canonical               # canonical master contract (20x2200, rpt, compact)
 npm run ai:validate:gate                    # benchmark + regression gate
 npm run ai:validate:risk                    # collapse + obs-normalization shape guardrails
+npm run debug:clean                         # cleanup debug artifacts (keeps latest 3 run_* folders)
 npm run ai:train:endgame -- --episodes 16   # endgame (16 episodes)
 npm run ai:play
 ```
@@ -156,6 +157,7 @@ Canonical promotion now owns best-checkpoint writes: wrapper training disables i
 - 🧭 Validation flow is now explicit in npm scripts: `ai:validate:benchmark`, `ai:validate:regression`, and `ai:validate:gate` (sequential benchmark + regression).
 - 🧭 Canonical master validation is scripted as `ai:validate:canonical` (fixed contract: `20x2200`, `rpt`, `compact`) so score comparisons stay consistent over time.
 - 🧪 Risk mini-gate is scripted as `ai:validate:risk` (`r001`: deterministic benchmark, `r002`: policy observation-normalization shape guardrail).
+- 🧹 Debug housekeeping is scripted as `debug:clean` (`--keep-runs 2|3`, plus `debug:clean:dry` preview) to keep `debug/` lean after each cycle.
 - 🛰️ `python/promote_best.py --eval-only` now supports controllable partial progress logs via `--eval-progress/--no-eval-progress` and `--eval-progress-every`.
 - 🔎 Promote output now prints paired per-episode score deltas (`latest` vs `best`) when paired-LCB checks are enabled.
 - 🧪 Phase-1 training optimization adds bounded delta reward shaping (stockpile/population/deep signals) plus training-only smart plateau termination from `ai.training.terminationProfile`.
@@ -230,6 +232,7 @@ npm run balance:gate:standard -- --set jobs.gatherTriggerRatio.food=1.1 --set jo
 - `scripts/train_wrapper.js`: safe unified wrapper for all `ai:train:*` profiles.
 - `scripts/train_continuous.js`: continuous training orchestrator for daily/full/high cadence, validation gates, and stop-rule automation.
 - `scripts/regression.js`: baseline-vs-current AI regression checks (deterministic eval + randomized stability pass) with txt/json/markdown reports and live heartbeat progress lines during long phases.
+- `scripts/clean_debug.js`: debug housekeeping utility (removes transient smoke/regression temp artifacts and keeps only the latest run history).
 - `regression/baselines/regression_baseline.json`: durable regression baseline profiles tracked outside `debug/`.
 - `scripts/headless_benchmark.js`: deterministic headless benchmark with comparative score, seed deltas, and optional gate for long-run balance tuning.
 - `scripts/compare_benchmark_reports.js`: cached report diff utility for baseline/candidate deltas without rerunning both variants.

@@ -50,6 +50,8 @@
     "balance:gate:strict": "node scripts/headless_benchmark.js --ticks 8000 --seeds 101,202,303,404 --variant baseline --variant candidate --gate --gate-min-score 0 --gate-max-pop-drop 0.03 --gate-max-morale-drop 0.01 --gate-max-hunger-rise 0.05 --gate-max-thirst-rise 0.05 --gate-max-resource-drop 0.08 --report-json debug/balance_strict.json --report-md debug/balance_strict.md",
     "balance:gate:standard": "node scripts/headless_benchmark.js --ticks 8000 --seeds 101,202,303,404 --variant baseline --variant candidate --gate --gate-min-score -2 --gate-max-pop-drop 0.08 --gate-max-morale-drop 0.03 --gate-max-hunger-rise 0.08 --gate-max-thirst-rise 0.10 --gate-max-resource-drop 0.12 --report-json debug/balance_standard.json --report-md debug/balance_standard.md",
     "balance:gate:relaxed": "node scripts/headless_benchmark.js --ticks 8000 --seeds 101,202,303,404 --variant baseline --variant candidate --gate --gate-min-score -4 --gate-max-pop-drop 0.12 --gate-max-morale-drop 0.05 --gate-max-hunger-rise 0.12 --gate-max-thirst-rise 0.18 --gate-max-resource-drop 0.20 --report-json debug/balance_relaxed.json --report-md debug/balance_relaxed.md",
+    "debug:clean": "node scripts/clean_debug.js",
+    "debug:clean:dry": "node scripts/clean_debug.js --dry-run",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {

@@ -62,6 +62,7 @@ This file defines how to implement new features in a consistent, stable way.
 - `scripts/regression.js`: AI regression harness and profile recording.
 - `scripts/headless_benchmark.js`: deterministic headless benchmark CLI for long-run tuning and validation.
 - `scripts/compare_benchmark_reports.js`: report-to-report benchmark diff CLI for cached baseline/candidate comparisons.
+- `scripts/clean_debug.js`: debug artifact housekeeping utility (transient cleanup + run retention).
 - `regression/baselines/regression_baseline.json`: durable regression baseline profiles used by checks.
 - `python/bootstrap.py`: venv bootstrap.
 - `python/train.py`: PPO training loop and logging.
@@ -111,6 +112,28 @@ This file defines how to implement new features in a consistent, stable way.
 - Use the `diag` line for compact, comparable summaries.
 - Avoid per-episode debug spam; log on `logEvery`.
 - Keep log formatting stable so it can be parsed later.
+
+## Debug housekeeping
+
+- Keep `debug/` clean and ordered after every development/optimization cycle.
+- Retain only artifacts needed for traceability and recent comparisons:
+  - latest canonical check reports (`canonical_*`)
+  - latest benchmark/regression/risk summary reports (`*.json`, `*.md`, `*.txt`)
+  - only the latest `2-3` `debug/run_*` folders for local history (default retention in tooling: `3`)
+  - run folders explicitly referenced in `docs/TRAINING_OPTIMIZATION_WORKBOOK.md`
+- Remove transient artifacts once summarized:
+  - large smoke/runtime logs
+  - per-seed regression temp folders (`debug/regression_eval_*`, `debug/regression_random_*`)
+  - ad-hoc short smoke run folders not referenced by docs (`debug/run_*` mini-smokes)
+- Prefer deterministic cleanup right after validations, before finalizing docs/commits.
+- After cleanup, verify workbook/doc links still point to existing artifacts, or update notes accordingly.
+- Recommended cleanup commands (adjust to current cycle before running):
+  - `npm run debug:clean` (default: keep latest 3 `run_*` folders)
+  - `npm run debug:clean -- --keep-runs 2` (stricter retention)
+  - `npm run debug:clean:dry` (preview without deleting)
+  - `rm -rf debug/regression_eval_* debug/regression_random_*`
+  - `rm -f debug/*smoke*.log debug/*canonical*_smoke*.json debug/*canonical*_smoke*.md`
+  - `du -sh debug && find debug -maxdepth 1 -type f | sort`
 
 ## Performance and UX
 

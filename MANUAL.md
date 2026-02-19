@@ -99,6 +99,14 @@ npm run ai:validate:risk:r001
 npm run ai:validate:risk:r002
 ```
 
+Clean debug artifacts after a completed cycle:
+
+```bash
+npm run debug:clean                # keep latest 3 run_* folders
+npm run debug:clean -- --keep-runs 2
+npm run debug:clean:dry            # preview only
+```
+
 Recommended operational tuning cycles (A/B/C):
 
 ```bash
@@ -1753,6 +1761,7 @@ Training presets:
   - `ai:validate:regression` runs all stored regression profiles (`--all`).
   - `ai:validate:gate` runs benchmark then regression sequentially (`&&`) and fails fast on the first non-zero exit.
   - `ai:validate:risk` runs `r001` (deterministic collapse pressure benchmark) + `r002` (normalization shape guardrail).
+  - `debug:clean` removes transient debug artifacts and keeps only the latest run-history folders (default `3`, configurable).
 
 ### Rendering 🖼️
 
@@ -1893,6 +1902,7 @@ Quick checklist:
 - `scripts/train_wrapper.js` → unified safe wrapper for `ai:train:*` profiles
 - `scripts/train_continuous.js` → cycle orchestrator for long-running `daily/full/high` training cadence, periodic validation gates, and stop-rule automation
 - `scripts/regression.js` → AI regression harness and profile recording with txt/json/markdown reports
+- `scripts/clean_debug.js` → deterministic debug cleanup (transient artifacts + keep latest `run_*` history)
 - `regression/baselines/regression_baseline.json` → durable profile baselines used by regression checks
 - `scripts/export_map.js` → map export pipeline (PNG + SVG)
 - `scripts/headless_benchmark.js` → deterministic long-run headless benchmark with comparative score, seed deltas, and optional gate checks
