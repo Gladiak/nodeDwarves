@@ -96,9 +96,31 @@ Recommended order after C7 (fast feedback + full gate):
 ```bash
 npm run ai:bootstrap                        # once per machine / venv refresh
 npm run ai:train:quality                    # or npm run ai:train for fastest loop
+npm run ai:validate:canonical               # canonical master contract (20x2200, rpt, compact)
 npm run ai:validate:gate                    # benchmark + regression gate
+npm run ai:validate:risk                    # collapse + obs-normalization shape guardrails
 npm run ai:train:endgame -- --episodes 16   # endgame (16 episodes)
 npm run ai:play
+```
+
+Operational 3-cycle tuning loop (single-change iterations):
+
+```bash
+# Cycle A (one change only: reward OR curriculum OR trainer knob)
+npm run ai:train:quality:daily
+npm run ai:validate:canonical
+npm run ai:validate:gate
+
+# Cycle B (one additional isolated change)
+npm run ai:train:quality:daily
+npm run ai:validate:canonical
+npm run ai:validate:gate
+
+# Cycle C (final candidate before acceptance)
+npm run ai:train:quality:high
+npm run ai:validate:canonical
+npm run ai:validate:gate
+npm run ai:validate:risk
 ```
 
 Four practical quality scenarios:
@@ -132,12 +154,15 @@ Canonical promotion now owns best-checkpoint writes: wrapper training disables i
 - ♻️ `ai:train:continuous` orchestrates long-running incremental learning (`daily` baseline, periodic `full` consolidation, periodic `high` certification, optional gate cadence, and auto-stop guardrails) with run reports in `debug/continuous_train_*.json/.md`.
 - 🧪 Training scenario curriculum now includes dedicated deep/governance stress slices (`underrealm_push`, `compound_crisis`, `governance_pressure`), and canonical eval covers high-risk survival/deep cases (`wildlife_raid`, `compound_crisis`, `underrealm_push`).
 - 🧭 Validation flow is now explicit in npm scripts: `ai:validate:benchmark`, `ai:validate:regression`, and `ai:validate:gate` (sequential benchmark + regression).
+- 🧭 Canonical master validation is scripted as `ai:validate:canonical` (fixed contract: `20x2200`, `rpt`, `compact`) so score comparisons stay consistent over time.
+- 🧪 Risk mini-gate is scripted as `ai:validate:risk` (`r001`: deterministic benchmark, `r002`: policy observation-normalization shape guardrail).
 - 🛰️ `python/promote_best.py --eval-only` now supports controllable partial progress logs via `--eval-progress/--no-eval-progress` and `--eval-progress-every`.
 - 🔎 Promote output now prints paired per-episode score deltas (`latest` vs `best`) when paired-LCB checks are enabled.
 - 🧪 Phase-1 training optimization adds bounded delta reward shaping (stockpile/population/deep signals) plus training-only smart plateau termination from `ai.training.terminationProfile`.
 - 🧪 Phase-2 training optimization adds PPO stability controls (obs/return normalization, value clipping + optional Huber, target-KL early stop) with normalization metadata shared across trainer, promotion eval, regression rollout, and JS runtime inference.
 - 🧪 Phase-3 training optimization adds compact throughput diagnostics (`eps_pm`, `thr[...]`, PPO `upd_ms`), packed worker rollouts with worker-side GAE, promotion-time optimizer-state copy (`modelStatePath -> bestModelStatePath`) for true resume-from-best continuity, and dual IPC transport modes (`legacy` / `compact`) for trainer-eval-regression parity.
 - 🚀 Trainer transport default is now `compact`; use `--transport legacy` only as fallback/debug compatibility mode.
+- 🛡️ PPO trainer quick-wins pass: IPC read timeout + worker-result watchdog fail fast on stuck runs, worker crashes are surfaced to the learner, per-episode worker RNG seeding is deterministic, the final partial PPO batch is flushed before final checkpoint save, compact `obsVector` contract mismatches fail fast, and worker weight sync uses a binary `state_dict` payload fast path with legacy fallback.
 - ⚡ C7 throughput increment hardens compact hot paths (precompiled action/feature slots, lean compact observation build, trainer fast-path vector/action handling) and closes the `>= +25%` throughput gate against the frozen C+ baseline while keeping benchmark/regression guardrails green.
 - 🧩 Trainer/promote/regression rollouts now pass the same run config to the JS bridge (`ai_server.js --config ...`), so wrapper-generated overrides are applied consistently.
 - 🎯 Training wrappers now auto-tune worker count from CPU capacity (with bounds and manual `--workers` override) to behave better across different machines.

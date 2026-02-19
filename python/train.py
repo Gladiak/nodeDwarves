@@ -1,13 +1,16 @@
 import argparse
+import io
 import json
 import math
 import multiprocessing as mp
 import os
 import queue
 import random
+import select
 import subprocess
 import sys
 import time
+import traceback
 
 try:
     import torch
@@ -97,6 +100,25 @@ COLOR_RESET = "\033[0m"
 USE_COLOR = sys.stdout.isatty()
 
 
+def env_float(name, fallback, minimum=None):
+    raw = os.getenv(name)
+    try:
+        value = float(raw) if raw is not None else float(fallback)
+    except (TypeError, ValueError):
+        value = float(fallback)
+    if minimum is not None:
+        value = max(float(minimum), value)
+    return value
+
+
+IPC_READ_TIMEOUT_SECONDS = env_float("TRAIN_IPC_READ_TIMEOUT_SECONDS", 120.0, minimum=1.0)
+RESULT_WAIT_TIMEOUT_SECONDS = env_float("TRAIN_RESULT_WAIT_TIMEOUT_SECONDS", 180.0, minimum=1.0)
+RESULT_WAIT_POLL_SECONDS = env_float("TRAIN_RESULT_WAIT_POLL_SECONDS", 0.05, minimum=0.01)
+WORKER_JOIN_TIMEOUT_SECONDS = env_float("TRAIN_WORKER_JOIN_TIMEOUT_SECONDS", 5.0, minimum=0.1)
+SEED_MODULUS = 2147483647
+SEED_STEP = 10007
+
+
 def tint(text, color, enabled=USE_COLOR):
     return f"{color}{text}{COLOR_RESET}" if enabled else text
 
@@ -111,6 +133,26 @@ def print_best_saved_line(episode, score, avg_reward, model_path, meta_path):
     print(tint(line, BEST_EVAL_COLOR))
 
 
+def read_line_with_timeout(proc, timeout_seconds):
+    stdout = getattr(proc, "stdout", None)
+    if stdout is None:
+        raise RuntimeError("Server stdout is unavailable")
+    timeout = max(0.0, float(timeout_seconds or 0.0))
+    if timeout <= 0:
+        return stdout.readline()
+    try:
+        fd = stdout.fileno()
+    except (AttributeError, OSError, ValueError):
+        return stdout.readline()
+    try:
+        readable, _, _ = select.select([fd], [], [], timeout)
+    except (OSError, ValueError):
+        return stdout.readline()
+    if not readable:
+        raise TimeoutError(f"Server read timeout after {timeout:.2f}s")
+    return stdout.readline()
+
+
 def send(proc, payload, timing=None):
     start_time = time.perf_counter()
     write_start = time.perf_counter()
@@ -118,7 +160,10 @@ def send(proc, payload, timing=None):
     proc.stdin.flush()
     write_elapsed = time.perf_counter() - write_start
     read_start = time.perf_counter()
-    line = proc.stdout.readline()
+    try:
+        line = read_line_with_timeout(proc, IPC_READ_TIMEOUT_SECONDS)
+    except TimeoutError as exc:
+        raise RuntimeError(str(exc)) from exc
     read_elapsed = time.perf_counter() - read_start
     if not line:
         raise RuntimeError("Server closed")
@@ -206,6 +251,39 @@ def build_ai_server_command(config_path):
 
 def clamp(value, low, high):
     return max(low, min(high, value))
+
+
+def normalize_seed(value):
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    seed = parsed % SEED_MODULUS
+    if seed <= 0:
+        seed = 1
+    return seed
+
+
+def mix_seed(seed, salt):
+    base = normalize_seed(seed)
+    if base is None:
+        return None
+    try:
+        salt_int = int(salt)
+    except (TypeError, ValueError):
+        salt_int = 0
+    mixed = (base + (salt_int * SEED_STEP)) % SEED_MODULUS
+    if mixed <= 0:
+        mixed = 1
+    return mixed
+
+
+def seed_episode_rng(seed, episode_number):
+    mixed = mix_seed(seed, episode_number)
+    if mixed is None:
+        return
+    random.seed(mixed)
+    torch.manual_seed(mixed)
 
 
 def inference_mode():
@@ -1435,8 +1513,13 @@ def vector_from_response(response, resources, feature_names, transport):
     expected_size = len(resources) * len(feature_names)
     if mode == TRANSPORT_COMPACT:
         obs_vector = (response or {}).get("obsVector")
-        if isinstance(obs_vector, list) and (expected_size <= 0 or len(obs_vector) == expected_size):
-            return obs_vector
+        if not isinstance(obs_vector, list):
+            raise RuntimeError("Compact transport expected obsVector list in response")
+        if expected_size > 0 and len(obs_vector) != expected_size:
+            raise RuntimeError(
+                f"Compact obsVector size mismatch: got {len(obs_vector)} expected {expected_size}"
+            )
+        return obs_vector
     obs = (response or {}).get("obs", {}) or {}
     return build_obs_vector(obs, resources, feature_names)
 
@@ -1702,10 +1785,11 @@ def update_scenario_weights(sampler, scenario_defs):
 
 
 def get_model_payload(model, obs_normalization=None):
+    buffer = io.BytesIO()
+    torch.save(model.state_dict(), buffer)
     payload = {
-        "policy": model.policy.export_layers(),
-        "value": model.value.export_layers(),
-        "logStd": model.log_std.detach().cpu().tolist(),
+        "stateFormat": "state_dict_v1",
+        "stateBytes": buffer.getvalue(),
     }
     obs_payload = export_running_stats(obs_normalization)
     if obs_payload is not None:
@@ -1714,17 +1798,28 @@ def get_model_payload(model, obs_normalization=None):
 
 
 def load_model_payload(model, payload, obs_normalization=None):
-    if not payload:
+    if not isinstance(payload, dict):
         return
-    policy_layers = payload.get("policy") or []
-    value_layers = payload.get("value") or []
-    if policy_layers:
-        model.policy.load_layers(policy_layers)
-    if value_layers:
-        model.value.load_layers(value_layers)
-    log_std = payload.get("logStd")
-    if isinstance(log_std, list) and len(log_std) == model.log_std.shape[0]:
-        model.log_std.data.copy_(torch.tensor(log_std, dtype=torch.float32, device=model.log_std.device))
+    state_loaded = False
+    state_bytes = payload.get("stateBytes")
+    if isinstance(state_bytes, (bytes, bytearray, memoryview)):
+        try:
+            state_obj = torch.load(io.BytesIO(bytes(state_bytes)), map_location="cpu")
+            if isinstance(state_obj, dict):
+                model.load_state_dict(state_obj, strict=True)
+                state_loaded = True
+        except Exception:
+            state_loaded = False
+    if not state_loaded:
+        policy_layers = payload.get("policy") or []
+        value_layers = payload.get("value") or []
+        if policy_layers:
+            model.policy.load_layers(policy_layers)
+        if value_layers:
+            model.value.load_layers(value_layers)
+        log_std = payload.get("logStd")
+        if isinstance(log_std, list) and len(log_std) == model.log_std.shape[0]:
+            model.log_std.data.copy_(torch.tensor(log_std, dtype=torch.float32, device=model.log_std.device))
     if isinstance(obs_normalization, dict):
         obs_payload = payload.get("obsNormalization")
         if isinstance(obs_payload, dict):
@@ -1785,98 +1880,183 @@ def broadcast_weights(queues, payload, processes=None):
             pass
 
 
+def report_worker_error(result_queue, worker_id, message, episode_number=None, details=None):
+    payload = {
+        "kind": "worker_error",
+        "workerId": int(worker_id),
+        "message": str(message or "unknown_worker_error"),
+    }
+    if episode_number is not None:
+        payload["episode"] = int(episode_number)
+    if details:
+        payload["details"] = str(details)
+    try:
+        result_queue.put(payload)
+    except (BrokenPipeError, EOFError, OSError):
+        pass
+
+
+def get_alive_worker_indexes(processes):
+    alive = []
+    for idx, process in enumerate(processes or []):
+        try:
+            if process.is_alive():
+                alive.append(idx)
+        except Exception:
+            continue
+    return alive
+
+
+def wait_for_worker_result(
+    result_queue,
+    processes,
+    in_flight,
+    timeout_seconds=RESULT_WAIT_TIMEOUT_SECONDS,
+    poll_seconds=RESULT_WAIT_POLL_SECONDS,
+):
+    if in_flight <= 0:
+        raise RuntimeError("No in-flight rollouts while waiting for worker results")
+    timeout = max(1.0, float(timeout_seconds or 0.0))
+    poll = max(0.01, float(poll_seconds or 0.0))
+    deadline = time.perf_counter() + timeout
+    while True:
+        try:
+            return queue_get_nowait(result_queue)
+        except queue.Empty:
+            pass
+        alive = get_alive_worker_indexes(processes)
+        if not alive:
+            raise RuntimeError("All rollout workers exited while rollouts were still in-flight")
+        if time.perf_counter() >= deadline:
+            workers_label = ",".join(str(index) for index in alive)
+            raise RuntimeError(
+                f"Timeout waiting for worker result after {timeout:.1f}s "
+                f"(in_flight={in_flight}, alive_workers={workers_label})"
+            )
+        time.sleep(poll)
+
+
 def worker_loop(worker_id, task_queue, result_queue, update_queue, resources, settings):
+    proc = None
+    last_episode = None
     try:
         devnull = open(os.devnull, "w")
         sys.stdout = devnull
         sys.stderr = devnull
     except OSError:
         pass
-    torch.set_num_threads(1)
-    env = os.environ.copy()
-    debug_mode = settings.get("debug_mode")
-    if debug_mode:
-        env["NODEDWARVES_DEBUG_MODE"] = str(debug_mode)
-    server_command = build_ai_server_command(settings.get("config_path"))
-    proc = subprocess.Popen(
-        server_command,
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        text=True,
-        bufsize=1,
-        env=env,
-    )
-
     try:
-        try:
-            feature_names = settings.get("feature_names") or DEFAULT_FEATURE_NAMES
-            input_size = len(resources) * len(feature_names)
-            action_size = len(resources)
-            obs_normalization = parse_running_stats(
-                settings.get("obs_normalization"),
-                input_size,
-                enabled_fallback=False,
-                clip_fallback=5.0,
-                epsilon_fallback=1e-8,
-            )
-            model = ActorCritic(
-                input_size,
-                action_size,
-                settings["hidden_sizes"],
-                settings["activation"],
-                settings["log_std_init"],
-            )
+        torch.set_num_threads(1)
+        env = os.environ.copy()
+        debug_mode = settings.get("debug_mode")
+        if debug_mode:
+            env["NODEDWARVES_DEBUG_MODE"] = str(debug_mode)
+        server_command = build_ai_server_command(settings.get("config_path"))
+        proc = subprocess.Popen(
+            server_command,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            text=True,
+            bufsize=1,
+            env=env,
+        )
+        worker_seed = mix_seed(settings.get("seed"), worker_id + 1)
+        if worker_seed is not None:
+            random.seed(worker_seed)
+            torch.manual_seed(worker_seed)
+
+        feature_names = settings.get("feature_names") or DEFAULT_FEATURE_NAMES
+        input_size = len(resources) * len(feature_names)
+        action_size = len(resources)
+        obs_normalization = parse_running_stats(
+            settings.get("obs_normalization"),
+            input_size,
+            enabled_fallback=False,
+            clip_fallback=5.0,
+            epsilon_fallback=1e-8,
+        )
+        model = ActorCritic(
+            input_size,
+            action_size,
+            settings["hidden_sizes"],
+            settings["activation"],
+            settings["log_std_init"],
+        )
+
+        latest_payload = drain_queue(update_queue)
+        if latest_payload:
+            load_model_payload(model, latest_payload, obs_normalization=obs_normalization)
+
+        while True:
+            try:
+                task = task_queue.get()
+            except (EOFError, OSError):
+                break
+            if task is None:
+                break
+
+            episode_number, seed, difficulty, scenario = task
+            last_episode = episode_number
+            seed_episode_rng(seed, episode_number)
 
             latest_payload = drain_queue(update_queue)
             if latest_payload:
                 load_model_payload(model, latest_payload, obs_normalization=obs_normalization)
 
-            while True:
-                try:
-                    task = task_queue.get()
-                except (EOFError, OSError):
-                    break
-                if task is None:
-                    break
+            try:
+                rollout, reward, steps, info = run_episode(
+                    proc,
+                    model,
+                    resources,
+                    feature_names,
+                    settings["max_steps"],
+                    settings["step_ticks"],
+                    seed,
+                    difficulty,
+                    settings["min_weight"],
+                    settings["max_weight"],
+                    scenario,
+                    settings.get("full_sim", False),
+                    settings["gamma"],
+                    settings["gae_lambda"],
+                    obs_normalization=obs_normalization,
+                    transport=settings.get("transport", TRANSPORT_LEGACY),
+                )
+            except (BrokenPipeError, EOFError, OSError, RuntimeError) as exc:
+                report_worker_error(
+                    result_queue,
+                    worker_id,
+                    f"rollout_failed: {exc}",
+                    episode_number=episode_number,
+                    details=traceback.format_exc(),
+                )
+                break
 
-                latest_payload = drain_queue(update_queue)
-                if latest_payload:
-                    load_model_payload(model, latest_payload, obs_normalization=obs_normalization)
-
-                episode_number, seed, difficulty, scenario = task
-                try:
-                    rollout, reward, steps, info = run_episode(
-                        proc,
-                        model,
-                        resources,
-                        feature_names,
-                        settings["max_steps"],
-                        settings["step_ticks"],
-                        seed,
-                        difficulty,
-                        settings["min_weight"],
-                        settings["max_weight"],
-                        scenario,
-                        settings.get("full_sim", False),
-                        settings["gamma"],
-                        settings["gae_lambda"],
-                        obs_normalization=obs_normalization,
-                        transport=settings.get("transport", TRANSPORT_LEGACY),
-                    )
-                except (BrokenPipeError, EOFError, OSError, RuntimeError):
-                    break
-                try:
-                    result_queue.put((episode_number, rollout, reward, steps, info))
-                except (BrokenPipeError, EOFError, OSError):
-                    break
-        except (BrokenPipeError, EOFError, OSError, RuntimeError):
-            pass
+            try:
+                result_queue.put((episode_number, rollout, reward, steps, info))
+            except (BrokenPipeError, EOFError, OSError) as exc:
+                report_worker_error(
+                    result_queue,
+                    worker_id,
+                    f"result_queue_put_failed: {exc}",
+                    episode_number=episode_number,
+                )
+                break
+    except Exception as exc:
+        report_worker_error(
+            result_queue,
+            worker_id,
+            f"worker_crashed: {exc}",
+            episode_number=last_episode,
+            details=traceback.format_exc(),
+        )
     finally:
-        try:
-            send(proc, {"cmd": "close"})
-        except Exception:
-            pass
-        proc.terminate()
+        if proc is not None:
+            try:
+                send(proc, {"cmd": "close"})
+            except Exception:
+                pass
+            proc.terminate()
 
 def season_features(season):
     if not season:
@@ -3425,6 +3605,7 @@ def main():
         "debug_mode": args.debug_mode,
         "obs_normalization": copy_running_stats(obs_normalization),
         "transport": args.transport,
+        "seed": args.seed,
     }
 
     processes = []
@@ -3483,10 +3664,81 @@ def main():
                 in_flight += 1
                 next_episode += 1
 
+        def flush_rollout_batch(current_episode):
+            nonlocal batch_episode_count, policy_dirty
+            if batch_episode_count <= 0 or not batch_obs:
+                return False
+            entropy_progress = min(1.0, current_episode / max(1, args.entropy_ramp))
+            entropy_coef = args.entropy_coef + (
+                args.entropy_coef_final - args.entropy_coef
+            ) * entropy_progress
+            batch = {
+                "obs": batch_obs,
+                "actions": batch_actions,
+                "log_probs": batch_log_probs,
+                "returns": batch_rewards,
+                "advantages": batch_values,
+                "values": batch_old_values,
+            }
+            ppo_start_time = time.perf_counter()
+            ppo_stats = apply_ppo_update(
+                model,
+                optimizer,
+                batch,
+                min_weight,
+                max_weight,
+                args.clip_range,
+                args.value_coef,
+                entropy_coef,
+                args.epochs,
+                args.mini_batch_size,
+                args.max_grad_norm,
+                value_clip_range=args.value_clip_range,
+                value_huber_delta=args.value_huber_delta,
+                target_kl=args.target_kl,
+                return_normalization=return_normalization,
+            )
+            ppo_elapsed = time.perf_counter() - ppo_start_time
+            if obs_normalization.get("enabled"):
+                update_running_stats(obs_normalization, batch_obs_raw)
+            if return_normalization.get("enabled"):
+                update_running_stats(return_normalization, [[value] for value in batch_rewards])
+            update_ppo_window(ppo_window, ppo_stats, ppo_elapsed)
+            update_ppo_window(file_ppo_window, ppo_stats, ppo_elapsed)
+            batch_obs.clear()
+            batch_obs_raw.clear()
+            batch_actions.clear()
+            batch_log_probs.clear()
+            batch_rewards.clear()
+            batch_values.clear()
+            batch_old_values.clear()
+            batch_episode_count = 0
+            broadcast_weights(
+                update_queues,
+                get_model_payload(model, obs_normalization=obs_normalization),
+                processes,
+            )
+            policy_dirty = True
+            return True
+
         schedule_tasks()
 
         while completed < args.episodes:
-            result = result_queue.get()
+            result = wait_for_worker_result(result_queue, processes, in_flight)
+            if isinstance(result, dict) and result.get("kind") == "worker_error":
+                worker_id = result.get("workerId")
+                episode_id = result.get("episode")
+                details = result.get("details")
+                if details and TRAINING_LOGS_ENABLED:
+                    print(details, file=sys.stderr)
+                message = str(result.get("message") or "worker_error")
+                raise RuntimeError(
+                    f"Worker {worker_id} failed"
+                    + (f" on episode {episode_id}" if episode_id is not None else "")
+                    + f": {message}"
+                )
+            if not (isinstance(result, tuple) and len(result) == 5):
+                raise RuntimeError(f"Invalid worker payload: {type(result).__name__}")
             episode_number, rollout, reward, steps, info = result
             in_flight -= 1
             results_buffer[episode_number] = (rollout, reward, steps, info)
@@ -3545,57 +3797,7 @@ def main():
                             pending_detail_events.append("scenario_weights")
 
                 if batch_episode_count >= args.batch_episodes:
-                    entropy_progress = min(1.0, next_expected / max(1, args.entropy_ramp))
-                    entropy_coef = args.entropy_coef + (
-                        args.entropy_coef_final - args.entropy_coef
-                    ) * entropy_progress
-                    batch = {
-                        "obs": batch_obs,
-                        "actions": batch_actions,
-                        "log_probs": batch_log_probs,
-                        "returns": batch_rewards,
-                        "advantages": batch_values,
-                        "values": batch_old_values,
-                    }
-                    ppo_start_time = time.perf_counter()
-                    ppo_stats = apply_ppo_update(
-                        model,
-                        optimizer,
-                        batch,
-                        min_weight,
-                        max_weight,
-                        args.clip_range,
-                        args.value_coef,
-                        entropy_coef,
-                        args.epochs,
-                        args.mini_batch_size,
-                        args.max_grad_norm,
-                        value_clip_range=args.value_clip_range,
-                        value_huber_delta=args.value_huber_delta,
-                        target_kl=args.target_kl,
-                        return_normalization=return_normalization,
-                    )
-                    ppo_elapsed = time.perf_counter() - ppo_start_time
-                    if obs_normalization.get("enabled"):
-                        update_running_stats(obs_normalization, batch_obs_raw)
-                    if return_normalization.get("enabled"):
-                        update_running_stats(return_normalization, [[value] for value in batch_rewards])
-                    update_ppo_window(ppo_window, ppo_stats, ppo_elapsed)
-                    update_ppo_window(file_ppo_window, ppo_stats, ppo_elapsed)
-                    batch_obs.clear()
-                    batch_obs_raw.clear()
-                    batch_actions.clear()
-                    batch_log_probs.clear()
-                    batch_rewards.clear()
-                    batch_values.clear()
-                    batch_old_values.clear()
-                    batch_episode_count = 0
-                    broadcast_weights(
-                        update_queues,
-                        get_model_payload(model, obs_normalization=obs_normalization),
-                        processes,
-                    )
-                    policy_dirty = True
+                    flush_rollout_batch(next_expected)
 
                 if args.lr_final is not None:
                     lr_progress = next_expected / max(1, args.episodes)
@@ -3850,6 +4052,30 @@ def main():
 
                 next_expected += 1
 
+        final_batch_applied = flush_rollout_batch(completed)
+        if final_batch_applied and TRAINING_LOGS_ENABLED:
+            print(f"final_batch_flush episode={completed} updates_applied=yes")
+        if policy_dirty:
+            save_policy(
+                args.model_path,
+                model,
+                resources,
+                feature_names,
+                min_weight,
+                max_weight,
+                args.activation,
+                model.log_std,
+                obs_normalization=obs_normalization,
+                return_normalization=return_normalization,
+            )
+            save_training_state(
+                args.model_state_path,
+                optimizer,
+                completed,
+                args.model_path,
+            )
+            policy_dirty = False
+
     finally:
         try:
             for _ in processes:
@@ -3857,12 +4083,12 @@ def main():
         except Exception:
             pass
         for process in processes:
-            process.join(timeout=5)
+            process.join(timeout=WORKER_JOIN_TIMEOUT_SECONDS)
         for process in processes:
             if process.is_alive():
                 process.terminate()
         for process in processes:
-            process.join(timeout=5)
+            process.join(timeout=WORKER_JOIN_TIMEOUT_SECONDS)
         for queue_obj in [task_queue, result_queue, *update_queues]:
             try:
                 if hasattr(queue_obj, "cancel_join_thread"):

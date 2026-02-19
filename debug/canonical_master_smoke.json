@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "timestamp": 1771517009,
+  "timestamp_iso": "2026-02-19T16:03:29.032186+00:00",
+  "promoted": false,
+  "reason": "eval_only",
+  "model_path": "models/policy_best.json",
+  "model_state_path": "models/policy.state.pt",
+  "best_model_path": "models/policy_best.json",
+  "best_model_meta_path": "models/policy_best.meta.json",
+  "best_model_state_path": "models/policy_best.state.pt",
+  "eval_context": {
+    "source": "promote_best",
+    "config": "config.json",
+    "reportTag": "canonical-master-smoke",
+    "evalEpisodes": 1,
+    "evalMaxSteps": 20,
+    "evalDifficulty": 1.0,
+    "evalScore": "rpt",
+    "maxSteps": 2200,
+    "stepTicks": 2,
+    "seedBase": 100000,
+    "minImprove": 0.005,
+    "requirePositiveLcb": true,
+    "lcbZ": 1.96,
+    "evalProgress": true,
+    "evalProgressEvery": 10,
+    "transport": "compact"
+  },
+  "thresholds": {
+    "min_improve": 0.005,
+    "require_positive_lcb": true,
+    "lcb_z": 1.96
+  },
+  "latest": {
+    "avg_reward": 71.58101231121044,
+    "avg_steps": 20.0,
+    "avg_ticks": 40.0,
+    "avg_births": 0.0,
+    "avg_deaths": 0.0,
+    "score": 1.789525307780261,
+    "episode_scores": [
+      1.789525307780261
+    ]
+  },
+  "best_before": null,
+  "best_score_before": null,
+  "best_score_after": null,
+  "delta_score": null
+}

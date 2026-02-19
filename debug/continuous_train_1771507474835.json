@@ -1,0 +1,332 @@
+{
+  "version": 1,
+  "status": "training_failed",
+  "stopReason": "cycle 12 training failed with exit code 1",
+  "startedAt": "2026-02-19T07:51:24.076Z",
+  "finishedAt": "2026-02-19T13:24:34.832Z",
+  "options": {
+    "cycles": 24,
+    "fullEvery": 4,
+    "highEvery": 8,
+    "gateEvery": 8,
+    "maxNoImprove": 10,
+    "maxGateFail": 2,
+    "improveThreshold": 0,
+    "freshFirst": false,
+    "dryRun": false
+  },
+  "completedCycles": 12,
+  "noImproveStreak": 0,
+  "gateFailStreak": 0,
+  "cycles": [
+    {
+      "index": 1,
+      "train": {
+        "kind": "daily",
+        "script": "ai:train:quality:daily",
+        "forwardedArgs": [],
+        "status": 0
+      },
+      "canonical": {
+        "phase": "canonical-final",
+        "promoted": false,
+        "reason": "best_retained",
+        "deltaScore": -0.10362233827436684,
+        "pairedLcb": -0.24601404403064073,
+        "latestScore": 3.890637039970763,
+        "bestScoreBefore": 3.99425937824513
+      },
+      "improved": false,
+      "noImproveStreakAfter": 1,
+      "gate": {
+        "enabled": false,
+        "status": null,
+        "gateFailStreakAfter": 0
+      },
+      "summaryPath": "/Users/filippoverni/ProgettiLavoro/nodeDwarves/debug/run_1771487484850_4483_800608/report_training_promotion_summary.json"
+    },
+    {
+      "index": 2,
+      "train": {
+        "kind": "daily",
+        "script": "ai:train:quality:daily",
+        "forwardedArgs": [],
+        "status": 0
+      },
+      "canonical": {
+        "phase": "canonical-final",
+        "promoted": false,
+        "reason": "best_retained",
+        "deltaScore": -0.08683782441140364,
+        "pairedLcb": -0.2125582472413852,
+        "latestScore": 3.9074215538337262,
+        "bestScoreBefore": 3.99425937824513
+      },
+      "improved": false,
+      "noImproveStreakAfter": 2,
+      "gate": {
+        "enabled": false,
+        "status": null,
+        "gateFailStreakAfter": 0
+      },
+      "summaryPath": "/Users/filippoverni/ProgettiLavoro/nodeDwarves/debug/run_1771488614029_17491_327165/report_training_promotion_summary.json"
+    },
+    {
+      "index": 3,
+      "train": {
+        "kind": "daily",
+        "script": "ai:train:quality:daily",
+        "forwardedArgs": [],
+        "status": 0
+      },
+      "canonical": {
+        "phase": "canonical-final",
+        "promoted": false,
+        "reason": "best_retained",
+        "deltaScore": -0.09987198597586433,
+        "pairedLcb": -0.22387402650394522,
+        "latestScore": 3.8943873922692656,
+        "bestScoreBefore": 3.99425937824513
+      },
+      "improved": false,
+      "noImproveStreakAfter": 3,
+      "gate": {
+        "enabled": false,
+        "status": null,
+        "gateFailStreakAfter": 0
+      },
+      "summaryPath": "/Users/filippoverni/ProgettiLavoro/nodeDwarves/debug/run_1771489719005_30166_498418/report_training_promotion_summary.json"
+    },
+    {
+      "index": 4,
+      "train": {
+        "kind": "full",
+        "script": "ai:train:full",
+        "forwardedArgs": [
+          "--canonical-final-only",
+          "--phase-promote-no-positive-lcb"
+        ],
+        "status": 0
+      },
+      "canonical": {
+        "phase": "canonical-final",
+        "promoted": false,
+        "reason": "best_retained",
+        "deltaScore": -0.01890605657808253,
+        "pairedLcb": -0.0762000553221927,
+        "latestScore": 3.7809227079705257,
+        "bestScoreBefore": 3.799828764548608
+      },
+      "improved": false,
+      "noImproveStreakAfter": 4,
+      "gate": {
+        "enabled": false,
+        "status": null,
+        "gateFailStreakAfter": 0
+      },
+      "summaryPath": "/Users/filippoverni/ProgettiLavoro/nodeDwarves/debug/run_1771490873297_43731_226168/report_training_promotion_summary.json"
+    },
+    {
+      "index": 5,
+      "train": {
+        "kind": "daily",
+        "script": "ai:train:quality:daily",
+        "forwardedArgs": [],
+        "status": 0
+      },
+      "canonical": {
+        "phase": "canonical-final",
+        "promoted": false,
+        "reason": "best_retained",
+        "deltaScore": 0.030184439782085182,
+        "pairedLcb": -0.06285642754556148,
+        "latestScore": 3.939988512539372,
+        "bestScoreBefore": 3.9098040727572867
+      },
+      "improved": true,
+      "noImproveStreakAfter": 0,
+      "gate": {
+        "enabled": false,
+        "status": null,
+        "gateFailStreakAfter": 0
+      },
+      "summaryPath": "/Users/filippoverni/ProgettiLavoro/nodeDwarves/debug/run_1771493938464_80087_36276/report_training_promotion_summary.json"
+    },
+    {
+      "index": 6,
+      "train": {
+        "kind": "daily",
+        "script": "ai:train:quality:daily",
+        "forwardedArgs": [],
+        "status": 0
+      },
+      "canonical": {
+        "phase": "canonical-final",
+        "promoted": false,
+        "reason": "best_retained",
+        "deltaScore": 0.00422159601533556,
+        "pairedLcb": -0.13864183085900628,
+        "latestScore": 3.9140256687726223,
+        "bestScoreBefore": 3.9098040727572867
+      },
+      "improved": true,
+      "noImproveStreakAfter": 0,
+      "gate": {
+        "enabled": false,
+        "status": null,
+        "gateFailStreakAfter": 0
+      },
+      "summaryPath": "/Users/filippoverni/ProgettiLavoro/nodeDwarves/debug/run_1771494997614_92186_850363/report_training_promotion_summary.json"
+    },
+    {
+      "index": 7,
+      "train": {
+        "kind": "daily",
+        "script": "ai:train:quality:daily",
+        "forwardedArgs": [],
+        "status": 0
+      },
+      "canonical": {
+        "phase": "canonical-final",
+        "promoted": false,
+        "reason": "best_retained",
+        "deltaScore": 0.026812844214045395,
+        "pairedLcb": -0.07406778655841928,
+        "latestScore": 3.936616916971332,
+        "bestScoreBefore": 3.9098040727572867
+      },
+      "improved": true,
+      "noImproveStreakAfter": 0,
+      "gate": {
+        "enabled": false,
+        "status": null,
+        "gateFailStreakAfter": 0
+      },
+      "summaryPath": "/Users/filippoverni/ProgettiLavoro/nodeDwarves/debug/run_1771496104319_5915_657038/report_training_promotion_summary.json"
+    },
+    {
+      "index": 8,
+      "train": {
+        "kind": "high",
+        "script": "ai:train:quality:high",
+        "forwardedArgs": [],
+        "status": 0
+      },
+      "canonical": {
+        "phase": "canonical-final",
+        "promoted": false,
+        "reason": "best_retained",
+        "deltaScore": -0.037118279049532354,
+        "pairedLcb": -0.14361690633472224,
+        "latestScore": 3.6614421833521797,
+        "bestScoreBefore": 3.698560462401712
+      },
+      "improved": false,
+      "noImproveStreakAfter": 1,
+      "gate": {
+        "enabled": true,
+        "status": 0,
+        "gateFailStreakAfter": 0
+      },
+      "summaryPath": "/Users/filippoverni/ProgettiLavoro/nodeDwarves/debug/run_1771497269455_19268_820768/report_training_promotion_summary.json"
+    },
+    {
+      "index": 9,
+      "train": {
+        "kind": "daily",
+        "script": "ai:train:quality:daily",
+        "forwardedArgs": [],
+        "status": 0
+      },
+      "canonical": {
+        "phase": "canonical-final",
+        "promoted": false,
+        "reason": "best_retained",
+        "deltaScore": 0.055768544359357186,
+        "pairedLcb": -0.020150313725271124,
+        "latestScore": 3.965572617116644,
+        "bestScoreBefore": 3.9098040727572867
+      },
+      "improved": true,
+      "noImproveStreakAfter": 0,
+      "gate": {
+        "enabled": false,
+        "status": null,
+        "gateFailStreakAfter": 0
+      },
+      "summaryPath": "/Users/filippoverni/ProgettiLavoro/nodeDwarves/debug/run_1771502180828_77440_554882/report_training_promotion_summary.json"
+    },
+    {
+      "index": 10,
+      "train": {
+        "kind": "daily",
+        "script": "ai:train:quality:daily",
+        "forwardedArgs": [],
+        "status": 0
+      },
+      "canonical": {
+        "phase": "canonical-final",
+        "promoted": false,
+        "reason": "best_retained",
+        "deltaScore": 0,
+        "pairedLcb": 0,
+        "latestScore": 3.8982054770409587,
+        "bestScoreBefore": 3.8982054770409587
+      },
+      "improved": false,
+      "noImproveStreakAfter": 1,
+      "gate": {
+        "enabled": false,
+        "status": null,
+        "gateFailStreakAfter": 0
+      },
+      "summaryPath": "/Users/filippoverni/ProgettiLavoro/nodeDwarves/debug/run_1771503260947_90505_355403/report_training_promotion_summary.json"
+    },
+    {
+      "index": 11,
+      "train": {
+        "kind": "daily",
+        "script": "ai:train:quality:daily",
+        "forwardedArgs": [],
+        "status": 0
+      },
+      "canonical": {
+        "phase": "canonical-final",
+        "promoted": false,
+        "reason": "best_retained",
+        "deltaScore": 0.00806263277316921,
+        "pairedLcb": -0.09338247827571154,
+        "latestScore": 3.906268109814128,
+        "bestScoreBefore": 3.8982054770409587
+      },
+      "improved": true,
+      "noImproveStreakAfter": 0,
+      "gate": {
+        "enabled": false,
+        "status": null,
+        "gateFailStreakAfter": 0
+      },
+      "summaryPath": "/Users/filippoverni/ProgettiLavoro/nodeDwarves/debug/run_1771504340170_3558_874753/report_training_promotion_summary.json"
+    },
+    {
+      "index": 12,
+      "train": {
+        "kind": "full",
+        "script": "ai:train:full",
+        "forwardedArgs": [
+          "--canonical-final-only",
+          "--phase-promote-no-positive-lcb"
+        ],
+        "status": 1
+      },
+      "canonical": null,
+      "improved": false,
+      "noImproveStreakAfter": 0,
+      "gate": {
+        "enabled": false,
+        "status": null,
+        "gateFailStreakAfter": 0
+      }
+    }
+  ]
+}

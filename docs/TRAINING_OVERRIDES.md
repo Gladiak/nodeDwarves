@@ -95,6 +95,40 @@ Wrapper low-load tuning (no config edit needed):
   - example:
     - `npm run ai:train:quality:lite -- --promote-eval-progress --promote-eval-progress-every 1 --log-every 10 --eval-every 5`
 
+Operational cycle runbook (2026-02-19 baseline contract):
+
+- Canonical master contract (use this for all score comparisons):
+  - `evalEpisodes=20`
+  - `evalMaxSteps=2200`
+  - `stepTicks=2`
+  - `evalScore=rpt`
+  - `transport=compact`
+- Command aliases:
+  - `npm run ai:validate:canonical`
+    - runs eval-only canonical check on `models/policy_best.json`
+    - writes `debug/canonical_master_latest.json` + `.md`
+  - `npm run ai:validate:risk`
+    - `r001`: deterministic collapse pressure check (`ai:validate:benchmark`)
+    - `r002`: observation-normalization shape guardrail on `models/policy_best.json`
+- Controlled A/B/C cycle template (single-change discipline):
+  - Cycle A:
+    - `npm run ai:train:quality:daily`
+    - `npm run ai:validate:canonical`
+    - `npm run ai:validate:gate`
+  - Cycle B:
+    - apply exactly one additional change
+    - rerun the same 3 commands
+  - Cycle C:
+    - `npm run ai:train:quality:high`
+    - `npm run ai:validate:canonical`
+    - `npm run ai:validate:gate`
+    - `npm run ai:validate:risk`
+- Acceptance criteria for a candidate tweak:
+  - positive canonical score delta under the fixed master contract
+  - benchmark + regression gate pass (`ai:validate:gate`)
+  - risk mini-gate pass (`ai:validate:risk`)
+  - if any criterion fails, revert the last tweak and start a new single-change cycle
+
 Display:
 
 - `display.width`: fixed render width used by the training runtime.

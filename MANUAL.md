@@ -81,13 +81,42 @@ npm run ai:train:full -- --workers-flat
 npm run ai:validate:gate
 ```
 
-Run benchmark/regression independently when needed:
+Run canonical master check (fixed contract) and risk mini-gate:
+
+```bash
+npm run ai:validate:canonical
+npm run ai:validate:risk
+```
+
+Run benchmark/regression/risk slices independently when needed:
 
 ```bash
 npm run ai:validate:benchmark
 npm run ai:validate:regression
 npm run ai:validate:regression:standard
 npm run ai:validate:regression:underrealm
+npm run ai:validate:risk:r001
+npm run ai:validate:risk:r002
+```
+
+Recommended operational tuning cycles (A/B/C):
+
+```bash
+# Cycle A: one isolated change (reward OR curriculum OR trainer knob)
+npm run ai:train:quality:daily
+npm run ai:validate:canonical
+npm run ai:validate:gate
+
+# Cycle B: one additional isolated change
+npm run ai:train:quality:daily
+npm run ai:validate:canonical
+npm run ai:validate:gate
+
+# Cycle C: candidate closeout
+npm run ai:train:quality:high
+npm run ai:validate:canonical
+npm run ai:validate:gate
+npm run ai:validate:risk
 ```
 
 ### Run trained policy 🧠
@@ -1622,6 +1651,10 @@ Training presets:
 - `ai:train:full:fresh` runs the same full curriculum but starts from a clean checkpoint set (`--fresh` is applied to phase 1 only, then latest-resume carries forward across later phases).
 - `ai:train:endgame` runs an endgame-enabled long-horizon pass (8 episodes, max_steps=10000, step_ticks=2, target horizon 20k ticks per episode) with eval every 4 episodes. It is tuned to specialize on late-game pressure while keeping the profile compact.
 - `ai:promote:best` runs just the promotion check manually.
+- `ai:validate:canonical` runs the canonical master eval-only check on `policy_best` with a fixed contract (`evalEpisodes=20`, `evalMaxSteps=2200`, `evalScore=rpt`, `transport=compact`) and writes reports to `debug/canonical_master_latest.json/.md`.
+- `ai:validate:risk` runs the risk mini-gate:
+  - `ai:validate:risk:r001`: deterministic benchmark (`8000` ticks, seeds `101,202,303,404`) for collapse/regression pressure.
+  - `ai:validate:risk:r002`: policy observation-normalization shape check (`resources * featureNames` vs `normalization.observation.mean/var`) with fail-fast exit on mismatch.
 - Presets generate run-specific configs in `debug/run_<timestamp>/`: per-phase training configs plus a dedicated canonical promotion config (`config_canonical_promote.json`) driven by `ai.training.promotion.canonical`.
 - All presets save the best model to `models/policy_best.json` (with meta in `models/policy_best.meta.json`); resume source depends on profile policy and CLI override (`--resume-from-best` / `--resume-from-latest`).
 - Trainer CLI resume source can be forced per run: `--resume-from-best` or `--resume-from-latest` (the latter is useful to keep incremental momentum when best-gate promotion is temporarily blocked).
@@ -1652,6 +1685,17 @@ Training presets:
 - Canonical promotion knobs are config-driven under `ai.training.promotion.canonical` and are used both by wrapper phase promotion and standalone `ai:promote:best` defaults.
 - Wrapper canonical knobs can be overridden per run without editing `config.json` (`--canonical-eval-episodes`, `--canonical-eval-max-steps`, `--canonical-no-positive-lcb`), and promote progress logs can be forced with `--promote-eval-progress`.
 - Wrapper can override paired-LCB behavior for non-canonical phase promotes too (`--phase-promote-no-positive-lcb` / `--phase-promote-require-positive-lcb`) without changing canonical settings.
+- Canonical master contract for long-horizon comparability (2026-02-19 baseline):
+  - `evalEpisodes=20`
+  - `evalMaxSteps=2200`
+  - `stepTicks=2`
+  - `evalScore=rpt`
+  - `transport=compact`
+- Operational cycle semantics for controlled tuning:
+  - Cycle A: apply one isolated change and run `daily -> canonical -> gate`.
+  - Cycle B: apply one additional isolated change and run the same sequence.
+  - Cycle C: run `quality:high -> canonical -> gate -> risk` before accepting candidate defaults.
+  - Acceptance rule: promote only if canonical score delta is positive under the fixed contract and all gates are green.
 - Wrapper seed policy for long-horizon learning: per-phase training seeds rotate automatically every wrapper run (while promote/regression eval seeds remain deterministic for fair comparison); use `--train-seed-fixed` to disable rotation.
 - Runtime config wiring: Python trainer/promotion/regression rollouts now launch `ai_server.js` with the same `--config` path used by the wrapper phase, so run-specific training overrides are applied consistently by the JS simulator.
 - Wrapper can inject a training-only smart early-termination profile from `ai.training.terminationProfile` into generated run configs, while eval overrides keep termination disabled to avoid canonical benchmark bias.
@@ -1677,6 +1721,14 @@ Training presets:
   - `ai_server.js` now precompiles compact action slots + feature specs per reset and avoids duplicate observation materialization in compact mode.
   - `python/train.py` uses compact fast paths for `obsVector` and `actionValues`, reducing per-step conversion overhead in train/eval/promote loops.
   - Gate closure evidence is archived in `debug/gateC7_throughput_compare_1771360179.md` and `debug/gateC7_validation_1771360179.md`.
+- Trainer runtime reliability quick wins (2026-02-19):
+  - IPC read watchdog: `train.py` now enforces a read timeout on JS bridge responses (env: `TRAIN_IPC_READ_TIMEOUT_SECONDS`, default `120s`) to avoid indefinite `readline()` hangs.
+  - Worker-result watchdog: learner now polls worker results with timeout + alive-worker checks (env: `TRAIN_RESULT_WAIT_TIMEOUT_SECONDS`, `TRAIN_RESULT_WAIT_POLL_SECONDS`) and fails fast if workers stall/exit.
+  - Worker error propagation: rollout workers now report structured error payloads back to the learner (worker id, episode id, reason, traceback) instead of silently exiting.
+  - Deterministic sampling: each worker reseeds Python/Torch RNG per episode from the episode seed so rollout stochasticity is reproducible independently of worker scheduling.
+  - End-of-run PPO integrity: residual partial rollout batches are now flushed at the end of training, and the latest checkpoint is re-saved after that flush so tail updates are never dropped.
+  - Compact contract guardrail: compact mode now requires `obsVector` with exact expected shape and raises explicit fail-fast errors on missing/mismatched vectors (no silent legacy fallback).
+  - Worker weight broadcast optimization: trainer update payload now ships binary `state_dict` bytes (`stateFormat=state_dict_v1`, `stateBytes`) with automatic legacy fallback (`policy/value/logStd`) for compatibility.
 - Trainer/eval/regression transport mode is now explicit (`ai.training.trainer.transport` or CLI `--transport`):
   - default: `compact` (recommended).
   - `legacy`: full JSON observation/action envelopes (backward-compatible).
@@ -1696,9 +1748,11 @@ Training presets:
 - Randomized regression summary parsing also captures `under_*` metrics from trainer `under=` diagnostics when present.
 - Headless benchmark summaries/comparisons now include Underrealm KPIs (`underDepth`, `underChamp`, `underFail`, `underBlocked`, `underContested`, `underReady`) for seed-by-seed balancing review.
 - Validation npm commands are rationalized for post-training gates:
+  - `ai:validate:canonical` runs the fixed canonical master eval-only contract (`20x2200`, `rpt`, `compact`) on `policy_best`.
   - `ai:validate:benchmark` runs the 8k/4-seed deterministic benchmark snapshot.
   - `ai:validate:regression` runs all stored regression profiles (`--all`).
   - `ai:validate:gate` runs benchmark then regression sequentially (`&&`) and fails fast on the first non-zero exit.
+  - `ai:validate:risk` runs `r001` (deterministic collapse pressure benchmark) + `r002` (normalization shape guardrail).
 
 ### Rendering 🖼️
 

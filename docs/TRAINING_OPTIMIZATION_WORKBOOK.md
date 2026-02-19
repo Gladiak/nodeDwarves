@@ -1,6 +1,6 @@
 # Training Optimization Workbook
 
-Last updated: 2026-02-17
+Last updated: 2026-02-19
 Project: NodeDwarves AI training pipeline
 Scope: End-to-end implementation tracking for the 3 approved optimization solutions
 
@@ -365,13 +365,18 @@ Track real execution at commit/PR granularity.
 | 2026-02-17 | P3.5 | Workstream C6 implementation: mixed curriculum wrapper preset (`quality-mixed`) with ~`76/24` episode split | `scripts/train_wrapper.js`, `package.json`, `docs/TRAINING_OVERRIDES.md`, `README.md`, `MANUAL.md`, `docs/TRAINING_OPTIMIZATION_WORKBOOK.md` | `node --check scripts/train_wrapper.js`, `node scripts/train_wrapper.js quality-mixed --dry-run --low-load`, `npm run ai:train:quality:mixed -- --dry-run --low-load` | Done | n/a | Canonical promotion contract remains unchanged via wrapper canonical config path |
 | 2026-02-17 | P3.6 | Gate C+ full validation rerun (benchmark + regression + mixed preset smoke) | `debug/gateCplus_headless_benchmark_1771347287.json`, `debug/gateCplus_headless_benchmark_1771347287.md`, `debug/gateCplus_headless_benchmark_1771347287.log`, `debug/regression_report_1771346860187.md`, `debug/regression_report_1771347278009.md`, `debug/gateCplus_smoke_quality_mixed_1771347914.log`, `debug/run_1771347914555_24155_962090/report_training_promotion_summary.md`, `debug/gateCplus_validation_1771347914.md`, `docs/TRAINING_OPTIMIZATION_WORKBOOK.md` | `headless_benchmark --ticks 8000 --seeds 101,202,303,404`, `regression --profile standard`, `regression --profile underrealm`, `ai:train:quality:mixed` smoke (`low-load`, reduced episodes) | Partial | n/a | Quality guardrails pass; throughput objective (`>= +25%`) remains open |
 | 2026-02-17 | P3.7 | C7 throughput increment: compact-path CPU/IPC hot-path optimization (`ai_server.js` + trainer fast paths), fresh throughput compare, eval/promote IPC probe, and full quality gate rerun | `ai_server.js`, `python/train.py`, `debug/gateC7_throughput_compare_1771360179.md`, `debug/gateC7_eval_promote_profile_1771360179.md`, `debug/gateC7_headless_benchmark_1771359150.{json,md}`, `debug/regression_report_1771360039305.{json,md}`, `debug/regression_report_1771360039866.{json,md}`, `debug/gateC7_validation_1771360179.md`, `docs/TRAINING_OPTIMIZATION_WORKBOOK.md` | `node --check ai_server.js`, `py_compile`, throughput A/B microprofiles (`30x140`, `120x25`), eval-only short promote probe (`4x400`, legacy vs compact), `headless_benchmark --ticks 8000 --seeds 101,202,303,404`, `regression --profile standard`, `regression --profile underrealm` | Done | n/a | Throughput target met vs frozen C+ baseline (`A +52.2%`, `B +85.0%`) with benchmark/regression guardrails PASS |
+| 2026-02-19 | P3.8 | PPO trainer quick-wins hardening: IPC/worker watchdog fail-fast, worker-error propagation, deterministic per-episode worker seeding, and final partial-batch flush + final save | `python/train.py`, `README.md`, `MANUAL.md`, `docs/TRAINING_OPTIMIZATION_WORKBOOK.md` | `PYTHONPYCACHEPREFIX=/tmp/nodeDwarves_pycache python3 -m py_compile python/train.py` | Done | n/a | Targets stability/debuggability and non-regression of tail updates without changing PPO architecture/contracts |
+| 2026-02-19 | P3.9 | Quick-wins follow-up (`1+2+7`): compact `obsVector` fail-fast shape check, binary worker update payload (`state_dict`) with legacy load fallback, and full gate rerun | `python/train.py`, `README.md`, `MANUAL.md`, `docs/TRAINING_OPTIMIZATION_WORKBOOK.md`, `debug/regression_report_1771509035767.{txt,json,md}` | `PYTHONPYCACHEPREFIX=/tmp/nodeDwarves_pycache python3 -m py_compile python/train.py`, `python3 python/train.py --episodes 1 --batch-episodes 1 --workers 1 --max-steps 10 --step-ticks 2 --log-every 1 --eval-every 0 --model-path /tmp/nodeDwarves_smoke_policy.json --model-state-path /tmp/nodeDwarves_smoke_policy.state.pt --best-model-path /tmp/nodeDwarves_smoke_policy_best.json --best-meta-path /tmp/nodeDwarves_smoke_policy_best.meta.json --best-model-state-path /tmp/nodeDwarves_smoke_policy_best.state.pt`, `npm run ai:validate:gate` | Done | n/a | Gate PASS (benchmark avg: pop `716.0`, morale `0.8865`; regression `standard` + `underrealm` all checks `ok`) with no contract regressions detected |
+| 2026-02-19 | P4.1 | Canonical freeze benchmark closure check on `policy_best` using baseline contract (`20x2200`, `rpt`) | `debug/canonical_freeze_check_1771509446.{json,md}`, `docs/TRAINING_OPTIMIZATION_WORKBOOK.md` | `npm run ai:promote:best -- --eval-only --model-path models/policy_best.json --best-model-path models/policy_best.json --eval-episodes 20 --eval-max-steps 2200 --eval-score rpt --transport compact --report-tag freeze-check --report-json debug/canonical_freeze_check_1771509446.json --report-md debug/canonical_freeze_check_1771509446.md` | Done | n/a | Canonical score `3.7747` vs freeze baseline `3.7384` (`delta=+0.0363`), DoD benchmark-improvement criterion satisfied |
+| 2026-02-19 | P4.2 | Risk-closure mini-gate: collapse guardrail rerun (`R-001`) + normalization/runtime compatibility check (`R-002`) | `debug/risk_r001_benchmark_1771510258.{json,md}`, `debug/risk_r002_runtime_smoke_1771510861.log`, `debug/risk_r002_normalization_check_1771510899.json`, `docs/TRAINING_OPTIMIZATION_WORKBOOK.md` | `node scripts/headless_benchmark.js --ticks 8000 --seeds 101,202,303,404 --progress --progress-every 2000 --report-json debug/risk_r001_benchmark_1771510258.json --report-md debug/risk_r001_benchmark_1771510258.md`, `node app.js --ai models/policy_best.json` (controlled stop), static policy normalization shape check | Done | n/a | `R-001`: avg pop `716.0`, no collapse profile in benchmark seeds. `R-002`: policy obs-norm shape matches (`504/504`), runtime smoke log has `0` normalization/shape warnings |
+| 2026-02-19 | P4.3 | Operational runbook hardening: add canonical/risk npm aliases and document A/B/C single-change cycle commands in operator docs | `package.json`, `README.md`, `MANUAL.md`, `docs/TRAINING_OVERRIDES.md`, `docs/TRAINING_OPTIMIZATION_WORKBOOK.md`, `debug/canonical_master_smoke.{json,md}` | `npm run ai:validate:risk:r002`, `npm run ai:validate:canonical -- --eval-episodes 1 --eval-max-steps 20 --report-tag canonical-master-smoke --report-json debug/canonical_master_smoke.json --report-md debug/canonical_master_smoke.md` | Done | n/a | Canonical master + risk commands are now first-class scripts; cycle documentation is explicit and copy-paste ready for daily operations |
 
 ## 9) Risk Register
 
 | ID | Risk | Probability | Impact | Mitigation | Owner | Status |
 | --- | --- | --- | --- | --- | --- | --- |
-| R-001 | Reward redesign causes policy collapse | Medium | High | Incremental rollout + A/B gate each substep | TBD | Open |
-| R-002 | Normalization mismatch breaks JS inference | Medium | High | Persist stats in model + runtime compatibility test | TBD | Open |
+| R-001 | Reward redesign causes policy collapse | Medium | High | Incremental rollout + A/B gate each substep; periodic deterministic benchmark/regression gates with seeded profiles | Team | Mitigated |
+| R-002 | Normalization mismatch breaks JS inference | Medium | High | Persist stats in model + runtime compatibility test + fail-fast shape/version guards in trainer/runtime | Team | Mitigated |
 | R-003 | Throughput refactor introduces nondeterminism | Medium | Medium | Seed reproducibility checks before merge | TBD | Mitigated |
 | R-004 | Promotion continuity mismatch (best state missing) | High | Medium | Save/copy best optimizer state on promote | TBD | Mitigated |
 
@@ -380,7 +385,7 @@ Track real execution at commit/PR granularity.
 All items required for closure:
 
 - [x] Workstreams A, B, C completed with passing gates.
-- [ ] Canonical benchmark score improved vs baseline freeze.
+- [x] Canonical benchmark score improved vs baseline freeze.
 - [x] Regression profiles pass with no critical blockers.
 - [x] Throughput gain documented with before/after numbers.
 - [x] Docs updated (`README.md`, `MANUAL.md`, `docs/PARAMETERS.md`, `docs/TRAINING_OVERRIDES.md` as needed).
@@ -522,3 +527,81 @@ Exit criteria:
   - `standard` PASS (`debug/regression_report_1771360039305.md`)
   - `underrealm` PASS (`debug/regression_report_1771360039866.md`)
 - Final validation report: `debug/gateC7_validation_1771360179.md`.
+
+## 13) Operational Cycle Runbook (Post-Closure Baseline)
+
+Status: Active baseline (2026-02-19)
+Goal: keep training changes incremental, comparable, and promotion-safe after the optimization closure.
+
+### 13.1 Canonical Master Contract
+
+Use one fixed canonical contract for every acceptance decision:
+
+- `evalEpisodes=20`
+- `evalMaxSteps=2200`
+- `stepTicks=2`
+- `evalScore=rpt`
+- `transport=compact`
+
+Command:
+
+```bash
+npm run ai:validate:canonical
+```
+
+Outputs:
+
+- `debug/canonical_master_latest.json`
+- `debug/canonical_master_latest.md`
+
+### 13.2 Risk Mini-Gate
+
+Use risk checks before accepting defaults:
+
+- `r001` collapse pressure:
+  - deterministic benchmark (`8000` ticks, seeds `101,202,303,404`)
+- `r002` checkpoint compatibility:
+  - observation-normalization shape check against current policy feature/action contract
+
+Commands:
+
+```bash
+npm run ai:validate:risk
+# or run slices independently:
+npm run ai:validate:risk:r001
+npm run ai:validate:risk:r002
+```
+
+### 13.3 Single-Change A/B/C Cycle
+
+Policy for every tuning iteration:
+
+- Change one variable per cycle (reward OR curriculum OR trainer knob).
+- Do not stack multiple unverified tweaks in the same cycle.
+- Promote only after canonical + gate + risk are all green.
+
+Cycle template:
+
+```bash
+# Cycle A
+npm run ai:train:quality:daily
+npm run ai:validate:canonical
+npm run ai:validate:gate
+
+# Cycle B
+npm run ai:train:quality:daily
+npm run ai:validate:canonical
+npm run ai:validate:gate
+
+# Cycle C (closeout candidate)
+npm run ai:train:quality:high
+npm run ai:validate:canonical
+npm run ai:validate:gate
+npm run ai:validate:risk
+```
+
+Acceptance rule:
+
+- canonical delta under master contract is positive
+- benchmark/regression gate passes
+- risk mini-gate passes
