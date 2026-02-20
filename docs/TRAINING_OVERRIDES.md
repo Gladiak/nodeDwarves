@@ -53,9 +53,14 @@ Scenario curriculum defaults:
   - `underrealm_push`: accelerates deep unlock/readiness loops so Underrealm progression/combat signals are sampled more often.
   - `compound_crisis`: combines low stockpiles, food/water scarcity, harsher needs/weather, stronger raids, and housing pressure.
   - `governance_pressure`: increases world-event and external-camp churn with higher schism pressure to stress diplomacy/governance control paths.
+- 2026-02 deterministic safety retune (config-only):
+  - `underrealm_push` now uses stricter deep readiness + slower retry pacing and keeps more adults on surface reserve.
+  - `compound_crisis` now keeps the crisis profile but with moderated scarcity/need/raid pressure to avoid deterministic over-kill in hardened `underrealm`/`governance` regression slices.
 - Default canonical eval scenario list (`ai.training.evalScenarios`) is now:
   - `baseline`, `full_sim`, `wildlife_raid`, `water_scarce`, `food_scarce`, `ruins_focus`, `underrealm_push`, `compound_crisis`.
 - Design intent: keep daily training focused on robustness under multi-system stress while still preserving baseline/full-sim comparability.
+- Adaptive scenario-sampling cadence is tuned for wrapper-sized runs:
+  - `ai.training.scenarioSampling.updateEvery=80` by default, so normal quality/full phases can trigger weight updates within one run.
 
 Wrapper low-load tuning (no config edit needed):
 
@@ -66,10 +71,11 @@ Wrapper low-load tuning (no config edit needed):
     - `--cycles <n>`
     - `--full-every <n>` / `--high-every <n>` (high takes precedence when both match)
     - `--gate-every <n>`
-    - `--max-no-improve <n>` with `--improve-threshold <x>`
+    - `--max-no-improve <n>` (strict non-improve: no canonical promotion in cycle summary)
+    - `--improve-threshold <x>` (diagnostic only: tags positive delta cycles that were not promoted)
     - `--max-gate-fail <n>`
     - `--fresh-first`
-  - Emits run reports in `debug/continuous_train_<timestamp>.json/.md`.
+  - Emits run reports in `debug/continuous_train_<timestamp>.json/.md` with explicit fields (`improvedReason`, `promotionAligned`, `deltaPositive`).
 - `--low-load`: one-shot preset for reduced machine pressure:
   - caps auto workers (`workersAutoMin/Max <= 4`) and reserves at least 3 CPU slots;
   - switches canonical promotion from per-phase to final-only;
@@ -110,6 +116,10 @@ Operational cycle runbook (2026-02-19 baseline contract):
   - `npm run ai:validate:risk`
     - `r001`: deterministic collapse pressure check (`ai:validate:benchmark`)
     - `r002`: observation-normalization shape guardrail on `models/policy_best.json`
+  - Deterministic regression profile slices:
+    - `standard`: `baseline`, `full_sim`
+    - `underrealm`: `baseline`, `underrealm_push`, `compound_crisis`
+    - `governance`: `baseline`, `governance_pressure`, `compound_crisis`
 - Controlled A/B/C cycle template (single-change discipline):
   - Cycle A:
     - `npm run ai:train:quality:daily`

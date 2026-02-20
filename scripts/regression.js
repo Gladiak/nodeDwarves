@@ -65,6 +65,11 @@ const RANDOM_REPORT_METRICS = [
   'short_stone',
   'extinction_rate',
 ];
+const PROFILE_EVAL_SCENARIOS = {
+  standard: ['baseline', 'full_sim'],
+  underrealm: ['baseline', 'underrealm_push', 'compound_crisis'],
+  governance: ['baseline', 'governance_pressure', 'compound_crisis'],
+};
 
 function parseArgs(argv) {
   const options = {
@@ -169,6 +174,29 @@ function ensureFile(pathname, label) {
 function readConfig() {
   const raw = fs.readFileSync(CONFIG_PATH, 'utf8');
   return JSON.parse(raw);
+}
+
+function normalizeProfileName(profileName) {
+  return String(profileName || 'standard').trim().toLowerCase();
+}
+
+// Resolve deterministic eval scenarios for one regression profile.
+function resolveProfileEvalScenarios(profileName, config) {
+  const normalizedProfile = normalizeProfileName(profileName);
+  const requested = PROFILE_EVAL_SCENARIOS[normalizedProfile] || PROFILE_EVAL_SCENARIOS.standard;
+  const cfg = config && typeof config === 'object' ? config : readConfig();
+  const training = (cfg.ai && cfg.ai.training) || {};
+  const scenarioDefs = Array.isArray(training.scenarios) ? training.scenarios : [];
+  if (scenarioDefs.length === 0) {
+    return requested.slice();
+  }
+  const available = new Set(
+    scenarioDefs
+      .map((entry) => (entry && typeof entry === 'object' ? String(entry.name || '').trim() : ''))
+      .filter(Boolean),
+  );
+  const filtered = requested.filter((name) => available.has(name));
+  return filtered.length > 0 ? filtered : requested.slice();
 }
 
 function createTempWorkspace(prefix) {
@@ -564,6 +592,7 @@ function buildLegendLines() {
   return [
     'Legend:',
     '- Eval (deterministic): fixed terrain seed=1337, randomization off (compare training quality).',
+    '- Deterministic eval scenarios are profile-specific (standard/underrealm/governance stress slices).',
     '- Randomized: terrain seed=0, randomization on (robustness/stability).',
     '- Columns: current, baseline, delta(abs), delta(%), threshold, status.',
     '- threshold: rel limit -0.05 means max -5% drop; abs limit 0.05 means max +0.05 increase.',
@@ -723,6 +752,7 @@ function writeReport(reportPath, data) {
     lines.push(`Profile: ${section.profile}`);
     lines.push(`Seeds: ${section.config.seeds.join(', ')}`);
     lines.push(`Eval episodes: ${section.config.evalEpisodes}, Eval max steps: ${section.config.evalMaxSteps}`);
+    lines.push(`Eval scenarios: ${(section.config.evalScenarios || []).join(', ') || 'n/a'}`);
     lines.push(`Random episodes: ${section.config.randomEpisodes}, Random max steps: ${section.config.randomMaxSteps}`);
     lines.push('');
     lines.push(...renderTable('Eval (deterministic)', section.evalRows));
@@ -769,6 +799,9 @@ function buildMarkdownReport(bundle) {
     lines.push(`Config seeds: ${(section.config && section.config.seeds || []).join(', ')}`);
     lines.push(
       `Eval episodes/max_steps: ${section.config.evalEpisodes}/${section.config.evalMaxSteps}`,
+    );
+    lines.push(
+      `Eval scenarios: ${(section.config && section.config.evalScenarios || []).join(', ') || 'n/a'}`,
     );
     lines.push(
       `Random episodes/max_steps: ${section.config.randomEpisodes}/${section.config.randomMaxSteps}`,
@@ -885,13 +918,15 @@ function saveBaseline(data) {
   fs.writeFileSync(BASELINE_PATH, JSON.stringify(data, null, 2));
 }
 
-function buildProfileConfig(options) {
+function buildProfileConfig(options, profileName = 'standard') {
+  const evalScenarios = resolveProfileEvalScenarios(profileName);
   return {
     seeds: options.seeds,
     evalEpisodes: options.evalEpisodes,
     evalMaxSteps: options.evalMaxSteps,
     randomEpisodes: options.randomEpisodes,
     randomMaxSteps: options.randomMaxSteps,
+    evalScenarios,
   };
 }
 
@@ -927,6 +962,11 @@ async function runProfile(profileName, options) {
     random: [],
   };
   const sourceBestModelPath = POLICY_BEST_PATH;
+  const baseConfig = readConfig();
+  const evalScenarios = resolveProfileEvalScenarios(profileName, baseConfig);
+  console.log(
+    `[regression] profile=${profileName} eval_scenarios=${evalScenarios.join(',') || 'n/a'}`,
+  );
 
   for (const seed of options.seeds) {
     console.log(`[regression] profile=${profileName} seed=${seed}: begin`);
@@ -934,7 +974,7 @@ async function runProfile(profileName, options) {
     try {
       const evalDir = path.join(ROOT, 'debug', `regression_eval_${profileName}_seed${seed}_${Date.now()}`);
       fs.mkdirSync(evalDir, { recursive: true });
-      const evalConfig = buildEvalConfig(['baseline', 'full_sim']);
+      const evalConfig = buildEvalConfig(evalScenarios);
       const evalConfigPath = writeTempConfig(evalConfig, seedTempDir, `eval_${profileName}_${seed}`);
       const evalOutput = await runPythonScript(PROMOTE, [
         '--config', evalConfigPath,
@@ -1153,7 +1193,7 @@ async function main() {
       const profileOptions = applyProfileConfig(options, profile.config || {});
       const runtimeProfile = {
         ...profile,
-        config: buildProfileConfig(profileOptions),
+        config: buildProfileConfig(profileOptions, profileName),
       };
       const {
         evalAverage,
@@ -1211,7 +1251,7 @@ async function main() {
   if (options.record) {
     const record = {
       generatedAt: new Date().toISOString(),
-      config: buildProfileConfig(profileOptions),
+      config: buildProfileConfig(profileOptions, profileName),
       tolerances: profile && profile.tolerances ? profile.tolerances : DEFAULT_TOLERANCES,
       baseline: {
         eval: evalAverage,
@@ -1233,7 +1273,7 @@ async function main() {
   const tolerances = profile.tolerances || DEFAULT_TOLERANCES;
   const runtimeProfile = {
     ...profile,
-    config: buildProfileConfig(profileOptions),
+    config: buildProfileConfig(profileOptions, profileName),
   };
   const comparisons = [
     compareSuite(`${profileName}.eval`, evalAverage, profile.baseline.eval, tolerances.eval),

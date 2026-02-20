@@ -1653,8 +1653,9 @@ Training presets:
 - `ai:train:quality:high` runs a high-quality shortcut on top of the full 4-phase curriculum, keeps canonical promote final-only, enables paired-LCB on canonical and non-canonical phase promotes, and uses heavier canonical eval (`32` episodes, `2400` max steps).
 - `ai:train:quality:acceptance` runs the strict acceptance shortcut: quality profile with final-only canonical promote (default strict canonical settings), then full benchmark+regression gate via `ai:validate:gate`.
 - `ai:train:continuous` runs a cycle orchestrator over existing presets for long-horizon cumulative learning: each cycle picks `daily` by default, upgrades to `full` every `--full-every N` cycles (with `--canonical-final-only --phase-promote-no-positive-lcb`), upgrades to `high` every `--high-every N` cycles (high takes precedence when both match), and can run `ai:validate:gate` every `--gate-every N` cycles.
-- Continuous stop rules are CLI-driven: `--max-no-improve` halts after N consecutive non-improving canonical deltas (threshold set by `--improve-threshold`), and `--max-gate-fail` halts after N consecutive validation-gate failures.
-- Continuous reports are emitted to `debug/continuous_train_<timestamp>.json/.md` with per-cycle command selection, canonical delta/promote outcome, gate status, and final stop reason.
+- Continuous stop rules are CLI-driven: `--max-no-improve` halts after N consecutive cycles without canonical promotion (strict promotion-aligned semantics), and `--max-gate-fail` halts after N consecutive validation-gate failures.
+- `--improve-threshold` remains diagnostic in continuous mode: it tags `delta_positive_not_promoted` cycles in reports, but does not reset no-improve streaks.
+- Continuous reports are emitted to `debug/continuous_train_<timestamp>.json/.md` with per-cycle command selection, canonical delta/promote outcome, improvement reason (`promoted` / `not_promoted` / `delta_positive_not_promoted` / missing-summary guards), promotion-alignment flag, gate status, and final stop reason.
 - `ai:train:full` runs the quality-first full curriculum in four phases: foundation (280 episodes), full-sim finetune (90), endgame specialization (24), and final consolidation (40). It is optimized for model quality over runtime and keeps promote checks after every phase.
 - `ai:train:full:fresh` runs the same full curriculum but starts from a clean checkpoint set (`--fresh` is applied to phase 1 only, then latest-resume carries forward across later phases).
 - `ai:train:endgame` runs an endgame-enabled long-horizon pass (8 episodes, max_steps=10000, step_ticks=2, target horizon 20k ticks per episode) with eval every 4 episodes. It is tuned to specialize on late-game pressure while keeping the profile compact.
@@ -1746,6 +1747,13 @@ Training presets:
 - Profile-aware worker policy: in auto mode the wrapper scales workers by phase category (`foundation` > `finetune` > `consolidation` > `endgame`) and also caps by PPO batch window (`batchEpisodes * 2`) to limit over-queued rollouts; use `--workers-flat` to disable this behavior.
 - `promote_best.py` partial eval logs are now controllable with `--eval-progress` / `--no-eval-progress` and cadence `--eval-progress-every <N>`; in `--eval-only` mode, progress logs default to enabled.
 - Regression deterministic pass is eval-only: `scripts/regression.js` calls `python/promote_best.py --eval-only` for policy quality checks instead of running a quasi-train loop.
+- Regression deterministic eval scenarios are now profile-specific:
+  - `standard`: `baseline`, `full_sim`
+  - `underrealm`: `baseline`, `underrealm_push`, `compound_crisis`
+  - `governance`: `baseline`, `governance_pressure`, `compound_crisis`
+- 2026-02 config-only deterministic safety retune:
+  - `underrealm_push` now enforces stricter readiness/cooldown pacing and safer deep crew reserve.
+  - `compound_crisis` keeps multi-system pressure but with moderated scarcity/need/raid knobs to avoid deterministic over-kill in hardened regression slices.
 - Regression temp artifacts are isolated per seed via `mkdtemp` workspaces (config + transient policy files), removing static `/tmp` filename collisions and cross-run side effects.
 - Regression randomized pass is rollout-only: `scripts/regression.js` calls `python/regression_rollout.py`, avoiding PPO optimizer/update overhead and checkpoint side effects.
 - Regression baseline profiles are persisted in `regression/baselines/regression_baseline.json` (stable/versionable), while per-run logs/reports stay in `debug/`.

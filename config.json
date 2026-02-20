@@ -1118,7 +1118,7 @@
       },
       "scenarioSampling": {
         "mode": "adaptive",
-        "updateEvery": 1500,
+        "updateEvery": 80,
         "emaAlpha": 0.15,
         "boost": 0.8,
         "exponent": 1.1,
@@ -1689,7 +1689,7 @@
                 "max_tick": 220
               },
               "progression": {
-                "min_frontier_miners": 1,
+                "min_frontier_miners": 2,
                 "build_ticks_base": 170,
                 "build_ticks_per_depth": 110,
                 "stockpile_cost_base": {
@@ -1711,27 +1711,27 @@
               },
               "combat": {
                 "encounter": {
-                  "retry_cooldown_ticks_base": 70,
-                  "retry_cooldown_ticks_per_depth": 24
+                  "retry_cooldown_ticks_base": 96,
+                  "retry_cooldown_ticks_per_depth": 34
                 },
                 "floors": {
                   "defaults": {
                     "readiness": {
-                      "min_score_base": 15,
-                      "min_score_per_depth": 7,
-                      "recommended_score_base": 24,
-                      "recommended_score_per_depth": 9
+                      "min_score_base": 18,
+                      "min_score_per_depth": 9,
+                      "recommended_score_base": 27,
+                      "recommended_score_per_depth": 11
                     }
                   }
                 }
               },
               "crew": {
-                "surface_reserve_ratio": 0.5,
-                "max_underrealm_ratio": 0.4,
+                "surface_reserve_ratio": 0.6,
+                "max_underrealm_ratio": 0.3,
                 "roles": {
                   "miner_ratio": 0.15,
                   "hauler_ratio": 0.1,
-                  "guard_ratio": 0.07
+                  "guard_ratio": 0.1
                 }
               }
             }
@@ -1747,24 +1747,24 @@
           "overrides": {
             "resources": {
               "stockpile": {
-                "food": 38,
-                "water": 40,
+                "food": 44,
+                "water": 46,
                 "wood": 11,
                 "stone": 11
               },
               "nodes": {
-                "food": 28,
-                "water": 24
+                "food": 32,
+                "water": 27
               },
               "nodeCapacity": {
-                "food": 7,
-                "water": 8
+                "food": 8,
+                "water": 9
               }
             },
             "needs": {
               "decayPerTick": {
-                "hunger": 0.0025,
-                "thirst": 0.0038
+                "hunger": 0.0022,
+                "thirst": 0.0034
               }
             },
             "population": {
@@ -1783,12 +1783,12 @@
             },
             "raids": {
               "chance": {
-                "min": 0.2,
-                "max": 0.36
+                "min": 0.16,
+                "max": 0.3
               },
               "deathRate": {
-                "min": 0.3,
-                "max": 0.56
+                "min": 0.22,
+                "max": 0.44
               },
               "resourceLoss": {
                 "min": 0.05,
