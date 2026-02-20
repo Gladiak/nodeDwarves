@@ -380,6 +380,7 @@ Track real execution at commit/PR granularity.
 | 2026-02-20 | P4.7 | Post-stability full gate confirmation rerun (benchmark + all regression profiles) | `docs/TRAINING_OPTIMIZATION_WORKBOOK.md`, `debug/regression_report_1771598411335.{txt,json,md}` | `npm run ai:validate:gate` | Done | n/a | Gate PASS confirmed after stability mini-cycle (`standard`, `underrealm`, `governance` all PASS) |
 | 2026-02-20 | P4.8 | OQ-1 closure: trainer adaptive-sampler update counters (`scenario_updates`) + daily-profile validation run and summary evidence capture | `python/train.py`, `docs/TRAINING_OVERRIDES.md`, `README.md`, `MANUAL.md`, `docs/TRAINING_OPTIMIZATION_WORKBOOK.md`, `debug/run_1771600489872_92739_841570/summary_train.log`, `debug/run_1771600489872_92739_841570/summary_finetune.log` | `python -m py_compile python/train.py`, `npm run ai:train:quality:daily -- --episodes 96 --max-steps 300 --eval-every 0 --log-every 24 --workers 2`, `rg -n \"scenario_updates|scenario_weights\" debug/run_1771600489872_92739_841570/summary*.log` | Done | n/a | Observability active and verified: adaptive updates detected in both daily phases (`scenario_updates=1/1`) |
 | 2026-02-20 | P4.9 | Post-OQ-1 guardrail confirmation: full benchmark + all-profile regression gate rerun after trainer observability update | `docs/TRAINING_OPTIMIZATION_WORKBOOK.md`, `debug/regression_report_1771603081032.{json,md}` | `npm run ai:validate:gate` | Done | n/a | Gate PASS confirmed after OQ-1 implementation (`standard`, `underrealm`, `governance` all PASS with thresholds respected) |
+| 2026-02-20 | P4.10 | OQ-4 implementation kickoff + paused checkpoint: add `horizon` regression profile/tolerances/scripts, record baseline, validate horizon, start extended cycle then stop mid-risk on operator request | `scripts/regression.js`, `package.json`, `regression/baselines/regression_baseline.json`, `docs/TRAINING_OPTIMIZATION_WORKBOOK.md`, `debug/regression_horizon_latest.{json,md}`, `debug/regression_report_1771607125378.{json,md}` | `npm run ai:regression:record:horizon`, `npm run ai:validate:horizon`, `npm run ai:validate:extended` (interrupted) | Partial | n/a | Completed: horizon baseline + horizon validation PASS. Extended cycle reached canonical PASS + gate PASS + risk benchmark in progress; interrupted at `risk:r001` benchmark (`seed=404`, `tick=4000/8000`) |
 
 ## 9) Risk Register
 
@@ -803,17 +804,34 @@ Files:
 
 Actions:
 
-- [ ] Add one medium/long-horizon quality slice focused on deep/governance behavior:
+- [x] Add one medium/long-horizon quality slice focused on deep/governance behavior:
   - extend gate contract with dedicated horizon scenario checks (not replacing canonical).
-- [ ] Keep canonical master contract unchanged as primary promotion gate.
-- [ ] Add explicit pass/fail thresholds for horizon-specific metrics to avoid subjective interpretation.
+- [x] Keep canonical master contract unchanged as primary promotion gate.
+- [x] Add explicit pass/fail thresholds for horizon-specific metrics to avoid subjective interpretation.
 
 Validation:
 
 - `npm run ai:validate:canonical`
 - `npm run ai:validate:gate`
 - `npm run ai:validate:risk`
-- run new horizon check command once implemented (name TBD in implementation step)
+- `npm run ai:validate:horizon`
+- `npm run ai:validate:extended` (canonical + gate + risk + horizon)
+
+Pause checkpoint (2026-02-20):
+
+- Completed before pause:
+  - `npm run ai:regression:record:horizon` (new baseline recorded).
+  - `npm run ai:validate:horizon` PASS (`debug/regression_horizon_latest.json` + `.md`).
+  - `npm run ai:validate:extended` reached:
+    - canonical PASS (`debug/canonical_master_latest.json` + `.md`),
+    - gate PASS (`debug/regression_report_1771607125378.json` + `.md`),
+    - risk phase started (`ai:validate:risk:r001` benchmark).
+- Last observed progress before interruption:
+  - risk benchmark (`node scripts/headless_benchmark.js --ticks 8000 --seeds 101,202,303,404 --progress --progress-every 2000`)
+  - `seed=404`, `tick=4000/8000`.
+- Resume commands:
+  - minimal continuation: `npm run ai:validate:risk && npm run ai:validate:horizon`
+  - full cycle rerun from clean start: `npm run ai:validate:extended`
 
 Exit criteria:
 

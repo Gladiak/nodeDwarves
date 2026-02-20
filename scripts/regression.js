@@ -32,6 +32,24 @@ const DEFAULT_TOLERANCES = {
     extinction_rate: { mode: 'abs', limit: 0.05 },
   },
 };
+const HORIZON_TOLERANCES = {
+  eval: {
+    avg_reward: { mode: 'rel', limit: -0.06 },
+    score: { mode: 'rel', limit: -0.06 },
+    avg_deaths: { mode: 'rel', limit: 0.18 },
+  },
+  random: {
+    avg_reward: { mode: 'rel', limit: -0.10 },
+    stock_min: { mode: 'rel', limit: -0.10 },
+    extinction_rate: { mode: 'abs', limit: 0.05 },
+    under_readinessScore: { mode: 'rel', limit: -0.12 },
+    under_readinessBlocked: { mode: 'rel', limit: 0.22 },
+    under_combatPressure: { mode: 'rel', limit: 0.22 },
+  },
+};
+const PROFILE_DEFAULT_TOLERANCES = {
+  horizon: HORIZON_TOLERANCES,
+};
 const EVAL_REPORT_METRICS = ['avg_reward', 'avg_steps', 'avg_births', 'avg_deaths', 'score'];
 const RANDOM_REPORT_METRICS = [
   'avg_reward',
@@ -69,6 +87,7 @@ const PROFILE_EVAL_SCENARIOS = {
   standard: ['baseline', 'full_sim'],
   underrealm: ['baseline', 'underrealm_push', 'compound_crisis'],
   governance: ['baseline', 'governance_pressure', 'compound_crisis'],
+  horizon: ['baseline', 'underrealm_push', 'governance_pressure', 'compound_crisis'],
 };
 
 function parseArgs(argv) {
@@ -88,6 +107,7 @@ function parseArgs(argv) {
     record: false,
     profile: 'standard',
     all: false,
+    includeHorizon: false,
     reportJsonPath: null,
     reportMarkdownPath: null,
   };
@@ -105,6 +125,10 @@ function parseArgs(argv) {
     }
     if (arg === '--all') {
       options.all = true;
+      continue;
+    }
+    if (arg === '--include-horizon') {
+      options.includeHorizon = true;
       continue;
     }
     if (arg === '--seeds') {
@@ -178,6 +202,22 @@ function readConfig() {
 
 function normalizeProfileName(profileName) {
   return String(profileName || 'standard').trim().toLowerCase();
+}
+
+function cloneObject(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+// Resolve profile tolerances; keep horizon-specific defaults explicit.
+function resolveProfileTolerances(profileName, profileRecord) {
+  if (profileRecord && profileRecord.tolerances) {
+    return profileRecord.tolerances;
+  }
+  const normalized = normalizeProfileName(profileName);
+  if (PROFILE_DEFAULT_TOLERANCES[normalized]) {
+    return cloneObject(PROFILE_DEFAULT_TOLERANCES[normalized]);
+  }
+  return cloneObject(DEFAULT_TOLERANCES);
 }
 
 // Resolve deterministic eval scenarios for one regression profile.
@@ -1183,12 +1223,18 @@ async function main() {
       throw new Error('Use --record with a specific --profile, not --all.');
     }
     const profileNames = Object.keys(baselineFile.profiles || {});
-    if (profileNames.length === 0) {
+    const effectiveProfileNames = profileNames.filter((profileName) => {
+      if (options.includeHorizon) {
+        return true;
+      }
+      return normalizeProfileName(profileName) !== 'horizon';
+    });
+    if (effectiveProfileNames.length === 0) {
       throw new Error('No regression profiles found. Run with --record to create one.');
     }
     const reportSections = [];
     let allOk = true;
-    for (const profileName of profileNames) {
+    for (const profileName of effectiveProfileNames) {
       const profile = baselineFile.profiles[profileName];
       const profileOptions = applyProfileConfig(options, profile.config || {});
       const runtimeProfile = {
@@ -1201,7 +1247,7 @@ async function main() {
         evalSeedResults,
         randomSeedResults,
       } = await runProfile(profileName, profileOptions);
-      const tolerances = profile.tolerances || DEFAULT_TOLERANCES;
+      const tolerances = resolveProfileTolerances(profileName, profile);
       const comparisons = [
         compareSuite(`${profileName}.eval`, evalAverage, profile.baseline.eval, tolerances.eval),
         compareSuite(`${profileName}.random`, randomAverage, profile.baseline.random, tolerances.random),
@@ -1252,7 +1298,7 @@ async function main() {
     const record = {
       generatedAt: new Date().toISOString(),
       config: buildProfileConfig(profileOptions, profileName),
-      tolerances: profile && profile.tolerances ? profile.tolerances : DEFAULT_TOLERANCES,
+      tolerances: resolveProfileTolerances(profileName, profile),
       baseline: {
         eval: evalAverage,
         random: randomAverage,
@@ -1270,7 +1316,7 @@ async function main() {
     throw new Error(`Baseline for profile "${profileName}" not found. Run with --record to create it.`);
   }
 
-  const tolerances = profile.tolerances || DEFAULT_TOLERANCES;
+  const tolerances = resolveProfileTolerances(profileName, profile);
   const runtimeProfile = {
     ...profile,
     config: buildProfileConfig(profileOptions, profileName),
