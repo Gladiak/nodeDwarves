@@ -61,6 +61,11 @@ Scenario curriculum defaults:
 - Design intent: keep daily training focused on robustness under multi-system stress while still preserving baseline/full-sim comparability.
 - Adaptive scenario-sampling cadence is tuned for wrapper-sized runs:
   - `ai.training.scenarioSampling.updateEvery=80` by default, so normal quality/full phases can trigger weight updates within one run.
+- Adaptive sampler observability (2026-02):
+  - Trainer summary lines now expose `scenario_updates=<window>/<total>`.
+  - `window`: updates applied in the current summary window.
+  - `total`: cumulative updates since phase/run start.
+  - Keep using `events=scenario_weights` as the qualitative trigger marker.
 
 Wrapper low-load tuning (no config edit needed):
 

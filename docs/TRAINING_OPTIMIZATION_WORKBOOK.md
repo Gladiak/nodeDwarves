@@ -332,6 +332,7 @@ Use this section to record every non-trivial technical decision.
 | 2026-02-20 | D-014 | Enforce strict promotion-aligned continuous improvement semantics (`improved == promoted`) and profile-specific deterministic regression scenarios (`standard`/`underrealm`/`governance`) with adaptive sampling cadence tuned to wrapper-scale runs (`updateEvery=80`) | Keep delta-threshold improvement semantics + shared deterministic eval scenarios + high `updateEvery` | Removes no-improve ambiguity, strengthens deep/governance regression signal quality, and reactivates adaptive sampling in normal quality loops | Validation rigor + operational stability | Team | Implemented |
 | 2026-02-20 | D-015 | Keep strict hardened regression profile contract and recover `underrealm` gate via config-only scenario safety retune (`underrealm_push` readiness/combat pacing + `compound_crisis` scarcity/raid pressure moderation) | Relax tolerances, revert profile hardening, or re-record baseline immediately | Preserves stronger deterministic regression signal while resolving the real stability issue instead of masking it | Gate closure + contract integrity | Team | Implemented |
 | 2026-02-20 | D-016 | Defer `underrealm` baseline refresh after stability mini-cycle; keep current stricter baseline while monitoring additional cycles | Re-record `underrealm` baseline immediately after first pass recovery | Current recovered profile is stable/pass but still carries higher deaths than baseline; immediate refresh would weaken the deaths guardrail too early | Guardrail strength + regression sensitivity | Team | Implemented |
+| 2026-02-20 | D-017 | Add explicit adaptive-sampler observability in trainer summary logs via `scenario_updates=<window>/<total>` and keep cadence guardrails bounded (`0.8..1.2`) | Keep event-only trace (`scenario_weights`) without counters | Makes OQ-1 verification measurable phase-by-phase with one grep, without changing policy logic | Operator visibility + tuning safety | Team | Implemented |
 
 Status vocabulary:
 
@@ -377,6 +378,8 @@ Track real execution at commit/PR granularity.
 | 2026-02-20 | P4.5 | OQ-2 closure follow-up: config-only Underrealm/Governance stress retune (`underrealm_push` safety rails + moderated `compound_crisis` pressure) and full gate rerun | `config.json`, `README.md`, `MANUAL.md`, `docs/TRAINING_OVERRIDES.md`, `docs/TRAINING_OPTIMIZATION_WORKBOOK.md`, `debug/regression_report_1771593257251.{txt,json,md}`, `debug/regression_report_1771594981688.{txt,json,md}` | `node scripts/regression.js --profile underrealm`, `npm run ai:validate:gate` | Done | n/a | Gate closed: `underrealm.eval.avg_deaths=2.075` (threshold `2.156`) and full `standard/underrealm/governance` regression + benchmark pass |
 | 2026-02-20 | P4.6 | Post-recovery stability mini-cycle (`underrealm` deterministic profile repeated 3x) and baseline-refresh decision checkpoint | `docs/TRAINING_OPTIMIZATION_WORKBOOK.md`, `debug/regression_report_1771595632435.{txt,json,md}`, `debug/regression_report_1771596014801.{txt,json,md}`, `debug/regression_report_1771596408496.{txt,json,md}` | `node scripts/regression.js --profile underrealm` (x3) | Done | n/a | All 3 runs reproduced identical PASS metrics (`avg_deaths=2.075`), baseline refresh intentionally deferred to keep stricter deaths guardrail |
 | 2026-02-20 | P4.7 | Post-stability full gate confirmation rerun (benchmark + all regression profiles) | `docs/TRAINING_OPTIMIZATION_WORKBOOK.md`, `debug/regression_report_1771598411335.{txt,json,md}` | `npm run ai:validate:gate` | Done | n/a | Gate PASS confirmed after stability mini-cycle (`standard`, `underrealm`, `governance` all PASS) |
+| 2026-02-20 | P4.8 | OQ-1 closure: trainer adaptive-sampler update counters (`scenario_updates`) + daily-profile validation run and summary evidence capture | `python/train.py`, `docs/TRAINING_OVERRIDES.md`, `README.md`, `MANUAL.md`, `docs/TRAINING_OPTIMIZATION_WORKBOOK.md`, `debug/run_1771600489872_92739_841570/summary_train.log`, `debug/run_1771600489872_92739_841570/summary_finetune.log` | `python -m py_compile python/train.py`, `npm run ai:train:quality:daily -- --episodes 96 --max-steps 300 --eval-every 0 --log-every 24 --workers 2`, `rg -n \"scenario_updates|scenario_weights\" debug/run_1771600489872_92739_841570/summary*.log` | Done | n/a | Observability active and verified: adaptive updates detected in both daily phases (`scenario_updates=1/1`) |
+| 2026-02-20 | P4.9 | Post-OQ-1 guardrail confirmation: full benchmark + all-profile regression gate rerun after trainer observability update | `docs/TRAINING_OPTIMIZATION_WORKBOOK.md`, `debug/regression_report_1771603081032.{json,md}` | `npm run ai:validate:gate` | Done | n/a | Gate PASS confirmed after OQ-1 implementation (`standard`, `underrealm`, `governance` all PASS with thresholds respected) |
 
 ## 9) Risk Register
 
@@ -650,9 +653,9 @@ Actions:
 
 - [x] Tune adaptive sampler cadence to wrapper-scale runs:
   - target `updateEvery` aligned to phase sizes (`40-280` episodes), starting range `40-120`.
-- [ ] Add explicit adaptive-update observability in logs/reports:
+- [x] Add explicit adaptive-update observability in logs/reports:
   - count update events per phase (`scenario_weights` updates).
-- [ ] Keep bounded weight ratios (`minWeightRatio`, `maxWeightRatio`) conservative while retuning cadence.
+- [x] Keep bounded weight ratios (`minWeightRatio`, `maxWeightRatio`) conservative while retuning cadence.
 
 Validation:
 
@@ -660,11 +663,26 @@ Validation:
 - `npm run ai:train:quality:high`
 - `rg -n "scenario_weights|scenario_shift" debug/run_*/summary*.log`
 
+Validation snapshot (2026-02-20):
+
+- Trainer observability field added:
+  - summary line now includes `scenario_updates=<window>/<total>`.
+  - source: `python/train.py` summary formatter + sampler counters.
+- Daily-profile validation run (reduced horizon, same profile contract):
+  - `npm run ai:train:quality:daily -- --episodes 96 --max-steps 300 --eval-every 0 --log-every 24 --workers 2`
+  - run dir: `debug/run_1771600489872_92739_841570`.
+- Observed adaptive updates in both phases:
+  - `summary_train.log` final window: `scenario_updates=1/1` + `events=scenario_weights,...`.
+  - `summary_finetune.log` window `61-80`: `scenario_updates=1/1` + `events=scenario_weights,...`.
+- Guardrail context:
+  - canonical final promote retained best (no unsafe promotion).
+  - latest full gate remains PASS (`debug/regression_report_1771603081032.json` + `.md`).
+
 Exit criteria:
 
-- [ ] At least one adaptive weight update appears in a normal daily quality run.
-- [ ] Canonical score does not regress beyond current guardrails.
-- [ ] No instability spikes in benchmark/regression gate after cadence change.
+- [x] At least one adaptive weight update appears in a normal daily quality run.
+- [x] Canonical score does not regress beyond current guardrails.
+- [x] No instability spikes in benchmark/regression gate after cadence change.
 
 Files:
 

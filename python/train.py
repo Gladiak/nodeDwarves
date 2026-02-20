@@ -757,6 +757,8 @@ def format_summary_line(
     scenario_target_mix,
     eps_per_min=None,
     ppo_update_ms_value=None,
+    scenario_updates_window=0,
+    scenario_updates_total=0,
 ):
     def fmt(value, digits=2):
         try:
@@ -819,6 +821,7 @@ def format_summary_line(
         f"short={shortage_label} nodes={nodes_label} under={underrealm_label} term={termination_label} "
         f"weather={weather_label} scenario={scenario_label} "
         f"scenario_target={scenario_target_label} scenario_delta={scenario_delta:.2f} "
+        f"scenario_updates={int(scenario_updates_window)}/{int(scenario_updates_total)} "
         f"events={event_label}"
     )
 
@@ -1005,6 +1008,7 @@ def write_summary_header(
     handle.write("# scenario_target_mix: target distribution based on base weights.\n")
     handle.write("# weather/scenario: top label and share in the window.\n")
     handle.write("# scenario_delta: L1/2 distance between target mix and window mix.\n")
+    handle.write("# scenario_updates: adaptive scenario-weight updates in window/total.\n")
     handle.write("# events: notable triggers (best_eval, eval_regression, scenario_shift).\n")
 
 
@@ -1737,6 +1741,8 @@ def init_scenario_sampler(config, scenario_defs):
         "ema": {},
         "counts": {},
         "last_update": 0,
+        "updates_total": 0,
+        "updates_window": 0,
     }
 
 
@@ -3793,6 +3799,8 @@ def main():
                 ):
                     scenario_sampler["last_update"] = next_expected
                     if update_scenario_weights(scenario_sampler, scenario_defs):
+                        scenario_sampler["updates_total"] = int(scenario_sampler.get("updates_total", 0)) + 1
+                        scenario_sampler["updates_window"] = int(scenario_sampler.get("updates_window", 0)) + 1
                         if TRAINING_LOGS_ENABLED:
                             pending_detail_events.append("scenario_weights")
 
@@ -3912,6 +3920,12 @@ def main():
                         get_scenario_target_mix(scenario_defs),
                         eps_per_min,
                         ppo_update_ms_value=ppo_update_ms(file_ppo_window),
+                        scenario_updates_window=(
+                            scenario_sampler.get("updates_window", 0) if scenario_sampler else 0
+                        ),
+                        scenario_updates_total=(
+                            scenario_sampler.get("updates_total", 0) if scenario_sampler else 0
+                        ),
                     )
                     summary_log_handle.write(summary_line + "\n")
                     summary_log_handle.flush()
@@ -3960,6 +3974,8 @@ def main():
                     file_deaths_window = 0
                     file_debug_window = init_debug_accumulator()
                     file_ppo_window = init_ppo_window()
+                    if scenario_sampler:
+                        scenario_sampler["updates_window"] = 0
                     file_window_start = next_expected + 1
                     file_window_start_time = time.perf_counter()
 

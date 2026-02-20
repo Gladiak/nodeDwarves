@@ -157,6 +157,7 @@ Canonical promotion now owns best-checkpoint writes: wrapper training disables i
 - 🧪 Training scenario curriculum now includes dedicated deep/governance stress slices (`underrealm_push`, `compound_crisis`, `governance_pressure`), and canonical eval covers high-risk survival/deep cases (`wildlife_raid`, `compound_crisis`, `underrealm_push`).
 - 🧪 Regression deterministic eval is profile-specific (`standard`, `underrealm`, `governance`) so deep/governance regressions surface earlier in dedicated stress slices.
 - 🛠️ Latest config-only safety retune keeps those stress slices meaningful while reducing deterministic over-kill risk (`underrealm_push` tighter readiness rails + moderated `compound_crisis` pressure), so full benchmark+regression gate stays green.
+- 📈 Trainer summary logs now expose adaptive-sampler update counters as `scenario_updates=<window>/<total>`, so cadence retunes are measurable phase-by-phase.
 - 🧭 Validation flow is now explicit in npm scripts: `ai:validate:benchmark`, `ai:validate:regression`, and `ai:validate:gate` (sequential benchmark + regression).
 - 🧭 Canonical master validation is scripted as `ai:validate:canonical` (fixed contract: `20x2200`, `rpt`, `compact`) so score comparisons stay consistent over time.
 - 🧪 Risk mini-gate is scripted as `ai:validate:risk` (`r001`: deterministic benchmark, `r002`: policy observation-normalization shape guardrail).

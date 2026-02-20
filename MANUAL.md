@@ -1751,6 +1751,10 @@ Training presets:
   - `standard`: `baseline`, `full_sim`
   - `underrealm`: `baseline`, `underrealm_push`, `compound_crisis`
   - `governance`: `baseline`, `governance_pressure`, `compound_crisis`
+- Adaptive sampler observability in trainer summaries:
+  - `scenario_updates=<window>/<total>` is emitted in each summary line.
+  - `window` counts updates in the current summary window; `total` is cumulative for the current phase/run.
+  - `events=scenario_weights` remains the qualitative marker for the exact update window.
 - 2026-02 config-only deterministic safety retune:
   - `underrealm_push` now enforces stricter readiness/cooldown pacing and safer deep crew reserve.
   - `compound_crisis` keeps multi-system pressure but with moderated scarcity/need/raid knobs to avoid deterministic over-kill in hardened regression slices.
