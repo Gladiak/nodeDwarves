@@ -605,3 +605,183 @@ Acceptance rule:
 - canonical delta under master contract is positive
 - benchmark/regression gate passes
 - risk mini-gate passes
+
+## 14) Operational Quality Uplift Plan (Next Cycle)
+
+Status: Planned (2026-02-20)
+Goal: convert post-closure observations into one practical execution plan that raises quality while keeping promotion safety and reproducibility.
+
+### 14.1 Integrated Findings (Why this plan exists)
+
+- Adaptive scenario sampling is effectively inactive in most wrapper runs:
+  - `config.json` currently sets `ai.training.scenarioSampling.updateEvery=1500`.
+  - `scripts/train_wrapper.js` quality/full phase episode counts are much lower (`40-280` in most phases).
+  - Result: adaptive weights rarely update during normal daily cycles.
+- Regression profile separation is weaker than intended:
+  - `scripts/regression.js` currently applies deterministic eval scenarios `baseline/full_sim` to every profile.
+  - Result: `underrealm` profile behaves mostly like a threshold lens on random metrics instead of a deterministic Underrealm stress gate.
+- Continuous-cycle "improved" can diverge from actual promotion:
+  - `scripts/train_continuous.js` marks `improved=true` when `deltaScore > improveThreshold`, even when no promotion happened.
+  - Result: no-improve streak and stop logic can drift from true best-checkpoint progression.
+- Multi-horizon governance/deep coverage gap:
+  - Canonical eval scenarios currently include `underrealm_push` and `compound_crisis`, but not `governance_pressure`.
+  - Risk mini-gate currently focuses on collapse pressure + checkpoint compatibility.
+  - Result: long-horizon governance/social regressions can slip through until late.
+
+### 14.2 Execution Windows (10 working days)
+
+- `OQ-1` (Days 1-2): adaptive scenario sampling cadence alignment + visibility.
+- `OQ-2` (Days 3-4): deterministic regression profile hardening (Underrealm + governance).
+- `OQ-3` (Days 5-6): continuous-cycle promotion/improvement contract alignment.
+- `OQ-4` (Days 7-8): multi-horizon validation gate extension.
+- `OQ-5` (Days 9-10, optional): next-wave scenario/method/infrastructure experiments.
+
+### 14.3 Workstream OQ-1 - Adaptive Scenario Sampling Cadence Alignment
+
+Actions:
+
+- [ ] Tune adaptive sampler cadence to wrapper-scale runs:
+  - target `updateEvery` aligned to phase sizes (`40-280` episodes), starting range `40-120`.
+- [ ] Add explicit adaptive-update observability in logs/reports:
+  - count update events per phase (`scenario_weights` updates).
+- [ ] Keep bounded weight ratios (`minWeightRatio`, `maxWeightRatio`) conservative while retuning cadence.
+
+Validation:
+
+- `npm run ai:train:quality:daily`
+- `npm run ai:train:quality:high`
+- `rg -n "scenario_weights|scenario_shift" debug/run_*/summary*.log`
+
+Exit criteria:
+
+- [ ] At least one adaptive weight update appears in a normal daily quality run.
+- [ ] Canonical score does not regress beyond current guardrails.
+- [ ] No instability spikes in benchmark/regression gate after cadence change.
+
+Files:
+
+- `config.json`
+- `python/train.py` (only if extra logging surface is required)
+- `docs/TRAINING_OVERRIDES.md`
+- `docs/TRAINING_OPTIMIZATION_WORKBOOK.md`
+
+### 14.4 Workstream OQ-2 - Regression Profile Hardening (Underrealm + Governance)
+
+Actions:
+
+- [ ] Make deterministic eval scenario sets profile-specific in `scripts/regression.js`:
+  - `standard`: `baseline`, `full_sim`
+  - `underrealm`: `baseline`, `underrealm_push`, `compound_crisis`
+  - `governance` (new profile): `baseline`, `governance_pressure`, `compound_crisis`
+- [ ] Record/update baseline snapshots for the new profile contract.
+- [ ] Keep random rollout slice for broad robustness, but separate deterministic stress intent by profile.
+
+Validation:
+
+- `node scripts/regression.js --profile standard`
+- `node scripts/regression.js --profile underrealm`
+- `node scripts/regression.js --profile governance --record` (first creation) then `--profile governance`
+
+Exit criteria:
+
+- [ ] Underrealm deterministic profile reports non-trivial deep metrics (`under_*`) under stress scenarios.
+- [ ] Governance deterministic profile reports stable pass/fail behavior across the configured seeds.
+- [ ] Existing `standard` profile remains stable (no accidental contract drift).
+
+Files:
+
+- `scripts/regression.js`
+- `regression/baselines/regression_baseline.json`
+- `docs/TRAINING_OVERRIDES.md`
+- `docs/TRAINING_OPTIMIZATION_WORKBOOK.md`
+
+### 14.5 Workstream OQ-3 - Continuous Cycle Contract Alignment (Improved vs Promoted)
+
+Actions:
+
+- [ ] Align `improved` semantics in `scripts/train_continuous.js` with canonical promotion intent:
+  - default: `improved` should follow promotion-compatible criteria (`promoted` and/or full canonical guardrail conditions).
+- [ ] Add explicit fields in continuous reports:
+  - `improved_reason`, `promotion_aligned`, and source phase used for decision.
+- [ ] Keep dry-run schedule output unchanged for operator usability.
+
+Validation:
+
+- `node scripts/train_continuous.js --cycles 4 --gate-every 2 --dry-run`
+- `node scripts/train_continuous.js --cycles 4 --gate-every 2 --max-no-improve 2 --max-gate-fail 1`
+
+Exit criteria:
+
+- [ ] No-improve streak behavior is explainable from canonical promotion outputs without ambiguity.
+- [ ] Continuous report clearly distinguishes "positive delta but not promoted" from true promotion-safe improvement.
+- [ ] Stop reasons become reproducible across repeated runs with fixed settings.
+
+Files:
+
+- `scripts/train_continuous.js`
+- `docs/TRAINING_OPTIMIZATION_WORKBOOK.md`
+
+### 14.6 Workstream OQ-4 - Multi-Horizon Validation Extension
+
+Actions:
+
+- [ ] Add one medium/long-horizon quality slice focused on deep/governance behavior:
+  - extend gate contract with dedicated horizon scenario checks (not replacing canonical).
+- [ ] Keep canonical master contract unchanged as primary promotion gate.
+- [ ] Add explicit pass/fail thresholds for horizon-specific metrics to avoid subjective interpretation.
+
+Validation:
+
+- `npm run ai:validate:canonical`
+- `npm run ai:validate:gate`
+- `npm run ai:validate:risk`
+- run new horizon check command once implemented (name TBD in implementation step)
+
+Exit criteria:
+
+- [ ] Candidate can pass canonical + baseline gate + risk + horizon slice in one cycle.
+- [ ] Horizon slice catches at least one known governance/deep weakness in historical replay (sanity check).
+- [ ] Runtime cost of added validation remains acceptable for daily operation.
+
+Files:
+
+- `scripts/regression.js` and/or validation scripts
+- `package.json` (if new command alias is introduced)
+- `docs/TRAINING_OVERRIDES.md`
+- `docs/TRAINING_OPTIMIZATION_WORKBOOK.md`
+
+### 14.7 Workstream OQ-5 (Optional) - New Scenario/Method/Infrastructure Experiments
+
+Do not start before OQ-1..OQ-4 are green.
+
+Scenario extensions:
+
+- [ ] Add one explicit governance-heavy eval scenario to canonical candidate set (A/B against current canonical list).
+- [ ] Add one late-underrealm stress variant with tighter readiness requirements.
+
+Training method experiments (PPO-compatible, low-risk):
+
+- [ ] Adaptive scenario boost schedule by difficulty phase (early/mid/late).
+- [ ] Conservative eval-score ensemble (`rpt` + auxiliary deep metric) for diagnostics only.
+
+Infrastructure experiments:
+
+- [ ] Create one "quality dashboard" markdown artifact aggregating canonical/gate/risk/horizon outcomes per cycle.
+- [ ] Add deterministic seed pack rotation policy for weekly deep checks.
+
+### 14.8 Step-by-Step Operational Checklist
+
+1. [ ] Freeze baseline artifacts (`canonical_master_latest`, latest gate/risk reports, latest continuous report).
+2. [ ] Execute OQ-1 and rerun canonical + gate + risk.
+3. [ ] Execute OQ-2 and re-record profile baselines only after deterministic profile behavior is stable.
+4. [ ] Execute OQ-3 and verify continuous stop logic against promotion report payloads.
+5. [ ] Execute OQ-4 and confirm multi-horizon pass/fail contract is deterministic.
+6. [ ] Run one complete A/B/C cycle with all OQ updates active.
+7. [ ] Update Decision Log (section 7), Implementation Log (section 8), and Risk Register (section 9).
+8. [ ] If all exit criteria are green, promote this plan from "Planned" to "Active baseline add-on".
+
+### 14.9 Stop Rules (Blockers)
+
+- Stop immediately if canonical promotion guardrails become ambiguous after OQ-3 changes.
+- Stop immediately if regression profile updates reduce determinism/reproducibility.
+- Stop immediately if added horizon checks create unacceptable daily runtime cost without clear quality signal gain.
