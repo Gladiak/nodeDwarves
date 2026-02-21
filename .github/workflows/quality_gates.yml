@@ -1,0 +1,149 @@
+name: Training Quality Gates
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 5 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  training-quality-gates:
+    name: Extended + Weekly Horizon Gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          npm ci
+          npm run ai:bootstrap --silent
+
+      - name: Snapshot debug files
+        run: |
+          set -euo pipefail
+          mkdir -p debug
+          find debug -maxdepth 1 -type f -print | sort > debug/ci_pre_debug_files.txt
+
+      - name: Run extended quality gate
+        id: validate_extended
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          npm run ai:validate:extended 2>&1 | tee debug/ci_validate_extended.log
+
+      - name: Run weekly horizon quality gate
+        id: validate_weekly
+        if: always()
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          npm run ai:validate:horizon:weekly 2>&1 | tee debug/ci_validate_horizon_weekly.log
+
+      - name: Assemble CI artifacts
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p \
+            debug/ci_artifacts/canonical \
+            debug/ci_artifacts/regression \
+            debug/ci_artifacts/risk \
+            debug/ci_artifacts/horizon \
+            debug/ci_artifacts/horizon_weekly
+
+          cp -f debug/canonical_master_latest.json debug/ci_artifacts/canonical/ 2>/dev/null || true
+          cp -f debug/canonical_master_latest.md debug/ci_artifacts/canonical/ 2>/dev/null || true
+          cp -f debug/regression_horizon_latest.json debug/ci_artifacts/horizon/ 2>/dev/null || true
+          cp -f debug/regression_horizon_latest.md debug/ci_artifacts/horizon/ 2>/dev/null || true
+          cp -f debug/regression_horizon_weekly_latest.json debug/ci_artifacts/horizon_weekly/ 2>/dev/null || true
+          cp -f debug/regression_horizon_weekly_latest.md debug/ci_artifacts/horizon_weekly/ 2>/dev/null || true
+          cp -f debug/ci_validate_horizon_weekly.log debug/ci_artifacts/horizon_weekly/ 2>/dev/null || true
+
+          find debug -maxdepth 1 -type f -print | sort > debug/ci_post_debug_files.txt
+          comm -13 debug/ci_pre_debug_files.txt debug/ci_post_debug_files.txt \
+            | grep -E 'debug/regression_report_.*\.(txt|json|md)$' \
+            | while IFS= read -r report_path; do
+                cp -f "$report_path" debug/ci_artifacts/regression/
+              done
+
+          cp -f debug/ci_validate_extended.log debug/ci_artifacts/risk/ 2>/dev/null || true
+          if [ -f debug/ci_validate_extended.log ]; then
+            awk '
+              BEGIN {capture=0}
+              /ai:validate:risk/ {capture=1}
+              /ai:validate:horizon/ && capture==1 {capture=0}
+              capture==1 {print}
+            ' debug/ci_validate_extended.log > debug/ci_artifacts/risk/risk_latest.log || true
+          fi
+          if [ ! -s debug/ci_artifacts/risk/risk_latest.log ] && [ -f debug/ci_validate_extended.log ]; then
+            cp -f debug/ci_validate_extended.log debug/ci_artifacts/risk/risk_latest.log
+          fi
+
+      - name: Upload canonical artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: canonical
+          path: debug/ci_artifacts/canonical
+          if-no-files-found: warn
+
+      - name: Upload regression artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: regression
+          path: debug/ci_artifacts/regression
+          if-no-files-found: warn
+
+      - name: Upload risk artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: risk
+          path: debug/ci_artifacts/risk
+          if-no-files-found: warn
+
+      - name: Upload horizon artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: horizon
+          path: debug/ci_artifacts/horizon
+          if-no-files-found: warn
+
+      - name: Upload horizon weekly artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: horizon_weekly
+          path: debug/ci_artifacts/horizon_weekly
+          if-no-files-found: warn
+
+      - name: Enforce gate outcomes
+        if: always()
+        run: |
+          set -euo pipefail
+          echo "extended=${{ steps.validate_extended.outcome }}"
+          echo "weekly=${{ steps.validate_weekly.outcome }}"
+          if [ "${{ steps.validate_extended.outcome }}" != "success" ] || [ "${{ steps.validate_weekly.outcome }}" != "success" ]; then
+            echo "One or more validation commands failed."
+            exit 1
+          fi

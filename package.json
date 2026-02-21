@@ -37,8 +37,10 @@
     "ai:validate:regression:standard": "node scripts/regression.js --profile standard",
     "ai:validate:regression:underrealm": "node scripts/regression.js --profile underrealm",
     "ai:validate:horizon": "node scripts/regression.js --profile horizon --report-json debug/regression_horizon_latest.json --report-md debug/regression_horizon_latest.md",
+    "ai:validate:horizon:weekly": "node scripts/regression.js --profile horizon --seed-pack weekly --report-json debug/regression_horizon_weekly_latest.json --report-md debug/regression_horizon_weekly_latest.md",
     "ai:validate:gate": "npm run ai:validate:benchmark && npm run ai:validate:regression",
     "ai:validate:extended": "npm run ai:validate:canonical && npm run ai:validate:gate && npm run ai:validate:risk && npm run ai:validate:horizon",
+    "ai:validate:extended:optimized": "node scripts/validate_extended_optimized.js",
     "ai:validate:risk:r001": "npm run ai:validate:benchmark",
     "ai:validate:risk:r002": "node -e \"const fs=require('fs');const policyPath='models/policy_best.json';const policy=JSON.parse(fs.readFileSync(policyPath,'utf8'));const resources=Array.isArray(policy.resources)?policy.resources.length:0;const features=Array.isArray(policy.featureNames)?policy.featureNames.length:0;const expected=resources*features;const obs=((policy.normalization||{}).observation)||null;const mean=obs&&Array.isArray(obs.mean)?obs.mean.length:0;const variance=obs&&Array.isArray(obs.var)?obs.var.length:0;const enabled=Boolean(obs&&obs.enabled);if(!enabled||mean!==expected||variance!==expected){console.error('[risk:r002] Observation normalization shape mismatch. Run with --fresh after contract changes.');process.exit(1);}console.log('[risk:r002] Observation normalization shape check: ok');\"",
     "ai:validate:risk": "npm run ai:validate:risk:r001 && npm run ai:validate:risk:r002",
@@ -56,7 +58,7 @@
     "balance:gate:relaxed": "node scripts/headless_benchmark.js --ticks 8000 --seeds 101,202,303,404 --variant baseline --variant candidate --gate --gate-min-score -4 --gate-max-pop-drop 0.12 --gate-max-morale-drop 0.05 --gate-max-hunger-rise 0.12 --gate-max-thirst-rise 0.18 --gate-max-resource-drop 0.20 --report-json debug/balance_relaxed.json --report-md debug/balance_relaxed.md",
     "debug:clean": "node scripts/clean_debug.js",
     "debug:clean:dry": "node scripts/clean_debug.js --dry-run",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node scripts/test_training_contracts.js"
   },
   "dependencies": {
     "puppeteer": "^24.36.1"

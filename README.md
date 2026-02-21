@@ -99,6 +99,9 @@ npm run ai:train:quality                    # or npm run ai:train for fastest lo
 npm run ai:validate:canonical               # canonical master contract (20x2200, rpt, compact)
 npm run ai:validate:gate                    # benchmark + regression gate
 npm run ai:validate:risk                    # collapse + obs-normalization shape guardrails
+npm run ai:validate:extended:optimized      # full quality gate (optimized runtime, same checks, per-phase timing report)
+npm run ai:validate:horizon:weekly          # weekly deep/governance horizon check (rotating deterministic seed-pack)
+npm test                                    # technical contract suite (policy shape + regression/promote report schema)
 npm run debug:clean                         # cleanup debug artifacts (keeps latest 3 run_* folders)
 npm run ai:train:endgame -- --episodes 16   # endgame (16 episodes)
 npm run ai:play
@@ -154,13 +157,18 @@ Canonical promotion now owns best-checkpoint writes: wrapper training disables i
 - 🧱 `ai:train:quality:high` runs the full 4-phase curriculum with stricter promotion guardrails (positive LCB on canonical and phase checks) plus heavier final canonical eval (`32x2400`), aimed at maximizing checkpoint quality before promotion.
 - ♻️ `ai:train:continuous` orchestrates long-running incremental learning (`daily` baseline, periodic `full` consolidation, periodic `high` certification, optional gate cadence, and auto-stop guardrails) with run reports in `debug/continuous_train_*.json/.md`.
 - ✅ Continuous stop logic is now strict promotion-aligned: a cycle resets no-improve streaks only when canonical promotion succeeds (positive-not-promoted deltas are reported but do not count as improvement).
-- 🧪 Training scenario curriculum now includes dedicated deep/governance stress slices (`underrealm_push`, `compound_crisis`, `governance_pressure`), and canonical eval covers high-risk survival/deep cases (`wildlife_raid`, `compound_crisis`, `underrealm_push`).
+- 🧪 Training scenario curriculum now includes dedicated deep/governance stress slices (`underrealm_push`, `compound_crisis`, `governance_pressure`), and canonical eval covers high-risk survival/deep/governance cases (`wildlife_raid`, `compound_crisis`, `underrealm_push`, `governance_pressure`).
+- 🧪 OQ-5 add-ons: added `underrealm_late_gauntlet` for late deep stress, phase-adaptive scenario-sampling schedule (`early/mid/late`), and a diagnostic-only eval ensemble (`rpt` + deep auxiliary channels) for richer promotion reports without changing promotion gates.
 - 🧪 Regression deterministic eval is profile-specific (`standard`, `underrealm`, `governance`) so deep/governance regressions surface earlier in dedicated stress slices.
 - 🛠️ Latest config-only safety retune keeps those stress slices meaningful while reducing deterministic over-kill risk (`underrealm_push` tighter readiness rails + moderated `compound_crisis` pressure), so full benchmark+regression gate stays green.
 - 📈 Trainer summary logs now expose adaptive-sampler update counters as `scenario_updates=<window>/<total>`, so cadence retunes are measurable phase-by-phase.
 - 🧭 Validation flow is now explicit in npm scripts: `ai:validate:benchmark`, `ai:validate:regression`, and `ai:validate:gate` (sequential benchmark + regression).
 - 🧭 Canonical master validation is scripted as `ai:validate:canonical` (fixed contract: `20x2200`, `rpt`, `compact`) so score comparisons stay consistent over time.
 - 🧪 Risk mini-gate is scripted as `ai:validate:risk` (`r001`: deterministic benchmark, `r002`: policy observation-normalization shape guardrail).
+- 🧪 Horizon gate (`ai:validate:horizon`) now includes a tighter deaths guardrail (`avg_deaths` tolerance `+16%`) and is paired with historical-replay sanity checks to keep deep/governance regressions detectable.
+- 🗓️ Weekly deep-check workflow is available as `ai:validate:horizon:weekly`, backed by deterministic seed-pack rotation from config (`pack_alpha/beta/gamma/delta`, now `4` seeds per pack).
+- ⏱️ Runtime-optimized full gate is available as `ai:validate:extended:optimized`: it preserves quality signal while removing duplicate benchmark execution and writes per-phase runtime reports.
+- 🧭 Recommended validation cadence: per-change (`canonical` + `gate` + `risk:r002`), acceptance/nightly (`ai:validate:extended:optimized`), weekly deep sentinel (`ai:validate:horizon:weekly`).
 - 🧹 Debug housekeeping is scripted as `debug:clean` (`--keep-runs 2|3`, plus `debug:clean:dry` preview) to keep `debug/` lean after each cycle.
 - 🛰️ `python/promote_best.py --eval-only` now supports controllable partial progress logs via `--eval-progress/--no-eval-progress` and `--eval-progress-every`.
 - 🔎 Promote output now prints paired per-episode score deltas (`latest` vs `best`) when paired-LCB checks are enabled.
@@ -206,7 +214,8 @@ npm run balance:gate:standard -- --set jobs.gatherTriggerRatio.food=1.1 --set jo
 - `MANUAL.md`: technical and gameplay manual (systems, formulas, workflows).
 - `docs/PARAMETERS.md`: full config reference.
 - `docs/TRAINING_OVERRIDES.md`: training override guide.
-- `docs/TRAINING_OPTIMIZATION_WORKBOOK.md`: operational workbook for end-to-end training optimization, timeline tracking, and decision logging.
+- `docs/TRAINING_STATUS.md`: current training quality status, active validation cadence, and pending closure items.
+- `docs/TRAINING_OPTIMIZATION_WORKBOOK.md`: historical training optimization workbook (timeline, decisions, validation snapshots).
 - `docs/TELEMETRY.md`: telemetry operator manual (from zero to hero).
 - `AGENTS.md`: contribution and implementation guidelines.
 
@@ -222,6 +231,7 @@ npm run balance:gate:standard -- --set jobs.gatherTriggerRatio.food=1.1 --set jo
 
 - `app.js`: entrypoint and main loop.
 - `config.json`: single source of truth for tunables.
+- `.github/workflows/quality_gates.yml`: CI workflow that runs `ai:validate:extended` + `ai:validate:horizon:weekly` and uploads quality artifacts.
 - `src/`: simulation, state, rendering, AI.
 - `src/simulation/underrealm.js`: Underrealm crew, shrine doctrine, deep economy, exploration unlocks, and hostile faction pressure.
 - `src/simulation/world_events.js`: world event lifecycle for bards, rival caravans, and time-limited opportunities.
@@ -236,13 +246,15 @@ npm run balance:gate:standard -- --set jobs.gatherTriggerRatio.food=1.1 --set jo
 - `scripts/train_wrapper.js`: safe unified wrapper for all `ai:train:*` profiles.
 - `scripts/train_continuous.js`: continuous training orchestrator for daily/full/high cadence, validation gates, and stop-rule automation.
 - `scripts/regression.js`: baseline-vs-current AI regression checks (deterministic eval + randomized stability pass) with txt/json/markdown reports and live heartbeat progress lines during long phases.
+- `scripts/validate_extended_optimized.js`: full validation orchestrator with per-phase timing reports and benchmark deduplication (`ai:validate:extended:optimized`).
 - `scripts/clean_debug.js`: debug housekeeping utility (removes transient smoke/regression temp artifacts and keeps only the latest run history).
+- `scripts/test_training_contracts.js`: deterministic training/validation contract suite used by `npm test` (policy shape + regression/promote report schema checks).
 - `regression/baselines/regression_baseline.json`: durable regression baseline profiles tracked outside `debug/`.
 - `scripts/headless_benchmark.js`: deterministic headless benchmark with comparative score, seed deltas, and optional gate for long-run balance tuning.
 - `scripts/compare_benchmark_reports.js`: cached report diff utility for baseline/candidate deltas without rerunning both variants.
 - `python/regression_rollout.py`: rollout-only randomized regression runner used by `scripts/regression.js`.
 - `python/`: PPO training + agent example.
-- `docs/`: parameter reference, training overrides, training optimization workbook, and telemetry operator manual.
+- `docs/`: parameter reference, training overrides, current training status, training optimization workbook archive, and telemetry operator manual.
 - `models/`: policy checkpoints.
 - `scripts/`: utilities and regression tooling.
 

@@ -36,7 +36,7 @@ const HORIZON_TOLERANCES = {
   eval: {
     avg_reward: { mode: 'rel', limit: -0.06 },
     score: { mode: 'rel', limit: -0.06 },
-    avg_deaths: { mode: 'rel', limit: 0.18 },
+    avg_deaths: { mode: 'rel', limit: 0.16 },
   },
   random: {
     avg_reward: { mode: 'rel', limit: -0.10 },
@@ -89,10 +89,20 @@ const PROFILE_EVAL_SCENARIOS = {
   governance: ['baseline', 'governance_pressure', 'compound_crisis'],
   horizon: ['baseline', 'underrealm_push', 'governance_pressure', 'compound_crisis'],
 };
+const DEFAULT_SEED_PACKS = {
+  pack_alpha: [12345, 22222, 33333, 44444],
+  pack_beta: [13579, 24680, 11223, 33445],
+  pack_gamma: [31415, 27182, 16180, 14142],
+  pack_delta: [42424, 51515, 60606, 70707],
+};
+const DEFAULT_WEEKLY_SEED_PACK_ORDER = ['pack_alpha', 'pack_beta', 'pack_gamma', 'pack_delta'];
 
-function parseArgs(argv) {
+function parseArgs(argv, config) {
   const options = {
     seeds: DEFAULT_SEEDS.slice(),
+    seedPack: null,
+    seedWeek: null,
+    seedPackResolved: null,
     evalEpisodes: DEFAULT_EVAL_EPISODES,
     evalMaxSteps: DEFAULT_EVAL_MAX_STEPS,
     randomEpisodes: DEFAULT_RANDOM_EPISODES,
@@ -138,6 +148,16 @@ function parseArgs(argv) {
       options.cliOverrides.seeds = true;
       continue;
     }
+    if (arg === '--seed-pack') {
+      options.seedPack = String(argv[i + 1] || '').trim();
+      i += 1;
+      continue;
+    }
+    if (arg === '--seed-week') {
+      options.seedWeek = String(argv[i + 1] || '').trim();
+      i += 1;
+      continue;
+    }
     if (arg === '--eval-episodes') {
       options.evalEpisodes = Number(argv[i + 1] || options.evalEpisodes);
       options.cliOverrides.evalEpisodes = true;
@@ -177,7 +197,131 @@ function parseArgs(argv) {
   if (!options.seeds.length) {
     options.seeds = DEFAULT_SEEDS.slice();
   }
+  const seedPackConfig = resolveSeedPackConfig(config);
+  const requestedSeedPack = options.seedPack || null;
+  if (requestedSeedPack) {
+    const resolved = resolveSeedPackSelection(seedPackConfig, requestedSeedPack, options.seedWeek);
+    options.seedPackResolved = resolved;
+    options.seeds = resolved.seeds.slice();
+    options.cliOverrides.seeds = true;
+  }
   return options;
+}
+
+// Read deterministic seed-pack settings from config (with safe fallbacks).
+function resolveSeedPackConfig(config) {
+  const training = config && config.ai && config.ai.training ? config.ai.training : {};
+  const deepChecks = training && training.deepChecks ? training.deepChecks : {};
+  const rotation = deepChecks && deepChecks.seedPackRotation ? deepChecks.seedPackRotation : {};
+  const rawPacks = rotation && typeof rotation.packs === 'object' ? rotation.packs : DEFAULT_SEED_PACKS;
+  const packs = {};
+  for (const [key, value] of Object.entries(rawPacks || {})) {
+    const seeds = Array.isArray(value)
+      ? value.map((item) => Number(item)).filter(Number.isFinite)
+      : [];
+    if (seeds.length > 0) {
+      packs[String(key)] = seeds;
+    }
+  }
+  if (Object.keys(packs).length === 0) {
+    for (const [key, value] of Object.entries(DEFAULT_SEED_PACKS)) {
+      packs[key] = value.slice();
+    }
+  }
+  const rawOrder = Array.isArray(rotation.weeklyOrder) ? rotation.weeklyOrder : DEFAULT_WEEKLY_SEED_PACK_ORDER;
+  const weeklyOrder = rawOrder
+    .map((entry) => String(entry || '').trim())
+    .filter((entry) => entry && packs[entry]);
+  const fallbackOrder = weeklyOrder.length > 0 ? weeklyOrder : Object.keys(packs).sort();
+  return {
+    defaultMode: String(rotation.defaultMode || 'weekly'),
+    packs,
+    weeklyOrder: fallbackOrder,
+  };
+}
+
+// Resolve one deterministic weekly index from --seed-week.
+function resolveSeedWeekIndex(rawWeek) {
+  const text = String(rawWeek || '').trim();
+  if (!text) {
+    const now = new Date();
+    return isoWeekIndex(now);
+  }
+  if (/^\d+$/.test(text)) {
+    return Number(text);
+  }
+  const weekMatch = text.match(/^(\d{4})-W(\d{2})$/i);
+  if (weekMatch) {
+    const year = Number(weekMatch[1]);
+    const week = Number(weekMatch[2]);
+    if (Number.isFinite(year) && Number.isFinite(week) && week >= 1 && week <= 53) {
+      return (year * 53) + week;
+    }
+  }
+  const dateMatch = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (dateMatch) {
+    const year = Number(dateMatch[1]);
+    const month = Number(dateMatch[2]);
+    const day = Number(dateMatch[3]);
+    const asDate = new Date(Date.UTC(year, month - 1, day));
+    if (!Number.isNaN(asDate.getTime())) {
+      return isoWeekIndex(asDate);
+    }
+  }
+  throw new Error(`Invalid --seed-week value: "${text}". Use YYYY-MM-DD, YYYY-Www, or an integer.`);
+}
+
+// Convert a UTC date into a deterministic ISO week index.
+function isoWeekIndex(dateValue) {
+  const date = new Date(Date.UTC(
+    dateValue.getUTCFullYear(),
+    dateValue.getUTCMonth(),
+    dateValue.getUTCDate(),
+  ));
+  const day = date.getUTCDay() || 7;
+  date.setUTCDate(date.getUTCDate() + 4 - day);
+  const isoYear = date.getUTCFullYear();
+  const yearStart = new Date(Date.UTC(isoYear, 0, 1));
+  const week = Math.ceil((((date - yearStart) / 86400000) + 1) / 7);
+  return (isoYear * 53) + week;
+}
+
+// Resolve one named/weekly seed-pack selection.
+function resolveSeedPackSelection(seedPackConfig, requested, rawWeek) {
+  const request = String(requested || '').trim();
+  if (!request) {
+    return null;
+  }
+  const packs = seedPackConfig && seedPackConfig.packs ? seedPackConfig.packs : DEFAULT_SEED_PACKS;
+  if (request.toLowerCase() !== 'weekly') {
+    const direct = packs[request];
+    if (!Array.isArray(direct) || direct.length === 0) {
+      throw new Error(`Unknown --seed-pack "${request}".`);
+    }
+    return {
+      mode: 'named',
+      requested: request,
+      resolvedKey: request,
+      weekIndex: null,
+      seeds: direct.slice(),
+    };
+  }
+  const order = seedPackConfig && Array.isArray(seedPackConfig.weeklyOrder) && seedPackConfig.weeklyOrder.length > 0
+    ? seedPackConfig.weeklyOrder
+    : DEFAULT_WEEKLY_SEED_PACK_ORDER;
+  const weekIndex = resolveSeedWeekIndex(rawWeek);
+  const resolvedKey = order[((weekIndex % order.length) + order.length) % order.length];
+  const seeds = packs[resolvedKey];
+  if (!Array.isArray(seeds) || seeds.length === 0) {
+    throw new Error(`Resolved weekly seed-pack "${resolvedKey}" is empty.`);
+  }
+  return {
+    mode: 'weekly',
+    requested: request,
+    resolvedKey,
+    weekIndex,
+    seeds: seeds.slice(),
+  };
 }
 
 // Resolve an output file path from CLI input.
@@ -611,6 +755,30 @@ function formatPercent(value, digits = 1) {
   return `${(value * 100).toFixed(digits)}%`;
 }
 
+// Render one compact seed-pack label for reports.
+function formatSeedPackLabel(seedPack) {
+  if (!seedPack || typeof seedPack !== 'object') {
+    return 'none';
+  }
+  const resolvedKey = String(seedPack.resolvedKey || '').trim();
+  if (!resolvedKey) {
+    return 'none';
+  }
+  const mode = String(seedPack.mode || 'named');
+  const requested = String(seedPack.requested || '').trim();
+  const weekIndex = Number(seedPack.weekIndex);
+  const extras = [];
+  if (requested && requested !== resolvedKey) {
+    extras.push(`request=${requested}`);
+  }
+  if (Number.isFinite(weekIndex)) {
+    extras.push(`week=${weekIndex}`);
+  }
+  return extras.length > 0
+    ? `${resolvedKey} (${mode}; ${extras.join(', ')})`
+    : `${resolvedKey} (${mode})`;
+}
+
 function computeDelta(current, baseline) {
   if (!Number.isFinite(current) || !Number.isFinite(baseline)) {
     return { abs: null, rel: null };
@@ -761,6 +929,17 @@ function buildReportBundle(sections, options, allOk) {
     .map((section) => Number(section && section.profileScore))
     .filter(Number.isFinite);
   const averageScore = scores.length > 0 ? average(scores, (value) => value) : null;
+  const seedPack = options && options.seedPackResolved
+    ? {
+      mode: options.seedPackResolved.mode,
+      requested: options.seedPackResolved.requested,
+      resolvedKey: options.seedPackResolved.resolvedKey,
+      weekIndex: options.seedPackResolved.weekIndex,
+      seeds: Array.isArray(options.seedPackResolved.seeds)
+        ? options.seedPackResolved.seeds.slice()
+        : [],
+    }
+    : null;
   return {
     meta: {
       generatedAt: new Date().toISOString(),
@@ -773,6 +952,9 @@ function buildReportBundle(sections, options, allOk) {
         evalMaxSteps: options && options.evalMaxSteps,
         randomEpisodes: options && options.randomEpisodes,
         randomMaxSteps: options && options.randomMaxSteps,
+        seedPack,
+        seedPackRequest: options && options.seedPack ? options.seedPack : null,
+        seedWeek: options && options.seedWeek ? options.seedWeek : null,
       },
     },
     sections: sectionList,
@@ -791,6 +973,7 @@ function writeReport(reportPath, data) {
   for (const section of data) {
     lines.push(`Profile: ${section.profile}`);
     lines.push(`Seeds: ${section.config.seeds.join(', ')}`);
+    lines.push(`Seed pack: ${formatSeedPackLabel(section.config.seedPack)}`);
     lines.push(`Eval episodes: ${section.config.evalEpisodes}, Eval max steps: ${section.config.evalMaxSteps}`);
     lines.push(`Eval scenarios: ${(section.config.evalScenarios || []).join(', ') || 'n/a'}`);
     lines.push(`Random episodes: ${section.config.randomEpisodes}, Random max steps: ${section.config.randomMaxSteps}`);
@@ -807,6 +990,9 @@ function writeReport(reportPath, data) {
 // Build Markdown report lines from a bundle payload.
 function buildMarkdownReport(bundle) {
   const lines = [];
+  const optionSeedPack = bundle.meta && bundle.meta.options
+    ? bundle.meta.options.seedPack
+    : null;
   lines.push('# NodeDwarves Regression Report');
   lines.push('');
   lines.push(`Generated: ${bundle.meta.generatedAt}`);
@@ -819,6 +1005,7 @@ function buildMarkdownReport(bundle) {
         : 'n/a'
     }`,
   );
+  lines.push(`Seed pack: ${formatSeedPackLabel(optionSeedPack)}`);
   lines.push('');
   lines.push('## Profiles');
   lines.push('');
@@ -837,6 +1024,7 @@ function buildMarkdownReport(bundle) {
     lines.push(`## ${section.profile}`);
     lines.push('');
     lines.push(`Config seeds: ${(section.config && section.config.seeds || []).join(', ')}`);
+    lines.push(`Seed pack: ${formatSeedPackLabel(section.config && section.config.seedPack)}`);
     lines.push(
       `Eval episodes/max_steps: ${section.config.evalEpisodes}/${section.config.evalMaxSteps}`,
     );
@@ -958,10 +1146,22 @@ function saveBaseline(data) {
   fs.writeFileSync(BASELINE_PATH, JSON.stringify(data, null, 2));
 }
 
-function buildProfileConfig(options, profileName = 'standard') {
-  const evalScenarios = resolveProfileEvalScenarios(profileName);
+function buildProfileConfig(options, profileName = 'standard', config) {
+  const evalScenarios = resolveProfileEvalScenarios(profileName, config);
+  const seedPack = options && options.seedPackResolved
+    ? {
+      mode: options.seedPackResolved.mode,
+      requested: options.seedPackResolved.requested,
+      resolvedKey: options.seedPackResolved.resolvedKey,
+      weekIndex: options.seedPackResolved.weekIndex,
+      seeds: Array.isArray(options.seedPackResolved.seeds)
+        ? options.seedPackResolved.seeds.slice()
+        : [],
+    }
+    : null;
   return {
     seeds: options.seeds,
+    seedPack,
     evalEpisodes: options.evalEpisodes,
     evalMaxSteps: options.evalMaxSteps,
     randomEpisodes: options.randomEpisodes,
@@ -1215,7 +1415,8 @@ async function main() {
   ensureFile(CONFIG_PATH, 'config.json');
   ensureFile(POLICY_BEST_PATH, 'policy_best.json');
 
-  const options = parseArgs(process.argv.slice(2));
+  const runtimeConfig = readConfig();
+  const options = parseArgs(process.argv.slice(2), runtimeConfig);
   const baselineFile = loadBaseline();
 
   if (options.all) {
@@ -1239,7 +1440,7 @@ async function main() {
       const profileOptions = applyProfileConfig(options, profile.config || {});
       const runtimeProfile = {
         ...profile,
-        config: buildProfileConfig(profileOptions, profileName),
+        config: buildProfileConfig(profileOptions, profileName, runtimeConfig),
       };
       const {
         evalAverage,
@@ -1297,7 +1498,7 @@ async function main() {
   if (options.record) {
     const record = {
       generatedAt: new Date().toISOString(),
-      config: buildProfileConfig(profileOptions, profileName),
+      config: buildProfileConfig(profileOptions, profileName, runtimeConfig),
       tolerances: resolveProfileTolerances(profileName, profile),
       baseline: {
         eval: evalAverage,
@@ -1319,7 +1520,7 @@ async function main() {
   const tolerances = resolveProfileTolerances(profileName, profile);
   const runtimeProfile = {
     ...profile,
-    config: buildProfileConfig(profileOptions, profileName),
+    config: buildProfileConfig(profileOptions, profileName, runtimeConfig),
   };
   const comparisons = [
     compareSuite(`${profileName}.eval`, evalAverage, profile.baseline.eval, tolerances.eval),

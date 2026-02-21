@@ -1123,7 +1123,48 @@
         "boost": 0.8,
         "exponent": 1.1,
         "minWeightRatio": 0.8,
-        "maxWeightRatio": 1.2
+        "maxWeightRatio": 1.2,
+        "difficultyPhases": [
+          {
+            "name": "early",
+            "maxDifficulty": 0.34,
+            "updateEvery": 96,
+            "boost": 0.7,
+            "exponent": 1
+          },
+          {
+            "name": "mid",
+            "minDifficulty": 0.34,
+            "maxDifficulty": 0.72,
+            "updateEvery": 80,
+            "boost": 0.8,
+            "exponent": 1.1
+          },
+          {
+            "name": "late",
+            "minDifficulty": 0.72,
+            "updateEvery": 64,
+            "boost": 0.9,
+            "exponent": 1.15
+          }
+        ]
+      },
+      "deepChecks": {
+        "seedPackRotation": {
+          "defaultMode": "weekly",
+          "packs": {
+            "pack_alpha": [12345, 22222, 33333, 44444],
+            "pack_beta": [13579, 24680, 11223, 33445],
+            "pack_gamma": [31415, 27182, 16180, 14142],
+            "pack_delta": [42424, 51515, 60606, 70707]
+          },
+          "weeklyOrder": [
+            "pack_alpha",
+            "pack_beta",
+            "pack_gamma",
+            "pack_delta"
+          ]
+        }
       },
       "randomization": {
         "stockpileScale": [0.92, 1.05],
@@ -1738,6 +1779,67 @@
           }
         },
         {
+          "name": "underrealm_late_gauntlet",
+          "weight": 0.08,
+          "difficultyMin": 0.72,
+          "difficultyMax": 1,
+          "difficultyMinMultiplier": 0,
+          "difficultyMaxMultiplier": 1,
+          "overrides": {
+            "underrealm": {
+              "progression": {
+                "build_ticks_base": 240,
+                "build_ticks_per_depth": 150,
+                "stockpile_cost_base": {
+                  "stone": 50,
+                  "iron": 20
+                },
+                "stockpile_cost_per_depth": {
+                  "stone": 36,
+                  "iron": 16
+                }
+              },
+              "combat": {
+                "readiness": {
+                  "warning_zone_hard_guard": {
+                    "enabled": true,
+                    "min_depth": 2,
+                    "min_recommended_score_ratio": 0.97
+                  }
+                },
+                "encounter": {
+                  "retry_cooldown_ticks_base": 120,
+                  "retry_cooldown_ticks_per_depth": 42
+                },
+                "floors": {
+                  "defaults": {
+                    "readiness": {
+                      "min_score_base": 22,
+                      "min_score_per_depth": 11,
+                      "recommended_score_base": 34,
+                      "recommended_score_per_depth": 13
+                    }
+                  }
+                }
+              },
+              "crew": {
+                "surface_reserve_ratio": 0.67,
+                "max_underrealm_ratio": 0.24
+              }
+            },
+            "ruins": {
+              "expedition": {
+                "minStockpileRatio": {
+                  "food": 0.5,
+                  "water": 0.5,
+                  "wood": 0.44,
+                  "stone": 0.44
+                }
+              }
+            }
+          }
+        },
+        {
           "name": "compound_crisis",
           "weight": 0.12,
           "difficultyMin": 0.2,
@@ -2003,7 +2105,8 @@
         "food_scarce",
         "ruins_focus",
         "underrealm_push",
-        "compound_crisis"
+        "compound_crisis",
+        "governance_pressure"
       ],
       "promotion": {
         "canonical": {

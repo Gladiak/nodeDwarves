@@ -279,7 +279,7 @@
           },
           "avg_deaths": {
             "mode": "rel",
-            "limit": 0.18
+            "limit": 0.16
           }
         },
         "random": {

@@ -97,6 +97,8 @@ npm run ai:validate:regression:standard
 npm run ai:validate:regression:underrealm
 npm run ai:validate:risk:r001
 npm run ai:validate:risk:r002
+npm run ai:validate:extended:optimized
+npm test
 ```
 
 Clean debug artifacts after a completed cycle:
@@ -1585,7 +1587,7 @@ Clan dynamics add heterogeneity and longer-horizon trade-offs. To keep PPO stabl
   - `compound_crisis`: stacked scarcity + housing + weather + raid pressure.
   - `governance_pressure`: faster world-event/external-camp churn and higher schism pressure.
 - Canonical eval checkpoints now target this compact stress set by default:
-  - `baseline`, `full_sim`, `wildlife_raid`, `water_scarce`, `food_scarce`, `ruins_focus`, `underrealm_push`, `compound_crisis`.
+  - `baseline`, `full_sim`, `wildlife_raid`, `water_scarce`, `food_scarce`, `ruins_focus`, `underrealm_push`, `compound_crisis`, `governance_pressure`.
 
 ## 9) Configuration (single source of truth) ⚙️
 
@@ -1664,6 +1666,9 @@ Training presets:
 - `ai:validate:risk` runs the risk mini-gate:
   - `ai:validate:risk:r001`: deterministic benchmark (`8000` ticks, seeds `101,202,303,404`) for collapse/regression pressure.
   - `ai:validate:risk:r002`: policy observation-normalization shape check (`resources * featureNames` vs `normalization.observation.mean/var`) with fail-fast exit on mismatch.
+- `ai:validate:horizon` runs the multi-horizon deep/governance profile (`baseline`, `underrealm_push`, `governance_pressure`, `compound_crisis`) and writes `debug/regression_horizon_latest.json/.md`; current horizon deaths guardrail is `avg_deaths <= baseline * 1.16`.
+- `ai:validate:horizon:weekly` runs the same horizon profile with deterministic weekly seed-pack rotation (`--seed-pack weekly`) and writes `debug/regression_horizon_weekly_latest.json/.md`.
+- `ai:validate:extended:optimized` runs a full-quality acceptance flow with equivalent checks to `ai:validate:extended` while removing duplicated benchmark execution (`risk:r001` overlap), and emits runtime reports in `debug/extended_gate_runtime_optimized_latest.{json,md}`.
 - Presets generate run-specific configs in `debug/run_<timestamp>/`: per-phase training configs plus a dedicated canonical promotion config (`config_canonical_promote.json`) driven by `ai.training.promotion.canonical`.
 - All presets save the best model to `models/policy_best.json` (with meta in `models/policy_best.meta.json`); resume source depends on profile policy and CLI override (`--resume-from-best` / `--resume-from-latest`).
 - Trainer CLI resume source can be forced per run: `--resume-from-best` or `--resume-from-latest` (the latter is useful to keep incremental momentum when best-gate promotion is temporarily blocked).
@@ -1684,6 +1689,7 @@ Training presets:
   - `delta_score`: `latest_score - best_score_before`.
   - `paired.lower_bound`: one-sided lower confidence bound over paired episode deltas (`latest_i - best_i`).
   - `promoted`: whether latest replaced best on this check.
+  - `diagnostic.ensemble_score`: non-blocking diagnostics-only score (`rpt + 0.05 * (deep_aux - 0.5)`) reported alongside canonical metrics.
 - `promote_best.py` uses the same action-head contract as training (`resources` + optional `festival` + enabled governor pseudo action-ids), so multi-phase governor profiles do not fail on false resource-shape mismatches.
 - Wrapper phase progress is explicit in console logs (`== Phase x/n: <name> ==`) so long curriculum runs are easier to monitor.
 - Wrapper logs now use colorized status tags (`PROFILE`, `PHASE`, `TRAIN`, `PROMOTE`, `DONE`) in TTY terminals for clearer long-run progress tracking.
@@ -1755,13 +1761,23 @@ Training presets:
   - `scenario_updates=<window>/<total>` is emitted in each summary line.
   - `window` counts updates in the current summary window; `total` is cumulative for the current phase/run.
   - `events=scenario_weights` remains the qualitative marker for the exact update window.
+- Adaptive sampler difficulty-phase scheduling:
+  - `ai.training.scenarioSampling.difficultyPhases` supports phase-specific `updateEvery`, `boost`, and `exponent`.
+  - Trainer event stream now emits `scenario_phase=<name>(u...,b...,e...)` when phase parameters switch.
 - 2026-02 config-only deterministic safety retune:
   - `underrealm_push` now enforces stricter readiness/cooldown pacing and safer deep crew reserve.
+  - `underrealm_late_gauntlet` adds a late-difficulty deep stress slice with stricter readiness/cooldown and higher surface reserve requirements.
   - `compound_crisis` keeps multi-system pressure but with moderated scarcity/need/raid knobs to avoid deterministic over-kill in hardened regression slices.
 - Regression temp artifacts are isolated per seed via `mkdtemp` workspaces (config + transient policy files), removing static `/tmp` filename collisions and cross-run side effects.
 - Regression randomized pass is rollout-only: `scripts/regression.js` calls `python/regression_rollout.py`, avoiding PPO optimizer/update overhead and checkpoint side effects.
 - Regression baseline profiles are persisted in `regression/baselines/regression_baseline.json` (stable/versionable), while per-run logs/reports stay in `debug/`.
 - In `scripts/regression.js --all`, explicit CLI knobs (`--seeds`, `--eval-*`, `--random-*`) override the stored profile config, so short smoke checks do not require editing baseline files.
+- `scripts/regression.js` supports deterministic seed-pack selection for deep checks:
+  - `--seed-pack <name>` picks one named pack from `ai.training.deepChecks.seedPackRotation.packs`.
+  - `--seed-pack weekly` rotates through `weeklyOrder` deterministically by week.
+  - default pack sizing for OQ-6.3 is `4` seeds per pack to improve weekly deep-check statistical power.
+  - Optional replay pin: `--seed-week YYYY-MM-DD`, `YYYY-Www`, or an integer week index.
+  - Resolved seed-pack metadata is written into regression profile config and JSON/Markdown report metadata.
 - Regression subprocess logs are streamed directly to per-run `console.log` files (instead of buffered pipes), reducing risk of buffer-cap failures in long runs.
 - Regression CLI now emits heartbeat lines during long Python phases (`[regression] ... running mm:ss`), so long checks provide visible progress and do not appear stuck.
 - Regression now writes `.txt`, `.json`, and `.md` reports for each run (defaults next to the txt report; override with `--report-json` / `--report-md`).
@@ -1773,7 +1789,13 @@ Training presets:
   - `ai:validate:regression` runs all stored regression profiles (`--all`).
   - `ai:validate:gate` runs benchmark then regression sequentially (`&&`) and fails fast on the first non-zero exit.
   - `ai:validate:risk` runs `r001` (deterministic collapse pressure benchmark) + `r002` (normalization shape guardrail).
+  - `ai:validate:extended:optimized` runs canonical + benchmark + regression + `risk:r002` + horizon with per-phase runtime timing reports.
+  - `ai:validate:horizon:weekly` runs the horizon profile using deterministic weekly seed-pack rotation.
   - `debug:clean` removes transient debug artifacts and keeps only the latest run-history folders (default `3`, configurable).
+- Recommended cadence split (OQ-6.4):
+  - per-change feedback: `ai:validate:canonical` + `ai:validate:gate` + `ai:validate:risk:r002`
+  - acceptance/nightly full check: `ai:validate:extended:optimized`
+  - weekly deep sentinel: `ai:validate:horizon:weekly`
 
 ### Rendering 🖼️
 
@@ -1889,6 +1911,7 @@ Quick checklist:
 
 - `app.js` → main terminal simulation
 - `config.json` → single source of truth for gameplay and training tunables
+- `.github/workflows/quality_gates.yml` → CI pipeline for `ai:validate:extended` + `ai:validate:horizon:weekly` with uploaded quality artifacts
 - `ai_server.js` → JSON bridge for Python training
 - `src/config.js` → runtime config loader
 - `src/`
@@ -1914,7 +1937,9 @@ Quick checklist:
 - `scripts/train_wrapper.js` → unified safe wrapper for `ai:train:*` profiles
 - `scripts/train_continuous.js` → cycle orchestrator for long-running `daily/full/high` training cadence, periodic validation gates, and stop-rule automation
 - `scripts/regression.js` → AI regression harness and profile recording with txt/json/markdown reports
+- `scripts/validate_extended_optimized.js` → optimized full-quality validation orchestrator with per-phase runtime reports
 - `scripts/clean_debug.js` → deterministic debug cleanup (transient artifacts + keep latest `run_*` history)
+- `scripts/test_training_contracts.js` → deterministic technical test suite for policy shape and report-schema contracts (`npm test`)
 - `regression/baselines/regression_baseline.json` → durable profile baselines used by regression checks
 - `scripts/export_map.js` → map export pipeline (PNG + SVG)
 - `scripts/headless_benchmark.js` → deterministic long-run headless benchmark with comparative score, seed deltas, and optional gate checks
@@ -1923,5 +1948,5 @@ Quick checklist:
 - `python/promote_best.py` → post-train promotion check (latest vs best)
 - `python/regression_rollout.py` → randomized regression rollouts without PPO updates/checkpoint writes
 - `python/bootstrap.py` / `python/agent.py` → venv bootstrap + sample agent
-- `docs/PARAMETERS.md` / `docs/TRAINING_OVERRIDES.md` / `docs/TRAINING_OPTIMIZATION_WORKBOOK.md` / `docs/TELEMETRY.md` → config reference, training overrides, training optimization workbook, and telemetry operator manual
+- `docs/PARAMETERS.md` / `docs/TRAINING_OVERRIDES.md` / `docs/TRAINING_STATUS.md` / `docs/TRAINING_OPTIMIZATION_WORKBOOK.md` / `docs/TELEMETRY.md` → config reference, training overrides, current training status, training optimization workbook archive, and telemetry operator manual
 - `models/` → `policy.json`, `policy_best.json`, `policy_best.meta.json`

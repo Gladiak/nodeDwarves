@@ -49,23 +49,26 @@ Throughput + resume continuity (Phase 3):
 
 Scenario curriculum defaults:
 
-- `ai.training.scenarios` now includes three dedicated stress slices on top of legacy scarcity/clan/ruins mixes:
+- `ai.training.scenarios` now includes dedicated stress slices on top of legacy scarcity/clan/ruins mixes:
   - `underrealm_push`: accelerates deep unlock/readiness loops so Underrealm progression/combat signals are sampled more often.
+  - `underrealm_late_gauntlet`: late-difficulty (`>=0.72`) deep gauntlet with tighter readiness/cooldown/surface-reserve constraints.
   - `compound_crisis`: combines low stockpiles, food/water scarcity, harsher needs/weather, stronger raids, and housing pressure.
   - `governance_pressure`: increases world-event and external-camp churn with higher schism pressure to stress diplomacy/governance control paths.
 - 2026-02 deterministic safety retune (config-only):
   - `underrealm_push` now uses stricter deep readiness + slower retry pacing and keeps more adults on surface reserve.
   - `compound_crisis` now keeps the crisis profile but with moderated scarcity/need/raid pressure to avoid deterministic over-kill in hardened `underrealm`/`governance` regression slices.
 - Default canonical eval scenario list (`ai.training.evalScenarios`) is now:
-  - `baseline`, `full_sim`, `wildlife_raid`, `water_scarce`, `food_scarce`, `ruins_focus`, `underrealm_push`, `compound_crisis`.
+  - `baseline`, `full_sim`, `wildlife_raid`, `water_scarce`, `food_scarce`, `ruins_focus`, `underrealm_push`, `compound_crisis`, `governance_pressure`.
 - Design intent: keep daily training focused on robustness under multi-system stress while still preserving baseline/full-sim comparability.
 - Adaptive scenario-sampling cadence is tuned for wrapper-sized runs:
   - `ai.training.scenarioSampling.updateEvery=80` by default, so normal quality/full phases can trigger weight updates within one run.
+  - `ai.training.scenarioSampling.difficultyPhases` can override `updateEvery`, `boost`, and `exponent` per difficulty band (`early`, `mid`, `late` by default).
 - Adaptive sampler observability (2026-02):
   - Trainer summary lines now expose `scenario_updates=<window>/<total>`.
   - `window`: updates applied in the current summary window.
   - `total`: cumulative updates since phase/run start.
   - Keep using `events=scenario_weights` as the qualitative trigger marker.
+  - Phase transitions emit `events=scenario_phase=<name>(u<updateEvery>,b<boost>,e<exponent>)`.
 
 Wrapper low-load tuning (no config edit needed):
 
@@ -121,6 +124,14 @@ Operational cycle runbook (2026-02-19 baseline contract):
   - `npm run ai:validate:risk`
     - `r001`: deterministic collapse pressure check (`ai:validate:benchmark`)
     - `r002`: observation-normalization shape guardrail on `models/policy_best.json`
+  - `npm run ai:validate:horizon`
+    - horizon profile with stored deterministic profile seeds.
+  - `npm run ai:validate:horizon:weekly`
+    - horizon profile with deterministic weekly seed-pack rotation (`--seed-pack weekly`, default packs now `4` seeds each).
+    - optional override: append `-- --seed-week YYYY-MM-DD` (or `YYYY-Www`) to replay a specific week.
+  - `npm run ai:validate:extended:optimized`
+    - full acceptance-quality flow with equivalent checks to `ai:validate:extended` but without duplicate benchmark execution.
+    - writes runtime profiling reports: `debug/extended_gate_runtime_optimized_latest.json` + `.md`.
   - Deterministic regression profile slices:
     - `standard`: `baseline`, `full_sim`
     - `underrealm`: `baseline`, `underrealm_push`, `compound_crisis`
@@ -143,6 +154,15 @@ Operational cycle runbook (2026-02-19 baseline contract):
   - benchmark + regression gate pass (`ai:validate:gate`)
   - risk mini-gate pass (`ai:validate:risk`)
   - if any criterion fails, revert the last tweak and start a new single-change cycle
+- Recommended cadence split (OQ-6.4):
+  - per-change loop (fast signal):
+    - `npm run ai:validate:canonical`
+    - `npm run ai:validate:gate`
+    - `npm run ai:validate:risk:r002`
+  - acceptance/nightly full run (no quality-signal loss, runtime-optimized):
+    - `npm run ai:validate:extended:optimized`
+  - weekly deep sentinel:
+    - `npm run ai:validate:horizon:weekly`
 
 Display:
 

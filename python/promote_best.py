@@ -10,6 +10,8 @@ import sys
 import train
 
 BEST_SAVE_COLOR = getattr(train, "BEST_EVAL_COLOR", "\033[96m")
+DIAGNOSTIC_RPT_WEIGHT = 1.0
+DIAGNOSTIC_DEEP_WEIGHT = 0.05
 
 
 # Function: build_ai_server_command.
@@ -336,10 +338,47 @@ def stats_to_payload(stats, score):
         "avg_deaths": float(stats.get("avg_deaths", 0.0)),
         "score": float(score),
     }
+    for metric in (
+        "avg_under_depthProgress",
+        "avg_under_championProgress",
+        "avg_under_readinessScore",
+        "avg_under_combatPressure",
+    ):
+        if metric in stats:
+            payload[metric] = float(stats.get(metric, 0.0))
     episode_scores = stats.get("episode_scores")
     if isinstance(episode_scores, list):
         payload["episode_scores"] = [float(value) for value in episode_scores]
     return payload
+
+
+# Function: build_diagnostic_scores.
+def build_diagnostic_scores(stats):
+    if not isinstance(stats, dict):
+        return None
+    avg_reward = float(stats.get("avg_reward", 0.0))
+    avg_steps = float(stats.get("avg_steps", 0.0))
+    avg_ticks = float(stats.get("avg_ticks", 0.0))
+    rpt_score = float(train.compute_score(avg_reward, avg_steps, avg_ticks, "rpt"))
+    readiness = train.clamp(float(stats.get("avg_under_readinessScore", 0.0) or 0.0), 0.0, 1.0)
+    depth = train.clamp(float(stats.get("avg_under_depthProgress", 0.0) or 0.0), 0.0, 1.0)
+    champion = train.clamp(float(stats.get("avg_under_championProgress", 0.0) or 0.0), 0.0, 1.0)
+    pressure = train.clamp(float(stats.get("avg_under_combatPressure", 0.0) or 0.0), 0.0, 1.0)
+    deep_aux = train.clamp(
+        (0.45 * readiness) + (0.2 * depth) + (0.15 * champion) + (0.2 * (1.0 - pressure)),
+        0.0,
+        1.0,
+    )
+    ensemble = rpt_score + (DIAGNOSTIC_DEEP_WEIGHT * (deep_aux - 0.5))
+    return {
+        "rpt_score": rpt_score,
+        "deep_aux": deep_aux,
+        "ensemble_score": ensemble,
+        "weights": {
+            "rpt": DIAGNOSTIC_RPT_WEIGHT,
+            "deep_aux_delta": DIAGNOSTIC_DEEP_WEIGHT,
+        },
+    }
 
 
 # Function: build_report_payload.
@@ -387,6 +426,24 @@ def build_report_payload(
         "best_score_after": best_after_score,
         "delta_score": float(delta_score) if delta_score is not None else None,
     }
+    latest_diag = build_diagnostic_scores(latest_stats)
+    best_diag = build_diagnostic_scores(best_stats) if best_stats is not None else None
+    if latest_diag:
+        diagnostic = {
+            "enabled": True,
+            "latest": latest_diag,
+            "best_before": best_diag,
+            "delta_ensemble_score": (
+                float(latest_diag["ensemble_score"] - best_diag["ensemble_score"])
+                if best_diag is not None
+                else None
+            ),
+            "notes": (
+                "Diagnostics only: ensemble score never drives promotion decisions "
+                "(promotion remains based on evalScore + existing guardrails)."
+            ),
+        }
+        payload["diagnostic"] = diagnostic
     if paired_stats:
         payload["paired"] = {
             "count": int(paired_stats.get("count", 0)),
@@ -405,6 +462,7 @@ def render_report_markdown(payload):
     thresholds = payload.get("thresholds") or {}
     paired = payload.get("paired") or {}
     eval_context = payload.get("eval_context") or {}
+    diagnostic = payload.get("diagnostic") or {}
 
     def fmt(value, decimals=4):
         if value is None:
@@ -465,6 +523,35 @@ def render_report_markdown(payload):
             f"- Mean delta: `{fmt(paired.get('mean_delta'))}`",
             f"- Standard error: `{fmt(paired.get('se_delta'))}`",
             f"- Lower confidence bound: `{fmt(paired.get('lower_bound'))}`",
+        ])
+
+    if diagnostic and diagnostic.get("enabled"):
+        latest_diag = diagnostic.get("latest") or {}
+        best_diag = diagnostic.get("best_before") or {}
+        lines.extend([
+            "",
+            "## Diagnostic Ensemble (Non-Blocking)",
+            "",
+            (
+                "- `ensemble_score = rpt_score + 0.05 * (deep_aux - 0.5)` "
+                "(reported for diagnostics only)."
+            ),
+            (
+                f"- Latest: `rpt={fmt(latest_diag.get('rpt_score'))}`, "
+                f"`deep_aux={fmt(latest_diag.get('deep_aux'))}`, "
+                f"`ensemble={fmt(latest_diag.get('ensemble_score'))}`"
+            ),
+            (
+                f"- Best before: `rpt={fmt(best_diag.get('rpt_score'))}`, "
+                f"`deep_aux={fmt(best_diag.get('deep_aux'))}`, "
+                f"`ensemble={fmt(best_diag.get('ensemble_score'))}`"
+            ),
+            f"- Delta ensemble: `{fmt(diagnostic.get('delta_ensemble_score'))}`",
+            (
+                "- Deep auxiliary channels use eval aggregates from "
+                "`avg_under_*` (`readiness`, `depth`, `champion`, `combat_pressure`)."
+            ),
+            f"- Note: {diagnostic.get('notes', '-')}",
         ])
 
     lines.extend([
