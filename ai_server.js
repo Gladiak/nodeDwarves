@@ -572,11 +572,21 @@ function buildResponse(reward, done, doneReason, forceDebug) {
 
 // Build compact training signals consumed by Python throughput diagnostics.
 function buildTrainingSignals(metrics) {
+  const underrealm = metrics
+    && metrics.aiObservation
+    && metrics.aiObservation.underrealm
+    && typeof metrics.aiObservation.underrealm === 'object'
+    ? metrics.aiObservation.underrealm
+    : {};
   return {
     criticalNeedsFraction: Number(metrics.criticalNeedsFraction || 0),
     idleAdultsFraction: Number(metrics.idleAdultsFraction || 0),
     populationBalance: Number(metrics.populationBalance || 0),
     stockpileRatio: { ...(metrics.stockpileRatio || {}) },
+    underrealmDepthProgress: Number(underrealm.depthProgress || 0),
+    underrealmChampionProgress: Number(underrealm.championProgress || 0),
+    underrealmReadinessScore: Number(underrealm.readinessScore || 0),
+    underrealmCombatPressure: Number(underrealm.combatPressure || 0),
   };
 }
 

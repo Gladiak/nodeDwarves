@@ -757,6 +757,8 @@ def format_summary_line(
     scenario_target_mix,
     eps_per_min=None,
     ppo_update_ms_value=None,
+    scenario_updates_window=0,
+    scenario_updates_total=0,
 ):
     def fmt(value, digits=2):
         try:
@@ -819,6 +821,7 @@ def format_summary_line(
         f"short={shortage_label} nodes={nodes_label} under={underrealm_label} term={termination_label} "
         f"weather={weather_label} scenario={scenario_label} "
         f"scenario_target={scenario_target_label} scenario_delta={scenario_delta:.2f} "
+        f"scenario_updates={int(scenario_updates_window)}/{int(scenario_updates_total)} "
         f"events={event_label}"
     )
 
@@ -973,15 +976,7 @@ def write_summary_header(
     handle.write(f"scenarios={format_scenario_weights(scenario_defs)}\n")
     handle.write(f"scenario_target_mix={format_ratio_map(get_scenario_target_mix(scenario_defs))}\n")
     if scenario_sampling:
-        sampling_label = (
-            f"{scenario_sampling.get('mode', 'static')}"
-            f" update_every={scenario_sampling.get('update_every')}"
-            f" ema_alpha={scenario_sampling.get('ema_alpha')}"
-            f" boost={scenario_sampling.get('boost')}"
-            f" exponent={scenario_sampling.get('exponent')}"
-            f" min_ratio={scenario_sampling.get('min_ratio')}"
-            f" max_ratio={scenario_sampling.get('max_ratio')}"
-        )
+        sampling_label = format_scenario_sampling_label(scenario_sampling)
         handle.write(f"scenario_sampling={sampling_label}\n")
     handle.write(f"eval_scenarios={' '.join(eval_scenarios) if eval_scenarios else 'n/a'}\n")
     handle.write(f"log_every_console={args.log_every} log_every_summary={SUMMARY_LOG_EVERY}\n")
@@ -1005,6 +1000,7 @@ def write_summary_header(
     handle.write("# scenario_target_mix: target distribution based on base weights.\n")
     handle.write("# weather/scenario: top label and share in the window.\n")
     handle.write("# scenario_delta: L1/2 distance between target mix and window mix.\n")
+    handle.write("# scenario_updates: adaptive scenario-weight updates in window/total.\n")
     handle.write("# events: notable triggers (best_eval, eval_regression, scenario_shift).\n")
 
 
@@ -1041,15 +1037,7 @@ def write_detail_header(
     handle.write(f"scenarios={format_scenario_weights(scenario_defs)}\n")
     handle.write(f"scenario_target_mix={format_ratio_map(get_scenario_target_mix(scenario_defs))}\n")
     if scenario_sampling:
-        sampling_label = (
-            f"{scenario_sampling.get('mode', 'static')}"
-            f" update_every={scenario_sampling.get('update_every')}"
-            f" ema_alpha={scenario_sampling.get('ema_alpha')}"
-            f" boost={scenario_sampling.get('boost')}"
-            f" exponent={scenario_sampling.get('exponent')}"
-            f" min_ratio={scenario_sampling.get('min_ratio')}"
-            f" max_ratio={scenario_sampling.get('max_ratio')}"
-        )
+        sampling_label = format_scenario_sampling_label(scenario_sampling)
         handle.write(f"scenario_sampling={sampling_label}\n")
     handle.write(f"eval_scenarios={' '.join(eval_scenarios) if eval_scenarios else 'n/a'}\n")
     handle.write("\n# Legend (all values are averaged over each detail window)\n")
@@ -1549,6 +1537,10 @@ def signals_from_response(response):
             "idleAdultsFraction": float(raw_signals.get("idleAdultsFraction", 0.0) or 0.0),
             "populationBalance": float(raw_signals.get("populationBalance", 0.0) or 0.0),
             "stockpileRatio": stockpile_ratio,
+            "underrealmDepthProgress": float(raw_signals.get("underrealmDepthProgress", 0.0) or 0.0),
+            "underrealmChampionProgress": float(raw_signals.get("underrealmChampionProgress", 0.0) or 0.0),
+            "underrealmReadinessScore": float(raw_signals.get("underrealmReadinessScore", 0.0) or 0.0),
+            "underrealmCombatPressure": float(raw_signals.get("underrealmCombatPressure", 0.0) or 0.0),
         }
     obs = (response or {}).get("obs", {}) or {}
     return {
@@ -1556,6 +1548,30 @@ def signals_from_response(response):
         "idleAdultsFraction": float(obs.get("idleAdultsFraction", 0.0) or 0.0),
         "populationBalance": float(obs.get("populationBalance", 0.0) or 0.0),
         "stockpileRatio": ratio_map_from_signal(obs.get("stockpileRatio")),
+        "underrealmDepthProgress": float(obs.get("underrealmDepthProgress", 0.0) or 0.0),
+        "underrealmChampionProgress": float(obs.get("underrealmChampionProgress", 0.0) or 0.0),
+        "underrealmReadinessScore": float(obs.get("underrealmReadinessScore", 0.0) or 0.0),
+        "underrealmCombatPressure": float(obs.get("underrealmCombatPressure", 0.0) or 0.0),
+    }
+
+
+def underrealm_eval_signals_from_info(info):
+    payload = info if isinstance(info, dict) else {}
+    training_signals = payload.get("trainingSignals")
+    if isinstance(training_signals, dict):
+        return {
+            "depthProgress": clamp(float(training_signals.get("underrealmDepthProgress", 0.0) or 0.0), 0.0, 1.0),
+            "championProgress": clamp(float(training_signals.get("underrealmChampionProgress", 0.0) or 0.0), 0.0, 1.0),
+            "readinessScore": clamp(float(training_signals.get("underrealmReadinessScore", 0.0) or 0.0), 0.0, 1.0),
+            "combatPressure": clamp(float(training_signals.get("underrealmCombatPressure", 0.0) or 0.0), 0.0, 1.0),
+        }
+    debug = payload.get("debug")
+    underrealm = debug.get("underrealm") if isinstance(debug, dict) else {}
+    return {
+        "depthProgress": clamp(float((underrealm or {}).get("depthProgress", 0.0) or 0.0), 0.0, 1.0),
+        "championProgress": clamp(float((underrealm or {}).get("championProgress", 0.0) or 0.0), 0.0, 1.0),
+        "readinessScore": clamp(float((underrealm or {}).get("readinessScore", 0.0) or 0.0), 0.0, 1.0),
+        "combatPressure": clamp(float((underrealm or {}).get("combatPressure", 0.0) or 0.0), 0.0, 1.0),
     }
 
 
@@ -1703,6 +1719,25 @@ def get_scenario_sampling(config):
     training = (config.get("ai") or {}).get("training") or {}
     sampling = training.get("scenarioSampling") or {}
     mode = str(sampling.get("mode") or "static").lower()
+    raw_phases = sampling.get("difficultyPhases")
+    parsed_phases = []
+    if isinstance(raw_phases, list):
+        for index, entry in enumerate(raw_phases):
+            if not isinstance(entry, dict):
+                continue
+            min_difficulty = clamp(to_float(entry.get("minDifficulty"), 0.0), 0.0, 1.0)
+            max_difficulty = clamp(to_float(entry.get("maxDifficulty"), 1.0), 0.0, 1.0)
+            if max_difficulty < min_difficulty:
+                continue
+            parsed_phases.append({
+                "name": str(entry.get("name") or f"phase_{index + 1}"),
+                "min_difficulty": min_difficulty,
+                "max_difficulty": max_difficulty,
+                "update_every": max(1, to_int(entry.get("updateEvery"), 0)) if entry.get("updateEvery") is not None else None,
+                "boost": max(0.0, to_float(entry.get("boost"), 0.0)) if entry.get("boost") is not None else None,
+                "exponent": max(0.1, to_float(entry.get("exponent"), 1.0)) if entry.get("exponent") is not None else None,
+            })
+    parsed_phases.sort(key=lambda item: (item["min_difficulty"], item["max_difficulty"]))
     return {
         "mode": mode,
         "update_every": max(1, to_int(sampling.get("updateEvery"), DEBUG_LOG_EVERY)),
@@ -1711,6 +1746,7 @@ def get_scenario_sampling(config):
         "exponent": max(0.1, to_float(sampling.get("exponent"), 1.0)),
         "min_ratio": max(0.0, to_float(sampling.get("minWeightRatio"), 0.4)),
         "max_ratio": max(0.0, to_float(sampling.get("maxWeightRatio"), 2.5)),
+        "difficulty_phases": parsed_phases,
     }
 
 
@@ -1728,15 +1764,22 @@ def init_scenario_sampler(config, scenario_defs):
     return {
         "mode": sampling["mode"],
         "update_every": sampling["update_every"],
+        "base_update_every": sampling["update_every"],
         "ema_alpha": sampling["ema_alpha"],
         "boost": sampling["boost"],
+        "base_boost": sampling["boost"],
         "exponent": sampling["exponent"],
+        "base_exponent": sampling["exponent"],
         "min_ratio": sampling["min_ratio"],
         "max_ratio": sampling["max_ratio"],
+        "difficulty_phases": sampling.get("difficulty_phases") or [],
+        "active_phase": "base",
         "base_weights": base_weights,
         "ema": {},
         "counts": {},
         "last_update": 0,
+        "updates_total": 0,
+        "updates_window": 0,
     }
 
 
@@ -1782,6 +1825,77 @@ def update_scenario_weights(sampler, scenario_defs):
             entry["weight"] = new_weight
             updated = True
     return updated
+
+
+def apply_scenario_sampling_phase(sampler, difficulty):
+    if not sampler:
+        return None
+    phases = sampler.get("difficulty_phases") or []
+    active_phase = None
+    if phases and difficulty is not None:
+        clamped = clamp(float(difficulty), 0.0, 1.0)
+        for phase in phases:
+            if phase["min_difficulty"] <= clamped <= phase["max_difficulty"]:
+                active_phase = phase
+                break
+    update_every = sampler.get("base_update_every", sampler.get("update_every", DEBUG_LOG_EVERY))
+    boost = sampler.get("base_boost", sampler.get("boost", 1.0))
+    exponent = sampler.get("base_exponent", sampler.get("exponent", 1.0))
+    phase_name = "base"
+    if active_phase:
+        phase_name = str(active_phase.get("name") or "phase")
+        if active_phase.get("update_every") is not None:
+            update_every = max(1, int(active_phase.get("update_every")))
+        if active_phase.get("boost") is not None:
+            boost = max(0.0, float(active_phase.get("boost")))
+        if active_phase.get("exponent") is not None:
+            exponent = max(0.1, float(active_phase.get("exponent")))
+    previous_phase = str(sampler.get("active_phase") or "base")
+    previous_update_every = int(sampler.get("update_every", update_every))
+    previous_boost = float(sampler.get("boost", boost))
+    previous_exponent = float(sampler.get("exponent", exponent))
+    sampler["update_every"] = int(update_every)
+    sampler["boost"] = float(boost)
+    sampler["exponent"] = float(exponent)
+    sampler["active_phase"] = phase_name
+    changed = (
+        previous_phase != phase_name
+        or previous_update_every != int(update_every)
+        or abs(previous_boost - float(boost)) > 1e-9
+        or abs(previous_exponent - float(exponent)) > 1e-9
+    )
+    return phase_name if changed else None
+
+
+def format_scenario_sampling_label(scenario_sampling):
+    if not scenario_sampling:
+        return None
+    label = (
+        f"{scenario_sampling.get('mode', 'static')}"
+        f" update_every={scenario_sampling.get('update_every')}"
+        f" ema_alpha={scenario_sampling.get('ema_alpha')}"
+        f" boost={scenario_sampling.get('boost')}"
+        f" exponent={scenario_sampling.get('exponent')}"
+        f" min_ratio={scenario_sampling.get('min_ratio')}"
+        f" max_ratio={scenario_sampling.get('max_ratio')}"
+    )
+    phases = scenario_sampling.get("difficulty_phases") or []
+    if phases:
+        parts = []
+        for phase in phases:
+            phase_name = str(phase.get("name") or "phase")
+            min_d = float(phase.get("min_difficulty", 0.0))
+            max_d = float(phase.get("max_difficulty", 1.0))
+            phase_bits = [f"{phase_name}[{min_d:.2f}-{max_d:.2f}]"]
+            if phase.get("update_every") is not None:
+                phase_bits.append(f"u{int(phase.get('update_every'))}")
+            if phase.get("boost") is not None:
+                phase_bits.append(f"b{float(phase.get('boost')):.2f}")
+            if phase.get("exponent") is not None:
+                phase_bits.append(f"e{float(phase.get('exponent')):.2f}")
+            parts.append(":".join(phase_bits))
+        label += f" phases={' '.join(parts)}"
+    return label
 
 
 def get_model_payload(model, obs_normalization=None):
@@ -2506,6 +2620,10 @@ def evaluate(
     total_ticks = 0.0
     total_births = 0.0
     total_deaths = 0.0
+    total_underrealm_depth_progress = 0.0
+    total_underrealm_champion_progress = 0.0
+    total_underrealm_readiness_score = 0.0
+    total_underrealm_combat_pressure = 0.0
     episode_scores = [] if collect_episode_scores else None
     scenario_plan = []
     if scenarios:
@@ -2585,6 +2703,11 @@ def evaluate(
                 info = response.get("info", {})
                 total_births += int(info.get("births", 0))
                 total_deaths += int(info.get("deaths", 0))
+                underrealm_signals = underrealm_eval_signals_from_info(info)
+                total_underrealm_depth_progress += underrealm_signals["depthProgress"]
+                total_underrealm_champion_progress += underrealm_signals["championProgress"]
+                total_underrealm_readiness_score += underrealm_signals["readinessScore"]
+                total_underrealm_combat_pressure += underrealm_signals["combatPressure"]
                 episode_score = None
                 if collect_episode_scores or progress_enabled:
                     episode_score = compute_score(
@@ -2625,6 +2748,10 @@ def evaluate(
         "avg_ticks": total_ticks / max(1, episodes),
         "avg_births": total_births / max(1, episodes),
         "avg_deaths": total_deaths / max(1, episodes),
+        "avg_under_depthProgress": total_underrealm_depth_progress / max(1, episodes),
+        "avg_under_championProgress": total_underrealm_champion_progress / max(1, episodes),
+        "avg_under_readinessScore": total_underrealm_readiness_score / max(1, episodes),
+        "avg_under_combatPressure": total_underrealm_combat_pressure / max(1, episodes),
     }
     if collect_episode_scores:
         result["episode_scores"] = episode_scores
@@ -3787,12 +3914,23 @@ def main():
                 ticks = float(episode_metrics.get("ticks", steps * args.step_ticks) or 0.0)
                 scenario_score = compute_score(reward, steps, ticks, args.sample_score)
                 record_scenario_reward(scenario_sampler, scenario_name, scenario_score)
+                phase_event = apply_scenario_sampling_phase(scenario_sampler, difficulty)
+                if phase_event and TRAINING_LOGS_ENABLED:
+                    pending_detail_events.append(
+                        "scenario_phase="
+                        f"{phase_event}"
+                        f"(u{scenario_sampler.get('update_every')}"
+                        f",b{float(scenario_sampler.get('boost', 0.0)):.2f}"
+                        f",e{float(scenario_sampler.get('exponent', 0.0)):.2f})"
+                    )
                 if (
                     scenario_sampler
                     and next_expected - scenario_sampler["last_update"] >= scenario_sampler["update_every"]
                 ):
                     scenario_sampler["last_update"] = next_expected
                     if update_scenario_weights(scenario_sampler, scenario_defs):
+                        scenario_sampler["updates_total"] = int(scenario_sampler.get("updates_total", 0)) + 1
+                        scenario_sampler["updates_window"] = int(scenario_sampler.get("updates_window", 0)) + 1
                         if TRAINING_LOGS_ENABLED:
                             pending_detail_events.append("scenario_weights")
 
@@ -3912,6 +4050,12 @@ def main():
                         get_scenario_target_mix(scenario_defs),
                         eps_per_min,
                         ppo_update_ms_value=ppo_update_ms(file_ppo_window),
+                        scenario_updates_window=(
+                            scenario_sampler.get("updates_window", 0) if scenario_sampler else 0
+                        ),
+                        scenario_updates_total=(
+                            scenario_sampler.get("updates_total", 0) if scenario_sampler else 0
+                        ),
                     )
                     summary_log_handle.write(summary_line + "\n")
                     summary_log_handle.flush()
@@ -3960,6 +4104,8 @@ def main():
                     file_deaths_window = 0
                     file_debug_window = init_debug_accumulator()
                     file_ppo_window = init_ppo_window()
+                    if scenario_sampler:
+                        scenario_sampler["updates_window"] = 0
                     file_window_start = next_expected + 1
                     file_window_start_time = time.perf_counter()
 

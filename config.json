@@ -1118,12 +1118,53 @@
       },
       "scenarioSampling": {
         "mode": "adaptive",
-        "updateEvery": 1500,
+        "updateEvery": 80,
         "emaAlpha": 0.15,
         "boost": 0.8,
         "exponent": 1.1,
         "minWeightRatio": 0.8,
-        "maxWeightRatio": 1.2
+        "maxWeightRatio": 1.2,
+        "difficultyPhases": [
+          {
+            "name": "early",
+            "maxDifficulty": 0.34,
+            "updateEvery": 96,
+            "boost": 0.7,
+            "exponent": 1
+          },
+          {
+            "name": "mid",
+            "minDifficulty": 0.34,
+            "maxDifficulty": 0.72,
+            "updateEvery": 80,
+            "boost": 0.8,
+            "exponent": 1.1
+          },
+          {
+            "name": "late",
+            "minDifficulty": 0.72,
+            "updateEvery": 64,
+            "boost": 0.9,
+            "exponent": 1.15
+          }
+        ]
+      },
+      "deepChecks": {
+        "seedPackRotation": {
+          "defaultMode": "weekly",
+          "packs": {
+            "pack_alpha": [12345, 22222, 33333, 44444],
+            "pack_beta": [13579, 24680, 11223, 33445],
+            "pack_gamma": [31415, 27182, 16180, 14142],
+            "pack_delta": [42424, 51515, 60606, 70707]
+          },
+          "weeklyOrder": [
+            "pack_alpha",
+            "pack_beta",
+            "pack_gamma",
+            "pack_delta"
+          ]
+        }
       },
       "randomization": {
         "stockpileScale": [0.92, 1.05],
@@ -1689,7 +1730,7 @@
                 "max_tick": 220
               },
               "progression": {
-                "min_frontier_miners": 1,
+                "min_frontier_miners": 2,
                 "build_ticks_base": 170,
                 "build_ticks_per_depth": 110,
                 "stockpile_cost_base": {
@@ -1711,27 +1752,88 @@
               },
               "combat": {
                 "encounter": {
-                  "retry_cooldown_ticks_base": 70,
-                  "retry_cooldown_ticks_per_depth": 24
+                  "retry_cooldown_ticks_base": 96,
+                  "retry_cooldown_ticks_per_depth": 34
                 },
                 "floors": {
                   "defaults": {
                     "readiness": {
-                      "min_score_base": 15,
-                      "min_score_per_depth": 7,
-                      "recommended_score_base": 24,
-                      "recommended_score_per_depth": 9
+                      "min_score_base": 18,
+                      "min_score_per_depth": 9,
+                      "recommended_score_base": 27,
+                      "recommended_score_per_depth": 11
                     }
                   }
                 }
               },
               "crew": {
-                "surface_reserve_ratio": 0.5,
-                "max_underrealm_ratio": 0.4,
+                "surface_reserve_ratio": 0.6,
+                "max_underrealm_ratio": 0.3,
                 "roles": {
                   "miner_ratio": 0.15,
                   "hauler_ratio": 0.1,
-                  "guard_ratio": 0.07
+                  "guard_ratio": 0.1
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "underrealm_late_gauntlet",
+          "weight": 0.08,
+          "difficultyMin": 0.72,
+          "difficultyMax": 1,
+          "difficultyMinMultiplier": 0,
+          "difficultyMaxMultiplier": 1,
+          "overrides": {
+            "underrealm": {
+              "progression": {
+                "build_ticks_base": 240,
+                "build_ticks_per_depth": 150,
+                "stockpile_cost_base": {
+                  "stone": 50,
+                  "iron": 20
+                },
+                "stockpile_cost_per_depth": {
+                  "stone": 36,
+                  "iron": 16
+                }
+              },
+              "combat": {
+                "readiness": {
+                  "warning_zone_hard_guard": {
+                    "enabled": true,
+                    "min_depth": 2,
+                    "min_recommended_score_ratio": 0.97
+                  }
+                },
+                "encounter": {
+                  "retry_cooldown_ticks_base": 120,
+                  "retry_cooldown_ticks_per_depth": 42
+                },
+                "floors": {
+                  "defaults": {
+                    "readiness": {
+                      "min_score_base": 22,
+                      "min_score_per_depth": 11,
+                      "recommended_score_base": 34,
+                      "recommended_score_per_depth": 13
+                    }
+                  }
+                }
+              },
+              "crew": {
+                "surface_reserve_ratio": 0.67,
+                "max_underrealm_ratio": 0.24
+              }
+            },
+            "ruins": {
+              "expedition": {
+                "minStockpileRatio": {
+                  "food": 0.5,
+                  "water": 0.5,
+                  "wood": 0.44,
+                  "stone": 0.44
                 }
               }
             }
@@ -1747,24 +1849,24 @@
           "overrides": {
             "resources": {
               "stockpile": {
-                "food": 38,
-                "water": 40,
+                "food": 44,
+                "water": 46,
                 "wood": 11,
                 "stone": 11
               },
               "nodes": {
-                "food": 28,
-                "water": 24
+                "food": 32,
+                "water": 27
               },
               "nodeCapacity": {
-                "food": 7,
-                "water": 8
+                "food": 8,
+                "water": 9
               }
             },
             "needs": {
               "decayPerTick": {
-                "hunger": 0.0025,
-                "thirst": 0.0038
+                "hunger": 0.0022,
+                "thirst": 0.0034
               }
             },
             "population": {
@@ -1783,12 +1885,12 @@
             },
             "raids": {
               "chance": {
-                "min": 0.2,
-                "max": 0.36
+                "min": 0.16,
+                "max": 0.3
               },
               "deathRate": {
-                "min": 0.3,
-                "max": 0.56
+                "min": 0.22,
+                "max": 0.44
               },
               "resourceLoss": {
                 "min": 0.05,
@@ -2003,7 +2105,8 @@
         "food_scarce",
         "ruins_focus",
         "underrealm_push",
-        "compound_crisis"
+        "compound_crisis",
+        "governance_pressure"
       ],
       "promotion": {
         "canonical": {

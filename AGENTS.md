@@ -28,8 +28,10 @@ This file defines how to implement new features in a consistent, stable way.
 - `config.json`: single source of truth for tunables.
 - `docs/PARAMETERS.md`: config parameter reference.
 - `docs/TRAINING_OVERRIDES.md`: training overrides guide.
+- `docs/TRAINING_STATUS.md`: current training quality status, active validation cadence, and pending closure items.
 - `docs/TRAINING_OPTIMIZATION_WORKBOOK.md`: step-by-step implementation workbook, decision log, and timeline for training optimization workstreams.
 - `docs/TELEMETRY.md`: telemetry operator manual (from zero to hero).
+- `.github/workflows/quality_gates.yml`: CI automation for extended/weekly training quality gates and artifact upload.
 - `src/config.js`: config loader.
 - `src/simulation/`: simulation systems split by theme.
 - `src/simulation/index.js`: simulation orchestrator.
@@ -60,9 +62,11 @@ This file defines how to implement new features in a consistent, stable way.
 - `scripts/export_map.js`: CLI map export pipeline (PNG + SVG).
 - `scripts/train_continuous.js`: cycle orchestrator for continuous AI training cadence and periodic validation gates.
 - `scripts/regression.js`: AI regression harness and profile recording.
+- `scripts/validate_extended_optimized.js`: optimized full-quality validation orchestrator with per-phase runtime reporting (deduplicates benchmark execution across gate+risk).
 - `scripts/headless_benchmark.js`: deterministic headless benchmark CLI for long-run tuning and validation.
 - `scripts/compare_benchmark_reports.js`: report-to-report benchmark diff CLI for cached baseline/candidate comparisons.
 - `scripts/clean_debug.js`: debug artifact housekeeping utility (transient cleanup + run retention).
+- `scripts/test_training_contracts.js`: deterministic technical contract suite for training/validation schemas (`npm test`).
 - `regression/baselines/regression_baseline.json`: durable regression baseline profiles used by checks.
 - `python/bootstrap.py`: venv bootstrap.
 - `python/train.py`: PPO training loop and logging.
@@ -120,7 +124,7 @@ This file defines how to implement new features in a consistent, stable way.
   - latest canonical check reports (`canonical_*`)
   - latest benchmark/regression/risk summary reports (`*.json`, `*.md`, `*.txt`)
   - only the latest `2-3` `debug/run_*` folders for local history (default retention in tooling: `3`)
-  - run folders explicitly referenced in `docs/TRAINING_OPTIMIZATION_WORKBOOK.md`
+  - run folders explicitly referenced in `docs/TRAINING_OPTIMIZATION_WORKBOOK.md` or `docs/TRAINING_STATUS.md`
 - Remove transient artifacts once summarized:
   - large smoke/runtime logs
   - per-seed regression temp folders (`debug/regression_eval_*`, `debug/regression_random_*`)

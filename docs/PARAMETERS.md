@@ -1792,13 +1792,13 @@ AI and training:
 - Current default scenario catalog:
   - `baseline`, `full_sim`, `mid_sim`
   - `wildlife_raid`, `ruins_focus`
-  - `underrealm_push`, `compound_crisis`, `governance_pressure`
+  - `underrealm_push`, `underrealm_late_gauntlet`, `compound_crisis`, `governance_pressure`
   - `clan_abyssborn`, `clan_embers`, `clan_wardens`, `clan_lantern`
   - `water_scarce`, `food_scarce`, `low_stockpile`, `housing_pressure`
 - `ai.training.evalScenarios`: list of scenario names evaluated at eval checkpoints.
 - Default eval scenario list:
   - `baseline`, `full_sim`, `wildlife_raid`, `water_scarce`
-  - `food_scarce`, `ruins_focus`, `underrealm_push`, `compound_crisis`
+  - `food_scarce`, `ruins_focus`, `underrealm_push`, `compound_crisis`, `governance_pressure`
 - `ai.training.scenarioSampling.mode`: `static` or `adaptive` scenario reweighting.
 - `ai.training.scenarioSampling.updateEvery`: episodes between adaptive weight updates.
 - `ai.training.scenarioSampling.emaAlpha`: EMA smoothing for per-scenario reward.
@@ -1806,6 +1806,16 @@ AI and training:
 - `ai.training.scenarioSampling.exponent`: curve exponent for adaptive weighting.
 - `ai.training.scenarioSampling.minWeightRatio`: minimum weight ratio vs base weight.
 - `ai.training.scenarioSampling.maxWeightRatio`: maximum weight ratio vs base weight.
+- `ai.training.scenarioSampling.difficultyPhases`: optional phase overrides keyed by difficulty bands.
+- `ai.training.scenarioSampling.difficultyPhases[].name`: phase label emitted by trainer diagnostics.
+- `ai.training.scenarioSampling.difficultyPhases[].minDifficulty`: inclusive lower bound (`0..1`) for phase activation.
+- `ai.training.scenarioSampling.difficultyPhases[].maxDifficulty`: inclusive upper bound (`0..1`) for phase activation.
+- `ai.training.scenarioSampling.difficultyPhases[].updateEvery`: phase-specific adaptive update cadence override.
+- `ai.training.scenarioSampling.difficultyPhases[].boost`: phase-specific weak-scenario boost override.
+- `ai.training.scenarioSampling.difficultyPhases[].exponent`: phase-specific adaptive weighting exponent override.
+- `ai.training.deepChecks.seedPackRotation.defaultMode`: default deterministic seed-pack mode (for tooling; `weekly` recommended).
+- `ai.training.deepChecks.seedPackRotation.packs.<packName>`: deterministic seed list for one named pack (recommended `>=4` seeds per pack for weekly deep-check statistical power).
+- `ai.training.deepChecks.seedPackRotation.weeklyOrder`: deterministic rotation order used by `--seed-pack weekly`.
 - `ai.training.promotion.canonical.enabled`: enable one canonical promotion benchmark for wrapper/promote flows.
 - `ai.training.promotion.canonical.evalEpisodes`: canonical episode count for `promote_best.py`.
 - `ai.training.promotion.canonical.evalMaxSteps`: canonical max steps per episode for promotion checks.

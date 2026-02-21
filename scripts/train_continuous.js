@@ -181,7 +181,7 @@ function printHelp() {
     "  --gate-every <n>         Run validation gate every n cycles (0 disables, default: 8)",
     "  --max-no-improve <n>     Stop after n consecutive non-improving cycles (0 disables, default: 10)",
     "  --max-gate-fail <n>      Stop after n consecutive gate failures (0 disables, default: 2)",
-    "  --improve-threshold <x>  Delta score threshold for improvement (default: 0)",
+    "  --improve-threshold <x>  Delta score threshold for delta-positive tagging (default: 0)",
     "  --fresh-first            Add --fresh only on cycle 1 training command",
     "  --dry-run                Print commands and schedule without executing",
     "  --help, -h               Show this help",
@@ -408,23 +408,28 @@ function buildMarkdownReport(report) {
     `- maxNoImprove: \`${report.options.maxNoImprove}\``,
     `- maxGateFail: \`${report.options.maxGateFail}\``,
     `- improveThreshold: \`${fmtNumber(report.options.improveThreshold, 6)}\``,
+    `- improvementPolicy: \`${report.options.improvementPolicy || "strict_promotion_only"}\``,
     `- freshFirst: \`${report.options.freshFirst === true}\``,
     `- dryRun: \`${report.options.dryRun === true}\``,
     "",
     "## Cycles",
     "",
-    "| Cycle | Train kind | Improved | Promoted | Delta | Paired LCB | Gate status |",
-    "| --- | --- | --- | --- | --- | --- | --- |",
+    "| Cycle | Train kind | Improved | Reason | Promotion aligned | Promoted | Delta | Delta>thr | Paired LCB | Gate status |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
   ];
 
   cycles.forEach((cycle) => {
     const canonical = cycle.canonical || {};
     const gate = cycle.gate || {};
     const gateStatus = gate.enabled ? (gate.status === 0 ? "pass" : `fail(${gate.status})`) : "skip";
+    const promoted = canonical.promoted === true;
+    const reason = String(cycle.improvedReason || "-");
+    const promotionAligned = cycle.promotionAligned === true ? "yes" : "no";
+    const deltaPositive = cycle.deltaPositive === true ? "yes" : "no";
     lines.push(
       `| ${cycle.index} | ${cycle.train.kind} | ${cycle.improved === true ? "yes" : "no"} `
-      + `| ${canonical.promoted === true ? "yes" : "no"} `
-      + `| ${fmtNumber(canonical.deltaScore)} | ${fmtNumber(canonical.pairedLcb)} | ${gateStatus} |`,
+      + `| ${reason} | ${promotionAligned} | ${promoted ? "yes" : "no"} `
+      + `| ${fmtNumber(canonical.deltaScore)} | ${deltaPositive} | ${fmtNumber(canonical.pairedLcb)} | ${gateStatus} |`,
     );
   });
 
@@ -501,6 +506,9 @@ function runContinuous(rootDir, options) {
       },
       canonical: null,
       improved: false,
+      improvedReason: "pending",
+      promotionAligned: false,
+      deltaPositive: false,
       noImproveStreakAfter: noImproveStreak,
       gate: {
         enabled: gateEnabled,
@@ -525,29 +533,56 @@ function runContinuous(rootDir, options) {
         const canonical = extractCanonicalMetrics(summaryPayload);
         cycleRecord.summaryPath = summaryEntry.path;
         cycleRecord.canonical = canonical;
-        const deltaScore = canonical && Number.isFinite(canonical.deltaScore)
-          ? canonical.deltaScore
-          : null;
-        const improved = Boolean(canonical && (
-          canonical.promoted === true
-          || (Number.isFinite(deltaScore) && deltaScore > options.improveThreshold)
-        ));
-        cycleRecord.improved = improved;
-        if (improved) {
-          noImproveStreak = 0;
+        if (canonical) {
+          const deltaScore = Number.isFinite(canonical.deltaScore)
+            ? canonical.deltaScore
+            : null;
+          const promoted = canonical.promoted === true;
+          const deltaPositive = Number.isFinite(deltaScore) && deltaScore > options.improveThreshold;
+          const improved = promoted;
+          let improvedReason = "not_promoted";
+          if (promoted) {
+            improvedReason = "promoted";
+          } else if (deltaPositive) {
+            improvedReason = "delta_positive_not_promoted";
+          }
+          cycleRecord.improved = improved;
+          cycleRecord.improvedReason = improvedReason;
+          cycleRecord.promotionAligned = true;
+          cycleRecord.deltaPositive = deltaPositive;
+          if (improved) {
+            noImproveStreak = 0;
+          } else {
+            noImproveStreak += 1;
+          }
+          cycleRecord.noImproveStreakAfter = noImproveStreak;
+          printStatus(
+            "report",
+            `delta=${fmtNumber(deltaScore)} lcb=${fmtNumber(canonical.pairedLcb)} `
+            + `promoted=${promoted ? "yes" : "no"} `
+            + `improved=${improved ? "yes" : "no"} reason=${improvedReason} `
+            + `aligned=yes streak=${noImproveStreak}`,
+            ANSI_CYAN,
+          );
         } else {
           noImproveStreak += 1;
+          cycleRecord.improved = false;
+          cycleRecord.improvedReason = "missing_canonical_payload";
+          cycleRecord.promotionAligned = false;
+          cycleRecord.deltaPositive = false;
+          cycleRecord.noImproveStreakAfter = noImproveStreak;
+          printStatus(
+            "warn",
+            "missing canonical metrics in run promotion summary; counting as non-improving cycle",
+            ANSI_YELLOW,
+          );
         }
-        cycleRecord.noImproveStreakAfter = noImproveStreak;
-        printStatus(
-          "report",
-          `delta=${fmtNumber(deltaScore)} lcb=${fmtNumber(canonical && canonical.pairedLcb)} `
-          + `promoted=${canonical && canonical.promoted === true ? "yes" : "no"} `
-          + `improved=${improved ? "yes" : "no"} streak=${noImproveStreak}`,
-          ANSI_CYAN,
-        );
       } else {
         noImproveStreak += 1;
+        cycleRecord.improved = false;
+        cycleRecord.improvedReason = "missing_canonical_summary";
+        cycleRecord.promotionAligned = false;
+        cycleRecord.deltaPositive = false;
         cycleRecord.noImproveStreakAfter = noImproveStreak;
         printStatus(
           "warn",
@@ -618,6 +653,7 @@ function runContinuous(rootDir, options) {
       maxNoImprove: options.maxNoImprove,
       maxGateFail: options.maxGateFail,
       improveThreshold: options.improveThreshold,
+      improvementPolicy: "strict_promotion_only",
       freshFirst: options.freshFirst,
       dryRun: options.dryRun,
     },
