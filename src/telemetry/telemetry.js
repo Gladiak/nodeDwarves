@@ -376,9 +376,11 @@ function buildTelemetrySectionModels(snapshot) {
         ),
         formatExternalCampStatus(snapshot.externalCampStatus),
         formatExternalCampModifiers(snapshot.externalCampStatus),
+        formatExternalCampsGovernorLine(snapshot.governorSignals.externalCamps),
         formatContractStatus(snapshot.state, snapshot.config, snapshot.columnWidth),
         formatContractReputation(snapshot.state, snapshot.config, snapshot.columnWidth),
         formatContractRecordLine(snapshot.contractsStats),
+        formatContractsGovernorLine(snapshot.governorSignals.contracts),
         formatTradeGovernorLine(snapshot.governorSignals.trade),
         formatWorldEventStats(snapshot.worldEventsStats),
         formatWorldEventLiveLine(
@@ -923,6 +925,10 @@ function getGovernorSignals(state) {
     jobs: raw.jobs && typeof raw.jobs === "object" ? raw.jobs : {},
     trade: raw.trade && typeof raw.trade === "object" ? raw.trade : {},
     building: raw.building && typeof raw.building === "object" ? raw.building : {},
+    contracts: raw.contracts && typeof raw.contracts === "object" ? raw.contracts : {},
+    ruins: raw.ruins && typeof raw.ruins === "object" ? raw.ruins : {},
+    underrealm: raw.underrealm && typeof raw.underrealm === "object" ? raw.underrealm : {},
+    externalCamps: raw.externalCamps && typeof raw.externalCamps === "object" ? raw.externalCamps : {},
   };
 }
 
@@ -948,11 +954,25 @@ function getDecisionTrace(state) {
       jobsSource: governors.jobsSource === "action" ? "action" : "default",
       tradeSource: governors.tradeSource === "action" ? "action" : "default",
       buildingSource: governors.buildingSource === "action" ? "action" : "default",
+      contractsSource: governors.contractsSource === "action" ? "action" : "default",
+      ruinsSource: governors.ruinsSource === "action" ? "action" : "default",
+      underrealmSource: governors.underrealmSource === "action" ? "action" : "default",
+      externalCampsSource: governors.externalCampsSource === "action" ? "action" : "default",
       tradeReserveBias: Number(governors.tradeReserveBias || 0),
       tradeContestIntent: clamp(Number(governors.tradeContestIntent || 0), 0, 1),
       tradeOpportunityIntent: clamp(Number(governors.tradeOpportunityIntent || 0), 0, 1),
+      contractCommitIntent: clamp(Number(governors.contractCommitIntent || 0), 0, 1),
+      ruinsWarningDispatchIntent: clamp(Number(governors.ruinsWarningDispatchIntent || 0), 0, 1),
+      ruinsMithrilReinforcementIntent: clamp(Number(governors.ruinsMithrilReinforcementIntent || 0), 0, 1),
+      underrealmSurfaceReserveBias: clamp(Number(governors.underrealmSurfaceReserveBias || 0), -1, 1),
+      underrealmDepthAllocationBias: clamp(Number(governors.underrealmDepthAllocationBias || 0), -1, 1),
+      underrealmMinerMixBias: clamp(Number(governors.underrealmMinerMixBias || 0), -1, 1),
+      underrealmHaulerMixBias: clamp(Number(governors.underrealmHaulerMixBias || 0), -1, 1),
+      underrealmGuardMixBias: clamp(Number(governors.underrealmGuardMixBias || 0), -1, 1),
       buildMineBias: Number(governors.buildMineBias || 0),
       buildUpgradeBias: Number(governors.buildUpgradeBias || 0),
+      militiaSupportIntent: clamp(Number(governors.militiaSupportIntent || 0), 0, 1),
+      raiderTributeIntent: clamp(Number(governors.raiderTributeIntent || 0), 0, 1),
       buildingClassOrder: Array.isArray(governors.buildingClassOrder)
         ? governors.buildingClassOrder.slice(0, 3).map((entry) => String(entry || "")).filter(Boolean)
         : [],
@@ -1010,12 +1030,16 @@ function buildExplainabilitySectionRows(state, governorSignals, shortages, resou
 
   const rows = [];
   rows.push(
-    `Decision tick ${trace.tick}: jobs ${trace.governors.jobsSource}, trade ${trace.governors.tradeSource}, build ${trace.governors.buildingSource}`,
+    `Decision tick ${trace.tick}: jobs ${trace.governors.jobsSource}, trade ${trace.governors.tradeSource}, build ${trace.governors.buildingSource}, contracts ${trace.governors.contractsSource}, ruins ${trace.governors.ruinsSource}, underrealm ${trace.governors.underrealmSource}, camps ${trace.governors.externalCampsSource}`,
   );
   rows.push(formatExplainabilityDriversLine(trace.drivers, resourceLabels));
   rows.push(formatExplainabilityShortageLine(traceShortages, 0, resourceLabels));
   rows.push(formatExplainabilityShortageLine(traceShortages, 1, resourceLabels));
   rows.push(formatExplainabilityContextLine(trace.context));
+  rows.push(formatExplainabilityContractsLine(trace.governors, currentGovernorSignals.contracts));
+  rows.push(formatExplainabilityRuinsLine(trace.governors, currentGovernorSignals.ruins));
+  rows.push(formatExplainabilityUnderrealmLine(trace.governors, currentGovernorSignals.underrealm));
+  rows.push(formatExplainabilityExternalCampsLine(trace.governors, currentGovernorSignals.externalCamps));
   rows.push(formatExplainabilityTradeLine(trace.governors, currentGovernorSignals.trade));
   rows.push(formatExplainabilityBuildLine(trace.governors, currentGovernorSignals.building));
   rows.push(formatExplainabilityWorkloadLine(trace.jobs));
@@ -1093,6 +1117,56 @@ function formatExplainabilityTradeLine(governors, tradeGovernor) {
   return `Trade explain (${source}): reserve ${reserve}, contest ${contest}, opp ${opportunity}`;
 }
 
+// Format contracts-governor explainability line.
+function formatExplainabilityContractsLine(governors, contractsGovernor) {
+  const traceGovernors = governors && typeof governors === "object" ? governors : {};
+  const source = traceGovernors.contractsSource === "action" ? "action" : "default";
+  const commit = clamp(Number(traceGovernors.contractCommitIntent || 0), 0, 1).toFixed(2);
+  if (!contractsGovernor || contractsGovernor.enabled === false) {
+    return `Contracts explain (${source}): disabled`;
+  }
+  return `Contracts explain (${source}): commit ${commit}`;
+}
+
+// Format ruins-governor explainability line.
+function formatExplainabilityRuinsLine(governors, ruinsGovernor) {
+  const traceGovernors = governors && typeof governors === "object" ? governors : {};
+  const source = traceGovernors.ruinsSource === "action" ? "action" : "default";
+  const warning = clamp(Number(traceGovernors.ruinsWarningDispatchIntent || 0), 0, 1).toFixed(2);
+  const mithril = clamp(Number(traceGovernors.ruinsMithrilReinforcementIntent || 0), 0, 1).toFixed(2);
+  if (!ruinsGovernor || ruinsGovernor.enabled === false) {
+    return `Ruins explain (${source}): disabled`;
+  }
+  return `Ruins explain (${source}): warning ${warning}, mithril ${mithril}`;
+}
+
+// Format underrealm-governor explainability line.
+function formatExplainabilityUnderrealmLine(governors, underrealmGovernor) {
+  const traceGovernors = governors && typeof governors === "object" ? governors : {};
+  const source = traceGovernors.underrealmSource === "action" ? "action" : "default";
+  const reserve = formatSignedGovernorValue(traceGovernors.underrealmSurfaceReserveBias);
+  const depth = formatSignedGovernorValue(traceGovernors.underrealmDepthAllocationBias);
+  const miner = formatSignedGovernorValue(traceGovernors.underrealmMinerMixBias);
+  const hauler = formatSignedGovernorValue(traceGovernors.underrealmHaulerMixBias);
+  const guard = formatSignedGovernorValue(traceGovernors.underrealmGuardMixBias);
+  if (!underrealmGovernor || underrealmGovernor.enabled === false) {
+    return `Underrealm explain (${source}): disabled`;
+  }
+  return `Underrealm explain (${source}): reserve ${reserve}, depth ${depth}, mix M${miner}/H${hauler}/G${guard}`;
+}
+
+// Format external-camps-governor explainability line.
+function formatExplainabilityExternalCampsLine(governors, externalCampsGovernor) {
+  const traceGovernors = governors && typeof governors === "object" ? governors : {};
+  const source = traceGovernors.externalCampsSource === "action" ? "action" : "default";
+  const militia = clamp(Number(traceGovernors.militiaSupportIntent || 0), 0, 1).toFixed(2);
+  const raider = clamp(Number(traceGovernors.raiderTributeIntent || 0), 0, 1).toFixed(2);
+  if (!externalCampsGovernor || externalCampsGovernor.enabled === false) {
+    return `External camps explain (${source}): disabled`;
+  }
+  return `External camps explain (${source}): militia ${militia}, raider ${raider}`;
+}
+
 // Format building-governor explainability line.
 function formatExplainabilityBuildLine(governors, buildingGovernor) {
   const traceGovernors = governors && typeof governors === "object" ? governors : {};
@@ -1160,6 +1234,52 @@ function formatTradeGovernorLine(governor) {
   const contest = clamp(Number(governor.contestIntent || 0), 0, 1).toFixed(2);
   const opportunity = clamp(Number(governor.opportunityIntent || 0), 0, 1).toFixed(2);
   return `Trade governor (${source}): reserve ${reserve}, contest ${contest}, opp ${opportunity}`;
+}
+
+// Format contracts-governor line with normalized commit intent.
+function formatContractsGovernorLine(governor) {
+  if (!governor || governor.enabled === false) {
+    return "Contracts governor: disabled";
+  }
+  const source = governor.source === "action" ? "action" : "default";
+  const commit = clamp(Number(governor.commitIntent || 0), 0, 1).toFixed(2);
+  return `Contracts governor (${source}): commit ${commit}`;
+}
+
+// Format ruins-governor line with normalized warning/mithril intents.
+function formatRuinsGovernorLine(governor) {
+  if (!governor || governor.enabled === false) {
+    return "Ruins governor: disabled";
+  }
+  const source = governor.source === "action" ? "action" : "default";
+  const warning = clamp(Number(governor.warningDispatchIntent || 0), 0, 1).toFixed(2);
+  const mithril = clamp(Number(governor.mithrilReinforcementIntent || 0), 0, 1).toFixed(2);
+  return `Ruins governor (${source}): warning ${warning}, mithril ${mithril}`;
+}
+
+// Format underrealm-governor line with signed control biases.
+function formatUnderrealmGovernorLine(governor) {
+  if (!governor || governor.enabled === false) {
+    return "Underrealm governor: disabled";
+  }
+  const source = governor.source === "action" ? "action" : "default";
+  const reserve = formatSignedGovernorValue(governor.surfaceReserveBias);
+  const depth = formatSignedGovernorValue(governor.depthAllocationBias);
+  const miner = formatSignedGovernorValue(governor.minerMixBias);
+  const hauler = formatSignedGovernorValue(governor.haulerMixBias);
+  const guard = formatSignedGovernorValue(governor.guardMixBias);
+  return `Underrealm governor (${source}): reserve ${reserve}, depth ${depth}, mix M${miner}/H${hauler}/G${guard}`;
+}
+
+// Format external-camps-governor line with normalized stance intents.
+function formatExternalCampsGovernorLine(governor) {
+  if (!governor || governor.enabled === false) {
+    return "External camps governor: disabled";
+  }
+  const source = governor.source === "action" ? "action" : "default";
+  const militia = clamp(Number(governor.militiaSupportIntent || 0), 0, 1).toFixed(2);
+  const raider = clamp(Number(governor.raiderTributeIntent || 0), 0, 1).toFixed(2);
+  return `External camps governor (${source}): militia ${militia}, raider ${raider}`;
 }
 
 // Format one building-governor line with class rank and bounded biases.
@@ -1461,6 +1581,8 @@ function buildOperationsSectionRows(
     `Stockpile trend (${windowLabel}) build: wood ${formatSignedDelta(delta.wood)}, stone ${formatSignedDelta(delta.stone)}, iron ${formatSignedDelta(delta.iron)}`,
     formatShortageCompact(shortages, 0, state, config, resourceLabels),
     formatBuildingGovernorLine(governorSignals && governorSignals.building),
+    formatRuinsGovernorLine(governorSignals && governorSignals.ruins),
+    formatUnderrealmGovernorLine(governorSignals && governorSignals.underrealm),
     `Total shortage pressure: ${formatShortageHeat(shortages)}`,
     formatOpsLoadLine(jobCounts, jobs.length),
   ];

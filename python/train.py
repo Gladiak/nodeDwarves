@@ -59,6 +59,32 @@ EXTENDED_FEATURE_NAMES = [
     "underrealmCombatPressure",
     "mythsActiveRatio",
     "mythsSeverity",
+    "worldEventActive",
+    "worldEventOfferPhase",
+    "worldEventOfferReady",
+    "worldEventTimeLeft",
+    "worldEventSpawnImminence",
+    "worldEventPressure",
+    "contractActive",
+    "contractReady",
+    "contractTimeLeft",
+    "contractFailurePressure",
+    "contractReputation",
+    "contractPressure",
+    "externalCampActiveRatio",
+    "externalCampRaiderPressure",
+    "externalCampCaravanRisk",
+    "externalCampMilitiaSupport",
+    "externalCampTradeInfluence",
+    "externalCampPressure",
+    "schismPressure",
+    "schismLegitimacy",
+    "schismPhase",
+    "schismDoctrineRevelry",
+    "schismRitualOpen",
+    "schismRitualActive",
+    "schismClimaxActive",
+    "schismInstability",
 ]
 DYNAMIC_FEATURE_PREFIXES = ("mythFlag_", "clanShare_")
 FEATURE_NAME_SET = set(DEFAULT_FEATURE_NAMES + EXTENDED_FEATURE_NAMES)
@@ -72,6 +98,16 @@ BUILDING_DEFENSE_WEIGHT_ACTION_ID = "gov_building_defense_weight"
 BUILDING_SPECIAL_WEIGHT_ACTION_ID = "gov_building_special_weight"
 BUILDING_MINE_BIAS_ACTION_ID = "gov_building_mine_bias"
 BUILDING_UPGRADE_BIAS_ACTION_ID = "gov_building_upgrade_bias"
+CONTRACT_COMMIT_INTENT_ACTION_ID = "gov_contract_commit_intent"
+RUINS_WARNING_DISPATCH_INTENT_ACTION_ID = "gov_ruins_warning_dispatch_intent"
+RUINS_MITHRIL_REINFORCEMENT_INTENT_ACTION_ID = "gov_ruins_mithril_reinforcement_intent"
+UNDERREALM_SURFACE_RESERVE_BIAS_ACTION_ID = "gov_underrealm_surface_reserve_bias"
+UNDERREALM_DEPTH_ALLOCATION_BIAS_ACTION_ID = "gov_underrealm_depth_allocation_bias"
+UNDERREALM_MINER_MIX_BIAS_ACTION_ID = "gov_underrealm_miner_mix_bias"
+UNDERREALM_HAULER_MIX_BIAS_ACTION_ID = "gov_underrealm_hauler_mix_bias"
+UNDERREALM_GUARD_MIX_BIAS_ACTION_ID = "gov_underrealm_guard_mix_bias"
+EXTERNAL_CAMPS_MILITIA_INTENT_ACTION_ID = "gov_external_militia_support_intent"
+EXTERNAL_CAMPS_RAIDER_INTENT_ACTION_ID = "gov_external_raider_tribute_intent"
 GOVERNOR_ACTION_ID_SET = {
     TRADE_RESERVE_BIAS_ACTION_ID,
     TRADE_CONTEST_INTENT_ACTION_ID,
@@ -82,6 +118,16 @@ GOVERNOR_ACTION_ID_SET = {
     BUILDING_SPECIAL_WEIGHT_ACTION_ID,
     BUILDING_MINE_BIAS_ACTION_ID,
     BUILDING_UPGRADE_BIAS_ACTION_ID,
+    CONTRACT_COMMIT_INTENT_ACTION_ID,
+    RUINS_WARNING_DISPATCH_INTENT_ACTION_ID,
+    RUINS_MITHRIL_REINFORCEMENT_INTENT_ACTION_ID,
+    UNDERREALM_SURFACE_RESERVE_BIAS_ACTION_ID,
+    UNDERREALM_DEPTH_ALLOCATION_BIAS_ACTION_ID,
+    UNDERREALM_MINER_MIX_BIAS_ACTION_ID,
+    UNDERREALM_HAULER_MIX_BIAS_ACTION_ID,
+    UNDERREALM_GUARD_MIX_BIAS_ACTION_ID,
+    EXTERNAL_CAMPS_MILITIA_INTENT_ACTION_ID,
+    EXTERNAL_CAMPS_RAIDER_INTENT_ACTION_ID,
 }
 TRANSPORT_LEGACY = "legacy"
 TRANSPORT_COMPACT = "compact"
@@ -1374,6 +1420,41 @@ def append_governor_actions(resources, config):
             if action_id not in merged:
                 merged.append(action_id)
 
+    contracts = governors.get("contracts") or {}
+    if contracts.get("enabled", True) is not False:
+        if CONTRACT_COMMIT_INTENT_ACTION_ID not in merged:
+            merged.append(CONTRACT_COMMIT_INTENT_ACTION_ID)
+
+    ruins = governors.get("ruins") or {}
+    if ruins.get("enabled", True) is not False:
+        for action_id in (
+            RUINS_WARNING_DISPATCH_INTENT_ACTION_ID,
+            RUINS_MITHRIL_REINFORCEMENT_INTENT_ACTION_ID,
+        ):
+            if action_id not in merged:
+                merged.append(action_id)
+
+    underrealm = governors.get("underrealm") or {}
+    if underrealm.get("enabled", True) is not False:
+        for action_id in (
+            UNDERREALM_SURFACE_RESERVE_BIAS_ACTION_ID,
+            UNDERREALM_DEPTH_ALLOCATION_BIAS_ACTION_ID,
+            UNDERREALM_MINER_MIX_BIAS_ACTION_ID,
+            UNDERREALM_HAULER_MIX_BIAS_ACTION_ID,
+            UNDERREALM_GUARD_MIX_BIAS_ACTION_ID,
+        ):
+            if action_id not in merged:
+                merged.append(action_id)
+
+    external_camps = governors.get("externalCamps") or {}
+    if external_camps.get("enabled", True) is not False:
+        for action_id in (
+            EXTERNAL_CAMPS_MILITIA_INTENT_ACTION_ID,
+            EXTERNAL_CAMPS_RAIDER_INTENT_ACTION_ID,
+        ):
+            if action_id not in merged:
+                merged.append(action_id)
+
     return merged
 
 
@@ -1386,6 +1467,10 @@ def split_action_payload(action, resources):
     festival_intent = None
     trade = {}
     building = {}
+    contracts = {}
+    ruins = {}
+    underrealm = {}
+    external_camps = {}
     for idx, resource in enumerate(resources):
         raw = action[idx] if idx < len(action) else 0.0
         try:
@@ -1412,9 +1497,29 @@ def split_action_payload(action, resources):
             building["mineBias"] = value
         elif resource == BUILDING_UPGRADE_BIAS_ACTION_ID:
             building["upgradeBias"] = value
+        elif resource == CONTRACT_COMMIT_INTENT_ACTION_ID:
+            contracts["commitIntent"] = value
+        elif resource == RUINS_WARNING_DISPATCH_INTENT_ACTION_ID:
+            ruins["warningDispatchIntent"] = value
+        elif resource == RUINS_MITHRIL_REINFORCEMENT_INTENT_ACTION_ID:
+            ruins["mithrilReinforcementIntent"] = value
+        elif resource == UNDERREALM_SURFACE_RESERVE_BIAS_ACTION_ID:
+            underrealm["surfaceReserveBias"] = value
+        elif resource == UNDERREALM_DEPTH_ALLOCATION_BIAS_ACTION_ID:
+            underrealm["depthAllocationBias"] = value
+        elif resource == UNDERREALM_MINER_MIX_BIAS_ACTION_ID:
+            underrealm["minerMixBias"] = value
+        elif resource == UNDERREALM_HAULER_MIX_BIAS_ACTION_ID:
+            underrealm["haulerMixBias"] = value
+        elif resource == UNDERREALM_GUARD_MIX_BIAS_ACTION_ID:
+            underrealm["guardMixBias"] = value
+        elif resource == EXTERNAL_CAMPS_MILITIA_INTENT_ACTION_ID:
+            external_camps["militiaSupportIntent"] = value
+        elif resource == EXTERNAL_CAMPS_RAIDER_INTENT_ACTION_ID:
+            external_camps["raiderTributeIntent"] = value
         else:
             weights[resource] = value
-    return weights, festival_intent, trade, building
+    return weights, festival_intent, trade, building, contracts, ruins, underrealm, external_camps
 
 
 def normalize_transport_mode(value, fallback=TRANSPORT_LEGACY):
@@ -1483,7 +1588,16 @@ def build_step_message(action, resources, step_ticks, transport=TRANSPORT_LEGACY
             payload["debug"] = True
         return payload
 
-    weights, festival_intent, trade_payload, building_payload = split_action_payload(action, resources)
+    (
+        weights,
+        festival_intent,
+        trade_payload,
+        building_payload,
+        contracts_payload,
+        ruins_payload,
+        underrealm_payload,
+        external_camps_payload,
+    ) = split_action_payload(action, resources)
     action_payload = {"weights": weights, "ticks": step_ticks}
     if festival_intent is not None:
         action_payload["festivalIntent"] = festival_intent
@@ -1491,6 +1605,14 @@ def build_step_message(action, resources, step_ticks, transport=TRANSPORT_LEGACY
         action_payload["trade"] = trade_payload
     if building_payload:
         action_payload["building"] = building_payload
+    if contracts_payload:
+        action_payload["contracts"] = contracts_payload
+    if ruins_payload:
+        action_payload["ruins"] = ruins_payload
+    if underrealm_payload:
+        action_payload["underrealm"] = underrealm_payload
+    if external_camps_payload:
+        action_payload["externalCamps"] = external_camps_payload
     if debug:
         action_payload["debug"] = True
     return {"cmd": "step", "action": action_payload}
@@ -1541,17 +1663,46 @@ def signals_from_response(response):
             "underrealmChampionProgress": float(raw_signals.get("underrealmChampionProgress", 0.0) or 0.0),
             "underrealmReadinessScore": float(raw_signals.get("underrealmReadinessScore", 0.0) or 0.0),
             "underrealmCombatPressure": float(raw_signals.get("underrealmCombatPressure", 0.0) or 0.0),
+            "worldEventPressure": float(raw_signals.get("worldEventPressure", 0.0) or 0.0),
+            "worldEventOfferReady": float(raw_signals.get("worldEventOfferReady", 0.0) or 0.0),
+            "contractReady": float(raw_signals.get("contractReady", 0.0) or 0.0),
+            "contractFailurePressure": float(raw_signals.get("contractFailurePressure", 0.0) or 0.0),
+            "externalCampPressure": float(raw_signals.get("externalCampPressure", 0.0) or 0.0),
+            "externalCampRaiderPressure": float(raw_signals.get("externalCampRaiderPressure", 0.0) or 0.0),
+            "schismPressure": float(raw_signals.get("schismPressure", 0.0) or 0.0),
+            "schismLegitimacy": float(raw_signals.get("schismLegitimacy", 0.0) or 0.0),
+            "diplomacyPressure": float(raw_signals.get("diplomacyPressure", 0.0) or 0.0),
+            "diplomacyCompletions": float(raw_signals.get("diplomacyCompletions", 0.0) or 0.0),
+            "diplomacyFailures": float(raw_signals.get("diplomacyFailures", 0.0) or 0.0),
+            "diplomacyExpirations": float(raw_signals.get("diplomacyExpirations", 0.0) or 0.0),
         }
     obs = (response or {}).get("obs", {}) or {}
+    underrealm = obs.get("underrealm") if isinstance(obs.get("underrealm"), dict) else {}
+    world_events = obs.get("worldEvents") if isinstance(obs.get("worldEvents"), dict) else {}
+    contracts = obs.get("contracts") if isinstance(obs.get("contracts"), dict) else {}
+    external_camps = obs.get("externalCamps") if isinstance(obs.get("externalCamps"), dict) else {}
+    schism = obs.get("schism") if isinstance(obs.get("schism"), dict) else {}
     return {
         "criticalNeedsFraction": float(obs.get("criticalNeedsFraction", 0.0) or 0.0),
         "idleAdultsFraction": float(obs.get("idleAdultsFraction", 0.0) or 0.0),
         "populationBalance": float(obs.get("populationBalance", 0.0) or 0.0),
         "stockpileRatio": ratio_map_from_signal(obs.get("stockpileRatio")),
-        "underrealmDepthProgress": float(obs.get("underrealmDepthProgress", 0.0) or 0.0),
-        "underrealmChampionProgress": float(obs.get("underrealmChampionProgress", 0.0) or 0.0),
-        "underrealmReadinessScore": float(obs.get("underrealmReadinessScore", 0.0) or 0.0),
-        "underrealmCombatPressure": float(obs.get("underrealmCombatPressure", 0.0) or 0.0),
+        "underrealmDepthProgress": float(underrealm.get("depthProgress", 0.0) or 0.0),
+        "underrealmChampionProgress": float(underrealm.get("championProgress", 0.0) or 0.0),
+        "underrealmReadinessScore": float(underrealm.get("readinessScore", 0.0) or 0.0),
+        "underrealmCombatPressure": float(underrealm.get("combatPressure", 0.0) or 0.0),
+        "worldEventPressure": float(world_events.get("pressure", 0.0) or 0.0),
+        "worldEventOfferReady": float(world_events.get("offerReady", 0.0) or 0.0),
+        "contractReady": float(contracts.get("ready", 0.0) or 0.0),
+        "contractFailurePressure": float(contracts.get("failurePressure", 0.0) or 0.0),
+        "externalCampPressure": float(external_camps.get("pressure", 0.0) or 0.0),
+        "externalCampRaiderPressure": float(external_camps.get("raiderPressure", 0.0) or 0.0),
+        "schismPressure": float(schism.get("pressure", 0.0) or 0.0),
+        "schismLegitimacy": float(schism.get("legitimacy", 0.0) or 0.0),
+        "diplomacyPressure": float(0.0),
+        "diplomacyCompletions": float(0.0),
+        "diplomacyFailures": float(0.0),
+        "diplomacyExpirations": float(0.0),
     }
 
 
@@ -2229,6 +2380,36 @@ def build_features(obs, resource, feature_names):
     myths_active_ratio = clamp(float(myths.get("activeRatio", 0.0)), 0.0, 1.0)
     myths_severity = clamp(float(myths.get("severity", 0.0)), 0.0, 1.0)
     myth_flags = myths.get("flags") or {}
+    world_events = obs.get("worldEvents") or {}
+    world_event_active = clamp(float(world_events.get("active", 0.0)), 0.0, 1.0)
+    world_event_offer_phase = clamp(float(world_events.get("offerPhase", 0.0)), 0.0, 1.0)
+    world_event_offer_ready = clamp(float(world_events.get("offerReady", 0.0)), 0.0, 1.0)
+    world_event_time_left = clamp(float(world_events.get("timeLeft", 0.0)), 0.0, 1.0)
+    world_event_spawn_imminence = clamp(float(world_events.get("spawnImminence", 0.0)), 0.0, 1.0)
+    world_event_pressure = clamp(float(world_events.get("pressure", 0.0)), 0.0, 1.0)
+    contracts = obs.get("contracts") or {}
+    contract_active = clamp(float(contracts.get("active", 0.0)), 0.0, 1.0)
+    contract_ready = clamp(float(contracts.get("ready", 0.0)), 0.0, 1.0)
+    contract_time_left = clamp(float(contracts.get("timeLeft", 0.0)), 0.0, 1.0)
+    contract_failure_pressure = clamp(float(contracts.get("failurePressure", 0.0)), 0.0, 1.0)
+    contract_reputation = clamp(float(contracts.get("reputation", 0.0)), 0.0, 1.0)
+    contract_pressure = clamp(float(contracts.get("pressure", 0.0)), 0.0, 1.0)
+    external_camps = obs.get("externalCamps") or {}
+    external_camp_active_ratio = clamp(float(external_camps.get("activeRatio", 0.0)), 0.0, 1.0)
+    external_camp_raider_pressure = clamp(float(external_camps.get("raiderPressure", 0.0)), 0.0, 1.0)
+    external_camp_caravan_risk = clamp(float(external_camps.get("caravanRisk", 0.0)), 0.0, 1.0)
+    external_camp_militia_support = clamp(float(external_camps.get("militiaSupport", 0.0)), 0.0, 1.0)
+    external_camp_trade_influence = clamp(float(external_camps.get("tradeInfluence", 0.0)), 0.0, 1.0)
+    external_camp_pressure = clamp(float(external_camps.get("pressure", 0.0)), 0.0, 1.0)
+    schism = obs.get("schism") or {}
+    schism_pressure = clamp(float(schism.get("pressure", 0.0)), 0.0, 1.0)
+    schism_legitimacy = clamp(float(schism.get("legitimacy", 0.0)), 0.0, 1.0)
+    schism_phase = clamp(float(schism.get("phase", 0.0)), 0.0, 1.0)
+    schism_doctrine_revelry = clamp(float(schism.get("doctrineRevelry", 0.0)), 0.0, 1.0)
+    schism_ritual_open = clamp(float(schism.get("ritualOpen", 0.0)), 0.0, 1.0)
+    schism_ritual_active = clamp(float(schism.get("ritualActive", 0.0)), 0.0, 1.0)
+    schism_climax_active = clamp(float(schism.get("climaxActive", 0.0)), 0.0, 1.0)
+    schism_instability = clamp(float(schism.get("instability", 0.0)), 0.0, 1.0)
     clan_shares = obs.get("clanShares") or {}
 
     feature_map = {
@@ -2266,6 +2447,32 @@ def build_features(obs, resource, feature_names):
         "underrealmCombatPressure": underrealm_combat_pressure,
         "mythsActiveRatio": myths_active_ratio,
         "mythsSeverity": myths_severity,
+        "worldEventActive": world_event_active,
+        "worldEventOfferPhase": world_event_offer_phase,
+        "worldEventOfferReady": world_event_offer_ready,
+        "worldEventTimeLeft": world_event_time_left,
+        "worldEventSpawnImminence": world_event_spawn_imminence,
+        "worldEventPressure": world_event_pressure,
+        "contractActive": contract_active,
+        "contractReady": contract_ready,
+        "contractTimeLeft": contract_time_left,
+        "contractFailurePressure": contract_failure_pressure,
+        "contractReputation": contract_reputation,
+        "contractPressure": contract_pressure,
+        "externalCampActiveRatio": external_camp_active_ratio,
+        "externalCampRaiderPressure": external_camp_raider_pressure,
+        "externalCampCaravanRisk": external_camp_caravan_risk,
+        "externalCampMilitiaSupport": external_camp_militia_support,
+        "externalCampTradeInfluence": external_camp_trade_influence,
+        "externalCampPressure": external_camp_pressure,
+        "schismPressure": schism_pressure,
+        "schismLegitimacy": schism_legitimacy,
+        "schismPhase": schism_phase,
+        "schismDoctrineRevelry": schism_doctrine_revelry,
+        "schismRitualOpen": schism_ritual_open,
+        "schismRitualActive": schism_ritual_active,
+        "schismClimaxActive": schism_climax_active,
+        "schismInstability": schism_instability,
     }
     values = []
     for name in feature_names:

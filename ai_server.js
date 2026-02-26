@@ -47,6 +47,16 @@ const BUILDING_DEFENSE_WEIGHT_ACTION_ID = 'gov_building_defense_weight';
 const BUILDING_SPECIAL_WEIGHT_ACTION_ID = 'gov_building_special_weight';
 const BUILDING_MINE_BIAS_ACTION_ID = 'gov_building_mine_bias';
 const BUILDING_UPGRADE_BIAS_ACTION_ID = 'gov_building_upgrade_bias';
+const CONTRACT_COMMIT_INTENT_ACTION_ID = 'gov_contract_commit_intent';
+const RUINS_WARNING_DISPATCH_INTENT_ACTION_ID = 'gov_ruins_warning_dispatch_intent';
+const RUINS_MITHRIL_REINFORCEMENT_INTENT_ACTION_ID = 'gov_ruins_mithril_reinforcement_intent';
+const UNDERREALM_SURFACE_RESERVE_BIAS_ACTION_ID = 'gov_underrealm_surface_reserve_bias';
+const UNDERREALM_DEPTH_ALLOCATION_BIAS_ACTION_ID = 'gov_underrealm_depth_allocation_bias';
+const UNDERREALM_MINER_MIX_BIAS_ACTION_ID = 'gov_underrealm_miner_mix_bias';
+const UNDERREALM_HAULER_MIX_BIAS_ACTION_ID = 'gov_underrealm_hauler_mix_bias';
+const UNDERREALM_GUARD_MIX_BIAS_ACTION_ID = 'gov_underrealm_guard_mix_bias';
+const EXTERNAL_CAMPS_MILITIA_INTENT_ACTION_ID = 'gov_external_militia_support_intent';
+const EXTERNAL_CAMPS_RAIDER_INTENT_ACTION_ID = 'gov_external_raider_tribute_intent';
 const ACTION_SLOT_WEIGHT = 'weight';
 const ACTION_SLOT_FESTIVAL = 'festivalIntent';
 const ACTION_SLOT_TRADE_RESERVE = 'tradeReserveRatioBias';
@@ -58,6 +68,16 @@ const ACTION_SLOT_BUILDING_DEFENSE = 'buildingDefenseWeight';
 const ACTION_SLOT_BUILDING_SPECIAL = 'buildingSpecialWeight';
 const ACTION_SLOT_BUILDING_MINE = 'buildingMineBias';
 const ACTION_SLOT_BUILDING_UPGRADE = 'buildingUpgradeBias';
+const ACTION_SLOT_CONTRACT_COMMIT = 'contractCommitIntent';
+const ACTION_SLOT_RUINS_WARNING_DISPATCH = 'ruinsWarningDispatchIntent';
+const ACTION_SLOT_RUINS_MITHRIL_REINFORCEMENT = 'ruinsMithrilReinforcementIntent';
+const ACTION_SLOT_UNDERREALM_SURFACE_RESERVE = 'underrealmSurfaceReserveBias';
+const ACTION_SLOT_UNDERREALM_DEPTH_ALLOCATION = 'underrealmDepthAllocationBias';
+const ACTION_SLOT_UNDERREALM_MINER_MIX = 'underrealmMinerMixBias';
+const ACTION_SLOT_UNDERREALM_HAULER_MIX = 'underrealmHaulerMixBias';
+const ACTION_SLOT_UNDERREALM_GUARD_MIX = 'underrealmGuardMixBias';
+const ACTION_SLOT_EXTERNAL_CAMPS_MILITIA = 'externalCampsMilitiaIntent';
+const ACTION_SLOT_EXTERNAL_CAMPS_RAIDER = 'externalCampsRaiderIntent';
 const FEATURE_KIND_SHORTAGE = 'shortage';
 const FEATURE_KIND_NODE_SCARCITY = 'nodeScarcity';
 const FEATURE_KIND_STATIC = 'static';
@@ -99,6 +119,32 @@ const STATIC_FEATURE_NAMES = new Set([
   'underrealmCombatPressure',
   'mythsActiveRatio',
   'mythsSeverity',
+  'worldEventActive',
+  'worldEventOfferPhase',
+  'worldEventOfferReady',
+  'worldEventTimeLeft',
+  'worldEventSpawnImminence',
+  'worldEventPressure',
+  'contractActive',
+  'contractReady',
+  'contractTimeLeft',
+  'contractFailurePressure',
+  'contractReputation',
+  'contractPressure',
+  'externalCampActiveRatio',
+  'externalCampRaiderPressure',
+  'externalCampCaravanRisk',
+  'externalCampMilitiaSupport',
+  'externalCampTradeInfluence',
+  'externalCampPressure',
+  'schismPressure',
+  'schismLegitimacy',
+  'schismPhase',
+  'schismDoctrineRevelry',
+  'schismRitualOpen',
+  'schismRitualActive',
+  'schismClimaxActive',
+  'schismInstability',
 ]);
 let runtime = buildRuntimeForConfig(baseConfig);
 
@@ -332,6 +378,36 @@ function resolveActionSlotKind(actionId) {
   if (actionId === BUILDING_UPGRADE_BIAS_ACTION_ID) {
     return ACTION_SLOT_BUILDING_UPGRADE;
   }
+  if (actionId === CONTRACT_COMMIT_INTENT_ACTION_ID) {
+    return ACTION_SLOT_CONTRACT_COMMIT;
+  }
+  if (actionId === RUINS_WARNING_DISPATCH_INTENT_ACTION_ID) {
+    return ACTION_SLOT_RUINS_WARNING_DISPATCH;
+  }
+  if (actionId === RUINS_MITHRIL_REINFORCEMENT_INTENT_ACTION_ID) {
+    return ACTION_SLOT_RUINS_MITHRIL_REINFORCEMENT;
+  }
+  if (actionId === UNDERREALM_SURFACE_RESERVE_BIAS_ACTION_ID) {
+    return ACTION_SLOT_UNDERREALM_SURFACE_RESERVE;
+  }
+  if (actionId === UNDERREALM_DEPTH_ALLOCATION_BIAS_ACTION_ID) {
+    return ACTION_SLOT_UNDERREALM_DEPTH_ALLOCATION;
+  }
+  if (actionId === UNDERREALM_MINER_MIX_BIAS_ACTION_ID) {
+    return ACTION_SLOT_UNDERREALM_MINER_MIX;
+  }
+  if (actionId === UNDERREALM_HAULER_MIX_BIAS_ACTION_ID) {
+    return ACTION_SLOT_UNDERREALM_HAULER_MIX;
+  }
+  if (actionId === UNDERREALM_GUARD_MIX_BIAS_ACTION_ID) {
+    return ACTION_SLOT_UNDERREALM_GUARD_MIX;
+  }
+  if (actionId === EXTERNAL_CAMPS_MILITIA_INTENT_ACTION_ID) {
+    return ACTION_SLOT_EXTERNAL_CAMPS_MILITIA;
+  }
+  if (actionId === EXTERNAL_CAMPS_RAIDER_INTENT_ACTION_ID) {
+    return ACTION_SLOT_EXTERNAL_CAMPS_RAIDER;
+  }
   return ACTION_SLOT_WEIGHT;
 }
 
@@ -460,6 +536,10 @@ function decodeCompactActionPayload(actionValues, sourcePayload) {
   let festivalIntent;
   let trade;
   let building;
+  let contracts;
+  let ruins;
+  let underrealm;
+  let externalCamps;
   const action = {};
 
   for (let idx = 0; idx < slots.length; idx += 1) {
@@ -510,6 +590,46 @@ function decodeCompactActionPayload(actionValues, sourcePayload) {
         building = building || {};
         building.upgradeBias = value;
         break;
+      case ACTION_SLOT_CONTRACT_COMMIT:
+        contracts = contracts || {};
+        contracts.commitIntent = value;
+        break;
+      case ACTION_SLOT_RUINS_WARNING_DISPATCH:
+        ruins = ruins || {};
+        ruins.warningDispatchIntent = value;
+        break;
+      case ACTION_SLOT_RUINS_MITHRIL_REINFORCEMENT:
+        ruins = ruins || {};
+        ruins.mithrilReinforcementIntent = value;
+        break;
+      case ACTION_SLOT_UNDERREALM_SURFACE_RESERVE:
+        underrealm = underrealm || {};
+        underrealm.surfaceReserveBias = value;
+        break;
+      case ACTION_SLOT_UNDERREALM_DEPTH_ALLOCATION:
+        underrealm = underrealm || {};
+        underrealm.depthAllocationBias = value;
+        break;
+      case ACTION_SLOT_UNDERREALM_MINER_MIX:
+        underrealm = underrealm || {};
+        underrealm.minerMixBias = value;
+        break;
+      case ACTION_SLOT_UNDERREALM_HAULER_MIX:
+        underrealm = underrealm || {};
+        underrealm.haulerMixBias = value;
+        break;
+      case ACTION_SLOT_UNDERREALM_GUARD_MIX:
+        underrealm = underrealm || {};
+        underrealm.guardMixBias = value;
+        break;
+      case ACTION_SLOT_EXTERNAL_CAMPS_MILITIA:
+        externalCamps = externalCamps || {};
+        externalCamps.militiaSupportIntent = value;
+        break;
+      case ACTION_SLOT_EXTERNAL_CAMPS_RAIDER:
+        externalCamps = externalCamps || {};
+        externalCamps.raiderTributeIntent = value;
+        break;
       case ACTION_SLOT_WEIGHT:
       default:
         weights = weights || {};
@@ -529,6 +649,18 @@ function decodeCompactActionPayload(actionValues, sourcePayload) {
   }
   if (building && Object.keys(building).length > 0) {
     action.building = building;
+  }
+  if (contracts && Object.keys(contracts).length > 0) {
+    action.contracts = contracts;
+  }
+  if (ruins && Object.keys(ruins).length > 0) {
+    action.ruins = ruins;
+  }
+  if (underrealm && Object.keys(underrealm).length > 0) {
+    action.underrealm = underrealm;
+  }
+  if (externalCamps && Object.keys(externalCamps).length > 0) {
+    action.externalCamps = externalCamps;
   }
 
   const ticksRaw = Number(sourcePayload && sourcePayload.ticks);
@@ -578,6 +710,30 @@ function buildTrainingSignals(metrics) {
     && typeof metrics.aiObservation.underrealm === 'object'
     ? metrics.aiObservation.underrealm
     : {};
+  const worldEvents = metrics
+    && metrics.aiObservation
+    && metrics.aiObservation.worldEvents
+    && typeof metrics.aiObservation.worldEvents === 'object'
+    ? metrics.aiObservation.worldEvents
+    : {};
+  const contracts = metrics
+    && metrics.aiObservation
+    && metrics.aiObservation.contracts
+    && typeof metrics.aiObservation.contracts === 'object'
+    ? metrics.aiObservation.contracts
+    : {};
+  const externalCamps = metrics
+    && metrics.aiObservation
+    && metrics.aiObservation.externalCamps
+    && typeof metrics.aiObservation.externalCamps === 'object'
+    ? metrics.aiObservation.externalCamps
+    : {};
+  const schism = metrics
+    && metrics.aiObservation
+    && metrics.aiObservation.schism
+    && typeof metrics.aiObservation.schism === 'object'
+    ? metrics.aiObservation.schism
+    : {};
   return {
     criticalNeedsFraction: Number(metrics.criticalNeedsFraction || 0),
     idleAdultsFraction: Number(metrics.idleAdultsFraction || 0),
@@ -587,6 +743,18 @@ function buildTrainingSignals(metrics) {
     underrealmChampionProgress: Number(underrealm.championProgress || 0),
     underrealmReadinessScore: Number(underrealm.readinessScore || 0),
     underrealmCombatPressure: Number(underrealm.combatPressure || 0),
+    worldEventPressure: Number(worldEvents.pressure || 0),
+    worldEventOfferReady: Number(worldEvents.offerReady || 0),
+    contractReady: Number(contracts.ready || 0),
+    contractFailurePressure: Number(contracts.failurePressure || 0),
+    externalCampPressure: Number(externalCamps.pressure || 0),
+    externalCampRaiderPressure: Number(externalCamps.raiderPressure || 0),
+    schismPressure: Number(schism.pressure || 0),
+    schismLegitimacy: Number(schism.legitimacy || 0),
+    diplomacyPressure: Number(metrics.diplomacyPressure || 0),
+    diplomacyCompletions: Number(metrics.diplomacyCompletions || 0),
+    diplomacyFailures: Number(metrics.diplomacyFailures || 0),
+    diplomacyExpirations: Number(metrics.diplomacyExpirations || 0),
   };
 }
 
@@ -824,6 +992,18 @@ function resolveAiObservation(state, config) {
     myths: aiObservation.myths && typeof aiObservation.myths === 'object'
       ? aiObservation.myths
       : {},
+    worldEvents: aiObservation.worldEvents && typeof aiObservation.worldEvents === 'object'
+      ? aiObservation.worldEvents
+      : {},
+    contracts: aiObservation.contracts && typeof aiObservation.contracts === 'object'
+      ? aiObservation.contracts
+      : {},
+    externalCamps: aiObservation.externalCamps && typeof aiObservation.externalCamps === 'object'
+      ? aiObservation.externalCamps
+      : {},
+    schism: aiObservation.schism && typeof aiObservation.schism === 'object'
+      ? aiObservation.schism
+      : {},
     clanShares: aiObservation.clanShares && typeof aiObservation.clanShares === 'object'
       ? aiObservation.clanShares
       : {},
@@ -838,6 +1018,36 @@ function getAiRewardSignals(aiObservation) {
   const myths = aiObservation && aiObservation.myths
     ? aiObservation.myths
     : {};
+  const worldEvents = aiObservation && aiObservation.worldEvents
+    ? aiObservation.worldEvents
+    : {};
+  const contracts = aiObservation && aiObservation.contracts
+    ? aiObservation.contracts
+    : {};
+  const externalCamps = aiObservation && aiObservation.externalCamps
+    ? aiObservation.externalCamps
+    : {};
+  const schism = aiObservation && aiObservation.schism
+    ? aiObservation.schism
+    : {};
+  const worldEventPressure = clamp(Number(worldEvents.pressure || 0), 0, 1);
+  const contractFailurePressure = clamp(Number(contracts.failurePressure || 0), 0, 1);
+  const externalCampPressure = clamp(Number(externalCamps.pressure || 0), 0, 1);
+  const externalCampRaiderPressure = clamp(Number(externalCamps.raiderPressure || 0), 0, 1);
+  const schismPressure = clamp(Number(schism.pressure || 0), 0, 1);
+  const schismLegitimacy = clamp(Number(schism.legitimacy || 0), 0, 1);
+  const schismInstability = clamp(Number(schism.instability || 0), 0, 1);
+  const diplomacyPressure = clamp(
+    worldEventPressure * 0.2
+      + contractFailurePressure * 0.25
+      + externalCampPressure * 0.25
+      + externalCampRaiderPressure * 0.1
+      + schismPressure * 0.1
+      + schismInstability * 0.05
+      + (1 - schismLegitimacy) * 0.05,
+    0,
+    1,
+  );
   return {
     underrealmDepthProgress: clamp(Number(underrealm.depthProgress || 0), 0, 1),
     underrealmChampionProgress: clamp(Number(underrealm.championProgress || 0), 0, 1),
@@ -845,6 +1055,13 @@ function getAiRewardSignals(aiObservation) {
     underrealmCombatPressure: clamp(Number(underrealm.combatPressure || 0), 0, 1),
     mythsActiveRatio: clamp(Number(myths.activeRatio || 0), 0, 1),
     mythsSeverity: clamp(Number(myths.severity || 0), 0, 1),
+    worldEventPressure,
+    contractFailurePressure,
+    externalCampPressure,
+    externalCampRaiderPressure,
+    schismPressure,
+    schismLegitimacy,
+    diplomacyPressure,
   };
 }
 
@@ -1094,6 +1311,41 @@ function buildObservation(state, config, metrics) {
       severity: 0,
       flags: {},
     },
+    worldEvents: aiObservation.worldEvents || {
+      active: 0,
+      offerPhase: 0,
+      offerReady: 0,
+      timeLeft: 0,
+      spawnImminence: 0,
+      pressure: 0,
+    },
+    contracts: aiObservation.contracts || {
+      active: 0,
+      ready: 0,
+      timeLeft: 0,
+      failurePressure: 0,
+      reputation: 0,
+      expiryPressure: 0,
+      pressure: 0,
+    },
+    externalCamps: aiObservation.externalCamps || {
+      activeRatio: 0,
+      raiderPressure: 0,
+      caravanRisk: 0,
+      militiaSupport: 0,
+      tradeInfluence: 0,
+      pressure: 0,
+    },
+    schism: aiObservation.schism || {
+      pressure: 0,
+      legitimacy: 0,
+      phase: 0,
+      doctrineRevelry: 0,
+      ritualOpen: 0,
+      ritualActive: 0,
+      climaxActive: 0,
+      instability: 0,
+    },
     clanShares: aiObservation.clanShares || {},
   };
 }
@@ -1125,6 +1377,18 @@ function buildCompactObservationVector(metrics, config) {
     : {};
   const myths = aiObservation.myths && typeof aiObservation.myths === 'object'
     ? aiObservation.myths
+    : {};
+  const worldEvents = aiObservation.worldEvents && typeof aiObservation.worldEvents === 'object'
+    ? aiObservation.worldEvents
+    : {};
+  const contracts = aiObservation.contracts && typeof aiObservation.contracts === 'object'
+    ? aiObservation.contracts
+    : {};
+  const externalCamps = aiObservation.externalCamps && typeof aiObservation.externalCamps === 'object'
+    ? aiObservation.externalCamps
+    : {};
+  const schism = aiObservation.schism && typeof aiObservation.schism === 'object'
+    ? aiObservation.schism
     : {};
   const mythFlags = myths.flags && typeof myths.flags === 'object' ? myths.flags : {};
   const clanShares = aiObservation.clanShares && typeof aiObservation.clanShares === 'object'
@@ -1178,6 +1442,32 @@ function buildCompactObservationVector(metrics, config) {
     underrealmCombatPressure: clamp(Number(underrealm.combatPressure || 0), 0, 1),
     mythsActiveRatio: clamp(Number(myths.activeRatio || 0), 0, 1),
     mythsSeverity: clamp(Number(myths.severity || 0), 0, 1),
+    worldEventActive: clamp(Number(worldEvents.active || 0), 0, 1),
+    worldEventOfferPhase: clamp(Number(worldEvents.offerPhase || 0), 0, 1),
+    worldEventOfferReady: clamp(Number(worldEvents.offerReady || 0), 0, 1),
+    worldEventTimeLeft: clamp(Number(worldEvents.timeLeft || 0), 0, 1),
+    worldEventSpawnImminence: clamp(Number(worldEvents.spawnImminence || 0), 0, 1),
+    worldEventPressure: clamp(Number(worldEvents.pressure || 0), 0, 1),
+    contractActive: clamp(Number(contracts.active || 0), 0, 1),
+    contractReady: clamp(Number(contracts.ready || 0), 0, 1),
+    contractTimeLeft: clamp(Number(contracts.timeLeft || 0), 0, 1),
+    contractFailurePressure: clamp(Number(contracts.failurePressure || 0), 0, 1),
+    contractReputation: clamp(Number(contracts.reputation || 0), 0, 1),
+    contractPressure: clamp(Number(contracts.pressure || 0), 0, 1),
+    externalCampActiveRatio: clamp(Number(externalCamps.activeRatio || 0), 0, 1),
+    externalCampRaiderPressure: clamp(Number(externalCamps.raiderPressure || 0), 0, 1),
+    externalCampCaravanRisk: clamp(Number(externalCamps.caravanRisk || 0), 0, 1),
+    externalCampMilitiaSupport: clamp(Number(externalCamps.militiaSupport || 0), 0, 1),
+    externalCampTradeInfluence: clamp(Number(externalCamps.tradeInfluence || 0), 0, 1),
+    externalCampPressure: clamp(Number(externalCamps.pressure || 0), 0, 1),
+    schismPressure: clamp(Number(schism.pressure || 0), 0, 1),
+    schismLegitimacy: clamp(Number(schism.legitimacy || 0), 0, 1),
+    schismPhase: clamp(Number(schism.phase || 0), 0, 1),
+    schismDoctrineRevelry: clamp(Number(schism.doctrineRevelry || 0), 0, 1),
+    schismRitualOpen: clamp(Number(schism.ritualOpen || 0), 0, 1),
+    schismRitualActive: clamp(Number(schism.ritualActive || 0), 0, 1),
+    schismClimaxActive: clamp(Number(schism.climaxActive || 0), 0, 1),
+    schismInstability: clamp(Number(schism.instability || 0), 0, 1),
   };
 
   const vector = new Array(resources.length * featureCount);
@@ -1275,6 +1565,31 @@ function computeMetrics(state, config) {
   const festivalEligible = festivalObservation && festivalObservation.eligible ? 1 : 0;
   const aiObservation = resolveAiObservation(state, config);
   const aiSignals = getAiRewardSignals(aiObservation);
+  const worldEventStats = state && state.worldEvents && state.worldEvents.stats
+    ? state.worldEvents.stats
+    : {};
+  const contractsStats = state && state.contracts && state.contracts.stats
+    ? state.contracts.stats
+    : {};
+  const externalCampStats = state && state.externalCamps && state.externalCamps.stats
+    ? state.externalCamps.stats
+    : {};
+  const externalCampByRole = externalCampStats && externalCampStats.byRole
+    ? externalCampStats.byRole
+    : {};
+  const externalCampRaiderStats = externalCampByRole && externalCampByRole.raider
+    ? externalCampByRole.raider
+    : {};
+  const worldEventCompletions = Math.max(0, Number(worldEventStats.completed || 0));
+  const worldEventFailures = Math.max(0, Number(worldEventStats.failed || 0));
+  const worldEventExpirations = Math.max(0, Number(worldEventStats.expired || 0));
+  const contractSuccesses = Math.max(0, Number(contractsStats.successes || 0));
+  const contractFailures = Math.max(0, Number(contractsStats.failures || 0));
+  const diplomacyCompletions = worldEventCompletions + contractSuccesses;
+  const diplomacyFailures = worldEventFailures + contractFailures;
+  const diplomacyExpirations = worldEventExpirations;
+  const externalCampRaiderRejected = Math.max(0, Number(externalCampRaiderStats.rejected || 0));
+  const externalCampSkirmishes = Math.max(0, Number(externalCampStats.skirmishes || 0));
 
   return {
     stockpileAvg,
@@ -1305,6 +1620,23 @@ function computeMetrics(state, config) {
     underrealmCombatPressure: aiSignals.underrealmCombatPressure,
     mythsActiveRatio: aiSignals.mythsActiveRatio,
     mythsSeverity: aiSignals.mythsSeverity,
+    worldEventPressure: aiSignals.worldEventPressure,
+    contractFailurePressure: aiSignals.contractFailurePressure,
+    externalCampPressure: aiSignals.externalCampPressure,
+    externalCampRaiderPressure: aiSignals.externalCampRaiderPressure,
+    schismPressure: aiSignals.schismPressure,
+    schismLegitimacy: aiSignals.schismLegitimacy,
+    diplomacyPressure: aiSignals.diplomacyPressure,
+    worldEventCompletions,
+    worldEventFailures,
+    worldEventExpirations,
+    contractSuccesses,
+    contractFailures,
+    diplomacyCompletions,
+    diplomacyFailures,
+    diplomacyExpirations,
+    externalCampRaiderRejected,
+    externalCampSkirmishes,
     festivalActive,
     festivalEligible,
   };
@@ -1380,6 +1712,12 @@ function computeReward(prevMetrics, metrics, config, action) {
   const festivalIntentWeight = Number(
     rewardConfig.festival_intent ?? rewardConfig.festivalIntent ?? 0,
   );
+  const diplomacyCompletionWeight = Number(rewardConfig.diplomacyCompletion ?? 0);
+  const diplomacyFailureWeight = Number(rewardConfig.diplomacyFailure ?? 0);
+  const diplomacyExpirationWeight = Number(rewardConfig.diplomacyExpiration ?? 0);
+  const diplomacyPressureWeight = Number(rewardConfig.diplomacyPressure ?? 0);
+  const diplomacyPressureDeltaWeight = Number(rewardConfig.diplomacyPressureDelta ?? 0);
+  const diplomacyLegitimacyDeltaWeight = Number(rewardConfig.diplomacyLegitimacyDelta ?? 0);
   const deltaClip = Math.max(0, Number(rewardConfig.deltaClip ?? 0));
   const eventClip = Math.max(0, Number(rewardConfig.eventClip ?? 0));
   const totalClip = Math.max(0, Number(rewardConfig.totalClip ?? 0));
@@ -1467,6 +1805,21 @@ function computeReward(prevMetrics, metrics, config, action) {
   const prevMythsActive = prevMetrics
     ? Number(prevMetrics.mythsActiveRatio || 0)
     : Number(metrics.mythsActiveRatio || 0);
+  const prevDiplomacyCompletions = prevMetrics
+    ? Number(prevMetrics.diplomacyCompletions || 0)
+    : Number(metrics.diplomacyCompletions || 0);
+  const prevDiplomacyFailures = prevMetrics
+    ? Number(prevMetrics.diplomacyFailures || 0)
+    : Number(metrics.diplomacyFailures || 0);
+  const prevDiplomacyExpirations = prevMetrics
+    ? Number(prevMetrics.diplomacyExpirations || 0)
+    : Number(metrics.diplomacyExpirations || 0);
+  const prevDiplomacyPressure = prevMetrics
+    ? Number(prevMetrics.diplomacyPressure || 0)
+    : Number(metrics.diplomacyPressure || 0);
+  const prevSchismLegitimacy = prevMetrics
+    ? Number(prevMetrics.schismLegitimacy || 0)
+    : Number(metrics.schismLegitimacy || 0);
 
   const stockpileAvgDelta = getMetricDelta(metrics.stockpileAvg, prevStockpileAvg, deltaClip);
   const stockpileMinDelta = getMetricDelta(metrics.stockpileMin, prevStockpileMin, deltaClip);
@@ -1513,6 +1866,28 @@ function computeReward(prevMetrics, metrics, config, action) {
     metrics.mythsActiveRatio,
     deltaClip,
   );
+  const diplomacyCompletionDelta = Math.max(
+    0,
+    Number(metrics.diplomacyCompletions || 0) - prevDiplomacyCompletions,
+  );
+  const diplomacyFailureDelta = Math.max(
+    0,
+    Number(metrics.diplomacyFailures || 0) - prevDiplomacyFailures,
+  );
+  const diplomacyExpirationDelta = Math.max(
+    0,
+    Number(metrics.diplomacyExpirations || 0) - prevDiplomacyExpirations,
+  );
+  const diplomacyPressureDelta = getImprovementDelta(
+    prevDiplomacyPressure,
+    metrics.diplomacyPressure,
+    deltaClip,
+  );
+  const diplomacyLegitimacyDelta = getMetricDelta(
+    metrics.schismLegitimacy,
+    prevSchismLegitimacy,
+    deltaClip,
+  );
 
   const coreReward = (((metrics.stockpileAvg * stockpileAvgWeight)
     + (metrics.stockpileMin * stockpileMinWeight)
@@ -1537,7 +1912,13 @@ function computeReward(prevMetrics, metrics, config, action) {
     + (mythsSeverityDelta * mythsSeverityDeltaWeight)
     + (mythsActiveDelta * mythsActiveDeltaWeight)
     - (Number(metrics.mythsSeverity || 0) * mythsSeverityWeight)
-    - (Number(metrics.mythsActiveRatio || 0) * mythsActiveWeight);
+    - (Number(metrics.mythsActiveRatio || 0) * mythsActiveWeight)
+    + (diplomacyCompletionDelta * diplomacyCompletionWeight)
+    - (diplomacyFailureDelta * diplomacyFailureWeight)
+    - (diplomacyExpirationDelta * diplomacyExpirationWeight)
+    + (diplomacyPressureDelta * diplomacyPressureDeltaWeight)
+    + (diplomacyLegitimacyDelta * diplomacyLegitimacyDeltaWeight)
+    - (Number(metrics.diplomacyPressure || 0) * diplomacyPressureWeight);
 
   const eventRewardRaw = raidPrepShelter
     + raidPrepDefense

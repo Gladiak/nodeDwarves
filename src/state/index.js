@@ -933,6 +933,40 @@ function createUnderrealmCrewState(config, previousCrew) {
       : {},
     totalAssigned: Math.max(0, Number(previousCrew && previousCrew.totalAssigned || 0)),
     surfaceAdults: Math.max(0, Number(previousCrew && previousCrew.surfaceAdults || 0)),
+    governor: {
+      source: previousCrew
+        && previousCrew.governor
+        && previousCrew.governor.source === 'action'
+        ? 'action'
+        : 'default',
+      smoothed: {
+        surfaceReserveBias: 0,
+        depthAllocationBias: 0,
+        minerMixBias: 0,
+        haulerMixBias: 0,
+        guardMixBias: 0,
+      },
+      applied: {
+        surfaceReserveRatio: clamp(Number(crewConfig.surface_reserve_ratio ?? 0.4), 0, 1),
+        depthWeightGrowth: Math.max(0, Number(crewConfig.depth_weight_growth ?? 0.18)),
+        roles: {
+          minerRatio: clamp(Number(roles.miner_ratio ?? 0.12), 0, 1),
+          haulerRatio: clamp(Number(roles.hauler_ratio ?? 0.08), 0, 1),
+          guardRatio: clamp(Number(roles.guard_ratio ?? 0.05), 0, 1),
+        },
+      },
+      holdByCooldown: false,
+      cooldownTicksRemaining: 0,
+      lastReallocationTick: Math.max(
+        0,
+        Number(previousCrew && previousCrew.governor && previousCrew.governor.lastReallocationTick || 0),
+      ),
+      lastDecisionTick: 0,
+      lastAssignedTick: 0,
+      lastAssignedTotal: 0,
+      lastAssignedByDepth: {},
+      lastRolesByDepth: {},
+    },
   };
 }
 

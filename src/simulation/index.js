@@ -54,7 +54,7 @@ function stepState(state, config, runtime, action, options = {}) {
   updateExternalCamps(state, config, runtime, resolvedAction);
   updateSchism(state, config);
   updateFestivals(state, config, runtime, resolvedAction);
-  updateContracts(state, config, runtime);
+  updateContracts(state, config, resolvedAction);
   updateAlchemy(state, config);
   updateTemple(state, config, runtime);
   updateWildlifeStart(state, config, runtime);
@@ -101,8 +101,8 @@ function stepState(state, config, runtime, action, options = {}) {
   handleDeaths(state, config);
   updateBrewmasters(state, config);
   updateRoles(state, config);
-  updateUnderrealm(state, config);
-  updateRuins(state, config, runtime);
+  updateUnderrealm(state, config, resolvedAction);
+  updateRuins(state, config, runtime, resolvedAction);
   assignHousing(state, config);
   updateRelationships(state, config);
   cohouseCouples(state, config);
@@ -163,6 +163,18 @@ function normalizeActionEnvelope(action) {
   if (action.building && typeof action.building === 'object') {
     normalized.building = { ...action.building };
   }
+  if (action.contracts && typeof action.contracts === 'object') {
+    normalized.contracts = { ...action.contracts };
+  }
+  if (action.ruins && typeof action.ruins === 'object') {
+    normalized.ruins = { ...action.ruins };
+  }
+  if (action.underrealm && typeof action.underrealm === 'object') {
+    normalized.underrealm = { ...action.underrealm };
+  }
+  if (action.externalCamps && typeof action.externalCamps === 'object') {
+    normalized.externalCamps = { ...action.externalCamps };
+  }
 
   if (normalized.jobs && Object.keys(normalized.jobs).length === 0) {
     delete normalized.jobs;
@@ -196,6 +208,10 @@ function buildGovernorSignals(config, action) {
     jobs: buildJobsGovernorSignals(config, action),
     trade: buildTradeGovernorSignals(config, action),
     building: buildBuildingGovernorSignals(config, action),
+    contracts: buildContractsGovernorSignals(config, action),
+    ruins: buildRuinsGovernorSignals(config, action),
+    underrealm: buildUnderrealmGovernorSignals(config, action),
+    externalCamps: buildExternalCampsGovernorSignals(config, action),
   };
 }
 
@@ -362,6 +378,132 @@ function buildBuildingGovernorSignals(config, action) {
   };
 }
 
+// Build contracts-governor telemetry summary.
+function buildContractsGovernorSignals(config, action) {
+  const aiConfig = (config && config.ai) || {};
+  const governors = aiConfig.governors && typeof aiConfig.governors === 'object'
+    ? aiConfig.governors
+    : {};
+  const contractsConfig = governors.contracts && typeof governors.contracts === 'object'
+    ? governors.contracts
+    : {};
+  const enabled = contractsConfig.enabled !== false;
+  const contractsAction = action && action.contracts && typeof action.contracts === 'object'
+    ? action.contracts
+    : null;
+  return {
+    enabled,
+    source: contractsAction ? 'action' : 'default',
+    commitIntent: enabled
+      && contractsAction
+      && Object.prototype.hasOwnProperty.call(contractsAction, 'commitIntent')
+      ? normalizeIntent(contractsAction.commitIntent, config, 1)
+      : 1,
+  };
+}
+
+// Build ruins-governor telemetry summary.
+function buildRuinsGovernorSignals(config, action) {
+  const aiConfig = (config && config.ai) || {};
+  const governors = aiConfig.governors && typeof aiConfig.governors === 'object'
+    ? aiConfig.governors
+    : {};
+  const ruinsConfig = governors.ruins && typeof governors.ruins === 'object'
+    ? governors.ruins
+    : {};
+  const enabled = ruinsConfig.enabled !== false;
+  const ruinsAction = action && action.ruins && typeof action.ruins === 'object'
+    ? action.ruins
+    : null;
+  return {
+    enabled,
+    source: ruinsAction ? 'action' : 'default',
+    warningDispatchIntent: enabled
+      && ruinsAction
+      && Object.prototype.hasOwnProperty.call(ruinsAction, 'warningDispatchIntent')
+      ? normalizeIntent(ruinsAction.warningDispatchIntent, config, 1)
+      : 1,
+    mithrilReinforcementIntent: enabled
+      && ruinsAction
+      && Object.prototype.hasOwnProperty.call(ruinsAction, 'mithrilReinforcementIntent')
+      ? normalizeIntent(ruinsAction.mithrilReinforcementIntent, config, 1)
+      : 1,
+  };
+}
+
+// Build underrealm-governor telemetry summary.
+function buildUnderrealmGovernorSignals(config, action) {
+  const aiConfig = (config && config.ai) || {};
+  const governors = aiConfig.governors && typeof aiConfig.governors === 'object'
+    ? aiConfig.governors
+    : {};
+  const underrealmConfig = governors.underrealm && typeof governors.underrealm === 'object'
+    ? governors.underrealm
+    : {};
+  const enabled = underrealmConfig.enabled !== false;
+  const underrealmAction = action && action.underrealm && typeof action.underrealm === 'object'
+    ? action.underrealm
+    : null;
+  return {
+    enabled,
+    source: underrealmAction ? 'action' : 'default',
+    surfaceReserveBias: enabled
+      && underrealmAction
+      && Object.prototype.hasOwnProperty.call(underrealmAction, 'surfaceReserveBias')
+      ? normalizeSignedIntent(underrealmAction.surfaceReserveBias, config)
+      : 0,
+    depthAllocationBias: enabled
+      && underrealmAction
+      && Object.prototype.hasOwnProperty.call(underrealmAction, 'depthAllocationBias')
+      ? normalizeSignedIntent(underrealmAction.depthAllocationBias, config)
+      : 0,
+    minerMixBias: enabled
+      && underrealmAction
+      && Object.prototype.hasOwnProperty.call(underrealmAction, 'minerMixBias')
+      ? normalizeSignedIntent(underrealmAction.minerMixBias, config)
+      : 0,
+    haulerMixBias: enabled
+      && underrealmAction
+      && Object.prototype.hasOwnProperty.call(underrealmAction, 'haulerMixBias')
+      ? normalizeSignedIntent(underrealmAction.haulerMixBias, config)
+      : 0,
+    guardMixBias: enabled
+      && underrealmAction
+      && Object.prototype.hasOwnProperty.call(underrealmAction, 'guardMixBias')
+      ? normalizeSignedIntent(underrealmAction.guardMixBias, config)
+      : 0,
+  };
+}
+
+// Build external-camps-governor telemetry summary.
+function buildExternalCampsGovernorSignals(config, action) {
+  const aiConfig = (config && config.ai) || {};
+  const governors = aiConfig.governors && typeof aiConfig.governors === 'object'
+    ? aiConfig.governors
+    : {};
+  const externalCampsConfig = governors.externalCamps && typeof governors.externalCamps === 'object'
+    ? governors.externalCamps
+    : {};
+  const enabled = externalCampsConfig.enabled !== false;
+  const externalCampsAction = action && action.externalCamps && typeof action.externalCamps === 'object'
+    ? action.externalCamps
+    : null;
+  return {
+    enabled,
+    source: externalCampsAction ? 'action' : 'default',
+    militiaSupportIntent: enabled
+      && externalCampsAction
+      && Object.prototype.hasOwnProperty.call(externalCampsAction, 'militiaSupportIntent')
+      ? normalizeIntent(externalCampsAction.militiaSupportIntent, config, 1)
+      : 1,
+    raiderTributeIntent: enabled
+      && externalCampsAction
+      && Object.prototype.hasOwnProperty.call(externalCampsAction, 'raiderTributeIntent')
+      ? normalizeIntent(externalCampsAction.raiderTributeIntent, config, 1)
+      : 1,
+  };
+}
+
 // Normalize governor intent into 0..1 based on global AI action scaling.
 function normalizeIntent(value, config, fallback) {
   const aiConfig = (config && config.ai) || {};
@@ -423,6 +565,18 @@ function buildDecisionTrace(state) {
   const buildingGovernor = governorSignals.building && typeof governorSignals.building === 'object'
     ? governorSignals.building
     : {};
+  const contractsGovernor = governorSignals.contracts && typeof governorSignals.contracts === 'object'
+    ? governorSignals.contracts
+    : {};
+  const ruinsGovernor = governorSignals.ruins && typeof governorSignals.ruins === 'object'
+    ? governorSignals.ruins
+    : {};
+  const underrealmGovernor = governorSignals.underrealm && typeof governorSignals.underrealm === 'object'
+    ? governorSignals.underrealm
+    : {};
+  const externalCampsGovernor = governorSignals.externalCamps && typeof governorSignals.externalCamps === 'object'
+    ? governorSignals.externalCamps
+    : {};
   const jobs = Array.isArray(state && state.jobs) ? state.jobs : [];
   const jobsByType = {};
   for (const job of jobs) {
@@ -459,6 +613,10 @@ function buildDecisionTrace(state) {
       jobsSource: jobsGovernor.source === 'action' ? 'action' : 'default',
       tradeSource: tradeGovernor.source === 'action' ? 'action' : 'default',
       buildingSource: buildingGovernor.source === 'action' ? 'action' : 'default',
+      contractsSource: contractsGovernor.source === 'action' ? 'action' : 'default',
+      ruinsSource: ruinsGovernor.source === 'action' ? 'action' : 'default',
+      underrealmSource: underrealmGovernor.source === 'action' ? 'action' : 'default',
+      externalCampsSource: externalCampsGovernor.source === 'action' ? 'action' : 'default',
       jobsTop: Array.isArray(jobsGovernor.top)
         ? jobsGovernor.top.slice(0, 2).map((entry) => ({
           resource: String(entry && entry.resource || ''),
@@ -471,8 +629,18 @@ function buildDecisionTrace(state) {
       tradeReserveBias: Number(tradeGovernor.reserveRatioBias || 0),
       tradeContestIntent: clamp(Number(tradeGovernor.contestIntent || 0), 0, 1),
       tradeOpportunityIntent: clamp(Number(tradeGovernor.opportunityIntent || 0), 0, 1),
+      contractCommitIntent: clamp(Number(contractsGovernor.commitIntent || 0), 0, 1),
+      ruinsWarningDispatchIntent: clamp(Number(ruinsGovernor.warningDispatchIntent || 0), 0, 1),
+      ruinsMithrilReinforcementIntent: clamp(Number(ruinsGovernor.mithrilReinforcementIntent || 0), 0, 1),
+      underrealmSurfaceReserveBias: clamp(Number(underrealmGovernor.surfaceReserveBias || 0), -1, 1),
+      underrealmDepthAllocationBias: clamp(Number(underrealmGovernor.depthAllocationBias || 0), -1, 1),
+      underrealmMinerMixBias: clamp(Number(underrealmGovernor.minerMixBias || 0), -1, 1),
+      underrealmHaulerMixBias: clamp(Number(underrealmGovernor.haulerMixBias || 0), -1, 1),
+      underrealmGuardMixBias: clamp(Number(underrealmGovernor.guardMixBias || 0), -1, 1),
       buildMineBias: Number(buildingGovernor.mineBias || 0),
       buildUpgradeBias: Number(buildingGovernor.upgradeBias || 0),
+      militiaSupportIntent: clamp(Number(externalCampsGovernor.militiaSupportIntent || 0), 0, 1),
+      raiderTributeIntent: clamp(Number(externalCampsGovernor.raiderTributeIntent || 0), 0, 1),
     },
     shortages,
     jobs: {
@@ -536,11 +704,21 @@ function buildDecisionDrivers(shortages, context, governorSignals) {
   const jobsSource = signals.jobs && signals.jobs.source === 'action';
   const tradeSource = signals.trade && signals.trade.source === 'action';
   const buildingSource = signals.building && signals.building.source === 'action';
-  const actionDrivenCount = Number(jobsSource) + Number(tradeSource) + Number(buildingSource);
+  const contractsSource = signals.contracts && signals.contracts.source === 'action';
+  const ruinsSource = signals.ruins && signals.ruins.source === 'action';
+  const underrealmSource = signals.underrealm && signals.underrealm.source === 'action';
+  const externalCampsSource = signals.externalCamps && signals.externalCamps.source === 'action';
+  const actionDrivenCount = Number(jobsSource)
+    + Number(tradeSource)
+    + Number(buildingSource)
+    + Number(contractsSource)
+    + Number(ruinsSource)
+    + Number(underrealmSource)
+    + Number(externalCampsSource);
   if (actionDrivenCount > 0) {
     drivers.push({
       key: 'governor:action',
-      label: `Policy action envelope (${actionDrivenCount}/3)`,
+      label: `Policy action envelope (${actionDrivenCount}/7)`,
       kind: 'policy',
       score: 0.45 + actionDrivenCount * 0.1,
     });

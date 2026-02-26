@@ -543,7 +543,7 @@ function runCampRoleTick(state, config, runtime, action, externalConfig, externa
     return;
   }
   if (camp.role === 'militia') {
-    runMilitiaCampTick(state, config, externalConfig, externalState, camp);
+    runMilitiaCampTick(state, config, action, externalConfig, externalState, camp);
     return;
   }
   if (camp.role === 'raider') {
@@ -791,9 +791,11 @@ function applyTradeCampDeal(stockpile, deal) {
 }
 
 // Execute one militia-camp support contract cycle.
-function runMilitiaCampTick(state, config, externalConfig, externalState, camp) {
+function runMilitiaCampTick(state, config, action, externalConfig, externalState, camp) {
   const militiaConfig = externalConfig.militia;
+  const roleStats = externalState.stats.byRole.militia;
   camp.militiaContracts = Number(camp.militiaContracts || 0) + 1;
+  roleStats.actions = Number(roleStats.actions || 0) + 1;
 
   const reputation = clamp(getFactionReputation(state, camp.factionId), -1, 1);
   const desiredBonus = clamp(
@@ -804,12 +806,11 @@ function runMilitiaCampTick(state, config, externalConfig, externalState, camp) 
 
   const canPay = hasCosts(state.stockpile, militiaConfig.supportCosts)
     && passesMinStockpileRatios(state, config, militiaConfig.supportMinStockpileRatios);
+  const decision = resolveMilitiaSupportDecision(state, config, action, canPay);
 
-  if (canPay) {
+  if (decision.shouldPay) {
     consumeCosts(state.stockpile, militiaConfig.supportCosts);
     camp.militiaDefenseBonus = desiredBonus;
-    const roleStats = externalState.stats.byRole.militia;
-    roleStats.actions = Number(roleStats.actions || 0) + 1;
     roleStats.paid = Number(roleStats.paid || 0) + 1;
     if (camp.militiaContracts === 1 || camp.militiaContracts % militiaConfig.eventEveryContracts === 0) {
       pushEvent(
@@ -822,16 +823,18 @@ function runMilitiaCampTick(state, config, externalConfig, externalState, camp) 
   }
 
   camp.militiaDefenseBonus = Math.max(0, camp.militiaDefenseBonus - militiaConfig.defenseBonusDecayOnMiss);
-  externalState.stats.byRole.militia.rejected = Number(externalState.stats.byRole.militia.rejected || 0) + 1;
+  roleStats.rejected = Number(roleStats.rejected || 0) + 1;
 
   if (camp.militiaContracts % militiaConfig.eventEveryContracts === 0) {
-    pushEvent(state, config, `Militia camp: ${camp.factionLabel} support skipped (low reserves)`);
+    const skipReason = canPay && decision.source === 'action'
+      ? 'policy hold'
+      : 'low reserves';
+    pushEvent(state, config, `Militia camp: ${camp.factionLabel} support skipped (${skipReason})`);
   }
 }
 
 // Execute one raider-camp tribute demand cycle.
 function runRaiderCampTick(state, config, action, externalConfig, externalState, camp, tick) {
-  void action;
   void tick;
   const raiderConfig = externalConfig.raider;
   const roleStats = externalState.stats.byRole.raider;
@@ -841,8 +844,9 @@ function runRaiderCampTick(state, config, action, externalConfig, externalState,
 
   const canPay = hasCosts(state.stockpile, raiderConfig.tributeCosts)
     && passesMinStockpileRatios(state, config, raiderConfig.tributeMinStockpileRatios);
+  const decision = resolveRaiderTributeDecision(state, config, action, canPay);
 
-  if (canPay) {
+  if (decision.shouldPay) {
     consumeCosts(state.stockpile, raiderConfig.tributeCosts);
     camp.hostility = clamp(
       Number(camp.hostility || 0) - raiderConfig.hostilityDecayOnPay,
@@ -854,7 +858,7 @@ function runRaiderCampTick(state, config, action, externalConfig, externalState,
       pushEvent(
         state,
         config,
-        `Raider camp: tribute paid to ${camp.factionLabel} (hostility ${Math.round(camp.hostility * 100)}%)`,
+        `Raider camp: tribute paid to ${camp.factionLabel} (hostility ${Math.round(camp.hostility * 100)}%${decision.forced ? ', forced' : ''})`,
       );
     }
     return;
@@ -879,10 +883,165 @@ function runRaiderCampTick(state, config, action, externalConfig, externalState,
   const lossSummary = formatLossSummary(losses);
   if (lossSummary) {
     externalState.stats.skirmishes = Number(externalState.stats.skirmishes || 0) + 1;
-    pushEvent(state, config, `Raider camp: ${camp.factionLabel} skirmish (${lossSummary})`);
+    const stanceTag = canPay && decision.source === 'action'
+      ? ', policy refused tribute'
+      : '';
+    pushEvent(state, config, `Raider camp: ${camp.factionLabel} skirmish (${lossSummary}${stanceTag})`);
   } else {
     pushEvent(state, config, `Raider camp: ${camp.factionLabel} pressure rises`);
   }
+}
+
+// Resolve normalized external-camps governor config with safe defaults.
+function getExternalCampsGovernorConfig(config) {
+  const aiConfig = (config && config.ai) || {};
+  const governors = aiConfig.governors && typeof aiConfig.governors === 'object'
+    ? aiConfig.governors
+    : {};
+  const source = governors.externalCamps && typeof governors.externalCamps === 'object'
+    ? governors.externalCamps
+    : {};
+  const militiaIntentThresholdRaw = Number(source.militiaIntentThreshold);
+  const raiderIntentThresholdRaw = Number(source.raiderTributeIntentThreshold);
+  const criticalStockpileFloorRaw = Number(source.criticalStockpileFloor);
+  return {
+    enabled: source.enabled !== false,
+    militiaIntentThreshold: clamp(
+      Number.isFinite(militiaIntentThresholdRaw) ? militiaIntentThresholdRaw : 0.5,
+      0,
+      1,
+    ),
+    raiderTributeIntentThreshold: clamp(
+      Number.isFinite(raiderIntentThresholdRaw) ? raiderIntentThresholdRaw : 0.5,
+      0,
+      1,
+    ),
+    forceComplianceOnCritical: source.forceComplianceOnCritical === true,
+    criticalStockpileFloor: clamp(
+      Number.isFinite(criticalStockpileFloorRaw) ? criticalStockpileFloorRaw : 0.4,
+      0,
+      1,
+    ),
+    criticalResources: normalizeGovernorResourceList(source.criticalResources, ['food', 'water']),
+  };
+}
+
+// Normalize external-camps governor critical-resource ids.
+function normalizeGovernorResourceList(source, fallback) {
+  const list = Array.isArray(source) ? source : fallback;
+  const normalized = [];
+  for (const rawValue of list) {
+    const resourceId = String(rawValue || '').trim();
+    if (resourceId && !normalized.includes(resourceId)) {
+      normalized.push(resourceId);
+    }
+  }
+  return normalized;
+}
+
+// Resolve optional external-camps action payload from governor envelope.
+function getExternalCampsAction(action) {
+  if (!action || typeof action !== 'object') {
+    return null;
+  }
+  const externalCamps = action.externalCamps;
+  if (!externalCamps || typeof externalCamps !== 'object' || Array.isArray(externalCamps)) {
+    return null;
+  }
+  return externalCamps;
+}
+
+// Normalize one governor intent from AI action range into 0..1.
+function normalizeGovernorIntent(value, config, fallback) {
+  const aiConfig = (config && config.ai) || {};
+  const minWeightRaw = Number(aiConfig.minWeight);
+  const maxWeightRaw = Number(aiConfig.maxWeight);
+  const minWeight = Number.isFinite(minWeightRaw) ? minWeightRaw : 0;
+  const maxWeight = Number.isFinite(maxWeightRaw) ? maxWeightRaw : 1;
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return clamp(Number(fallback || 0), 0, 1);
+  }
+  if (maxWeight > minWeight) {
+    return clamp((numeric - minWeight) / (maxWeight - minWeight), 0, 1);
+  }
+  return clamp(numeric, 0, 1);
+}
+
+// Check critical stockpile collapse across configured governor-critical resources.
+function isCriticalStockpileCollapse(state, config, governorConfig) {
+  if (!governorConfig || governorConfig.forceComplianceOnCritical !== true) {
+    return false;
+  }
+  const floor = clamp(Number(governorConfig.criticalStockpileFloor || 0), 0, 1);
+  if (floor <= 0) {
+    return false;
+  }
+  const resources = Array.isArray(governorConfig.criticalResources)
+    ? governorConfig.criticalResources
+    : [];
+  if (resources.length === 0) {
+    return false;
+  }
+  let minRatio = 1;
+  let found = false;
+  for (const resourceId of resources) {
+    const target = getCampStockpileTarget(state, config, resourceId);
+    if (target <= 0) {
+      continue;
+    }
+    const current = Math.max(0, Number(state && state.stockpile && state.stockpile[resourceId] || 0));
+    minRatio = Math.min(minRatio, current / Math.max(1, target));
+    found = true;
+  }
+  if (!found) {
+    return false;
+  }
+  return minRatio <= floor;
+}
+
+// Resolve militia support stance using action intent, with safe default fallback.
+function resolveMilitiaSupportDecision(state, config, action, canPay) {
+  void state;
+  const governorConfig = getExternalCampsGovernorConfig(config);
+  const externalAction = governorConfig.enabled ? getExternalCampsAction(action) : null;
+  const hasIntent = Boolean(
+    externalAction && Object.prototype.hasOwnProperty.call(externalAction, 'militiaSupportIntent'),
+  );
+  const intent = hasIntent
+    ? normalizeGovernorIntent(externalAction.militiaSupportIntent, config, 1)
+    : 1;
+  const shouldPay = canPay && (!hasIntent || intent >= governorConfig.militiaIntentThreshold);
+  return {
+    source: hasIntent ? 'action' : 'default',
+    intent,
+    shouldPay,
+    forced: false,
+  };
+}
+
+// Resolve raider tribute stance using action intent plus critical-collapse force-compliance.
+function resolveRaiderTributeDecision(state, config, action, canPay) {
+  const governorConfig = getExternalCampsGovernorConfig(config);
+  const externalAction = governorConfig.enabled ? getExternalCampsAction(action) : null;
+  const hasIntent = Boolean(
+    externalAction && Object.prototype.hasOwnProperty.call(externalAction, 'raiderTributeIntent'),
+  );
+  const intent = hasIntent
+    ? normalizeGovernorIntent(externalAction.raiderTributeIntent, config, 1)
+    : 1;
+  const forced = Boolean(
+    canPay
+    && governorConfig.enabled
+    && isCriticalStockpileCollapse(state, config, governorConfig),
+  );
+  const shouldPay = canPay && (forced || !hasIntent || intent >= governorConfig.raiderTributeIntentThreshold);
+  return {
+    source: hasIntent ? 'action' : 'default',
+    intent,
+    shouldPay,
+    forced,
+  };
 }
 
 // Advance all active caravan entities on the map.

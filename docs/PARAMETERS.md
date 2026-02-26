@@ -393,6 +393,13 @@ Merchant:
 - `ai.governors.trade.reserveRatioBiasMax`: max absolute reserve-ratio adjustment applied from `action.trade.reserveRatioBias`.
 - `ai.governors.trade.reserveRatioMin`: lower clamp for reserve ratio after governor bias.
 - `ai.governors.trade.reserveRatioMax`: upper clamp for reserve ratio after governor bias.
+- `ai.governors.contracts.enabled`: enable action-driven contract commit timing hooks.
+- `ai.governors.contracts.commitIntentThreshold`: minimum normalized `action.contracts.commitIntent` required to complete an affordable contract before the force window.
+- `ai.governors.contracts.forceCompleteTicks`: fail-safe completion window (ticks before expiry) where affordable contracts are force-completed.
+- `ai.governors.contracts.reserveMinStockpileRatios.<resource>`: optional post-commit reserve-ratio guardrails checked before early completion (bypassed by force-complete window).
+- `ai.governors.ruins.enabled`: enable action-driven ruins dispatch/mithril posture hooks.
+- `ai.governors.ruins.warningDispatchIntentThreshold`: minimum normalized `action.ruins.warningDispatchIntent` required to allow warning-zone dispatches.
+- `ai.governors.ruins.mithrilReinforcementIntentThreshold`: minimum normalized `action.ruins.mithrilReinforcementIntent` required to spend mithril reinforcement when eligible.
 
 Contracts:
 
@@ -476,6 +483,12 @@ External Camps:
 - `externalCamps.raider.raidDeathRateBonusMax`: max multiplicative raid-death-rate pressure from raider hostility.
 - `externalCamps.raider.raidResourceLossBonusMax`: max multiplicative raid-loot-loss pressure from raider hostility.
 - `externalCamps.raider.eventEveryDemands`: event cadence for raider demand lines.
+- `ai.governors.externalCamps.enabled`: enable action-driven stance control for militia and raider camp decisions.
+- `ai.governors.externalCamps.militiaIntentThreshold`: minimum normalized `action.externalCamps.militiaSupportIntent` required to renew militia support (when affordable).
+- `ai.governors.externalCamps.raiderTributeIntentThreshold`: minimum normalized `action.externalCamps.raiderTributeIntent` required to pay raider tribute (when affordable).
+- `ai.governors.externalCamps.forceComplianceOnCritical`: force tribute payment when affordable if critical stockpile collapse is detected.
+- `ai.governors.externalCamps.criticalStockpileFloor`: minimum stockpile-ratio floor used by the critical-collapse compliance guardrail.
+- `ai.governors.externalCamps.criticalResources[]`: resources used to compute the critical-collapse stockpile floor.
 - `externalCamps.influence.enabled`: enable external-camp influence zones.
 - `externalCamps.influence.useForModifiers`: scale camp modifiers by village-facing influence strength.
 - `externalCamps.influence.tradeRadius|militiaRadius|raiderRadius`: Manhattan-radius influence range by camp role.
@@ -1685,6 +1698,27 @@ AI and training:
 - `ai.governors.trade.contestIntentThreshold`: minimum normalized contest intent to pay rival-caravan contest costs.
 - `ai.governors.trade.opportunityIntentThreshold`: minimum normalized intent to complete eligible limited opportunities early.
 - `ai.governors.trade.opportunityForceCompleteTicks`: fail-safe completion window (in ticks) near offer expiry.
+- `ai.governors.contracts.enabled`: enable/disable contract-governor commit timing hooks.
+- `ai.governors.contracts.commitIntentThreshold`: minimum normalized commit intent required to complete an affordable contract before near-expiry force window.
+- `ai.governors.contracts.forceCompleteTicks`: force-complete window (ticks) near contract expiry when request is affordable.
+- `ai.governors.contracts.reserveMinStockpileRatios.<resource>`: optional post-commit reserve floor ratios for early completion decisions.
+- `ai.governors.ruins.enabled`: enable/disable ruins-governor warning-dispatch and mithril posture hooks.
+- `ai.governors.ruins.warningDispatchIntentThreshold`: minimum normalized warning-dispatch intent to allow warning-zone expedition starts.
+- `ai.governors.ruins.mithrilReinforcementIntentThreshold`: minimum normalized mithril intent required to spend reinforcement when room/cost gates are already satisfied.
+- `ai.governors.underrealm.enabled`: enable/disable underrealm-crew governor posture hooks.
+- `ai.governors.underrealm.surfaceReserveBiasMax`: max absolute reserve-ratio shift from `action.underrealm.surfaceReserveBias`.
+- `ai.governors.underrealm.depthAllocationBiasMax`: max absolute depth-ramp shift from `action.underrealm.depthAllocationBias`.
+- `ai.governors.underrealm.roleMixBiasMax`: max absolute role-ratio shift from `action.underrealm.minerMixBias|haulerMixBias|guardMixBias`.
+- `ai.governors.underrealm.smoothingAlpha`: EMA smoothing factor applied to underrealm posture intents before assignment planning.
+- `ai.governors.underrealm.majorReallocationThreshold`: normalized control-change threshold considered a major reallocation.
+- `ai.governors.underrealm.reallocationCooldownTicks`: hold window for major reallocation flips; previous applied posture is kept while cooling down.
+- `ai.governors.underrealm.surfaceReserveRatioMin`: floor clamp for effective surface reserve ratio after governor bias.
+- `ai.governors.underrealm.surfaceReserveRatioMax`: ceiling clamp for effective surface reserve ratio after governor bias.
+- `ai.governors.underrealm.depthWeightGrowthMin`: floor clamp for effective depth distribution slope.
+- `ai.governors.underrealm.depthWeightGrowthMax`: ceiling clamp for effective depth distribution slope.
+- `ai.governors.underrealm.roleRatioMin`: floor clamp applied to each effective role ratio before normalization.
+- `ai.governors.underrealm.roleRatioMax`: ceiling clamp applied to each effective role ratio before normalization.
+- Stability default note: underrealm governor defaults are intentionally conservative (`surfaceReserveBiasMax=0.14`, `depthAllocationBiasMax=0.12`, `roleMixBiasMax=0.12`, `surfaceReserveRatioMin=0.34`, `reallocationCooldownTicks=60`) to keep deterministic deep-death regressions bounded.
 - `ai.governors.building.enabled`: enable/disable building-governor ranked class selection.
 - `ai.governors.building.defaultWeights.housing`: fallback class weight for housing builds when `action.building.housingWeight` is missing.
 - `ai.governors.building.defaultWeights.economy`: fallback class weight for economy builds when `action.building.economyWeight` is missing.
@@ -1692,6 +1726,12 @@ AI and training:
 - `ai.governors.building.defaultWeights.special`: fallback class weight for special builds when `action.building.specialWeight` is missing.
 - `ai.governors.building.mineBiasMax`: max absolute economy-order bias from `action.building.mineBias` (mine earlier/later, guardrails unchanged).
 - `ai.governors.building.upgradeBiasMax`: max absolute housing-order bias from `action.building.upgradeBias` (upgrade-first vs build-first, guardrails unchanged).
+- `ai.governors.externalCamps.enabled`: enable/disable external-camps stance governor hooks.
+- `ai.governors.externalCamps.militiaIntentThreshold`: minimum normalized militia-support intent to renew militia support when affordable.
+- `ai.governors.externalCamps.raiderTributeIntentThreshold`: minimum normalized raider-tribute intent to pay tribute when affordable.
+- `ai.governors.externalCamps.forceComplianceOnCritical`: force tribute compliance when affordable under critical stockpile collapse.
+- `ai.governors.externalCamps.criticalStockpileFloor`: stockpile-ratio floor used for critical-collapse compliance.
+- `ai.governors.externalCamps.criticalResources[]`: stockpile resources used for critical-collapse checks.
 - `ai.reward.stockpileAvg`: reward contribution for average stockpile ratio.
 - `ai.reward.stockpileMin`: reward contribution for minimum stockpile ratio.
 - `ai.reward.waterStockpile`: extra reward contribution for the water stockpile ratio.
@@ -1731,6 +1771,12 @@ AI and training:
 - `ai.reward.festival_active`: reward per step while a festival is active.
 - `ai.reward.festival_start`: reward when a festival starts (edge-triggered).
 - `ai.reward.festival_intent`: reward per step for higher festival intent while eligible.
+- `ai.reward.diplomacyCompletion`: reward per diplomacy completion delta (world events + contracts).
+- `ai.reward.diplomacyFailure`: penalty per diplomacy failure delta (world events + contracts).
+- `ai.reward.diplomacyExpiration`: penalty per diplomacy expiration delta (world events).
+- `ai.reward.diplomacyPressure`: penalty for current aggregate diplomacy pressure score.
+- `ai.reward.diplomacyPressureDelta`: reward for reducing aggregate diplomacy pressure.
+- `ai.reward.diplomacyLegitimacyDelta`: reward for schism-legitimacy improvements.
 - `ai.reward.deltaClip`: symmetric clip for per-step delta channels (`0` disables clipping).
 - `ai.reward.eventClip`: symmetric clip for aggregated event/progression channels (`0` disables clipping).
 - `ai.reward.totalClip`: symmetric clip for final step reward (`0` disables clipping).
@@ -1855,7 +1901,7 @@ AI and training:
 - `ai.training.trainer.miniBatchSize`: minibatch size for PPO updates.
 - `ai.training.trainer.batchEpisodes`: episodes per update batch.
 - `ai.training.trainer.hiddenSizes`: MLP hidden layer sizes (e.g. `[128, 128]`).
-- `ai.training.trainer.featureNames`: ordered list of observation features per resource (e.g. `shortage`, `nodeScarcity`, `criticalNeeds`, `idleAdults`, `populationBalance`, `seasonIndex`, `seasonProgress`, `weatherSeverity`, `weatherTimeLeft`, `raidActive`, `raidTimeLeft`, `raidExposed`, `raidDefense`, `housingShortage`, `seasonEligible`, `ruinsActive`, `ruinsCooldown`, `ruinsProgress`, `ruinsArtifacts`, `underrealmDepthProgress`, `underrealmChampionProgress`, `underrealmFrontierContested`, `underrealmChampionCooldown`, `underrealmReadinessScore`, `underrealmReadinessGap`, `underrealmReadinessBlocked`, `underrealmReadinessWarning`, `underrealmCombatPressure`, `clanShare_abyssborn`).
+- `ai.training.trainer.featureNames`: ordered list of observation features per resource (e.g. `shortage`, `nodeScarcity`, `criticalNeeds`, `idleAdults`, `populationBalance`, `seasonIndex`, `seasonProgress`, `weatherSeverity`, `weatherTimeLeft`, `raidActive`, `raidTimeLeft`, `raidExposed`, `raidDefense`, `housingShortage`, `seasonEligible`, `ruinsActive`, `ruinsCooldown`, `ruinsProgress`, `ruinsArtifacts`, `underrealmDepthProgress`, `underrealmChampionProgress`, `underrealmFrontierContested`, `underrealmChampionCooldown`, `underrealmReadinessScore`, `underrealmReadinessGap`, `underrealmReadinessBlocked`, `underrealmReadinessWarning`, `underrealmCombatPressure`, `worldEventActive`, `worldEventOfferReady`, `contractReady`, `contractFailurePressure`, `externalCampRaiderPressure`, `schismPressure`, `schismLegitimacy`, `clanShare_abyssborn`).
 - Dynamic feature names are accepted for `mythFlag_<mythId>` and `clanShare_<clanId>`.
 - `ai.training.trainer.activation`: hidden-layer activation (`tanh` or `relu`).
 - `ai.training.trainer.logStdInit`: initial log-std for action sampling.

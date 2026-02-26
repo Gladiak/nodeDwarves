@@ -15,6 +15,16 @@ const BUILDING_DEFENSE_WEIGHT_ACTION_ID = 'gov_building_defense_weight';
 const BUILDING_SPECIAL_WEIGHT_ACTION_ID = 'gov_building_special_weight';
 const BUILDING_MINE_BIAS_ACTION_ID = 'gov_building_mine_bias';
 const BUILDING_UPGRADE_BIAS_ACTION_ID = 'gov_building_upgrade_bias';
+const CONTRACT_COMMIT_INTENT_ACTION_ID = 'gov_contract_commit_intent';
+const RUINS_WARNING_DISPATCH_INTENT_ACTION_ID = 'gov_ruins_warning_dispatch_intent';
+const RUINS_MITHRIL_REINFORCEMENT_INTENT_ACTION_ID = 'gov_ruins_mithril_reinforcement_intent';
+const UNDERREALM_SURFACE_RESERVE_BIAS_ACTION_ID = 'gov_underrealm_surface_reserve_bias';
+const UNDERREALM_DEPTH_ALLOCATION_BIAS_ACTION_ID = 'gov_underrealm_depth_allocation_bias';
+const UNDERREALM_MINER_MIX_BIAS_ACTION_ID = 'gov_underrealm_miner_mix_bias';
+const UNDERREALM_HAULER_MIX_BIAS_ACTION_ID = 'gov_underrealm_hauler_mix_bias';
+const UNDERREALM_GUARD_MIX_BIAS_ACTION_ID = 'gov_underrealm_guard_mix_bias';
+const EXTERNAL_CAMPS_MILITIA_INTENT_ACTION_ID = 'gov_external_militia_support_intent';
+const EXTERNAL_CAMPS_RAIDER_INTENT_ACTION_ID = 'gov_external_raider_tribute_intent';
 
 const DEFAULT_FEATURES = [
   'shortage',
@@ -221,6 +231,10 @@ function buildActionEnvelopeFromVector(resources, outputVector, minWeight, maxWe
   let festivalIntent;
   const trade = {};
   const building = {};
+  const contracts = {};
+  const ruins = {};
+  const underrealm = {};
+  const externalCamps = {};
 
   for (let i = 0; i < resources.length; i += 1) {
     const actionId = String(resources[i] || '');
@@ -272,6 +286,46 @@ function buildActionEnvelopeFromVector(resources, outputVector, minWeight, maxWe
       building.upgradeBias = scaled;
       continue;
     }
+    if (actionId === CONTRACT_COMMIT_INTENT_ACTION_ID) {
+      contracts.commitIntent = scaled;
+      continue;
+    }
+    if (actionId === RUINS_WARNING_DISPATCH_INTENT_ACTION_ID) {
+      ruins.warningDispatchIntent = scaled;
+      continue;
+    }
+    if (actionId === RUINS_MITHRIL_REINFORCEMENT_INTENT_ACTION_ID) {
+      ruins.mithrilReinforcementIntent = scaled;
+      continue;
+    }
+    if (actionId === UNDERREALM_SURFACE_RESERVE_BIAS_ACTION_ID) {
+      underrealm.surfaceReserveBias = scaled;
+      continue;
+    }
+    if (actionId === UNDERREALM_DEPTH_ALLOCATION_BIAS_ACTION_ID) {
+      underrealm.depthAllocationBias = scaled;
+      continue;
+    }
+    if (actionId === UNDERREALM_MINER_MIX_BIAS_ACTION_ID) {
+      underrealm.minerMixBias = scaled;
+      continue;
+    }
+    if (actionId === UNDERREALM_HAULER_MIX_BIAS_ACTION_ID) {
+      underrealm.haulerMixBias = scaled;
+      continue;
+    }
+    if (actionId === UNDERREALM_GUARD_MIX_BIAS_ACTION_ID) {
+      underrealm.guardMixBias = scaled;
+      continue;
+    }
+    if (actionId === EXTERNAL_CAMPS_MILITIA_INTENT_ACTION_ID) {
+      externalCamps.militiaSupportIntent = scaled;
+      continue;
+    }
+    if (actionId === EXTERNAL_CAMPS_RAIDER_INTENT_ACTION_ID) {
+      externalCamps.raiderTributeIntent = scaled;
+      continue;
+    }
     weights[actionId] = scaled;
   }
 
@@ -287,6 +341,18 @@ function buildActionEnvelopeFromVector(resources, outputVector, minWeight, maxWe
   }
   if (Object.keys(building).length > 0) {
     payload.building = building;
+  }
+  if (Object.keys(contracts).length > 0) {
+    payload.contracts = contracts;
+  }
+  if (Object.keys(ruins).length > 0) {
+    payload.ruins = ruins;
+  }
+  if (Object.keys(underrealm).length > 0) {
+    payload.underrealm = underrealm;
+  }
+  if (Object.keys(externalCamps).length > 0) {
+    payload.externalCamps = externalCamps;
   }
   return payload;
 }
@@ -321,6 +387,18 @@ function normalizeActionEnvelope(action) {
   }
   if (action.building && typeof action.building === 'object') {
     normalized.building = { ...action.building };
+  }
+  if (action.contracts && typeof action.contracts === 'object') {
+    normalized.contracts = { ...action.contracts };
+  }
+  if (action.ruins && typeof action.ruins === 'object') {
+    normalized.ruins = { ...action.ruins };
+  }
+  if (action.underrealm && typeof action.underrealm === 'object') {
+    normalized.underrealm = { ...action.underrealm };
+  }
+  if (action.externalCamps && typeof action.externalCamps === 'object') {
+    normalized.externalCamps = { ...action.externalCamps };
   }
 
   if (normalized.jobs && Object.keys(normalized.jobs).length === 0) {

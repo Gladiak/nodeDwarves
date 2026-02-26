@@ -7,7 +7,7 @@ const { getWorldEventModifier } = require('./world_events');
 const { getExternalCampModifier } = require('./external_camps');
 
 // Update contract lifecycle, reputation, and active buffs each tick.
-function updateContracts(state, config) {
+function updateContracts(state, config, action) {
   const contractsConfig = getContractsConfig(config);
   const contracts = ensureContractsState(state, contractsConfig);
   if (!contracts) {
@@ -19,8 +19,18 @@ function updateContracts(state, config) {
 
   if (contracts.active) {
     if (canFulfillContract(state, contracts.active)) {
-      completeContract(state, config, contracts, contracts.active, contractsConfig, tick);
-      return;
+      const decision = resolveContractCommitDecision(
+        state,
+        config,
+        contractsConfig,
+        contracts.active,
+        tick,
+        action,
+      );
+      if (decision.shouldCommit) {
+        completeContract(state, config, contracts, contracts.active, contractsConfig, tick);
+        return;
+      }
     }
     if (tick >= Number(contracts.active.expiresAt || 0)) {
       failContract(state, config, contracts, contracts.active, contractsConfig, tick);
@@ -265,6 +275,150 @@ function canFulfillContract(state, contract) {
     }
   }
   return true;
+}
+
+// Resolve contracts-governor config with safe defaults.
+function getContractGovernorConfig(config) {
+  const aiConfig = (config && config.ai) || {};
+  const governors = aiConfig.governors && typeof aiConfig.governors === 'object'
+    ? aiConfig.governors
+    : {};
+  const source = governors.contracts && typeof governors.contracts === 'object'
+    ? governors.contracts
+    : {};
+  const commitIntentThresholdRaw = Number(source.commitIntentThreshold);
+  const forceCompleteTicksRaw = Number(source.forceCompleteTicks);
+  return {
+    enabled: source.enabled !== false,
+    commitIntentThreshold: clamp(
+      Number.isFinite(commitIntentThresholdRaw) ? commitIntentThresholdRaw : 0.5,
+      0,
+      1,
+    ),
+    forceCompleteTicks: Math.max(
+      0,
+      Math.floor(Number.isFinite(forceCompleteTicksRaw) ? forceCompleteTicksRaw : 12),
+    ),
+    reserveMinStockpileRatios: normalizeContractReserveRatioMap(source.reserveMinStockpileRatios),
+  };
+}
+
+// Normalize reserve-ratio map used by contract commit guardrails.
+function normalizeContractReserveRatioMap(source) {
+  const map = {};
+  if (!source || typeof source !== 'object') {
+    return map;
+  }
+  for (const [resourceId, ratioRaw] of Object.entries(source)) {
+    const ratio = clamp(Number(ratioRaw || 0), 0, 1);
+    if (!resourceId || ratio <= 0) {
+      continue;
+    }
+    map[resourceId] = ratio;
+  }
+  return map;
+}
+
+// Resolve optional contract action payload from governor envelope.
+function getContractsAction(action) {
+  if (!action || typeof action !== 'object') {
+    return null;
+  }
+  const contracts = action.contracts;
+  if (!contracts || typeof contracts !== 'object' || Array.isArray(contracts)) {
+    return null;
+  }
+  return contracts;
+}
+
+// Normalize one contract intent from AI action range into 0..1.
+function normalizeContractIntent(value, config, fallback) {
+  const aiConfig = (config && config.ai) || {};
+  const minWeightRaw = Number(aiConfig.minWeight);
+  const maxWeightRaw = Number(aiConfig.maxWeight);
+  const minWeight = Number.isFinite(minWeightRaw) ? minWeightRaw : 0;
+  const maxWeight = Number.isFinite(maxWeightRaw) ? maxWeightRaw : 1;
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return clamp(Number(fallback || 0), 0, 1);
+  }
+  if (maxWeight > minWeight) {
+    return clamp((numeric - minWeight) / (maxWeight - minWeight), 0, 1);
+  }
+  return clamp(numeric, 0, 1);
+}
+
+// Check reserve-ratio guardrails on post-commit stockpile levels.
+function passesContractReserveRatiosAfterCommit(state, config, contractsConfig, contract, governorConfig) {
+  const reserveMap = governorConfig && governorConfig.reserveMinStockpileRatios
+    ? governorConfig.reserveMinStockpileRatios
+    : {};
+  const keys = Object.keys(reserveMap);
+  if (keys.length === 0) {
+    return true;
+  }
+  for (const resourceId of keys) {
+    const minRatio = clamp(Number(reserveMap[resourceId] || 0), 0, 1);
+    if (minRatio <= 0) {
+      continue;
+    }
+    const target = getContractTarget(state, config, contractsConfig, resourceId);
+    if (target <= 0) {
+      continue;
+    }
+    const current = Math.max(0, Number(state && state.stockpile && state.stockpile[resourceId] || 0));
+    const spend = Math.max(0, Number(contract && contract.requested && contract.requested[resourceId] || 0));
+    const postCommit = Math.max(0, current - spend);
+    const ratio = postCommit / Math.max(1, target);
+    if (ratio < minRatio) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// Resolve contract commit decision from governor action + expiry guardrails.
+function resolveContractCommitDecision(state, config, contractsConfig, contract, tick, action) {
+  const ticksLeft = Math.max(0, Number(contract && contract.expiresAt || 0) - Math.max(0, Number(tick || 0)));
+  const governorConfig = getContractGovernorConfig(config);
+  if (governorConfig.enabled !== true) {
+    return {
+      source: 'default',
+      intent: 1,
+      threshold: 0,
+      ticksLeft,
+      forced: false,
+      reserveOk: true,
+      shouldCommit: true,
+    };
+  }
+
+  const contractsAction = getContractsAction(action);
+  const hasIntent = Boolean(
+    contractsAction && Object.prototype.hasOwnProperty.call(contractsAction, 'commitIntent'),
+  );
+  const intent = hasIntent
+    ? normalizeContractIntent(contractsAction.commitIntent, config, 1)
+    : 1;
+  const threshold = clamp(Number(governorConfig.commitIntentThreshold || 0), 0, 1);
+  const forced = ticksLeft <= Number(governorConfig.forceCompleteTicks || 0);
+  const reserveOk = passesContractReserveRatiosAfterCommit(
+    state,
+    config,
+    contractsConfig,
+    contract,
+    governorConfig,
+  );
+  const shouldCommit = forced || ((!hasIntent || intent >= threshold) && reserveOk);
+  return {
+    source: hasIntent ? 'action' : 'default',
+    intent,
+    threshold,
+    ticksLeft,
+    forced,
+    reserveOk,
+    shouldCommit,
+  };
 }
 
 // Apply contract completion effects and rewards.

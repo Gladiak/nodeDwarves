@@ -190,6 +190,24 @@ Merchant:
 - `ai.governors.trade.contestIntentThreshold`: minimum normalized `contestIntent` to attempt rival-caravan contest costs.
 - `ai.governors.trade.opportunityIntentThreshold`: minimum normalized `opportunityIntent` to auto-complete eligible opportunities.
 - `ai.governors.trade.opportunityForceCompleteTicks`: force-complete safety window near opportunity expiry.
+- `ai.governors.contracts.enabled`: enable contract-governor commit-timing hooks during training/eval.
+- `ai.governors.contracts.commitIntentThreshold`: minimum normalized `commitIntent` to complete affordable contracts before near-expiry force window.
+- `ai.governors.contracts.forceCompleteTicks`: fail-safe completion window near contract expiry (affordable requests are force-completed).
+- `ai.governors.contracts.reserveMinStockpileRatios.<resource>`: optional post-commit reserve-ratio floor guardrails for early contract completion.
+- `ai.governors.ruins.enabled`: enable ruins-governor warning-dispatch and mithril-posture hooks during training/eval.
+- `ai.governors.ruins.warningDispatchIntentThreshold`: minimum normalized `warningDispatchIntent` required to allow warning-zone expedition starts.
+- `ai.governors.ruins.mithrilReinforcementIntentThreshold`: minimum normalized `mithrilReinforcementIntent` required to spend mithril reinforcement when eligible.
+- `ai.governors.underrealm.enabled`: enable underrealm-crew posture governor hooks during training/eval.
+- `ai.governors.underrealm.surfaceReserveBiasMax`: max absolute reserve-ratio shift from `action.underrealm.surfaceReserveBias`.
+- `ai.governors.underrealm.depthAllocationBiasMax`: max absolute depth-ramp shift from `action.underrealm.depthAllocationBias`.
+- `ai.governors.underrealm.roleMixBiasMax`: max absolute role-ratio shift from `action.underrealm.minerMixBias|haulerMixBias|guardMixBias`.
+- `ai.governors.underrealm.smoothingAlpha`: EMA smoothing factor for underrealm posture intents.
+- `ai.governors.underrealm.majorReallocationThreshold`: normalized control-change threshold considered a major reallocation.
+- `ai.governors.underrealm.reallocationCooldownTicks`: hold window for major reallocation flips (previous applied posture kept during cooldown).
+- `ai.governors.underrealm.surfaceReserveRatioMin|surfaceReserveRatioMax`: clamp envelope for effective surface reserve ratio.
+- `ai.governors.underrealm.depthWeightGrowthMin|depthWeightGrowthMax`: clamp envelope for effective depth distribution slope.
+- `ai.governors.underrealm.roleRatioMin|roleRatioMax`: clamp envelope for effective miner/hauler/guard ratios before normalization.
+- Stability recovery note: if `underrealm.eval.avg_deaths` is the only blocking metric, first tighten underrealm posture envelope before additional full retrains (current conservative baseline: `surfaceReserveBiasMax=0.14`, `depthAllocationBiasMax=0.12`, `roleMixBiasMax=0.12`, `surfaceReserveRatioMin=0.34`, `reallocationCooldownTicks=60`).
 - `ai.governors.building.enabled`: enable ranked building-class governor hooks during training/eval.
 - `ai.governors.building.defaultWeights.housing`: fallback class weight when no `action.building.housingWeight` is provided.
 - `ai.governors.building.defaultWeights.economy`: fallback class weight when no `action.building.economyWeight` is provided.
@@ -197,7 +215,13 @@ Merchant:
 - `ai.governors.building.defaultWeights.special`: fallback class weight when no `action.building.specialWeight` is provided.
 - `ai.governors.building.mineBiasMax`: max absolute class-internal mine ordering bias from `action.building.mineBias`.
 - `ai.governors.building.upgradeBiasMax`: max absolute housing ordering bias from `action.building.upgradeBias`.
-- Training contract note: when trade/building governors are enabled, `python/train.py` appends governor pseudo action-ids to the policy action head (`gov_trade_*`, `gov_building_*`) in addition to resource actions and optional `festival`.
+- `ai.governors.externalCamps.enabled`: enable external-camps stance governor hooks during training/eval.
+- `ai.governors.externalCamps.militiaIntentThreshold`: minimum normalized `militiaSupportIntent` to renew militia support when payment is affordable.
+- `ai.governors.externalCamps.raiderTributeIntentThreshold`: minimum normalized `raiderTributeIntent` to pay raider tribute when payment is affordable.
+- `ai.governors.externalCamps.forceComplianceOnCritical`: if true, tribute is force-paid (when affordable) during critical stockpile collapse regardless of raider intent.
+- `ai.governors.externalCamps.criticalStockpileFloor`: stockpile-ratio floor used by critical-collapse compliance guardrail.
+- `ai.governors.externalCamps.criticalResources[]`: resources used to evaluate critical-collapse floor.
+- Training contract note: when trade/contracts/ruins/underrealm/building/external-camps governors are enabled, `python/train.py` appends governor pseudo action-ids to the policy action head (`gov_trade_*`, `gov_contract_*`, `gov_ruins_*`, `gov_underrealm_*`, `gov_building_*`, `gov_external_*`) in addition to resource actions and optional `festival`.
 - Checkpoint compatibility note: if feature names or action-head ids differ from an existing checkpoint, resume is blocked and you must restart with `--fresh`.
 
 Population:
@@ -318,6 +342,14 @@ Underrealm AI observation features (M6):
 - `underrealmCombatPressure`: compact aggregate pressure signal from frontier/champion/readiness outcomes.
 - Shape compatibility note: adding/removing/reordering `ai.training.trainer.featureNames` changes model input size, so resume is blocked and training must restart with `--fresh`.
 - M8 compatibility note: Dwarf Champion integration does not change observation feature shape by default; existing M6 feature vectors remain shape-compatible.
+
+Diplomacy/governance observation features (Workstream A):
+
+- World events: `worldEventActive`, `worldEventOfferPhase`, `worldEventOfferReady`, `worldEventTimeLeft`, `worldEventPressure`.
+- Contracts: `contractActive`, `contractReady`, `contractTimeLeft`, `contractFailurePressure`, `contractReputation`.
+- External camps: `externalCampActiveRatio`, `externalCampRaiderPressure`, `externalCampCaravanRisk`, `externalCampMilitiaSupport`, `externalCampTradeInfluence`, `externalCampPressure`.
+- Schism: `schismPressure`, `schismLegitimacy`, `schismPhase`, `schismRitualOpen`, `schismClimaxActive`, `schismInstability`.
+- Reward adds bounded diplomacy channels: `ai.reward.diplomacyCompletion`, `ai.reward.diplomacyFailure`, `ai.reward.diplomacyExpiration`, `ai.reward.diplomacyPressure`, `ai.reward.diplomacyPressureDelta`, `ai.reward.diplomacyLegitimacyDelta`.
 
 Endgame cycles:
 

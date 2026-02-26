@@ -30,7 +30,8 @@ function getClanExpeditionBonus(state, config, expedition, effectKey) {
   return bonus;
 }
 
-function updateRuins(state, config, runtime) {
+function updateRuins(state, config, runtime, action) {
+  void runtime;
   const ruinsConfig = (config && config.ruins) || {};
   if (ruinsConfig.enabled === false) {
     return;
@@ -118,11 +119,11 @@ function updateRuins(state, config, runtime) {
   }
 
   while (activeCount < maxConcurrent) {
-    const startContext = buildExpeditionStartContext(state, config, ruinsConfig, rooms);
+    const startContext = buildExpeditionStartContext(state, config, ruinsConfig, rooms, action);
     if (!startContext) {
       return;
     }
-    startExpedition(state, config, ruinsConfig, rooms, startContext);
+    startExpedition(state, config, ruinsConfig, rooms, startContext, action);
     activeCount += 1;
   }
 }
@@ -189,7 +190,7 @@ function createDefaultReadinessGateState() {
 }
 
 // Build a validated start context for a ruins expedition, or return null if blocked.
-function buildExpeditionStartContext(state, config, ruinsConfig, rooms) {
+function buildExpeditionStartContext(state, config, ruinsConfig, rooms, action) {
   const expeditionConfig = ruinsConfig.expedition || {};
   if (!hasStructure(state, 'ruins')) {
     return null;
@@ -252,6 +253,12 @@ function buildExpeditionStartContext(state, config, ruinsConfig, rooms) {
   if (dispatchGate.status === 'blocked') {
     return null;
   }
+  if (dispatchGate.status === 'warning') {
+    const decision = resolveRuinsWarningDispatchDecision(config, action);
+    if (!decision.shouldDispatch) {
+      return null;
+    }
+  }
 
   return {
     expeditionConfig,
@@ -262,6 +269,97 @@ function buildExpeditionStartContext(state, config, ruinsConfig, rooms) {
     idleAdults,
     partySize,
     readinessGate: dispatchGate,
+  };
+}
+
+// Resolve normalized ruins-governor config with safe defaults.
+function getRuinsGovernorConfig(config) {
+  const aiConfig = (config && config.ai) || {};
+  const governors = aiConfig.governors && typeof aiConfig.governors === 'object'
+    ? aiConfig.governors
+    : {};
+  const source = governors.ruins && typeof governors.ruins === 'object'
+    ? governors.ruins
+    : {};
+  const warningThresholdRaw = Number(source.warningDispatchIntentThreshold);
+  const mithrilThresholdRaw = Number(source.mithrilReinforcementIntentThreshold);
+  return {
+    enabled: source.enabled !== false,
+    warningDispatchIntentThreshold: clamp(
+      Number.isFinite(warningThresholdRaw) ? warningThresholdRaw : 0.5,
+      0,
+      1,
+    ),
+    mithrilReinforcementIntentThreshold: clamp(
+      Number.isFinite(mithrilThresholdRaw) ? mithrilThresholdRaw : 0.5,
+      0,
+      1,
+    ),
+  };
+}
+
+// Resolve optional ruins action payload from governor envelope.
+function getRuinsAction(action) {
+  if (!action || typeof action !== 'object') {
+    return null;
+  }
+  const ruins = action.ruins;
+  if (!ruins || typeof ruins !== 'object' || Array.isArray(ruins)) {
+    return null;
+  }
+  return ruins;
+}
+
+// Normalize one ruins governor intent from AI action range into 0..1.
+function normalizeRuinsIntent(value, config, fallback) {
+  const aiConfig = (config && config.ai) || {};
+  const minWeightRaw = Number(aiConfig.minWeight);
+  const maxWeightRaw = Number(aiConfig.maxWeight);
+  const minWeight = Number.isFinite(minWeightRaw) ? minWeightRaw : 0;
+  const maxWeight = Number.isFinite(maxWeightRaw) ? maxWeightRaw : 1;
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return clamp(Number(fallback || 0), 0, 1);
+  }
+  if (maxWeight > minWeight) {
+    return clamp((numeric - minWeight) / (maxWeight - minWeight), 0, 1);
+  }
+  return clamp(numeric, 0, 1);
+}
+
+// Resolve warning-zone dispatch stance using action intent with safe default fallback.
+function resolveRuinsWarningDispatchDecision(config, action) {
+  const governorConfig = getRuinsGovernorConfig(config);
+  const ruinsAction = governorConfig.enabled ? getRuinsAction(action) : null;
+  const hasIntent = Boolean(
+    ruinsAction && Object.prototype.hasOwnProperty.call(ruinsAction, 'warningDispatchIntent'),
+  );
+  const intent = hasIntent
+    ? normalizeRuinsIntent(ruinsAction.warningDispatchIntent, config, 1)
+    : 1;
+  const shouldDispatch = !hasIntent || intent >= governorConfig.warningDispatchIntentThreshold;
+  return {
+    source: hasIntent ? 'action' : 'default',
+    intent,
+    shouldDispatch,
+  };
+}
+
+// Resolve mithril-reinforcement stance using action intent with safe default fallback.
+function resolveRuinsMithrilDecision(config, action) {
+  const governorConfig = getRuinsGovernorConfig(config);
+  const ruinsAction = governorConfig.enabled ? getRuinsAction(action) : null;
+  const hasIntent = Boolean(
+    ruinsAction && Object.prototype.hasOwnProperty.call(ruinsAction, 'mithrilReinforcementIntent'),
+  );
+  const intent = hasIntent
+    ? normalizeRuinsIntent(ruinsAction.mithrilReinforcementIntent, config, 1)
+    : 1;
+  const shouldUse = !hasIntent || intent >= governorConfig.mithrilReinforcementIntentThreshold;
+  return {
+    source: hasIntent ? 'action' : 'default',
+    intent,
+    shouldUse,
   };
 }
 
@@ -933,8 +1031,8 @@ function collectTopTierPower(stockpile, prefix, maxTier, slots) {
   return power;
 }
 
-function startExpedition(state, config, ruinsConfig, rooms, startContext = null) {
-  const context = startContext || buildExpeditionStartContext(state, config, ruinsConfig, rooms);
+function startExpedition(state, config, ruinsConfig, rooms, startContext = null, action = null) {
+  const context = startContext || buildExpeditionStartContext(state, config, ruinsConfig, rooms, action);
   if (!context) {
     return;
   }
@@ -962,7 +1060,8 @@ function startExpedition(state, config, ruinsConfig, rooms, startContext = null)
 
   let useMithril = false;
   const mithrilConfig = ruinsConfig.mithrilReinforcement || {};
-  if (mithrilConfig.enabled) {
+  const mithrilDecision = resolveRuinsMithrilDecision(config, action);
+  if (mithrilConfig.enabled && mithrilDecision.shouldUse) {
     const minRoom = Math.max(1, Number(mithrilConfig.minRoom || 1));
     if (roomIndex + 1 >= minRoom) {
       const costMithril = mithrilConfig.cost || {};

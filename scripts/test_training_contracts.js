@@ -5,6 +5,13 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
+const { loadConfig } = require('../src/config');
+const { buildRuntime } = require('../src/runtime');
+const { createInitialState } = require('../src/state');
+const { updateExternalCamps } = require('../src/simulation/external_camps');
+const { updateContracts } = require('../src/simulation/contracts');
+const { updateRuins } = require('../src/simulation/ruins');
+const { updateUnderrealm } = require('../src/simulation/underrealm');
 
 const ROOT = path.resolve(__dirname, '..');
 const PYTHON = path.join(ROOT, '.venv', 'bin', 'python');
@@ -176,6 +183,788 @@ function validatePromoteReportSchema(tmpDir) {
   assert(markdown.includes('## Diagnostic Ensemble (Non-Blocking)'), 'Promote contract: diagnostic markdown section missing.');
 }
 
+// Build a deterministic config profile for external-camps governor smoke scenarios.
+function createExternalCampSmokeConfig() {
+  const config = loadConfig();
+  config.display = {
+    ...(config.display || {}),
+    autoSize: false,
+    width: 90,
+    height: 45,
+    mapInset: {
+      ...((config.display && config.display.mapInset) || {}),
+      enabled: false,
+    },
+  };
+  config.externalCamps = {
+    ...(config.externalCamps || {}),
+    enabled: true,
+    minTick: 1,
+    spawnRangeTicks: { min: 1, max: 1 },
+    maxActive: 1,
+    globalCooldownTicks: 0,
+    blockDuringRaid: false,
+    footprintRadius: 0,
+    minDistanceBetween: 0,
+    minDistanceFromVillage: 0,
+    factionCooldownTicks: { min: 1, max: 1 },
+    durationTicks: {
+      setupMin: 1,
+      setupMax: 1,
+      activeMin: 120,
+      activeMax: 120,
+      withdrawMin: 5,
+      withdrawMax: 5,
+    },
+  };
+  config.ai = config.ai || {};
+  config.ai.governors = config.ai.governors || {};
+  config.ai.governors.externalCamps = {
+    enabled: true,
+    militiaIntentThreshold: 0.6,
+    raiderTributeIntentThreshold: 0.6,
+    forceComplianceOnCritical: true,
+    criticalStockpileFloor: 0.42,
+    criticalResources: ['food', 'water'],
+  };
+  return config;
+}
+
+// Build a deterministic runtime+state pair for external-camps contract scenarios.
+function createExternalCampSmokeState(config) {
+  const runtime = buildRuntime(config.display, {
+    columns: Number(config.display.width || 90),
+    rows: Number(config.display.height || 45),
+  });
+  const state = createInitialState(config, runtime);
+  state.resourceTargets = {
+    ...(state.resourceTargets || {}),
+    food: 100,
+    water: 100,
+  };
+  return { state, runtime };
+}
+
+// Advance only external-camps logic for N ticks with an optional action factory.
+function runExternalCampTicks(state, config, runtime, ticks, actionFactory) {
+  for (let tick = 1; tick <= ticks; tick += 1) {
+    state.tick = tick;
+    const action = typeof actionFactory === 'function' ? actionFactory(tick) : null;
+    updateExternalCamps(state, config, runtime, action);
+  }
+}
+
+// Validate external-camps action-governor behavior for militia/raider stances.
+function validateExternalCampsGovernorContract() {
+  // Scenario A: militia low intent should hold payment when affordable.
+  {
+    const config = createExternalCampSmokeConfig();
+    config.externalCamps.trade = { ...((config.externalCamps && config.externalCamps.trade) || {}), enabled: false };
+    config.externalCamps.raider = { ...((config.externalCamps && config.externalCamps.raider) || {}), enabled: false };
+    config.externalCamps.militia = {
+      ...((config.externalCamps && config.externalCamps.militia) || {}),
+      enabled: true,
+      contractIntervalTicks: 1,
+      supportCosts: { wood: 1, stone: 1, beer: 1 },
+      supportMinStockpileRatios: { food: 0.1, water: 0.1 },
+    };
+    config.externalCamps.factions = {
+      smoke_militia: { label: 'Smoke Militia', role: 'militia', weight: 1 },
+    };
+    const { state, runtime } = createExternalCampSmokeState(config);
+    for (const resourceId of ['wood', 'stone', 'beer', 'food', 'water']) {
+      state.stockpile[resourceId] = 500;
+    }
+    runExternalCampTicks(state, config, runtime, 10, () => ({
+      externalCamps: { militiaSupportIntent: 0.2 },
+    }));
+    const roleStats = state.externalCamps
+      && state.externalCamps.stats
+      && state.externalCamps.stats.byRole
+      ? state.externalCamps.stats.byRole.militia
+      : null;
+    assert(roleStats, 'External camps contract: militia stats missing in low-intent scenario.');
+    assert(Number(roleStats.actions) > 0, 'External camps contract: militia low-intent scenario produced no actions.');
+    assert(
+      Number(roleStats.paid) === 0 && Number(roleStats.rejected) === Number(roleStats.actions),
+      'External camps contract: militia low-intent stance should reject all affordable renewals.',
+    );
+  }
+
+  // Scenario B: militia without action payload should fallback to default auto-pay.
+  {
+    const config = createExternalCampSmokeConfig();
+    config.externalCamps.trade = { ...((config.externalCamps && config.externalCamps.trade) || {}), enabled: false };
+    config.externalCamps.raider = { ...((config.externalCamps && config.externalCamps.raider) || {}), enabled: false };
+    config.externalCamps.militia = {
+      ...((config.externalCamps && config.externalCamps.militia) || {}),
+      enabled: true,
+      contractIntervalTicks: 1,
+      supportCosts: { wood: 1, stone: 1, beer: 1 },
+      supportMinStockpileRatios: { food: 0.1, water: 0.1 },
+    };
+    config.externalCamps.factions = {
+      smoke_militia: { label: 'Smoke Militia', role: 'militia', weight: 1 },
+    };
+    const { state, runtime } = createExternalCampSmokeState(config);
+    for (const resourceId of ['wood', 'stone', 'beer', 'food', 'water']) {
+      state.stockpile[resourceId] = 500;
+    }
+    runExternalCampTicks(state, config, runtime, 10, () => null);
+    const roleStats = state.externalCamps
+      && state.externalCamps.stats
+      && state.externalCamps.stats.byRole
+      ? state.externalCamps.stats.byRole.militia
+      : null;
+    assert(roleStats, 'External camps contract: militia stats missing in default-fallback scenario.');
+    assert(Number(roleStats.actions) > 0, 'External camps contract: militia default-fallback scenario produced no actions.');
+    assert(
+      Number(roleStats.paid) === Number(roleStats.actions) && Number(roleStats.rejected) === 0,
+      'External camps contract: militia default fallback should auto-pay when affordable.',
+    );
+  }
+
+  // Scenario C: raider low intent with critical collapse should force tribute payment.
+  {
+    const config = createExternalCampSmokeConfig();
+    config.externalCamps.trade = { ...((config.externalCamps && config.externalCamps.trade) || {}), enabled: false };
+    config.externalCamps.militia = { ...((config.externalCamps && config.externalCamps.militia) || {}), enabled: false };
+    config.externalCamps.raider = {
+      ...((config.externalCamps && config.externalCamps.raider) || {}),
+      enabled: true,
+      demandIntervalTicks: 1,
+      tributeCosts: { wood: 1, stone: 1, beer: 1 },
+      tributeMinStockpileRatios: { food: 0, water: 0 },
+    };
+    config.externalCamps.factions = {
+      smoke_raider: { label: 'Smoke Raider', role: 'raider', weight: 1 },
+    };
+    const { state, runtime } = createExternalCampSmokeState(config);
+    state.stockpile.wood = 50;
+    state.stockpile.stone = 50;
+    state.stockpile.beer = 50;
+    state.stockpile.food = 35;
+    state.stockpile.water = 35;
+    const woodBefore = Number(state.stockpile.wood || 0);
+    runExternalCampTicks(state, config, runtime, 10, () => ({
+      externalCamps: { raiderTributeIntent: 0.1 },
+    }));
+    const roleStats = state.externalCamps
+      && state.externalCamps.stats
+      && state.externalCamps.stats.byRole
+      ? state.externalCamps.stats.byRole.raider
+      : null;
+    assert(roleStats, 'External camps contract: raider stats missing in force-compliance scenario.');
+    assert(Number(roleStats.actions) > 0, 'External camps contract: raider force-compliance scenario produced no actions.');
+    assert(
+      Number(roleStats.paid) === Number(roleStats.actions) && Number(roleStats.rejected) === 0,
+      'External camps contract: critical-collapse guardrail should force tribute payment when affordable.',
+    );
+    assert(
+      Number(state.stockpile.wood || 0) < woodBefore,
+      'External camps contract: forced tribute should consume raider tribute resources.',
+    );
+  }
+}
+
+// Build a deterministic config profile for contract-governor smoke scenarios.
+function createContractSmokeConfig() {
+  const config = loadConfig();
+  config.display = {
+    ...(config.display || {}),
+    autoSize: false,
+    width: 90,
+    height: 45,
+    mapInset: {
+      ...((config.display && config.display.mapInset) || {}),
+      enabled: false,
+    },
+  };
+  config.contracts = {
+    ...(config.contracts || {}),
+    enabled: true,
+    spawnRangeTicks: { min: 1, max: 1 },
+    expiryTicks: 8,
+    requestCount: { min: 1, max: 1 },
+    requestRatio: { min: 0.2, max: 0.2 },
+    targetBoost: 1,
+    allowedResources: ['wood'],
+    requestTargets: { wood: 10 },
+    requestTargetsPerCapita: {},
+    rewards: {
+      base: {},
+      scalePerResource: 0,
+      mineralThresholds: [],
+    },
+    buffs: {
+      durationTicks: 0,
+      production: { outputBonus: 0 },
+      war: { raidDeathRateReduction: 0, ruinsCombatBonus: 0 },
+    },
+    factions: {
+      smoke_guild: { label: 'Smoke Guild', role: 'production', mineral: null },
+    },
+  };
+  config.ai = config.ai || {};
+  config.ai.governors = config.ai.governors || {};
+  config.ai.governors.contracts = {
+    enabled: true,
+    commitIntentThreshold: 0.8,
+    forceCompleteTicks: 2,
+    reserveMinStockpileRatios: {},
+  };
+  return config;
+}
+
+// Build a deterministic runtime+state pair for contract-governor scenarios.
+function createContractSmokeState(config) {
+  const runtime = buildRuntime(config.display, {
+    columns: Number(config.display.width || 90),
+    rows: Number(config.display.height || 45),
+  });
+  const state = createInitialState(config, runtime);
+  state.resourceTargets = {
+    ...(state.resourceTargets || {}),
+    wood: 10,
+  };
+  return { state, runtime };
+}
+
+// Advance only contract logic for N ticks with optional action factory and capture success/failure ticks.
+function runContractTicks(state, config, ticks, actionFactory) {
+  let firstSuccessTick = null;
+  let firstFailureTick = null;
+  for (let tick = 1; tick <= ticks; tick += 1) {
+    state.tick = tick;
+    const action = typeof actionFactory === 'function' ? actionFactory(tick) : null;
+    updateContracts(state, config, action);
+    const stats = state.contracts && state.contracts.stats ? state.contracts.stats : null;
+    if (stats && firstSuccessTick === null && Number(stats.successes || 0) > 0) {
+      firstSuccessTick = tick;
+    }
+    if (stats && firstFailureTick === null && Number(stats.failures || 0) > 0) {
+      firstFailureTick = tick;
+    }
+  }
+  return { firstSuccessTick, firstFailureTick };
+}
+
+// Validate contract-governor timing behavior (intent hold, fallback, reserve guardrail).
+function validateContractGovernorContract() {
+  // Scenario A: low commit intent should hold until force window, then complete.
+  {
+    const config = createContractSmokeConfig();
+    const { state } = createContractSmokeState(config);
+    state.stockpile.wood = 100;
+    const { firstSuccessTick, firstFailureTick } = runContractTicks(
+      state,
+      config,
+      12,
+      () => ({ contracts: { commitIntent: 0.2 } }),
+    );
+    const stats = state.contracts && state.contracts.stats ? state.contracts.stats : null;
+    assert(stats, 'Contracts governor contract: stats missing in low-intent scenario.');
+    assert(Number(stats.successes || 0) === 1, 'Contracts governor contract: low-intent scenario should eventually complete once.');
+    assert(Number(stats.failures || 0) === 0, 'Contracts governor contract: low-intent scenario must not fail before force-complete.');
+    assert(firstSuccessTick !== null, 'Contracts governor contract: low-intent scenario completion tick missing.');
+    assert(firstSuccessTick >= 7, 'Contracts governor contract: low-intent completion happened before force window.');
+    assert(firstFailureTick === null, 'Contracts governor contract: low-intent scenario unexpectedly failed.');
+  }
+
+  // Scenario B: missing action payload should preserve immediate auto-complete fallback.
+  {
+    const config = createContractSmokeConfig();
+    const { state } = createContractSmokeState(config);
+    state.stockpile.wood = 100;
+    const { firstSuccessTick, firstFailureTick } = runContractTicks(
+      state,
+      config,
+      2,
+      () => null,
+    );
+    const stats = state.contracts && state.contracts.stats ? state.contracts.stats : null;
+    assert(stats, 'Contracts governor contract: stats missing in fallback scenario.');
+    assert(Number(stats.successes || 0) === 1, 'Contracts governor contract: fallback scenario should complete exactly once.');
+    assert(Number(stats.failures || 0) === 0, 'Contracts governor contract: fallback scenario must not fail.');
+    assert(firstSuccessTick !== null && firstSuccessTick <= 2, 'Contracts governor contract: fallback completion should happen immediately when affordable.');
+    assert(firstFailureTick === null, 'Contracts governor contract: fallback scenario unexpectedly failed.');
+  }
+
+  // Scenario C: reserve-ratio guardrail should block early completion when post-commit floor is violated.
+  {
+    const config = createContractSmokeConfig();
+    config.ai.governors.contracts.reserveMinStockpileRatios = { wood: 0.9 };
+    config.ai.governors.contracts.forceCompleteTicks = 0;
+    config.contracts.expiryTicks = 20;
+    const { state } = createContractSmokeState(config);
+    state.stockpile.wood = 10;
+    const { firstSuccessTick, firstFailureTick } = runContractTicks(
+      state,
+      config,
+      6,
+      () => ({ contracts: { commitIntent: 1 } }),
+    );
+    const stats = state.contracts && state.contracts.stats ? state.contracts.stats : null;
+    assert(stats, 'Contracts governor contract: stats missing in reserve-guard scenario.');
+    assert(Number(stats.successes || 0) === 0, 'Contracts governor contract: reserve guardrail should block early completion.');
+    assert(Number(stats.failures || 0) === 0, 'Contracts governor contract: reserve guardrail scenario should stay pending in early window.');
+    assert(firstSuccessTick === null, 'Contracts governor contract: reserve guardrail scenario completed unexpectedly.');
+    assert(firstFailureTick === null, 'Contracts governor contract: reserve guardrail scenario failed unexpectedly.');
+  }
+}
+
+// Build a deterministic config profile for ruins-governor smoke scenarios.
+function createRuinsSmokeConfig() {
+  const config = loadConfig();
+  config.display = {
+    ...(config.display || {}),
+    autoSize: false,
+    width: 90,
+    height: 45,
+    mapInset: {
+      ...((config.display && config.display.mapInset) || {}),
+      enabled: false,
+    },
+  };
+  config.ruins = {
+    ...(config.ruins || {}),
+    enabled: true,
+    expedition: {
+      ...((config.ruins && config.ruins.expedition) || {}),
+      requiresArmory: false,
+      kitResource: 'expedition_kit',
+      minPopulation: 1,
+      minIdleAdults: 1,
+      minStockpileRatio: {},
+      cooldownTicks: 4,
+      failureCooldownTicks: 4,
+      partySizeMin: 1,
+      partySizeMax: 1,
+      maxConcurrentAfterClear: 1,
+    },
+    mithrilReinforcement: {
+      ...((config.ruins && config.ruins.mithrilReinforcement) || {}),
+      enabled: true,
+      minRoom: 1,
+      cost: { mithril: 1 },
+      powerBonus: 0.2,
+    },
+    rooms: [
+      {
+        name: 'Smoke Ruin',
+        expeditionTicks: 8,
+        partySize: 1,
+        cost: {},
+        hazardChance: 0,
+        guardianChance: 0,
+        guardianPower: 0,
+        artifactChance: 0,
+        artifactRolls: 0,
+      },
+    ],
+    artifacts: { sets: {}, pool: {} },
+    setBonuses: {},
+    comboBonuses: [],
+  };
+  config.ai = config.ai || {};
+  config.ai.governors = config.ai.governors || {};
+  config.ai.governors.ruins = {
+    enabled: true,
+    warningDispatchIntentThreshold: 0.8,
+    mithrilReinforcementIntentThreshold: 0.8,
+  };
+  return config;
+}
+
+// Build a deterministic runtime+state pair for ruins-governor scenarios.
+function createRuinsSmokeState(config, options = {}) {
+  const runtime = buildRuntime(config.display, {
+    columns: Number(config.display.width || 90),
+    rows: Number(config.display.height || 45),
+  });
+  const state = createInitialState(config, runtime);
+  state.stockpile.expedition_kit = 20;
+  state.stockpile.mithril = 20;
+
+  const structures = Array.isArray(state.structures) ? state.structures : [];
+  if (!structures.some((entry) => entry && entry.type === 'ruins')) {
+    structures.push({ id: 'smoke_ruins', type: 'ruins', x: 1, y: 1 });
+  }
+  if (!structures.some((entry) => entry && entry.type === 'armory')) {
+    structures.push({ id: 'smoke_armory', type: 'armory', x: 2, y: 2, level: 1 });
+  }
+  state.structures = structures;
+
+  const warningMode = options.warningMode === true;
+  const combat = state.underrealm && state.underrealm.combat ? state.underrealm.combat : null;
+  const floor = combat && combat.floorsByDepth ? combat.floorsByDepth['1'] : null;
+  if (combat) {
+    combat.progressionMode = 'none';
+  }
+  if (floor) {
+    floor.unlocked = true;
+    floor.state = 'cleared';
+    floor.unlock = { required: false, cleared: true };
+    floor.encounter = { cooldownTicksRemaining: 0 };
+    floor.minArmoryLevel = 1;
+    floor.readiness = {
+      ...(floor.readiness || {}),
+      minScore: 0,
+      recommendedScore: warningMode ? 100 : 0,
+    };
+  }
+  if (combat && combat.readiness) {
+    combat.readiness.hardMinGate = true;
+    combat.readiness.warningZoneHardGuard = {
+      enabled: true,
+      minDepth: 3,
+      minRecommendedScoreRatio: 0.99,
+    };
+  }
+
+  return { state, runtime };
+}
+
+// Advance only ruins logic for N ticks with optional action factory.
+function runRuinsTicks(state, config, runtime, ticks, actionFactory) {
+  for (let tick = 1; tick <= ticks; tick += 1) {
+    state.tick = tick;
+    const action = typeof actionFactory === 'function' ? actionFactory(tick) : null;
+    updateRuins(state, config, runtime, action);
+  }
+}
+
+// Validate ruins-governor behavior for warning-zone dispatch and mithril posture.
+function validateRuinsGovernorContract() {
+  // Scenario A: warning-zone low intent should hold dispatch.
+  {
+    const config = createRuinsSmokeConfig();
+    const { state, runtime } = createRuinsSmokeState(config, { warningMode: true });
+    runRuinsTicks(state, config, runtime, 1, () => ({
+      ruins: { warningDispatchIntent: 0.1, mithrilReinforcementIntent: 1 },
+    }));
+    const stats = state.ruins && state.ruins.stats ? state.ruins.stats : null;
+    assert(stats, 'Ruins governor contract: stats missing in warning low-intent scenario.');
+    assert(Number(stats.started || 0) === 0, 'Ruins governor contract: warning low-intent scenario should hold dispatch.');
+    assert(Array.isArray(state.ruins.expeditions) && state.ruins.expeditions.length === 0, 'Ruins governor contract: warning low-intent scenario unexpectedly started expedition.');
+  }
+
+  // Scenario B: warning-zone without action payload should preserve legacy dispatch fallback.
+  {
+    const config = createRuinsSmokeConfig();
+    const { state, runtime } = createRuinsSmokeState(config, { warningMode: true });
+    runRuinsTicks(state, config, runtime, 1, () => null);
+    const stats = state.ruins && state.ruins.stats ? state.ruins.stats : null;
+    const expedition = state.ruins && Array.isArray(state.ruins.expeditions) ? state.ruins.expeditions[0] : null;
+    assert(stats, 'Ruins governor contract: stats missing in warning fallback scenario.');
+    assert(Number(stats.started || 0) === 1, 'Ruins governor contract: warning fallback scenario should start one expedition.');
+    assert(expedition && expedition.active !== false, 'Ruins governor contract: warning fallback scenario missing active expedition.');
+    assert(expedition.readiness && expedition.readiness.status === 'warning', 'Ruins governor contract: warning fallback expedition should keep warning readiness status.');
+  }
+
+  // Scenario C: mithril low intent should keep expedition start but hold reinforcement spend.
+  {
+    const config = createRuinsSmokeConfig();
+    const { state, runtime } = createRuinsSmokeState(config, { warningMode: false });
+    const mithrilBefore = Number(state.stockpile.mithril || 0);
+    runRuinsTicks(state, config, runtime, 1, () => ({
+      ruins: { mithrilReinforcementIntent: 0.1 },
+    }));
+    const stats = state.ruins && state.ruins.stats ? state.ruins.stats : null;
+    const expedition = state.ruins && Array.isArray(state.ruins.expeditions) ? state.ruins.expeditions[0] : null;
+    assert(stats, 'Ruins governor contract: stats missing in mithril low-intent scenario.');
+    assert(Number(stats.started || 0) === 1, 'Ruins governor contract: mithril low-intent scenario should still start expedition.');
+    assert(expedition && expedition.useMithril === false, 'Ruins governor contract: mithril low-intent scenario should not enable reinforcement.');
+    assert(Number(state.stockpile.mithril || 0) === mithrilBefore, 'Ruins governor contract: mithril low-intent scenario should not consume mithril.');
+  }
+
+  // Scenario D: mithril fallback without action payload should preserve legacy auto-use when eligible.
+  {
+    const config = createRuinsSmokeConfig();
+    const { state, runtime } = createRuinsSmokeState(config, { warningMode: false });
+    const mithrilBefore = Number(state.stockpile.mithril || 0);
+    runRuinsTicks(state, config, runtime, 1, () => null);
+    const stats = state.ruins && state.ruins.stats ? state.ruins.stats : null;
+    const expedition = state.ruins && Array.isArray(state.ruins.expeditions) ? state.ruins.expeditions[0] : null;
+    assert(stats, 'Ruins governor contract: stats missing in mithril fallback scenario.');
+    assert(Number(stats.started || 0) === 1, 'Ruins governor contract: mithril fallback scenario should start one expedition.');
+    assert(expedition && expedition.useMithril === true, 'Ruins governor contract: mithril fallback scenario should enable reinforcement.');
+    assert(Number(state.stockpile.mithril || 0) < mithrilBefore, 'Ruins governor contract: mithril fallback scenario should consume mithril.');
+  }
+}
+
+// Build a deterministic config profile for underrealm-crew governor smoke scenarios.
+function createUnderrealmCrewSmokeConfig() {
+  const config = loadConfig();
+  config.display = {
+    ...(config.display || {}),
+    autoSize: false,
+    width: 90,
+    height: 45,
+    mapInset: {
+      ...((config.display && config.display.mapInset) || {}),
+      enabled: false,
+    },
+  };
+  config.underrealm = {
+    ...(config.underrealm || {}),
+    enabled: true,
+    max_depth: 3,
+    discovery: {
+      ...((config.underrealm && config.underrealm.discovery) || {}),
+      enabled: false,
+    },
+    economy: {
+      ...((config.underrealm && config.underrealm.economy) || {}),
+      enabled: false,
+    },
+    progression: {
+      ...((config.underrealm && config.underrealm.progression) || {}),
+      enabled: false,
+    },
+    hostiles: {
+      ...((config.underrealm && config.underrealm.hostiles) || {}),
+      enabled: false,
+    },
+    shrines: {
+      ...((config.underrealm && config.underrealm.shrines) || {}),
+      enabled: false,
+    },
+    combat: {
+      ...((config.underrealm && config.underrealm.combat) || {}),
+      enabled: false,
+      dwarf_champion: {
+        ...(((config.underrealm && config.underrealm.combat) || {}).dwarf_champion || {}),
+        enabled: false,
+        requires_party_presence: false,
+      },
+    },
+    crew: {
+      ...((config.underrealm && config.underrealm.crew) || {}),
+      enabled: true,
+      surface_reserve_ratio: 0.5,
+      max_underrealm_ratio: 0.8,
+      depth_weight_growth: 0.1,
+      roles: {
+        miner_ratio: 0.5,
+        hauler_ratio: 0.25,
+        guard_ratio: 0.25,
+      },
+    },
+  };
+  config.ai = config.ai || {};
+  config.ai.governors = config.ai.governors || {};
+  config.ai.governors.underrealm = {
+    enabled: true,
+    surfaceReserveBiasMax: 0.2,
+    depthAllocationBiasMax: 0.2,
+    roleMixBiasMax: 0.2,
+    smoothingAlpha: 1,
+    majorReallocationThreshold: 0.05,
+    reallocationCooldownTicks: 5,
+    surfaceReserveRatioMin: 0.2,
+    surfaceReserveRatioMax: 0.8,
+    depthWeightGrowthMin: 0,
+    depthWeightGrowthMax: 0.4,
+    roleRatioMin: 0.02,
+    roleRatioMax: 0.9,
+  };
+  return config;
+}
+
+// Build a deterministic runtime+state pair for underrealm-crew governor scenarios.
+function createUnderrealmCrewSmokeState(config) {
+  const runtime = buildRuntime(config.display, {
+    columns: Number(config.display.width || 90),
+    rows: Number(config.display.height || 45),
+  });
+  const state = createInitialState(config, runtime);
+  state.tick = 0;
+  state.jobs = [];
+  state.dwarves = Array.from({ length: 40 }, (_, index) => ({
+    id: `ud_smoke_${index + 1}`,
+    lifeStage: 'adult',
+    ageTicks: 1200 + index,
+    spawnIndex: index + 1,
+    role: index % 3 === 0 ? 'gatherer' : (index % 3 === 1 ? 'builder' : 'manager'),
+    job: null,
+    expedition: false,
+    underrealmChampionSurvivals: 0,
+    state: {
+      morale: 0.7,
+      stress: 0.2,
+    },
+  }));
+  if (state.underrealm) {
+    state.underrealm.maxUnlockedDepth = 3;
+    state.underrealm.discovery = {
+      ...(state.underrealm.discovery || {}),
+      enabled: false,
+      found: true,
+    };
+    if (state.underrealm.combat && state.underrealm.combat.dwarfChampion) {
+      state.underrealm.combat.dwarfChampion.enabled = false;
+      state.underrealm.combat.dwarfChampion.activeDwarfId = null;
+    }
+  }
+  return { state, runtime };
+}
+
+// Run underrealm systems for N ticks with optional action factory.
+function runUnderrealmCrewTicks(state, config, ticks, actionFactory) {
+  for (let tick = 1; tick <= ticks; tick += 1) {
+    state.tick = tick;
+    const action = typeof actionFactory === 'function' ? actionFactory(tick) : null;
+    updateUnderrealm(state, config, action);
+  }
+}
+
+// Sum one role count across all underrealm depths.
+function getUnderrealmRoleTotal(crew, roleId) {
+  const rolesByDepth = crew && crew.rolesByDepth && typeof crew.rolesByDepth === 'object'
+    ? crew.rolesByDepth
+    : {};
+  let total = 0;
+  for (const depthRoles of Object.values(rolesByDepth)) {
+    total += Math.max(0, Number(depthRoles && depthRoles[roleId] || 0));
+  }
+  return total;
+}
+
+// Validate underrealm-governor behavior for reserve/depth/role posture and cooldown hold.
+function validateUnderrealmGovernorContract() {
+  // Scenario A: default fallback keeps baseline posture and deterministic assignment.
+  {
+    const config = createUnderrealmCrewSmokeConfig();
+    const { state } = createUnderrealmCrewSmokeState(config);
+    runUnderrealmCrewTicks(state, config, 1, () => null);
+    const crew = state.underrealm && state.underrealm.crew ? state.underrealm.crew : null;
+    const governor = crew && crew.governor ? crew.governor : null;
+    assert(crew, 'Underrealm governor contract: crew missing in default scenario.');
+    assert(governor, 'Underrealm governor contract: governor runtime missing in default scenario.');
+    assert(governor.source === 'default', 'Underrealm governor contract: default scenario should keep source=default.');
+    assert(
+      Math.abs(Number(governor.applied.surfaceReserveRatio || 0) - 0.5) < 1e-6,
+      'Underrealm governor contract: default scenario should keep baseline surface reserve ratio.',
+    );
+    assert(Number(crew.totalAssigned || 0) > 0, 'Underrealm governor contract: default scenario should assign delvers.');
+  }
+
+  // Scenario B: positive surface-reserve bias should reduce deep assignments.
+  {
+    const config = createUnderrealmCrewSmokeConfig();
+    const baseline = createUnderrealmCrewSmokeState(config);
+    runUnderrealmCrewTicks(baseline.state, config, 1, () => null);
+    const baselineAssigned = Number(baseline.state.underrealm.crew.totalAssigned || 0);
+
+    const { state } = createUnderrealmCrewSmokeState(config);
+    runUnderrealmCrewTicks(state, config, 1, () => ({
+      underrealm: { surfaceReserveBias: 2 },
+    }));
+    const crew = state.underrealm && state.underrealm.crew ? state.underrealm.crew : null;
+    const governor = crew && crew.governor ? crew.governor : null;
+    assert(governor && governor.source === 'action', 'Underrealm governor contract: reserve-bias scenario should use action source.');
+    assert(
+      Number(governor.applied.surfaceReserveRatio || 0) > 0.5,
+      'Underrealm governor contract: positive reserve bias should increase surface reserve ratio.',
+    );
+    assert(
+      Number(crew.totalAssigned || 0) < baselineAssigned,
+      'Underrealm governor contract: positive reserve bias should reduce underrealm assigned crew.',
+    );
+  }
+
+  // Scenario C: depth-allocation bias should change applied depth growth.
+  {
+    const config = createUnderrealmCrewSmokeConfig();
+    const { state } = createUnderrealmCrewSmokeState(config);
+    runUnderrealmCrewTicks(state, config, 1, () => ({
+      underrealm: { depthAllocationBias: 2 },
+    }));
+    const crew = state.underrealm && state.underrealm.crew ? state.underrealm.crew : null;
+    const governor = crew && crew.governor ? crew.governor : null;
+    assert(governor, 'Underrealm governor contract: depth-bias scenario missing governor runtime.');
+    assert(
+      Number(governor.applied.depthWeightGrowth || 0) > 0.1,
+      'Underrealm governor contract: positive depth bias should increase depth weight growth.',
+    );
+  }
+
+  // Scenario D: role-mix biases should tilt role distribution (more guards, fewer miners).
+  {
+    const config = createUnderrealmCrewSmokeConfig();
+    const { state } = createUnderrealmCrewSmokeState(config);
+    runUnderrealmCrewTicks(state, config, 1, () => ({
+      underrealm: {
+        minerMixBias: 0,
+        haulerMixBias: 1,
+        guardMixBias: 2,
+      },
+    }));
+    const crew = state.underrealm && state.underrealm.crew ? state.underrealm.crew : null;
+    const governor = crew && crew.governor ? crew.governor : null;
+    assert(governor, 'Underrealm governor contract: role-mix scenario missing governor runtime.');
+    const appliedRoles = governor.applied && governor.applied.roles ? governor.applied.roles : {};
+    assert(
+      Number(appliedRoles.guardRatio || 0) > 0.25,
+      'Underrealm governor contract: guard mix bias should increase applied guard ratio.',
+    );
+    assert(
+      Number(appliedRoles.minerRatio || 0) < 0.5,
+      'Underrealm governor contract: miner mix negative bias should reduce applied miner ratio.',
+    );
+    const guards = getUnderrealmRoleTotal(crew, 'guard');
+    const miners = getUnderrealmRoleTotal(crew, 'miner');
+    assert(guards > 0, 'Underrealm governor contract: role-mix scenario should assign guards.');
+    assert(miners > 0, 'Underrealm governor contract: role-mix scenario should still assign miners.');
+  }
+
+  // Scenario E: cooldown should hold major reallocation flips within the configured window.
+  {
+    const config = createUnderrealmCrewSmokeConfig();
+    const { state } = createUnderrealmCrewSmokeState(config);
+    state.tick = 1;
+    updateUnderrealm(state, config, {
+      underrealm: {
+        minerMixBias: 0,
+        haulerMixBias: 1,
+        guardMixBias: 2,
+      },
+    });
+    const crew = state.underrealm && state.underrealm.crew ? state.underrealm.crew : null;
+    const governor = crew && crew.governor ? crew.governor : null;
+    assert(governor, 'Underrealm governor contract: cooldown scenario missing governor runtime after tick1.');
+    const appliedAfterTick1 = {
+      minerRatio: Number(governor.applied.roles && governor.applied.roles.minerRatio || 0),
+      haulerRatio: Number(governor.applied.roles && governor.applied.roles.haulerRatio || 0),
+      guardRatio: Number(governor.applied.roles && governor.applied.roles.guardRatio || 0),
+    };
+
+    state.tick = 2;
+    updateUnderrealm(state, config, {
+      underrealm: {
+        minerMixBias: 2,
+        haulerMixBias: 1,
+        guardMixBias: 0,
+      },
+    });
+    const governorAfterTick2 = state.underrealm.crew && state.underrealm.crew.governor
+      ? state.underrealm.crew.governor
+      : null;
+    assert(governorAfterTick2, 'Underrealm governor contract: cooldown scenario missing governor runtime after tick2.');
+    assert(
+      governorAfterTick2.holdByCooldown === true,
+      'Underrealm governor contract: major flip inside cooldown window should be held.',
+    );
+    assert(
+      Math.abs(Number(governorAfterTick2.applied.roles.minerRatio || 0) - appliedAfterTick1.minerRatio) < 1e-6
+      && Math.abs(Number(governorAfterTick2.applied.roles.haulerRatio || 0) - appliedAfterTick1.haulerRatio) < 1e-6
+      && Math.abs(Number(governorAfterTick2.applied.roles.guardRatio || 0) - appliedAfterTick1.guardRatio) < 1e-6,
+      'Underrealm governor contract: cooldown hold should keep previous applied role mix.',
+    );
+  }
+}
+
 // Execute the full contract suite in one deterministic temporary workspace.
 function main() {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nodedwarves_test_contracts_'));
@@ -205,9 +994,13 @@ function main() {
     }
     assert(malformedFailed, 'Policy contract: malformed observation shape did not fail as expected.');
 
+    validateExternalCampsGovernorContract();
+    validateContractGovernorContract();
+    validateRuinsGovernorContract();
+    validateUnderrealmGovernorContract();
     validateRegressionReportSchema(tmpDir);
     validatePromoteReportSchema(tmpDir);
-    console.log('[test:contracts] PASS policy_shape regression_schema promote_schema');
+    console.log('[test:contracts] PASS policy_shape external_camps_governor contracts_governor ruins_governor underrealm_governor regression_schema promote_schema');
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
