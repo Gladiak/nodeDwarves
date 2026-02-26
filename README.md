@@ -226,11 +226,54 @@ npm run balance:gate:standard -- --set jobs.gatherTriggerRatio.food=1.1 --set jo
 
 ## Roadmap ideas 🧭
 
-- 🧬 Lineages and legacy perks: clan bloodlines evolve traits across cycles.
-- ⚖️ Dynamic laws: policy toggles that trade safety, productivity, and morale.
-- 🔥 Disaster arcs: drought → fire → recovery chain with emergent priorities.
-- 🧭 Multi-village specialization: assign production roles per settlement.
-- 🗺️ Expedition map: alternate tactical layer for ruins parties and outcomes.
+- 🧬 (high) Personal dwarf arcs: each dwarf gets origin, virtue, vice, and ambition that evolve into mini story outcomes.
+- 🏛️ (high) Seasonal council decrees: choose 1 of 3 political edicts per cycle with strong long-term trade-offs.
+- 📜 (high) Multi-act faction questlines: contracts and camps evolve into chapter-based stories with branching outcomes.
+- 🛡️ (high) Persistent hero company: named expedition roster gains scars, titles, vows, and legacy bonuses over time.
+- 💔 (high) Social drama engine: rivalries, friendships, mentorships, and grudges trigger emergent village events.
+- 👑 (medium) Titles and succession: leadership offices (Steward, Marshal, High Priest) shape policy and run identity.
+- 🔮 (medium) Ancestor omens and prophecies: periodic signs create high-risk/high-reward roleplay decisions.
+- ⚔️ (medium) Nemesis houses: recurring rival factions build personal history with your settlement across multiple cycles.
+- 🍻 (low) Tavern rumors and side quests: rotating rumor hooks unlock small narrative objectives with meaningful rewards.
+- 📚 (medium) Chronicle and saga system: runs generate an in-world annal that influences prestige and future-start modifiers.
+
+### Roadmap scoring rubric
+
+| Section | Weight | What it measures |
+|---|---:|---|
+| Systemic breadth | 0.25 | How many core systems are affected |
+| Persistence | 0.20 | How long effects stay relevant in a run |
+| Frequency | 0.15 | How often it appears during normal play |
+| Decision weight | 0.25 | How strongly it changes strategic trade-offs |
+| Emergence / AI impact | 0.15 | How much it changes emergent behavior and policy priorities |
+
+Formula: `Total = sum(section_score * weight)`  
+Impact thresholds: `High >= 4.0`, `Medium >= 2.8 and < 4.0`, `Low < 2.8`
+
+### Roadmap scorecard
+
+| Idea | Breadth | Persistence | Frequency | Decision weight | Emergence/AI | Total | Impact |
+|---|---:|---:|---:|---:|---:|---:|---|
+| Personal dwarf arcs | 4 | 5 | 4 | 4 | 4 | 4.20 | High |
+| Seasonal council decrees | 5 | 5 | 3 | 5 | 4 | 4.55 | High |
+| Multi-act faction questlines | 5 | 4 | 4 | 4 | 4 | 4.25 | High |
+| Persistent hero company | 4 | 5 | 3 | 4 | 4 | 4.05 | High |
+| Social drama engine | 5 | 4 | 5 | 4 | 5 | 4.55 | High |
+| Titles and succession | 4 | 4 | 3 | 4 | 3 | 3.70 | Medium |
+| Ancestor omens and prophecies | 3 | 3 | 2 | 4 | 3 | 3.10 | Medium |
+| Nemesis houses | 4 | 4 | 3 | 3 | 4 | 3.60 | Medium |
+| Tavern rumors and side quests | 2 | 2 | 3 | 2 | 2 | 2.15 | Low |
+| Chronicle and saga system | 3 | 4 | 3 | 3 | 3 | 3.20 | Medium |
+
+### Section summary
+
+| Section | Avg | Min-Max | Strong ideas (>=4) | Weak ideas (<=2) |
+|---|---:|---|---:|---:|
+| Systemic breadth | 3.90 | 2-5 | 7 | 1 |
+| Persistence | 4.00 | 2-5 | 8 | 1 |
+| Frequency | 3.30 | 2-5 | 3 | 1 |
+| Decision weight | 3.70 | 2-5 | 7 | 1 |
+| Emergence / AI impact | 3.60 | 2-5 | 6 | 1 |
 
 ## Project layout (high level) 🧱
 
