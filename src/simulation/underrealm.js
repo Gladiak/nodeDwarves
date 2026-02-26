@@ -209,7 +209,7 @@ function resolveSchismUnderrealmMultiplier(
 }
 
 // Tick all Underrealm systems: crew assignment, economy, exploration, and hostiles.
-function updateUnderrealm(state, config) {
+function updateUnderrealm(state, config, action = null) {
   const underrealm = state && state.underrealm;
   if (!underrealm || underrealm.enabled === false) {
     clearAllUnderrealmDuty(state);
@@ -219,7 +219,7 @@ function updateUnderrealm(state, config) {
   updateUnderrealmDiscovery(state, config);
   updateUnderrealmCombatRuntime(state, config);
   updateUnderrealmChampionAutoPromotion(state, config);
-  updateCrewAssignments(state, config);
+  updateCrewAssignments(state, config, action);
   updateUnderrealmShrines(state, config);
   updateUnderrealmEconomy(state, config);
   updateUnderrealmProgression(state, config);
@@ -459,6 +459,35 @@ function getUnderrealmHostileConfig(config) {
     cooldownTicks: Math.max(0, Math.floor(Number(hostiles.cooldown_ticks ?? 90))),
     factions: normalizeFactions(hostiles.factions),
     lossWeights: normalizeLossWeights(hostiles.stockpile_loss_weights),
+  };
+}
+
+// Resolve underrealm crew-governor config with bounded defaults.
+function getUnderrealmCrewGovernorConfig(config) {
+  const ai = (config && config.ai) || {};
+  const governors = ai.governors && typeof ai.governors === 'object'
+    ? ai.governors
+    : {};
+  const underrealm = governors.underrealm && typeof governors.underrealm === 'object'
+    ? governors.underrealm
+    : {};
+  return {
+    enabled: underrealm.enabled !== false,
+    surfaceReserveBiasMax: clamp(Number(underrealm.surfaceReserveBiasMax ?? 0.2), 0, 0.6),
+    depthAllocationBiasMax: Math.max(0, Number(underrealm.depthAllocationBiasMax ?? 0.2)),
+    roleMixBiasMax: clamp(Number(underrealm.roleMixBiasMax ?? 0.2), 0, 0.6),
+    smoothingAlpha: clamp(Number(underrealm.smoothingAlpha ?? 0.22), 0, 1),
+    majorReallocationThreshold: clamp(Number(underrealm.majorReallocationThreshold ?? 0.08), 0, 1),
+    reallocationCooldownTicks: Math.max(
+      0,
+      Math.floor(Number(underrealm.reallocationCooldownTicks ?? 42)),
+    ),
+    surfaceReserveRatioMin: clamp(Number(underrealm.surfaceReserveRatioMin ?? 0.28), 0, 1),
+    surfaceReserveRatioMax: clamp(Number(underrealm.surfaceReserveRatioMax ?? 0.82), 0, 1),
+    depthWeightGrowthMin: Math.max(0, Number(underrealm.depthWeightGrowthMin ?? 0)),
+    depthWeightGrowthMax: Math.max(0, Number(underrealm.depthWeightGrowthMax ?? 0.4)),
+    roleRatioMin: clamp(Number(underrealm.roleRatioMin ?? 0.02), 0, 1),
+    roleRatioMax: clamp(Number(underrealm.roleRatioMax ?? 0.9), 0, 1),
   };
 }
 
@@ -1069,6 +1098,7 @@ function ensureUnderrealmRuntimeState(state, config) {
   if (!Number.isFinite(underrealm.crew.populationBonusPerAssigned)) {
     underrealm.crew.populationBonusPerAssigned = 0;
   }
+  ensureUnderrealmCrewGovernorRuntime(underrealm.crew);
 }
 
 // Sort Dwarf Champion candidates deterministically by survivals, spawn order, and id.
@@ -1374,7 +1404,7 @@ function updateUnderrealmProgression(state, config) {
 }
 
 // Assign a real set of adult dwarves to Underrealm duties.
-function updateCrewAssignments(state, config) {
+function updateCrewAssignments(state, config, action = null) {
   const underrealm = state && state.underrealm;
   const crew = underrealm && underrealm.crew;
   if (!underrealm || !crew || crew.enabled === false) {
@@ -1414,12 +1444,22 @@ function updateCrewAssignments(state, config) {
     ))
     .slice()
     .sort(compareDwarvesBySpawn);
-  const surfaceReserveRatio = clamp(Number(crew.surfaceReserveRatio || 0), 0, 1);
+  const governorDecision = resolveUnderrealmCrewGovernorDecision(
+    state,
+    config,
+    crew,
+    action,
+  );
+  const surfaceReserveRatio = clamp(Number(governorDecision.surfaceReserveRatio || 0), 0, 1);
   const maxUnderrealmRatio = clamp(Number(crew.maxUnderrealmRatio ?? 0.6), 0, 1);
   const reserveCount = Math.floor(adults.length * surfaceReserveRatio);
   const deepLimit = Math.floor(adults.length * maxUnderrealmRatio);
   const assignable = Math.max(0, Math.min(adults.length - reserveCount, deepLimit));
-  const perDepthCounts = splitCrewAcrossDepths(assignable, maxDepth, Number(crew.depthWeightGrowth ?? 0.18));
+  const perDepthCounts = splitCrewAcrossDepths(
+    assignable,
+    maxDepth,
+    Number(governorDecision.depthWeightGrowth ?? crew.depthWeightGrowth ?? 0.18),
+  );
   const pool = adults.slice();
   const membersByDepth = {};
   const rolesByDepth = {};
@@ -1430,7 +1470,7 @@ function updateCrewAssignments(state, config) {
     if (count <= 0) {
       continue;
     }
-    const roleCounts = splitCrewRoles(count, crew.roles || {});
+    const roleCounts = splitCrewRoles(count, governorDecision.roles || crew.roles || {});
     const picked = pickDepthCrew(pool, roleCounts, config);
     if (picked.length === 0) {
       continue;
@@ -1463,6 +1503,12 @@ function updateCrewAssignments(state, config) {
   crew.membersByDepth = membersByDepth;
   crew.totalAssigned = assignedIds.size;
   crew.surfaceAdults = Math.max(0, adults.length - assignedIds.size);
+  if (crew.governor && typeof crew.governor === 'object') {
+    crew.governor.lastAssignedTick = Math.max(0, Math.floor(Number(state && state.tick || 0)));
+    crew.governor.lastAssignedTotal = crew.totalAssigned;
+    crew.governor.lastAssignedByDepth = { ...assignedByDepth };
+    crew.governor.lastRolesByDepth = { ...rolesByDepth };
+  }
 }
 
 // Tick shrine-driven systems: ward charges, delver oaths, and morale shaping.
@@ -1685,6 +1731,318 @@ function applyShrineOathStateToDelvers(state, shrineConfig) {
   }
 }
 
+// Resolve underrealm-governor action payload from global action envelope.
+function resolveUnderrealmCrewAction(action) {
+  if (!action || typeof action !== 'object') {
+    return null;
+  }
+  return action.underrealm && typeof action.underrealm === 'object'
+    ? action.underrealm
+    : null;
+}
+
+// Normalize governor intent from global AI action range into 0..1.
+function normalizeUnderrealmGovernorIntent(value, config, fallback) {
+  const ai = (config && config.ai) || {};
+  const minWeight = Number(ai.minWeight ?? 0);
+  const maxWeight = Number(ai.maxWeight ?? 1);
+  const numeric = Number(value);
+  const safeFallback = clamp(Number(fallback ?? 0), 0, 1);
+  if (!Number.isFinite(numeric)) {
+    return safeFallback;
+  }
+  if (maxWeight > minWeight) {
+    return clamp((numeric - minWeight) / (maxWeight - minWeight), 0, 1);
+  }
+  return clamp(numeric, 0, 1);
+}
+
+// Ensure one normalized underrealm-governor runtime block exists on crew state.
+function ensureUnderrealmCrewGovernorRuntime(crew) {
+  if (!crew || typeof crew !== 'object') {
+    return null;
+  }
+  const roles = crew.roles && typeof crew.roles === 'object'
+    ? crew.roles
+    : {};
+  const governor = crew.governor && typeof crew.governor === 'object'
+    ? crew.governor
+    : {};
+  const smoothed = governor.smoothed && typeof governor.smoothed === 'object'
+    ? governor.smoothed
+    : {};
+  const applied = governor.applied && typeof governor.applied === 'object'
+    ? governor.applied
+    : {};
+  const appliedRoles = applied.roles && typeof applied.roles === 'object'
+    ? applied.roles
+    : {};
+  crew.governor = {
+    source: governor.source === 'action' ? 'action' : 'default',
+    smoothed: {
+      surfaceReserveBias: clamp(Number(smoothed.surfaceReserveBias || 0), -1, 1),
+      depthAllocationBias: clamp(Number(smoothed.depthAllocationBias || 0), -1, 1),
+      minerMixBias: clamp(Number(smoothed.minerMixBias || 0), -1, 1),
+      haulerMixBias: clamp(Number(smoothed.haulerMixBias || 0), -1, 1),
+      guardMixBias: clamp(Number(smoothed.guardMixBias || 0), -1, 1),
+    },
+    applied: {
+      surfaceReserveRatio: clamp(
+        Number(applied.surfaceReserveRatio ?? crew.surfaceReserveRatio ?? 0),
+        0,
+        1,
+      ),
+      depthWeightGrowth: Math.max(
+        0,
+        Number(applied.depthWeightGrowth ?? crew.depthWeightGrowth ?? 0),
+      ),
+      roles: {
+        minerRatio: clamp(
+          Number(appliedRoles.minerRatio ?? roles.minerRatio ?? 0.12),
+          0,
+          1,
+        ),
+        haulerRatio: clamp(
+          Number(appliedRoles.haulerRatio ?? roles.haulerRatio ?? 0.08),
+          0,
+          1,
+        ),
+        guardRatio: clamp(
+          Number(appliedRoles.guardRatio ?? roles.guardRatio ?? 0.05),
+          0,
+          1,
+        ),
+      },
+    },
+    holdByCooldown: governor.holdByCooldown === true,
+    cooldownTicksRemaining: Math.max(0, Math.floor(Number(governor.cooldownTicksRemaining || 0))),
+    lastReallocationTick: Math.max(0, Math.floor(Number(governor.lastReallocationTick || 0))),
+    lastDecisionTick: Math.max(0, Math.floor(Number(governor.lastDecisionTick || 0))),
+    lastAssignedTick: Math.max(0, Math.floor(Number(governor.lastAssignedTick || 0))),
+    lastAssignedTotal: Math.max(0, Math.floor(Number(governor.lastAssignedTotal || 0))),
+    lastAssignedByDepth: governor.lastAssignedByDepth && typeof governor.lastAssignedByDepth === 'object'
+      ? { ...governor.lastAssignedByDepth }
+      : {},
+    lastRolesByDepth: governor.lastRolesByDepth && typeof governor.lastRolesByDepth === 'object'
+      ? { ...governor.lastRolesByDepth }
+      : {},
+  };
+  return crew.governor;
+}
+
+// Normalize role ratios with bounded clamps and a stable fallback when all collapse to zero.
+function normalizeUnderrealmCrewRoleRatios(ratios, ratioMin, ratioMax, fallback) {
+  const minRatio = clamp(Number(ratioMin ?? 0), 0, 1);
+  const maxRatio = clamp(Number(ratioMax ?? 1), 0, 1);
+  const lower = Math.min(minRatio, maxRatio);
+  const upper = Math.max(minRatio, maxRatio);
+  const source = ratios && typeof ratios === 'object' ? ratios : {};
+  const normalized = {
+    minerRatio: clamp(Number(source.minerRatio ?? 0), lower, upper),
+    haulerRatio: clamp(Number(source.haulerRatio ?? 0), lower, upper),
+    guardRatio: clamp(Number(source.guardRatio ?? 0), lower, upper),
+  };
+  const sum = Number(normalized.minerRatio || 0)
+    + Number(normalized.haulerRatio || 0)
+    + Number(normalized.guardRatio || 0);
+  if (sum > 0) {
+    return {
+      minerRatio: clamp(normalized.minerRatio / sum, 0, 1),
+      haulerRatio: clamp(normalized.haulerRatio / sum, 0, 1),
+      guardRatio: clamp(normalized.guardRatio / sum, 0, 1),
+    };
+  }
+  const fallbackRoles = fallback && typeof fallback === 'object'
+    ? fallback
+    : { minerRatio: 0.12, haulerRatio: 0.08, guardRatio: 0.05 };
+  return normalizeUnderrealmCrewRoleRatios(fallbackRoles, 0, 1, {
+    minerRatio: 0.12,
+    haulerRatio: 0.08,
+    guardRatio: 0.05,
+  });
+}
+
+// Resolve effective crew controls (surface reserve, depth allocation, role mix) with smoothing+cooldown.
+function resolveUnderrealmCrewGovernorDecision(state, config, crew, action) {
+  const governorConfig = getUnderrealmCrewGovernorConfig(config);
+  const runtime = ensureUnderrealmCrewGovernorRuntime(crew);
+  const underrealmAction = resolveUnderrealmCrewAction(action);
+  const enabled = governorConfig.enabled;
+  const source = enabled && underrealmAction ? 'action' : 'default';
+  const hasActionField = (field) => Boolean(
+    enabled
+      && underrealmAction
+      && Object.prototype.hasOwnProperty.call(underrealmAction, field),
+  );
+  const toSignedBias = (field) => clamp(
+    normalizeUnderrealmGovernorIntent(underrealmAction[field], config, 0.5) * 2 - 1,
+    -1,
+    1,
+  );
+  const targetBias = {
+    surfaceReserveBias: hasActionField('surfaceReserveBias') ? toSignedBias('surfaceReserveBias') : 0,
+    depthAllocationBias: hasActionField('depthAllocationBias') ? toSignedBias('depthAllocationBias') : 0,
+    minerMixBias: hasActionField('minerMixBias') ? toSignedBias('minerMixBias') : 0,
+    haulerMixBias: hasActionField('haulerMixBias') ? toSignedBias('haulerMixBias') : 0,
+    guardMixBias: hasActionField('guardMixBias') ? toSignedBias('guardMixBias') : 0,
+  };
+  const smooth = clamp(Number(governorConfig.smoothingAlpha ?? 0.22), 0, 1);
+  runtime.smoothed.surfaceReserveBias = clamp(
+    Number(runtime.smoothed.surfaceReserveBias || 0)
+      + (targetBias.surfaceReserveBias - Number(runtime.smoothed.surfaceReserveBias || 0)) * smooth,
+    -1,
+    1,
+  );
+  runtime.smoothed.depthAllocationBias = clamp(
+    Number(runtime.smoothed.depthAllocationBias || 0)
+      + (targetBias.depthAllocationBias - Number(runtime.smoothed.depthAllocationBias || 0)) * smooth,
+    -1,
+    1,
+  );
+  runtime.smoothed.minerMixBias = clamp(
+    Number(runtime.smoothed.minerMixBias || 0)
+      + (targetBias.minerMixBias - Number(runtime.smoothed.minerMixBias || 0)) * smooth,
+    -1,
+    1,
+  );
+  runtime.smoothed.haulerMixBias = clamp(
+    Number(runtime.smoothed.haulerMixBias || 0)
+      + (targetBias.haulerMixBias - Number(runtime.smoothed.haulerMixBias || 0)) * smooth,
+    -1,
+    1,
+  );
+  runtime.smoothed.guardMixBias = clamp(
+    Number(runtime.smoothed.guardMixBias || 0)
+      + (targetBias.guardMixBias - Number(runtime.smoothed.guardMixBias || 0)) * smooth,
+    -1,
+    1,
+  );
+
+  const surfaceFloor = Math.min(
+    governorConfig.surfaceReserveRatioMin,
+    governorConfig.surfaceReserveRatioMax,
+  );
+  const surfaceCeil = Math.max(
+    governorConfig.surfaceReserveRatioMin,
+    governorConfig.surfaceReserveRatioMax,
+  );
+  const depthFloor = Math.min(
+    governorConfig.depthWeightGrowthMin,
+    governorConfig.depthWeightGrowthMax,
+  );
+  const depthCeil = Math.max(
+    governorConfig.depthWeightGrowthMin,
+    governorConfig.depthWeightGrowthMax,
+  );
+  const roleBase = crew.roles && typeof crew.roles === 'object'
+    ? crew.roles
+    : { minerRatio: 0.12, haulerRatio: 0.08, guardRatio: 0.05 };
+  const candidate = {
+    surfaceReserveRatio: clamp(
+      Number(crew.surfaceReserveRatio || 0)
+        + Number(runtime.smoothed.surfaceReserveBias || 0) * governorConfig.surfaceReserveBiasMax,
+      surfaceFloor,
+      surfaceCeil,
+    ),
+    depthWeightGrowth: clamp(
+      Number(crew.depthWeightGrowth || 0)
+        + Number(runtime.smoothed.depthAllocationBias || 0) * governorConfig.depthAllocationBiasMax,
+      depthFloor,
+      depthCeil,
+    ),
+    roles: normalizeUnderrealmCrewRoleRatios({
+      minerRatio: Number(roleBase.minerRatio || 0)
+        + Number(runtime.smoothed.minerMixBias || 0) * governorConfig.roleMixBiasMax,
+      haulerRatio: Number(roleBase.haulerRatio || 0)
+        + Number(runtime.smoothed.haulerMixBias || 0) * governorConfig.roleMixBiasMax,
+      guardRatio: Number(roleBase.guardRatio || 0)
+        + Number(runtime.smoothed.guardMixBias || 0) * governorConfig.roleMixBiasMax,
+    }, governorConfig.roleRatioMin, governorConfig.roleRatioMax, roleBase),
+  };
+
+  const applied = runtime.applied && typeof runtime.applied === 'object'
+    ? runtime.applied
+    : {};
+  const appliedRoles = applied.roles && typeof applied.roles === 'object'
+    ? applied.roles
+    : roleBase;
+  const depthRange = Math.max(1e-6, depthCeil - depthFloor);
+  const surfaceDelta = Math.abs(
+    Number(candidate.surfaceReserveRatio || 0) - Number(applied.surfaceReserveRatio || 0),
+  );
+  const depthDelta = Math.abs(
+    Number(candidate.depthWeightGrowth || 0) - Number(applied.depthWeightGrowth || 0),
+  ) / depthRange;
+  const roleDelta = Math.max(
+    Math.abs(Number(candidate.roles.minerRatio || 0) - Number(appliedRoles.minerRatio || 0)),
+    Math.abs(Number(candidate.roles.haulerRatio || 0) - Number(appliedRoles.haulerRatio || 0)),
+    Math.abs(Number(candidate.roles.guardRatio || 0) - Number(appliedRoles.guardRatio || 0)),
+  );
+  const majorDelta = Math.max(surfaceDelta, depthDelta, roleDelta);
+  const majorChange = majorDelta >= governorConfig.majorReallocationThreshold;
+  const tick = Math.max(0, Math.floor(Number(state && state.tick || 0)));
+  const lastReallocationTick = Math.max(0, Math.floor(Number(runtime.lastReallocationTick || 0)));
+  const ticksSinceReallocation = tick > 0 && lastReallocationTick > 0
+    ? Math.max(0, tick - lastReallocationTick)
+    : Number.MAX_SAFE_INTEGER;
+  const holdByCooldown = majorChange
+    && governorConfig.reallocationCooldownTicks > 0
+    && ticksSinceReallocation < governorConfig.reallocationCooldownTicks;
+
+  const effective = holdByCooldown
+    ? {
+      surfaceReserveRatio: clamp(
+        Number(applied.surfaceReserveRatio ?? crew.surfaceReserveRatio ?? 0),
+        surfaceFloor,
+        surfaceCeil,
+      ),
+      depthWeightGrowth: clamp(
+        Number(applied.depthWeightGrowth ?? crew.depthWeightGrowth ?? 0),
+        depthFloor,
+        depthCeil,
+      ),
+      roles: normalizeUnderrealmCrewRoleRatios(appliedRoles, 0, 1, roleBase),
+    }
+    : candidate;
+
+  const controlChanged = (
+    Math.abs(Number(effective.surfaceReserveRatio || 0) - Number(applied.surfaceReserveRatio || 0)) > 1e-6
+    || Math.abs(Number(effective.depthWeightGrowth || 0) - Number(applied.depthWeightGrowth || 0)) > 1e-6
+    || Math.abs(Number(effective.roles.minerRatio || 0) - Number(appliedRoles.minerRatio || 0)) > 1e-6
+    || Math.abs(Number(effective.roles.haulerRatio || 0) - Number(appliedRoles.haulerRatio || 0)) > 1e-6
+    || Math.abs(Number(effective.roles.guardRatio || 0) - Number(appliedRoles.guardRatio || 0)) > 1e-6
+  );
+  if (!holdByCooldown && controlChanged) {
+    runtime.applied = {
+      surfaceReserveRatio: Number(effective.surfaceReserveRatio || 0),
+      depthWeightGrowth: Number(effective.depthWeightGrowth || 0),
+      roles: {
+        minerRatio: Number(effective.roles.minerRatio || 0),
+        haulerRatio: Number(effective.roles.haulerRatio || 0),
+        guardRatio: Number(effective.roles.guardRatio || 0),
+      },
+    };
+    runtime.lastReallocationTick = tick;
+  }
+
+  runtime.source = source;
+  runtime.holdByCooldown = holdByCooldown;
+  runtime.cooldownTicksRemaining = holdByCooldown
+    ? Math.max(0, governorConfig.reallocationCooldownTicks - Math.max(0, ticksSinceReallocation))
+    : 0;
+  runtime.lastDecisionTick = tick;
+  runtime.lastTargetBias = targetBias;
+  runtime.lastMajorDelta = Number(majorDelta || 0);
+  runtime.lastMajorChange = majorChange;
+
+  return {
+    source,
+    surfaceReserveRatio: Number(effective.surfaceReserveRatio || 0),
+    depthWeightGrowth: Number(effective.depthWeightGrowth || 0),
+    roles: normalizeUnderrealmCrewRoleRatios(effective.roles, 0, 1, roleBase),
+  };
+}
+
 // Reset assignment maps and counters for an Underrealm crew block.
 function resetCrewAssignments(crew) {
   if (!crew || typeof crew !== 'object') {
@@ -1695,6 +2053,11 @@ function resetCrewAssignments(crew) {
   crew.membersByDepth = {};
   crew.totalAssigned = 0;
   crew.surfaceAdults = 0;
+  if (crew.governor && typeof crew.governor === 'object') {
+    crew.governor.lastAssignedTotal = 0;
+    crew.governor.lastAssignedByDepth = {};
+    crew.governor.lastRolesByDepth = {};
+  }
 }
 
 // Split total crew count across unlocked depths using a linear weight ramp.

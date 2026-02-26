@@ -37,6 +37,7 @@ Think of it as a living systems sandbox: you tune config, press run, and watch t
 - 🧱 Underrealm V2 rollout: champion-gated floor unlock chain + 10-level armory progression + readiness-gated expedition dispatch, now with a high-impact Dwarf Champion command layer (deterministic vacancy auto-promotion, readiness boost, retry-cooldown reduction, champion-HP suppression, party-only duel-round extension, and frontier exploration/Deep Lift acceleration) plus contested-frontier-first champion targeting, deep warning hard-guard dispatch rails, per-depth failure-streak cooldown escalation, and dedicated deep telemetry cues.
 - 📦 Telemetry stockpile compaction: weapon/armor tier inventories are grouped into compact aggregate bars so the panel stays readable in long runs.
 - 📊 Underrealm-aware AI loop: PPO observation now includes deep combat/progression signals, with benchmark/regression reports exposing compact underrealm KPIs seed-by-seed.
+- 🤝 Diplomacy-aware AI loop: PPO observation/reward now include world-event state, contract timing pressure, external-camp pressure, and schism legitimacy/pressure channels.
 - 🗺️ Map Focus default: no side telemetry column; `h` opens a full-screen paged telemetry Data Center while the map keeps full width.
 - 🪟 Terminal-aware layout: with `display.autoSize` the map follows your terminal size (max caps optional), and live resize can keep world geometry locked to avoid infrastructure reflow resets.
 - 🪟 In-map Ops Snapshot: a top-right status stack with core runtime signals (time, population, underrealm + view) and a fixed keyboard-command row, without letting roads/buildings/pathing use that carved space.
@@ -189,9 +190,13 @@ Canonical promotion now owns best-checkpoint writes: wrapper training disables i
 
 Jobs prioritization now reads the governor envelope first, while keeping legacy AI weight payloads compatible.
 Trade governor hooks now support advisory `trade` intents for merchant reserve, rival caravan contests, and opportunity completion timing.
+Contract governor hooks now support advisory `contracts` commit timing (`commitIntent`) with near-expiry force-complete guardrails.
+Ruins governor hooks now support advisory `ruins` stances for warning-zone dispatch tolerance and mithril reinforcement posture, while readiness/champion guardrails remain unchanged.
+Underrealm crew governor hooks now support advisory `underrealm` biases for surface reserve, depth allocation, and role mix (miner/hauler/guard), with smoothing and major-reallocation cooldown guardrails; defaults now lean conservative to keep deep-survival outcomes stable in regression gates.
 Building governor hooks now support advisory `building` ranking signals for housing/economy/defense/special queues, with guardrails still enforced by the existing structure checks.
+External camps governor hooks now support advisory `externalCamps` stances for militia support renewal and raider tribute handling, with critical-collapse force-compliance guardrails.
 Telemetry now exposes compact governor signals directly in `Pressure`, `Diplomacy`, and `Operations` so policy intent can be inspected live.
-Training action heads now include governor pseudo-action IDs when enabled; if feature/action shapes change, restart training with `--fresh`.
+Training action heads now include governor pseudo-action IDs when enabled (`gov_trade_*`, `gov_contract_*`, `gov_ruins_*`, `gov_underrealm_*`, `gov_building_*`, `gov_external_*`); if feature/action shapes change, restart training with `--fresh`.
 
 ## Four runs to try ⚡
 

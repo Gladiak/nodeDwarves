@@ -928,7 +928,7 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
 ### Underrealm operations 🕳️
 
 - Runtime placement and activation:
-  - `updateUnderrealm(state, config)` is called every simulation tick from `simulation/index.js`, after role assignment and before ruins/housing/job scheduling.
+  - `updateUnderrealm(state, config, action)` is called every simulation tick from `simulation/index.js`, after role assignment and before ruins/housing/job scheduling.
   - If `underrealm.enabled=false` (or underrealm state is missing), all `underrealmDuty` flags are cleared and no deep logic runs.
   - Underrealm gameplay state is active regardless of current map view depth (`activeDepth` is a view selector, not a simulation gate).
 - First-depth discovery gate (`underrealm.discovery.*`):
@@ -945,6 +945,14 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
     - `max_underrealm_ratio`: maximum adult share allowed for deep duty.
   - Assignable delvers are distributed across unlocked depths using weighted depth ramp (`depth_weight_growth`), biasing deeper layers.
   - Per-depth role counts are derived from `underrealm.crew.roles.*` (normalized as weights, then split to counts).
+  - Underrealm crew governor posture (M5):
+    - `action.underrealm.surfaceReserveBias` shifts effective surface reserve within `ai.governors.underrealm.surfaceReserveRatioMin/Max`.
+    - `action.underrealm.depthAllocationBias` shifts depth distribution slope within `ai.governors.underrealm.depthWeightGrowthMin/Max`.
+    - `action.underrealm.minerMixBias|haulerMixBias|guardMixBias` shifts role mix before normalization and split.
+    - Action-driven posture is smoothed by `ai.governors.underrealm.smoothingAlpha` to reduce per-tick oscillation.
+    - Major posture flips are held inside `ai.governors.underrealm.reallocationCooldownTicks` when change exceeds `majorReallocationThreshold`.
+    - Default stability envelope is conservative (`surfaceReserveBiasMax=0.14`, `depthAllocationBiasMax=0.12`, `roleMixBiasMax=0.12`, `surfaceReserveRatioMin=0.34`, `reallocationCooldownTicks=60`) to reduce deterministic underrealm death spikes.
+    - If no underrealm action payload is provided, fallback remains the legacy base crew config (`underrealm.crew.*`).
   - Assigned delvers get `dwarf.underrealmDuty={ active, depth, role }`, are removed from surface jobs immediately, and are excluded from:
     - surface job scheduler (`jobs.js`)
     - surface role planners (`roles.js`)
@@ -1230,6 +1238,7 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
     - readiness score >= floor `min_score` (when hard gate enabled), where score includes weighted offense/defense/support plus optional Dwarf Champion readiness command bonus.
     - deep warning hard guard can also block (`warning_deep_guard`) when mapped depth is high and score is below configured warning-zone ratio threshold.
     - if the contested frontier champion is on retry cooldown, dispatch is blocked with `champion_cooldown`.
+    - when gate status is `warning`, `action.ruins.warningDispatchIntent` can hold dispatch below `ai.governors.ruins.warningDispatchIntentThreshold` (fallback remains legacy warning dispatch when no action intent is provided).
 - Party size:
   - Desired size is `ruins.rooms[].partySize`, clamped to `ruins.expedition.partySizeMin/Max`.
   - If idle adults are fewer than `partySizeMin`, no expedition starts.
@@ -1278,6 +1287,7 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - Enabled by `ruins.mithrilReinforcement.enabled`.
   - Only available from room index `ruins.mithrilReinforcement.minRoom` (1-based).
   - Consumes `ruins.mithrilReinforcement.cost` and adds `ruins.mithrilReinforcement.powerBonus`.
+  - `action.ruins.mithrilReinforcementIntent` can hold reinforcement spending below `ai.governors.ruins.mithrilReinforcementIntentThreshold` (fallback remains legacy auto-use when no action intent is provided).
 - Artifacts and drop rates (on successful expedition only):
   - Number of rolls: `ruins.rooms[].artifactRolls`.
   - Per roll chance: `artifactChance + guardianBonus + artifactChanceBonus`.
@@ -1328,9 +1338,13 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
 
 - `contracts.js` runs a timed single-active-contract loop with faction reputation and temporary boons.
 - Lifecycle:
-  - if active contract exists: check instant fulfillment first, then expiry fail check.
+  - if active contract exists: check affordability first, then governor commit timing decision, then expiry fail check.
   - if none active and spawn timer elapsed: roll/create next offer.
   - next spawn tick is always rescheduled on completion/failure/no-offer.
+  - contract governor timing:
+    - `action.contracts.commitIntent` can hold affordable completion until intent exceeds `ai.governors.contracts.commitIntentThreshold`.
+    - near expiry, completion is force-committed by `ai.governors.contracts.forceCompleteTicks`.
+    - optional post-commit reserve guardrails can be applied via `ai.governors.contracts.reserveMinStockpileRatios.*`.
 - Offer generation:
   - picks one random faction from `contracts.factions`.
   - request resources sampled from `allowedResources`.
@@ -1383,8 +1397,10 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
     - caravans can be intercepted while crossing active raider influence zones.
   - `militia`: periodic support contracts consume configured supplies and maintain additive raid-defense bonus.
     - bonus scales with positive faction reputation (`contracts.reputations`) and decays when support is skipped.
+    - `action.externalCamps.militiaSupportIntent` can hold renewal when below `ai.governors.externalCamps.militiaIntentThreshold` (fallback remains legacy auto-renew when no action intent is provided).
   - `raider`: periodic tribute demands; refusal raises hostility and can trigger skirmish stockpile losses.
     - hostility drives ongoing raid pressure multipliers and decays slowly over time.
+    - `action.externalCamps.raiderTributeIntent` gates tribute payment via `ai.governors.externalCamps.raiderTributeIntentThreshold`; critical-collapse force-compliance can still pay tribute when enabled (`forceComplianceOnCritical` + `criticalStockpileFloor`).
 - Influence zones:
   - each role projects a Manhattan-radius zone (`externalCamps.influence.*Radius`).
   - influence can scale village-facing external-camp modifiers (`useForModifiers`), so map position matters in addition to role mix.
@@ -1499,10 +1515,10 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
   - `World` keeps contract/alchemy windows and one `World log` line for the latest event signal.
     - Long `World log` entries wrap up to 3 telemetry rows (instead of hard truncation) for readability.
   - `Pressure` reports shortage priorities (`state.lastPriorities`), key stockpile target ratios, raid pressure, and compact jobs-governor priorities.
-  - `Diplomacy` is the trade/diplomacy block (merchant status/flows, external camp mix/effects, convoy activity/interception risk, contracts, world-event cadence/counters, plus trade-governor intents).
+  - `Diplomacy` is the trade/diplomacy block (merchant status/flows, external camp mix/effects, convoy activity/interception risk, contracts, world-event cadence/counters, plus trade + contracts + external-camps governor intents).
   - `Deep Signals` consolidates world-event cadence/totals plus contract reliability for late-game monitoring.
     - Its `World log` mirror also wraps to multiple rows (up to 3).
-  - `Operations` reports adult workforce split, job mix, build pipeline, 200-tick stockpile deltas, building-governor ranking/bias signals, and production-vs-infrastructure load split.
+  - `Operations` reports adult workforce split, job mix, build pipeline, 200-tick stockpile deltas, building/ruins/underrealm governor advisory signals, and production-vs-infrastructure load split.
   - `AI Explainability` reads `state.lastDecisionTrace` to expose top pressure drivers, shortage score decomposition (including boost context), world pressure context, and governor intent source (`action` vs `default`).
   - `Endgame` reports a checklist path for cycle reset pacing (ruins rooms, artifacts, post-artifact window, trigger arm), plus ETA reason when blocked/pending.
   - `Lore` summarizes myths/traditions and ruins progress without bottom overlays.
@@ -1540,12 +1556,20 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
   - Feature order is defined by `featureNames`; defaults live in the file.
   - Applies policy-side observation normalization when `normalization.observation` metadata is present in the checkpoint.
   - Emits fail-fast warnings if normalization metadata version/shape is incompatible with runtime feature shape.
-  - Normalizes actions to a governor-ready envelope (`jobs.weights`, `festivalIntent`, optional `trade`/`building`) and mirrors legacy `weights` for compatibility.
+  - Normalizes actions to a governor-ready envelope (`jobs.weights`, `festivalIntent`, optional `trade`/`contracts`/`ruins`/`underrealm`/`building`/`externalCamps`) and mirrors legacy `weights` for compatibility.
   - Supports explicit governor pseudo action-ids in policy `resources`:
     - trade: `gov_trade_reserve_ratio_bias`, `gov_trade_contest_intent`, `gov_trade_opportunity_intent`
+    - contracts: `gov_contract_commit_intent`
+    - ruins: `gov_ruins_warning_dispatch_intent`, `gov_ruins_mithril_reinforcement_intent`
+    - underrealm: `gov_underrealm_surface_reserve_bias`, `gov_underrealm_depth_allocation_bias`, `gov_underrealm_miner_mix_bias`, `gov_underrealm_hauler_mix_bias`, `gov_underrealm_guard_mix_bias`
     - building: `gov_building_housing_weight`, `gov_building_economy_weight`, `gov_building_defense_weight`, `gov_building_special_weight`, `gov_building_mine_bias`, `gov_building_upgrade_bias`
+    - external camps: `gov_external_militia_support_intent`, `gov_external_raider_tribute_intent`
   - Trade intents currently consumed at runtime: `reserveRatioBias`, `contestIntent`, `opportunityIntent`.
+  - Contract intents currently consumed at runtime: `commitIntent`.
+  - Ruins intents currently consumed at runtime: `warningDispatchIntent`, `mithrilReinforcementIntent`.
+  - Underrealm intents currently consumed at runtime: `surfaceReserveBias`, `depthAllocationBias`, `minerMixBias`, `haulerMixBias`, `guardMixBias`.
   - Building intents currently consumed at runtime: class weights (`housing/economy/defense/special`) plus advisory `mineBias` and `upgradeBias`.
+  - External-camps intents currently consumed at runtime: `militiaSupportIntent`, `raiderTributeIntent`.
 - `src/ai_policy.js`
   - Thin wrapper used by `app.js`.
 
@@ -1579,9 +1603,9 @@ Clan dynamics add heterogeneity and longer-horizon trade-offs. To keep PPO stabl
 - Keep eval runs deterministic (fixed seeds) to measure policy robustness.
 - Consider a curriculum: start with clans disabled or reduced bonuses, then ramp up.
 - Use slightly higher entropy early to explore clan/role/job combinations.
-- Observations include clan shares and ruins status (active, cooldown, progress, artifacts); retrain with `--fresh` if you change them.
+- Observations include clan shares, ruins status, and diplomacy/governance channels (world events, contracts, external camps, schism); retrain with `--fresh` if you change feature shape.
 - Reward shaping can emphasize ruins outcomes via `ai.reward.ruinsSuccess`, `ai.reward.ruinsArtifact`, `ai.reward.ruinsFailure`, and `ai.reward.ruinsRoomClear`, plus festivals via `ai.reward.festival_active`, `ai.reward.festival_start`, and `ai.reward.festival_intent`.
-- Reward stack now supports bounded delta channels (`ai.reward.*Delta`) and deep progression signals (Underrealm/Myths) with optional clipping guardrails (`deltaClip`, `eventClip`, `totalClip`) to reduce reward spikes.
+- Reward stack now supports bounded delta channels (`ai.reward.*Delta`), deep progression signals (Underrealm/Myths), and diplomacy outcome/pressure channels (`ai.reward.diplomacy*`) with optional clipping guardrails (`deltaClip`, `eventClip`, `totalClip`) to reduce reward spikes.
 - Training curriculum now includes dedicated stress slices:
   - `underrealm_push`: earlier/faster deep unlock-readiness exposure.
   - `compound_crisis`: stacked scarcity + housing + weather + raid pressure.

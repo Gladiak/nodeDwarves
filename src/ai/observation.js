@@ -3,6 +3,9 @@
 const { clamp } = require('../utils');
 const { getStockpileTarget } = require('../simulation/resources');
 const { getFestivalObservation } = require('../simulation/festivals');
+const { getWorldEventObservation } = require('../simulation/world_events');
+const { getExternalCampStatus } = require('../simulation/external_camps');
+const { getSchismStatus } = require('../simulation/schism');
 const { getClanList, getClanShare } = require('../clans');
 
 // Build a full observation object from the current state.
@@ -25,6 +28,10 @@ function buildObservation(state, config) {
   const underrealmObservation = buildUnderrealmObservation(state, config);
   const mythsObservation = buildMythsObservation(state, config);
   const festivalObservation = getFestivalObservation(state, config);
+  const worldEventsObservation = buildWorldEventsObservation(state, config);
+  const contractsObservation = buildContractsObservation(state, config);
+  const externalCampsObservation = buildExternalCampsObservation(state, config);
+  const schismObservation = buildSchismObservation(state, config);
   const clanShares = getClanShares(state, config);
 
   return {
@@ -41,6 +48,10 @@ function buildObservation(state, config) {
     underrealm: underrealmObservation,
     myths: mythsObservation,
     festival: festivalObservation,
+    worldEvents: worldEventsObservation,
+    contracts: contractsObservation,
+    externalCamps: externalCampsObservation,
+    schism: schismObservation,
     clanShares,
   };
 }
@@ -91,6 +102,36 @@ function buildFeatures(obs, resource, config, featureNames) {
   const festivalTimeLeft = clamp(Number(festival.timeLeft ?? 0), 0, 1);
   const festivalEligible = clamp(Number(festival.eligible ?? 0), 0, 1);
   const festivalCostRatio = clamp(Number(festival.costRatio ?? 0), 0, 1);
+  const worldEvents = obs.worldEvents || {};
+  const worldEventActive = clamp(Number(worldEvents.active ?? 0), 0, 1);
+  const worldEventOfferPhase = clamp(Number(worldEvents.offerPhase ?? 0), 0, 1);
+  const worldEventOfferReady = clamp(Number(worldEvents.offerReady ?? 0), 0, 1);
+  const worldEventTimeLeft = clamp(Number(worldEvents.timeLeft ?? 0), 0, 1);
+  const worldEventSpawnImminence = clamp(Number(worldEvents.spawnImminence ?? 0), 0, 1);
+  const worldEventPressure = clamp(Number(worldEvents.pressure ?? 0), 0, 1);
+  const contracts = obs.contracts || {};
+  const contractActive = clamp(Number(contracts.active ?? 0), 0, 1);
+  const contractReady = clamp(Number(contracts.ready ?? 0), 0, 1);
+  const contractTimeLeft = clamp(Number(contracts.timeLeft ?? 0), 0, 1);
+  const contractFailurePressure = clamp(Number(contracts.failurePressure ?? 0), 0, 1);
+  const contractReputation = clamp(Number(contracts.reputation ?? 0), 0, 1);
+  const contractPressure = clamp(Number(contracts.pressure ?? 0), 0, 1);
+  const externalCamps = obs.externalCamps || {};
+  const externalCampActiveRatio = clamp(Number(externalCamps.activeRatio ?? 0), 0, 1);
+  const externalCampRaiderPressure = clamp(Number(externalCamps.raiderPressure ?? 0), 0, 1);
+  const externalCampCaravanRisk = clamp(Number(externalCamps.caravanRisk ?? 0), 0, 1);
+  const externalCampMilitiaSupport = clamp(Number(externalCamps.militiaSupport ?? 0), 0, 1);
+  const externalCampTradeInfluence = clamp(Number(externalCamps.tradeInfluence ?? 0), 0, 1);
+  const externalCampPressure = clamp(Number(externalCamps.pressure ?? 0), 0, 1);
+  const schism = obs.schism || {};
+  const schismPressure = clamp(Number(schism.pressure ?? 0), 0, 1);
+  const schismLegitimacy = clamp(Number(schism.legitimacy ?? 0), 0, 1);
+  const schismPhase = clamp(Number(schism.phase ?? 0), 0, 1);
+  const schismDoctrineRevelry = clamp(Number(schism.doctrineRevelry ?? 0), 0, 1);
+  const schismRitualOpen = clamp(Number(schism.ritualOpen ?? 0), 0, 1);
+  const schismRitualActive = clamp(Number(schism.ritualActive ?? 0), 0, 1);
+  const schismClimaxActive = clamp(Number(schism.climaxActive ?? 0), 0, 1);
+  const schismInstability = clamp(Number(schism.instability ?? 0), 0, 1);
   const clanShares = obs.clanShares || {};
 
   const values = {
@@ -128,6 +169,32 @@ function buildFeatures(obs, resource, config, featureNames) {
     festivalTimeLeft,
     festivalEligible,
     festivalCostRatio,
+    worldEventActive,
+    worldEventOfferPhase,
+    worldEventOfferReady,
+    worldEventTimeLeft,
+    worldEventSpawnImminence,
+    worldEventPressure,
+    contractActive,
+    contractReady,
+    contractTimeLeft,
+    contractFailurePressure,
+    contractReputation,
+    contractPressure,
+    externalCampActiveRatio,
+    externalCampRaiderPressure,
+    externalCampCaravanRisk,
+    externalCampMilitiaSupport,
+    externalCampTradeInfluence,
+    externalCampPressure,
+    schismPressure,
+    schismLegitimacy,
+    schismPhase,
+    schismDoctrineRevelry,
+    schismRitualOpen,
+    schismRitualActive,
+    schismClimaxActive,
+    schismInstability,
   };
   const mythDefs = (config && config.myths && config.myths.definitions) || {};
   for (const mythId of Object.keys(mythDefs)) {
@@ -145,6 +212,252 @@ function buildFeatures(obs, resource, config, featureNames) {
     : Object.keys(values);
 
   return names.map((name) => Number(values[name] ?? 0));
+}
+
+// Build world-event pressure observation scalars.
+function buildWorldEventsObservation(state, config) {
+  const worldConfig = (config && config.worldEvents) || {};
+  const fallback = {
+    active: 0,
+    offerPhase: 0,
+    offerReady: 0,
+    timeLeft: 0,
+    spawnImminence: 0,
+    pressure: 0,
+  };
+  if (worldConfig.enabled === false) {
+    return fallback;
+  }
+  const world = getWorldEventObservation(state, config) || {};
+  const active = world.active ? 1 : 0;
+  const offerPhase = world.phase === 'offer' ? 1 : 0;
+  const offerReady = clamp(Number(world.offerReady || 0), 0, 1);
+  const timeLeft = clamp(Number(world.timeLeft || 0), 0, 1);
+  const spawnImminence = getWorldEventSpawnImminence(state, config);
+  const pressure = clamp(
+    active * 0.35
+      + offerPhase * 0.2
+      + (offerPhase > 0 ? (1 - offerReady) * 0.2 : 0)
+      + (offerPhase > 0 ? timeLeft * 0.15 : 0)
+      + spawnImminence * 0.1,
+    0,
+    1,
+  );
+  return {
+    active,
+    offerPhase,
+    offerReady,
+    timeLeft,
+    spawnImminence,
+    pressure,
+  };
+}
+
+// Build contract governance observation scalars.
+function buildContractsObservation(state, config) {
+  const contractsConfig = (config && config.contracts) || {};
+  const fallback = {
+    active: 0,
+    ready: 0,
+    timeLeft: 0,
+    failurePressure: 0,
+    reputation: 0,
+    expiryPressure: 0,
+    pressure: 0,
+  };
+  if (contractsConfig.enabled === false) {
+    return fallback;
+  }
+  const contractsState = state && state.contracts && typeof state.contracts === 'object'
+    ? state.contracts
+    : null;
+  if (!contractsState) {
+    return fallback;
+  }
+  const activeContract = contractsState.active && typeof contractsState.active === 'object'
+    ? contractsState.active
+    : null;
+  const tick = Math.max(0, Number(state && state.tick || 0));
+  const expiryTicks = Math.max(1, Number(contractsConfig.expiryTicks || 0));
+  const active = activeContract ? 1 : 0;
+  const ticksLeft = activeContract ? Math.max(0, Number(activeContract.expiresAt || 0) - tick) : 0;
+  const timeLeft = active > 0 ? clamp(ticksLeft / expiryTicks, 0, 1) : 0;
+  const ready = activeContract && canFulfillContractRequest(state && state.stockpile, activeContract.requested)
+    ? 1
+    : 0;
+  const stats = contractsState.stats && typeof contractsState.stats === 'object'
+    ? contractsState.stats
+    : {};
+  const successes = Math.max(0, Number(stats.successes || 0));
+  const failures = Math.max(0, Number(stats.failures || 0));
+  const failurePressure = clamp(failures / Math.max(1, successes + failures + 1), 0, 1);
+  const reputations = contractsState.reputations && typeof contractsState.reputations === 'object'
+    ? Object.values(contractsState.reputations)
+    : [];
+  let reputation = 0;
+  if (reputations.length > 0) {
+    const sum = reputations.reduce((acc, value) => acc + clamp(Number(value || 0), -1, 1), 0);
+    const average = sum / reputations.length;
+    reputation = clamp((average + 1) / 2, 0, 1);
+  }
+  const expiryPressure = active > 0
+    ? clamp((1 - ready) * clamp((0.35 - timeLeft) / 0.35, 0, 1), 0, 1)
+    : 0;
+  const pressure = clamp(
+    active * 0.2
+      + (active > 0 ? (1 - ready) * 0.25 : 0)
+      + failurePressure * 0.35
+      + expiryPressure * 0.2,
+    0,
+    1,
+  );
+  return {
+    active,
+    ready,
+    timeLeft,
+    failurePressure,
+    reputation,
+    expiryPressure,
+    pressure,
+  };
+}
+
+// Check whether stockpile can fulfill an active contract request.
+function canFulfillContractRequest(stockpile, requested) {
+  if (!stockpile || typeof stockpile !== 'object' || !requested || typeof requested !== 'object') {
+    return false;
+  }
+  for (const [resourceId, amount] of Object.entries(requested)) {
+    if (Number(stockpile[resourceId] || 0) < Number(amount || 0)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// Build external-camp pressure observation scalars.
+function buildExternalCampsObservation(state, config) {
+  const status = getExternalCampStatus(state, config);
+  const fallback = {
+    activeRatio: 0,
+    raiderPressure: 0,
+    caravanRisk: 0,
+    militiaSupport: 0,
+    tradeInfluence: 0,
+    pressure: 0,
+  };
+  if (!status) {
+    return fallback;
+  }
+  const maxActive = Math.max(1, Number(config && config.externalCamps && config.externalCamps.maxActive || 1));
+  const activeRatio = clamp(Number(status.activeCount || 0) / maxActive, 0, 1);
+  const modifiers = status.modifiers && typeof status.modifiers === 'object'
+    ? status.modifiers
+    : {};
+  const raiderPressure = clamp(Number(modifiers.raiderPressure || 0), 0, 1);
+  const caravanRisk = clamp(Number(modifiers.caravanInterceptRisk || 0), 0, 1);
+  const tradeInfluence = clamp(Number(modifiers.tradeInfluence || 0), 0, 1);
+  const militiaBonus = Math.max(0, Number(modifiers.raidDefenseBonus || 0));
+  const militiaCap = Math.max(
+    0.01,
+    Number(config && config.externalCamps && config.externalCamps.militia
+      && config.externalCamps.militia.maxRaidDefenseBonus
+      || 0.18),
+  );
+  const militiaSupport = clamp(militiaBonus / militiaCap, 0, 1);
+  const pressure = clamp(
+    raiderPressure * 0.5
+      + caravanRisk * 0.2
+      + activeRatio * 0.15
+      + (activeRatio > 0 ? (1 - militiaSupport) * 0.1 : 0)
+      + (activeRatio > 0 ? (1 - tradeInfluence) * 0.05 : 0),
+    0,
+    1,
+  );
+  return {
+    activeRatio,
+    raiderPressure,
+    caravanRisk,
+    militiaSupport,
+    tradeInfluence,
+    pressure,
+  };
+}
+
+// Build schism governance observation scalars.
+function buildSchismObservation(state, config) {
+  const status = getSchismStatus(state, config);
+  const fallback = {
+    pressure: 0,
+    legitimacy: 0,
+    phase: 0,
+    doctrineRevelry: 0,
+    ritualOpen: 0,
+    ritualActive: 0,
+    climaxActive: 0,
+    instability: 0,
+  };
+  if (!status) {
+    return fallback;
+  }
+  const pressure = clamp(Number(status.pressure || 0), 0, 1);
+  const legitimacy = clamp(Number(status.legitimacy || 0), 0, 1);
+  const phase = normalizeSchismPhase(status.phase);
+  const doctrineRevelry = status.doctrine === 'revelry' ? 1 : 0;
+  const ritualOpen = status.ritualOpen === true ? 1 : 0;
+  const ritualActive = status.ritualActive === true ? 1 : 0;
+  const climaxActive = status.climaxActive === true ? 1 : 0;
+  const instability = clamp(
+    pressure * 0.5
+      + (1 - legitimacy) * 0.35
+      + phase * 0.15,
+    0,
+    1,
+  );
+  return {
+    pressure,
+    legitimacy,
+    phase,
+    doctrineRevelry,
+    ritualOpen,
+    ritualActive,
+    climaxActive,
+    instability,
+  };
+}
+
+// Normalize schism phase names to a scalar in 0..1.
+function normalizeSchismPhase(phaseName) {
+  const map = {
+    concord: 0,
+    murmurs: 1,
+    fracture: 2,
+    reckoning: 3,
+  };
+  const index = Number(map[String(phaseName || '').toLowerCase()]);
+  if (!Number.isFinite(index)) {
+    return 0;
+  }
+  return clamp(index / 3, 0, 1);
+}
+
+// Resolve how close we are to the next world-event spawn.
+function getWorldEventSpawnImminence(state, config) {
+  const worldState = state && state.worldEvents && typeof state.worldEvents === 'object'
+    ? state.worldEvents
+    : null;
+  if (!worldState) {
+    return 0;
+  }
+  const spawnRange = (config && config.worldEvents && config.worldEvents.spawnRangeTicks) || {};
+  const window = Math.max(
+    1,
+    Number(spawnRange.max ?? spawnRange.min ?? 1),
+  );
+  const tick = Math.max(0, Number(state && state.tick || 0));
+  const nextSpawnTick = Math.max(0, Number(worldState.nextSpawnTick || 0));
+  const nextSpawnIn = Math.max(0, nextSpawnTick - tick);
+  return clamp(1 - (nextSpawnIn / window), 0, 1);
 }
 
 // Build weather observation scalars.
