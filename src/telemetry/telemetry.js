@@ -7,6 +7,10 @@ const { getAlchemyStatus } = require("../simulation/alchemy");
 const { getWorldEventStatus } = require("../simulation/world_events");
 const { getExternalCampStatus } = require("../simulation/external_camps");
 const { getSchismStatus } = require("../simulation/schism");
+const {
+  formatWarriorDisplayNameById,
+  resolveWarriorLeagueEpicName,
+} = require("../simulation/warriors");
 const { getColorConfig, applyColor } = require("../render/colors");
 const { fitLine, wrapLine } = require("../render/format");
 
@@ -24,7 +28,7 @@ const TELEMETRY_LAYOUT = [
   {
     id: "deep_meta",
     title: "Deep & Meta",
-    sections: ["underrealm", "lore", "deepSignals"],
+    sections: ["underrealm", "lore", "deepSignals", "warriorLeague"],
   },
 ];
 
@@ -443,6 +447,15 @@ function buildTelemetrySectionModels(snapshot) {
         snapshot.columnWidth,
       ),
     },
+    {
+      column: "right",
+      key: "warriorLeague",
+      label: "Warrior League",
+      rows: buildWarriorLeagueSectionRows(
+        snapshot.state,
+        snapshot.config,
+      ),
+    },
   ];
 }
 
@@ -506,6 +519,241 @@ function countEntriesByValue(entries, selector) {
     counts[value] = (counts[value] || 0) + 1;
   }
   return counts;
+}
+
+// Resolve normalized warrior runtime state.
+function resolveWarriorRuntimeState(state) {
+  return state && state.warriors && typeof state.warriors === "object"
+    ? state.warriors
+    : null;
+}
+
+// Deterministic fallback ordering for fighter ranking without a tournament table.
+function compareWarriorFallbackFighters(left, right) {
+  if (Math.abs(Number(right.rating || 0) - Number(left.rating || 0)) > 1e-9) {
+    return Number(right.rating || 0) - Number(left.rating || 0);
+  }
+  if (Math.abs(Number(right.valor || 0) - Number(left.valor || 0)) > 1e-9) {
+    return Number(right.valor || 0) - Number(left.valor || 0);
+  }
+  if (Number(right.riskWins || 0) !== Number(left.riskWins || 0)) {
+    return Number(right.riskWins || 0) - Number(left.riskWins || 0);
+  }
+  if (Number(right.wins || 0) !== Number(left.wins || 0)) {
+    return Number(right.wins || 0) - Number(left.wins || 0);
+  }
+  if (Number(left.spawnIndex || 0) !== Number(right.spawnIndex || 0)) {
+    return Number(left.spawnIndex || 0) - Number(right.spawnIndex || 0);
+  }
+  return String(left.dwarfId || "").localeCompare(String(right.dwarfId || ""));
+}
+
+// Build top-fighter entries from league ranking (or deterministic runtime fallback).
+function buildWarriorTopFighterEntries(state, config, limit = 5, nameCache = null) {
+  const maxEntries = Math.max(0, Math.floor(Number(limit || 0)));
+  if (maxEntries <= 0) {
+    return [];
+  }
+  const runtime = resolveWarriorRuntimeState(state);
+  const league = runtime && runtime.league && typeof runtime.league === "object"
+    ? runtime.league
+    : {};
+  const ranking = Array.isArray(league.ranking) ? league.ranking : [];
+  const dwarves = Array.isArray(state && state.dwarves) ? state.dwarves : [];
+  const byId = new Map(
+    dwarves.map((dwarf) => [String(dwarf && dwarf.id || ""), dwarf]),
+  );
+
+  if (ranking.length > 0) {
+    return ranking
+      .slice(0, maxEntries)
+      .map((entry, index) => {
+        const dwarfId = String(entry && entry.dwarfId || "");
+        const dwarf = byId.get(dwarfId) || null;
+        const warrior = dwarf && dwarf.warrior && typeof dwarf.warrior === "object"
+          ? dwarf.warrior
+          : {};
+        const points = Number(entry && entry.points);
+        return {
+          rank: Math.max(1, Math.floor(Number(entry && entry.rank || index + 1))),
+          dwarfId,
+          label: formatWarriorDisplayNameById(dwarfId, state, config, nameCache),
+          clanId: entry && entry.clanId ? String(entry.clanId) : (dwarf && dwarf.clanId ? String(dwarf.clanId) : ""),
+          rating: clamp(Number(warrior.rating || 0), 0, 1),
+          valor: clamp(Number(warrior.valor || 0), 0, 1),
+          wins: Math.max(0, Math.floor(Number(warrior.wins || entry && entry.wins || 0))),
+          losses: Math.max(0, Math.floor(Number(warrior.losses || entry && entry.losses || 0))),
+          riskWins: Math.max(0, Math.floor(Number(warrior.riskWins || 0))),
+          scars: Array.isArray(warrior.scars) ? warrior.scars.length : 0,
+          titles: Array.isArray(warrior.titles) ? warrior.titles.length : 0,
+          vowId: warrior && warrior.vow ? String(warrior.vow) : null,
+          legacyPoints: Math.max(0, Number(warrior.legacyPoints || 0)),
+          points: Number.isFinite(points) ? Math.max(0, points) : null,
+        };
+      });
+  }
+
+  return dwarves
+    .map((dwarf) => {
+      const warrior = dwarf && dwarf.warrior && typeof dwarf.warrior === "object"
+        ? dwarf.warrior
+        : null;
+      if (!dwarf || !warrior) {
+        return null;
+      }
+      return {
+        dwarfId: String(dwarf.id || ""),
+        spawnIndex: Math.max(0, Math.floor(Number(dwarf.spawnIndex || 0))),
+        clanId: dwarf.clanId ? String(dwarf.clanId) : "",
+        rating: clamp(Number(warrior.rating || 0), 0, 1),
+        valor: clamp(Number(warrior.valor || 0), 0, 1),
+        wins: Math.max(0, Math.floor(Number(warrior.wins || 0))),
+        losses: Math.max(0, Math.floor(Number(warrior.losses || 0))),
+        riskWins: Math.max(0, Math.floor(Number(warrior.riskWins || 0))),
+        scars: Array.isArray(warrior.scars) ? warrior.scars.length : 0,
+        titles: Array.isArray(warrior.titles) ? warrior.titles.length : 0,
+        vowId: warrior && warrior.vow ? String(warrior.vow) : null,
+        legacyPoints: Math.max(0, Number(warrior.legacyPoints || 0)),
+        points: null,
+      };
+    })
+    .filter(Boolean)
+    .sort(compareWarriorFallbackFighters)
+    .slice(0, maxEntries)
+    .map((entry, index) => ({
+      rank: index + 1,
+      dwarfId: entry.dwarfId,
+      label: formatWarriorDisplayNameById(entry.dwarfId, state, config, nameCache),
+      clanId: entry.clanId,
+      rating: entry.rating,
+      valor: entry.valor,
+      wins: entry.wins,
+      losses: entry.losses,
+      riskWins: entry.riskWins,
+      scars: entry.scars,
+      titles: entry.titles,
+      vowId: entry.vowId,
+      legacyPoints: entry.legacyPoints,
+      points: entry.points,
+    }));
+}
+
+// Build Warrior League telemetry rows (leaderboard, top-5 fighters, and marks clarity).
+function buildWarriorLeagueSectionRows(state, config) {
+  const runtime = resolveWarriorRuntimeState(state);
+  if (!runtime || runtime.enabled !== true) {
+    return [
+      "Warrior League: disabled (set warriors.enabled=true).",
+      "Marks (Scars/Titles/Vows): -",
+      "Marks = persistent progression tags: scars (wounds), titles (honors), vows (active oath effects).",
+      "Top 5 fighters: -",
+    ];
+  }
+  const league = runtime.league && typeof runtime.league === "object" ? runtime.league : {};
+  const stats = runtime.stats && typeof runtime.stats === "object" ? runtime.stats : {};
+  const company = runtime.company && typeof runtime.company === "object" ? runtime.company : {};
+  const dwarves = Array.isArray(state && state.dwarves) ? state.dwarves : [];
+  const nameCache = new Map();
+  const topFighters = buildWarriorTopFighterEntries(state, config, 5, nameCache);
+  const seasonId = Math.max(0, Math.floor(Number(league.lastTournamentSeasonId || 0)));
+  const seasonName = league.lastTournamentSeasonName ? String(league.lastTournamentSeasonName) : "";
+  const leagueName = league.lastTournamentLeagueName
+    ? String(league.lastTournamentLeagueName)
+    : resolveWarriorLeagueEpicName(state, config, seasonId);
+  const championId = league.championId
+    ? String(league.championId)
+    : (topFighters[0] ? String(topFighters[0].dwarfId || "") : "");
+  const championLabel = championId
+    ? formatWarriorDisplayNameById(championId, state, config, nameCache)
+    : "none";
+  const ranking = Array.isArray(league.ranking) ? league.ranking : [];
+  const championStanding = championId
+    ? ranking.find((entry) => String(entry && entry.dwarfId || "") === championId)
+    : null;
+  const championClan = championStanding && championStanding.clanId
+    ? String(championStanding.clanId)
+    : "";
+  const championDwarf = championId
+    ? dwarves.find((dwarf) => String(dwarf && dwarf.id || "") === championId)
+    : null;
+  const championWarrior = championDwarf && championDwarf.warrior && typeof championDwarf.warrior === "object"
+    ? championDwarf.warrior
+    : null;
+
+  let totalScars = 0;
+  let totalTitles = 0;
+  let totalVows = 0;
+  let totalLegacyPoints = 0;
+  for (const dwarf of dwarves) {
+    const warrior = dwarf && dwarf.warrior && typeof dwarf.warrior === "object"
+      ? dwarf.warrior
+      : null;
+    if (!warrior) {
+      continue;
+    }
+    totalScars += Array.isArray(warrior.scars) ? warrior.scars.length : 0;
+    totalTitles += Array.isArray(warrior.titles) ? warrior.titles.length : 0;
+    if (warrior.vow) {
+      totalVows += 1;
+    }
+    totalLegacyPoints += Math.max(0, Number(warrior.legacyPoints || 0));
+  }
+
+  const clanScoreById = league.clanScoreById && typeof league.clanScoreById === "object"
+    ? league.clanScoreById
+    : {};
+  const clanSummary = Object.entries(clanScoreById)
+    .map(([clanId, points]) => ({
+      clanId: String(clanId || ""),
+      points: Math.max(0, Number(points || 0)),
+    }))
+    .filter((entry) => entry.clanId)
+    .sort((left, right) => {
+      if (Math.abs(right.points - left.points) > 1e-9) {
+        return right.points - left.points;
+      }
+      return left.clanId.localeCompare(right.clanId);
+    })
+    .slice(0, 3)
+    .map((entry) => `${entry.clanId} ${formatCompactNumber(entry.points)}`)
+    .join(" | ");
+
+  const hallOfFame = Array.isArray(company.hallOfFame) ? company.hallOfFame : [];
+  const hallEntry = hallOfFame[0] && typeof hallOfFame[0] === "object" ? hallOfFame[0] : null;
+  const hallLine = hallEntry
+    ? `Hall of fame: S${Math.max(0, Math.floor(Number(hallEntry.seasonId || 0)))} ${hallEntry.leagueName || resolveWarriorLeagueEpicName(state, config, hallEntry.seasonId)} -> ${formatWarriorDisplayNameById(hallEntry.dwarfId, state, config, nameCache)}`
+    : "Hall of fame: -";
+
+  const rows = [
+    `League: ${leagueName}`,
+    `Season: S${seasonId}${seasonName ? ` ${seasonName}` : ""} | Last tournament tick ${Math.max(0, Math.floor(Number(league.lastTournamentTick || 0)))}`,
+    `Champion: ${championLabel}${championClan ? ` (${championClan})` : ""}`,
+    `League metrics: tournaments ${Math.max(0, Math.floor(Number(stats.tournaments || 0)))}, tie-breaks ${Math.max(0, Math.floor(Number(stats.tieBreaks || 0)))}, upsets ${Math.max(0, Math.floor(Number(stats.upsets || 0)))}, aura ${(clamp(Number(company.legacyAura || 0), 0, 1) * 100).toFixed(1)}%`,
+    `Marks (Scars/Titles/Vows): ${totalScars}/${totalTitles}/${totalVows} | Legacy points ${formatCompactNumber(totalLegacyPoints)}`,
+    "Marks = persistent progression tags: scars (wounds), titles (honors), vows (active oath effects).",
+    championWarrior
+      ? `Champion marks: scars ${Array.isArray(championWarrior.scars) ? championWarrior.scars.length : 0}, titles ${Array.isArray(championWarrior.titles) ? championWarrior.titles.length : 0}, vow ${championWarrior.vow || "-"}, legacy ${formatCompactNumber(Math.max(0, Number(championWarrior.legacyPoints || 0)))}`
+      : "Champion marks: -",
+    "Top 5 fighters:",
+  ];
+
+  if (topFighters.length === 0) {
+    rows.push("- no eligible fighters yet.");
+  } else {
+    for (const fighter of topFighters) {
+      const pointsToken = Number.isFinite(Number(fighter.points))
+        ? ` P${formatCompactNumber(Number(fighter.points || 0))}`
+        : "";
+      const clanToken = fighter.clanId ? ` (${fighter.clanId})` : "";
+      const markToken = `${Math.max(0, Number(fighter.scars || 0))}/${Math.max(0, Number(fighter.titles || 0))}/${fighter.vowId ? 1 : 0}`;
+      rows.push(
+        `#${Math.max(1, Math.floor(Number(fighter.rank || 0)))} ${fighter.label}${clanToken} | R${clamp(Number(fighter.rating || 0), 0, 1).toFixed(2)} V${clamp(Number(fighter.valor || 0), 0, 1).toFixed(2)} W${Math.max(0, Math.floor(Number(fighter.wins || 0)))}-${Math.max(0, Math.floor(Number(fighter.losses || 0)))} RW${Math.max(0, Math.floor(Number(fighter.riskWins || 0)))} Mk ${markToken}${pointsToken}`,
+      );
+    }
+  }
+  rows.push(`Clan board: ${clanSummary || "-"}`);
+  rows.push(hallLine);
+  return rows;
 }
 
 // Build deep-meta signal rows that complement underrealm/lore pages.

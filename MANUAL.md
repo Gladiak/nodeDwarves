@@ -25,7 +25,8 @@ npm start
 ```
 
 Runtime controls: `Space` pause/resume, `l` legend panel, `i` dwarf inspect panel,
-`h` telemetry Data Center panel, `←`/`→` change telemetry pages (or browse inspect entries when inspect is open),
+`w` Warrior League modal panel, `h` telemetry Data Center panel,
+`←`/`→` change telemetry pages (or browse inspect entries when inspect is open),
 `↑`/`↓` switch between surface and unlocked underrealm depths,
 `m` export all currently unlocked layers (PNG + SVG), `Shift+M` export all
 unlocked layers with structures/roads.
@@ -419,7 +420,8 @@ Notes:
   - Terminal resize behavior is configured under `display.resize.*`: default profile keeps resize handling enabled but does not reflow world geometry (`reflow_world=false`) to avoid live road/village/temple resets.
   - Space toggles pause/resume during the live simulation.
   - Press `i` to open/close the dwarf inspect panel (works during pause or live); use `←`/`→` to browse spawn order.
-  - Press `h` to open/close the telemetry Data Center panel (`Dashboard`, `Overview + Deep`, `Economy`).
+  - Press `w` to open/close the Warrior League modal panel (champion/top-5/marks analytics).
+  - Press `h` to open/close the telemetry Data Center panel (`Dashboard`, `Overview + Deep`, `Economy`, `Warrior League`).
   - While telemetry is open, use `←`/`→` to switch pages.
   - Press `↑` / `↓` to switch map view between surface and unlocked underrealm depths.
   - Press `l` to toggle the legend overlay panel (works during pause or live).
@@ -531,6 +533,44 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
 - Visibility and AI:
   - Telemetry exposes fixed operational sections (World, Underrealm, Population, Pressure, Lore, Structures, Diplomacy, Stockpile, Operations) instead of a dedicated clans block.
   - AI observation includes `clanShare_<id>` features, so policy training can adapt to composition changes.
+
+### Warrior scaffolding 🏅
+
+- `simulation/warriors.js` provides deterministic warrior bootstrap helpers used during dwarf initialization and newborn spawn.
+- Phase-0/1 scope builds deterministic foundations:
+  - config-driven warrior schema (`warriors.*`) with defaults and normalization,
+  - deterministic per-dwarf base combat profile (`strength`, `dexterity`, `vitality`),
+  - condition snapshot from runtime mood signals (`morale`, `stress`, `fatigue`),
+  - derived bootstrap scores (`baseCombatAptitude`, `heroPotential`),
+  - top-level runtime container (`state.warriors`) for upcoming league/tournament progression.
+- Phase-2 adds active ruins integration when `warriors.enabled=true`:
+  - risky dispatches (warning-zone or depth gate) rank candidates by deterministic `dispatchScore`,
+  - safe dispatch keeps legacy ordering posture but avoids immediate reuse of exhausted/resting dwarves when healthy alternatives exist,
+  - post-expedition progression updates live warrior metrics (`wins/losses/retreats`, `rating`, `valor`, `riskWins`, expedition counters),
+  - outcome-driven rest windows (`nextEligibleExpeditionTick`) and direct condition updates (`fatigue/stress/morale`) make exhaustion explicit and prevent repeat spam.
+- Phase-3 adds seasonal tournament runtime:
+  - cadence-gated Warrior League bracket executes at season boundaries (`season.globalIndex` + `warriors.tournaments.interval_seasons`),
+  - deterministic seed + duel resolution uses practical trait inputs (`rating`, `valor`, `heroPotential`, condition score, base aptitude, champion survivals),
+  - league state tracks clan score table, ranked fighters, season champion, tie-break/upset counters, and hall-of-fame entries,
+  - optional champion sync wires season winner to `underrealm.combat.dwarfChampion.activeDwarfId`.
+- Phase-4 adds persistent hero progression and bounded legacy bonuses:
+  - scars and titles are assigned by deterministic rule tables (`warriors.marks.*`) on event-driven milestones (expedition outcomes, champion promotion),
+  - vows are assigned deterministically by rule priority (`warriors.vows.rules`) and read from vow effect catalog (`warriors.vows.catalog`),
+  - vow effects include explicit downside multipliers (`rating_loss_multiplier`, `fatigue_gain_multiplier`, `stress_gain_multiplier`) to enforce tradeoff design,
+  - legacy points are earned only on progression events (expedition/tournament outcomes), capped (`warriors.bonuses.legacy.points_cap`), and converted via diminishing curves into:
+    - personal bonus (dispatch + duel influence),
+    - company aura (`state.warriors.company.legacyAura`) for active roster members.
+- Phase-5 adds observability/UX for competitive tracking:
+  - Warrior League season names are now deterministic epic names (same lore-technique family used for dwarf names),
+  - warrior telemetry adds explicit `Marks (Scars/Titles/Vows)` semantics, champion marks, clan board, hall-of-fame recap, and top-5 fighter table,
+  - all warrior-facing labels now use `Name Surname <id>` instead of plain dwarf id,
+  - Data Center includes a dedicated `Warrior League` page,
+  - `render/warrior_panel.js` provides a dedicated modal (toggle `w`) for focused champion/top-5 analytics.
+- Phase-6 adds AI/training integration for Warrior League:
+  - AI observation now exports bounded aggregate warrior channels (`warriorEnabled`, `warriorRosterCoverage`, `warriorEliteScore`, `warriorLegacyAura`, `warriorChampionMomentum`, `warriorTournamentRecency`),
+  - compact transport (`obsVector`) now maps these channels with parity against legacy JSON observation payloads,
+  - training feature list now includes the warrior channels by default; upgrading from pre-phase-6 checkpoints requires `--fresh`.
+- Default profile now ships with `warriors.enabled=true`, so Warrior League runtime is active from run start.
 
 ### Jobs and economy 📦
 
@@ -1446,6 +1486,7 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
   - When underrealm depth view is active, it renders the selected depth terrain layer and hides surface entities.
   - Selects a stable subset of dwarves to keep the map readable (`display.dwarves.maxVisible`; set `< 0` to skip dwarf rendering).
   - Applies the dwarf inspect overlay when `display.inspect_panel.enabled` is true.
+  - Applies the Warrior League modal overlay when `display.warrior_panel.enabled` is true.
   - Applies the telemetry overlay when `display.telemetry_panel.enabled` is true.
   - Applies the map-save confirmation overlay when `display.save_panel.enabled` is true.
 
@@ -1469,7 +1510,7 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
   - Panel size is controlled by `display.legend_panel.width`/`height`.
 
 - `telemetry/telemetry_panel.js`
-  - Builds a paged telemetry Data Center with three pages: `Dashboard`, `Overview + Deep`, and `Economy`.
+  - Builds a paged telemetry Data Center with four pages: `Dashboard`, `Overview + Deep`, `Economy`, and `Warrior League`.
   - `Dashboard` is an analyst-style summary layer: KPI snapshot, ASCII trend charts (sparkline rows), forecast/bottleneck context (runway, net flow, volatility, momentum), risk gauge + pressure decomposition, workforce/job distribution bars, event timeline windows, and deterministic action hints.
   - Dashboard trend charts are sampled as snapshots (not every tick): cadence and history window are tunable via `display.telemetry_panel.dashboard.snapshot_interval_ticks` and `display.telemetry_panel.dashboard.history_points` (default profile: `120t` cadence, `32` points).
   - Trend deltas are computed on a tick-based lookback window (not fixed sample count), so interpretation stays stable when sampling cadence changes.
@@ -1524,7 +1565,7 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
   - `Lore` summarizes myths/traditions and ruins progress without bottom overlays.
 
 - `render/legend.js`
-  - Footer controls are built for `Space`, `l`, `i`, `h`, `←/→` (telemetry pages or inspect), `↑/↓`, and `m`.
+  - Footer controls are built for `Space`, `l`, `i`, `w`, `h`, `←/→` (telemetry pages or inspect), `↑/↓`, and `m`.
   - Legend/map entries are built from `config.json` symbols and resource nodes for the overlay panel.
   - Uses `symbols.*` and `resources.labels.*` for readable names.
 
@@ -1545,12 +1586,15 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
 ### JS inference 🧠
 
 - `src/ai/observation.js`
-  - Converts state to observation features (stockpile ratios, node ratios, needs, weather, raids, housing, ruins, myths, festivals, and underrealm combat/progression signals).
+  - Converts state to observation features (stockpile ratios, node ratios, needs, weather, raids, housing, ruins, myths, festivals, underrealm combat/progression signals, and warrior aggregates).
   - Adds normalized ratios and flags used by the policy feature list.
   - Underrealm V2 features include:
     - `underrealmDepthProgress`, `underrealmChampionProgress`, `underrealmFrontierContested`
     - `underrealmChampionCooldown`, `underrealmReadinessScore`, `underrealmReadinessGap`
     - `underrealmReadinessBlocked`, `underrealmReadinessWarning`, `underrealmCombatPressure`
+  - Warrior phase-6 features include:
+    - `warriorEnabled`, `warriorRosterCoverage`, `warriorEliteScore`
+    - `warriorLegacyAura`, `warriorChampionMomentum`, `warriorTournamentRecency`
 - `src/ai/policy.js`
   - Loads JSON policies (linear or MLP) and maps outputs to the governor action envelope.
   - Feature order is defined by `featureNames`; defaults live in the file.
@@ -1603,7 +1647,7 @@ Clan dynamics add heterogeneity and longer-horizon trade-offs. To keep PPO stabl
 - Keep eval runs deterministic (fixed seeds) to measure policy robustness.
 - Consider a curriculum: start with clans disabled or reduced bonuses, then ramp up.
 - Use slightly higher entropy early to explore clan/role/job combinations.
-- Observations include clan shares, ruins status, and diplomacy/governance channels (world events, contracts, external camps, schism); retrain with `--fresh` if you change feature shape.
+- Observations include clan shares, ruins status, diplomacy/governance channels (world events, contracts, external camps, schism), and Warrior League aggregate channels; retrain with `--fresh` if you change feature shape.
 - Reward shaping can emphasize ruins outcomes via `ai.reward.ruinsSuccess`, `ai.reward.ruinsArtifact`, `ai.reward.ruinsFailure`, and `ai.reward.ruinsRoomClear`, plus festivals via `ai.reward.festival_active`, `ai.reward.festival_start`, and `ai.reward.festival_intent`.
 - Reward stack now supports bounded delta channels (`ai.reward.*Delta`), deep progression signals (Underrealm/Myths), and diplomacy outcome/pressure channels (`ai.reward.diplomacy*`) with optional clipping guardrails (`deltaClip`, `eventClip`, `totalClip`) to reduce reward spikes.
 - Training curriculum now includes dedicated stress slices:
@@ -1827,6 +1871,7 @@ If you work on the UI/UX in the terminal:
 
 - `src/render/index.js` orchestrates the frame.
 - `src/render/map_inset_panel.js` owns the carved in-map Ops Snapshot rendering.
+- `src/render/warrior_panel.js` owns the dedicated Warrior League modal overlay (`w`).
 - `src/render/grid.js` handles terrain symbols and colors.
 - `src/telemetry/telemetry.js` provides telemetry section builders and formatting.
 - `src/telemetry/telemetry_panel.js` is the paged telemetry Data Center overlay.
@@ -1944,15 +1989,17 @@ Quick checklist:
     - `simulation/alchemy.js` → alchemy rite lifecycle and modifiers
     - `simulation/contracts.js` → contract offers, reputations, and boons
     - `simulation/world_events.js` → global event lifecycle and temporary world modifiers
-    - `simulation/external_camps.js` → long-lived external faction camps and map-level diplomacy pressure
-    - `simulation/schism.js` → run-scale social schism arc, doctrine shifts, ritual windows, and climax events
-    - `simulation/roads.js` → road planning/build queue/pathing
+  - `simulation/external_camps.js` → long-lived external faction camps and map-level diplomacy pressure
+  - `simulation/schism.js` → run-scale social schism arc, doctrine shifts, ritual windows, and climax events
+  - `simulation/warriors.js` → Warrior League phase-0/5 helpers (combat profile bootstrap, risk-aware dispatch ranking, expedition progression, seasonal tournaments, persistent marks/vows/legacy bonuses, epic league naming, and fighter-label formatting)
+  - `simulation/roads.js` → road planning/build queue/pathing
     - `simulation/underrealm.js` → crew assignment, deep economy/exploration, and hostile deep raids
     - `simulation/temple.js` → Temple of Ancestors progression, effects, and prestige
     - `simulation/ruins.js` → expeditions, artifacts, and set bonuses
   - `state/` → initial state + terrain generation
   - `render/` → ASCII output (grid, legend, inspect overlays, frame orchestration)
     - `render/map_inset_panel.js` → carved in-map Ops Snapshot component (stable counters + keyboard hints)
+    - `render/warrior_panel.js` → Warrior League modal overlay (champion lineage, top-5 fighters, marks/legacy summary)
   - `telemetry/` → telemetry extraction and Data Center composition
     - `telemetry/telemetry.js` → telemetry section builders and formatting helpers
     - `telemetry/telemetry_panel.js` → paged in-game telemetry Data Center with section pages and full-height telemetry body

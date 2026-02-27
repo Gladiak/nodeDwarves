@@ -40,6 +40,7 @@ This file defines how to implement new features in a consistent, stable way.
 - `src/simulation/external_camps.js`: long-lived external faction camps with trade, militia support, and raider pressure.
 - `src/simulation/schism.js`: run-scale social schism arc (pressure/legitimacy, doctrine shifts, ritual windows, and climax events).
 - `src/simulation/temple.js`: Temple of Ancestors stages, site selection, bonuses, and prestige.
+- `src/simulation/warriors.js`: Warrior League helpers for deterministic per-dwarf combat profiles, risk-aware expedition dispatch, and seasonal tournament runtime/champion sync.
 - `src/simulation.js`: thin wrapper for `src/simulation/index.js`.
 - `src/state/`: state creation and terrain generation.
 - `src/state/index.js`: state orchestrator.
@@ -47,6 +48,7 @@ This file defines how to implement new features in a consistent, stable way.
 - `src/render/`: render helpers (grid, header, legend, colors, format, overlays).
 - `src/render/index.js`: render orchestrator.
 - `src/render/map_inset_panel.js`: carved top-right in-map operations snapshot panel (tick/year/cycle, population age split, underrealm unlock info, keyboard hints).
+- `src/render/warrior_panel.js`: Warrior League analytics modal overlay (champion lineage, top-5 fighters, marks/legacy summary).
 - `src/telemetry/`: telemetry section and Data Center panel builders.
 - `src/telemetry/telemetry.js`: telemetry section builders and formatting helpers.
 - `src/telemetry/telemetry_panel.js`: in-game telemetry reference overlay panel (section and metric explanations).

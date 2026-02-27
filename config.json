@@ -57,6 +57,11 @@
         "snapshot_interval_ticks": 120
       }
     },
+    "warrior_panel": {
+      "enabled": true,
+      "width": 118,
+      "height": 34
+    },
     "save_panel": {
       "enabled": true,
       "width": 64,
@@ -2250,6 +2255,12 @@
           "schismRitualOpen",
           "schismClimaxActive",
           "schismInstability",
+          "warriorEnabled",
+          "warriorRosterCoverage",
+          "warriorEliteScore",
+          "warriorLegacyAura",
+          "warriorChampionMomentum",
+          "warriorTournamentRecency",
           "clanShare_abyssborn",
           "clanShare_khorg_embers",
           "clanShare_threshold_wardens",
@@ -4805,6 +4816,256 @@
         "ruins_hazard_reduction": 0.05,
         "gather_yield_penalty": 0.05,
         "gather_penalty_resources": ["wood", "stone"]
+      }
+    }
+  },
+  "warriors": {
+    "enabled": true,
+    "profile": {
+      "base_min": 0.25,
+      "base_span": 0.65,
+      "seed_offset": 9101,
+      "strength_salt": 211,
+      "dexterity_salt": 223,
+      "vitality_salt": 239,
+      "condition_weights": {
+        "morale": 0.45,
+        "stress_inverse": 0.3,
+        "fatigue_inverse": 0.25
+      },
+      "aptitude_weights": {
+        "strength": 0.4,
+        "dexterity": 0.35,
+        "vitality": 0.25
+      },
+      "hero_potential_weights": {
+        "base_aptitude": 0.6,
+        "condition": 0.4
+      }
+    },
+    "tournaments": {
+      "enabled": true,
+      "cadence": "season",
+      "interval_seasons": 1,
+      "min_participants": 4,
+      "max_participants": 16,
+      "sync_underrealm_champion": true,
+      "seed_weights": {
+        "rating": 0.35,
+        "valor": 0.2,
+        "hero_potential": 0.2,
+        "condition": 0.15,
+        "champion_survivals": 0.1
+      },
+      "duel_weights": {
+        "seed_score": 0.45,
+        "base_aptitude": 0.35,
+        "condition": 0.2
+      },
+      "scoring": {
+        "duel_win_points": 3,
+        "duel_loss_points": 1,
+        "bye_points": 1,
+        "champion_bonus_points": 5
+      },
+      "progression": {
+        "rating_win_delta": 0.01,
+        "rating_loss_delta": -0.006,
+        "champion_rating_bonus": 0.02,
+        "valor_win_delta": 0.008,
+        "valor_loss_delta": -0.004,
+        "champion_valor_bonus": 0.02
+      }
+    },
+    "progression": {
+      "enabled": true,
+      "rating_start": 0.5,
+      "valor_start": 0.5
+    },
+    "marks": {
+      "enabled": true,
+      "scars": {
+        "enabled": true,
+        "max_count": 6,
+        "rules": [
+          {
+            "id": "scar_broken_guard",
+            "outcomes": ["failure"],
+            "losses_min": 1
+          },
+          {
+            "id": "scar_ashen_step",
+            "outcomes": ["retreat"],
+            "retreats_min": 1
+          },
+          {
+            "id": "scar_deep_mark",
+            "outcomes": ["failure", "retreat"],
+            "expeditions_min": 5,
+            "losses_min": 2
+          }
+        ]
+      },
+      "titles": {
+        "enabled": true,
+        "max_count": 8,
+        "champion_id": "title_league_champion",
+        "rules": [
+          {
+            "id": "title_pathfinder",
+            "expeditions_min": 3,
+            "wins_min": 2,
+            "rating_min": 0.45
+          },
+          {
+            "id": "title_underrealm_vanguard",
+            "expeditions_min": 6,
+            "wins_min": 4,
+            "risk_wins_min": 2,
+            "rating_min": 0.58,
+            "valor_min": 0.58
+          },
+          {
+            "id": "title_clan_paragon",
+            "expeditions_min": 10,
+            "wins_min": 7,
+            "risk_wins_min": 4,
+            "losses_max": 3,
+            "rating_min": 0.72,
+            "valor_min": 0.7
+          }
+        ]
+      }
+    },
+    "vows": {
+      "enabled": true,
+      "allow_reassignment": false,
+      "rules": [
+        {
+          "id": "stone_oath",
+          "priority": 10,
+          "expeditions_min": 3,
+          "wins_min": 2,
+          "rating_min": 0.5
+        },
+        {
+          "id": "ember_oath",
+          "priority": 20,
+          "expeditions_min": 5,
+          "risk_wins_min": 1,
+          "valor_min": 0.55
+        },
+        {
+          "id": "lantern_oath",
+          "priority": 30,
+          "expeditions_min": 8,
+          "wins_min": 5,
+          "rating_min": 0.62,
+          "condition_min": 0.55
+        }
+      ],
+      "catalog": {
+        "stone_oath": {
+          "dispatch_score_bonus": 0.04,
+          "dispatch_score_penalty": 0.01,
+          "tournament_seed_bonus": 0.02,
+          "tournament_duel_bonus": 0.02,
+          "rating_loss_multiplier": 1.15,
+          "fatigue_gain_multiplier": 1.18,
+          "stress_gain_multiplier": 1.06
+        },
+        "ember_oath": {
+          "dispatch_score_bonus": 0.03,
+          "risky_success_bonus": 0.03,
+          "tournament_seed_bonus": 0.03,
+          "tournament_duel_bonus": 0.03,
+          "rating_loss_multiplier": 1.08,
+          "fatigue_gain_multiplier": 1.08,
+          "stress_gain_multiplier": 1.25
+        },
+        "lantern_oath": {
+          "dispatch_score_bonus": 0.025,
+          "dispatch_score_penalty": 0.015,
+          "tournament_seed_bonus": 0.04,
+          "tournament_duel_bonus": 0.025,
+          "rating_loss_multiplier": 1.04,
+          "fatigue_gain_multiplier": 1.2,
+          "stress_gain_multiplier": 1.05
+        }
+      }
+    },
+    "bonuses": {
+      "enabled": true,
+      "legacy_cap": 1,
+      "legacy": {
+        "enabled": true,
+        "points_cap": 120,
+        "diminishing_alpha": 1.25,
+        "personal_scale": 18,
+        "personal_cap": 0.28,
+        "personal_dispatch_scale": 0.45,
+        "personal_duel_scale": 0.5,
+        "company_scale": 96,
+        "company_cap": 0.34,
+        "company_roster_size": 12,
+        "company_dispatch_scale": 0.2,
+        "points": {
+          "expedition_success": 1,
+          "expedition_failure": 0.35,
+          "expedition_retreat": 0.25,
+          "risky_success_bonus": 0.45,
+          "tournament_duel_win": 0.6,
+          "tournament_duel_loss": 0.15,
+          "tournament_champion_bonus": 1.8
+        }
+      }
+    },
+    "expeditions": {
+      "enabled": true,
+      "risk_depth_min": 3,
+      "condition_min_score": 0.35,
+      "fallback_condition_min_score": 0.22,
+      "strict_risk_condition_gate": true,
+      "champion_survivals_full_scale": 6,
+      "dispatch_weights": {
+        "rating": 0.4,
+        "valor": 0.2,
+        "hero_potential": 0.2,
+        "champion_survivals": 0.1,
+        "clan_class_fit": 0.1
+      },
+      "rest_ticks": {
+        "success": 80,
+        "failure": 140,
+        "retreat": 110
+      },
+      "progression": {
+        "rating_delta": {
+          "success": 0.04,
+          "failure": -0.05,
+          "retreat": -0.025
+        },
+        "valor_delta": {
+          "success": 0.03,
+          "failure": -0.035,
+          "retreat": -0.015
+        },
+        "fatigue_gain": {
+          "success": 0.08,
+          "failure": 0.16,
+          "retreat": 0.12
+        },
+        "stress_gain": {
+          "success": 0.02,
+          "failure": 0.08,
+          "retreat": 0.05
+        },
+        "morale_delta": {
+          "success": 0.02,
+          "failure": -0.05,
+          "retreat": -0.03
+        },
+        "risk_win_bonus": 0.02
       }
     }
   },

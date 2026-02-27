@@ -703,10 +703,10 @@ function buildMapInsetLines(state, config, width, height, themeState) {
       {
         text: pickFittingInsetText(
           [
-            '[␠]⏯ [h]▦ [i]◎ [l]≡ [⇆] [⇅] [m]⤓ [M]⤓+',
-            '␠⏯ h▦ i◎ l≡ ⇆ ⇅ m⤓ M⤓+',
-            'h i l ⇆ ⇅ m M+ ␠',
-            'h i l LR UD m M+ Sp',
+            '[␠]⏯ [h]▦ [w]⚔ [i]◎ [l]≡ [⇆] [⇅] [m]⤓ [M]⤓+',
+            '␠⏯ h▦ w⚔ i◎ l≡ ⇆ ⇅ m⤓ M⤓+',
+            'h w i l ⇆ ⇅ m M+ ␠',
+            'h w i l LR UD m M+ Sp',
           ],
           width,
         ),

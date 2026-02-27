@@ -85,6 +85,12 @@ EXTENDED_FEATURE_NAMES = [
     "schismRitualActive",
     "schismClimaxActive",
     "schismInstability",
+    "warriorEnabled",
+    "warriorRosterCoverage",
+    "warriorEliteScore",
+    "warriorLegacyAura",
+    "warriorChampionMomentum",
+    "warriorTournamentRecency",
 ]
 DYNAMIC_FEATURE_PREFIXES = ("mythFlag_", "clanShare_")
 FEATURE_NAME_SET = set(DEFAULT_FEATURE_NAMES + EXTENDED_FEATURE_NAMES)
@@ -2410,6 +2416,13 @@ def build_features(obs, resource, feature_names):
     schism_ritual_active = clamp(float(schism.get("ritualActive", 0.0)), 0.0, 1.0)
     schism_climax_active = clamp(float(schism.get("climaxActive", 0.0)), 0.0, 1.0)
     schism_instability = clamp(float(schism.get("instability", 0.0)), 0.0, 1.0)
+    warriors = obs.get("warriors") or {}
+    warrior_enabled = clamp(float(warriors.get("enabled", 0.0)), 0.0, 1.0)
+    warrior_roster_coverage = clamp(float(warriors.get("rosterCoverage", 0.0)), 0.0, 1.0)
+    warrior_elite_score = clamp(float(warriors.get("eliteScore", 0.0)), 0.0, 1.0)
+    warrior_legacy_aura = clamp(float(warriors.get("legacyAura", 0.0)), 0.0, 1.0)
+    warrior_champion_momentum = clamp(float(warriors.get("championMomentum", 0.0)), 0.0, 1.0)
+    warrior_tournament_recency = clamp(float(warriors.get("tournamentRecency", 0.0)), 0.0, 1.0)
     clan_shares = obs.get("clanShares") or {}
 
     feature_map = {
@@ -2473,6 +2486,12 @@ def build_features(obs, resource, feature_names):
         "schismRitualActive": schism_ritual_active,
         "schismClimaxActive": schism_climax_active,
         "schismInstability": schism_instability,
+        "warriorEnabled": warrior_enabled,
+        "warriorRosterCoverage": warrior_roster_coverage,
+        "warriorEliteScore": warrior_elite_score,
+        "warriorLegacyAura": warrior_legacy_aura,
+        "warriorChampionMomentum": warrior_champion_momentum,
+        "warriorTournamentRecency": warrior_tournament_recency,
     }
     values = []
     for name in feature_names:

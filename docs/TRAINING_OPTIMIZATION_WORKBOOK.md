@@ -1,6 +1,6 @@
 # Training Optimization Workbook
 
-Last updated: 2026-02-21
+Last updated: 2026-02-27
 Project: NodeDwarves AI training pipeline
 Scope: End-to-end implementation tracking for the 3 approved optimization solutions
 
@@ -10,6 +10,20 @@ Scope: End-to-end implementation tracking for the 3 approved optimization soluti
 - This file is now the historical implementation archive (timeline, decisions, validation snapshots).
 - Current operational status and active validation cadence are tracked in `docs/TRAINING_STATUS.md`.
 - Remaining external closure item: OQ-6.1 needs one remote GitHub Actions run (`Training Quality Gates`) with uploaded artifacts.
+
+## 0.1) Post-fresh gate closure snapshot (2026-02-27)
+
+- Local fresh training cycle completed and followed by full local gate sweep.
+- Gate sequence executed:
+  - `npm run ai:validate:canonical` -> `PASS` (`score=3.77368007093475`)
+  - `npm run ai:validate:gate` -> `PASS` (`standard/underrealm/governance` all green)
+  - `npm run ai:validate:risk` -> `PASS` (`r001` completed, `r002` check `ok`)
+- Latest retained local artifacts:
+  - `debug/canonical_master_latest.json`
+  - `debug/canonical_master_latest.md`
+  - `debug/regression_report_1772202786690.json`
+  - `debug/regression_report_1772202786690.md`
+- Post-validation cleanup executed via `npm run debug:clean` to remove transient run folders while preserving latest canonical/regression outputs.
 
 Artifact retention note (2026-02-17):
 - Historical `[artifact removed]` raw artifacts from older gates were pruned to keep the repository lean.

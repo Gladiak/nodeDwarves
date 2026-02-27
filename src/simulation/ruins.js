@@ -9,6 +9,13 @@ const { getAlchemyMultiplier } = require('./alchemy');
 const { getContractRuinsCombatBonus } = require('./contracts');
 const { getSchismModifier } = require('./schism');
 const { isAdult } = require('./population');
+const {
+  getWarriorsConfig,
+  isWarriorRiskyDispatch,
+  computeWarriorDispatchScore,
+  compareRiskDispatchCandidates,
+  applyWarriorExpeditionOutcome,
+} = require('./warriors');
 
 // Resolve a weighted clan bonus for an expedition effect key.
 function getClanExpeditionBonus(state, config, expedition, effectKey) {
@@ -1072,7 +1079,10 @@ function startExpedition(state, config, ruinsConfig, rooms, startContext = null,
     }
   }
 
-  const selected = idleAdults.slice(0, partySize);
+  const selected = selectExpeditionParty(state, config, idleAdults, partySize, readinessGate);
+  if (selected.length <= 0) {
+    return;
+  }
   const dwarfIds = selected.map((dwarf) => dwarf.id);
   state.jobs = Array.isArray(state.jobs) ? state.jobs : [];
   for (const dwarf of selected) {
@@ -1087,6 +1097,7 @@ function startExpedition(state, config, ruinsConfig, rooms, startContext = null,
 
   const ticks = Math.max(1, Number(room.expeditionTicks || 1));
   const riskMultiplier = Math.max(1, Number(readinessGate.warningRiskMultiplier || 1));
+  const riskyDispatch = isWarriorRiskyDispatch(readinessGate, config);
   const expedition = {
     active: true,
     roomIndex,
@@ -1103,6 +1114,7 @@ function startExpedition(state, config, ruinsConfig, rooms, startContext = null,
       armoryLevel: Math.max(0, Math.floor(Number(readinessGate.armoryLevel || 0))),
       minArmoryLevel: Math.max(1, Math.floor(Number(readinessGate.minArmoryLevel || 1))),
       warningRiskMultiplier: riskMultiplier,
+      riskyDispatch,
       components: {
         offense: Math.max(0, Number(readinessGate.offense || 0)),
         defense: Math.max(0, Number(readinessGate.defense || 0)),
@@ -1759,6 +1771,17 @@ function clearFailureDepthCooldownEscalation(ruins, ruinsConfig, depth) {
   delete ruins.failureHistoryByDepth[String(safeDepth)];
 }
 
+// Map ruins outcome reason into warrior progression outcome buckets.
+function resolveWarriorOutcomeKey(success, reason) {
+  if (success) {
+    return 'success';
+  }
+  if (reason === 'champion_retreat' || reason === 'champion_cooldown') {
+    return 'retreat';
+  }
+  return 'failure';
+}
+
 function finishExpedition(state, config, ruinsConfig, expedition, success, reason, resultMeta = null) {
   const roomIndex = expedition.roomIndex;
   const room = Array.isArray(ruinsConfig.rooms) ? ruinsConfig.rooms[roomIndex] : null;
@@ -1846,6 +1869,20 @@ function finishExpedition(state, config, ruinsConfig, expedition, success, reaso
   }
 
   updateDwarfChampionAfterExpedition(state, config, expedition, resultMeta);
+  applyWarriorExpeditionOutcome(
+    state,
+    config,
+    expedition,
+    resolveWarriorOutcomeKey(success, reason),
+    {
+      tick,
+      riskyDispatch: Boolean(
+        expedition
+        && expedition.readiness
+        && expedition.readiness.riskyDispatch === true,
+      ),
+    },
+  );
 
   const stats = state.ruins.stats || {};
   if (stats.lastOutcomeTick !== tick) {
@@ -2122,6 +2159,60 @@ function resolveRequiredPartyChampionId(state) {
     return '';
   }
   return typeof runtime.activeDwarfId === 'string' ? runtime.activeDwarfId : '';
+}
+
+// Select expedition party with warrior-aware risk dispatch ranking and rest/condition guardrails.
+function selectExpeditionParty(state, config, idleAdults, partySize, readinessGate) {
+  const candidates = Array.isArray(idleAdults) ? idleAdults : [];
+  const desired = Math.max(0, Math.floor(Number(partySize || 0)));
+  if (desired <= 0 || candidates.length === 0) {
+    return [];
+  }
+  const warriors = getWarriorsConfig(config);
+  const expeditionWarriors = warriors.expeditions || {};
+  if (warriors.enabled !== true || expeditionWarriors.enabled === false) {
+    return candidates.slice(0, desired);
+  }
+  const riskyDispatch = isWarriorRiskyDispatch(readinessGate, config);
+  const tick = Math.max(0, Math.floor(Number(state && state.tick || 0)));
+  const profiles = candidates.map((dwarf, legacyIndex) => ({
+    ...computeWarriorDispatchScore(dwarf, config, {
+      tick,
+      riskyDispatch,
+      readiness: readinessGate,
+      state,
+    }),
+    legacyIndex,
+    dwarf,
+  }));
+  if (profiles.length === 0) {
+    return candidates.slice(0, desired);
+  }
+  if (riskyDispatch) {
+    const strictRiskConditionGate = expeditionWarriors.strictRiskConditionGate !== false;
+    const eligible = profiles
+      .filter((profile) => (
+        strictRiskConditionGate
+          ? profile.readyForRiskDispatch === true
+          : true
+      ))
+      .sort(compareRiskDispatchCandidates);
+    if (eligible.length >= desired) {
+      return eligible.slice(0, desired).map((profile) => profile.dwarf);
+    }
+    const eligibleIdSet = new Set(eligible.map((profile) => profile.dwarfId));
+    const fallback = profiles
+      .filter((profile) => !eligibleIdSet.has(profile.dwarfId))
+      .sort(compareRiskDispatchCandidates);
+    return eligible.concat(fallback).slice(0, desired).map((profile) => profile.dwarf);
+  }
+  const safeReady = profiles
+    .filter((profile) => profile.readyForSafeDispatch === true)
+    .sort((left, right) => left.legacyIndex - right.legacyIndex);
+  if (safeReady.length >= desired) {
+    return safeReady.slice(0, desired).map((profile) => profile.dwarf);
+  }
+  return candidates.slice(0, desired);
 }
 
 function getIdleAdults(state, config) {

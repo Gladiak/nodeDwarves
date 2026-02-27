@@ -343,6 +343,17 @@ Underrealm AI observation features (M6):
 - Shape compatibility note: adding/removing/reordering `ai.training.trainer.featureNames` changes model input size, so resume is blocked and training must restart with `--fresh`.
 - M8 compatibility note: Dwarf Champion integration does not change observation feature shape by default; existing M6 feature vectors remain shape-compatible.
 
+Warrior League AI observation features (Phase 6):
+
+- `warriorEnabled`: runtime warrior-system switch as normalized scalar.
+- `warriorRosterCoverage`: adult coverage ratio for dwarves with warrior payloads.
+- `warriorEliteScore`: deterministic top-roster aggregate combat quality scalar.
+- `warriorLegacyAura`: normalized company legacy aura (`state.warriors.company.legacyAura`).
+- `warriorChampionMomentum`: normalized champion quality scalar (rating/valor/hero-potential/condition blend).
+- `warriorTournamentRecency`: normalized recency of latest league tournament tick.
+- Transport parity note: compact `obsVector` and legacy JSON observation now share the same warrior-channel semantics and are validated by contracts.
+- Upgrade note: pre-phase-6 checkpoints are shape-incompatible with the expanded default feature list; restart training with `--fresh`.
+
 Diplomacy/governance observation features (Workstream A):
 
 - World events: `worldEventActive`, `worldEventOfferPhase`, `worldEventOfferReady`, `worldEventTimeLeft`, `worldEventPressure`.

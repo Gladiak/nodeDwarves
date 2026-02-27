@@ -10,6 +10,7 @@ const { applyMapInsetPanel } = require('./map_inset_panel');
 const { getColorConfig, applyColor } = require('./colors');
 const { formatMapLine } = require('./format');
 const { buildInspectPanel, applyInspectPanel } = require('./inspect');
+const { buildWarriorPanel, applyWarriorPanel } = require('./warrior_panel');
 const { buildSavePanel, applySavePanel } = require('./save_panel');
 const { applyTransitionMask, buildTransitionPanel, applyTransitionPanel } = require('./transition');
 const { getTempleRenderTiles } = require('../simulation/temple');
@@ -864,6 +865,11 @@ function renderFrame(state, config, runtime) {
   const telemetryPanel = buildTelemetryPanel(state, config, runtime);
   if (telemetryPanel) {
     applyTelemetryPanel(grid, telemetryPanel, colors);
+  }
+
+  const warriorPanel = buildWarriorPanel(state, config, runtime);
+  if (warriorPanel) {
+    applyWarriorPanel(grid, warriorPanel, colors);
   }
 
   const inspectPanel = buildInspectPanel(state, config, runtime);

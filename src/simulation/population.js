@@ -6,6 +6,7 @@ const { getSeasonModifier } = require('./season');
 const { hasInputs, consumeInputs, getStockpileRatio } = require('./resources');
 const { getMythMultiplier } = require('./myths');
 const { getClanConfig, pickClanId } = require('../clans');
+const { createDwarfWarriorState } = require('./warriors');
 
 // Resolve the clan id for a newborn based on config and parents.
 function resolveNewbornClanId(parentA, parentB, config) {
@@ -904,21 +905,26 @@ function spawnNewborn(state, config, parentA, parentB) {
   const needsTemplate = config.needs.initial || {};
   const aging = (config.population && config.population.aging) || {};
   const clanId = resolveNewbornClanId(parentA, parentB, config);
+  const newbornId = `dwarf_${++state.dwarfCounter}`;
+  const newbornState = {
+    health: 1,
+    morale: 1,
+    moraleBoostBeer: 0,
+    stress: 0,
+    fatigue: 0,
+  };
+  const terrainSeed = state && state.terrain && Number.isFinite(Number(state.terrain.seed))
+    ? Number(state.terrain.seed)
+    : null;
   const newborn = {
-    id: `dwarf_${++state.dwarfCounter}`,
+    id: newbornId,
     spawnIndex: state.dwarfCounter,
     x: parentA ? parentA.x : 0,
     y: parentA ? parentA.y : 0,
     ageTicks: 0,
     lifeStage: 'child',
     needs: { ...needsTemplate },
-    state: {
-      health: 1,
-      morale: 1,
-      moraleBoostBeer: 0,
-      stress: 0,
-      fatigue: 0,
-    },
+    state: newbornState,
     job: null,
     role: null,
     roleCooldown: 0,
@@ -932,6 +938,15 @@ function spawnNewborn(state, config, parentA, parentB) {
     starvationTicks: 0,
     underrealmChampionSurvivals: 0,
   };
+  newborn.warrior = createDwarfWarriorState(
+    newbornId,
+    newborn,
+    config,
+    {
+      terrainSeed,
+      clanId,
+    },
+  );
 
   if (parentA && parentB) {
     if (Math.random() < 0.5) {

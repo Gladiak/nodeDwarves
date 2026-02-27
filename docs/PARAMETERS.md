@@ -42,6 +42,9 @@ Display and layout:
 - `display.telemetry_panel.height`: optional telemetry panel height override in lines (unset = dynamic size, ~98% map height).
 - `display.telemetry_panel.dashboard.history_points`: number of stored dashboard trend snapshots (default profile: `32`; higher = longer window, lower = faster trend turnover).
 - `display.telemetry_panel.dashboard.snapshot_interval_ticks`: ticks between dashboard trend snapshots (default profile: `120`; higher = slower chart scrolling, lower = more reactive charts).
+- `display.warrior_panel.enabled`: enable the Warrior League modal overlay (toggle with `w`).
+- `display.warrior_panel.width`: Warrior League modal width in characters.
+- `display.warrior_panel.height`: Warrior League modal height in lines.
 - `display.save_panel.enabled`: enable the map-export confirmation panel.
 - `display.save_panel.width`: save panel width in characters.
 - `display.save_panel.height`: save panel height in lines.
@@ -1208,6 +1211,140 @@ Clans:
 - `clans.effects.<clan>.gather_yield_penalty`: gather yield penalty (0..1).
 - `clans.effects.<clan>.gather_penalty_resources`: list of gather resources affected by the penalty.
 
+Warriors:
+
+- `warriors.enabled`: enable warrior runtime scaffolding for per-dwarf combat profiles (`dwarf.warrior`) and top-level warrior runtime container (`state.warriors`).
+- `warriors.profile.base_min`: lower bound for deterministic warrior base traits (`strength`, `dexterity`, `vitality`) in 0..1.
+- `warriors.profile.base_span`: additive span for deterministic warrior base traits before clamping in 0..1.
+- `warriors.profile.seed_offset`: deterministic seed offset used by warrior trait generation.
+- `warriors.profile.strength_salt`: deterministic salt for `strength` generation.
+- `warriors.profile.dexterity_salt`: deterministic salt for `dexterity` generation.
+- `warriors.profile.vitality_salt`: deterministic salt for `vitality` generation.
+- `warriors.profile.condition_weights.morale`: weight for morale in warrior condition score.
+- `warriors.profile.condition_weights.stress_inverse`: weight for inverse stress (`1 - stress`) in warrior condition score.
+- `warriors.profile.condition_weights.fatigue_inverse`: weight for inverse fatigue (`1 - fatigue`) in warrior condition score.
+- `warriors.profile.aptitude_weights.strength`: weight for base `strength` in base combat aptitude.
+- `warriors.profile.aptitude_weights.dexterity`: weight for base `dexterity` in base combat aptitude.
+- `warriors.profile.aptitude_weights.vitality`: weight for base `vitality` in base combat aptitude.
+- `warriors.profile.hero_potential_weights.base_aptitude`: weight for base aptitude in hero potential.
+- `warriors.profile.hero_potential_weights.condition`: weight for condition score in hero potential.
+- `warriors.tournaments.enabled`: enable seasonal Warrior League tournament runtime.
+- `warriors.tournaments.cadence`: tournament cadence (`season` currently supported).
+- `warriors.tournaments.interval_seasons`: number of seasons between eligible tournament windows.
+- `warriors.tournaments.min_participants`: minimum adult warrior participants required to run one season tournament.
+- `warriors.tournaments.max_participants`: cap for seeded tournament roster size (top-ranked participants only).
+- `warriors.tournaments.sync_underrealm_champion`: when true, season tournament champion is synced into `underrealm.combat.dwarfChampion.activeDwarfId`.
+- `warriors.tournaments.seed_weights.rating`: seed score weight for warrior `rating`.
+- `warriors.tournaments.seed_weights.valor`: seed score weight for warrior `valor`.
+- `warriors.tournaments.seed_weights.hero_potential`: seed score weight for dynamic `heroPotential`.
+- `warriors.tournaments.seed_weights.condition`: seed score weight for current condition score.
+- `warriors.tournaments.seed_weights.champion_survivals`: seed score weight for normalized `underrealmChampionSurvivals`.
+- `warriors.tournaments.duel_weights.seed_score`: duel-resolution weight for seed score.
+- `warriors.tournaments.duel_weights.base_aptitude`: duel-resolution weight for base combat aptitude.
+- `warriors.tournaments.duel_weights.condition`: duel-resolution weight for live condition score.
+- `warriors.tournaments.scoring.duel_win_points`: clan/individual points awarded to duel winners.
+- `warriors.tournaments.scoring.duel_loss_points`: clan/individual points awarded to duel losers.
+- `warriors.tournaments.scoring.bye_points`: points awarded when one fighter advances by deterministic bye.
+- `warriors.tournaments.scoring.champion_bonus_points`: bonus points awarded to season champion.
+- `warriors.tournaments.progression.rating_win_delta`: rating delta for duel winners.
+- `warriors.tournaments.progression.rating_loss_delta`: rating delta for duel losers.
+- `warriors.tournaments.progression.champion_rating_bonus`: extra rating bonus for final season champion.
+- `warriors.tournaments.progression.valor_win_delta`: valor delta for duel winners.
+- `warriors.tournaments.progression.valor_loss_delta`: valor delta for duel losers.
+- `warriors.tournaments.progression.champion_valor_bonus`: extra valor bonus for final season champion.
+- `warriors.progression.enabled`: bootstrap switch for warrior progression defaults at initialization (`rating_start`, `valor_start`).
+- `warriors.progression.rating_start`: initial warrior rating value in 0..1.
+- `warriors.progression.valor_start`: initial warrior valor value in 0..1.
+- `warriors.marks.enabled`: master switch for scars/titles progression assignment.
+- `warriors.marks.scars.enabled`: enable scar assignment rules.
+- `warriors.marks.scars.max_count`: max number of scar ids persisted per warrior.
+- `warriors.marks.scars.rules[].id`: scar id assigned when the rule thresholds are satisfied.
+- `warriors.marks.scars.rules[].outcomes[]`: expedition outcome filter (`success`, `failure`, `retreat`, `any`) for scar assignment.
+- `warriors.marks.scars.rules[].expeditions_min`: minimum expedition count required for the scar.
+- `warriors.marks.scars.rules[].wins_min`: minimum wins required for the scar.
+- `warriors.marks.scars.rules[].losses_min`: minimum losses required for the scar.
+- `warriors.marks.scars.rules[].retreats_min`: minimum retreats required for the scar.
+- `warriors.marks.scars.rules[].risk_wins_min`: minimum risky wins required for the scar.
+- `warriors.marks.titles.enabled`: enable title assignment rules.
+- `warriors.marks.titles.max_count`: max number of title ids persisted per warrior.
+- `warriors.marks.titles.champion_id`: title id auto-assigned to season tournament champion.
+- `warriors.marks.titles.rules[].id`: title id assigned when thresholds are met.
+- `warriors.marks.titles.rules[].expeditions_min`: minimum expeditions for title eligibility.
+- `warriors.marks.titles.rules[].wins_min`: minimum wins for title eligibility.
+- `warriors.marks.titles.rules[].risk_wins_min`: minimum risky wins for title eligibility.
+- `warriors.marks.titles.rules[].losses_max`: maximum allowed losses for title eligibility.
+- `warriors.marks.titles.rules[].rating_min`: minimum rating for title eligibility.
+- `warriors.marks.titles.rules[].valor_min`: minimum valor for title eligibility.
+- `warriors.vows.enabled`: enable deterministic vow assignment/effects.
+- `warriors.vows.allow_reassignment`: allow replacing an existing vow when a higher-priority rule is met.
+- `warriors.vows.rules[].id`: vow id selected when the rule is satisfied.
+- `warriors.vows.rules[].priority`: deterministic priority (higher first) when multiple vow rules match.
+- `warriors.vows.rules[].clan_id`: optional clan filter for vow eligibility.
+- `warriors.vows.rules[].expeditions_min`: minimum expeditions for vow eligibility.
+- `warriors.vows.rules[].wins_min`: minimum wins for vow eligibility.
+- `warriors.vows.rules[].risk_wins_min`: minimum risky wins for vow eligibility.
+- `warriors.vows.rules[].rating_min`: minimum rating for vow eligibility.
+- `warriors.vows.rules[].valor_min`: minimum valor for vow eligibility.
+- `warriors.vows.rules[].condition_min`: minimum condition score for vow eligibility.
+- `warriors.vows.catalog.<vow>.dispatch_score_bonus`: additive dispatch-score bonus from vow.
+- `warriors.vows.catalog.<vow>.dispatch_score_penalty`: additive dispatch-score penalty from vow (tradeoff downside).
+- `warriors.vows.catalog.<vow>.risky_success_bonus`: extra risky-success progression bonus from vow.
+- `warriors.vows.catalog.<vow>.tournament_seed_bonus`: additive tournament seed-score bonus from vow.
+- `warriors.vows.catalog.<vow>.tournament_duel_bonus`: additive tournament duel-score bonus from vow.
+- `warriors.vows.catalog.<vow>.rating_loss_multiplier`: multiplier applied to negative rating deltas (downside when >1).
+- `warriors.vows.catalog.<vow>.fatigue_gain_multiplier`: multiplier applied to fatigue gains (downside when >1).
+- `warriors.vows.catalog.<vow>.stress_gain_multiplier`: multiplier applied to stress gains (downside when >1).
+- `warriors.bonuses.enabled`: master switch for warrior bonus processing.
+- `warriors.bonuses.legacy_cap`: compatibility cap hint; used as fallback for company aura cap when `warriors.bonuses.legacy.company_cap` is omitted.
+- `warriors.bonuses.legacy.enabled`: enable legacy-point accumulation and legacy bonus model.
+- `warriors.bonuses.legacy.points_cap`: hard cap for per-warrior legacy points.
+- `warriors.bonuses.legacy.diminishing_alpha`: diminishing-returns pressure used by personal/company legacy bonus curves.
+- `warriors.bonuses.legacy.personal_scale`: point scale factor for personal legacy bonus curve.
+- `warriors.bonuses.legacy.personal_cap`: max personal legacy bonus before scaling into dispatch/duel scores.
+- `warriors.bonuses.legacy.personal_dispatch_scale`: scale factor that maps personal legacy bonus into dispatch score.
+- `warriors.bonuses.legacy.personal_duel_scale`: scale factor that maps personal legacy bonus into tournament duel/seed scoring.
+- `warriors.bonuses.legacy.company_scale`: point scale factor for company aura curve.
+- `warriors.bonuses.legacy.company_cap`: max company legacy aura after diminishing/cap.
+- `warriors.bonuses.legacy.company_roster_size`: number of top roster ids considered for company aura computation.
+- `warriors.bonuses.legacy.company_dispatch_scale`: scale factor for applying company aura to dispatch score (roster members only).
+- `warriors.bonuses.legacy.points.expedition_success`: legacy points gained on successful expedition.
+- `warriors.bonuses.legacy.points.expedition_failure`: legacy points gained on failed expedition.
+- `warriors.bonuses.legacy.points.expedition_retreat`: legacy points gained on retreat outcome.
+- `warriors.bonuses.legacy.points.risky_success_bonus`: extra legacy points gained when risky expedition succeeds.
+- `warriors.bonuses.legacy.points.tournament_duel_win`: legacy points gained by tournament duel winner.
+- `warriors.bonuses.legacy.points.tournament_duel_loss`: legacy points gained by tournament duel loser.
+- `warriors.bonuses.legacy.points.tournament_champion_bonus`: extra legacy points gained by season champion.
+- `warriors.expeditions.enabled`: enable warrior-aware expedition staffing/progression logic.
+- `warriors.expeditions.risk_depth_min`: depth threshold that marks one dispatch as risky even outside warning-zone readiness.
+- `warriors.expeditions.condition_min_score`: minimum condition score (`morale/stress/fatigue` derived) required for risky dispatch ranking.
+- `warriors.expeditions.fallback_condition_min_score`: softer condition threshold used for safe dispatch guardrails.
+- `warriors.expeditions.strict_risk_condition_gate`: when true, risky ranking excludes low-condition/resting dwarves until fallback is required to fill the party.
+- `warriors.expeditions.champion_survivals_full_scale`: normalization scale for `underrealmChampionSurvivals` contribution inside dispatch score.
+- `warriors.expeditions.dispatch_weights.rating`: weight for warrior `rating` in risk dispatch score.
+- `warriors.expeditions.dispatch_weights.valor`: weight for warrior `valor` in risk dispatch score.
+- `warriors.expeditions.dispatch_weights.hero_potential`: weight for dynamic `heroPotential` in risk dispatch score.
+- `warriors.expeditions.dispatch_weights.champion_survivals`: weight for normalized champion survivals in risk dispatch score.
+- `warriors.expeditions.dispatch_weights.clan_class_fit`: weight for clan combat-fit signal (ruins combat/hazard clan traits) in risk dispatch score.
+- `warriors.expeditions.rest_ticks.success`: lockout ticks after successful expedition before the same warrior becomes fully dispatch-eligible again.
+- `warriors.expeditions.rest_ticks.failure`: lockout ticks after expedition failure.
+- `warriors.expeditions.rest_ticks.retreat`: lockout ticks after retreat outcome.
+- `warriors.expeditions.progression.rating_delta.success`: rating delta applied on successful expedition.
+- `warriors.expeditions.progression.rating_delta.failure`: rating delta applied on failed expedition.
+- `warriors.expeditions.progression.rating_delta.retreat`: rating delta applied on retreat outcome.
+- `warriors.expeditions.progression.valor_delta.success`: valor delta applied on successful expedition.
+- `warriors.expeditions.progression.valor_delta.failure`: valor delta applied on failed expedition.
+- `warriors.expeditions.progression.valor_delta.retreat`: valor delta applied on retreat outcome.
+- `warriors.expeditions.progression.fatigue_gain.success`: direct fatigue increment on successful expedition.
+- `warriors.expeditions.progression.fatigue_gain.failure`: direct fatigue increment on failed expedition.
+- `warriors.expeditions.progression.fatigue_gain.retreat`: direct fatigue increment on retreat outcome.
+- `warriors.expeditions.progression.stress_gain.success`: direct stress increment on successful expedition.
+- `warriors.expeditions.progression.stress_gain.failure`: direct stress increment on failed expedition.
+- `warriors.expeditions.progression.stress_gain.retreat`: direct stress increment on retreat outcome.
+- `warriors.expeditions.progression.morale_delta.success`: direct morale delta on successful expedition.
+- `warriors.expeditions.progression.morale_delta.failure`: direct morale delta on failed expedition.
+- `warriors.expeditions.progression.morale_delta.retreat`: direct morale delta on retreat outcome.
+- `warriors.expeditions.progression.risk_win_bonus`: additional bonus applied to rating/valor when a risky expedition succeeds.
+
 Structures (houses):
 
 - `structures.house.buildTicks`: ticks required to build a house.
@@ -1901,7 +2038,7 @@ AI and training:
 - `ai.training.trainer.miniBatchSize`: minibatch size for PPO updates.
 - `ai.training.trainer.batchEpisodes`: episodes per update batch.
 - `ai.training.trainer.hiddenSizes`: MLP hidden layer sizes (e.g. `[128, 128]`).
-- `ai.training.trainer.featureNames`: ordered list of observation features per resource (e.g. `shortage`, `nodeScarcity`, `criticalNeeds`, `idleAdults`, `populationBalance`, `seasonIndex`, `seasonProgress`, `weatherSeverity`, `weatherTimeLeft`, `raidActive`, `raidTimeLeft`, `raidExposed`, `raidDefense`, `housingShortage`, `seasonEligible`, `ruinsActive`, `ruinsCooldown`, `ruinsProgress`, `ruinsArtifacts`, `underrealmDepthProgress`, `underrealmChampionProgress`, `underrealmFrontierContested`, `underrealmChampionCooldown`, `underrealmReadinessScore`, `underrealmReadinessGap`, `underrealmReadinessBlocked`, `underrealmReadinessWarning`, `underrealmCombatPressure`, `worldEventActive`, `worldEventOfferReady`, `contractReady`, `contractFailurePressure`, `externalCampRaiderPressure`, `schismPressure`, `schismLegitimacy`, `clanShare_abyssborn`).
+- `ai.training.trainer.featureNames`: ordered list of observation features per resource (e.g. `shortage`, `nodeScarcity`, `criticalNeeds`, `idleAdults`, `populationBalance`, `seasonIndex`, `seasonProgress`, `weatherSeverity`, `weatherTimeLeft`, `raidActive`, `raidTimeLeft`, `raidExposed`, `raidDefense`, `housingShortage`, `seasonEligible`, `ruinsActive`, `ruinsCooldown`, `ruinsProgress`, `ruinsArtifacts`, `underrealmDepthProgress`, `underrealmChampionProgress`, `underrealmFrontierContested`, `underrealmChampionCooldown`, `underrealmReadinessScore`, `underrealmReadinessGap`, `underrealmReadinessBlocked`, `underrealmReadinessWarning`, `underrealmCombatPressure`, `worldEventActive`, `worldEventOfferReady`, `contractReady`, `contractFailurePressure`, `externalCampRaiderPressure`, `schismPressure`, `schismLegitimacy`, `warriorEnabled`, `warriorRosterCoverage`, `warriorEliteScore`, `warriorLegacyAura`, `warriorChampionMomentum`, `warriorTournamentRecency`, `clanShare_abyssborn`).
 - Dynamic feature names are accepted for `mythFlag_<mythId>` and `clanShare_<clanId>`.
 - `ai.training.trainer.activation`: hidden-layer activation (`tanh` or `relu`).
 - `ai.training.trainer.logStdInit`: initial log-std for action sampling.

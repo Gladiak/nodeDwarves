@@ -145,6 +145,12 @@ const STATIC_FEATURE_NAMES = new Set([
   'schismRitualActive',
   'schismClimaxActive',
   'schismInstability',
+  'warriorEnabled',
+  'warriorRosterCoverage',
+  'warriorEliteScore',
+  'warriorLegacyAura',
+  'warriorChampionMomentum',
+  'warriorTournamentRecency',
 ]);
 let runtime = buildRuntimeForConfig(baseConfig);
 
@@ -734,6 +740,12 @@ function buildTrainingSignals(metrics) {
     && typeof metrics.aiObservation.schism === 'object'
     ? metrics.aiObservation.schism
     : {};
+  const warriors = metrics
+    && metrics.aiObservation
+    && metrics.aiObservation.warriors
+    && typeof metrics.aiObservation.warriors === 'object'
+    ? metrics.aiObservation.warriors
+    : {};
   return {
     criticalNeedsFraction: Number(metrics.criticalNeedsFraction || 0),
     idleAdultsFraction: Number(metrics.idleAdultsFraction || 0),
@@ -751,6 +763,12 @@ function buildTrainingSignals(metrics) {
     externalCampRaiderPressure: Number(externalCamps.raiderPressure || 0),
     schismPressure: Number(schism.pressure || 0),
     schismLegitimacy: Number(schism.legitimacy || 0),
+    warriorEnabled: Number(warriors.enabled || 0),
+    warriorRosterCoverage: Number(warriors.rosterCoverage || 0),
+    warriorEliteScore: Number(warriors.eliteScore || 0),
+    warriorLegacyAura: Number(warriors.legacyAura || 0),
+    warriorChampionMomentum: Number(warriors.championMomentum || 0),
+    warriorTournamentRecency: Number(warriors.tournamentRecency || 0),
     diplomacyPressure: Number(metrics.diplomacyPressure || 0),
     diplomacyCompletions: Number(metrics.diplomacyCompletions || 0),
     diplomacyFailures: Number(metrics.diplomacyFailures || 0),
@@ -1003,6 +1021,9 @@ function resolveAiObservation(state, config) {
       : {},
     schism: aiObservation.schism && typeof aiObservation.schism === 'object'
       ? aiObservation.schism
+      : {},
+    warriors: aiObservation.warriors && typeof aiObservation.warriors === 'object'
+      ? aiObservation.warriors
       : {},
     clanShares: aiObservation.clanShares && typeof aiObservation.clanShares === 'object'
       ? aiObservation.clanShares
@@ -1346,6 +1367,14 @@ function buildObservation(state, config, metrics) {
       climaxActive: 0,
       instability: 0,
     },
+    warriors: aiObservation.warriors || {
+      enabled: 0,
+      rosterCoverage: 0,
+      eliteScore: 0,
+      legacyAura: 0,
+      championMomentum: 0,
+      tournamentRecency: 0,
+    },
     clanShares: aiObservation.clanShares || {},
   };
 }
@@ -1389,6 +1418,9 @@ function buildCompactObservationVector(metrics, config) {
     : {};
   const schism = aiObservation.schism && typeof aiObservation.schism === 'object'
     ? aiObservation.schism
+    : {};
+  const warriors = aiObservation.warriors && typeof aiObservation.warriors === 'object'
+    ? aiObservation.warriors
     : {};
   const mythFlags = myths.flags && typeof myths.flags === 'object' ? myths.flags : {};
   const clanShares = aiObservation.clanShares && typeof aiObservation.clanShares === 'object'
@@ -1468,6 +1500,12 @@ function buildCompactObservationVector(metrics, config) {
     schismRitualActive: clamp(Number(schism.ritualActive || 0), 0, 1),
     schismClimaxActive: clamp(Number(schism.climaxActive || 0), 0, 1),
     schismInstability: clamp(Number(schism.instability || 0), 0, 1),
+    warriorEnabled: clamp(Number(warriors.enabled || 0), 0, 1),
+    warriorRosterCoverage: clamp(Number(warriors.rosterCoverage || 0), 0, 1),
+    warriorEliteScore: clamp(Number(warriors.eliteScore || 0), 0, 1),
+    warriorLegacyAura: clamp(Number(warriors.legacyAura || 0), 0, 1),
+    warriorChampionMomentum: clamp(Number(warriors.championMomentum || 0), 0, 1),
+    warriorTournamentRecency: clamp(Number(warriors.tournamentRecency || 0), 0, 1),
   };
 
   const vector = new Array(resources.length * featureCount);

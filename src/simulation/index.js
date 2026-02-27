@@ -34,6 +34,7 @@ const { updateSchism, getSchismModifier } = require('./schism');
 const { updateVillages } = require('./villages');
 const { updateRoads } = require('./roads');
 const { updateUnderrealm } = require('./underrealm');
+const { updateWarriors } = require('./warriors');
 const { updateWorldEvents, getWorldEventModifier } = require('./world_events');
 const { updateExternalCamps } = require('./external_camps');
 const { clamp } = require('../utils');
@@ -48,6 +49,7 @@ function stepState(state, config, runtime, action, options = {}) {
   state.tick += 1;
   const endgameDifficulty = updateEndgameDifficulty(state, config);
   updateSeason(state, config);
+  updateWarriors(state, config);
   updateWeather(state, config);
   updateRaidStart(state, config, runtime);
   updateWorldEvents(state, config, runtime, resolvedAction);

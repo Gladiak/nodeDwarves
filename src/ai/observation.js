@@ -32,6 +32,7 @@ function buildObservation(state, config) {
   const contractsObservation = buildContractsObservation(state, config);
   const externalCampsObservation = buildExternalCampsObservation(state, config);
   const schismObservation = buildSchismObservation(state, config);
+  const warriorsObservation = buildWarriorsObservation(state, config);
   const clanShares = getClanShares(state, config);
 
   return {
@@ -52,6 +53,7 @@ function buildObservation(state, config) {
     contracts: contractsObservation,
     externalCamps: externalCampsObservation,
     schism: schismObservation,
+    warriors: warriorsObservation,
     clanShares,
   };
 }
@@ -132,6 +134,13 @@ function buildFeatures(obs, resource, config, featureNames) {
   const schismRitualActive = clamp(Number(schism.ritualActive ?? 0), 0, 1);
   const schismClimaxActive = clamp(Number(schism.climaxActive ?? 0), 0, 1);
   const schismInstability = clamp(Number(schism.instability ?? 0), 0, 1);
+  const warriors = obs.warriors || {};
+  const warriorEnabled = clamp(Number(warriors.enabled ?? 0), 0, 1);
+  const warriorRosterCoverage = clamp(Number(warriors.rosterCoverage ?? 0), 0, 1);
+  const warriorEliteScore = clamp(Number(warriors.eliteScore ?? 0), 0, 1);
+  const warriorLegacyAura = clamp(Number(warriors.legacyAura ?? 0), 0, 1);
+  const warriorChampionMomentum = clamp(Number(warriors.championMomentum ?? 0), 0, 1);
+  const warriorTournamentRecency = clamp(Number(warriors.tournamentRecency ?? 0), 0, 1);
   const clanShares = obs.clanShares || {};
 
   const values = {
@@ -195,6 +204,12 @@ function buildFeatures(obs, resource, config, featureNames) {
     schismRitualActive,
     schismClimaxActive,
     schismInstability,
+    warriorEnabled,
+    warriorRosterCoverage,
+    warriorEliteScore,
+    warriorLegacyAura,
+    warriorChampionMomentum,
+    warriorTournamentRecency,
   };
   const mythDefs = (config && config.myths && config.myths.definitions) || {};
   for (const mythId of Object.keys(mythDefs)) {
@@ -424,6 +439,124 @@ function buildSchismObservation(state, config) {
     climaxActive,
     instability,
   };
+}
+
+// Build Warrior League aggregate observation scalars for AI training.
+function buildWarriorsObservation(state, config) {
+  const runtime = state && state.warriors && typeof state.warriors === 'object'
+    ? state.warriors
+    : null;
+  const warriorsConfig = (config && config.warriors) || {};
+  if (!runtime || runtime.enabled !== true || warriorsConfig.enabled !== true) {
+    return {
+      enabled: 0,
+      rosterCoverage: 0,
+      eliteScore: 0,
+      legacyAura: 0,
+      championMomentum: 0,
+      tournamentRecency: 0,
+    };
+  }
+
+  const dwarves = Array.isArray(state && state.dwarves) ? state.dwarves : [];
+  const adults = dwarves.filter((dwarf) => dwarf && dwarf.lifeStage === 'adult');
+  const warriorAdults = adults
+    .map((dwarf) => ({
+      dwarf,
+      warrior: dwarf && dwarf.warrior && typeof dwarf.warrior === 'object'
+        ? dwarf.warrior
+        : null,
+    }))
+    .filter((entry) => entry.warrior);
+  const rosterCoverage = adults.length > 0
+    ? clamp(warriorAdults.length / adults.length, 0, 1)
+    : 0;
+
+  const eliteSample = warriorAdults
+    .map((entry) => ({
+      id: String(entry.dwarf && entry.dwarf.id || ''),
+      spawnIndex: Math.max(0, Math.floor(Number(entry.dwarf && entry.dwarf.spawnIndex || 0))),
+      eliteScore: computeWarriorEliteScore(entry.warrior),
+    }))
+    .sort((left, right) => {
+      if (Math.abs(right.eliteScore - left.eliteScore) > 1e-9) {
+        return right.eliteScore - left.eliteScore;
+      }
+      if (left.spawnIndex !== right.spawnIndex) {
+        return left.spawnIndex - right.spawnIndex;
+      }
+      return left.id.localeCompare(right.id);
+    })
+    .slice(0, 5);
+  const eliteScore = eliteSample.length > 0
+    ? clamp(
+      eliteSample.reduce((sum, entry) => sum + Number(entry.eliteScore || 0), 0) / eliteSample.length,
+      0,
+      1,
+    )
+    : 0;
+
+  const company = runtime.company && typeof runtime.company === 'object'
+    ? runtime.company
+    : {};
+  const legacyAura = clamp(Number(company.legacyAura || 0), 0, 1);
+
+  const league = runtime.league && typeof runtime.league === 'object'
+    ? runtime.league
+    : {};
+  const championId = String(league.championId || '');
+  const championDwarf = championId
+    ? dwarves.find((dwarf) => String(dwarf && dwarf.id || '') === championId)
+    : null;
+  const championWarrior = championDwarf && championDwarf.warrior && typeof championDwarf.warrior === 'object'
+    ? championDwarf.warrior
+    : null;
+  const championMomentum = championWarrior ? computeWarriorEliteScore(championWarrior) : 0;
+
+  const tick = Math.max(0, Number(state && state.tick || 0));
+  const lastTournamentTick = Math.max(0, Number(league.lastTournamentTick || 0));
+  const seasonDuration = Math.max(
+    1,
+    Number(state && state.season && state.season.duration || 0),
+    Number(config && config.seasons && config.seasons.durationTicks || 0),
+  );
+  const interval = Math.max(1, Number(warriorsConfig.tournaments && warriorsConfig.tournaments.interval_seasons || 1));
+  const recencyWindow = Math.max(1, seasonDuration * interval);
+  const tournamentRecency = lastTournamentTick > 0
+    ? clamp(1 - Math.max(0, tick - lastTournamentTick) / recencyWindow, 0, 1)
+    : 0;
+
+  return {
+    enabled: 1,
+    rosterCoverage,
+    eliteScore,
+    legacyAura,
+    championMomentum,
+    tournamentRecency,
+  };
+}
+
+// Compute one bounded elite-performance scalar for a warrior payload.
+function computeWarriorEliteScore(warrior) {
+  if (!warrior || typeof warrior !== 'object') {
+    return 0;
+  }
+  const rating = clamp(Number(warrior.rating || 0), 0, 1);
+  const valor = clamp(Number(warrior.valor || 0), 0, 1);
+  const heroPotential = clamp(Number(warrior.heroPotential || 0), 0, 1);
+  const conditionScore = clamp(
+    Number(warrior.condition && warrior.condition.score || 0),
+    0,
+    1,
+  );
+  return clamp(
+    rating * 0.45
+      + valor * 0.25
+      + heroPotential * 0.2
+      + conditionScore * 0.1,
+    0,
+    1,
+  );
 }
 
 // Normalize schism phase names to a scalar in 0..1.

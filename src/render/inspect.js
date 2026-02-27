@@ -72,6 +72,7 @@ function buildInspectLines(dwarf, index, total, state, config, width, height) {
     pushLine(content, 'No dwarves available.', width);
   } else {
     const lore = buildDwarfLore(dwarf, state, config);
+    const displayName = `${lore.name} <${dwarf.id}>`;
     const morale = capitalize(describeMorale(dwarf.state ? dwarf.state.morale : 0));
     const role = capitalize(resolveRoleLabel(dwarf));
     const age = Number(dwarf.ageTicks || 0);
@@ -90,7 +91,7 @@ function buildInspectLines(dwarf, index, total, state, config, width, height) {
     pushRuneBanner(content, lore.runes, width);
 
     pushSection(content, 'PROFILE', width, [
-      `Id: ${dwarf.id}`,
+      `Name: ${displayName}`,
       `House: ${capitalize(lore.house)}`,
       formatTwoColumn(`Title: ${capitalize(lore.title)}`, `Rank: ${capitalize(lore.rank)}`, width),
       `Archetype: ${capitalize(lore.archetype)}`,
