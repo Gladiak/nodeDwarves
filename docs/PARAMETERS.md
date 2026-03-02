@@ -405,11 +405,11 @@ Merchant:
 - `ai.governors.ruins.mithrilReinforcementIntentThreshold`: minimum normalized `action.ruins.mithrilReinforcementIntent` required to spend mithril reinforcement when eligible.
 - `ai.governors.warriors.enabled`: enable action-driven Warrior League advisory intents.
 - `ai.governors.warriors.actionHeadEnabled`: include/exclude warriors governor pseudo action-ids from policy/training action heads.
-- `ai.governors.warriors.trainingIntentThreshold`: minimum normalized `action.warriors.trainingIntent` considered an active training push.
-- `ai.governors.warriors.rotationIntentThreshold`: minimum normalized `action.warriors.rotationIntent` considered an active roster-rotation push.
-- `ai.governors.warriors.tournamentRiskIntentThreshold`: minimum normalized `action.warriors.tournamentRiskIntent` considered an aggressive tournament-risk posture.
+- `ai.governors.warriors.trainingIntentThreshold`: minimum normalized `action.warriors.trainingIntent` required to run Warrior League training sessions.
+- `ai.governors.warriors.rotationIntentThreshold`: minimum normalized `action.warriors.rotationIntent` required to activate roster-rotation effects (training candidate ranking + tournament bench rotation).
+- `ai.governors.warriors.tournamentRiskIntentThreshold`: minimum normalized `action.warriors.tournamentRiskIntent` required to activate aggressive duel-risk multipliers.
 - `ai.governors.warriors.championChallengeIntentThreshold`: minimum normalized `action.warriors.championChallengeIntent` considered an active champion-challenge posture.
-- `ai.governors.warriors.recoveryPriorityIntentThreshold`: minimum normalized `action.warriors.recoveryPriorityIntent` considered an active recovery-first posture.
+- `ai.governors.warriors.recoveryPriorityIntentThreshold`: minimum normalized `action.warriors.recoveryPriorityIntent` required to activate recovery-priority effects (faster injury recovery + recovery-biased training/duel consequences).
 
 Contracts:
 
@@ -1910,11 +1910,11 @@ AI and training:
 - Stability default note: underrealm governor defaults are intentionally conservative (`surfaceReserveBiasMax=0.14`, `depthAllocationBiasMax=0.12`, `roleMixBiasMax=0.12`, `surfaceReserveRatioMin=0.34`, `reallocationCooldownTicks=60`) to keep deterministic deep-death regressions bounded.
 - `ai.governors.warriors.enabled`: enable/disable warriors-governor advisory intents.
 - `ai.governors.warriors.actionHeadEnabled`: include/exclude warriors pseudo action-ids in policy/training action-head generation (useful for backward-compatible checkpoint loading).
-- `ai.governors.warriors.trainingIntentThreshold`: minimum normalized training intent to mark training posture as active.
-- `ai.governors.warriors.rotationIntentThreshold`: minimum normalized rotation intent to mark roster-rotation posture as active.
-- `ai.governors.warriors.tournamentRiskIntentThreshold`: minimum normalized tournament-risk intent to mark aggressive tournament posture as active.
+- `ai.governors.warriors.trainingIntentThreshold`: minimum normalized training intent required to run Warrior League training sessions.
+- `ai.governors.warriors.rotationIntentThreshold`: minimum normalized rotation intent required to activate roster-rotation effects (training ranking + tournament bench rotation).
+- `ai.governors.warriors.tournamentRiskIntentThreshold`: minimum normalized tournament-risk intent required to activate aggressive duel-risk multipliers.
 - `ai.governors.warriors.championChallengeIntentThreshold`: minimum normalized champion-challenge intent to mark challenge posture as active.
-- `ai.governors.warriors.recoveryPriorityIntentThreshold`: minimum normalized recovery-priority intent to mark recovery posture as active.
+- `ai.governors.warriors.recoveryPriorityIntentThreshold`: minimum normalized recovery-priority intent required to activate recovery effects (injury acceleration + recovery-biased warrior systems).
 - `ai.governors.building.enabled`: enable/disable building-governor ranked class selection.
 - `ai.governors.building.defaultWeights.housing`: fallback class weight for housing builds when `action.building.housingWeight` is missing.
 - `ai.governors.building.defaultWeights.economy`: fallback class weight for economy builds when `action.building.economyWeight` is missing.
@@ -2067,7 +2067,7 @@ AI and training:
 - `ai.training.scenarioSampling.difficultyPhases[].updateEvery`: phase-specific adaptive update cadence override.
 - `ai.training.scenarioSampling.difficultyPhases[].boost`: phase-specific weak-scenario boost override.
 - `ai.training.scenarioSampling.difficultyPhases[].exponent`: phase-specific adaptive weighting exponent override.
-- `ai.training.deepChecks.seedPackRotation.defaultMode`: default deterministic seed-pack mode (for tooling; `weekly` recommended).
+- `ai.training.deepChecks.seedPackRotation.defaultMode`: default deterministic seed-pack mode auto-applied by `scripts/regression.js` for the `horizon` profile when CLI does not override seeds (`weekly`, one pack name, or disabled via `off|none|disabled`).
 - `ai.training.deepChecks.seedPackRotation.packs.<packName>`: deterministic seed list for one named pack (recommended `>=4` seeds per pack for weekly deep-check statistical power).
 - `ai.training.deepChecks.seedPackRotation.weeklyOrder`: deterministic rotation order used by `--seed-pack weekly`.
 - `ai.training.promotion.canonical.enabled`: enable one canonical promotion benchmark for wrapper/promote flows.
@@ -2083,7 +2083,7 @@ AI and training:
 - `ai.training.promotion.canonical.endgameEnabled`: whether canonical promotion runs with endgame enabled.
 - `ai.training.promotion.canonical.requirePositiveLcb`: require positive paired lower confidence bound in promotion checks.
 - `ai.training.promotion.canonical.lcbZ`: z-value used for paired lower confidence bound (e.g. `1.96` for ~95% one-sided).
-- `ai.training.trainer.algorithm`: training algorithm (PPO only right now).
+- `ai.training.trainer.algorithm`: trainer algorithm selector; `python/train.py` validates this at startup and currently supports only `ppo` (other values fail fast).
 - `ai.training.trainer.episodes`: training episodes per run.
 - `ai.training.trainer.maxSteps`: max steps per episode.
 - `ai.training.trainer.stepTicks`: ticks advanced per action during training.

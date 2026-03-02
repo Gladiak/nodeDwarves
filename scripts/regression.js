@@ -247,6 +247,26 @@ function resolveSeedPackConfig(config) {
   };
 }
 
+// Resolve one usable default seed-pack mode from config.
+function resolveSeedPackDefaultMode(seedPackConfig) {
+  const fallback = seedPackConfig && seedPackConfig.defaultMode !== undefined
+    ? String(seedPackConfig.defaultMode || '').trim()
+    : '';
+  const normalized = fallback.toLowerCase();
+  if (!normalized || normalized === 'off' || normalized === 'none' || normalized === 'disabled') {
+    return null;
+  }
+  if (normalized === 'weekly') {
+    return 'weekly';
+  }
+  const packs = seedPackConfig && seedPackConfig.packs ? seedPackConfig.packs : {};
+  if (Array.isArray(packs[fallback]) && packs[fallback].length > 0) {
+    return fallback;
+  }
+  const caseInsensitiveMatch = Object.keys(packs).find((key) => key.toLowerCase() === normalized);
+  return caseInsensitiveMatch || null;
+}
+
 // Resolve one deterministic weekly index from --seed-week.
 function resolveSeedWeekIndex(rawWeek) {
   const text = String(rawWeek || '').trim();
@@ -328,6 +348,34 @@ function resolveSeedPackSelection(seedPackConfig, requested, rawWeek) {
     resolvedKey,
     weekIndex,
     seeds: seeds.slice(),
+  };
+}
+
+// Apply profile-specific default seed-pack behavior when CLI did not override seeds.
+function applyProfileSeedPackDefaults(options, profileName, runtimeConfig) {
+  const normalizedProfile = normalizeProfileName(profileName);
+  if (normalizedProfile !== 'horizon') {
+    return options;
+  }
+  const cliOverrides = options && options.cliOverrides ? options.cliOverrides : {};
+  if (cliOverrides.seeds || (options && options.seedPack) || (options && options.seedPackResolved)) {
+    return options;
+  }
+  const seedPackConfig = resolveSeedPackConfig(runtimeConfig);
+  const defaultMode = resolveSeedPackDefaultMode(seedPackConfig);
+  if (!defaultMode) {
+    return options;
+  }
+  const resolved = resolveSeedPackSelection(seedPackConfig, defaultMode, options.seedWeek);
+  return {
+    ...options,
+    seedPack: defaultMode,
+    seedPackResolved: resolved,
+    seeds: resolved.seeds.slice(),
+    cliOverrides: {
+      ...cliOverrides,
+      seeds: true,
+    },
   };
 }
 
@@ -1185,12 +1233,12 @@ function buildProfileConfig(options, profileName = 'standard', config) {
   };
 }
 
-function applyProfileConfig(options, config) {
+function applyProfileConfig(options, config, profileName = 'standard', runtimeConfig = null) {
   if (!config) {
-    return { ...options };
+    return applyProfileSeedPackDefaults({ ...options }, profileName, runtimeConfig);
   }
   const cliOverrides = options.cliOverrides || {};
-  return {
+  const merged = {
     ...options,
     seeds: cliOverrides.seeds
       ? options.seeds
@@ -1208,6 +1256,7 @@ function applyProfileConfig(options, config) {
       ? options.randomMaxSteps
       : Number(config.randomMaxSteps || options.randomMaxSteps),
   };
+  return applyProfileSeedPackDefaults(merged, profileName, runtimeConfig);
 }
 
 // Run one full profile (eval + randomized) across all configured seeds.
@@ -1452,7 +1501,12 @@ async function main() {
     let allOk = true;
     for (const profileName of effectiveProfileNames) {
       const profile = baselineFile.profiles[profileName];
-      const profileOptions = applyProfileConfig(options, profile.config || {});
+      const profileOptions = applyProfileConfig(
+        options,
+        profile.config || {},
+        profileName,
+        runtimeConfig,
+      );
       const runtimeProfile = {
         ...profile,
         config: buildProfileConfig(profileOptions, profileName, runtimeConfig),
@@ -1501,8 +1555,10 @@ async function main() {
   const profileName = options.profile || 'standard';
   const profile = baselineFile.profiles[profileName] || null;
   const profileOptions = options.record
-    ? options
-    : (profile ? applyProfileConfig(options, profile.config || {}) : options);
+    ? applyProfileSeedPackDefaults(options, profileName, runtimeConfig)
+    : (profile
+      ? applyProfileConfig(options, profile.config || {}, profileName, runtimeConfig)
+      : applyProfileSeedPackDefaults(options, profileName, runtimeConfig));
   const {
     evalAverage,
     randomAverage,

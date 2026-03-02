@@ -1051,6 +1051,7 @@ def write_summary_header(
     handle.write(f"config={args.config}\n")
     handle.write(
         "settings "
+        f"algorithm={args.algorithm} "
         f"episodes={args.episodes} max_steps={args.max_steps} step_ticks={args.step_ticks} "
         f"batch_episodes={args.batch_episodes} workers={args.workers} "
         f"gamma={args.gamma} gae_lambda={args.gae_lambda} clip_range={args.clip_range} "
@@ -1115,6 +1116,7 @@ def write_detail_header(
     handle.write(f"config={args.config}\n")
     handle.write(
         "settings "
+        f"algorithm={args.algorithm} "
         f"episodes={args.episodes} max_steps={args.max_steps} step_ticks={args.step_ticks} "
         f"batch_episodes={args.batch_episodes} workers={args.workers} "
         f"gamma={args.gamma} gae_lambda={args.gae_lambda} clip_range={args.clip_range} "
@@ -3404,6 +3406,7 @@ def build_training_defaults(config):
 
     feature_names, _ = resolve_feature_names(trainer.get("featureNames"), DEFAULT_FEATURE_NAMES)
     defaults = {
+        "algorithm": to_str(trainer.get("algorithm"), "ppo"),
         "episodes": to_int(trainer.get("episodes"), 20000),
         "max_steps": to_int(trainer.get("maxSteps"), 900),
         "step_ticks": to_int(trainer.get("stepTicks"), to_int(ai.get("stepTicks"), 10)),
@@ -3501,6 +3504,7 @@ def parse_args():
 
     parser = argparse.ArgumentParser(description="Train PPO policy with PyTorch.")
     parser.add_argument("--config", type=str, default=pre_args.config)
+    parser.add_argument("--algorithm", type=str, default=defaults["algorithm"])
     parser.add_argument("--episodes", type=int, default=defaults["episodes"])
     parser.add_argument("--max-steps", type=int, default=defaults["max_steps"])
     parser.add_argument("--step-ticks", type=int, default=defaults["step_ticks"])
@@ -3600,6 +3604,12 @@ def parse_args():
     parser.add_argument("--debug-summary-name", type=str, default=None)
     parser.add_argument("--debug-prefix", type=str, default=None)
     args = parser.parse_args()
+    args.algorithm = to_str(args.algorithm, defaults["algorithm"]).strip().lower()
+    if args.algorithm != "ppo":
+        raise SystemExit(
+            f"Unsupported ai.training.trainer.algorithm '{args.algorithm}'. "
+            "Only 'ppo' is currently implemented."
+        )
     args.hidden_sizes = (
         to_int_list(args.hidden_sizes, defaults["hidden_sizes"])
         if args.hidden_sizes

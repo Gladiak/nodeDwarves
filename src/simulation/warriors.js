@@ -2592,10 +2592,16 @@ function applyTournamentDuelConsequences(
     : {};
   const governor = ensureWarriorsGovernorRuntime(runtime);
   const governorEnabled = governor && governor.enabled === true;
-  const riskIntent = governorEnabled
+  const riskApplied = governorEnabled
+    && governor.applied
+    && governor.applied.tournamentRisk === true;
+  const recoveryApplied = governorEnabled
+    && governor.applied
+    && governor.applied.recoveryPriority === true;
+  const riskIntent = riskApplied
     ? clamp(Number(governor.intents.tournamentRiskIntent || 0), 0, 1)
     : 0.5;
-  const recoveryIntent = governorEnabled
+  const recoveryIntent = recoveryApplied
     ? clamp(Number(governor.intents.recoveryPriorityIntent || 0), 0, 1)
     : 0;
 
@@ -2765,7 +2771,10 @@ function tickWarriorInjuryRecovery(state, config, runtime, warriors) {
   const training = warriors && warriors.training ? warriors.training : {};
   const progression = training && training.progression ? training.progression : {};
   const governor = ensureWarriorsGovernorRuntime(runtime);
-  const recoveryIntent = governor && governor.enabled === true
+  const recoveryIntent = governor
+    && governor.enabled === true
+    && governor.applied
+    && governor.applied.recoveryPriority === true
     ? clamp(Number(governor.intents.recoveryPriorityIntent || 0), 0, 1)
     : 0;
   const extraRecoveryStep = recoveryIntent >= 0.7 ? 1 : 0;
@@ -2812,7 +2821,10 @@ function tickWarriorInjuryRecovery(state, config, runtime, warriors) {
 function buildWarriorTrainingCandidates(state, config, warriors, runtime, tick) {
   const training = warriors && warriors.training ? warriors.training : {};
   const governor = ensureWarriorsGovernorRuntime(runtime);
-  const rotationIntent = governor && governor.enabled === true
+  const rotationIntent = governor
+    && governor.enabled === true
+    && governor.applied
+    && governor.applied.rotation === true
     ? clamp(Number(governor.intents.rotationIntent || 0), 0, 1)
     : 0.35;
   const windowTicks = Math.max(1, Math.floor(Number(training.rotationWindowTicks || 1)));
@@ -2889,10 +2901,19 @@ function runWarriorTraining(state, config, runtime, warriors) {
   }
   const governor = ensureWarriorsGovernorRuntime(runtime);
   const governorEnabled = governor && governor.enabled === true;
-  const trainingIntent = governorEnabled
+  const trainingApplied = governorEnabled
+    && governor.applied
+    && governor.applied.training === true;
+  const recoveryApplied = governorEnabled
+    && governor.applied
+    && governor.applied.recoveryPriority === true;
+  if (governorEnabled && !trainingApplied) {
+    return;
+  }
+  const trainingIntent = trainingApplied
     ? clamp(Number(governor.intents.trainingIntent || 0), 0, 1)
     : 1;
-  const recoveryIntent = governorEnabled
+  const recoveryIntent = recoveryApplied
     ? clamp(Number(governor.intents.recoveryPriorityIntent || 0), 0, 1)
     : 0;
   const intensity = clamp(0.25 + trainingIntent * 0.9 - recoveryIntent * 0.35, 0.1, 1);
@@ -2984,9 +3005,13 @@ function selectWarriorTournamentParticipants(entries, maxParticipants, runtime, 
   const governor = ensureWarriorsGovernorRuntime(runtime);
   const governorEnabled = governor && governor.enabled === true;
   const rotationIntent = governorEnabled
+    && governor.applied
+    && governor.applied.rotation === true
     ? clamp(Number(governor.intents.rotationIntent || 0), 0, 1)
     : 0;
   const recoveryIntent = governorEnabled
+    && governor.applied
+    && governor.applied.recoveryPriority === true
     ? clamp(Number(governor.intents.recoveryPriorityIntent || 0), 0, 1)
     : 0;
   const recoveredPool = recoveryIntent >= 0.5

@@ -1623,6 +1623,7 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
   - Building intents currently consumed at runtime: class weights (`housing/economy/defense/special`) plus advisory `mineBias` and `upgradeBias`.
   - External-camps intents currently consumed at runtime: `militiaSupportIntent`, `raiderTributeIntent`.
   - Warriors intents currently consumed at runtime: `trainingIntent`, `rotationIntent`, `tournamentRiskIntent`, `championChallengeIntent`, `recoveryPriorityIntent`.
+  - Warrior thresholds are behavior-gating (not telemetry-only): below-threshold intents now hold the corresponding subsystem in neutral mode (training off, rotation off, risk multipliers off, recovery boost off), while `championChallenge` continues to gate hero succession checks.
 - `src/ai_policy.js`
   - Thin wrapper used by `app.js`.
 
@@ -1638,6 +1639,7 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
 
 - `python/train.py`
   - PPO training loop (2x128 MLP), logs, checkpoints, and evals.
+  - `ai.training.trainer.algorithm` is startup-validated; currently only `ppo` is accepted (fail-fast on unsupported values).
   - Exports JSON weights for JS inference.
   - Builds action heads from resource ids plus optional festival and governor pseudo action-ids (when `ai.governors.*.enabled`).
   - Warriors action-head ids are additionally gated by `ai.governors.warriors.actionHeadEnabled`; default is `true`, and legacy checkpoints that do not include warrior action IDs require `--fresh` (or a temporary flag rollback to `false`).
@@ -1859,6 +1861,7 @@ Training presets:
 - `scripts/regression.js` supports deterministic seed-pack selection for deep checks:
   - `--seed-pack <name>` picks one named pack from `ai.training.deepChecks.seedPackRotation.packs`.
   - `--seed-pack weekly` rotates through `weeklyOrder` deterministically by week.
+  - For `horizon` profile runs without explicit `--seed-pack` / `--seeds`, `seedPackRotation.defaultMode` is auto-applied (`weekly`, one pack name, or disabled via `off|none|disabled`).
   - default pack sizing for OQ-6.3 is `4` seeds per pack to improve weekly deep-check statistical power.
   - Optional replay pin: `--seed-week YYYY-MM-DD`, `YYYY-Www`, or an integer week index.
   - Resolved seed-pack metadata is written into regression profile config and JSON/Markdown report metadata.

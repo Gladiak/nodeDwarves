@@ -174,6 +174,7 @@ Canonical promotion now owns best-checkpoint writes: wrapper training disables i
 - 🧪 Risk mini-gate is scripted as `ai:validate:risk` (`r001`: deterministic benchmark, `r002`: policy observation-normalization shape guardrail).
 - 🧪 Horizon gate (`ai:validate:horizon`) now includes a tighter deaths guardrail (`avg_deaths` tolerance `+16%`) and is paired with historical-replay sanity checks to keep deep/governance regressions detectable.
 - 🗓️ Weekly deep-check workflow is available as `ai:validate:horizon:weekly`, backed by deterministic seed-pack rotation from config (`pack_alpha/beta/gamma/delta`, now `4` seeds per pack).
+- 🧭 Horizon regression runs now honor `ai.training.deepChecks.seedPackRotation.defaultMode` automatically when you do not pass `--seed-pack` / `--seeds`, so deep-check seed rotation is config-driven by default.
 - ⏱️ Runtime-optimized full gate is available as `ai:validate:extended:optimized`: it preserves quality signal while removing duplicate benchmark execution and writes per-phase runtime reports.
 - 🧭 Recommended validation cadence: per-change (`canonical` + `gate` + `risk:r002`), acceptance/nightly (`ai:validate:extended:optimized`), weekly deep sentinel (`ai:validate:horizon:weekly`).
 - 🧹 Debug housekeeping is scripted as `debug:clean` (`--keep-runs 2|3`, plus `debug:clean:dry` preview) to keep `debug/` lean after each cycle.
@@ -201,7 +202,7 @@ Ruins governor hooks now support advisory `ruins` stances for warning-zone dispa
 Underrealm crew governor hooks now support advisory `underrealm` biases for surface reserve, depth allocation, and role mix (miner/hauler/guard), with smoothing and major-reallocation cooldown guardrails; defaults now lean conservative to keep deep-survival outcomes stable in regression gates.
 Building governor hooks now support advisory `building` ranking signals for housing/economy/defense/special queues, with guardrails still enforced by the existing structure checks.
 External camps governor hooks now support advisory `externalCamps` stances for militia support renewal and raider tribute handling, with critical-collapse force-compliance guardrails.
-Warrior League governor hooks now support advisory `warriors` intents (training, rotation, tournament risk, champion challenge, recovery priority) with telemetry-first runtime instrumentation.
+Warrior League governor hooks now support `warriors` intents (training, rotation, tournament risk, champion challenge, recovery priority) with real threshold-gated runtime effects plus telemetry instrumentation.
 Telemetry now exposes compact governor signals directly in `Pressure`, `Diplomacy`, `Operations`, and `AI Explainability` so policy intent can be inspected live.
 Training action heads now include governor pseudo-action IDs when enabled (`gov_trade_*`, `gov_contract_*`, `gov_ruins_*`, `gov_underrealm_*`, `gov_building_*`, `gov_external_*`, `gov_warriors_*`); Warrior phase-6 AI features expand the observation shape, so restart training with `--fresh` when upgrading from pre-phase-6 checkpoints.
 By default, the warriors governor is active with `ai.governors.warriors.actionHeadEnabled=true`; when upgrading from legacy checkpoints without warrior action IDs, run training with `--fresh` (or temporarily set this flag to `false`).

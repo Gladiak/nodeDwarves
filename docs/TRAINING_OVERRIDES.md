@@ -31,6 +31,7 @@ PPO v2 stability stack (Phase 2):
 - `ai.training.trainer.targetKl`: PPO update early-stop based on approximate KL.
 - `ai.training.trainer.valueClipRange`: PPO-style value clipping (normalized domain).
 - `ai.training.trainer.valueHuberDelta`: optional Huber value loss (`0` keeps MSE).
+- `ai.training.trainer.algorithm`: startup-validated trainer selector (`ppo` only for now; other values fail fast).
 - Policy payloads now persist normalization metadata (`normalization.observation` / `normalization.returns`).
 - Compatibility note: if normalization metadata shape mismatches the current feature/action contract, resume/eval fails fast and training must restart with `--fresh`.
 
@@ -125,7 +126,7 @@ Operational cycle runbook (2026-02-19 baseline contract):
     - `r001`: deterministic collapse pressure check (`ai:validate:benchmark`)
     - `r002`: observation-normalization shape guardrail on `models/policy_best.json`
   - `npm run ai:validate:horizon`
-    - horizon profile with stored deterministic profile seeds.
+    - horizon profile with deterministic seed-pack default mode (`ai.training.deepChecks.seedPackRotation.defaultMode`) when CLI does not override seeds.
   - `npm run ai:validate:horizon:weekly`
     - horizon profile with deterministic weekly seed-pack rotation (`--seed-pack weekly`, default packs now `4` seeds each).
     - optional override: append `-- --seed-week YYYY-MM-DD` (or `YYYY-Www`) to replay a specific week.
