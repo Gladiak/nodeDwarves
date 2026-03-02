@@ -213,6 +213,16 @@ function ensureTelemetryPanelState(state) {
   state.ui.telemetryPanel.page = ((page % pageCount) + pageCount) % pageCount;
 }
 
+// Function: ensureWarriorPanelState.
+function ensureWarriorPanelState(state) {
+  if (!state.ui) {
+    state.ui = {};
+  }
+  if (!state.ui.warriorPanel) {
+    state.ui.warriorPanel = { open: false };
+  }
+}
+
 // Function: ensureSaveMapState.
 function ensureSaveMapState(state) {
   if (!state.ui) {
@@ -233,9 +243,11 @@ function openInspect(state) {
   ensureInspectState(state);
   ensureLegendState(state);
   ensureTelemetryPanelState(state);
+  ensureWarriorPanelState(state);
   ensureSaveMapState(state);
   state.ui.legend.open = false;
   state.ui.telemetryPanel.open = false;
+  state.ui.warriorPanel.open = false;
   closeSaveMap(state);
   state.ui.inspect.ids = getSpawnOrderedIds(state.dwarves || []);
   state.ui.inspect.index = 0;
@@ -253,12 +265,14 @@ function toggleLegend(state) {
   ensureLegendState(state);
   ensureInspectState(state);
   ensureTelemetryPanelState(state);
+  ensureWarriorPanelState(state);
   ensureSaveMapState(state);
   const next = !state.ui.legend.open;
   state.ui.legend.open = next;
   if (next) {
     state.ui.inspect.open = false;
     state.ui.telemetryPanel.open = false;
+    state.ui.warriorPanel.open = false;
     closeSaveMap(state);
   }
 }
@@ -279,6 +293,7 @@ function toggleTelemetryPanel(state) {
   ensureTelemetryPanelState(state);
   ensureInspectState(state);
   ensureLegendState(state);
+  ensureWarriorPanelState(state);
   ensureSaveMapState(state);
   const next = !state.ui.telemetryPanel.open;
   state.ui.telemetryPanel.open = next;
@@ -286,6 +301,24 @@ function toggleTelemetryPanel(state) {
     state.ui.telemetryPanel.page = 0;
     state.ui.inspect.open = false;
     state.ui.legend.open = false;
+    state.ui.warriorPanel.open = false;
+    closeSaveMap(state);
+  }
+}
+
+// Function: toggleWarriorPanel.
+function toggleWarriorPanel(state) {
+  ensureWarriorPanelState(state);
+  ensureTelemetryPanelState(state);
+  ensureInspectState(state);
+  ensureLegendState(state);
+  ensureSaveMapState(state);
+  const next = !state.ui.warriorPanel.open;
+  state.ui.warriorPanel.open = next;
+  if (next) {
+    state.ui.inspect.open = false;
+    state.ui.legend.open = false;
+    state.ui.telemetryPanel.open = false;
     closeSaveMap(state);
   }
 }
@@ -340,6 +373,7 @@ function openSaveMap(state, config, message, options = {}) {
   ensureInspectState(state);
   ensureLegendState(state);
   ensureTelemetryPanelState(state);
+  ensureWarriorPanelState(state);
   const uiConfig = (config.display && config.display.save_panel) || {};
   const autoCloseMs = Math.max(0, Number(uiConfig.autoCloseMs || 3000));
   const holdOpen = options.holdOpen === true;
@@ -349,6 +383,7 @@ function openSaveMap(state, config, message, options = {}) {
   state.ui.inspect.open = false;
   state.ui.legend.open = false;
   state.ui.telemetryPanel.open = false;
+  state.ui.warriorPanel.open = false;
 }
 
 // Function: triggerMapExport.
@@ -356,6 +391,7 @@ function triggerMapExport(state, config, runtime, options = {}) {
   ensureSaveMapState(state);
   ensureInspectState(state);
   ensureLegendState(state);
+  ensureWarriorPanelState(state);
   if (state.ui.saveMap.busy) {
     return;
   }
@@ -369,6 +405,7 @@ function triggerMapExport(state, config, runtime, options = {}) {
   state.ui.saveMap.busy = true;
   state.ui.inspect.open = false;
   state.ui.legend.open = false;
+  state.ui.warriorPanel.open = false;
   openSaveMap(
     state,
     config,
@@ -684,6 +721,7 @@ function startEndgameTransition(state, config, runtime) {
   ensureInspectState(state);
   ensureLegendState(state);
   ensureTelemetryPanelState(state);
+  ensureWarriorPanelState(state);
   ensureSaveMapState(state);
   transition.active = true;
   transition.phase = 'fadeOut';
@@ -697,6 +735,7 @@ function startEndgameTransition(state, config, runtime) {
   state.ui.inspect.open = false;
   state.ui.legend.open = false;
   state.ui.telemetryPanel.open = false;
+  state.ui.warriorPanel.open = false;
   closeSaveMap(state);
   currentAction = null;
   nextActionTick = 0;
@@ -840,6 +879,11 @@ function handleInput(text) {
     }
     if (char === 'h' || char === 'H') {
       toggleTelemetryPanel(state);
+      i += 1;
+      continue;
+    }
+    if (char === 'w' || char === 'W') {
+      toggleWarriorPanel(state);
       i += 1;
       continue;
     }

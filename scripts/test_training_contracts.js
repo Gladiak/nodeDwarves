@@ -8,13 +8,20 @@ const { spawnSync } = require('child_process');
 const { loadConfig } = require('../src/config');
 const { buildRuntime } = require('../src/runtime');
 const { createInitialState } = require('../src/state');
+const { buildObservation: buildAiObservation, buildFeatures: buildAiFeatures } = require('../src/ai/observation');
 const { updateExternalCamps } = require('../src/simulation/external_camps');
 const { updateContracts } = require('../src/simulation/contracts');
 const { updateRuins } = require('../src/simulation/ruins');
 const { updateUnderrealm } = require('../src/simulation/underrealm');
+const { updateSeason } = require('../src/simulation/season');
+const { updateWarriors, applyWarriorExpeditionOutcome } = require('../src/simulation/warriors');
+const { handleReproduction } = require('../src/simulation/population');
+const { buildTelemetrySections } = require('../src/telemetry/telemetry');
+const { getTelemetryPanelPageCount } = require('../src/telemetry/telemetry_panel');
 
 const ROOT = path.resolve(__dirname, '..');
 const PYTHON = path.join(ROOT, '.venv', 'bin', 'python');
+const AI_SERVER = path.join(ROOT, 'ai_server.js');
 const REGRESSION = path.join(ROOT, 'scripts', 'regression.js');
 const PROMOTE = path.join(ROOT, 'python', 'promote_best.py');
 const POLICY_BEST = path.join(ROOT, 'models', 'policy_best.json');
@@ -29,6 +36,25 @@ function assert(condition, message) {
 // Read one JSON file with a strict UTF-8 parser.
 function readJson(pathname) {
   return JSON.parse(fs.readFileSync(pathname, 'utf8'));
+}
+
+// Write a temporary config that keeps contract smokes compatible with legacy policy resources.
+function writeLegacyWarriorsActionHeadConfig(tmpDir, filename) {
+  const config = loadConfig();
+  const policyPayload = readJson(POLICY_BEST);
+  const policyResources = Array.isArray(policyPayload && policyPayload.resources)
+    ? policyPayload.resources.map((entry) => String(entry || ''))
+    : [];
+  const hasWarriorActionHead = policyResources.some((resourceId) => resourceId.startsWith('gov_warriors_'));
+  config.ai = config.ai || {};
+  config.ai.governors = config.ai.governors || {};
+  config.ai.governors.warriors = {
+    ...((config.ai.governors && config.ai.governors.warriors) || {}),
+    actionHeadEnabled: hasWarriorActionHead,
+  };
+  const outputPath = path.join(tmpDir, filename);
+  fs.writeFileSync(outputPath, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
+  return outputPath;
 }
 
 // Validate policy observation-normalization shape contract.
@@ -77,12 +103,49 @@ function runCommand(command, args, options = {}) {
   return result;
 }
 
+// Run one ai_server stdin/stdout session and return parsed JSON responses.
+function runAiServerSession(configPath, commands) {
+  const payloadLines = (Array.isArray(commands) ? commands : [])
+    .map((command) => JSON.stringify(command))
+    .join('\n');
+  const input = `${payloadLines}\n`;
+  const result = spawnSync('node', [
+    AI_SERVER,
+    '--config', configPath,
+  ], {
+    cwd: ROOT,
+    encoding: 'utf8',
+    input,
+  });
+  if (result.error) {
+    throw result.error;
+  }
+  const status = Number(result.status);
+  if (status !== 0) {
+    const stderr = String(result.stderr || '').trim();
+    const stdout = String(result.stdout || '').trim();
+    throw new Error(
+      `ai_server contract session failed (exit=${status})\nstdout:\n${stdout}\nstderr:\n${stderr}`,
+    );
+  }
+  const lines = String(result.stdout || '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+  return lines.map((line) => JSON.parse(line));
+}
+
 // Validate regression CLI output schema using a tiny deterministic smoke budget.
 function validateRegressionReportSchema(tmpDir) {
   const reportJsonPath = path.join(tmpDir, 'regression_contract.json');
   const reportMdPath = path.join(tmpDir, 'regression_contract.md');
+  const configPath = writeLegacyWarriorsActionHeadConfig(
+    tmpDir,
+    'regression_contract_config.json',
+  );
   runCommand('node', [
     REGRESSION,
+    '--config', configPath,
     '--profile', 'standard',
     '--seeds', '12345',
     '--eval-episodes', '1',
@@ -124,13 +187,54 @@ function validateRegressionReportSchema(tmpDir) {
   assert(markdown.includes('## Profiles'), 'Regression contract: markdown profiles section missing.');
 }
 
+// Validate horizon profile applies deterministic seed-pack default mode when CLI does not override seeds.
+function validateRegressionSeedPackDefaultModeContract(tmpDir) {
+  const reportJsonPath = path.join(tmpDir, 'regression_seedpack_default_contract.json');
+  const reportMdPath = path.join(tmpDir, 'regression_seedpack_default_contract.md');
+  runCommand('node', [
+    REGRESSION,
+    '--profile', 'horizon',
+    '--eval-episodes', '1',
+    '--eval-max-steps', '40',
+    '--random-episodes', '1',
+    '--random-max-steps', '40',
+    '--report-json', reportJsonPath,
+    '--report-md', reportMdPath,
+  ], {
+    label: 'regression seed-pack default contract smoke',
+    // Short smoke runs can fail tolerances; this contract validates schema + default seed-pack wiring.
+    allowExitCodes: [0, 1],
+  });
+
+  assert(fs.existsSync(reportJsonPath), 'Regression seed-pack default contract: JSON report was not created.');
+  const report = readJson(reportJsonPath);
+  assert(Array.isArray(report.sections) && report.sections.length > 0, 'Regression seed-pack default contract: sections missing.');
+  const section = report.sections[0];
+  const config = section && section.config ? section.config : null;
+  assert(config && typeof config === 'object', 'Regression seed-pack default contract: section config missing.');
+  const seedPack = config.seedPack;
+  assert(seedPack && typeof seedPack === 'object', 'Regression seed-pack default contract: seedPack metadata missing.');
+  assert(String(seedPack.mode || '') === 'weekly', 'Regression seed-pack default contract: defaultMode should resolve to weekly.');
+  assert(Array.isArray(seedPack.seeds) && seedPack.seeds.length > 0, 'Regression seed-pack default contract: resolved seed pack is empty.');
+  assert(Array.isArray(config.seeds), 'Regression seed-pack default contract: config.seeds missing.');
+  assert(
+    config.seeds.length === seedPack.seeds.length,
+    'Regression seed-pack default contract: config.seeds length mismatch with seedPack.seeds.',
+  );
+}
+
 // Validate promote report schema and diagnostics block with a tiny eval-only run.
 function validatePromoteReportSchema(tmpDir) {
   assert(fs.existsSync(PYTHON), `Promote contract: Python venv not found at ${PYTHON}`);
   const reportJsonPath = path.join(tmpDir, 'promote_contract.json');
   const reportMdPath = path.join(tmpDir, 'promote_contract.md');
+  const configPath = writeLegacyWarriorsActionHeadConfig(
+    tmpDir,
+    'promote_contract_config.json',
+  );
   runCommand(PYTHON, [
     PROMOTE,
+    '--config', configPath,
     '--eval-only',
     '--model-path', POLICY_BEST,
     '--best-model-path', POLICY_BEST,
@@ -965,6 +1069,1318 @@ function validateUnderrealmGovernorContract() {
   }
 }
 
+// Execute one callback under a deterministic Math.random stream.
+function withDeterministicRandom(seed, callback) {
+  const previous = Math.random;
+  let value = Number(seed) >>> 0;
+  Math.random = () => {
+    value = (Math.imul(value, 1664525) + 1013904223) >>> 0;
+    return value / 4294967296;
+  };
+  try {
+    return callback();
+  } finally {
+    Math.random = previous;
+  }
+}
+
+// Build a deterministic smoke config for warrior scaffold contracts.
+function createWarriorsSmokeConfig(options = {}) {
+  const config = loadConfig();
+  config.display = {
+    ...(config.display || {}),
+    autoSize: false,
+    width: 90,
+    height: 45,
+    mapInset: {
+      ...((config.display && config.display.mapInset) || {}),
+      enabled: false,
+    },
+  };
+  config.population = config.population || {};
+  config.population.reproduction = {
+    ...(config.population.reproduction || {}),
+    enabled: true,
+  };
+  if (options.withWarriorsBlock === false) {
+    delete config.warriors;
+  } else {
+    config.warriors = {
+      ...(config.warriors || {}),
+      enabled: options.enabled === true,
+    };
+  }
+  return config;
+}
+
+// Build deterministic signature for behavior-neutral comparison.
+function getWarriorsNeutralSignature(state) {
+  const dwarves = Array.isArray(state && state.dwarves) ? state.dwarves : [];
+  const nodes = Array.isArray(state && state.nodes) ? state.nodes : [];
+  const structures = Array.isArray(state && state.structures) ? state.structures : [];
+  const ruins = state && state.ruins ? state.ruins : null;
+  const underrealm = state && state.underrealm ? state.underrealm : null;
+  return JSON.stringify({
+    tick: Math.max(0, Number(state && state.tick || 0)),
+    dwarfCounter: Math.max(0, Number(state && state.dwarfCounter || 0)),
+    dwarves: dwarves.map((dwarf) => ({
+      id: String(dwarf && dwarf.id || ''),
+      spawnIndex: Math.max(0, Number(dwarf && dwarf.spawnIndex || 0)),
+      x: Math.max(0, Number(dwarf && dwarf.x || 0)),
+      y: Math.max(0, Number(dwarf && dwarf.y || 0)),
+      clanId: dwarf && dwarf.clanId ? String(dwarf.clanId) : null,
+      role: dwarf && dwarf.role ? String(dwarf.role) : null,
+      lifeStage: dwarf && dwarf.lifeStage ? String(dwarf.lifeStage) : '',
+      ageTicks: Math.max(0, Number(dwarf && dwarf.ageTicks || 0)),
+      underrealmChampionSurvivals: Math.max(0, Number(dwarf && dwarf.underrealmChampionSurvivals || 0)),
+    })),
+    nodes: nodes.map((node) => ({
+      id: String(node && node.id || ''),
+      x: Math.max(0, Number(node && node.x || 0)),
+      y: Math.max(0, Number(node && node.y || 0)),
+      remaining: Math.max(0, Number(node && node.remaining || 0)),
+    })),
+    structures: structures.map((structure) => ({
+      id: String(structure && structure.id || ''),
+      type: String(structure && structure.type || ''),
+      x: Math.max(0, Number(structure && structure.x || 0)),
+      y: Math.max(0, Number(structure && structure.y || 0)),
+      level: Math.max(0, Number(structure && structure.level || 0)),
+      capacity: Math.max(0, Number(structure && structure.capacity || 0)),
+    })),
+    stockpile: state && state.stockpile ? state.stockpile : {},
+    ruins: ruins ? {
+      roomsCleared: Math.max(0, Number(ruins.roomsCleared || 0)),
+      roomCount: Math.max(0, Number(ruins.roomCount || 0)),
+      cooldown: Math.max(0, Number(ruins.cooldown || 0)),
+      stats: {
+        started: Math.max(0, Number(ruins.stats && ruins.stats.started || 0)),
+        successes: Math.max(0, Number(ruins.stats && ruins.stats.successes || 0)),
+        failures: Math.max(0, Number(ruins.stats && ruins.stats.failures || 0)),
+        artifacts: Math.max(0, Number(ruins.stats && ruins.stats.artifacts || 0)),
+      },
+    } : null,
+    underrealm: underrealm ? {
+      maxDepth: Math.max(0, Number(underrealm.maxDepth || 0)),
+      maxUnlockedDepth: Math.max(0, Number(underrealm.maxUnlockedDepth || 0)),
+      activeDepth: Math.max(0, Number(underrealm.activeDepth || 0)),
+    } : null,
+  });
+}
+
+// Validate disabled warrior config keeps legacy behavior neutral.
+function validateWarriorsDisabledNeutralContract() {
+  const legacyConfig = createWarriorsSmokeConfig({
+    withWarriorsBlock: false,
+  });
+  const disabledConfig = createWarriorsSmokeConfig({
+    withWarriorsBlock: true,
+    enabled: false,
+  });
+  const runtime = buildRuntime(legacyConfig.display, {
+    columns: Number(legacyConfig.display.width || 90),
+    rows: Number(legacyConfig.display.height || 45),
+  });
+
+  const legacyState = withDeterministicRandom(4101, () => createInitialState(legacyConfig, runtime));
+  const disabledState = withDeterministicRandom(4101, () => createInitialState(disabledConfig, runtime));
+  assert(
+    getWarriorsNeutralSignature(legacyState) === getWarriorsNeutralSignature(disabledState),
+    'Warriors contract: disabled config changed deterministic initial-state behavior.',
+  );
+  assert(
+    disabledState.warriors && disabledState.warriors.enabled === false,
+    'Warriors contract: disabled runtime scaffold missing or malformed.',
+  );
+
+  const legacyAfterRuins = withDeterministicRandom(7713, () => {
+    const state = createInitialState(legacyConfig, runtime);
+    runRuinsTicks(state, legacyConfig, runtime, 6, () => null);
+    return state;
+  });
+  const disabledAfterRuins = withDeterministicRandom(7713, () => {
+    const state = createInitialState(disabledConfig, runtime);
+    runRuinsTicks(state, disabledConfig, runtime, 6, () => null);
+    return state;
+  });
+  assert(
+    getWarriorsNeutralSignature(legacyAfterRuins) === getWarriorsNeutralSignature(disabledAfterRuins),
+    'Warriors contract: disabled config changed deterministic ruins behavior.',
+  );
+}
+
+// Validate warrior phase-1 bootstrap payloads and newborn wiring.
+function validateWarriorsBootstrapContract() {
+  const config = createWarriorsSmokeConfig({
+    withWarriorsBlock: true,
+    enabled: true,
+  });
+  const runtime = buildRuntime(config.display, {
+    columns: Number(config.display.width || 90),
+    rows: Number(config.display.height || 45),
+  });
+  const stateA = withDeterministicRandom(9911, () => createInitialState(config, runtime));
+  const stateB = withDeterministicRandom(9911, () => createInitialState(config, runtime));
+  assert(stateA.warriors && stateA.warriors.enabled === true, 'Warriors contract: enabled runtime scaffold missing.');
+
+  const dwarvesA = Array.isArray(stateA.dwarves) ? stateA.dwarves : [];
+  const dwarvesB = Array.isArray(stateB.dwarves) ? stateB.dwarves : [];
+  assert(dwarvesA.length > 2, 'Warriors contract: bootstrap state has insufficient dwarves.');
+  for (let index = 0; index < Math.min(dwarvesA.length, 8); index += 1) {
+    const left = dwarvesA[index];
+    const right = dwarvesB[index];
+    const leftWarrior = left && left.warrior && typeof left.warrior === 'object'
+      ? left.warrior
+      : null;
+    const rightWarrior = right && right.warrior && typeof right.warrior === 'object'
+      ? right.warrior
+      : null;
+    assert(leftWarrior, `Warriors contract: missing warrior payload for dwarf ${left && left.id}.`);
+    assert(rightWarrior, `Warriors contract: deterministic mirror missing warrior payload for dwarf ${right && right.id}.`);
+    const leftProfile = leftWarrior.baseProfile || {};
+    const rightProfile = rightWarrior.baseProfile || {};
+    const keys = ['strength', 'dexterity', 'vitality'];
+    for (const key of keys) {
+      const leftValue = Number(leftProfile[key] || 0);
+      const rightValue = Number(rightProfile[key] || 0);
+      assert(leftValue >= 0 && leftValue <= 1, `Warriors contract: ${key} out of range for ${left && left.id}.`);
+      assert(Math.abs(leftValue - rightValue) < 1e-9, `Warriors contract: ${key} deterministic mismatch for ${left && left.id}.`);
+    }
+    assert(
+      Number(leftWarrior.heroPotential || 0) >= 0 && Number(leftWarrior.heroPotential || 0) <= 1,
+      `Warriors contract: heroPotential out of range for ${left && left.id}.`,
+    );
+  }
+
+  const parentA = dwarvesA[0];
+  const parentB = dwarvesA[1];
+  assert(parentA && parentB, 'Warriors contract: missing parents for newborn wiring check.');
+  parentA.pregnancy = {
+    dueTick: 0,
+    partnerId: parentB.id,
+  };
+  stateA.tick = 1;
+  const before = dwarvesA.length;
+  handleReproduction(stateA, config);
+  const after = Array.isArray(stateA.dwarves) ? stateA.dwarves.length : 0;
+  assert(after === before + 1, 'Warriors contract: newborn was not spawned during due pregnancy processing.');
+  const newborn = stateA.dwarves[stateA.dwarves.length - 1];
+  assert(newborn && newborn.warrior, 'Warriors contract: newborn missing warrior payload.');
+  const newbornProfile = newborn.warrior.baseProfile || {};
+  for (const key of ['strength', 'dexterity', 'vitality']) {
+    const value = Number(newbornProfile[key] || 0);
+    assert(value >= 0 && value <= 1, `Warriors contract: newborn ${key} out of range.`);
+  }
+}
+
+// Validate warrior governor phase-1 plumbing (action envelope -> runtime snapshot).
+function validateWarriorsGovernorPhase1Contract() {
+  const config = createWarriorsSmokeConfig({
+    withWarriorsBlock: true,
+    enabled: true,
+  });
+  config.ai = config.ai || {};
+  config.ai.minWeight = 0;
+  config.ai.maxWeight = 2;
+  config.ai.governors = config.ai.governors || {};
+  config.ai.governors.warriors = {
+    enabled: true,
+    trainingIntentThreshold: 0.7,
+    rotationIntentThreshold: 0.45,
+    tournamentRiskIntentThreshold: 0.65,
+    championChallengeIntentThreshold: 0.6,
+    recoveryPriorityIntentThreshold: 0.75,
+  };
+  const runtime = buildRuntime(config.display, {
+    columns: Number(config.display.width || 90),
+    rows: Number(config.display.height || 45),
+  });
+  const state = createInitialState(config, runtime);
+  state.tick = 11;
+  state.season = {
+    ...(state.season || {}),
+    tickInSeason: 2,
+  };
+
+  updateWarriors(state, config, {
+    warriors: {
+      trainingIntent: 1.9,
+      rotationIntent: 0.6,
+      tournamentRiskIntent: 1.7,
+      championChallengeIntent: 0.4,
+      recoveryPriorityIntent: 1.8,
+    },
+  });
+  const governor = state.warriors && state.warriors.governor ? state.warriors.governor : null;
+  assert(governor, 'Warriors phase1 contract: missing governor runtime snapshot.');
+  assert(governor.source === 'action', 'Warriors phase1 contract: action payload should set source=action.');
+  assert(
+    Math.abs(Number(governor.intents.trainingIntent || 0) - 0.95) < 1e-6,
+    'Warriors phase1 contract: training intent normalization mismatch.',
+  );
+  assert(
+    Math.abs(Number(governor.intents.rotationIntent || 0) - 0.3) < 1e-6,
+    'Warriors phase1 contract: rotation intent normalization mismatch.',
+  );
+  assert(
+    Math.abs(Number(governor.intents.tournamentRiskIntent || 0) - 0.85) < 1e-6,
+    'Warriors phase1 contract: tournament-risk intent normalization mismatch.',
+  );
+  assert(governor.applied.training === true, 'Warriors phase1 contract: training threshold gate mismatch.');
+  assert(governor.applied.rotation === false, 'Warriors phase1 contract: rotation threshold gate mismatch.');
+  assert(governor.applied.tournamentRisk === true, 'Warriors phase1 contract: tournament-risk threshold gate mismatch.');
+  assert(governor.applied.championChallenge === false, 'Warriors phase1 contract: champion threshold gate mismatch.');
+  assert(governor.applied.recoveryPriority === true, 'Warriors phase1 contract: recovery threshold gate mismatch.');
+  assert(
+    String(governor.dominantIntent || '') === 'training',
+    'Warriors phase1 contract: dominant intent should follow strongest normalized signal.',
+  );
+  const stats = state.warriors && state.warriors.stats ? state.warriors.stats : null;
+  assert(stats, 'Warriors phase1 contract: missing warrior stats runtime.');
+  assert(Number(stats.injuries || 0) === 0, 'Warriors phase1 contract: injuries counter should initialize at zero.');
+  assert(Number(stats.retirements || 0) === 0, 'Warriors phase1 contract: retirements counter should initialize at zero.');
+  assert(Number(stats.heroTurnovers || 0) === 0, 'Warriors phase1 contract: heroTurnovers counter should initialize at zero.');
+
+  state.tick += 1;
+  updateWarriors(state, config, null);
+  const fallbackGovernor = state.warriors && state.warriors.governor ? state.warriors.governor : null;
+  assert(fallbackGovernor, 'Warriors phase1 contract: fallback governor snapshot missing.');
+  assert(
+    fallbackGovernor.source === 'default',
+    'Warriors phase1 contract: missing action payload should set source=default.',
+  );
+  assert(
+    Math.abs(Number(fallbackGovernor.intents.trainingIntent || 0) - 1) < 1e-6
+    && Math.abs(Number(fallbackGovernor.intents.rotationIntent || 0) - 1) < 1e-6
+    && Math.abs(Number(fallbackGovernor.intents.tournamentRiskIntent || 0) - 1) < 1e-6
+    && Math.abs(Number(fallbackGovernor.intents.championChallengeIntent || 0) - 1) < 1e-6
+    && Math.abs(Number(fallbackGovernor.intents.recoveryPriorityIntent || 0) - 1) < 1e-6,
+    'Warriors phase1 contract: fallback intents should remain legacy-open (1.0).',
+  );
+}
+
+// Validate warrior governor thresholds are consumed by runtime systems (not telemetry-only).
+function validateWarriorsGovernorThresholdApplicationContract() {
+  const config = createWarriorsSmokeConfig({
+    withWarriorsBlock: true,
+    enabled: true,
+  });
+  config.ai = config.ai || {};
+  config.ai.minWeight = 0;
+  config.ai.maxWeight = 2;
+  config.ai.governors = config.ai.governors || {};
+  config.ai.governors.warriors = {
+    enabled: true,
+    trainingIntentThreshold: 0.6,
+    rotationIntentThreshold: 0.6,
+    tournamentRiskIntentThreshold: 0.6,
+    championChallengeIntentThreshold: 0.6,
+    recoveryPriorityIntentThreshold: 0.6,
+  };
+  config.warriors = {
+    ...(config.warriors || {}),
+    enabled: true,
+    training: {
+      ...(((config.warriors || {}).training) || {}),
+      enabled: true,
+      tick_interval: 1,
+      base_participants: 1,
+      max_participants: 1,
+      min_condition_score: 0,
+      fatigue_ceiling: 1,
+      stress_ceiling: 1,
+      skip_injured: false,
+      cost_per_session: {
+        food: 0,
+        beer: 0,
+        iron: 0,
+      },
+      progression: {
+        ...((((config.warriors || {}).training || {}).progression) || {}),
+        rating_gain: 0.02,
+        valor_gain: 0.02,
+        hero_potential_gain: 0.01,
+        fatigue_gain: 0.01,
+        stress_gain: 0.01,
+        morale_delta: 0,
+        recovery_relief: 0.01,
+      },
+    },
+  };
+  const runtime = buildRuntime(config.display, {
+    columns: Number(config.display.width || 90),
+    rows: Number(config.display.height || 45),
+  });
+  const state = createInitialState(config, runtime);
+  const adults = (Array.isArray(state.dwarves) ? state.dwarves : [])
+    .filter((dwarf) => dwarf && String(dwarf.lifeStage || '') === 'adult');
+  assert(adults.length >= 2, 'Warriors threshold contract: insufficient adults for threshold checks.');
+  const injured = adults[0];
+  injured.warrior = injured.warrior && typeof injured.warrior === 'object' ? injured.warrior : {};
+  injured.warrior.injury = {
+    severity: 'minor',
+    recoveryTicks: 6,
+    startedTick: 0,
+    lastTick: 0,
+  };
+  const trainee = adults[1];
+  trainee.expedition = false;
+  trainee.state = trainee.state && typeof trainee.state === 'object'
+    ? trainee.state
+    : {};
+  trainee.state.fatigue = 0;
+  trainee.state.stress = 0;
+  trainee.state.morale = 0.5;
+  trainee.warrior = trainee.warrior && typeof trainee.warrior === 'object' ? trainee.warrior : {};
+  trainee.warrior.retired = false;
+  trainee.warrior.injury = null;
+  trainee.warrior.rating = 0.45;
+  trainee.warrior.valor = 0.45;
+  trainee.warrior.heroPotential = 0.45;
+  trainee.warrior.lastTrainingTick = 0;
+  trainee.warrior.condition = trainee.warrior.condition && typeof trainee.warrior.condition === 'object'
+    ? trainee.warrior.condition
+    : {};
+  trainee.warrior.condition.score = 1;
+
+  state.tick = 1;
+  updateWarriors(state, config, {
+    warriors: {
+      trainingIntent: 0.4,
+      rotationIntent: 0.4,
+      tournamentRiskIntent: 0.4,
+      championChallengeIntent: 0.4,
+      recoveryPriorityIntent: 0.4,
+    },
+  });
+  const lowIntentTrainingSessions = Number(
+    state.warriors
+    && state.warriors.stats
+    && state.warriors.stats.trainingSessions
+    || 0,
+  );
+  const afterLowIntentRecoveryTicks = Number(
+    injured.warrior
+    && injured.warrior.injury
+    && injured.warrior.injury.recoveryTicks
+    || 0,
+  );
+  const lowIntentGovernor = state.warriors && state.warriors.governor ? state.warriors.governor : null;
+  assert(
+    lowIntentTrainingSessions === 0,
+    'Warriors threshold contract: training should stay inactive below trainingIntentThreshold.',
+  );
+  assert(
+    lowIntentGovernor
+    && lowIntentGovernor.applied
+    && lowIntentGovernor.applied.training === false
+    && lowIntentGovernor.applied.recoveryPriority === false,
+    'Warriors threshold contract: low intents should keep training/recovery gates inactive.',
+  );
+  assert(
+    afterLowIntentRecoveryTicks === 5,
+    'Warriors threshold contract: low recovery intent should keep base (1 tick) injury recovery.',
+  );
+
+  state.tick = 2;
+  updateWarriors(state, config, {
+    warriors: {
+      trainingIntent: 1.8,
+      rotationIntent: 1.8,
+      tournamentRiskIntent: 1.8,
+      championChallengeIntent: 1.8,
+      recoveryPriorityIntent: 1.8,
+    },
+  });
+  const highIntentTrainingSessions = Number(
+    state.warriors
+    && state.warriors.stats
+    && state.warriors.stats.trainingSessions
+    || 0,
+  );
+  const afterHighIntentRecoveryTicks = Number(
+    injured.warrior
+    && injured.warrior.injury
+    && injured.warrior.injury.recoveryTicks
+    || 0,
+  );
+  const highIntentGovernor = state.warriors && state.warriors.governor ? state.warriors.governor : null;
+  assert(
+    highIntentTrainingSessions >= 1,
+    'Warriors threshold contract: training should activate when intent is above threshold.',
+  );
+  assert(
+    highIntentGovernor
+    && highIntentGovernor.applied
+    && highIntentGovernor.applied.training === true
+    && highIntentGovernor.applied.rotation === true
+    && highIntentGovernor.applied.tournamentRisk === true
+    && highIntentGovernor.applied.championChallenge === true
+    && highIntentGovernor.applied.recoveryPriority === true,
+    'Warriors threshold contract: high intents should activate every governor gate above threshold.',
+  );
+  assert(
+    afterHighIntentRecoveryTicks === 3,
+    'Warriors threshold contract: high recovery intent should apply accelerated (2 ticks) injury recovery.',
+  );
+}
+
+// Validate warrior phase-2 dispatch ordering and post-expedition progression updates.
+function validateWarriorsExpeditionPhase2Contract() {
+  const config = createRuinsSmokeConfig();
+  config.ruins.expedition = {
+    ...(config.ruins.expedition || {}),
+    requiresArmory: false,
+    minPopulation: 1,
+    minIdleAdults: 1,
+    cooldownTicks: 0,
+    failureCooldownTicks: 0,
+    partySizeMin: 1,
+    partySizeMax: 1,
+  };
+  config.ruins.rooms = [
+    {
+      name: 'Warrior Phase2 Smoke',
+      expeditionTicks: 1,
+      partySize: 1,
+      cost: {},
+      hazardChance: 0,
+      guardianChance: 0,
+      guardianPower: 0,
+      artifactChance: 0,
+      artifactRolls: 0,
+    },
+  ];
+  config.ruins.artifacts = {
+    sets: {
+      smoke_set: {
+        label: 'Smoke Set',
+      },
+    },
+    pool: {
+      smoke_token: {
+        name: 'Smoke Token',
+        set: 'smoke_set',
+        weight: 1,
+      },
+    },
+  };
+  config.underrealm = config.underrealm || {};
+  config.underrealm.combat = {
+    ...((config.underrealm && config.underrealm.combat) || {}),
+    enabled: false,
+    dwarf_champion: {
+      ...(((config.underrealm && config.underrealm.combat) || {}).dwarf_champion || {}),
+      enabled: false,
+      requires_party_presence: false,
+    },
+  };
+  config.warriors = {
+    ...(config.warriors || {}),
+    enabled: true,
+    expeditions: {
+      ...(((config.warriors || {}).expeditions) || {}),
+      enabled: true,
+      risk_depth_min: 1,
+      condition_min_score: 0.3,
+      fallback_condition_min_score: 0.2,
+      strict_risk_condition_gate: true,
+      champion_survivals_full_scale: 6,
+      dispatch_weights: {
+        rating: 1,
+        valor: 0,
+        hero_potential: 0,
+        champion_survivals: 0,
+        clan_class_fit: 0,
+      },
+      rest_ticks: {
+        success: 3,
+        failure: 6,
+        retreat: 4,
+      },
+      progression: {
+        rating_delta: {
+          success: 0.05,
+          failure: -0.05,
+          retreat: -0.02,
+        },
+        valor_delta: {
+          success: 0,
+          failure: 0,
+          retreat: 0,
+        },
+        fatigue_gain: {
+          success: 0.1,
+          failure: 0.2,
+          retreat: 0.15,
+        },
+        stress_gain: {
+          success: 0.03,
+          failure: 0.08,
+          retreat: 0.06,
+        },
+        morale_delta: {
+          success: 0.02,
+          failure: -0.05,
+          retreat: -0.03,
+        },
+        risk_win_bonus: 0.02,
+      },
+    },
+  };
+
+  const { state, runtime } = createRuinsSmokeState(config, { warningMode: false });
+  const adults = (Array.isArray(state.dwarves) ? state.dwarves : [])
+    .filter((dwarf) => dwarf && dwarf.lifeStage === 'adult');
+  assert(adults.length >= 3, 'Warriors phase2 contract: insufficient adult dwarves for dispatch test.');
+
+  for (const dwarf of adults) {
+    dwarf.state = dwarf.state && typeof dwarf.state === 'object'
+      ? dwarf.state
+      : {};
+    dwarf.state.morale = 1;
+    dwarf.state.stress = 0;
+    dwarf.state.fatigue = 0;
+    dwarf.warrior = dwarf.warrior && typeof dwarf.warrior === 'object'
+      ? dwarf.warrior
+      : {};
+    dwarf.warrior.rating = 0.1;
+    dwarf.warrior.valor = 0.1;
+    dwarf.warrior.wins = 0;
+    dwarf.warrior.losses = 0;
+    dwarf.warrior.retreats = 0;
+    dwarf.warrior.riskWins = 0;
+    dwarf.warrior.expeditions = 0;
+    dwarf.warrior.nextEligibleExpeditionTick = 0;
+  }
+
+  const top = adults[0];
+  const runnerUp = adults[1];
+  top.warrior.rating = 0.92;
+  runnerUp.warrior.rating = 0.78;
+
+  state.tick = 1;
+  updateRuins(state, config, runtime, null);
+  const firstExpedition = state.ruins && Array.isArray(state.ruins.expeditions)
+    ? state.ruins.expeditions[0]
+    : null;
+  assert(firstExpedition, 'Warriors phase2 contract: first expedition did not start.');
+  assert(
+    Array.isArray(firstExpedition.dwarfIds) && firstExpedition.dwarfIds[0] === top.id,
+    'Warriors phase2 contract: risky dispatch should prioritize top rated warrior.',
+  );
+
+  state.tick = 2;
+  updateRuins(state, config, runtime, null);
+  assert(
+    Number(top.warrior.wins || 0) === 1
+    && Number(top.warrior.expeditions || 0) === 1
+    && Number(top.warrior.riskWins || 0) === 1,
+    'Warriors phase2 contract: success progression counters were not updated.',
+  );
+  assert(
+    Number(top.warrior.rating || 0) > 0.92,
+    'Warriors phase2 contract: rating should increase after risky success.',
+  );
+  assert(
+    Number(top.warrior.nextEligibleExpeditionTick || 0) >= 5,
+    'Warriors phase2 contract: rest gate tick was not applied after expedition.',
+  );
+
+  state.tick = 3;
+  updateRuins(state, config, runtime, null);
+  const secondExpedition = state.ruins && Array.isArray(state.ruins.expeditions)
+    ? state.ruins.expeditions[0]
+    : null;
+  assert(secondExpedition, 'Warriors phase2 contract: second expedition did not start.');
+  assert(
+    Array.isArray(secondExpedition.dwarfIds) && secondExpedition.dwarfIds[0] !== top.id,
+    'Warriors phase2 contract: rest guardrail should avoid immediate redispatch of the resting top warrior.',
+  );
+}
+
+// Validate warrior phase-3 seasonal tournament runtime and champion sync contract.
+function validateWarriorsTournamentPhase3Contract() {
+  const config = createWarriorsSmokeConfig({
+    withWarriorsBlock: true,
+    enabled: true,
+  });
+  config.seasons = {
+    ...(config.seasons || {}),
+    enabled: true,
+    durationTicks: 2,
+    order: ['spring', 'summer'],
+    modifiers: {
+      spring: {},
+      summer: {},
+    },
+  };
+  config.warriors = {
+    ...(config.warriors || {}),
+    enabled: true,
+    tournaments: {
+      ...(((config.warriors || {}).tournaments) || {}),
+      enabled: true,
+      cadence: 'season',
+      interval_seasons: 1,
+      min_participants: 2,
+      max_participants: 2,
+      sync_underrealm_champion: true,
+      seed_weights: {
+        rating: 1,
+        valor: 0,
+        hero_potential: 0,
+        condition: 0,
+        champion_survivals: 0,
+      },
+      duel_weights: {
+        seed_score: 1,
+        base_aptitude: 0,
+        condition: 0,
+      },
+      scoring: {
+        duel_win_points: 3,
+        duel_loss_points: 1,
+        bye_points: 1,
+        champion_bonus_points: 2,
+      },
+      progression: {
+        rating_win_delta: 0,
+        rating_loss_delta: 0,
+        champion_rating_bonus: 0,
+        valor_win_delta: 0,
+        valor_loss_delta: 0,
+        champion_valor_bonus: 0,
+      },
+    },
+    expeditions: {
+      ...(((config.warriors || {}).expeditions) || {}),
+      champion_survivals_full_scale: 6,
+    },
+  };
+
+  const runtime = buildRuntime(config.display, {
+    columns: Number(config.display.width || 90),
+    rows: Number(config.display.height || 45),
+  });
+  const state = createInitialState(config, runtime);
+  const combatChampion = state
+    && state.underrealm
+    && state.underrealm.combat
+    && state.underrealm.combat.dwarfChampion
+      ? state.underrealm.combat.dwarfChampion
+      : null;
+  assert(combatChampion, 'Warriors phase3 contract: missing underrealm dwarf champion runtime.');
+  combatChampion.enabled = true;
+  combatChampion.autoPromotion = {
+    ...(combatChampion.autoPromotion || {}),
+    enabled: false,
+  };
+  combatChampion.activeDwarfId = null;
+
+  const adults = (Array.isArray(state.dwarves) ? state.dwarves : [])
+    .filter((dwarf) => dwarf && dwarf.lifeStage === 'adult');
+  assert(adults.length >= 3, 'Warriors phase3 contract: insufficient adult dwarves for tournament scenario.');
+  const alpha = adults[0];
+  const beta = adults[1];
+  alpha.clanId = 'emberforge';
+  beta.clanId = 'deepdelve';
+  for (const dwarf of [alpha, beta]) {
+    dwarf.state = dwarf.state && typeof dwarf.state === 'object'
+      ? dwarf.state
+      : {};
+    dwarf.state.morale = 1;
+    dwarf.state.stress = 0;
+    dwarf.state.fatigue = 0;
+    dwarf.warrior = dwarf.warrior && typeof dwarf.warrior === 'object'
+      ? dwarf.warrior
+      : {};
+    dwarf.warrior.rating = 0.9;
+    dwarf.warrior.valor = 0.5;
+    dwarf.warrior.baseProfile = {
+      strength: 0.7,
+      dexterity: 0.7,
+      vitality: 0.7,
+    };
+    dwarf.warrior.baseCombatAptitude = 0.7;
+    dwarf.warrior.heroPotential = 0.7;
+    dwarf.warrior.nextEligibleExpeditionTick = 0;
+  }
+
+  state.tick = 1;
+  updateSeason(state, config);
+  updateWarriors(state, config);
+  const league = state.warriors && state.warriors.league ? state.warriors.league : null;
+  const stats = state.warriors && state.warriors.stats ? state.warriors.stats : null;
+  assert(league, 'Warriors phase3 contract: missing league runtime after season tournament tick.');
+  assert(stats, 'Warriors phase3 contract: missing stats runtime after season tournament tick.');
+  assert(Number(stats.tournaments || 0) === 1, 'Warriors phase3 contract: season boundary should run one tournament.');
+  assert(
+    String(league.championId || '') === String(alpha.id),
+    'Warriors phase3 contract: deterministic tie-break should crown lower spawn-index champion.',
+  );
+  assert(
+    Number(stats.tieBreaks || 0) >= 1,
+    'Warriors phase3 contract: tie-break counter should increment when duel score ties.',
+  );
+  assert(
+    league.clanScoreById
+    && Number(league.clanScoreById.emberforge || 0) > 0
+    && Number(league.clanScoreById.deepdelve || 0) > 0,
+    'Warriors phase3 contract: clan leaderboard should include both participating clans.',
+  );
+  assert(
+    String(combatChampion.activeDwarfId || '') === String(alpha.id),
+    'Warriors phase3 contract: tournament champion should sync to underrealm champion runtime.',
+  );
+
+  state.tick = 2;
+  updateSeason(state, config);
+  updateWarriors(state, config);
+  assert(
+    Number(state.warriors.stats && state.warriors.stats.tournaments || 0) === 1,
+    'Warriors phase3 contract: tournament must not rerun inside same season window.',
+  );
+
+  state.tick = 3;
+  updateSeason(state, config);
+  updateWarriors(state, config);
+  assert(
+    Number(state.warriors.stats && state.warriors.stats.tournaments || 0) === 2,
+    'Warriors phase3 contract: next season boundary should run tournament again.',
+  );
+}
+
+// Validate warrior phase-4 scars/titles/vows/legacy progression and cap guardrails.
+function validateWarriorsProgressionPhase4Contract() {
+  const config = createWarriorsSmokeConfig({
+    withWarriorsBlock: true,
+    enabled: true,
+  });
+  config.warriors = {
+    ...(config.warriors || {}),
+    enabled: true,
+    tournaments: {
+      ...(((config.warriors || {}).tournaments) || {}),
+      enabled: true,
+      cadence: 'season',
+      interval_seasons: 1,
+      min_participants: 2,
+      max_participants: 2,
+      sync_underrealm_champion: false,
+      seed_weights: {
+        rating: 1,
+        valor: 0,
+        hero_potential: 0,
+        condition: 0,
+        champion_survivals: 0,
+      },
+      duel_weights: {
+        seed_score: 1,
+        base_aptitude: 0,
+        condition: 0,
+      },
+      progression: {
+        rating_win_delta: 0,
+        rating_loss_delta: 0,
+        champion_rating_bonus: 0,
+        valor_win_delta: 0,
+        valor_loss_delta: 0,
+        champion_valor_bonus: 0,
+      },
+    },
+    expeditions: {
+      ...(((config.warriors || {}).expeditions) || {}),
+      enabled: true,
+      risk_depth_min: 1,
+      rest_ticks: {
+        success: 0,
+        failure: 0,
+        retreat: 0,
+      },
+      progression: {
+        ...((((config.warriors || {}).expeditions || {}).progression) || {}),
+        rating_delta: {
+          success: 0.02,
+          failure: -0.05,
+          retreat: -0.03,
+        },
+        valor_delta: {
+          success: 0.01,
+          failure: -0.02,
+          retreat: -0.01,
+        },
+        fatigue_gain: {
+          success: 0.08,
+          failure: 0.1,
+          retreat: 0.09,
+        },
+        stress_gain: {
+          success: 0.03,
+          failure: 0.07,
+          retreat: 0.05,
+        },
+        morale_delta: {
+          success: 0.01,
+          failure: -0.03,
+          retreat: -0.02,
+        },
+        risk_win_bonus: 0.02,
+      },
+    },
+    marks: {
+      enabled: true,
+      scars: {
+        enabled: true,
+        max_count: 3,
+        rules: [
+          {
+            id: 'scar_failure_mark',
+            outcomes: ['failure'],
+            losses_min: 1,
+          },
+        ],
+      },
+      titles: {
+        enabled: true,
+        max_count: 4,
+        champion_id: 'title_league_champion',
+        rules: [
+          {
+            id: 'title_vanguard',
+            expeditions_min: 2,
+            wins_min: 1,
+            rating_min: 0,
+            valor_min: 0,
+          },
+        ],
+      },
+    },
+    vows: {
+      enabled: true,
+      allow_reassignment: false,
+      rules: [
+        {
+          id: 'stone_oath',
+          priority: 10,
+          expeditions_min: 2,
+          wins_min: 1,
+          rating_min: 0,
+          valor_min: 0,
+          condition_min: 0,
+        },
+      ],
+      catalog: {
+        stone_oath: {
+          dispatch_score_bonus: 0.05,
+          dispatch_score_penalty: 0.01,
+          tournament_seed_bonus: 0.02,
+          tournament_duel_bonus: 0.02,
+          rating_loss_multiplier: 1.6,
+          fatigue_gain_multiplier: 1.2,
+          stress_gain_multiplier: 1.15,
+        },
+      },
+    },
+    bonuses: {
+      ...(((config.warriors || {}).bonuses) || {}),
+      enabled: true,
+      legacy_cap: 0.34,
+      legacy: {
+        enabled: true,
+        points_cap: 2,
+        diminishing_alpha: 1.1,
+        personal_scale: 1,
+        personal_cap: 0.25,
+        personal_dispatch_scale: 0.5,
+        personal_duel_scale: 0.5,
+        company_scale: 2,
+        company_cap: 0.34,
+        company_roster_size: 2,
+        company_dispatch_scale: 0.2,
+        points: {
+          expedition_success: 1.2,
+          expedition_failure: 0.8,
+          expedition_retreat: 0.5,
+          risky_success_bonus: 0.6,
+          tournament_duel_win: 0.5,
+          tournament_duel_loss: 0.2,
+          tournament_champion_bonus: 0.9,
+        },
+      },
+    },
+  };
+
+  const runtime = buildRuntime(config.display, {
+    columns: Number(config.display.width || 90),
+    rows: Number(config.display.height || 45),
+  });
+  const state = createInitialState(config, runtime);
+  const adults = (Array.isArray(state.dwarves) ? state.dwarves : [])
+    .filter((dwarf) => dwarf && dwarf.lifeStage === 'adult');
+  assert(adults.length >= 2, 'Warriors phase4 contract: insufficient adult dwarves for progression scenario.');
+  const alpha = adults[0];
+  const beta = adults[1];
+  for (const dwarf of [alpha, beta]) {
+    dwarf.state = dwarf.state && typeof dwarf.state === 'object'
+      ? dwarf.state
+      : {};
+    dwarf.state.morale = 1;
+    dwarf.state.stress = 0;
+    dwarf.state.fatigue = 0;
+    dwarf.warrior = dwarf.warrior && typeof dwarf.warrior === 'object'
+      ? dwarf.warrior
+      : {};
+    dwarf.warrior.rating = 0.8;
+    dwarf.warrior.valor = 0.6;
+    dwarf.warrior.baseProfile = {
+      strength: 0.7,
+      dexterity: 0.7,
+      vitality: 0.7,
+    };
+    dwarf.warrior.baseCombatAptitude = 0.7;
+    dwarf.warrior.heroPotential = 0.7;
+    dwarf.warrior.expeditions = 0;
+    dwarf.warrior.wins = 0;
+    dwarf.warrior.losses = 0;
+    dwarf.warrior.retreats = 0;
+    dwarf.warrior.riskWins = 0;
+    dwarf.warrior.scars = [];
+    dwarf.warrior.titles = [];
+    dwarf.warrior.vow = null;
+    dwarf.warrior.legacyPoints = 0;
+    dwarf.warrior.nextEligibleExpeditionTick = 0;
+  }
+  alpha.warrior.rating = 0.92;
+  beta.warrior.rating = 0.64;
+
+  const expeditionTemplate = {
+    dwarfIds: [alpha.id],
+    readiness: {
+      status: 'warning',
+      depth: 4,
+      riskyDispatch: true,
+    },
+  };
+  state.tick = 1;
+  applyWarriorExpeditionOutcome(state, config, expeditionTemplate, 'failure', {
+    tick: state.tick,
+    riskyDispatch: true,
+  });
+  assert(
+    Array.isArray(alpha.warrior.scars) && alpha.warrior.scars.includes('scar_failure_mark'),
+    'Warriors phase4 contract: failure scar rule was not applied.',
+  );
+  assert(
+    Number(alpha.warrior.legacyPoints || 0) > 0,
+    'Warriors phase4 contract: legacy points should increase on event-driven outcomes.',
+  );
+
+  state.tick = 2;
+  applyWarriorExpeditionOutcome(state, config, expeditionTemplate, 'success', {
+    tick: state.tick,
+    riskyDispatch: true,
+  });
+  assert(
+    Array.isArray(alpha.warrior.titles) && alpha.warrior.titles.includes('title_vanguard'),
+    'Warriors phase4 contract: title rule was not assigned after threshold completion.',
+  );
+  assert(
+    String(alpha.warrior.vow || '') === 'stone_oath',
+    'Warriors phase4 contract: vow assignment rule did not trigger deterministically.',
+  );
+  assert(
+    Number(alpha.warrior.legacyPoints || 0) <= 2 + 1e-9,
+    'Warriors phase4 contract: legacy points exceeded configured cap.',
+  );
+
+  const ratingBeforeLoss = Number(alpha.warrior.rating || 0);
+  state.tick = 3;
+  applyWarriorExpeditionOutcome(state, config, expeditionTemplate, 'failure', {
+    tick: state.tick,
+    riskyDispatch: true,
+  });
+  const ratingAfterLoss = Number(alpha.warrior.rating || 0);
+  const ratingDrop = Math.max(0, ratingBeforeLoss - ratingAfterLoss);
+  assert(
+    ratingDrop >= 0.07 - 1e-9,
+    'Warriors phase4 contract: vow downside (rating loss multiplier) was not applied.',
+  );
+
+  state.tick = 10;
+  state.season = {
+    globalIndex: 5,
+    index: 5,
+    tickInSeason: 1,
+    name: 'spring',
+  };
+  updateWarriors(state, config);
+  assert(
+    String(state.warriors && state.warriors.league && state.warriors.league.championId || '') === String(alpha.id),
+    'Warriors phase4 contract: deterministic tournament champion mismatch for phase4 scenario.',
+  );
+  assert(
+    Array.isArray(alpha.warrior.titles) && alpha.warrior.titles.includes('title_league_champion'),
+    'Warriors phase4 contract: champion title was not assigned.',
+  );
+  assert(
+    Number(state.warriors && state.warriors.company && state.warriors.company.legacyAura || 0)
+      <= Number(config.warriors.bonuses.legacy.company_cap || 0) + 1e-9,
+    'Warriors phase4 contract: company legacy aura exceeded configured cap.',
+  );
+  assert(
+    Number(state.warriors && state.warriors.stats && state.warriors.stats.vowsAssigned || 0) >= 1,
+    'Warriors phase4 contract: vow assignment stats counter was not updated.',
+  );
+}
+
+// Validate warrior phase-5 telemetry/page wiring and top-5 naming format.
+function validateWarriorsTelemetryPhase5Contract() {
+  const config = createWarriorsSmokeConfig({
+    withWarriorsBlock: true,
+    enabled: true,
+  });
+  config.warriors = {
+    ...(config.warriors || {}),
+    enabled: true,
+  };
+  const runtime = buildRuntime(config.display, {
+    columns: Number(config.display.width || 90),
+    rows: Number(config.display.height || 45),
+  });
+  const state = createInitialState(config, runtime);
+  const adults = (Array.isArray(state.dwarves) ? state.dwarves : [])
+    .filter((dwarf) => dwarf && dwarf.lifeStage === 'adult');
+  assert(adults.length >= 5, 'Warriors phase5 contract: insufficient adults for top-5 telemetry test.');
+
+  const contenders = adults.slice(0, 5);
+  contenders.forEach((dwarf, index) => {
+    dwarf.clanId = index % 2 === 0 ? 'emberforge' : 'deepdelve';
+    dwarf.state = dwarf.state && typeof dwarf.state === 'object' ? dwarf.state : {};
+    dwarf.state.morale = 0.9;
+    dwarf.state.stress = 0.1;
+    dwarf.state.fatigue = 0.1;
+    dwarf.warrior = dwarf.warrior && typeof dwarf.warrior === 'object' ? dwarf.warrior : {};
+    dwarf.warrior.rating = 0.96 - index * 0.06;
+    dwarf.warrior.valor = 0.9 - index * 0.05;
+    dwarf.warrior.wins = 9 - index;
+    dwarf.warrior.losses = index;
+    dwarf.warrior.riskWins = 5 - index;
+    dwarf.warrior.scars = ['scar_phase5', `scar_p5_${index}`];
+    dwarf.warrior.titles = ['title_phase5'];
+    dwarf.warrior.vow = index === 0 ? 'stone_oath' : null;
+    dwarf.warrior.legacyPoints = 8 + index;
+  });
+
+  state.warriors = state.warriors && typeof state.warriors === 'object' ? state.warriors : {};
+  state.warriors.enabled = true;
+  state.warriors.league = {
+    ...(state.warriors.league || {}),
+    seasonId: 8,
+    lastTournamentSeasonId: 8,
+    lastTournamentSeasonName: 'autumn',
+    lastTournamentLeagueName: 'Balgrim Stoneward Gauntlet',
+    lastTournamentTick: 420,
+    championId: contenders[0].id,
+    clanScoreById: {
+      emberforge: 33,
+      deepdelve: 29,
+    },
+    ranking: contenders.map((dwarf, index) => ({
+      rank: index + 1,
+      dwarfId: dwarf.id,
+      clanId: dwarf.clanId,
+      seedRank: index + 1,
+      seedScore: 0.9 - index * 0.05,
+      points: 25 - index * 2,
+      wins: Math.max(0, 7 - index),
+      losses: index,
+      duels: 8,
+    })),
+  };
+  state.warriors.company = {
+    ...(state.warriors.company || {}),
+    rosterIds: contenders.map((dwarf) => dwarf.id),
+    legacyAura: 0.18,
+    hallOfFame: [
+      {
+        seasonId: 8,
+        leagueName: 'Balgrim Stoneward Gauntlet',
+        dwarfId: contenders[0].id,
+      },
+    ],
+  };
+  state.warriors.stats = {
+    ...(state.warriors.stats || {}),
+    tournaments: 3,
+    tieBreaks: 2,
+    upsets: 1,
+    scarsAwarded: 4,
+    titlesAwarded: 3,
+    vowsAssigned: 1,
+    legacyPointsAwarded: 14,
+  };
+
+  assert(
+    state.ui && state.ui.warriorPanel && state.ui.warriorPanel.open === false,
+    'Warriors phase5 contract: warrior panel UI state missing in initial state.',
+  );
+  assert(
+    Number(getTelemetryPanelPageCount()) >= 4,
+    'Warriors phase5 contract: telemetry page count should include Warrior League page.',
+  );
+
+  const sections = buildTelemetrySections(state, config, 96, {
+    includeRuins: true,
+    includeMyths: true,
+  });
+  const warriorSection = sections && sections.warriorLeague ? sections.warriorLeague : null;
+  assert(warriorSection, 'Warriors phase5 contract: Warrior League telemetry section missing.');
+  assert(
+    Array.isArray(warriorSection.rows) && warriorSection.rows.length > 0,
+    'Warriors phase5 contract: Warrior League telemetry rows are empty.',
+  );
+  assert(
+    warriorSection.rows.some((row) => String(row).startsWith('Top 5 fighters:')),
+    'Warriors phase5 contract: top-5 heading missing in Warrior League telemetry.',
+  );
+  const topRows = warriorSection.rows.filter((row) => String(row).startsWith('#'));
+  assert(topRows.length === 5, 'Warriors phase5 contract: telemetry must expose top 5 fighters.');
+  assert(
+    warriorSection.rows.some((row) => String(row).includes('Marks (Scars/Titles/Vows):')),
+    'Warriors phase5 contract: explicit Marks row missing.',
+  );
+  assert(
+    warriorSection.rows.some((row) => String(row).includes(`<${contenders[0].id}>`)),
+    'Warriors phase5 contract: fighter label should include <id> format.',
+  );
+}
+
+// Validate warrior phase-6 AI observation channels and compact/legacy transport parity.
+function validateWarriorsAiPhase6Contract(tmpDir) {
+  const config = createWarriorsSmokeConfig({
+    withWarriorsBlock: true,
+    enabled: true,
+  });
+  config.warriors = {
+    ...(config.warriors || {}),
+    enabled: true,
+  };
+  const runtime = buildRuntime(config.display, {
+    columns: Number(config.display.width || 90),
+    rows: Number(config.display.height || 45),
+  });
+  const state = createInitialState(config, runtime);
+  state.tick = 320;
+
+  const adults = (Array.isArray(state.dwarves) ? state.dwarves : [])
+    .filter((dwarf) => dwarf && dwarf.lifeStage === 'adult');
+  assert(adults.length > 0, 'Warriors phase6 contract: missing adult dwarves for observation fixture.');
+  const champion = adults[0];
+  champion.state = champion.state && typeof champion.state === 'object' ? champion.state : {};
+  champion.state.morale = 0.9;
+  champion.state.stress = 0.1;
+  champion.state.fatigue = 0.1;
+  champion.warrior = champion.warrior && typeof champion.warrior === 'object' ? champion.warrior : {};
+  champion.warrior.rating = 0.9;
+  champion.warrior.valor = 0.82;
+  champion.warrior.heroPotential = 0.86;
+  champion.warrior.condition = {
+    ...(champion.warrior.condition || {}),
+    score: 0.88,
+  };
+
+  state.warriors = state.warriors && typeof state.warriors === 'object' ? state.warriors : {};
+  state.warriors.enabled = true;
+  state.warriors.company = {
+    ...(state.warriors.company || {}),
+    legacyAura: 0.34,
+  };
+  state.warriors.league = {
+    ...(state.warriors.league || {}),
+    championId: champion.id,
+    lastTournamentTick: 280,
+  };
+
+  const aiObs = buildAiObservation(state, config);
+  const warriorsObs = aiObs && aiObs.warriors && typeof aiObs.warriors === 'object'
+    ? aiObs.warriors
+    : null;
+  assert(warriorsObs, 'Warriors phase6 contract: AI observation missing warriors block.');
+  const warriorFeatureNames = [
+    'warriorEnabled',
+    'warriorRosterCoverage',
+    'warriorEliteScore',
+    'warriorLegacyAura',
+    'warriorChampionMomentum',
+    'warriorTournamentRecency',
+  ];
+  const values = buildAiFeatures(aiObs, 'food', config, warriorFeatureNames);
+  assert(
+    Array.isArray(values) && values.length === warriorFeatureNames.length,
+    'Warriors phase6 contract: warrior feature extraction returned unexpected length.',
+  );
+  const expected = [
+    Number(warriorsObs.enabled || 0),
+    Number(warriorsObs.rosterCoverage || 0),
+    Number(warriorsObs.eliteScore || 0),
+    Number(warriorsObs.legacyAura || 0),
+    Number(warriorsObs.championMomentum || 0),
+    Number(warriorsObs.tournamentRecency || 0),
+  ];
+  for (let index = 0; index < expected.length; index += 1) {
+    assert(
+      Math.abs(Number(values[index] || 0) - expected[index]) <= 1e-9,
+      `Warriors phase6 contract: legacy feature mismatch at index ${index}.`,
+    );
+  }
+
+  // Compact transport parity check against legacy observation values.
+  const compactConfigPath = path.join(tmpDir, 'warriors_phase6_transport_config.json');
+  fs.writeFileSync(compactConfigPath, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
+
+  const legacyResponses = runAiServerSession(compactConfigPath, [
+    { cmd: 'reset', seed: 11, training: true, transport: { mode: 'legacy' } },
+    { cmd: 'close' },
+  ]);
+  const legacyObs = legacyResponses[0] && legacyResponses[0].obs;
+  assert(legacyObs && legacyObs.warriors, 'Warriors phase6 contract: legacy reset response missing warriors observation.');
+
+  const compactResponses = runAiServerSession(compactConfigPath, [
+    {
+      cmd: 'reset',
+      seed: 11,
+      training: true,
+      transport: {
+        mode: 'compact',
+        resources: ['food'],
+        featureNames: warriorFeatureNames,
+      },
+    },
+    { cmd: 'close' },
+  ]);
+  const compactVector = compactResponses[0] && compactResponses[0].obsVector;
+  assert(Array.isArray(compactVector), 'Warriors phase6 contract: compact reset response missing obsVector.');
+  assert(
+    compactVector.length === warriorFeatureNames.length,
+    'Warriors phase6 contract: compact obsVector length mismatch for warrior features.',
+  );
+  const legacyExpected = [
+    Number(legacyObs.warriors.enabled || 0),
+    Number(legacyObs.warriors.rosterCoverage || 0),
+    Number(legacyObs.warriors.eliteScore || 0),
+    Number(legacyObs.warriors.legacyAura || 0),
+    Number(legacyObs.warriors.championMomentum || 0),
+    Number(legacyObs.warriors.tournamentRecency || 0),
+  ];
+  for (let index = 0; index < legacyExpected.length; index += 1) {
+    assert(
+      Math.abs(Number(compactVector[index] || 0) - legacyExpected[index]) <= 1e-9,
+      `Warriors phase6 contract: compact/legacy mismatch at index ${index}.`,
+    );
+  }
+}
+
 // Execute the full contract suite in one deterministic temporary workspace.
 function main() {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nodedwarves_test_contracts_'));
@@ -998,9 +2414,19 @@ function main() {
     validateContractGovernorContract();
     validateRuinsGovernorContract();
     validateUnderrealmGovernorContract();
+    validateWarriorsDisabledNeutralContract();
+    validateWarriorsBootstrapContract();
+    validateWarriorsGovernorPhase1Contract();
+    validateWarriorsGovernorThresholdApplicationContract();
+    validateWarriorsExpeditionPhase2Contract();
+    validateWarriorsTournamentPhase3Contract();
+    validateWarriorsProgressionPhase4Contract();
+    validateWarriorsTelemetryPhase5Contract();
+    validateWarriorsAiPhase6Contract(tmpDir);
     validateRegressionReportSchema(tmpDir);
+    validateRegressionSeedPackDefaultModeContract(tmpDir);
     validatePromoteReportSchema(tmpDir);
-    console.log('[test:contracts] PASS policy_shape external_camps_governor contracts_governor ruins_governor underrealm_governor regression_schema promote_schema');
+    console.log('[test:contracts] PASS policy_shape external_camps_governor contracts_governor ruins_governor underrealm_governor warriors_disabled warriors_bootstrap warriors_phase1 warriors_thresholds warriors_phase2 warriors_phase3 warriors_phase4 warriors_phase5 warriors_phase6 regression_schema regression_seedpack_default promote_schema');
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }

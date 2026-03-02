@@ -33,11 +33,15 @@ Think of it as a living systems sandbox: you tune config, press run, and watch t
 - 🧭 Deep-dive context on `Overview + Deep` and `Economy`: each page now opens with a compact context lens (risk/trend/timeline/shortage posture) before detailed section rows.
 - ⚗️ Alchemy Lab rites: burn rare minerals for powerful global buffs, then survive the backlash.
 - 🛡️ Clan culture traits that create trade-offs without micromanagement.
+- 🏅 Warrior League phase-5 integration: risky ruins dispatches prioritize stronger candidates via deterministic dispatch score, seasonal tournaments now carry epic league names, hero progression tracks scars/titles/vows with capped legacy bonuses, and observability includes top-5 fighters plus a dedicated Warrior League modal with inline shorthand legend (`R/V/W/RW/Mk/P`), selective key-row highlights, and section spacing for quicker scanning.
+- ⚔️ Warrior League realism phase-7: tournament duels can now create injuries/recovery windows (with optional retirement/death), champion-defeat succession can promote new heroes, and periodic training sessions materially grow fighter stats.
 - 🕳️ Underrealm Front: 10 depth layers with engineered dwarven halls and dense stone-hewn caverns.
 - 🧱 Underrealm V2 rollout: champion-gated floor unlock chain + 10-level armory progression + readiness-gated expedition dispatch, now with a high-impact Dwarf Champion command layer (deterministic vacancy auto-promotion, readiness boost, retry-cooldown reduction, champion-HP suppression, party-only duel-round extension, and frontier exploration/Deep Lift acceleration) plus contested-frontier-first champion targeting, deep warning hard-guard dispatch rails, per-depth failure-streak cooldown escalation, and dedicated deep telemetry cues.
 - 📦 Telemetry stockpile compaction: weapon/armor tier inventories are grouped into compact aggregate bars so the panel stays readable in long runs.
-- 📊 Underrealm-aware AI loop: PPO observation now includes deep combat/progression signals, with benchmark/regression reports exposing compact underrealm KPIs seed-by-seed.
+- 📊 Underrealm-aware AI loop: PPO observation now includes deep combat/progression signals, with benchmark/regression reports exposing compact underrealm KPIs plus death-cause diagnostics (`death_*`) seed-by-seed.
 - 🤝 Diplomacy-aware AI loop: PPO observation/reward now include world-event state, contract timing pressure, external-camp pressure, and schism legitimacy/pressure channels.
+- 🧠 Warrior-aware AI loop (phase 6): PPO observation now includes aggregate Warrior League channels (`warriorEnabled`, roster coverage, elite score, legacy aura, champion momentum, tournament recency, injury/retired share, survivability, turnover pressure) with compact/legacy transport parity contracts.
+- 🧪 Warrior realism curriculum: training now includes a dedicated `warrior_realism_pressure` scenario and extended warrior control channels (`injury`, `retired`, `survivability`, `hero turnover pressure`) to make warrior governance decisions materially affect learning outcomes.
 - 🗺️ Map Focus default: no side telemetry column; `h` opens a full-screen paged telemetry Data Center while the map keeps full width.
 - 🪟 Terminal-aware layout: with `display.autoSize` the map follows your terminal size (max caps optional), and live resize can keep world geometry locked to avoid infrastructure reflow resets.
 - 🪟 In-map Ops Snapshot: a top-right status stack with core runtime signals (time, population, underrealm + view) and a fixed keyboard-command row, without letting roads/buildings/pathing use that carved space.
@@ -78,7 +82,8 @@ npm run ai:play
 - `Space`: pause/resume
 - `l`: legend panel
 - `i`: dwarf inspect panel
-- `h`: telemetry Data Center overlay (`Dashboard`, `Overview + Deep`, `Economy`) with expanded plain-language metric labels, adaptive section sizing, status-token highlights, ASCII mini-charts, `AI Explainability` drivers, and an `Endgame` progress checklist
+- `w`: Warrior League modal (champion lineage, top 5 fighters, marks/legacy summary)
+- `h`: telemetry Data Center overlay (`Dashboard`, `Overview + Deep`, `Economy`, `Warrior League`) with expanded plain-language metric labels, adaptive section sizing, status-token highlights, ASCII mini-charts, `AI Explainability` drivers, and an `Endgame` progress checklist
 - `←` / `→`: change telemetry pages when telemetry is open, or browse dwarves when inspect is open
 - `↑` / `↓`: switch map view between surface and unlocked underrealm depths
 - `m`: export all currently unlocked layers (surface + underrealm) as PNG + SVG
@@ -159,6 +164,7 @@ Canonical promotion now owns best-checkpoint writes: wrapper training disables i
 - ♻️ `ai:train:continuous` orchestrates long-running incremental learning (`daily` baseline, periodic `full` consolidation, periodic `high` certification, optional gate cadence, and auto-stop guardrails) with run reports in `debug/continuous_train_*.json/.md`.
 - ✅ Continuous stop logic is now strict promotion-aligned: a cycle resets no-improve streaks only when canonical promotion succeeds (positive-not-promoted deltas are reported but do not count as improvement).
 - 🧪 Training scenario curriculum now includes dedicated deep/governance stress slices (`underrealm_push`, `compound_crisis`, `governance_pressure`), and canonical eval covers high-risk survival/deep/governance cases (`wildlife_raid`, `compound_crisis`, `underrealm_push`, `governance_pressure`).
+- 🎯 Warrior/governance determinative tuning now raises pressure in the dedicated curriculum slices (`warrior_realism_pressure`, `governance_pressure`), widens adaptive scenario reweighting (`0.6..1.8`), and uses `evalEpisodes=20` during in-training eval so all configured eval scenarios are exercised in checkpoint selection.
 - 🧪 OQ-5 add-ons: added `underrealm_late_gauntlet` for late deep stress, phase-adaptive scenario-sampling schedule (`early/mid/late`), and a diagnostic-only eval ensemble (`rpt` + deep auxiliary channels) for richer promotion reports without changing promotion gates.
 - 🧪 Regression deterministic eval is profile-specific (`standard`, `underrealm`, `governance`) so deep/governance regressions surface earlier in dedicated stress slices.
 - 🛠️ Latest config-only safety retune keeps those stress slices meaningful while reducing deterministic over-kill risk (`underrealm_push` tighter readiness rails + moderated `compound_crisis` pressure), so full benchmark+regression gate stays green.
@@ -168,6 +174,7 @@ Canonical promotion now owns best-checkpoint writes: wrapper training disables i
 - 🧪 Risk mini-gate is scripted as `ai:validate:risk` (`r001`: deterministic benchmark, `r002`: policy observation-normalization shape guardrail).
 - 🧪 Horizon gate (`ai:validate:horizon`) now includes a tighter deaths guardrail (`avg_deaths` tolerance `+16%`) and is paired with historical-replay sanity checks to keep deep/governance regressions detectable.
 - 🗓️ Weekly deep-check workflow is available as `ai:validate:horizon:weekly`, backed by deterministic seed-pack rotation from config (`pack_alpha/beta/gamma/delta`, now `4` seeds per pack).
+- 🧭 Horizon regression runs now honor `ai.training.deepChecks.seedPackRotation.defaultMode` automatically when you do not pass `--seed-pack` / `--seeds`, so deep-check seed rotation is config-driven by default.
 - ⏱️ Runtime-optimized full gate is available as `ai:validate:extended:optimized`: it preserves quality signal while removing duplicate benchmark execution and writes per-phase runtime reports.
 - 🧭 Recommended validation cadence: per-change (`canonical` + `gate` + `risk:r002`), acceptance/nightly (`ai:validate:extended:optimized`), weekly deep sentinel (`ai:validate:horizon:weekly`).
 - 🧹 Debug housekeeping is scripted as `debug:clean` (`--keep-runs 2|3`, plus `debug:clean:dry` preview) to keep `debug/` lean after each cycle.
@@ -195,8 +202,11 @@ Ruins governor hooks now support advisory `ruins` stances for warning-zone dispa
 Underrealm crew governor hooks now support advisory `underrealm` biases for surface reserve, depth allocation, and role mix (miner/hauler/guard), with smoothing and major-reallocation cooldown guardrails; defaults now lean conservative to keep deep-survival outcomes stable in regression gates.
 Building governor hooks now support advisory `building` ranking signals for housing/economy/defense/special queues, with guardrails still enforced by the existing structure checks.
 External camps governor hooks now support advisory `externalCamps` stances for militia support renewal and raider tribute handling, with critical-collapse force-compliance guardrails.
-Telemetry now exposes compact governor signals directly in `Pressure`, `Diplomacy`, and `Operations` so policy intent can be inspected live.
-Training action heads now include governor pseudo-action IDs when enabled (`gov_trade_*`, `gov_contract_*`, `gov_ruins_*`, `gov_underrealm_*`, `gov_building_*`, `gov_external_*`); if feature/action shapes change, restart training with `--fresh`.
+Warrior League governor hooks now support `warriors` intents (training, rotation, tournament risk, champion challenge, recovery priority) with real threshold-gated runtime effects plus telemetry instrumentation.
+Telemetry now exposes compact governor signals directly in `Pressure`, `Diplomacy`, `Operations`, and `AI Explainability` so policy intent can be inspected live.
+Training action heads now include governor pseudo-action IDs when enabled (`gov_trade_*`, `gov_contract_*`, `gov_ruins_*`, `gov_underrealm_*`, `gov_building_*`, `gov_external_*`, `gov_warriors_*`); Warrior phase-6 AI features expand the observation shape, so restart training with `--fresh` when upgrading from pre-phase-6 checkpoints.
+By default, the warriors governor is active with `ai.governors.warriors.actionHeadEnabled=true`; when upgrading from legacy checkpoints without warrior action IDs, run training with `--fresh` (or temporarily set this flag to `false`).
+- 🛡️ Warrior League phase-4 now adds persistent hero progression: deterministic scars/titles/vows, event-earned legacy points with strict caps+diminishing returns, and legacy bonuses that influence risky dispatches and tournaments without uncontrolled snowballing.
 
 ## Four runs to try ⚡
 
@@ -287,13 +297,15 @@ Impact thresholds: `High >= 4.0`, `Medium >= 2.8 and < 4.0`, `Low < 2.8`
 - `src/simulation/schism.js`: run-scale social schism arc (pressure/legitimacy, doctrine shifts, ritual festivals, and climax events).
 - `src/simulation/alchemy.js`: alchemy rites, pact lifecycle, and backlash logic.
 - `src/simulation/temple.js`: Temple of Ancestors stages, map footprint, and prestige system.
+- `src/simulation/warriors.js`: Warrior League runtime helpers for deterministic combat profiles, risk-aware expedition dispatch, seasonal tournament progression, tournament consequences/succession/training, and persistent scars/titles/vows/legacy bonuses.
 - `src/render/map_inset_panel.js`: carved in-map Ops Snapshot component with compact, width-aware runtime lines.
+- `src/render/warrior_panel.js`: dedicated Warrior League modal overlay with champion/top-5/marks analytics.
 - `src/telemetry/`: telemetry engine and Data Center panel modules.
 - `src/telemetry/telemetry.js`: telemetry section builders and formatting helpers.
 - `src/telemetry/telemetry_panel.js`: in-game paged telemetry Data Center with section pages and full-height telemetry content area.
 - `scripts/train_wrapper.js`: safe unified wrapper for all `ai:train:*` profiles.
 - `scripts/train_continuous.js`: continuous training orchestrator for daily/full/high cadence, validation gates, and stop-rule automation.
-- `scripts/regression.js`: baseline-vs-current AI regression checks (deterministic eval + randomized stability pass) with txt/json/markdown reports and live heartbeat progress lines during long phases.
+- `scripts/regression.js`: baseline-vs-current AI regression checks (deterministic eval + randomized stability pass) with txt/json/markdown reports, death-cause diagnostics (`death_*` from `deaths_by_cause=` summary payloads), and live heartbeat progress lines during long phases.
 - `scripts/validate_extended_optimized.js`: full validation orchestrator with per-phase timing reports and benchmark deduplication (`ai:validate:extended:optimized`).
 - `scripts/clean_debug.js`: debug housekeeping utility (removes transient smoke/regression temp artifacts and keeps only the latest run history).
 - `scripts/test_training_contracts.js`: deterministic training/validation contract suite used by `npm test` (policy shape + regression/promote report schema checks).

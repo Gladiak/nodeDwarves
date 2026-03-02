@@ -85,6 +85,16 @@ EXTENDED_FEATURE_NAMES = [
     "schismRitualActive",
     "schismClimaxActive",
     "schismInstability",
+    "warriorEnabled",
+    "warriorRosterCoverage",
+    "warriorEliteScore",
+    "warriorLegacyAura",
+    "warriorChampionMomentum",
+    "warriorTournamentRecency",
+    "warriorInjuryShare",
+    "warriorRetiredShare",
+    "warriorSurvivability",
+    "warriorHeroTurnoverPressure",
 ]
 DYNAMIC_FEATURE_PREFIXES = ("mythFlag_", "clanShare_")
 FEATURE_NAME_SET = set(DEFAULT_FEATURE_NAMES + EXTENDED_FEATURE_NAMES)
@@ -108,6 +118,11 @@ UNDERREALM_HAULER_MIX_BIAS_ACTION_ID = "gov_underrealm_hauler_mix_bias"
 UNDERREALM_GUARD_MIX_BIAS_ACTION_ID = "gov_underrealm_guard_mix_bias"
 EXTERNAL_CAMPS_MILITIA_INTENT_ACTION_ID = "gov_external_militia_support_intent"
 EXTERNAL_CAMPS_RAIDER_INTENT_ACTION_ID = "gov_external_raider_tribute_intent"
+WARRIORS_TRAINING_INTENT_ACTION_ID = "gov_warriors_training_intent"
+WARRIORS_ROTATION_INTENT_ACTION_ID = "gov_warriors_rotation_intent"
+WARRIORS_TOURNAMENT_RISK_INTENT_ACTION_ID = "gov_warriors_tournament_risk_intent"
+WARRIORS_CHAMPION_CHALLENGE_INTENT_ACTION_ID = "gov_warriors_champion_challenge_intent"
+WARRIORS_RECOVERY_PRIORITY_INTENT_ACTION_ID = "gov_warriors_recovery_priority_intent"
 GOVERNOR_ACTION_ID_SET = {
     TRADE_RESERVE_BIAS_ACTION_ID,
     TRADE_CONTEST_INTENT_ACTION_ID,
@@ -128,6 +143,11 @@ GOVERNOR_ACTION_ID_SET = {
     UNDERREALM_GUARD_MIX_BIAS_ACTION_ID,
     EXTERNAL_CAMPS_MILITIA_INTENT_ACTION_ID,
     EXTERNAL_CAMPS_RAIDER_INTENT_ACTION_ID,
+    WARRIORS_TRAINING_INTENT_ACTION_ID,
+    WARRIORS_ROTATION_INTENT_ACTION_ID,
+    WARRIORS_TOURNAMENT_RISK_INTENT_ACTION_ID,
+    WARRIORS_CHAMPION_CHALLENGE_INTENT_ACTION_ID,
+    WARRIORS_RECOVERY_PRIORITY_INTENT_ACTION_ID,
 }
 TRANSPORT_LEGACY = "legacy"
 TRANSPORT_COMPACT = "compact"
@@ -574,6 +594,12 @@ def format_debug(info, resources):
     merchant = debug.get("merchant") or {}
     crit = debug.get("criticalNeedsFraction", 0.0)
     idle = debug.get("idleAdultsFraction", 0.0)
+    signals = debug.get("signals") or {}
+    warrior_elite = signals.get("warriorEliteAvg", 0.0)
+    warrior_survivability = signals.get("warriorSurvivabilityAvg", 0.0)
+    warrior_injury = signals.get("warriorInjuryAvg", 0.0)
+    warrior_retired = signals.get("warriorRetiredAvg", 0.0)
+    warrior_turnover = signals.get("warriorHeroTurnoverPressureAvg", 0.0)
     attempts = int(reproduction.get("attempts", 0) or 0)
     successes = int(reproduction.get("successes", 0) or 0)
     success_rate = successes / attempts if attempts > 0 else 0.0
@@ -679,8 +705,14 @@ def format_debug_file_entry(
     merchant = debug.get("merchant") or {}
     merchant_given = merchant.get("givenPerTick") or {}
     merchant_received = merchant.get("receivedPerTick") or {}
-    crit = debug.get("criticalNeedsFraction", 0.0)
-    idle = debug.get("idleAdultsFraction", 0.0)
+    signals = debug.get("signals") or {}
+    crit = signals.get("criticalAvg", debug.get("criticalNeedsFraction", 0.0))
+    idle = signals.get("idleAvg", debug.get("idleAdultsFraction", 0.0))
+    warrior_elite = signals.get("warriorEliteAvg", 0.0)
+    warrior_survivability = signals.get("warriorSurvivabilityAvg", 0.0)
+    warrior_injury = signals.get("warriorInjuryAvg", 0.0)
+    warrior_retired = signals.get("warriorRetiredAvg", 0.0)
+    warrior_turnover = signals.get("warriorHeroTurnoverPressureAvg", 0.0)
     scenario_counts = debug.get("scenarioCounts") or {}
     weather_counts = debug.get("weatherCounts") or {}
 
@@ -783,6 +815,11 @@ def format_debug_file_entry(
         "Signals:",
         f"  critical_needs: {fmt(crit)}",
         f"  idle_adults: {fmt(idle)}",
+        f"  warrior_elite: {fmt(warrior_elite)}",
+        f"  warrior_survivability: {fmt(warrior_survivability)}",
+        f"  warrior_injury: {fmt(warrior_injury)}",
+        f"  warrior_retired: {fmt(warrior_retired)}",
+        f"  warrior_turnover: {fmt(warrior_turnover)}",
     ])
     return "\n" + "\n".join(lines) + "\n"
 
@@ -821,6 +858,11 @@ def format_summary_line(
     crit = signals.get("criticalAvg", debug.get("criticalNeedsFraction", 0.0))
     idle = signals.get("idleAvg", debug.get("idleAdultsFraction", 0.0))
     pop_balance = signals.get("populationBalanceAvg", None)
+    warrior_elite = signals.get("warriorEliteAvg", 0.0)
+    warrior_survivability = signals.get("warriorSurvivabilityAvg", 0.0)
+    warrior_injury = signals.get("warriorInjuryAvg", 0.0)
+    warrior_retired = signals.get("warriorRetiredAvg", 0.0)
+    warrior_turnover_pressure = signals.get("warriorHeroTurnoverPressureAvg", 0.0)
     ticks_avg = debug.get("ticksAvg", 0.0)
     reward_per_step = avg_reward / avg_steps if avg_steps > 0 else 0.0
     reward_per_tick = avg_reward / ticks_avg if ticks_avg else 0.0
@@ -828,6 +870,10 @@ def format_summary_line(
     shortage_label = format_map_label(debug.get("shortageAvg") or {}, digits=2)
     nodes_label = format_map_label(debug.get("nodes") or {}, digits=2)
     underrealm_label = format_map_label(debug.get("underrealm") or {}, digits=2)
+    deaths_by_cause_label = format_map_label(
+        debug.get("deathsByCause") or debug.get("deaths") or {},
+        digits=2,
+    )
     termination_label = format_termination_label(debug.get("terminationCounts") or {}, window_count)
     weather_label = format_mix_label(weather_counts, window_count)
     scenario_label = format_mix_label(scenario_counts, window_count)
@@ -859,11 +905,14 @@ def format_summary_line(
         f"stock[min={fmt(stockpile.get('minRatio', 0))} avg={fmt(stockpile.get('avgRatio', 0))}] "
         f"crit={fmt(crit)} idle={fmt(idle)} "
         f"pop_bal={fmt(pop_balance) if pop_balance is not None else fmt(0.0)} "
+        f"war[elite={fmt(warrior_elite)} surv={fmt(warrior_survivability)} "
+        f"inj={fmt(warrior_injury)} ret={fmt(warrior_retired)} turn={fmt(warrior_turnover_pressure)}] "
         f"raid[count={fmt(raid.get('count', 0))} "
         f"deaths={fmt(raid.get('deaths', 0))} "
         f"exp={fmt(raid.get('exposedRatio', 0))} "
         f"def={fmt(raid.get('defenseRatio', 0))} "
         f"loot={raid_loot_label}] "
+        f"deaths_by_cause={deaths_by_cause_label} "
         f"short={shortage_label} nodes={nodes_label} under={underrealm_label} term={termination_label} "
         f"weather={weather_label} scenario={scenario_label} "
         f"scenario_target={scenario_target_label} scenario_delta={scenario_delta:.2f} "
@@ -1002,6 +1051,7 @@ def write_summary_header(
     handle.write(f"config={args.config}\n")
     handle.write(
         "settings "
+        f"algorithm={args.algorithm} "
         f"episodes={args.episodes} max_steps={args.max_steps} step_ticks={args.step_ticks} "
         f"batch_episodes={args.batch_episodes} workers={args.workers} "
         f"gamma={args.gamma} gae_lambda={args.gae_lambda} clip_range={args.clip_range} "
@@ -1040,6 +1090,7 @@ def write_summary_header(
     handle.write("# stock[min|avg]: min/mean stockpile ratio across resources.\n")
     handle.write("# crit/idle/pop_bal: avg critical needs, idle adults, and population balance.\n")
     handle.write("# raid: avg raid count/deaths/loot/exposure/defense in the window.\n")
+    handle.write("# deaths_by_cause: average deaths per cause in the window.\n")
     handle.write("# short: average shortage per resource (1 - stockpile ratio).\n")
     handle.write("# under: average Underrealm combat/progression signal bundle (depth/champion/readiness/pressure).\n")
     handle.write("# term: termination reason mix within the window.\n")
@@ -1065,6 +1116,7 @@ def write_detail_header(
     handle.write(f"config={args.config}\n")
     handle.write(
         "settings "
+        f"algorithm={args.algorithm} "
         f"episodes={args.episodes} max_steps={args.max_steps} step_ticks={args.step_ticks} "
         f"batch_episodes={args.batch_episodes} workers={args.workers} "
         f"gamma={args.gamma} gae_lambda={args.gae_lambda} clip_range={args.clip_range} "
@@ -1137,12 +1189,18 @@ def write_detail_header(
     handle.write("# Fields.regen: irrigation * season multiplier.\n")
     handle.write("# Signals.critical_needs: fraction of dwarves at critical needs.\n")
     handle.write("# Signals.idle_adults: fraction of idle adults.\n")
+    handle.write("# Signals.warrior_elite: average Warrior League elite score.\n")
+    handle.write("# Signals.warrior_survivability: average Warrior League survivability score.\n")
+    handle.write("# Signals.warrior_injury: average injured-fighter share.\n")
+    handle.write("# Signals.warrior_retired: average retired-fighter share.\n")
+    handle.write("# Signals.warrior_turnover: average hero-turnover pressure.\n")
 
 
 def init_debug_accumulator():
     return {
         "count": 0,
         "deaths": {},
+        "deaths_by_cause": {},
         "raids": {},
         "raid_loot": {},
         "reproduction": {},
@@ -1199,6 +1257,19 @@ def accumulate_debug(accumulator, info):
     add_numeric(accumulator["signals"], "criticalAvg", episode_metrics.get("criticalAvg"))
     add_numeric(accumulator["signals"], "idleAvg", episode_metrics.get("idleAvg"))
     add_numeric(accumulator["signals"], "populationBalanceAvg", episode_metrics.get("populationBalanceAvg"))
+    add_numeric(accumulator["signals"], "warriorEliteAvg", episode_metrics.get("warriorEliteAvg"))
+    add_numeric(
+        accumulator["signals"],
+        "warriorSurvivabilityAvg",
+        episode_metrics.get("warriorSurvivabilityAvg"),
+    )
+    add_numeric(accumulator["signals"], "warriorInjuryAvg", episode_metrics.get("warriorInjuryAvg"))
+    add_numeric(accumulator["signals"], "warriorRetiredAvg", episode_metrics.get("warriorRetiredAvg"))
+    add_numeric(
+        accumulator["signals"],
+        "warriorHeroTurnoverPressureAvg",
+        episode_metrics.get("warriorHeroTurnoverPressureAvg"),
+    )
     throughput = episode_metrics.get("throughput") or {}
     add_numeric(accumulator["throughput"], "envStepMsAvg", throughput.get("envStepMsAvg"))
     add_numeric(accumulator["throughput"], "ipcWriteMsAvg", throughput.get("ipcWriteMsAvg"))
@@ -1222,7 +1293,8 @@ def accumulate_debug(accumulator, info):
     if weather_type:
         accumulator["weather"][weather_type] = accumulator["weather"].get(weather_type, 0) + 1
 
-    deaths = debug.get("deaths") or {}
+    deaths = debug.get("deathsByCause") or debug.get("deaths") or {}
+    add_map(accumulator["deaths_by_cause"], deaths)
     add_numeric(accumulator["deaths"], "starvation", deaths.get("starvation"))
     add_numeric(accumulator["deaths"], "oldAge", deaths.get("oldAge"))
     add_numeric(accumulator["deaths"], "raid", deaths.get("raid"))
@@ -1313,6 +1385,7 @@ def average_debug(accumulator):
 
     return {
         "deaths": avg_map(accumulator["deaths"]),
+        "deathsByCause": avg_map(accumulator["deaths_by_cause"]),
         "raid": {
             "count": accumulator["raids"].get("count", 0.0) / count,
             "deaths": accumulator["raids"].get("deaths", 0.0) / count,
@@ -1348,6 +1421,11 @@ def average_debug(accumulator):
             "criticalAvg": signals.get("criticalAvg", 0.0) / count,
             "idleAvg": signals.get("idleAvg", 0.0) / count,
             "populationBalanceAvg": signals.get("populationBalanceAvg", 0.0) / count,
+            "warriorEliteAvg": signals.get("warriorEliteAvg", 0.0) / count,
+            "warriorSurvivabilityAvg": signals.get("warriorSurvivabilityAvg", 0.0) / count,
+            "warriorInjuryAvg": signals.get("warriorInjuryAvg", 0.0) / count,
+            "warriorRetiredAvg": signals.get("warriorRetiredAvg", 0.0) / count,
+            "warriorHeroTurnoverPressureAvg": signals.get("warriorHeroTurnoverPressureAvg", 0.0) / count,
         },
         "ticksAvg": accumulator.get("ticks", 0.0) / count,
         "throughput": {
@@ -1455,6 +1533,18 @@ def append_governor_actions(resources, config):
             if action_id not in merged:
                 merged.append(action_id)
 
+    warriors = governors.get("warriors") or {}
+    if warriors.get("enabled", True) is not False and warriors.get("actionHeadEnabled", True) is not False:
+        for action_id in (
+            WARRIORS_TRAINING_INTENT_ACTION_ID,
+            WARRIORS_ROTATION_INTENT_ACTION_ID,
+            WARRIORS_TOURNAMENT_RISK_INTENT_ACTION_ID,
+            WARRIORS_CHAMPION_CHALLENGE_INTENT_ACTION_ID,
+            WARRIORS_RECOVERY_PRIORITY_INTENT_ACTION_ID,
+        ):
+            if action_id not in merged:
+                merged.append(action_id)
+
     return merged
 
 
@@ -1471,6 +1561,7 @@ def split_action_payload(action, resources):
     ruins = {}
     underrealm = {}
     external_camps = {}
+    warriors = {}
     for idx, resource in enumerate(resources):
         raw = action[idx] if idx < len(action) else 0.0
         try:
@@ -1517,9 +1608,29 @@ def split_action_payload(action, resources):
             external_camps["militiaSupportIntent"] = value
         elif resource == EXTERNAL_CAMPS_RAIDER_INTENT_ACTION_ID:
             external_camps["raiderTributeIntent"] = value
+        elif resource == WARRIORS_TRAINING_INTENT_ACTION_ID:
+            warriors["trainingIntent"] = value
+        elif resource == WARRIORS_ROTATION_INTENT_ACTION_ID:
+            warriors["rotationIntent"] = value
+        elif resource == WARRIORS_TOURNAMENT_RISK_INTENT_ACTION_ID:
+            warriors["tournamentRiskIntent"] = value
+        elif resource == WARRIORS_CHAMPION_CHALLENGE_INTENT_ACTION_ID:
+            warriors["championChallengeIntent"] = value
+        elif resource == WARRIORS_RECOVERY_PRIORITY_INTENT_ACTION_ID:
+            warriors["recoveryPriorityIntent"] = value
         else:
             weights[resource] = value
-    return weights, festival_intent, trade, building, contracts, ruins, underrealm, external_camps
+    return (
+        weights,
+        festival_intent,
+        trade,
+        building,
+        contracts,
+        ruins,
+        underrealm,
+        external_camps,
+        warriors,
+    )
 
 
 def normalize_transport_mode(value, fallback=TRANSPORT_LEGACY):
@@ -1597,6 +1708,7 @@ def build_step_message(action, resources, step_ticks, transport=TRANSPORT_LEGACY
         ruins_payload,
         underrealm_payload,
         external_camps_payload,
+        warriors_payload,
     ) = split_action_payload(action, resources)
     action_payload = {"weights": weights, "ticks": step_ticks}
     if festival_intent is not None:
@@ -1613,6 +1725,8 @@ def build_step_message(action, resources, step_ticks, transport=TRANSPORT_LEGACY
         action_payload["underrealm"] = underrealm_payload
     if external_camps_payload:
         action_payload["externalCamps"] = external_camps_payload
+    if warriors_payload:
+        action_payload["warriors"] = warriors_payload
     if debug:
         action_payload["debug"] = True
     return {"cmd": "step", "action": action_payload}
@@ -1675,6 +1789,11 @@ def signals_from_response(response):
             "diplomacyCompletions": float(raw_signals.get("diplomacyCompletions", 0.0) or 0.0),
             "diplomacyFailures": float(raw_signals.get("diplomacyFailures", 0.0) or 0.0),
             "diplomacyExpirations": float(raw_signals.get("diplomacyExpirations", 0.0) or 0.0),
+            "warriorEliteScore": float(raw_signals.get("warriorEliteScore", 0.0) or 0.0),
+            "warriorSurvivability": float(raw_signals.get("warriorSurvivability", 0.0) or 0.0),
+            "warriorInjuryShare": float(raw_signals.get("warriorInjuryShare", 0.0) or 0.0),
+            "warriorRetiredShare": float(raw_signals.get("warriorRetiredShare", 0.0) or 0.0),
+            "warriorHeroTurnoverPressure": float(raw_signals.get("warriorHeroTurnoverPressure", 0.0) or 0.0),
         }
     obs = (response or {}).get("obs", {}) or {}
     underrealm = obs.get("underrealm") if isinstance(obs.get("underrealm"), dict) else {}
@@ -1682,6 +1801,7 @@ def signals_from_response(response):
     contracts = obs.get("contracts") if isinstance(obs.get("contracts"), dict) else {}
     external_camps = obs.get("externalCamps") if isinstance(obs.get("externalCamps"), dict) else {}
     schism = obs.get("schism") if isinstance(obs.get("schism"), dict) else {}
+    warriors = obs.get("warriors") if isinstance(obs.get("warriors"), dict) else {}
     return {
         "criticalNeedsFraction": float(obs.get("criticalNeedsFraction", 0.0) or 0.0),
         "idleAdultsFraction": float(obs.get("idleAdultsFraction", 0.0) or 0.0),
@@ -1703,6 +1823,11 @@ def signals_from_response(response):
         "diplomacyCompletions": float(0.0),
         "diplomacyFailures": float(0.0),
         "diplomacyExpirations": float(0.0),
+        "warriorEliteScore": float(warriors.get("eliteScore", 0.0) or 0.0),
+        "warriorSurvivability": float(warriors.get("survivability", 0.0) or 0.0),
+        "warriorInjuryShare": float(warriors.get("injuryShare", 0.0) or 0.0),
+        "warriorRetiredShare": float(warriors.get("retiredShare", 0.0) or 0.0),
+        "warriorHeroTurnoverPressure": float(warriors.get("heroTurnoverPressure", 0.0) or 0.0),
     }
 
 
@@ -2410,6 +2535,17 @@ def build_features(obs, resource, feature_names):
     schism_ritual_active = clamp(float(schism.get("ritualActive", 0.0)), 0.0, 1.0)
     schism_climax_active = clamp(float(schism.get("climaxActive", 0.0)), 0.0, 1.0)
     schism_instability = clamp(float(schism.get("instability", 0.0)), 0.0, 1.0)
+    warriors = obs.get("warriors") or {}
+    warrior_enabled = clamp(float(warriors.get("enabled", 0.0)), 0.0, 1.0)
+    warrior_roster_coverage = clamp(float(warriors.get("rosterCoverage", 0.0)), 0.0, 1.0)
+    warrior_elite_score = clamp(float(warriors.get("eliteScore", 0.0)), 0.0, 1.0)
+    warrior_legacy_aura = clamp(float(warriors.get("legacyAura", 0.0)), 0.0, 1.0)
+    warrior_champion_momentum = clamp(float(warriors.get("championMomentum", 0.0)), 0.0, 1.0)
+    warrior_tournament_recency = clamp(float(warriors.get("tournamentRecency", 0.0)), 0.0, 1.0)
+    warrior_injury_share = clamp(float(warriors.get("injuryShare", 0.0)), 0.0, 1.0)
+    warrior_retired_share = clamp(float(warriors.get("retiredShare", 0.0)), 0.0, 1.0)
+    warrior_survivability = clamp(float(warriors.get("survivability", 0.0)), 0.0, 1.0)
+    warrior_hero_turnover_pressure = clamp(float(warriors.get("heroTurnoverPressure", 0.0)), 0.0, 1.0)
     clan_shares = obs.get("clanShares") or {}
 
     feature_map = {
@@ -2473,6 +2609,16 @@ def build_features(obs, resource, feature_names):
         "schismRitualActive": schism_ritual_active,
         "schismClimaxActive": schism_climax_active,
         "schismInstability": schism_instability,
+        "warriorEnabled": warrior_enabled,
+        "warriorRosterCoverage": warrior_roster_coverage,
+        "warriorEliteScore": warrior_elite_score,
+        "warriorLegacyAura": warrior_legacy_aura,
+        "warriorChampionMomentum": warrior_champion_momentum,
+        "warriorTournamentRecency": warrior_tournament_recency,
+        "warriorInjuryShare": warrior_injury_share,
+        "warriorRetiredShare": warrior_retired_share,
+        "warriorSurvivability": warrior_survivability,
+        "warriorHeroTurnoverPressure": warrior_hero_turnover_pressure,
     }
     values = []
     for name in feature_names:
@@ -2682,6 +2828,11 @@ def run_episode(
     critical_sum = 0.0
     idle_sum = 0.0
     population_balance_sum = 0.0
+    warrior_elite_sum = 0.0
+    warrior_survivability_sum = 0.0
+    warrior_injury_sum = 0.0
+    warrior_retired_sum = 0.0
+    warrior_turnover_pressure_sum = 0.0
     env_step_seconds = 0.0
     ipc_write_seconds = 0.0
     ipc_read_seconds = 0.0
@@ -2715,6 +2866,13 @@ def run_episode(
             critical_sum += float(signals.get("criticalNeedsFraction", 0.0) or 0.0)
             idle_sum += float(signals.get("idleAdultsFraction", 0.0) or 0.0)
             population_balance_sum += float(signals.get("populationBalance", 0.0) or 0.0)
+            warrior_elite_sum += float(signals.get("warriorEliteScore", 0.0) or 0.0)
+            warrior_survivability_sum += float(signals.get("warriorSurvivability", 0.0) or 0.0)
+            warrior_injury_sum += float(signals.get("warriorInjuryShare", 0.0) or 0.0)
+            warrior_retired_sum += float(signals.get("warriorRetiredShare", 0.0) or 0.0)
+            warrior_turnover_pressure_sum += float(
+                signals.get("warriorHeroTurnoverPressure", 0.0) or 0.0
+            )
             raw_ratios = signals.get("stockpileRatio")
             ratios = raw_ratios if isinstance(raw_ratios, dict) else {}
             for resource in tracked_resources:
@@ -2776,11 +2934,21 @@ def run_episode(
         critical_avg = critical_sum / steps
         idle_avg = idle_sum / steps
         population_balance_avg = population_balance_sum / steps
+        warrior_elite_avg = warrior_elite_sum / steps
+        warrior_survivability_avg = warrior_survivability_sum / steps
+        warrior_injury_avg = warrior_injury_sum / steps
+        warrior_retired_avg = warrior_retired_sum / steps
+        warrior_turnover_pressure_avg = warrior_turnover_pressure_sum / steps
     else:
         shortage_avg = {key: 0.0 for key in shortage_sum}
         critical_avg = 0.0
         idle_avg = 0.0
         population_balance_avg = 0.0
+        warrior_elite_avg = 0.0
+        warrior_survivability_avg = 0.0
+        warrior_injury_avg = 0.0
+        warrior_retired_avg = 0.0
+        warrior_turnover_pressure_avg = 0.0
     step_count = max(1, steps)
     ipc_count = max(1, ipc_calls if ipc_calls > 0 else steps)
     info["episodeMetrics"] = {
@@ -2790,6 +2958,11 @@ def run_episode(
         "criticalAvg": critical_avg,
         "idleAvg": idle_avg,
         "populationBalanceAvg": population_balance_avg,
+        "warriorEliteAvg": warrior_elite_avg,
+        "warriorSurvivabilityAvg": warrior_survivability_avg,
+        "warriorInjuryAvg": warrior_injury_avg,
+        "warriorRetiredAvg": warrior_retired_avg,
+        "warriorHeroTurnoverPressureAvg": warrior_turnover_pressure_avg,
         "throughput": {
             "envStepMsAvg": env_step_seconds / step_count * 1000.0 if steps > 0 else 0.0,
             "ipcWriteMsAvg": ipc_write_seconds / ipc_count * 1000.0 if ipc_calls > 0 else 0.0,
@@ -3233,6 +3406,7 @@ def build_training_defaults(config):
 
     feature_names, _ = resolve_feature_names(trainer.get("featureNames"), DEFAULT_FEATURE_NAMES)
     defaults = {
+        "algorithm": to_str(trainer.get("algorithm"), "ppo"),
         "episodes": to_int(trainer.get("episodes"), 20000),
         "max_steps": to_int(trainer.get("maxSteps"), 900),
         "step_ticks": to_int(trainer.get("stepTicks"), to_int(ai.get("stepTicks"), 10)),
@@ -3330,6 +3504,7 @@ def parse_args():
 
     parser = argparse.ArgumentParser(description="Train PPO policy with PyTorch.")
     parser.add_argument("--config", type=str, default=pre_args.config)
+    parser.add_argument("--algorithm", type=str, default=defaults["algorithm"])
     parser.add_argument("--episodes", type=int, default=defaults["episodes"])
     parser.add_argument("--max-steps", type=int, default=defaults["max_steps"])
     parser.add_argument("--step-ticks", type=int, default=defaults["step_ticks"])
@@ -3429,6 +3604,12 @@ def parse_args():
     parser.add_argument("--debug-summary-name", type=str, default=None)
     parser.add_argument("--debug-prefix", type=str, default=None)
     args = parser.parse_args()
+    args.algorithm = to_str(args.algorithm, defaults["algorithm"]).strip().lower()
+    if args.algorithm != "ppo":
+        raise SystemExit(
+            f"Unsupported ai.training.trainer.algorithm '{args.algorithm}'. "
+            "Only 'ppo' is currently implemented."
+        )
     args.hidden_sizes = (
         to_int_list(args.hidden_sizes, defaults["hidden_sizes"])
         if args.hidden_sizes

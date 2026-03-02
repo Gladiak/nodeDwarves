@@ -53,6 +53,7 @@ const SECTION_TOKEN_COLOR_KEYS = {
   underrealm: 'underrealm_delver',
   lore: 'alchemy_lab',
   'deep signals': 'underrealm_hostile',
+  'warrior league': 'armory',
   workforce: 'dwarf',
   'resource pressure': 'alert_warning',
   'diplomacy signals': 'merchant',
@@ -94,8 +95,16 @@ const TELEMETRY_PANEL_PAGES = [
   {
     id: 'economy',
     title: 'Economy',
-    subtitle: 'Production chain health, governor signals (trade/contracts/ruins/underrealm/camps), explainability drivers, diplomacy flow, and endgame checklist.',
+    subtitle: 'Production chain health, governor signals (trade/contracts/ruins/underrealm/camps/warriors), explainability drivers, diplomacy flow, and endgame checklist.',
     sections: ['stockpile', 'structures', 'operations', 'explainability', 'diplomacy', 'endgame'],
+    preferredColumns: 2,
+    minColumnWidth: 38,
+  },
+  {
+    id: 'warrior_league',
+    title: 'Warrior League',
+    subtitle: 'Competitive lens: epic league naming, champion lineage, top 5 fighters, marks progression, and clan standings.',
+    sections: ['warriorLeague', 'underrealm', 'deepSignals'],
     preferredColumns: 2,
     minColumnWidth: 38,
   },
@@ -392,7 +401,7 @@ function buildTelemetryPanel(state, config, runtime) {
 
 // Build content lines for the telemetry panel.
 function buildTelemetryPanelLines(state, config, width, height, pageState, alertConfig) {
-  const controlsLine = '[<-]/[->] Page  [h] Close telemetry  [i] Dwarf info  [l] Legend';
+  const controlsLine = '[<-]/[->] Page  [h] Close telemetry  [i] Dwarf info  [w] Warrior league  [l] Legend';
   const maxContent = Math.max(0, height - 1);
   const topEntries = [];
   const bodyEntries = [];

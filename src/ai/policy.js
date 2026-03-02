@@ -25,6 +25,11 @@ const UNDERREALM_HAULER_MIX_BIAS_ACTION_ID = 'gov_underrealm_hauler_mix_bias';
 const UNDERREALM_GUARD_MIX_BIAS_ACTION_ID = 'gov_underrealm_guard_mix_bias';
 const EXTERNAL_CAMPS_MILITIA_INTENT_ACTION_ID = 'gov_external_militia_support_intent';
 const EXTERNAL_CAMPS_RAIDER_INTENT_ACTION_ID = 'gov_external_raider_tribute_intent';
+const WARRIORS_TRAINING_INTENT_ACTION_ID = 'gov_warriors_training_intent';
+const WARRIORS_ROTATION_INTENT_ACTION_ID = 'gov_warriors_rotation_intent';
+const WARRIORS_TOURNAMENT_RISK_INTENT_ACTION_ID = 'gov_warriors_tournament_risk_intent';
+const WARRIORS_CHAMPION_CHALLENGE_INTENT_ACTION_ID = 'gov_warriors_champion_challenge_intent';
+const WARRIORS_RECOVERY_PRIORITY_INTENT_ACTION_ID = 'gov_warriors_recovery_priority_intent';
 
 const DEFAULT_FEATURES = [
   'shortage',
@@ -235,6 +240,7 @@ function buildActionEnvelopeFromVector(resources, outputVector, minWeight, maxWe
   const ruins = {};
   const underrealm = {};
   const externalCamps = {};
+  const warriors = {};
 
   for (let i = 0; i < resources.length; i += 1) {
     const actionId = String(resources[i] || '');
@@ -326,6 +332,26 @@ function buildActionEnvelopeFromVector(resources, outputVector, minWeight, maxWe
       externalCamps.raiderTributeIntent = scaled;
       continue;
     }
+    if (actionId === WARRIORS_TRAINING_INTENT_ACTION_ID) {
+      warriors.trainingIntent = scaled;
+      continue;
+    }
+    if (actionId === WARRIORS_ROTATION_INTENT_ACTION_ID) {
+      warriors.rotationIntent = scaled;
+      continue;
+    }
+    if (actionId === WARRIORS_TOURNAMENT_RISK_INTENT_ACTION_ID) {
+      warriors.tournamentRiskIntent = scaled;
+      continue;
+    }
+    if (actionId === WARRIORS_CHAMPION_CHALLENGE_INTENT_ACTION_ID) {
+      warriors.championChallengeIntent = scaled;
+      continue;
+    }
+    if (actionId === WARRIORS_RECOVERY_PRIORITY_INTENT_ACTION_ID) {
+      warriors.recoveryPriorityIntent = scaled;
+      continue;
+    }
     weights[actionId] = scaled;
   }
 
@@ -353,6 +379,9 @@ function buildActionEnvelopeFromVector(resources, outputVector, minWeight, maxWe
   }
   if (Object.keys(externalCamps).length > 0) {
     payload.externalCamps = externalCamps;
+  }
+  if (Object.keys(warriors).length > 0) {
+    payload.warriors = warriors;
   }
   return payload;
 }
@@ -399,6 +428,9 @@ function normalizeActionEnvelope(action) {
   }
   if (action.externalCamps && typeof action.externalCamps === 'object') {
     normalized.externalCamps = { ...action.externalCamps };
+  }
+  if (action.warriors && typeof action.warriors === 'object') {
+    normalized.warriors = { ...action.warriors };
   }
 
   if (normalized.jobs && Object.keys(normalized.jobs).length === 0) {

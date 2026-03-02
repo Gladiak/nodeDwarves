@@ -38,14 +38,16 @@ Lifecycle-wise, the panel follows runtime sizing and keeps content constrained t
 
 - `h`: open/close telemetry Data Center
 - `←` / `→`: switch pages while telemetry is open
+- `w`: open/close dedicated Warrior League modal (complements telemetry page with focused competitive view)
 
 ### Pages
 
-The Data Center has 3 pages:
+The Data Center has 4 pages:
 
 1. `Dashboard`
 2. `Overview + Deep`
 3. `Economy`
+4. `Warrior League`
 
 ### Panel sizing
 
@@ -89,10 +91,11 @@ This produces canonical section rows for:
 - `AI Explainability`
 - `Endgame`
 - `Deep Signals`
+- `Warrior League`
 
 ## 3.2 Data Center panel (`src/telemetry/telemetry_panel.js`)
 
-The panel layer adds operator ergonomics: paging, high-level summary blocks, trend history, context lenses, and inline status highlighting. It does not replace section telemetry; it composes it into decision-friendly views. This is why the same run can be read at multiple zoom levels, from executive summary (Dashboard) to root-cause deep dive (Overview + Deep, Economy).
+The panel layer adds operator ergonomics: paging, high-level summary blocks, trend history, context lenses, and inline status highlighting. It does not replace section telemetry; it composes it into decision-friendly views. This is why the same run can be read at multiple zoom levels, from executive summary (Dashboard) to root-cause deep dive (`Overview + Deep`, `Economy`, `Warrior League`).
 
 Panel pipeline:
 
@@ -557,8 +560,11 @@ Rows:
 7. Build stock trend over rolling 200-tick window
 8. Primary shortage signal
 9. Building governor line
-10. Total shortage pressure (sum of shortage scores)
-11. Workload split (production/infrastructure/other)
+10. Ruins governor line
+11. Underrealm governor line
+12. Warriors governor line
+13. Total shortage pressure (sum of shortage scores)
+14. Workload split (production/infrastructure/other)
 
 The stock trend window uses a rolling history in renderState (`telemetryStockHistory`).
 
@@ -570,14 +576,19 @@ When policy behavior looks surprising, this section provides provenance and rati
 
 Rows:
 
-1. Decision tick and source provenance (`jobs/trade/build`: action vs default)
+1. Decision tick and source provenance (`jobs/trade/build/contracts/ruins/underrealm/camps/warriors`: action vs default)
 2. Top ranked drivers
 3. Shortage #1 with score/weight/boost
 4. Shortage #2 with score/weight/boost
 5. Runtime context (weather/raid/event/festival)
-6. Trade explainability
-7. Build explainability
-8. Job load summary
+6. Contracts explainability
+7. Ruins explainability
+8. Underrealm explainability
+9. External camps explainability
+10. Warriors explainability
+11. Trade explainability
+12. Build explainability
+13. Job load summary
 
 Driver logic:
 
@@ -590,6 +601,7 @@ Governor explainability includes:
 - Contest/opportunity intents
 - Mine/upgrade bias
 - Building class priority order
+- Warriors intent bundle (`training`, `rotation`, `tournament risk`, `challenge`, `recovery`) with dominant intent tag
 
 ## 8.6 Diplomacy section
 
@@ -628,6 +640,43 @@ Rows include:
 - Next reset ETA reason
 - Optional temple completion
 - Cycle pressure multiplier
+
+## 8.8 Warrior League section (Page 4) 🏅
+
+Competitive observability for the hero-company loop.
+
+This section is intentionally explicit: it shows not only who is leading, but why. It combines season metadata, champion details, persistent progression markers, clan standings, and top-5 fighter ranking so you can evaluate whether the league is producing meaningful contenders instead of random churn.
+
+Rows include:
+
+- Epic league season name
+- Season and last tournament tick
+- Champion label in `Name Surname <id>` format
+- League metrics (`tournaments`, `tie-breaks`, `upsets`, company aura)
+- League incidents (`injuries`, `retirements`, `hero turnovers`)
+- Training operations (`sessions`, `participants`, `recoveries`)
+- Explicit marks aggregate row: `Marks (Scars/Titles/Vows)`
+- Marks explanation row (semantic meaning of scars/titles/vows)
+- Champion mark snapshot (scars, titles, vow, legacy points)
+- Top-5 shorthand legend row (`R`, `V`, `W`, `RW`, `Mk`, `P`)
+- Top 5 fighters list (rating, valor, W-L, risky wins, marks triplet, league points)
+- Clan score board
+- Latest hall-of-fame champion recap
+
+`Marks` semantics:
+
+- `Scars`: persistent battle wounds earned through outcomes
+- `Titles`: persistent honors unlocked by deterministic thresholds
+- `Vows`: active oath assignment with explicit upside/downside effects
+
+`Top-5 shorthand` semantics:
+
+- `R`: rating in `[0, 1]`
+- `V`: valor in `[0, 1]`
+- `W`: wins-losses record
+- `RW`: risky-wins count
+- `Mk`: marks triplet as `scars/titles/vowFlag` where `vowFlag` is `1` if vow is active, else `0`
+- `P`: league points from season ranking
 
 ## 9) Visual language and inline highlighting 🎨
 

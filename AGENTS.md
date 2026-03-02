@@ -11,6 +11,7 @@ This file defines how to implement new features in a consistent, stable way.
 - Keep the simulation deterministic enough for training comparison.
 - Continuously improve model intelligence and learning capability in measured, stable steps.
 - Validate every substantial change with dedicated short-run and long-run checks, and include explicit model non-regression tests before considering the change complete.
+- Prefer reliability over speed: there is no rush to finish runs quickly when quality evidence is still missing.
 - When implementation details are unclear, ask for clarifications before coding changes.
 - Always update README.md and MANUAL.md after new implementations or tweaks, if needed.
 - README.md is a general product feature overview; avoid deep implementation details, formulas, and low-level file-by-file behavior.
@@ -40,6 +41,7 @@ This file defines how to implement new features in a consistent, stable way.
 - `src/simulation/external_camps.js`: long-lived external faction camps with trade, militia support, and raider pressure.
 - `src/simulation/schism.js`: run-scale social schism arc (pressure/legitimacy, doctrine shifts, ritual windows, and climax events).
 - `src/simulation/temple.js`: Temple of Ancestors stages, site selection, bonuses, and prestige.
+- `src/simulation/warriors.js`: Warrior League helpers for deterministic per-dwarf combat profiles, risk-aware expedition dispatch, and seasonal tournament runtime/champion sync.
 - `src/simulation.js`: thin wrapper for `src/simulation/index.js`.
 - `src/state/`: state creation and terrain generation.
 - `src/state/index.js`: state orchestrator.
@@ -47,6 +49,7 @@ This file defines how to implement new features in a consistent, stable way.
 - `src/render/`: render helpers (grid, header, legend, colors, format, overlays).
 - `src/render/index.js`: render orchestrator.
 - `src/render/map_inset_panel.js`: carved top-right in-map operations snapshot panel (tick/year/cycle, population age split, underrealm unlock info, keyboard hints).
+- `src/render/warrior_panel.js`: Warrior League analytics modal overlay (champion lineage, top-5 fighters, marks/legacy summary).
 - `src/telemetry/`: telemetry section and Data Center panel builders.
 - `src/telemetry/telemetry.js`: telemetry section builders and formatting helpers.
 - `src/telemetry/telemetry_panel.js`: in-game telemetry reference overlay panel (section and metric explanations).
@@ -154,6 +157,7 @@ This file defines how to implement new features in a consistent, stable way.
   `node scripts/headless_benchmark.js --ticks 8000 --seeds 101,202,303,404 --progress --progress-every 2000`.
 - For A/B tuning, compare variants in one run and review deltas seed-by-seed:
   `node scripts/headless_benchmark.js --ticks 8000 --variant baseline --set path=value --variant candidate --progress --progress-every 2000`.
+- Do not stop long-running validations early just because they take longer than expected; keep them running when they are making progress so results remain statistically reliable over wide horizons.
 - Treat seed collapses (population crashes) and strong stockpile regressions as tuning blockers unless intentional and documented.
 - Confirm no crashes on resize and no negative stockpile values.
 - Check that shortages drive gathering priorities as expected.

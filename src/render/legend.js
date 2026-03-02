@@ -362,9 +362,9 @@ function buildFooterLines(config, runtime) {
   );
   const controlsText = pickFitting(
     [
-      "ᚠ [SPACE] PAUSE ᚱ [l] LEGEND ᚨ [i] DWARF INFO ᚺ [h] TELEMETRY ᚲ [←/→] PAGE/INSPECT ᛞ [↑/↓] DEPTH ᛗ [m] MAP SAVE ᛗ [M] MAP+STRUCT ᚾ",
-      "[SPACE] PAUSE  ::  [l] LEGEND  ::  [i] DWARF INFO  ::  [h] TELEMETRY  ::  [←/→] PAGE/INSPECT  ::  [↑/↓] DEPTH  ::  [m] MAP SAVE  ::  [M] MAP+STRUCT",
-      "[SPACE] PAUSE  [l] LEGEND  [i] DWARF INFO  [h] TELEMETRY  [←/→] PAGE/INSPECT  [↑/↓] DEPTH  [m] MAP SAVE  [M] MAP+STRUCT",
+      "ᚠ [SPACE] PAUSE ᚱ [l] LEGEND ᚨ [i] DWARF INFO ᚹ [w] WARRIOR LEAGUE ᚺ [h] TELEMETRY ᚲ [←/→] PAGE/INSPECT ᛞ [↑/↓] DEPTH ᛗ [m] MAP SAVE ᛗ [M] MAP+STRUCT ᚾ",
+      "[SPACE] PAUSE  ::  [l] LEGEND  ::  [i] DWARF INFO  ::  [w] WARRIOR LEAGUE  ::  [h] TELEMETRY  ::  [←/→] PAGE/INSPECT  ::  [↑/↓] DEPTH  ::  [m] MAP SAVE  ::  [M] MAP+STRUCT",
+      "[SPACE] PAUSE  [l] LEGEND  [i] DWARF INFO  [w] WARRIOR LEAGUE  [h] TELEMETRY  [←/→] PAGE/INSPECT  [↑/↓] DEPTH  [m] MAP SAVE  [M] MAP+STRUCT",
     ],
     innerWidth,
   );

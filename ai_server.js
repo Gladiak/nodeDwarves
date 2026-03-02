@@ -57,6 +57,11 @@ const UNDERREALM_HAULER_MIX_BIAS_ACTION_ID = 'gov_underrealm_hauler_mix_bias';
 const UNDERREALM_GUARD_MIX_BIAS_ACTION_ID = 'gov_underrealm_guard_mix_bias';
 const EXTERNAL_CAMPS_MILITIA_INTENT_ACTION_ID = 'gov_external_militia_support_intent';
 const EXTERNAL_CAMPS_RAIDER_INTENT_ACTION_ID = 'gov_external_raider_tribute_intent';
+const WARRIORS_TRAINING_INTENT_ACTION_ID = 'gov_warriors_training_intent';
+const WARRIORS_ROTATION_INTENT_ACTION_ID = 'gov_warriors_rotation_intent';
+const WARRIORS_TOURNAMENT_RISK_INTENT_ACTION_ID = 'gov_warriors_tournament_risk_intent';
+const WARRIORS_CHAMPION_CHALLENGE_INTENT_ACTION_ID = 'gov_warriors_champion_challenge_intent';
+const WARRIORS_RECOVERY_PRIORITY_INTENT_ACTION_ID = 'gov_warriors_recovery_priority_intent';
 const ACTION_SLOT_WEIGHT = 'weight';
 const ACTION_SLOT_FESTIVAL = 'festivalIntent';
 const ACTION_SLOT_TRADE_RESERVE = 'tradeReserveRatioBias';
@@ -78,6 +83,11 @@ const ACTION_SLOT_UNDERREALM_HAULER_MIX = 'underrealmHaulerMixBias';
 const ACTION_SLOT_UNDERREALM_GUARD_MIX = 'underrealmGuardMixBias';
 const ACTION_SLOT_EXTERNAL_CAMPS_MILITIA = 'externalCampsMilitiaIntent';
 const ACTION_SLOT_EXTERNAL_CAMPS_RAIDER = 'externalCampsRaiderIntent';
+const ACTION_SLOT_WARRIORS_TRAINING = 'warriorsTrainingIntent';
+const ACTION_SLOT_WARRIORS_ROTATION = 'warriorsRotationIntent';
+const ACTION_SLOT_WARRIORS_TOURNAMENT_RISK = 'warriorsTournamentRiskIntent';
+const ACTION_SLOT_WARRIORS_CHAMPION_CHALLENGE = 'warriorsChampionChallengeIntent';
+const ACTION_SLOT_WARRIORS_RECOVERY_PRIORITY = 'warriorsRecoveryPriorityIntent';
 const FEATURE_KIND_SHORTAGE = 'shortage';
 const FEATURE_KIND_NODE_SCARCITY = 'nodeScarcity';
 const FEATURE_KIND_STATIC = 'static';
@@ -145,6 +155,16 @@ const STATIC_FEATURE_NAMES = new Set([
   'schismRitualActive',
   'schismClimaxActive',
   'schismInstability',
+  'warriorEnabled',
+  'warriorRosterCoverage',
+  'warriorEliteScore',
+  'warriorLegacyAura',
+  'warriorChampionMomentum',
+  'warriorTournamentRecency',
+  'warriorInjuryShare',
+  'warriorRetiredShare',
+  'warriorSurvivability',
+  'warriorHeroTurnoverPressure',
 ]);
 let runtime = buildRuntimeForConfig(baseConfig);
 
@@ -408,6 +428,21 @@ function resolveActionSlotKind(actionId) {
   if (actionId === EXTERNAL_CAMPS_RAIDER_INTENT_ACTION_ID) {
     return ACTION_SLOT_EXTERNAL_CAMPS_RAIDER;
   }
+  if (actionId === WARRIORS_TRAINING_INTENT_ACTION_ID) {
+    return ACTION_SLOT_WARRIORS_TRAINING;
+  }
+  if (actionId === WARRIORS_ROTATION_INTENT_ACTION_ID) {
+    return ACTION_SLOT_WARRIORS_ROTATION;
+  }
+  if (actionId === WARRIORS_TOURNAMENT_RISK_INTENT_ACTION_ID) {
+    return ACTION_SLOT_WARRIORS_TOURNAMENT_RISK;
+  }
+  if (actionId === WARRIORS_CHAMPION_CHALLENGE_INTENT_ACTION_ID) {
+    return ACTION_SLOT_WARRIORS_CHAMPION_CHALLENGE;
+  }
+  if (actionId === WARRIORS_RECOVERY_PRIORITY_INTENT_ACTION_ID) {
+    return ACTION_SLOT_WARRIORS_RECOVERY_PRIORITY;
+  }
   return ACTION_SLOT_WEIGHT;
 }
 
@@ -540,6 +575,7 @@ function decodeCompactActionPayload(actionValues, sourcePayload) {
   let ruins;
   let underrealm;
   let externalCamps;
+  let warriors;
   const action = {};
 
   for (let idx = 0; idx < slots.length; idx += 1) {
@@ -630,6 +666,26 @@ function decodeCompactActionPayload(actionValues, sourcePayload) {
         externalCamps = externalCamps || {};
         externalCamps.raiderTributeIntent = value;
         break;
+      case ACTION_SLOT_WARRIORS_TRAINING:
+        warriors = warriors || {};
+        warriors.trainingIntent = value;
+        break;
+      case ACTION_SLOT_WARRIORS_ROTATION:
+        warriors = warriors || {};
+        warriors.rotationIntent = value;
+        break;
+      case ACTION_SLOT_WARRIORS_TOURNAMENT_RISK:
+        warriors = warriors || {};
+        warriors.tournamentRiskIntent = value;
+        break;
+      case ACTION_SLOT_WARRIORS_CHAMPION_CHALLENGE:
+        warriors = warriors || {};
+        warriors.championChallengeIntent = value;
+        break;
+      case ACTION_SLOT_WARRIORS_RECOVERY_PRIORITY:
+        warriors = warriors || {};
+        warriors.recoveryPriorityIntent = value;
+        break;
       case ACTION_SLOT_WEIGHT:
       default:
         weights = weights || {};
@@ -661,6 +717,9 @@ function decodeCompactActionPayload(actionValues, sourcePayload) {
   }
   if (externalCamps && Object.keys(externalCamps).length > 0) {
     action.externalCamps = externalCamps;
+  }
+  if (warriors && Object.keys(warriors).length > 0) {
+    action.warriors = warriors;
   }
 
   const ticksRaw = Number(sourcePayload && sourcePayload.ticks);
@@ -734,6 +793,12 @@ function buildTrainingSignals(metrics) {
     && typeof metrics.aiObservation.schism === 'object'
     ? metrics.aiObservation.schism
     : {};
+  const warriors = metrics
+    && metrics.aiObservation
+    && metrics.aiObservation.warriors
+    && typeof metrics.aiObservation.warriors === 'object'
+    ? metrics.aiObservation.warriors
+    : {};
   return {
     criticalNeedsFraction: Number(metrics.criticalNeedsFraction || 0),
     idleAdultsFraction: Number(metrics.idleAdultsFraction || 0),
@@ -751,6 +816,16 @@ function buildTrainingSignals(metrics) {
     externalCampRaiderPressure: Number(externalCamps.raiderPressure || 0),
     schismPressure: Number(schism.pressure || 0),
     schismLegitimacy: Number(schism.legitimacy || 0),
+    warriorEnabled: Number(warriors.enabled || 0),
+    warriorRosterCoverage: Number(warriors.rosterCoverage || 0),
+    warriorEliteScore: Number(warriors.eliteScore || 0),
+    warriorLegacyAura: Number(warriors.legacyAura || 0),
+    warriorChampionMomentum: Number(warriors.championMomentum || 0),
+    warriorTournamentRecency: Number(warriors.tournamentRecency || 0),
+    warriorInjuryShare: Number(warriors.injuryShare || 0),
+    warriorRetiredShare: Number(warriors.retiredShare || 0),
+    warriorSurvivability: Number(warriors.survivability || 0),
+    warriorHeroTurnoverPressure: Number(warriors.heroTurnoverPressure || 0),
     diplomacyPressure: Number(metrics.diplomacyPressure || 0),
     diplomacyCompletions: Number(metrics.diplomacyCompletions || 0),
     diplomacyFailures: Number(metrics.diplomacyFailures || 0),
@@ -786,7 +861,14 @@ function buildDebugInfoMinimal(state, config, metrics) {
   const raidStats = state.raidStats || {};
   const raidObservation = metrics.raid || {};
   const underrealm = getUnderrealmDebugMetrics(state, config);
+  const deathsByCause = getDeathsByCauseDebugMap(state);
   return {
+    deaths: {
+      starvation: Number(deathsByCause.starvation || 0),
+      oldAge: Number(deathsByCause.oldAge || 0),
+      raid: Number(deathsByCause.raid || 0),
+    },
+    deathsByCause,
     stockpile: {
       avgRatio: Number(metrics.stockpileAvg || 0),
       minRatio: Number(metrics.stockpileMin || 0),
@@ -810,9 +892,28 @@ function buildDebugInfoMinimal(state, config, metrics) {
   };
 }
 
+// Function: getDeathsByCauseDebugMap.
+function getDeathsByCauseDebugMap(state) {
+  const source = state && state.deathsByCause && typeof state.deathsByCause === 'object'
+    ? state.deathsByCause
+    : {};
+  const preferredOrder = ['starvation', 'oldAge', 'raid', 'deepRaid', 'ruins', 'hunt', 'warriorLeague'];
+  const normalized = {};
+  for (const key of preferredOrder) {
+    normalized[key] = Math.max(0, Number(source[key] || 0));
+  }
+  for (const [key, value] of Object.entries(source)) {
+    if (Object.prototype.hasOwnProperty.call(normalized, key)) {
+      continue;
+    }
+    normalized[key] = Math.max(0, Number(value || 0));
+  }
+  return normalized;
+}
+
 // Function: buildDebugInfo.
 function buildDebugInfo(state, config, metrics) {
-  const deaths = state.deathsByCause || {};
+  const deathsByCause = getDeathsByCauseDebugMap(state);
   const reproduction = state.reproductionStats || {};
   const ticks = Number(reproduction.ticks || 0);
   const avg = (value) => (ticks > 0 ? Number(value || 0) / ticks : 0);
@@ -869,10 +970,11 @@ function buildDebugInfo(state, config, metrics) {
 
   return {
     deaths: {
-      starvation: Number(deaths.starvation || 0),
-      oldAge: Number(deaths.oldAge || 0),
-      raid: Number(deaths.raid || 0),
+      starvation: Number(deathsByCause.starvation || 0),
+      oldAge: Number(deathsByCause.oldAge || 0),
+      raid: Number(deathsByCause.raid || 0),
     },
+    deathsByCause,
     reproduction: {
       ticks,
       couplesPerTick: avg(reproduction.couples),
@@ -1003,6 +1105,9 @@ function resolveAiObservation(state, config) {
       : {},
     schism: aiObservation.schism && typeof aiObservation.schism === 'object'
       ? aiObservation.schism
+      : {},
+    warriors: aiObservation.warriors && typeof aiObservation.warriors === 'object'
+      ? aiObservation.warriors
       : {},
     clanShares: aiObservation.clanShares && typeof aiObservation.clanShares === 'object'
       ? aiObservation.clanShares
@@ -1346,6 +1451,18 @@ function buildObservation(state, config, metrics) {
       climaxActive: 0,
       instability: 0,
     },
+    warriors: aiObservation.warriors || {
+      enabled: 0,
+      rosterCoverage: 0,
+      eliteScore: 0,
+      legacyAura: 0,
+      championMomentum: 0,
+      tournamentRecency: 0,
+      injuryShare: 0,
+      retiredShare: 0,
+      survivability: 0,
+      heroTurnoverPressure: 0,
+    },
     clanShares: aiObservation.clanShares || {},
   };
 }
@@ -1389,6 +1506,9 @@ function buildCompactObservationVector(metrics, config) {
     : {};
   const schism = aiObservation.schism && typeof aiObservation.schism === 'object'
     ? aiObservation.schism
+    : {};
+  const warriors = aiObservation.warriors && typeof aiObservation.warriors === 'object'
+    ? aiObservation.warriors
     : {};
   const mythFlags = myths.flags && typeof myths.flags === 'object' ? myths.flags : {};
   const clanShares = aiObservation.clanShares && typeof aiObservation.clanShares === 'object'
@@ -1468,6 +1588,16 @@ function buildCompactObservationVector(metrics, config) {
     schismRitualActive: clamp(Number(schism.ritualActive || 0), 0, 1),
     schismClimaxActive: clamp(Number(schism.climaxActive || 0), 0, 1),
     schismInstability: clamp(Number(schism.instability || 0), 0, 1),
+    warriorEnabled: clamp(Number(warriors.enabled || 0), 0, 1),
+    warriorRosterCoverage: clamp(Number(warriors.rosterCoverage || 0), 0, 1),
+    warriorEliteScore: clamp(Number(warriors.eliteScore || 0), 0, 1),
+    warriorLegacyAura: clamp(Number(warriors.legacyAura || 0), 0, 1),
+    warriorChampionMomentum: clamp(Number(warriors.championMomentum || 0), 0, 1),
+    warriorTournamentRecency: clamp(Number(warriors.tournamentRecency || 0), 0, 1),
+    warriorInjuryShare: clamp(Number(warriors.injuryShare || 0), 0, 1),
+    warriorRetiredShare: clamp(Number(warriors.retiredShare || 0), 0, 1),
+    warriorSurvivability: clamp(Number(warriors.survivability || 0), 0, 1),
+    warriorHeroTurnoverPressure: clamp(Number(warriors.heroTurnoverPressure || 0), 0, 1),
   };
 
   const vector = new Array(resources.length * featureCount);
@@ -1565,6 +1695,26 @@ function computeMetrics(state, config) {
   const festivalEligible = festivalObservation && festivalObservation.eligible ? 1 : 0;
   const aiObservation = resolveAiObservation(state, config);
   const aiSignals = getAiRewardSignals(aiObservation);
+  const warriorsObservation = aiObservation.warriors && typeof aiObservation.warriors === 'object'
+    ? aiObservation.warriors
+    : {};
+  const warriorRuntimeStats = state
+    && state.warriors
+    && state.warriors.stats
+    && typeof state.warriors.stats === 'object'
+      ? state.warriors.stats
+      : {};
+  const warriorEliteScore = clamp(Number(warriorsObservation.eliteScore || 0), 0, 1);
+  const warriorChampionMomentum = clamp(Number(warriorsObservation.championMomentum || 0), 0, 1);
+  const warriorSurvivability = clamp(Number(warriorsObservation.survivability || 0), 0, 1);
+  const warriorInjuryShare = clamp(Number(warriorsObservation.injuryShare || 0), 0, 1);
+  const warriorRetiredShare = clamp(Number(warriorsObservation.retiredShare || 0), 0, 1);
+  const warriorHeroTurnoverPressure = clamp(
+    Number(warriorsObservation.heroTurnoverPressure || 0),
+    0,
+    1,
+  );
+  const warriorHeroTurnovers = Math.max(0, Number(warriorRuntimeStats.heroTurnovers || 0));
   const worldEventStats = state && state.worldEvents && state.worldEvents.stats
     ? state.worldEvents.stats
     : {};
@@ -1626,6 +1776,13 @@ function computeMetrics(state, config) {
     externalCampRaiderPressure: aiSignals.externalCampRaiderPressure,
     schismPressure: aiSignals.schismPressure,
     schismLegitimacy: aiSignals.schismLegitimacy,
+    warriorEliteScore,
+    warriorChampionMomentum,
+    warriorSurvivability,
+    warriorInjuryShare,
+    warriorRetiredShare,
+    warriorHeroTurnoverPressure,
+    warriorHeroTurnovers,
     diplomacyPressure: aiSignals.diplomacyPressure,
     worldEventCompletions,
     worldEventFailures,
@@ -1718,6 +1875,18 @@ function computeReward(prevMetrics, metrics, config, action) {
   const diplomacyPressureWeight = Number(rewardConfig.diplomacyPressure ?? 0);
   const diplomacyPressureDeltaWeight = Number(rewardConfig.diplomacyPressureDelta ?? 0);
   const diplomacyLegitimacyDeltaWeight = Number(rewardConfig.diplomacyLegitimacyDelta ?? 0);
+  const warriorEliteScoreWeight = Number(rewardConfig.warriorEliteScore ?? 0);
+  const warriorEliteScoreDeltaWeight = Number(rewardConfig.warriorEliteScoreDelta ?? 0);
+  const warriorChampionMomentumWeight = Number(rewardConfig.warriorChampionMomentum ?? 0);
+  const warriorChampionMomentumDeltaWeight = Number(rewardConfig.warriorChampionMomentumDelta ?? 0);
+  const warriorSurvivabilityWeight = Number(rewardConfig.warriorSurvivability ?? 0);
+  const warriorSurvivabilityDeltaWeight = Number(rewardConfig.warriorSurvivabilityDelta ?? 0);
+  const warriorHeroLossWeight = Number(rewardConfig.warriorHeroLoss ?? 0);
+  const warriorHeroTurnoverPressureWeight = Number(rewardConfig.warriorHeroTurnoverPressure ?? 0);
+  const warriorInjuryShareWeight = Number(rewardConfig.warriorInjuryShare ?? 0);
+  const warriorInjuryShareDeltaWeight = Number(rewardConfig.warriorInjuryShareDelta ?? 0);
+  const warriorRetiredShareWeight = Number(rewardConfig.warriorRetiredShare ?? 0);
+  const warriorRetiredShareDeltaWeight = Number(rewardConfig.warriorRetiredShareDelta ?? 0);
   const deltaClip = Math.max(0, Number(rewardConfig.deltaClip ?? 0));
   const eventClip = Math.max(0, Number(rewardConfig.eventClip ?? 0));
   const totalClip = Math.max(0, Number(rewardConfig.totalClip ?? 0));
@@ -1820,6 +1989,24 @@ function computeReward(prevMetrics, metrics, config, action) {
   const prevSchismLegitimacy = prevMetrics
     ? Number(prevMetrics.schismLegitimacy || 0)
     : Number(metrics.schismLegitimacy || 0);
+  const prevWarriorEliteScore = prevMetrics
+    ? Number(prevMetrics.warriorEliteScore || 0)
+    : Number(metrics.warriorEliteScore || 0);
+  const prevWarriorChampionMomentum = prevMetrics
+    ? Number(prevMetrics.warriorChampionMomentum || 0)
+    : Number(metrics.warriorChampionMomentum || 0);
+  const prevWarriorSurvivability = prevMetrics
+    ? Number(prevMetrics.warriorSurvivability || 0)
+    : Number(metrics.warriorSurvivability || 0);
+  const prevWarriorInjuryShare = prevMetrics
+    ? Number(prevMetrics.warriorInjuryShare || 0)
+    : Number(metrics.warriorInjuryShare || 0);
+  const prevWarriorRetiredShare = prevMetrics
+    ? Number(prevMetrics.warriorRetiredShare || 0)
+    : Number(metrics.warriorRetiredShare || 0);
+  const prevWarriorHeroTurnovers = prevMetrics
+    ? Number(prevMetrics.warriorHeroTurnovers || 0)
+    : Number(metrics.warriorHeroTurnovers || 0);
 
   const stockpileAvgDelta = getMetricDelta(metrics.stockpileAvg, prevStockpileAvg, deltaClip);
   const stockpileMinDelta = getMetricDelta(metrics.stockpileMin, prevStockpileMin, deltaClip);
@@ -1888,6 +2075,35 @@ function computeReward(prevMetrics, metrics, config, action) {
     prevSchismLegitimacy,
     deltaClip,
   );
+  const warriorEliteScoreDelta = getMetricDelta(
+    metrics.warriorEliteScore,
+    prevWarriorEliteScore,
+    deltaClip,
+  );
+  const warriorChampionMomentumDelta = getMetricDelta(
+    metrics.warriorChampionMomentum,
+    prevWarriorChampionMomentum,
+    deltaClip,
+  );
+  const warriorSurvivabilityDelta = getMetricDelta(
+    metrics.warriorSurvivability,
+    prevWarriorSurvivability,
+    deltaClip,
+  );
+  const warriorInjuryShareDelta = getImprovementDelta(
+    prevWarriorInjuryShare,
+    metrics.warriorInjuryShare,
+    deltaClip,
+  );
+  const warriorRetiredShareDelta = getImprovementDelta(
+    prevWarriorRetiredShare,
+    metrics.warriorRetiredShare,
+    deltaClip,
+  );
+  const warriorHeroLossDelta = Math.max(
+    0,
+    Number(metrics.warriorHeroTurnovers || 0) - prevWarriorHeroTurnovers,
+  );
 
   const coreReward = (((metrics.stockpileAvg * stockpileAvgWeight)
     + (metrics.stockpileMin * stockpileMinWeight)
@@ -1918,7 +2134,19 @@ function computeReward(prevMetrics, metrics, config, action) {
     - (diplomacyExpirationDelta * diplomacyExpirationWeight)
     + (diplomacyPressureDelta * diplomacyPressureDeltaWeight)
     + (diplomacyLegitimacyDelta * diplomacyLegitimacyDeltaWeight)
-    - (Number(metrics.diplomacyPressure || 0) * diplomacyPressureWeight);
+    - (Number(metrics.diplomacyPressure || 0) * diplomacyPressureWeight)
+    + (Number(metrics.warriorEliteScore || 0) * warriorEliteScoreWeight)
+    + (warriorEliteScoreDelta * warriorEliteScoreDeltaWeight)
+    + (Number(metrics.warriorChampionMomentum || 0) * warriorChampionMomentumWeight)
+    + (warriorChampionMomentumDelta * warriorChampionMomentumDeltaWeight)
+    + (Number(metrics.warriorSurvivability || 0) * warriorSurvivabilityWeight)
+    + (warriorSurvivabilityDelta * warriorSurvivabilityDeltaWeight)
+    + (warriorInjuryShareDelta * warriorInjuryShareDeltaWeight)
+    + (warriorRetiredShareDelta * warriorRetiredShareDeltaWeight)
+    - (Number(metrics.warriorInjuryShare || 0) * warriorInjuryShareWeight)
+    - (Number(metrics.warriorRetiredShare || 0) * warriorRetiredShareWeight)
+    - (Number(metrics.warriorHeroTurnoverPressure || 0) * warriorHeroTurnoverPressureWeight)
+    - (warriorHeroLossDelta * warriorHeroLossWeight);
 
   const eventRewardRaw = raidPrepShelter
     + raidPrepDefense

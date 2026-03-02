@@ -25,7 +25,8 @@ npm start
 ```
 
 Runtime controls: `Space` pause/resume, `l` legend panel, `i` dwarf inspect panel,
-`h` telemetry Data Center panel, `←`/`→` change telemetry pages (or browse inspect entries when inspect is open),
+`w` Warrior League modal panel, `h` telemetry Data Center panel,
+`←`/`→` change telemetry pages (or browse inspect entries when inspect is open),
 `↑`/`↓` switch between surface and unlocked underrealm depths,
 `m` export all currently unlocked layers (PNG + SVG), `Shift+M` export all
 unlocked layers with structures/roads.
@@ -419,7 +420,8 @@ Notes:
   - Terminal resize behavior is configured under `display.resize.*`: default profile keeps resize handling enabled but does not reflow world geometry (`reflow_world=false`) to avoid live road/village/temple resets.
   - Space toggles pause/resume during the live simulation.
   - Press `i` to open/close the dwarf inspect panel (works during pause or live); use `←`/`→` to browse spawn order.
-  - Press `h` to open/close the telemetry Data Center panel (`Dashboard`, `Overview + Deep`, `Economy`).
+  - Press `w` to open/close the Warrior League modal panel (champion/top-5/marks analytics).
+  - Press `h` to open/close the telemetry Data Center panel (`Dashboard`, `Overview + Deep`, `Economy`, `Warrior League`).
   - While telemetry is open, use `←`/`→` to switch pages.
   - Press `↑` / `↓` to switch map view between surface and unlocked underrealm depths.
   - Press `l` to toggle the legend overlay panel (works during pause or live).
@@ -531,6 +533,50 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
 - Visibility and AI:
   - Telemetry exposes fixed operational sections (World, Underrealm, Population, Pressure, Lore, Structures, Diplomacy, Stockpile, Operations) instead of a dedicated clans block.
   - AI observation includes `clanShare_<id>` features, so policy training can adapt to composition changes.
+
+### Warrior scaffolding 🏅
+
+- `simulation/warriors.js` provides deterministic warrior bootstrap helpers used during dwarf initialization and newborn spawn.
+- Phase-0/1 scope builds deterministic foundations:
+  - config-driven warrior schema (`warriors.*`) with defaults and normalization,
+  - deterministic per-dwarf base combat profile (`strength`, `dexterity`, `vitality`),
+  - condition snapshot from runtime mood signals (`morale`, `stress`, `fatigue`),
+  - derived bootstrap scores (`baseCombatAptitude`, `heroPotential`),
+  - top-level runtime container (`state.warriors`) for upcoming league/tournament progression.
+- Phase-2 adds active ruins integration when `warriors.enabled=true`:
+  - risky dispatches (warning-zone or depth gate) rank candidates by deterministic `dispatchScore`,
+  - safe dispatch keeps legacy ordering posture but avoids immediate reuse of exhausted/resting dwarves when healthy alternatives exist,
+  - post-expedition progression updates live warrior metrics (`wins/losses/retreats`, `rating`, `valor`, `riskWins`, expedition counters),
+  - outcome-driven rest windows (`nextEligibleExpeditionTick`) and direct condition updates (`fatigue/stress/morale`) make exhaustion explicit and prevent repeat spam.
+- Phase-3 adds seasonal tournament runtime:
+  - cadence-gated Warrior League bracket executes at season boundaries (`season.globalIndex` + `warriors.tournaments.interval_seasons`),
+  - deterministic seed + duel resolution uses practical trait inputs (`rating`, `valor`, `heroPotential`, condition score, base aptitude, champion survivals),
+  - league state tracks clan score table, ranked fighters, season champion, tie-break/upset counters, and hall-of-fame entries,
+  - optional champion sync wires season winner to `underrealm.combat.dwarfChampion.activeDwarfId`.
+- Phase-4 adds persistent hero progression and bounded legacy bonuses:
+  - scars and titles are assigned by deterministic rule tables (`warriors.marks.*`) on event-driven milestones (expedition outcomes, champion promotion),
+  - vows are assigned deterministically by rule priority (`warriors.vows.rules`) and read from vow effect catalog (`warriors.vows.catalog`),
+  - vow effects include explicit downside multipliers (`rating_loss_multiplier`, `fatigue_gain_multiplier`, `stress_gain_multiplier`) to enforce tradeoff design,
+  - legacy points are earned only on progression events (expedition/tournament outcomes), capped (`warriors.bonuses.legacy.points_cap`), and converted via diminishing curves into:
+    - personal bonus (dispatch + duel influence),
+    - company aura (`state.warriors.company.legacyAura`) for active roster members.
+- Phase-5 adds observability/UX for competitive tracking:
+  - Warrior League season names are now deterministic epic names (same lore-technique family used for dwarf names),
+  - warrior telemetry adds explicit `Marks (Scars/Titles/Vows)` semantics, champion marks, clan board, hall-of-fame recap, and top-5 fighter table,
+  - top-5 fighter compact rows now ship with a static shorthand legend (`R` rating, `V` valor, `W` wins-losses, `RW` risky wins, `Mk` scars/titles/vow flag, `P` league points),
+  - all warrior-facing labels now use `Name Surname <id>` instead of plain dwarf id,
+  - Data Center includes a dedicated `Warrior League` page,
+  - `render/warrior_panel.js` provides a dedicated modal (toggle `w`) for focused champion/top-5 analytics, with selective key-row highlights and section spacing for faster read flow.
+- Phase-6 adds AI/training integration for Warrior League:
+  - AI observation now exports bounded aggregate warrior channels (`warriorEnabled`, `warriorRosterCoverage`, `warriorEliteScore`, `warriorLegacyAura`, `warriorChampionMomentum`, `warriorTournamentRecency`, `warriorInjuryShare`, `warriorRetiredShare`, `warriorSurvivability`, `warriorHeroTurnoverPressure`),
+  - compact transport (`obsVector`) now maps these channels with parity against legacy JSON observation payloads,
+  - training feature list now includes the warrior channels by default; upgrading from pre-phase-6 checkpoints requires `--fresh`.
+- Phase-7 adds realism and command-loop consequences:
+  - tournament duels can now trigger bounded injury states with severity-driven recovery ticks and optional retirement/death gates (`warriors.tournaments.consequences.*`),
+  - champion defeat can trigger explicit hero succession checks (`warriors.tournaments.hero_succession.*`) and optional Underrealm hero sync,
+  - periodic paid training sessions (`warriors.training.*`) consume stockpile, improve combat growth (`rating`/`valor`/`heroPotential`), and apply fatigue/stress guardrails,
+  - warrior runtime stats now track incidents and throughput (`injuries`, `retirements`, `recoveries`, `trainingSessions`, `trainingParticipants`, `heroTurnovers`) for telemetry and reward alignment.
+- Default profile now ships with `warriors.enabled=true`, so Warrior League runtime is active from run start.
 
 ### Jobs and economy 📦
 
@@ -1087,8 +1133,8 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - Map inset Ops Snapshot adds a concise deep-combat token line (`P:* C:* R:*`) for at-a-glance progression/champion/readiness context.
 - Underrealm V2 AI/training/regression integration (M6):
   - AI observation exports normalized Underrealm combat/progression signals for PPO (`depth/champion/readiness/pressure` bundle).
-  - Trainer summary line now includes `under=...` diagnostics, so randomized regression can ingest `under_*` rollout metrics.
-  - `scripts/regression.js` randomized suite reports now include `under_*` rows when summary diagnostics are available.
+  - Trainer summary line now includes `under=...` and `deaths_by_cause=...` diagnostics, so randomized regression can ingest `under_*` rollout metrics plus cause-split death metrics (`death_*`).
+  - `scripts/regression.js` randomized suite reports now include both `under_*` and `death_*` rows when summary diagnostics are available.
   - `scripts/headless_benchmark.js` now includes compact Underrealm KPIs (`underDepth`, `underChamp`, `underFail`, `underBlocked`, `underContested`, `underReady`) in summaries, comparisons, and seed deltas.
 - Underrealm M8 safe Dwarf Champion integration:
   - Adds one optional runtime slot (`underrealm.combat.dwarf_champion`) for a unique active hero.
@@ -1446,6 +1492,7 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
   - When underrealm depth view is active, it renders the selected depth terrain layer and hides surface entities.
   - Selects a stable subset of dwarves to keep the map readable (`display.dwarves.maxVisible`; set `< 0` to skip dwarf rendering).
   - Applies the dwarf inspect overlay when `display.inspect_panel.enabled` is true.
+  - Applies the Warrior League modal overlay when `display.warrior_panel.enabled` is true.
   - Applies the telemetry overlay when `display.telemetry_panel.enabled` is true.
   - Applies the map-save confirmation overlay when `display.save_panel.enabled` is true.
 
@@ -1469,7 +1516,7 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
   - Panel size is controlled by `display.legend_panel.width`/`height`.
 
 - `telemetry/telemetry_panel.js`
-  - Builds a paged telemetry Data Center with three pages: `Dashboard`, `Overview + Deep`, and `Economy`.
+  - Builds a paged telemetry Data Center with four pages: `Dashboard`, `Overview + Deep`, `Economy`, and `Warrior League`.
   - `Dashboard` is an analyst-style summary layer: KPI snapshot, ASCII trend charts (sparkline rows), forecast/bottleneck context (runway, net flow, volatility, momentum), risk gauge + pressure decomposition, workforce/job distribution bars, event timeline windows, and deterministic action hints.
   - Dashboard trend charts are sampled as snapshots (not every tick): cadence and history window are tunable via `display.telemetry_panel.dashboard.snapshot_interval_ticks` and `display.telemetry_panel.dashboard.history_points` (default profile: `120t` cadence, `32` points).
   - Trend deltas are computed on a tick-based lookback window (not fixed sample count), so interpretation stays stable when sampling cadence changes.
@@ -1518,13 +1565,13 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
   - `Diplomacy` is the trade/diplomacy block (merchant status/flows, external camp mix/effects, convoy activity/interception risk, contracts, world-event cadence/counters, plus trade + contracts + external-camps governor intents).
   - `Deep Signals` consolidates world-event cadence/totals plus contract reliability for late-game monitoring.
     - Its `World log` mirror also wraps to multiple rows (up to 3).
-  - `Operations` reports adult workforce split, job mix, build pipeline, 200-tick stockpile deltas, building/ruins/underrealm governor advisory signals, and production-vs-infrastructure load split.
+  - `Operations` reports adult workforce split, job mix, build pipeline, 200-tick stockpile deltas, building/ruins/underrealm/warriors governor advisory signals, and production-vs-infrastructure load split.
   - `AI Explainability` reads `state.lastDecisionTrace` to expose top pressure drivers, shortage score decomposition (including boost context), world pressure context, and governor intent source (`action` vs `default`).
   - `Endgame` reports a checklist path for cycle reset pacing (ruins rooms, artifacts, post-artifact window, trigger arm), plus ETA reason when blocked/pending.
   - `Lore` summarizes myths/traditions and ruins progress without bottom overlays.
 
 - `render/legend.js`
-  - Footer controls are built for `Space`, `l`, `i`, `h`, `←/→` (telemetry pages or inspect), `↑/↓`, and `m`.
+  - Footer controls are built for `Space`, `l`, `i`, `w`, `h`, `←/→` (telemetry pages or inspect), `↑/↓`, and `m`.
   - Legend/map entries are built from `config.json` symbols and resource nodes for the overlay panel.
   - Uses `symbols.*` and `resources.labels.*` for readable names.
 
@@ -1545,18 +1592,22 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
 ### JS inference 🧠
 
 - `src/ai/observation.js`
-  - Converts state to observation features (stockpile ratios, node ratios, needs, weather, raids, housing, ruins, myths, festivals, and underrealm combat/progression signals).
+  - Converts state to observation features (stockpile ratios, node ratios, needs, weather, raids, housing, ruins, myths, festivals, underrealm combat/progression signals, and warrior aggregates).
   - Adds normalized ratios and flags used by the policy feature list.
   - Underrealm V2 features include:
     - `underrealmDepthProgress`, `underrealmChampionProgress`, `underrealmFrontierContested`
     - `underrealmChampionCooldown`, `underrealmReadinessScore`, `underrealmReadinessGap`
     - `underrealmReadinessBlocked`, `underrealmReadinessWarning`, `underrealmCombatPressure`
+  - Warrior phase-6 features include:
+    - `warriorEnabled`, `warriorRosterCoverage`, `warriorEliteScore`
+    - `warriorLegacyAura`, `warriorChampionMomentum`, `warriorTournamentRecency`
+    - `warriorInjuryShare`, `warriorRetiredShare`, `warriorSurvivability`, `warriorHeroTurnoverPressure`
 - `src/ai/policy.js`
   - Loads JSON policies (linear or MLP) and maps outputs to the governor action envelope.
   - Feature order is defined by `featureNames`; defaults live in the file.
   - Applies policy-side observation normalization when `normalization.observation` metadata is present in the checkpoint.
   - Emits fail-fast warnings if normalization metadata version/shape is incompatible with runtime feature shape.
-  - Normalizes actions to a governor-ready envelope (`jobs.weights`, `festivalIntent`, optional `trade`/`contracts`/`ruins`/`underrealm`/`building`/`externalCamps`) and mirrors legacy `weights` for compatibility.
+  - Normalizes actions to a governor-ready envelope (`jobs.weights`, `festivalIntent`, optional `trade`/`contracts`/`ruins`/`underrealm`/`building`/`externalCamps`/`warriors`) and mirrors legacy `weights` for compatibility.
   - Supports explicit governor pseudo action-ids in policy `resources`:
     - trade: `gov_trade_reserve_ratio_bias`, `gov_trade_contest_intent`, `gov_trade_opportunity_intent`
     - contracts: `gov_contract_commit_intent`
@@ -1564,12 +1615,15 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
     - underrealm: `gov_underrealm_surface_reserve_bias`, `gov_underrealm_depth_allocation_bias`, `gov_underrealm_miner_mix_bias`, `gov_underrealm_hauler_mix_bias`, `gov_underrealm_guard_mix_bias`
     - building: `gov_building_housing_weight`, `gov_building_economy_weight`, `gov_building_defense_weight`, `gov_building_special_weight`, `gov_building_mine_bias`, `gov_building_upgrade_bias`
     - external camps: `gov_external_militia_support_intent`, `gov_external_raider_tribute_intent`
+    - warriors: `gov_warriors_training_intent`, `gov_warriors_rotation_intent`, `gov_warriors_tournament_risk_intent`, `gov_warriors_champion_challenge_intent`, `gov_warriors_recovery_priority_intent`
   - Trade intents currently consumed at runtime: `reserveRatioBias`, `contestIntent`, `opportunityIntent`.
   - Contract intents currently consumed at runtime: `commitIntent`.
   - Ruins intents currently consumed at runtime: `warningDispatchIntent`, `mithrilReinforcementIntent`.
   - Underrealm intents currently consumed at runtime: `surfaceReserveBias`, `depthAllocationBias`, `minerMixBias`, `haulerMixBias`, `guardMixBias`.
   - Building intents currently consumed at runtime: class weights (`housing/economy/defense/special`) plus advisory `mineBias` and `upgradeBias`.
   - External-camps intents currently consumed at runtime: `militiaSupportIntent`, `raiderTributeIntent`.
+  - Warriors intents currently consumed at runtime: `trainingIntent`, `rotationIntent`, `tournamentRiskIntent`, `championChallengeIntent`, `recoveryPriorityIntent`.
+  - Warrior thresholds are behavior-gating (not telemetry-only): below-threshold intents now hold the corresponding subsystem in neutral mode (training off, rotation off, risk multipliers off, recovery boost off), while `championChallenge` continues to gate hero succession checks.
 - `src/ai_policy.js`
   - Thin wrapper used by `app.js`.
 
@@ -1585,8 +1639,10 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
 
 - `python/train.py`
   - PPO training loop (2x128 MLP), logs, checkpoints, and evals.
+  - `ai.training.trainer.algorithm` is startup-validated; currently only `ppo` is accepted (fail-fast on unsupported values).
   - Exports JSON weights for JS inference.
   - Builds action heads from resource ids plus optional festival and governor pseudo action-ids (when `ai.governors.*.enabled`).
+  - Warriors action-head ids are additionally gated by `ai.governors.warriors.actionHeadEnabled`; default is `true`, and legacy checkpoints that do not include warrior action IDs require `--fresh` (or a temporary flag rollback to `false`).
   - Resume guard validates both `featureNames` and action-head ids (`resources` list); mismatch requires `--fresh`.
 - `python/agent.py`
   - Example agent showing how to call the server.
@@ -1603,15 +1659,16 @@ Clan dynamics add heterogeneity and longer-horizon trade-offs. To keep PPO stabl
 - Keep eval runs deterministic (fixed seeds) to measure policy robustness.
 - Consider a curriculum: start with clans disabled or reduced bonuses, then ramp up.
 - Use slightly higher entropy early to explore clan/role/job combinations.
-- Observations include clan shares, ruins status, and diplomacy/governance channels (world events, contracts, external camps, schism); retrain with `--fresh` if you change feature shape.
+- Observations include clan shares, ruins status, diplomacy/governance channels (world events, contracts, external camps, schism), and Warrior League aggregate channels; retrain with `--fresh` if you change feature shape.
 - Reward shaping can emphasize ruins outcomes via `ai.reward.ruinsSuccess`, `ai.reward.ruinsArtifact`, `ai.reward.ruinsFailure`, and `ai.reward.ruinsRoomClear`, plus festivals via `ai.reward.festival_active`, `ai.reward.festival_start`, and `ai.reward.festival_intent`.
 - Reward stack now supports bounded delta channels (`ai.reward.*Delta`), deep progression signals (Underrealm/Myths), and diplomacy outcome/pressure channels (`ai.reward.diplomacy*`) with optional clipping guardrails (`deltaClip`, `eventClip`, `totalClip`) to reduce reward spikes.
 - Training curriculum now includes dedicated stress slices:
   - `underrealm_push`: earlier/faster deep unlock-readiness exposure.
   - `compound_crisis`: stacked scarcity + housing + weather + raid pressure.
   - `governance_pressure`: faster world-event/external-camp churn and higher schism pressure.
+  - `warrior_realism_pressure`: denser expedition/tournament cadence with harsher warrior consequence pressure.
 - Canonical eval checkpoints now target this compact stress set by default:
-  - `baseline`, `full_sim`, `wildlife_raid`, `water_scarce`, `food_scarce`, `ruins_focus`, `underrealm_push`, `compound_crisis`, `governance_pressure`.
+  - `baseline`, `full_sim`, `wildlife_raid`, `water_scarce`, `food_scarce`, `ruins_focus`, `underrealm_push`, `compound_crisis`, `governance_pressure`, `warrior_realism_pressure`.
 
 ## 9) Configuration (single source of truth) ⚙️
 
@@ -1792,6 +1849,11 @@ Training presets:
   - `underrealm_push` now enforces stricter readiness/cooldown pacing and safer deep crew reserve.
   - `underrealm_late_gauntlet` adds a late-difficulty deep stress slice with stricter readiness/cooldown and higher surface reserve requirements.
   - `compound_crisis` keeps multi-system pressure but with moderated scarcity/need/raid knobs to avoid deterministic over-kill in hardened regression slices.
+- 2026-02 warrior/governance determinative retune:
+  - Warrior reward channels were strengthened (`elite/momentum/survivability/injury/retired/hero-turnover`) and event/total reward clip budgets were widened to reduce saturation in mixed deep-governance pressure windows.
+  - Curriculum pressure was increased for `warrior_realism_pressure` and `governance_pressure`, with earlier activation multipliers at sub-max difficulty.
+  - Adaptive scenario reweighting was widened (`minWeightRatio=0.6`, `maxWeightRatio=1.8`) and made more reactive (higher `boost`/`emaAlpha`, tighter late-phase `updateEvery`).
+  - Trainer periodic eval now defaults to `evalEpisodes=20`, ensuring all configured eval scenarios are covered in each in-training eval pass.
 - Regression temp artifacts are isolated per seed via `mkdtemp` workspaces (config + transient policy files), removing static `/tmp` filename collisions and cross-run side effects.
 - Regression randomized pass is rollout-only: `scripts/regression.js` calls `python/regression_rollout.py`, avoiding PPO optimizer/update overhead and checkpoint side effects.
 - Regression baseline profiles are persisted in `regression/baselines/regression_baseline.json` (stable/versionable), while per-run logs/reports stay in `debug/`.
@@ -1799,13 +1861,14 @@ Training presets:
 - `scripts/regression.js` supports deterministic seed-pack selection for deep checks:
   - `--seed-pack <name>` picks one named pack from `ai.training.deepChecks.seedPackRotation.packs`.
   - `--seed-pack weekly` rotates through `weeklyOrder` deterministically by week.
+  - For `horizon` profile runs without explicit `--seed-pack` / `--seeds`, `seedPackRotation.defaultMode` is auto-applied (`weekly`, one pack name, or disabled via `off|none|disabled`).
   - default pack sizing for OQ-6.3 is `4` seeds per pack to improve weekly deep-check statistical power.
   - Optional replay pin: `--seed-week YYYY-MM-DD`, `YYYY-Www`, or an integer week index.
   - Resolved seed-pack metadata is written into regression profile config and JSON/Markdown report metadata.
 - Regression subprocess logs are streamed directly to per-run `console.log` files (instead of buffered pipes), reducing risk of buffer-cap failures in long runs.
 - Regression CLI now emits heartbeat lines during long Python phases (`[regression] ... running mm:ss`), so long checks provide visible progress and do not appear stuck.
 - Regression now writes `.txt`, `.json`, and `.md` reports for each run (defaults next to the txt report; override with `--report-json` / `--report-md`).
-- Randomized regression summary parsing also captures `under_*` metrics from trainer `under=` diagnostics when present.
+- Randomized regression summary parsing captures `under_*` metrics from trainer `under=` diagnostics and `death_*` metrics from `deaths_by_cause=` diagnostics when present.
 - Headless benchmark summaries/comparisons now include Underrealm KPIs (`underDepth`, `underChamp`, `underFail`, `underBlocked`, `underContested`, `underReady`) for seed-by-seed balancing review.
 - Validation npm commands are rationalized for post-training gates:
   - `ai:validate:canonical` runs the fixed canonical master eval-only contract (`20x2200`, `rpt`, `compact`) on `policy_best`.
@@ -1827,6 +1890,7 @@ If you work on the UI/UX in the terminal:
 
 - `src/render/index.js` orchestrates the frame.
 - `src/render/map_inset_panel.js` owns the carved in-map Ops Snapshot rendering.
+- `src/render/warrior_panel.js` owns the dedicated Warrior League modal overlay (`w`).
 - `src/render/grid.js` handles terrain symbols and colors.
 - `src/telemetry/telemetry.js` provides telemetry section builders and formatting.
 - `src/telemetry/telemetry_panel.js` is the paged telemetry Data Center overlay.
@@ -1944,15 +2008,17 @@ Quick checklist:
     - `simulation/alchemy.js` → alchemy rite lifecycle and modifiers
     - `simulation/contracts.js` → contract offers, reputations, and boons
     - `simulation/world_events.js` → global event lifecycle and temporary world modifiers
-    - `simulation/external_camps.js` → long-lived external faction camps and map-level diplomacy pressure
-    - `simulation/schism.js` → run-scale social schism arc, doctrine shifts, ritual windows, and climax events
-    - `simulation/roads.js` → road planning/build queue/pathing
+  - `simulation/external_camps.js` → long-lived external faction camps and map-level diplomacy pressure
+  - `simulation/schism.js` → run-scale social schism arc, doctrine shifts, ritual windows, and climax events
+  - `simulation/warriors.js` → Warrior League runtime (combat profile bootstrap, risk-aware dispatch ranking, expedition progression, seasonal tournaments, bounded injury/recovery + succession/training loops, and persistent marks/vows/legacy bonuses)
+  - `simulation/roads.js` → road planning/build queue/pathing
     - `simulation/underrealm.js` → crew assignment, deep economy/exploration, and hostile deep raids
     - `simulation/temple.js` → Temple of Ancestors progression, effects, and prestige
     - `simulation/ruins.js` → expeditions, artifacts, and set bonuses
   - `state/` → initial state + terrain generation
   - `render/` → ASCII output (grid, legend, inspect overlays, frame orchestration)
     - `render/map_inset_panel.js` → carved in-map Ops Snapshot component (stable counters + keyboard hints)
+    - `render/warrior_panel.js` → Warrior League modal overlay (champion lineage, top-5 fighters, marks/legacy summary)
   - `telemetry/` → telemetry extraction and Data Center composition
     - `telemetry/telemetry.js` → telemetry section builders and formatting helpers
     - `telemetry/telemetry_panel.js` → paged in-game telemetry Data Center with section pages and full-height telemetry body

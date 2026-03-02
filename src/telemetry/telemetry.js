@@ -7,6 +7,10 @@ const { getAlchemyStatus } = require("../simulation/alchemy");
 const { getWorldEventStatus } = require("../simulation/world_events");
 const { getExternalCampStatus } = require("../simulation/external_camps");
 const { getSchismStatus } = require("../simulation/schism");
+const {
+  formatWarriorDisplayNameById,
+  resolveWarriorLeagueEpicName,
+} = require("../simulation/warriors");
 const { getColorConfig, applyColor } = require("../render/colors");
 const { fitLine, wrapLine } = require("../render/format");
 
@@ -24,7 +28,7 @@ const TELEMETRY_LAYOUT = [
   {
     id: "deep_meta",
     title: "Deep & Meta",
-    sections: ["underrealm", "lore", "deepSignals"],
+    sections: ["underrealm", "lore", "deepSignals", "warriorLeague"],
   },
 ];
 
@@ -443,6 +447,15 @@ function buildTelemetrySectionModels(snapshot) {
         snapshot.columnWidth,
       ),
     },
+    {
+      column: "right",
+      key: "warriorLeague",
+      label: "Warrior League",
+      rows: buildWarriorLeagueSectionRows(
+        snapshot.state,
+        snapshot.config,
+      ),
+    },
   ];
 }
 
@@ -506,6 +519,253 @@ function countEntriesByValue(entries, selector) {
     counts[value] = (counts[value] || 0) + 1;
   }
   return counts;
+}
+
+// Resolve normalized warrior runtime state.
+function resolveWarriorRuntimeState(state) {
+  return state && state.warriors && typeof state.warriors === "object"
+    ? state.warriors
+    : null;
+}
+
+// Deterministic fallback ordering for fighter ranking without a tournament table.
+function compareWarriorFallbackFighters(left, right) {
+  if (Math.abs(Number(right.rating || 0) - Number(left.rating || 0)) > 1e-9) {
+    return Number(right.rating || 0) - Number(left.rating || 0);
+  }
+  if (Math.abs(Number(right.valor || 0) - Number(left.valor || 0)) > 1e-9) {
+    return Number(right.valor || 0) - Number(left.valor || 0);
+  }
+  if (Number(right.riskWins || 0) !== Number(left.riskWins || 0)) {
+    return Number(right.riskWins || 0) - Number(left.riskWins || 0);
+  }
+  if (Number(right.wins || 0) !== Number(left.wins || 0)) {
+    return Number(right.wins || 0) - Number(left.wins || 0);
+  }
+  if (Number(left.spawnIndex || 0) !== Number(right.spawnIndex || 0)) {
+    return Number(left.spawnIndex || 0) - Number(right.spawnIndex || 0);
+  }
+  return String(left.dwarfId || "").localeCompare(String(right.dwarfId || ""));
+}
+
+// Build top-fighter entries from league ranking (or deterministic runtime fallback).
+function buildWarriorTopFighterEntries(state, config, limit = 5, nameCache = null) {
+  const maxEntries = Math.max(0, Math.floor(Number(limit || 0)));
+  if (maxEntries <= 0) {
+    return [];
+  }
+  const runtime = resolveWarriorRuntimeState(state);
+  const league = runtime && runtime.league && typeof runtime.league === "object"
+    ? runtime.league
+    : {};
+  const ranking = Array.isArray(league.ranking) ? league.ranking : [];
+  const dwarves = Array.isArray(state && state.dwarves) ? state.dwarves : [];
+  const byId = new Map(
+    dwarves.map((dwarf) => [String(dwarf && dwarf.id || ""), dwarf]),
+  );
+
+  if (ranking.length > 0) {
+    return ranking
+      .slice(0, maxEntries)
+      .map((entry, index) => {
+        const dwarfId = String(entry && entry.dwarfId || "");
+        const dwarf = byId.get(dwarfId) || null;
+        const warrior = dwarf && dwarf.warrior && typeof dwarf.warrior === "object"
+          ? dwarf.warrior
+          : {};
+        const points = Number(entry && entry.points);
+        return {
+          rank: Math.max(1, Math.floor(Number(entry && entry.rank || index + 1))),
+          dwarfId,
+          label: formatWarriorDisplayNameById(dwarfId, state, config, nameCache),
+          clanId: entry && entry.clanId ? String(entry.clanId) : (dwarf && dwarf.clanId ? String(dwarf.clanId) : ""),
+          rating: clamp(Number(warrior.rating || 0), 0, 1),
+          valor: clamp(Number(warrior.valor || 0), 0, 1),
+          wins: Math.max(0, Math.floor(Number(warrior.wins || entry && entry.wins || 0))),
+          losses: Math.max(0, Math.floor(Number(warrior.losses || entry && entry.losses || 0))),
+          riskWins: Math.max(0, Math.floor(Number(warrior.riskWins || 0))),
+          scars: Array.isArray(warrior.scars) ? warrior.scars.length : 0,
+          titles: Array.isArray(warrior.titles) ? warrior.titles.length : 0,
+          vowId: warrior && warrior.vow ? String(warrior.vow) : null,
+          legacyPoints: Math.max(0, Number(warrior.legacyPoints || 0)),
+          points: Number.isFinite(points) ? Math.max(0, points) : null,
+        };
+      });
+  }
+
+  return dwarves
+    .map((dwarf) => {
+      const warrior = dwarf && dwarf.warrior && typeof dwarf.warrior === "object"
+        ? dwarf.warrior
+        : null;
+      if (!dwarf || !warrior) {
+        return null;
+      }
+      return {
+        dwarfId: String(dwarf.id || ""),
+        spawnIndex: Math.max(0, Math.floor(Number(dwarf.spawnIndex || 0))),
+        clanId: dwarf.clanId ? String(dwarf.clanId) : "",
+        rating: clamp(Number(warrior.rating || 0), 0, 1),
+        valor: clamp(Number(warrior.valor || 0), 0, 1),
+        wins: Math.max(0, Math.floor(Number(warrior.wins || 0))),
+        losses: Math.max(0, Math.floor(Number(warrior.losses || 0))),
+        riskWins: Math.max(0, Math.floor(Number(warrior.riskWins || 0))),
+        scars: Array.isArray(warrior.scars) ? warrior.scars.length : 0,
+        titles: Array.isArray(warrior.titles) ? warrior.titles.length : 0,
+        vowId: warrior && warrior.vow ? String(warrior.vow) : null,
+        legacyPoints: Math.max(0, Number(warrior.legacyPoints || 0)),
+        points: null,
+      };
+    })
+    .filter(Boolean)
+    .sort(compareWarriorFallbackFighters)
+    .slice(0, maxEntries)
+    .map((entry, index) => ({
+      rank: index + 1,
+      dwarfId: entry.dwarfId,
+      label: formatWarriorDisplayNameById(entry.dwarfId, state, config, nameCache),
+      clanId: entry.clanId,
+      rating: entry.rating,
+      valor: entry.valor,
+      wins: entry.wins,
+      losses: entry.losses,
+      riskWins: entry.riskWins,
+      scars: entry.scars,
+      titles: entry.titles,
+      vowId: entry.vowId,
+      legacyPoints: entry.legacyPoints,
+      points: entry.points,
+    }));
+}
+
+// Build compact legend rows for top-fighter shorthand tokens.
+function buildWarriorTopFighterLegendRows() {
+  return [
+    "Top 5 shorthand: R rating [0..1], V valor [0..1], W wins-losses, RW risky wins.",
+    "Top 5 shorthand: Mk scars/titles/vow(0|1), P league points.",
+  ];
+}
+
+// Build Warrior League telemetry rows (leaderboard, top-5 fighters, and marks clarity).
+function buildWarriorLeagueSectionRows(state, config) {
+  const runtime = resolveWarriorRuntimeState(state);
+  if (!runtime || runtime.enabled !== true) {
+    return [
+      "Warrior League: disabled (set warriors.enabled=true).",
+      "Marks (Scars/Titles/Vows): -",
+      "Marks = persistent progression tags: scars (wounds), titles (honors), vows (active oath effects).",
+      "Top 5 fighters: -",
+      ...buildWarriorTopFighterLegendRows(),
+    ];
+  }
+  const league = runtime.league && typeof runtime.league === "object" ? runtime.league : {};
+  const stats = runtime.stats && typeof runtime.stats === "object" ? runtime.stats : {};
+  const company = runtime.company && typeof runtime.company === "object" ? runtime.company : {};
+  const dwarves = Array.isArray(state && state.dwarves) ? state.dwarves : [];
+  const nameCache = new Map();
+  const topFighters = buildWarriorTopFighterEntries(state, config, 5, nameCache);
+  const seasonId = Math.max(0, Math.floor(Number(league.lastTournamentSeasonId || 0)));
+  const seasonName = league.lastTournamentSeasonName ? String(league.lastTournamentSeasonName) : "";
+  const leagueName = league.lastTournamentLeagueName
+    ? String(league.lastTournamentLeagueName)
+    : resolveWarriorLeagueEpicName(state, config, seasonId);
+  const championId = league.championId
+    ? String(league.championId)
+    : (topFighters[0] ? String(topFighters[0].dwarfId || "") : "");
+  const championLabel = championId
+    ? formatWarriorDisplayNameById(championId, state, config, nameCache)
+    : "none";
+  const ranking = Array.isArray(league.ranking) ? league.ranking : [];
+  const championStanding = championId
+    ? ranking.find((entry) => String(entry && entry.dwarfId || "") === championId)
+    : null;
+  const championClan = championStanding && championStanding.clanId
+    ? String(championStanding.clanId)
+    : "";
+  const championDwarf = championId
+    ? dwarves.find((dwarf) => String(dwarf && dwarf.id || "") === championId)
+    : null;
+  const championWarrior = championDwarf && championDwarf.warrior && typeof championDwarf.warrior === "object"
+    ? championDwarf.warrior
+    : null;
+
+  let totalScars = 0;
+  let totalTitles = 0;
+  let totalVows = 0;
+  let totalLegacyPoints = 0;
+  for (const dwarf of dwarves) {
+    const warrior = dwarf && dwarf.warrior && typeof dwarf.warrior === "object"
+      ? dwarf.warrior
+      : null;
+    if (!warrior) {
+      continue;
+    }
+    totalScars += Array.isArray(warrior.scars) ? warrior.scars.length : 0;
+    totalTitles += Array.isArray(warrior.titles) ? warrior.titles.length : 0;
+    if (warrior.vow) {
+      totalVows += 1;
+    }
+    totalLegacyPoints += Math.max(0, Number(warrior.legacyPoints || 0));
+  }
+
+  const clanScoreById = league.clanScoreById && typeof league.clanScoreById === "object"
+    ? league.clanScoreById
+    : {};
+  const clanSummary = Object.entries(clanScoreById)
+    .map(([clanId, points]) => ({
+      clanId: String(clanId || ""),
+      points: Math.max(0, Number(points || 0)),
+    }))
+    .filter((entry) => entry.clanId)
+    .sort((left, right) => {
+      if (Math.abs(right.points - left.points) > 1e-9) {
+        return right.points - left.points;
+      }
+      return left.clanId.localeCompare(right.clanId);
+    })
+    .slice(0, 3)
+    .map((entry) => `${entry.clanId} ${formatCompactNumber(entry.points)}`)
+    .join(" | ");
+
+  const hallOfFame = Array.isArray(company.hallOfFame) ? company.hallOfFame : [];
+  const hallEntry = hallOfFame[0] && typeof hallOfFame[0] === "object" ? hallOfFame[0] : null;
+  const hallLine = hallEntry
+    ? `Hall of fame: S${Math.max(0, Math.floor(Number(hallEntry.seasonId || 0)))} ${hallEntry.leagueName || resolveWarriorLeagueEpicName(state, config, hallEntry.seasonId)} -> ${formatWarriorDisplayNameById(hallEntry.dwarfId, state, config, nameCache)}`
+    : "Hall of fame: -";
+
+  const rows = [
+    `League: ${leagueName}`,
+    `Season: S${seasonId}${seasonName ? ` ${seasonName}` : ""} | Last tournament tick ${Math.max(0, Math.floor(Number(league.lastTournamentTick || 0)))}`,
+    `Champion: ${championLabel}${championClan ? ` (${championClan})` : ""}`,
+    `League metrics: tournaments ${Math.max(0, Math.floor(Number(stats.tournaments || 0)))}, tie-breaks ${Math.max(0, Math.floor(Number(stats.tieBreaks || 0)))}, upsets ${Math.max(0, Math.floor(Number(stats.upsets || 0)))}, aura ${(clamp(Number(company.legacyAura || 0), 0, 1) * 100).toFixed(1)}%`,
+    `League incidents: injuries ${Math.max(0, Math.floor(Number(stats.injuries || 0)))}, retirements ${Math.max(0, Math.floor(Number(stats.retirements || 0)))}, hero turnovers ${Math.max(0, Math.floor(Number(stats.heroTurnovers || 0)))}`,
+    `Training: sessions ${Math.max(0, Math.floor(Number(stats.trainingSessions || 0)))}, participants ${Math.max(0, Math.floor(Number(stats.trainingParticipants || 0)))}, recoveries ${Math.max(0, Math.floor(Number(stats.recoveries || 0)))}`,
+    `Marks (Scars/Titles/Vows): ${totalScars}/${totalTitles}/${totalVows} | Legacy points ${formatCompactNumber(totalLegacyPoints)}`,
+    "Marks = persistent progression tags: scars (wounds), titles (honors), vows (active oath effects).",
+    championWarrior
+      ? `Champion marks: scars ${Array.isArray(championWarrior.scars) ? championWarrior.scars.length : 0}, titles ${Array.isArray(championWarrior.titles) ? championWarrior.titles.length : 0}, vow ${championWarrior.vow || "-"}, legacy ${formatCompactNumber(Math.max(0, Number(championWarrior.legacyPoints || 0)))}`
+      : "Champion marks: -",
+    "Top 5 fighters:",
+    ...buildWarriorTopFighterLegendRows(),
+  ];
+
+  if (topFighters.length === 0) {
+    rows.push("- no eligible fighters yet.");
+  } else {
+    for (const fighter of topFighters) {
+      const pointsToken = Number.isFinite(Number(fighter.points))
+        ? ` P${formatCompactNumber(Number(fighter.points || 0))}`
+        : "";
+      const clanToken = fighter.clanId ? ` (${fighter.clanId})` : "";
+      const markToken = `${Math.max(0, Number(fighter.scars || 0))}/${Math.max(0, Number(fighter.titles || 0))}/${fighter.vowId ? 1 : 0}`;
+      rows.push(
+        `#${Math.max(1, Math.floor(Number(fighter.rank || 0)))} ${fighter.label}${clanToken} | R${clamp(Number(fighter.rating || 0), 0, 1).toFixed(2)} V${clamp(Number(fighter.valor || 0), 0, 1).toFixed(2)} W${Math.max(0, Math.floor(Number(fighter.wins || 0)))}-${Math.max(0, Math.floor(Number(fighter.losses || 0)))} RW${Math.max(0, Math.floor(Number(fighter.riskWins || 0)))} Mk ${markToken}${pointsToken}`,
+      );
+    }
+  }
+  rows.push(`Clan board: ${clanSummary || "-"}`);
+  rows.push(hallLine);
+  return rows;
 }
 
 // Build deep-meta signal rows that complement underrealm/lore pages.
@@ -929,6 +1189,7 @@ function getGovernorSignals(state) {
     ruins: raw.ruins && typeof raw.ruins === "object" ? raw.ruins : {},
     underrealm: raw.underrealm && typeof raw.underrealm === "object" ? raw.underrealm : {},
     externalCamps: raw.externalCamps && typeof raw.externalCamps === "object" ? raw.externalCamps : {},
+    warriors: raw.warriors && typeof raw.warriors === "object" ? raw.warriors : {},
   };
 }
 
@@ -958,6 +1219,7 @@ function getDecisionTrace(state) {
       ruinsSource: governors.ruinsSource === "action" ? "action" : "default",
       underrealmSource: governors.underrealmSource === "action" ? "action" : "default",
       externalCampsSource: governors.externalCampsSource === "action" ? "action" : "default",
+      warriorsSource: governors.warriorsSource === "action" ? "action" : "default",
       tradeReserveBias: Number(governors.tradeReserveBias || 0),
       tradeContestIntent: clamp(Number(governors.tradeContestIntent || 0), 0, 1),
       tradeOpportunityIntent: clamp(Number(governors.tradeOpportunityIntent || 0), 0, 1),
@@ -973,6 +1235,36 @@ function getDecisionTrace(state) {
       buildUpgradeBias: Number(governors.buildUpgradeBias || 0),
       militiaSupportIntent: clamp(Number(governors.militiaSupportIntent || 0), 0, 1),
       raiderTributeIntent: clamp(Number(governors.raiderTributeIntent || 0), 0, 1),
+      warriorTrainingIntent: clamp(Number(governors.warriorTrainingIntent || 0), 0, 1),
+      warriorRotationIntent: clamp(Number(governors.warriorRotationIntent || 0), 0, 1),
+      warriorTournamentRiskIntent: clamp(Number(governors.warriorTournamentRiskIntent || 0), 0, 1),
+      warriorChampionChallengeIntent: clamp(Number(governors.warriorChampionChallengeIntent || 0), 0, 1),
+      warriorRecoveryPriorityIntent: clamp(Number(governors.warriorRecoveryPriorityIntent || 0), 0, 1),
+      warriorTrainingIntentThreshold: clamp(Number(governors.warriorTrainingIntentThreshold || 0.5), 0, 1),
+      warriorRotationIntentThreshold: clamp(Number(governors.warriorRotationIntentThreshold || 0.5), 0, 1),
+      warriorTournamentRiskIntentThreshold: clamp(
+        Number(governors.warriorTournamentRiskIntentThreshold || 0.5),
+        0,
+        1,
+      ),
+      warriorChampionChallengeIntentThreshold: clamp(
+        Number(governors.warriorChampionChallengeIntentThreshold || 0.5),
+        0,
+        1,
+      ),
+      warriorRecoveryPriorityIntentThreshold: clamp(
+        Number(governors.warriorRecoveryPriorityIntentThreshold || 0.5),
+        0,
+        1,
+      ),
+      warriorTrainingApplied: governors.warriorTrainingApplied === true,
+      warriorRotationApplied: governors.warriorRotationApplied === true,
+      warriorTournamentRiskApplied: governors.warriorTournamentRiskApplied === true,
+      warriorChampionChallengeApplied: governors.warriorChampionChallengeApplied === true,
+      warriorRecoveryPriorityApplied: governors.warriorRecoveryPriorityApplied === true,
+      warriorDominantIntent: typeof governors.warriorDominantIntent === "string" && governors.warriorDominantIntent
+        ? governors.warriorDominantIntent
+        : "-",
       buildingClassOrder: Array.isArray(governors.buildingClassOrder)
         ? governors.buildingClassOrder.slice(0, 3).map((entry) => String(entry || "")).filter(Boolean)
         : [],
@@ -1030,7 +1322,7 @@ function buildExplainabilitySectionRows(state, governorSignals, shortages, resou
 
   const rows = [];
   rows.push(
-    `Decision tick ${trace.tick}: jobs ${trace.governors.jobsSource}, trade ${trace.governors.tradeSource}, build ${trace.governors.buildingSource}, contracts ${trace.governors.contractsSource}, ruins ${trace.governors.ruinsSource}, underrealm ${trace.governors.underrealmSource}, camps ${trace.governors.externalCampsSource}`,
+    `Decision tick ${trace.tick}: jobs ${trace.governors.jobsSource}, trade ${trace.governors.tradeSource}, build ${trace.governors.buildingSource}, contracts ${trace.governors.contractsSource}, ruins ${trace.governors.ruinsSource}, underrealm ${trace.governors.underrealmSource}, camps ${trace.governors.externalCampsSource}, warriors ${trace.governors.warriorsSource}`,
   );
   rows.push(formatExplainabilityDriversLine(trace.drivers, resourceLabels));
   rows.push(formatExplainabilityShortageLine(traceShortages, 0, resourceLabels));
@@ -1040,6 +1332,7 @@ function buildExplainabilitySectionRows(state, governorSignals, shortages, resou
   rows.push(formatExplainabilityRuinsLine(trace.governors, currentGovernorSignals.ruins));
   rows.push(formatExplainabilityUnderrealmLine(trace.governors, currentGovernorSignals.underrealm));
   rows.push(formatExplainabilityExternalCampsLine(trace.governors, currentGovernorSignals.externalCamps));
+  rows.push(formatExplainabilityWarriorsLine(trace.governors, currentGovernorSignals.warriors));
   rows.push(formatExplainabilityTradeLine(trace.governors, currentGovernorSignals.trade));
   rows.push(formatExplainabilityBuildLine(trace.governors, currentGovernorSignals.building));
   rows.push(formatExplainabilityWorkloadLine(trace.jobs));
@@ -1167,6 +1460,24 @@ function formatExplainabilityExternalCampsLine(governors, externalCampsGovernor)
   return `External camps explain (${source}): militia ${militia}, raider ${raider}`;
 }
 
+// Format warriors-governor explainability line.
+function formatExplainabilityWarriorsLine(governors, warriorsGovernor) {
+  const traceGovernors = governors && typeof governors === "object" ? governors : {};
+  const source = traceGovernors.warriorsSource === "action" ? "action" : "default";
+  const training = clamp(Number(traceGovernors.warriorTrainingIntent || 0), 0, 1).toFixed(2);
+  const rotation = clamp(Number(traceGovernors.warriorRotationIntent || 0), 0, 1).toFixed(2);
+  const risk = clamp(Number(traceGovernors.warriorTournamentRiskIntent || 0), 0, 1).toFixed(2);
+  const challenge = clamp(Number(traceGovernors.warriorChampionChallengeIntent || 0), 0, 1).toFixed(2);
+  const recovery = clamp(Number(traceGovernors.warriorRecoveryPriorityIntent || 0), 0, 1).toFixed(2);
+  const dominant = traceGovernors.warriorDominantIntent
+    ? String(traceGovernors.warriorDominantIntent)
+    : "-";
+  if (!warriorsGovernor || warriorsGovernor.enabled === false) {
+    return `Warriors explain (${source}): disabled`;
+  }
+  return `Warriors explain (${source}): trn ${training}, rot ${rotation}, risk ${risk}, chall ${challenge}, rec ${recovery}, dom ${dominant}`;
+}
+
 // Format building-governor explainability line.
 function formatExplainabilityBuildLine(governors, buildingGovernor) {
   const traceGovernors = governors && typeof governors === "object" ? governors : {};
@@ -1280,6 +1591,21 @@ function formatExternalCampsGovernorLine(governor) {
   const militia = clamp(Number(governor.militiaSupportIntent || 0), 0, 1).toFixed(2);
   const raider = clamp(Number(governor.raiderTributeIntent || 0), 0, 1).toFixed(2);
   return `External camps governor (${source}): militia ${militia}, raider ${raider}`;
+}
+
+// Format warriors-governor line with normalized intent bundle and dominant direction.
+function formatWarriorsGovernorLine(governor) {
+  if (!governor || governor.enabled === false) {
+    return "Warriors governor: disabled";
+  }
+  const source = governor.source === "action" ? "action" : "default";
+  const training = clamp(Number(governor.trainingIntent || 0), 0, 1).toFixed(2);
+  const rotation = clamp(Number(governor.rotationIntent || 0), 0, 1).toFixed(2);
+  const risk = clamp(Number(governor.tournamentRiskIntent || 0), 0, 1).toFixed(2);
+  const challenge = clamp(Number(governor.championChallengeIntent || 0), 0, 1).toFixed(2);
+  const recovery = clamp(Number(governor.recoveryPriorityIntent || 0), 0, 1).toFixed(2);
+  const dominant = governor.dominantIntent ? String(governor.dominantIntent) : "-";
+  return `Warriors governor (${source}): trn ${training}, rot ${rotation}, risk ${risk}, chall ${challenge}, rec ${recovery}, dom ${dominant}`;
 }
 
 // Format one building-governor line with class rank and bounded biases.
@@ -1583,6 +1909,7 @@ function buildOperationsSectionRows(
     formatBuildingGovernorLine(governorSignals && governorSignals.building),
     formatRuinsGovernorLine(governorSignals && governorSignals.ruins),
     formatUnderrealmGovernorLine(governorSignals && governorSignals.underrealm),
+    formatWarriorsGovernorLine(governorSignals && governorSignals.warriors),
     `Total shortage pressure: ${formatShortageHeat(shortages)}`,
     formatOpsLoadLine(jobCounts, jobs.length),
   ];

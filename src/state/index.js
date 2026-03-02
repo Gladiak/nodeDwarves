@@ -4,6 +4,7 @@ const { clamp } = require('../utils');
 const { pickClanId } = require('../clans');
 const { createTempleState, createPrestigeState } = require('../simulation/temple');
 const { createSchismState } = require('../simulation/schism');
+const { createDwarfWarriorState, createWarriorsState } = require('../simulation/warriors');
 const {
   createTerrain,
   getTerrainSpawnPredicate,
@@ -1788,6 +1789,7 @@ function createInitialState(config, runtime) {
   const prestige = createPrestigeState(config);
   const schism = createSchismState(config);
   const underrealm = createUnderrealmState(config, runtime, terrain, null);
+  const warriors = createWarriorsState(config);
 
   return {
     tick: 0,
@@ -1813,6 +1815,7 @@ function createInitialState(config, runtime) {
     wildlife,
     terrain,
     underrealm,
+    warriors,
     roads,
     temple,
     prestige,
@@ -1844,6 +1847,9 @@ function createInitialState(config, runtime) {
       telemetryPanel: {
         open: false,
         page: 0,
+      },
+      warriorPanel: {
+        open: false,
       },
       saveMap: {
         open: false,
@@ -2465,6 +2471,9 @@ function createDwarves(config, runtime, occupied, terrain) {
   const initialAgeRange = population.initialAgeRange || {};
   const minAge = Number(initialAgeRange.min ?? aging.adultAge ?? 0);
   const maxAge = Number(initialAgeRange.max ?? aging.fertileEnd ?? minAge);
+  const terrainSeed = terrain && Number.isFinite(Number(terrain.seed))
+    ? Number(terrain.seed)
+    : null;
 
   const dwarves = positions.map((pos, index) => {
     const ageTicks = clamp(randomBetween(minAge, maxAge), 0, Number(aging.maxAge || maxAge || 0));
@@ -2473,8 +2482,16 @@ function createDwarves(config, runtime, occupied, terrain) {
       ? (Math.random() < clamp(Number(roles.builderRatio ?? 0), 0, 1) ? 'builder' : 'gatherer')
       : null;
     const clanId = pickClanId(config);
-    return {
-      id: `dwarf_${index + 1}`,
+    const dwarfId = `dwarf_${index + 1}`;
+    const dwarfState = {
+      health: 1,
+      morale: 1,
+      moraleBoostBeer: 0,
+      stress: 0,
+      fatigue: 0,
+    };
+    const dwarf = {
+      id: dwarfId,
       spawnIndex: index + 1,
       x: pos.x,
       y: pos.y,
@@ -2484,13 +2501,7 @@ function createDwarves(config, runtime, occupied, terrain) {
       roleCooldown: 0,
       clanId,
       needs: { ...needsTemplate },
-      state: {
-        health: 1,
-        morale: 1,
-        moraleBoostBeer: 0,
-        stress: 0,
-        fatigue: 0,
-      },
+      state: dwarfState,
       job: null,
       homeId: null,
       partnerId: null,
@@ -2501,6 +2512,16 @@ function createDwarves(config, runtime, occupied, terrain) {
       starvationTicks: 0,
       underrealmChampionSurvivals: 0,
     };
+    dwarf.warrior = createDwarfWarriorState(
+      dwarfId,
+      dwarf,
+      config,
+      {
+        terrainSeed,
+        clanId,
+      },
+    );
+    return dwarf;
   });
 
   const breweryConfig = config.structures && config.structures.brewery;

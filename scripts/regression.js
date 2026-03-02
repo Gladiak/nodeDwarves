@@ -56,6 +56,13 @@ const RANDOM_REPORT_METRICS = [
   'avg_steps',
   'avg_births',
   'avg_deaths',
+  'death_starvation',
+  'death_oldAge',
+  'death_raid',
+  'death_deepRaid',
+  'death_ruins',
+  'death_hunt',
+  'death_warriorLeague',
   'stock_min',
   'stock_avg',
   'crit',
@@ -240,6 +247,26 @@ function resolveSeedPackConfig(config) {
   };
 }
 
+// Resolve one usable default seed-pack mode from config.
+function resolveSeedPackDefaultMode(seedPackConfig) {
+  const fallback = seedPackConfig && seedPackConfig.defaultMode !== undefined
+    ? String(seedPackConfig.defaultMode || '').trim()
+    : '';
+  const normalized = fallback.toLowerCase();
+  if (!normalized || normalized === 'off' || normalized === 'none' || normalized === 'disabled') {
+    return null;
+  }
+  if (normalized === 'weekly') {
+    return 'weekly';
+  }
+  const packs = seedPackConfig && seedPackConfig.packs ? seedPackConfig.packs : {};
+  if (Array.isArray(packs[fallback]) && packs[fallback].length > 0) {
+    return fallback;
+  }
+  const caseInsensitiveMatch = Object.keys(packs).find((key) => key.toLowerCase() === normalized);
+  return caseInsensitiveMatch || null;
+}
+
 // Resolve one deterministic weekly index from --seed-week.
 function resolveSeedWeekIndex(rawWeek) {
   const text = String(rawWeek || '').trim();
@@ -321,6 +348,34 @@ function resolveSeedPackSelection(seedPackConfig, requested, rawWeek) {
     resolvedKey,
     weekIndex,
     seeds: seeds.slice(),
+  };
+}
+
+// Apply profile-specific default seed-pack behavior when CLI did not override seeds.
+function applyProfileSeedPackDefaults(options, profileName, runtimeConfig) {
+  const normalizedProfile = normalizeProfileName(profileName);
+  if (normalizedProfile !== 'horizon') {
+    return options;
+  }
+  const cliOverrides = options && options.cliOverrides ? options.cliOverrides : {};
+  if (cliOverrides.seeds || (options && options.seedPack) || (options && options.seedPackResolved)) {
+    return options;
+  }
+  const seedPackConfig = resolveSeedPackConfig(runtimeConfig);
+  const defaultMode = resolveSeedPackDefaultMode(seedPackConfig);
+  if (!defaultMode) {
+    return options;
+  }
+  const resolved = resolveSeedPackSelection(seedPackConfig, defaultMode, options.seedWeek);
+  return {
+    ...options,
+    seedPack: defaultMode,
+    seedPackResolved: resolved,
+    seeds: resolved.seeds.slice(),
+    cliOverrides: {
+      ...cliOverrides,
+      seeds: true,
+    },
   };
 }
 
@@ -607,16 +662,22 @@ function parseSummaryLog(summaryPath) {
     line,
     /raid\[count=([0-9.]+) deaths=([0-9.]+) exp=([0-9.]+) def=([0-9.]+)[^\]]*\]/,
   );
+  const deathCauseSection = extractSection(line, 'deaths_by_cause=', ' short=');
   const shortSection = extractSection(line, 'short=', ' nodes=');
   const nodesSection = extractSection(line, 'nodes=', ' under=')
     || extractSection(line, 'nodes=', ' term=');
   const underSection = extractSection(line, 'under=', ' term=');
+  const deathCauseMap = parseKeyValueMap(deathCauseSection);
   const shortMap = parseKeyValueMap(shortSection);
   const nodesMap = parseKeyValueMap(nodesSection);
   const underMap = parseKeyValueMap(underSection);
+  const deathMetrics = {};
   const shortMetrics = {};
   const nodeMetrics = {};
   const underMetrics = {};
+  for (const [key, value] of Object.entries(deathCauseMap)) {
+    deathMetrics[`death_${key}`] = value;
+  }
   for (const [key, value] of Object.entries(shortMap)) {
     shortMetrics[`short_${key}`] = value;
   }
@@ -640,6 +701,7 @@ function parseSummaryLog(summaryPath) {
     raid_deaths: raidMatch ? Number(raidMatch[2]) : null,
     raid_exposed: raidMatch ? Number(raidMatch[3]) : null,
     raid_defense: raidMatch ? Number(raidMatch[4]) : null,
+    ...deathMetrics,
     ...shortMetrics,
     ...nodeMetrics,
     ...underMetrics,
@@ -808,6 +870,7 @@ function buildLegendLines() {
     '  avg_births/avg_deaths (population flow), crit/idle (strain/utilization), extinction_rate (failures).',
     '- raid_*: avg raid count/deaths/exposure/defense; short_*: avg shortage ratio by resource; node_*: avg node capacity ratio.',
     '- under_*: averaged Underrealm combat/progression bundle from trainer summaries (depth/champion/readiness/pressure).',
+    '- death_*: average deaths by cause from summary diagnostics (`deaths_by_cause=`).',
   ];
 }
 
@@ -1170,12 +1233,12 @@ function buildProfileConfig(options, profileName = 'standard', config) {
   };
 }
 
-function applyProfileConfig(options, config) {
+function applyProfileConfig(options, config, profileName = 'standard', runtimeConfig = null) {
   if (!config) {
-    return { ...options };
+    return applyProfileSeedPackDefaults({ ...options }, profileName, runtimeConfig);
   }
   const cliOverrides = options.cliOverrides || {};
-  return {
+  const merged = {
     ...options,
     seeds: cliOverrides.seeds
       ? options.seeds
@@ -1193,6 +1256,7 @@ function applyProfileConfig(options, config) {
       ? options.randomMaxSteps
       : Number(config.randomMaxSteps || options.randomMaxSteps),
   };
+  return applyProfileSeedPackDefaults(merged, profileName, runtimeConfig);
 }
 
 // Run one full profile (eval + randomized) across all configured seeds.
@@ -1437,7 +1501,12 @@ async function main() {
     let allOk = true;
     for (const profileName of effectiveProfileNames) {
       const profile = baselineFile.profiles[profileName];
-      const profileOptions = applyProfileConfig(options, profile.config || {});
+      const profileOptions = applyProfileConfig(
+        options,
+        profile.config || {},
+        profileName,
+        runtimeConfig,
+      );
       const runtimeProfile = {
         ...profile,
         config: buildProfileConfig(profileOptions, profileName, runtimeConfig),
@@ -1486,8 +1555,10 @@ async function main() {
   const profileName = options.profile || 'standard';
   const profile = baselineFile.profiles[profileName] || null;
   const profileOptions = options.record
-    ? options
-    : (profile ? applyProfileConfig(options, profile.config || {}) : options);
+    ? applyProfileSeedPackDefaults(options, profileName, runtimeConfig)
+    : (profile
+      ? applyProfileConfig(options, profile.config || {}, profileName, runtimeConfig)
+      : applyProfileSeedPackDefaults(options, profileName, runtimeConfig));
   const {
     evalAverage,
     randomAverage,

@@ -31,6 +31,7 @@ PPO v2 stability stack (Phase 2):
 - `ai.training.trainer.targetKl`: PPO update early-stop based on approximate KL.
 - `ai.training.trainer.valueClipRange`: PPO-style value clipping (normalized domain).
 - `ai.training.trainer.valueHuberDelta`: optional Huber value loss (`0` keeps MSE).
+- `ai.training.trainer.algorithm`: startup-validated trainer selector (`ppo` only for now; other values fail fast).
 - Policy payloads now persist normalization metadata (`normalization.observation` / `normalization.returns`).
 - Compatibility note: if normalization metadata shape mismatches the current feature/action contract, resume/eval fails fast and training must restart with `--fresh`.
 
@@ -125,7 +126,7 @@ Operational cycle runbook (2026-02-19 baseline contract):
     - `r001`: deterministic collapse pressure check (`ai:validate:benchmark`)
     - `r002`: observation-normalization shape guardrail on `models/policy_best.json`
   - `npm run ai:validate:horizon`
-    - horizon profile with stored deterministic profile seeds.
+    - horizon profile with deterministic seed-pack default mode (`ai.training.deepChecks.seedPackRotation.defaultMode`) when CLI does not override seeds.
   - `npm run ai:validate:horizon:weekly`
     - horizon profile with deterministic weekly seed-pack rotation (`--seed-pack weekly`, default packs now `4` seeds each).
     - optional override: append `-- --seed-week YYYY-MM-DD` (or `YYYY-Www`) to replay a specific week.
@@ -342,6 +343,17 @@ Underrealm AI observation features (M6):
 - `underrealmCombatPressure`: compact aggregate pressure signal from frontier/champion/readiness outcomes.
 - Shape compatibility note: adding/removing/reordering `ai.training.trainer.featureNames` changes model input size, so resume is blocked and training must restart with `--fresh`.
 - M8 compatibility note: Dwarf Champion integration does not change observation feature shape by default; existing M6 feature vectors remain shape-compatible.
+
+Warrior League AI observation features (Phase 6):
+
+- `warriorEnabled`: runtime warrior-system switch as normalized scalar.
+- `warriorRosterCoverage`: adult coverage ratio for dwarves with warrior payloads.
+- `warriorEliteScore`: deterministic top-roster aggregate combat quality scalar.
+- `warriorLegacyAura`: normalized company legacy aura (`state.warriors.company.legacyAura`).
+- `warriorChampionMomentum`: normalized champion quality scalar (rating/valor/hero-potential/condition blend).
+- `warriorTournamentRecency`: normalized recency of latest league tournament tick.
+- Transport parity note: compact `obsVector` and legacy JSON observation now share the same warrior-channel semantics and are validated by contracts.
+- Upgrade note: pre-phase-6 checkpoints are shape-incompatible with the expanded default feature list; restart training with `--fresh`.
 
 Diplomacy/governance observation features (Workstream A):
 
