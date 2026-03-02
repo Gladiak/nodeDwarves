@@ -56,6 +56,13 @@ const RANDOM_REPORT_METRICS = [
   'avg_steps',
   'avg_births',
   'avg_deaths',
+  'death_starvation',
+  'death_oldAge',
+  'death_raid',
+  'death_deepRaid',
+  'death_ruins',
+  'death_hunt',
+  'death_warriorLeague',
   'stock_min',
   'stock_avg',
   'crit',
@@ -607,16 +614,22 @@ function parseSummaryLog(summaryPath) {
     line,
     /raid\[count=([0-9.]+) deaths=([0-9.]+) exp=([0-9.]+) def=([0-9.]+)[^\]]*\]/,
   );
+  const deathCauseSection = extractSection(line, 'deaths_by_cause=', ' short=');
   const shortSection = extractSection(line, 'short=', ' nodes=');
   const nodesSection = extractSection(line, 'nodes=', ' under=')
     || extractSection(line, 'nodes=', ' term=');
   const underSection = extractSection(line, 'under=', ' term=');
+  const deathCauseMap = parseKeyValueMap(deathCauseSection);
   const shortMap = parseKeyValueMap(shortSection);
   const nodesMap = parseKeyValueMap(nodesSection);
   const underMap = parseKeyValueMap(underSection);
+  const deathMetrics = {};
   const shortMetrics = {};
   const nodeMetrics = {};
   const underMetrics = {};
+  for (const [key, value] of Object.entries(deathCauseMap)) {
+    deathMetrics[`death_${key}`] = value;
+  }
   for (const [key, value] of Object.entries(shortMap)) {
     shortMetrics[`short_${key}`] = value;
   }
@@ -640,6 +653,7 @@ function parseSummaryLog(summaryPath) {
     raid_deaths: raidMatch ? Number(raidMatch[2]) : null,
     raid_exposed: raidMatch ? Number(raidMatch[3]) : null,
     raid_defense: raidMatch ? Number(raidMatch[4]) : null,
+    ...deathMetrics,
     ...shortMetrics,
     ...nodeMetrics,
     ...underMetrics,
@@ -808,6 +822,7 @@ function buildLegendLines() {
     '  avg_births/avg_deaths (population flow), crit/idle (strain/utilization), extinction_rate (failures).',
     '- raid_*: avg raid count/deaths/exposure/defense; short_*: avg shortage ratio by resource; node_*: avg node capacity ratio.',
     '- under_*: averaged Underrealm combat/progression bundle from trainer summaries (depth/champion/readiness/pressure).',
+    '- death_*: average deaths by cause from summary diagnostics (`deaths_by_cause=`).',
   ];
 }
 

@@ -1,6 +1,6 @@
 # Training Quality Status
 
-Last updated: 2026-02-27
+Last updated: 2026-03-01
 Scope: current operational status for training quality validation.
 Historical archive: `docs/TRAINING_OPTIMIZATION_WORKBOOK.md`
 
@@ -22,25 +22,38 @@ Historical archive: `docs/TRAINING_OPTIMIZATION_WORKBOOK.md`
 4. Contract preflight:
    - `npm test`
 
-## Latest local validation snapshot (2026-02-27)
+## Latest local validation snapshot (2026-03-01)
 
-- Fresh training cycle completed locally (`--fresh`) before gate execution.
-- Canonical validation: `PASS` via `npm run ai:validate:canonical`.
-  - `score=3.77368007093475`
-  - `avg_reward=16604.1923121129`
-  - `avg_steps=2200`
-  - `avg_births=97.4`
-  - `avg_deaths=4.55`
-- Gate validation: `PASS` via `npm run ai:validate:gate`.
-  - Benchmark completed on seeds `101,202,303,404`.
-  - Regression profiles `standard`, `underrealm`, and `governance`: all `PASS`.
-- Risk validation: `PASS` via `npm run ai:validate:risk`.
-  - `r001`: completed.
-  - `r002`: observation normalization shape check `ok`.
-- Debug housekeeping completed via `npm run debug:clean`; transient artifacts removed while latest canonical/regression reports were retained.
+- Autonomous promotion sweep completed and stopped at first canonical promotion hit.
+- Winning run:
+  - `debug/run_1772371871207_32183_47482`
+  - `canonical-final promoted=true`
+  - `delta_score=+0.0539`
+  - `paired_lcb=+0.0068`
+  - summary: `debug/run_1772371871207_32183_47482/report_training_promotion_summary.json`
+- Underrealm remediation stream completed and validated end-to-end.
+- Final full optimized gate (`npm run ai:validate:extended:optimized`):
+  - Canonical: `PASS`
+    - `score=4.303012225735329`
+    - `avg_reward=18933.253793235446`
+    - `avg_steps=2200`
+    - `avg_births=102.8`
+    - `avg_deaths=4.7`
+    - report: `debug/canonical_master_latest.json`
+  - Deterministic benchmark: `PASS`
+  - Regression profiles (`standard`, `underrealm`, `governance`): `PASS`
+    - report: `debug/regression_report_1772405989143.json`
+  - Horizon profile: `PASS`
+    - `avg_deaths=2.975` (threshold `3.074`)
+    - report: `debug/regression_horizon_latest.json`
+  - optimized runtime report: `debug/extended_gate_runtime_optimized_latest.json` (`allOk=true`)
 
-## Open closure item
+- Final underrealm blocker metric:
+  - `underrealm.eval.avg_deaths=1.975` (threshold `2.156`) -> closed
 
+## Open closure items
+
+- Underrealm regression remediation: closed.
 - OQ-6.1: pending one remote GitHub Actions run (`Training Quality Gates`) with uploaded artifacts.
 
 ## Update policy

@@ -141,6 +141,10 @@ function buildFeatures(obs, resource, config, featureNames) {
   const warriorLegacyAura = clamp(Number(warriors.legacyAura ?? 0), 0, 1);
   const warriorChampionMomentum = clamp(Number(warriors.championMomentum ?? 0), 0, 1);
   const warriorTournamentRecency = clamp(Number(warriors.tournamentRecency ?? 0), 0, 1);
+  const warriorInjuryShare = clamp(Number(warriors.injuryShare ?? 0), 0, 1);
+  const warriorRetiredShare = clamp(Number(warriors.retiredShare ?? 0), 0, 1);
+  const warriorSurvivability = clamp(Number(warriors.survivability ?? 0), 0, 1);
+  const warriorHeroTurnoverPressure = clamp(Number(warriors.heroTurnoverPressure ?? 0), 0, 1);
   const clanShares = obs.clanShares || {};
 
   const values = {
@@ -210,6 +214,10 @@ function buildFeatures(obs, resource, config, featureNames) {
     warriorLegacyAura,
     warriorChampionMomentum,
     warriorTournamentRecency,
+    warriorInjuryShare,
+    warriorRetiredShare,
+    warriorSurvivability,
+    warriorHeroTurnoverPressure,
   };
   const mythDefs = (config && config.myths && config.myths.definitions) || {};
   for (const mythId of Object.keys(mythDefs)) {
@@ -455,6 +463,10 @@ function buildWarriorsObservation(state, config) {
       legacyAura: 0,
       championMomentum: 0,
       tournamentRecency: 0,
+      injuryShare: 0,
+      retiredShare: 0,
+      survivability: 0,
+      heroTurnoverPressure: 0,
     };
   }
 
@@ -470,6 +482,19 @@ function buildWarriorsObservation(state, config) {
     .filter((entry) => entry.warrior);
   const rosterCoverage = adults.length > 0
     ? clamp(warriorAdults.length / adults.length, 0, 1)
+    : 0;
+  const activeInjuries = warriorAdults.filter((entry) => {
+    const injury = entry.warrior && entry.warrior.injury && typeof entry.warrior.injury === 'object'
+      ? entry.warrior.injury
+      : null;
+    return injury && Number(injury.recoveryTicks || 0) > 0;
+  }).length;
+  const retiredAdults = warriorAdults.filter((entry) => entry.warrior && entry.warrior.retired === true).length;
+  const injuryShare = warriorAdults.length > 0
+    ? clamp(activeInjuries / warriorAdults.length, 0, 1)
+    : 0;
+  const retiredShare = warriorAdults.length > 0
+    ? clamp(retiredAdults / warriorAdults.length, 0, 1)
     : 0;
 
   const eliteSample = warriorAdults
@@ -525,6 +550,24 @@ function buildWarriorsObservation(state, config) {
   const tournamentRecency = lastTournamentTick > 0
     ? clamp(1 - Math.max(0, tick - lastTournamentTick) / recencyWindow, 0, 1)
     : 0;
+  const stats = runtime.stats && typeof runtime.stats === 'object'
+    ? runtime.stats
+    : {};
+  const tournaments = Math.max(0, Number(stats.tournaments || 0));
+  const heroTurnovers = Math.max(0, Number(stats.heroTurnovers || 0));
+  const heroTurnoverPressure = clamp(
+    heroTurnovers / Math.max(1, tournaments + 1),
+    0,
+    1,
+  );
+  const survivability = clamp(
+    1
+      - injuryShare * 0.65
+      - retiredShare * 0.2
+      - heroTurnoverPressure * 0.15,
+    0,
+    1,
+  );
 
   return {
     enabled: 1,
@@ -533,6 +576,10 @@ function buildWarriorsObservation(state, config) {
     legacyAura,
     championMomentum,
     tournamentRecency,
+    injuryShare,
+    retiredShare,
+    survivability,
+    heroTurnoverPressure,
   };
 }
 

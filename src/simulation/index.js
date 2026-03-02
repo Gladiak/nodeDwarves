@@ -49,7 +49,7 @@ function stepState(state, config, runtime, action, options = {}) {
   state.tick += 1;
   const endgameDifficulty = updateEndgameDifficulty(state, config);
   updateSeason(state, config);
-  updateWarriors(state, config);
+  updateWarriors(state, config, resolvedAction);
   updateWeather(state, config);
   updateRaidStart(state, config, runtime);
   updateWorldEvents(state, config, runtime, resolvedAction);
@@ -177,6 +177,9 @@ function normalizeActionEnvelope(action) {
   if (action.externalCamps && typeof action.externalCamps === 'object') {
     normalized.externalCamps = { ...action.externalCamps };
   }
+  if (action.warriors && typeof action.warriors === 'object') {
+    normalized.warriors = { ...action.warriors };
+  }
 
   if (normalized.jobs && Object.keys(normalized.jobs).length === 0) {
     delete normalized.jobs;
@@ -214,6 +217,7 @@ function buildGovernorSignals(config, action) {
     ruins: buildRuinsGovernorSignals(config, action),
     underrealm: buildUnderrealmGovernorSignals(config, action),
     externalCamps: buildExternalCampsGovernorSignals(config, action),
+    warriors: buildWarriorsGovernorSignals(config, action),
   };
 }
 
@@ -506,6 +510,84 @@ function buildExternalCampsGovernorSignals(config, action) {
   };
 }
 
+// Build warriors-governor telemetry summary.
+function buildWarriorsGovernorSignals(config, action) {
+  const aiConfig = (config && config.ai) || {};
+  const governors = aiConfig.governors && typeof aiConfig.governors === 'object'
+    ? aiConfig.governors
+    : {};
+  const warriorsConfig = governors.warriors && typeof governors.warriors === 'object'
+    ? governors.warriors
+    : {};
+  const enabled = warriorsConfig.enabled !== false;
+  const warriorsAction = action && action.warriors && typeof action.warriors === 'object'
+    ? action.warriors
+    : null;
+  const hasIntent = (field) => Boolean(
+    enabled
+      && warriorsAction
+      && Object.prototype.hasOwnProperty.call(warriorsAction, field),
+  );
+  const intentOrFallback = (field) => (hasIntent(field)
+    ? normalizeIntent(warriorsAction[field], config, 1)
+    : 1);
+  const trainingIntent = intentOrFallback('trainingIntent');
+  const rotationIntent = intentOrFallback('rotationIntent');
+  const tournamentRiskIntent = intentOrFallback('tournamentRiskIntent');
+  const championChallengeIntent = intentOrFallback('championChallengeIntent');
+  const recoveryPriorityIntent = intentOrFallback('recoveryPriorityIntent');
+  const trainingIntentThreshold = clamp(Number(warriorsConfig.trainingIntentThreshold ?? 0.5), 0, 1);
+  const rotationIntentThreshold = clamp(Number(warriorsConfig.rotationIntentThreshold ?? 0.5), 0, 1);
+  const tournamentRiskIntentThreshold = clamp(
+    Number(warriorsConfig.tournamentRiskIntentThreshold ?? 0.5),
+    0,
+    1,
+  );
+  const championChallengeIntentThreshold = clamp(
+    Number(warriorsConfig.championChallengeIntentThreshold ?? 0.5),
+    0,
+    1,
+  );
+  const recoveryPriorityIntentThreshold = clamp(
+    Number(warriorsConfig.recoveryPriorityIntentThreshold ?? 0.5),
+    0,
+    1,
+  );
+  const dominantIntent = [
+    { id: 'training', value: trainingIntent },
+    { id: 'rotation', value: rotationIntent },
+    { id: 'tournamentRisk', value: tournamentRiskIntent },
+    { id: 'championChallenge', value: championChallengeIntent },
+    { id: 'recoveryPriority', value: recoveryPriorityIntent },
+  ]
+    .sort((left, right) => {
+      if (right.value !== left.value) {
+        return right.value - left.value;
+      }
+      return left.id.localeCompare(right.id);
+    })[0].id;
+  return {
+    enabled,
+    source: warriorsAction ? 'action' : 'default',
+    trainingIntent,
+    rotationIntent,
+    tournamentRiskIntent,
+    championChallengeIntent,
+    recoveryPriorityIntent,
+    trainingIntentThreshold,
+    rotationIntentThreshold,
+    tournamentRiskIntentThreshold,
+    championChallengeIntentThreshold,
+    recoveryPriorityIntentThreshold,
+    trainingApplied: enabled && trainingIntent >= trainingIntentThreshold,
+    rotationApplied: enabled && rotationIntent >= rotationIntentThreshold,
+    tournamentRiskApplied: enabled && tournamentRiskIntent >= tournamentRiskIntentThreshold,
+    championChallengeApplied: enabled && championChallengeIntent >= championChallengeIntentThreshold,
+    recoveryPriorityApplied: enabled && recoveryPriorityIntent >= recoveryPriorityIntentThreshold,
+    dominantIntent,
+  };
+}
+
 // Normalize governor intent into 0..1 based on global AI action scaling.
 function normalizeIntent(value, config, fallback) {
   const aiConfig = (config && config.ai) || {};
@@ -579,6 +661,9 @@ function buildDecisionTrace(state) {
   const externalCampsGovernor = governorSignals.externalCamps && typeof governorSignals.externalCamps === 'object'
     ? governorSignals.externalCamps
     : {};
+  const warriorsGovernor = governorSignals.warriors && typeof governorSignals.warriors === 'object'
+    ? governorSignals.warriors
+    : {};
   const jobs = Array.isArray(state && state.jobs) ? state.jobs : [];
   const jobsByType = {};
   for (const job of jobs) {
@@ -619,6 +704,7 @@ function buildDecisionTrace(state) {
       ruinsSource: ruinsGovernor.source === 'action' ? 'action' : 'default',
       underrealmSource: underrealmGovernor.source === 'action' ? 'action' : 'default',
       externalCampsSource: externalCampsGovernor.source === 'action' ? 'action' : 'default',
+      warriorsSource: warriorsGovernor.source === 'action' ? 'action' : 'default',
       jobsTop: Array.isArray(jobsGovernor.top)
         ? jobsGovernor.top.slice(0, 2).map((entry) => ({
           resource: String(entry && entry.resource || ''),
@@ -643,6 +729,36 @@ function buildDecisionTrace(state) {
       buildUpgradeBias: Number(buildingGovernor.upgradeBias || 0),
       militiaSupportIntent: clamp(Number(externalCampsGovernor.militiaSupportIntent || 0), 0, 1),
       raiderTributeIntent: clamp(Number(externalCampsGovernor.raiderTributeIntent || 0), 0, 1),
+      warriorTrainingIntent: clamp(Number(warriorsGovernor.trainingIntent || 0), 0, 1),
+      warriorRotationIntent: clamp(Number(warriorsGovernor.rotationIntent || 0), 0, 1),
+      warriorTournamentRiskIntent: clamp(Number(warriorsGovernor.tournamentRiskIntent || 0), 0, 1),
+      warriorChampionChallengeIntent: clamp(Number(warriorsGovernor.championChallengeIntent || 0), 0, 1),
+      warriorRecoveryPriorityIntent: clamp(Number(warriorsGovernor.recoveryPriorityIntent || 0), 0, 1),
+      warriorTrainingIntentThreshold: clamp(Number(warriorsGovernor.trainingIntentThreshold || 0.5), 0, 1),
+      warriorRotationIntentThreshold: clamp(Number(warriorsGovernor.rotationIntentThreshold || 0.5), 0, 1),
+      warriorTournamentRiskIntentThreshold: clamp(
+        Number(warriorsGovernor.tournamentRiskIntentThreshold || 0.5),
+        0,
+        1,
+      ),
+      warriorChampionChallengeIntentThreshold: clamp(
+        Number(warriorsGovernor.championChallengeIntentThreshold || 0.5),
+        0,
+        1,
+      ),
+      warriorRecoveryPriorityIntentThreshold: clamp(
+        Number(warriorsGovernor.recoveryPriorityIntentThreshold || 0.5),
+        0,
+        1,
+      ),
+      warriorTrainingApplied: warriorsGovernor.trainingApplied === true,
+      warriorRotationApplied: warriorsGovernor.rotationApplied === true,
+      warriorTournamentRiskApplied: warriorsGovernor.tournamentRiskApplied === true,
+      warriorChampionChallengeApplied: warriorsGovernor.championChallengeApplied === true,
+      warriorRecoveryPriorityApplied: warriorsGovernor.recoveryPriorityApplied === true,
+      warriorDominantIntent: warriorsGovernor.dominantIntent
+        ? String(warriorsGovernor.dominantIntent)
+        : '-',
     },
     shortages,
     jobs: {
@@ -710,17 +826,19 @@ function buildDecisionDrivers(shortages, context, governorSignals) {
   const ruinsSource = signals.ruins && signals.ruins.source === 'action';
   const underrealmSource = signals.underrealm && signals.underrealm.source === 'action';
   const externalCampsSource = signals.externalCamps && signals.externalCamps.source === 'action';
+  const warriorsSource = signals.warriors && signals.warriors.source === 'action';
   const actionDrivenCount = Number(jobsSource)
     + Number(tradeSource)
     + Number(buildingSource)
     + Number(contractsSource)
     + Number(ruinsSource)
     + Number(underrealmSource)
-    + Number(externalCampsSource);
+    + Number(externalCampsSource)
+    + Number(warriorsSource);
   if (actionDrivenCount > 0) {
     drivers.push({
       key: 'governor:action',
-      label: `Policy action envelope (${actionDrivenCount}/7)`,
+      label: `Policy action envelope (${actionDrivenCount}/8)`,
       kind: 'policy',
       score: 0.45 + actionDrivenCount * 0.1,
     });

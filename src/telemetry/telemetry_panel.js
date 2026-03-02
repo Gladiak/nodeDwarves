@@ -95,7 +95,7 @@ const TELEMETRY_PANEL_PAGES = [
   {
     id: 'economy',
     title: 'Economy',
-    subtitle: 'Production chain health, governor signals (trade/contracts/ruins/underrealm/camps), explainability drivers, diplomacy flow, and endgame checklist.',
+    subtitle: 'Production chain health, governor signals (trade/contracts/ruins/underrealm/camps/warriors), explainability drivers, diplomacy flow, and endgame checklist.',
     sections: ['stockpile', 'structures', 'operations', 'explainability', 'diplomacy', 'endgame'],
     preferredColumns: 2,
     minColumnWidth: 38,

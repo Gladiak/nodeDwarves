@@ -38,6 +38,25 @@ function readJson(pathname) {
   return JSON.parse(fs.readFileSync(pathname, 'utf8'));
 }
 
+// Write a temporary config that keeps contract smokes compatible with legacy policy resources.
+function writeLegacyWarriorsActionHeadConfig(tmpDir, filename) {
+  const config = loadConfig();
+  const policyPayload = readJson(POLICY_BEST);
+  const policyResources = Array.isArray(policyPayload && policyPayload.resources)
+    ? policyPayload.resources.map((entry) => String(entry || ''))
+    : [];
+  const hasWarriorActionHead = policyResources.some((resourceId) => resourceId.startsWith('gov_warriors_'));
+  config.ai = config.ai || {};
+  config.ai.governors = config.ai.governors || {};
+  config.ai.governors.warriors = {
+    ...((config.ai.governors && config.ai.governors.warriors) || {}),
+    actionHeadEnabled: hasWarriorActionHead,
+  };
+  const outputPath = path.join(tmpDir, filename);
+  fs.writeFileSync(outputPath, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
+  return outputPath;
+}
+
 // Validate policy observation-normalization shape contract.
 function validateObservationContract(policy) {
   const resources = Array.isArray(policy && policy.resources) ? policy.resources : [];
@@ -120,8 +139,13 @@ function runAiServerSession(configPath, commands) {
 function validateRegressionReportSchema(tmpDir) {
   const reportJsonPath = path.join(tmpDir, 'regression_contract.json');
   const reportMdPath = path.join(tmpDir, 'regression_contract.md');
+  const configPath = writeLegacyWarriorsActionHeadConfig(
+    tmpDir,
+    'regression_contract_config.json',
+  );
   runCommand('node', [
     REGRESSION,
+    '--config', configPath,
     '--profile', 'standard',
     '--seeds', '12345',
     '--eval-episodes', '1',
@@ -168,8 +192,13 @@ function validatePromoteReportSchema(tmpDir) {
   assert(fs.existsSync(PYTHON), `Promote contract: Python venv not found at ${PYTHON}`);
   const reportJsonPath = path.join(tmpDir, 'promote_contract.json');
   const reportMdPath = path.join(tmpDir, 'promote_contract.md');
+  const configPath = writeLegacyWarriorsActionHeadConfig(
+    tmpDir,
+    'promote_contract_config.json',
+  );
   runCommand(PYTHON, [
     PROMOTE,
+    '--config', configPath,
     '--eval-only',
     '--model-path', POLICY_BEST,
     '--best-model-path', POLICY_BEST,
@@ -1208,6 +1237,92 @@ function validateWarriorsBootstrapContract() {
   }
 }
 
+// Validate warrior governor phase-1 plumbing (action envelope -> runtime snapshot).
+function validateWarriorsGovernorPhase1Contract() {
+  const config = createWarriorsSmokeConfig({
+    withWarriorsBlock: true,
+    enabled: true,
+  });
+  config.ai = config.ai || {};
+  config.ai.minWeight = 0;
+  config.ai.maxWeight = 2;
+  config.ai.governors = config.ai.governors || {};
+  config.ai.governors.warriors = {
+    enabled: true,
+    trainingIntentThreshold: 0.7,
+    rotationIntentThreshold: 0.45,
+    tournamentRiskIntentThreshold: 0.65,
+    championChallengeIntentThreshold: 0.6,
+    recoveryPriorityIntentThreshold: 0.75,
+  };
+  const runtime = buildRuntime(config.display, {
+    columns: Number(config.display.width || 90),
+    rows: Number(config.display.height || 45),
+  });
+  const state = createInitialState(config, runtime);
+  state.tick = 11;
+  state.season = {
+    ...(state.season || {}),
+    tickInSeason: 2,
+  };
+
+  updateWarriors(state, config, {
+    warriors: {
+      trainingIntent: 1.9,
+      rotationIntent: 0.6,
+      tournamentRiskIntent: 1.7,
+      championChallengeIntent: 0.4,
+      recoveryPriorityIntent: 1.8,
+    },
+  });
+  const governor = state.warriors && state.warriors.governor ? state.warriors.governor : null;
+  assert(governor, 'Warriors phase1 contract: missing governor runtime snapshot.');
+  assert(governor.source === 'action', 'Warriors phase1 contract: action payload should set source=action.');
+  assert(
+    Math.abs(Number(governor.intents.trainingIntent || 0) - 0.95) < 1e-6,
+    'Warriors phase1 contract: training intent normalization mismatch.',
+  );
+  assert(
+    Math.abs(Number(governor.intents.rotationIntent || 0) - 0.3) < 1e-6,
+    'Warriors phase1 contract: rotation intent normalization mismatch.',
+  );
+  assert(
+    Math.abs(Number(governor.intents.tournamentRiskIntent || 0) - 0.85) < 1e-6,
+    'Warriors phase1 contract: tournament-risk intent normalization mismatch.',
+  );
+  assert(governor.applied.training === true, 'Warriors phase1 contract: training threshold gate mismatch.');
+  assert(governor.applied.rotation === false, 'Warriors phase1 contract: rotation threshold gate mismatch.');
+  assert(governor.applied.tournamentRisk === true, 'Warriors phase1 contract: tournament-risk threshold gate mismatch.');
+  assert(governor.applied.championChallenge === false, 'Warriors phase1 contract: champion threshold gate mismatch.');
+  assert(governor.applied.recoveryPriority === true, 'Warriors phase1 contract: recovery threshold gate mismatch.');
+  assert(
+    String(governor.dominantIntent || '') === 'training',
+    'Warriors phase1 contract: dominant intent should follow strongest normalized signal.',
+  );
+  const stats = state.warriors && state.warriors.stats ? state.warriors.stats : null;
+  assert(stats, 'Warriors phase1 contract: missing warrior stats runtime.');
+  assert(Number(stats.injuries || 0) === 0, 'Warriors phase1 contract: injuries counter should initialize at zero.');
+  assert(Number(stats.retirements || 0) === 0, 'Warriors phase1 contract: retirements counter should initialize at zero.');
+  assert(Number(stats.heroTurnovers || 0) === 0, 'Warriors phase1 contract: heroTurnovers counter should initialize at zero.');
+
+  state.tick += 1;
+  updateWarriors(state, config, null);
+  const fallbackGovernor = state.warriors && state.warriors.governor ? state.warriors.governor : null;
+  assert(fallbackGovernor, 'Warriors phase1 contract: fallback governor snapshot missing.');
+  assert(
+    fallbackGovernor.source === 'default',
+    'Warriors phase1 contract: missing action payload should set source=default.',
+  );
+  assert(
+    Math.abs(Number(fallbackGovernor.intents.trainingIntent || 0) - 1) < 1e-6
+    && Math.abs(Number(fallbackGovernor.intents.rotationIntent || 0) - 1) < 1e-6
+    && Math.abs(Number(fallbackGovernor.intents.tournamentRiskIntent || 0) - 1) < 1e-6
+    && Math.abs(Number(fallbackGovernor.intents.championChallengeIntent || 0) - 1) < 1e-6
+    && Math.abs(Number(fallbackGovernor.intents.recoveryPriorityIntent || 0) - 1) < 1e-6,
+    'Warriors phase1 contract: fallback intents should remain legacy-open (1.0).',
+  );
+}
+
 // Validate warrior phase-2 dispatch ordering and post-expedition progression updates.
 function validateWarriorsExpeditionPhase2Contract() {
   const config = createRuinsSmokeConfig();
@@ -2099,6 +2214,7 @@ function main() {
     validateUnderrealmGovernorContract();
     validateWarriorsDisabledNeutralContract();
     validateWarriorsBootstrapContract();
+    validateWarriorsGovernorPhase1Contract();
     validateWarriorsExpeditionPhase2Contract();
     validateWarriorsTournamentPhase3Contract();
     validateWarriorsProgressionPhase4Contract();
@@ -2106,7 +2222,7 @@ function main() {
     validateWarriorsAiPhase6Contract(tmpDir);
     validateRegressionReportSchema(tmpDir);
     validatePromoteReportSchema(tmpDir);
-    console.log('[test:contracts] PASS policy_shape external_camps_governor contracts_governor ruins_governor underrealm_governor warriors_disabled warriors_bootstrap warriors_phase2 warriors_phase3 warriors_phase4 warriors_phase5 warriors_phase6 regression_schema promote_schema');
+    console.log('[test:contracts] PASS policy_shape external_camps_governor contracts_governor ruins_governor underrealm_governor warriors_disabled warriors_bootstrap warriors_phase1 warriors_phase2 warriors_phase3 warriors_phase4 warriors_phase5 warriors_phase6 regression_schema promote_schema');
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }

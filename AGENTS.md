@@ -11,6 +11,7 @@ This file defines how to implement new features in a consistent, stable way.
 - Keep the simulation deterministic enough for training comparison.
 - Continuously improve model intelligence and learning capability in measured, stable steps.
 - Validate every substantial change with dedicated short-run and long-run checks, and include explicit model non-regression tests before considering the change complete.
+- Prefer reliability over speed: there is no rush to finish runs quickly when quality evidence is still missing.
 - When implementation details are unclear, ask for clarifications before coding changes.
 - Always update README.md and MANUAL.md after new implementations or tweaks, if needed.
 - README.md is a general product feature overview; avoid deep implementation details, formulas, and low-level file-by-file behavior.
@@ -156,6 +157,7 @@ This file defines how to implement new features in a consistent, stable way.
   `node scripts/headless_benchmark.js --ticks 8000 --seeds 101,202,303,404 --progress --progress-every 2000`.
 - For A/B tuning, compare variants in one run and review deltas seed-by-seed:
   `node scripts/headless_benchmark.js --ticks 8000 --variant baseline --set path=value --variant candidate --progress --progress-every 2000`.
+- Do not stop long-running validations early just because they take longer than expected; keep them running when they are making progress so results remain statistically reliable over wide horizons.
 - Treat seed collapses (population crashes) and strong stockpile regressions as tuning blockers unless intentional and documented.
 - Confirm no crashes on resize and no negative stockpile values.
 - Check that shortages drive gathering priorities as expected.

@@ -94,7 +94,7 @@
           "scale": 0.05,
           "octaves": 2,
           "persistence": 0.5,
-          "lacunarity": 2.0,
+          "lacunarity": 2,
           "seed_offset": 613,
           "use_domain_warp": true,
           "height_strength": 0.03,
@@ -107,7 +107,7 @@
           "scale": 0.016,
           "octaves": 2,
           "persistence": 0.52,
-          "lacunarity": 2.0,
+          "lacunarity": 2,
           "seed_offset": 1181,
           "use_domain_warp": true,
           "softness": 0.45,
@@ -141,7 +141,11 @@
           "strength": 0.18,
           "noise_scale": 0.28,
           "seed_offset": 1723,
-          "types": ["forest", "food", "pasture"]
+          "types": [
+            "forest",
+            "food",
+            "pasture"
+          ]
         },
         "landmarks": {
           "enabled": true,
@@ -198,7 +202,12 @@
         },
         "riverCount": 3,
         "riverSourceMinDistance": 8,
-        "riverSourceSides": ["north", "south", "east", "west"],
+        "riverSourceSides": [
+          "north",
+          "south",
+          "east",
+          "west"
+        ],
         "riverWander": 0.55,
         "riverValleyDrop": 0.26,
         "riverValleyDropAdjacent": 0.12,
@@ -396,7 +405,10 @@
         "bridge": "=",
         "ford": ":"
       },
-      "riverConnectsTo": ["river", "lake"]
+      "riverConnectsTo": [
+        "river",
+        "lake"
+      ]
     },
     "dwarves": {
       "maxVisible": 60
@@ -415,7 +427,11 @@
           }
         },
         "alerts": {
-          "tracked_resources": ["food", "water", "beer"],
+          "tracked_resources": [
+            "food",
+            "water",
+            "beer"
+          ],
           "stockpile_warning_ratio": 0.5,
           "stockpile_critical_ratio": 0.25,
           "morale_warning": 0.45,
@@ -623,7 +639,10 @@
   },
   "wildlife": {
     "enabled": true,
-    "seasons": ["spring", "autumn"],
+    "seasons": [
+      "spring",
+      "autumn"
+    ],
     "spawn": {
       "herds_min": 1,
       "herds_max": 2
@@ -644,7 +663,7 @@
       "yield_min": 2,
       "yield_max": 3,
       "risk": {
-        "death_chance": 0.08,
+        "death_chance": 0.07,
         "penalty_chance": 0.18,
         "penalty": {
           "yield_multiplier": 0.4,
@@ -664,7 +683,10 @@
   "raids": {
     "enabled": true,
     "symbol": "ö",
-    "seasonNames": ["spring", "autumn"],
+    "seasonNames": [
+      "spring",
+      "autumn"
+    ],
     "durationTicks": 100,
     "chance": {
       "min": 0.16,
@@ -676,8 +698,8 @@
     "defenseAdults": 24,
     "defenseMax": 0.6,
     "deathRate": {
-      "min": 0.25,
-      "max": 0.48
+      "min": 0.23,
+      "max": 0.45
     },
     "resourceLoss": {
       "min": 0.04,
@@ -717,7 +739,10 @@
         },
         "trigger": {
           "type": "resource_crisis",
-          "resources": ["food", "water"],
+          "resources": [
+            "food",
+            "water"
+          ],
           "ratioThreshold": 0.35,
           "ticksRequired": 90,
           "seasonWindow": 3,
@@ -852,7 +877,10 @@
         "label": "Basalt Ward Draught",
         "durationTicks": 180,
         "cooldownTicks": 210,
-        "requiredStructures": ["alchemy_lab", "armory"],
+        "requiredStructures": [
+          "alchemy_lab",
+          "armory"
+        ],
         "minPopulation": 72,
         "blockDuringRaid": false,
         "minStockpileRatios": {
@@ -878,7 +906,12 @@
           "failureThreshold": 2,
           "durationTicks": 160,
           "resourceLossRatio": 0.12,
-          "lossResources": ["stone", "iron", "mana_crystal", "beer"],
+          "lossResources": [
+            "stone",
+            "iron",
+            "mana_crystal",
+            "beer"
+          ],
           "outputBonus": -0.14,
           "effects": {
             "underrealmRaidStrength": 1.12,
@@ -893,7 +926,10 @@
         "label": "Emberforge Elixir",
         "durationTicks": 200,
         "cooldownTicks": 230,
-        "requiredStructures": ["alchemy_lab", "mithril_forge"],
+        "requiredStructures": [
+          "alchemy_lab",
+          "mithril_forge"
+        ],
         "minPopulation": 80,
         "blockDuringRaid": true,
         "minStockpileRatios": {
@@ -920,7 +956,12 @@
           "failureThreshold": 2,
           "durationTicks": 170,
           "resourceLossRatio": 0.1,
-          "lossResources": ["wood", "stone", "iron", "beer"],
+          "lossResources": [
+            "wood",
+            "stone",
+            "iron",
+            "beer"
+          ],
           "outputBonus": -0.18,
           "effects": {
             "gatherTicks": 1.08,
@@ -995,7 +1036,7 @@
     "maxTicks": 8000,
     "minWeight": 0,
     "maxWeight": 2,
-    "criticalNeedThreshold": 0.9,
+    "criticalNeedThreshold": 0.3,
     "runtime": {
       "enabled": false,
       "policyPath": "models/policy.json"
@@ -1038,15 +1079,24 @@
         "warningDispatchIntentThreshold": 0.5,
         "mithrilReinforcementIntentThreshold": 0.5
       },
+      "warriors": {
+        "enabled": true,
+        "actionHeadEnabled": true,
+        "trainingIntentThreshold": 0.5,
+        "rotationIntentThreshold": 0.5,
+        "tournamentRiskIntentThreshold": 0.5,
+        "championChallengeIntentThreshold": 0.5,
+        "recoveryPriorityIntentThreshold": 0.5
+      },
       "underrealm": {
         "enabled": true,
-        "surfaceReserveBiasMax": 0.14,
-        "depthAllocationBiasMax": 0.12,
-        "roleMixBiasMax": 0.12,
-        "smoothingAlpha": 0.16,
+        "surfaceReserveBiasMax": 0.1,
+        "depthAllocationBiasMax": 0.1,
+        "roleMixBiasMax": 0.1,
+        "smoothingAlpha": 0.12,
         "majorReallocationThreshold": 0.07,
-        "reallocationCooldownTicks": 60,
-        "surfaceReserveRatioMin": 0.34,
+        "reallocationCooldownTicks": 100,
+        "surfaceReserveRatioMin": 0.4,
         "surfaceReserveRatioMax": 0.82,
         "depthWeightGrowthMin": 0,
         "depthWeightGrowthMax": 0.32,
@@ -1091,7 +1141,7 @@
       "raidPrepDefense": 0.45,
       "ruinsSuccess": 1.2,
       "ruinsArtifact": 2.5,
-      "ruinsFailure": 1.0,
+      "ruinsFailure": 1,
       "ruinsRoomClear": 0.6,
       "underrealmDepthDelta": 4.5,
       "underrealmChampionDelta": 5,
@@ -1103,17 +1153,29 @@
       "mythsActive": 0.05,
       "mythsActiveDelta": 0.35,
       "festival_active": 0.2,
-      "festival_start": 2.0,
+      "festival_start": 2,
       "festival_intent": 0.8,
       "diplomacyCompletion": 0.9,
       "diplomacyFailure": 1.1,
       "diplomacyExpiration": 0.85,
       "diplomacyPressure": 0.4,
-      "diplomacyPressureDelta": 1.0,
+      "diplomacyPressureDelta": 1,
       "diplomacyLegitimacyDelta": 0.65,
+      "warriorEliteScore": 0.35,
+      "warriorEliteScoreDelta": 1.35,
+      "warriorChampionMomentum": 0.3,
+      "warriorChampionMomentumDelta": 1.15,
+      "warriorSurvivability": 0.85,
+      "warriorSurvivabilityDelta": 1.6,
+      "warriorInjuryShare": 0.4,
+      "warriorInjuryShareDelta": 1,
+      "warriorRetiredShare": 0.32,
+      "warriorRetiredShareDelta": 0.82,
+      "warriorHeroTurnoverPressure": 0.62,
+      "warriorHeroLoss": 3,
       "deltaClip": 0.08,
-      "eventClip": 7,
-      "totalClip": 20,
+      "eventClip": 8.5,
+      "totalClip": 22,
       "death": 5.8,
       "extinction": 320
     },
@@ -1162,38 +1224,43 @@
         "allowDuringRaid": false,
         "maxUnderrealmCombatPressure": 0.72,
         "maxMythsSeverity": 0.68,
-        "resources": ["food", "water", "wood", "stone"]
+        "resources": [
+          "food",
+          "water",
+          "wood",
+          "stone"
+        ]
       },
       "scenarioSampling": {
         "mode": "adaptive",
-        "updateEvery": 80,
-        "emaAlpha": 0.15,
-        "boost": 0.8,
-        "exponent": 1.1,
-        "minWeightRatio": 0.8,
-        "maxWeightRatio": 1.2,
+        "updateEvery": 72,
+        "emaAlpha": 0.2,
+        "boost": 1.1,
+        "exponent": 1.2,
+        "minWeightRatio": 0.6,
+        "maxWeightRatio": 1.8,
         "difficultyPhases": [
           {
             "name": "early",
             "maxDifficulty": 0.34,
-            "updateEvery": 96,
-            "boost": 0.7,
+            "updateEvery": 88,
+            "boost": 0.9,
             "exponent": 1
           },
           {
             "name": "mid",
             "minDifficulty": 0.34,
             "maxDifficulty": 0.72,
-            "updateEvery": 80,
-            "boost": 0.8,
-            "exponent": 1.1
+            "updateEvery": 72,
+            "boost": 1.15,
+            "exponent": 1.2
           },
           {
             "name": "late",
             "minDifficulty": 0.72,
-            "updateEvery": 64,
-            "boost": 0.9,
-            "exponent": 1.15
+            "updateEvery": 48,
+            "boost": 1.35,
+            "exponent": 1.3
           }
         ]
       },
@@ -1201,10 +1268,30 @@
         "seedPackRotation": {
           "defaultMode": "weekly",
           "packs": {
-            "pack_alpha": [12345, 22222, 33333, 44444],
-            "pack_beta": [13579, 24680, 11223, 33445],
-            "pack_gamma": [31415, 27182, 16180, 14142],
-            "pack_delta": [42424, 51515, 60606, 70707]
+            "pack_alpha": [
+              12345,
+              22222,
+              33333,
+              44444
+            ],
+            "pack_beta": [
+              13579,
+              24680,
+              11223,
+              33445
+            ],
+            "pack_gamma": [
+              31415,
+              27182,
+              16180,
+              14142
+            ],
+            "pack_delta": [
+              42424,
+              51515,
+              60606,
+              70707
+            ]
           },
           "weeklyOrder": [
             "pack_alpha",
@@ -1215,18 +1302,33 @@
         }
       },
       "randomization": {
-        "stockpileScale": [0.92, 1.05],
+        "stockpileScale": [
+          0.92,
+          1.05
+        ],
         "stockpileFloor": {
           "food": 10,
           "water": 10,
           "wood": 4,
           "stone": 4
         },
-        "nodeCountScale": [0.92, 1.05],
+        "nodeCountScale": [
+          0.92,
+          1.05
+        ],
         "nodeCountMin": 8,
-        "nodeCapacityScale": [0.95, 1.1],
-        "nodeRegenScale": [1, 1.2],
-        "needDecayScale": [0.9, 1],
+        "nodeCapacityScale": [
+          0.95,
+          1.1
+        ],
+        "nodeRegenScale": [
+          1,
+          1.2
+        ],
+        "needDecayScale": [
+          0.9,
+          1
+        ],
         "seasonStartRandom": true,
         "seasonTickRandom": true
       },
@@ -1744,7 +1846,7 @@
         },
         {
           "name": "underrealm_push",
-          "weight": 0.16,
+          "weight": 0.12,
           "difficultyMin": 0.45,
           "difficultyMax": 1,
           "difficultyMinMultiplier": 0.25,
@@ -1772,44 +1874,62 @@
                 }
               }
             },
+            "raids": {
+              "deathRate": {
+                "min": 0.14,
+                "max": 0.26
+              }
+            },
+            "wildlife": {
+              "hunt": {
+                "risk": {
+                  "death_chance": 0.05
+                }
+              }
+            },
             "underrealm": {
               "discovery": {
-                "min_tick": 90,
-                "max_tick": 220
+                "min_tick": 70,
+                "max_tick": 180,
+                "population_min_for_timer": 14,
+                "population_max_for_timer": 24
               },
               "progression": {
-                "min_frontier_miners": 2,
-                "build_ticks_base": 170,
-                "build_ticks_per_depth": 110,
+                "min_frontier_miners": 1,
+                "build_ticks_base": 150,
+                "build_ticks_per_depth": 96,
                 "stockpile_cost_base": {
-                  "stone": 34,
-                  "iron": 12
-                },
-                "stockpile_cost_per_depth": {
-                  "stone": 22,
+                  "stone": 28,
                   "iron": 10
                 },
+                "stockpile_cost_per_depth": {
+                  "stone": 18,
+                  "iron": 8
+                },
                 "mined_cost_base": {
-                  "stone": 56,
-                  "iron": 20
+                  "stone": 48,
+                  "iron": 16
                 },
                 "mined_cost_per_depth": {
-                  "stone": 34,
-                  "iron": 16
+                  "stone": 30,
+                  "iron": 14
                 }
               },
               "combat": {
+                "readiness": {
+                  "warning_zone_risk_multiplier": 1
+                },
                 "encounter": {
-                  "retry_cooldown_ticks_base": 96,
-                  "retry_cooldown_ticks_per_depth": 34
+                  "retry_cooldown_ticks_base": 128,
+                  "retry_cooldown_ticks_per_depth": 52
                 },
                 "floors": {
                   "defaults": {
                     "readiness": {
-                      "min_score_base": 18,
-                      "min_score_per_depth": 9,
-                      "recommended_score_base": 27,
-                      "recommended_score_per_depth": 11
+                      "min_score_base": 21,
+                      "min_score_per_depth": 11,
+                      "recommended_score_base": 32,
+                      "recommended_score_per_depth": 14
                     }
                   }
                 }
@@ -1818,8 +1938,8 @@
                 "surface_reserve_ratio": 0.6,
                 "max_underrealm_ratio": 0.3,
                 "roles": {
-                  "miner_ratio": 0.15,
-                  "hauler_ratio": 0.1,
+                  "miner_ratio": 0.19,
+                  "hauler_ratio": 0.11,
                   "guard_ratio": 0.1
                 }
               }
@@ -1828,22 +1948,37 @@
         },
         {
           "name": "underrealm_late_gauntlet",
-          "weight": 0.08,
+          "weight": 0.14,
           "difficultyMin": 0.72,
           "difficultyMax": 1,
           "difficultyMinMultiplier": 0,
           "difficultyMaxMultiplier": 1,
           "overrides": {
             "underrealm": {
+              "discovery": {
+                "min_tick": 70,
+                "max_tick": 170,
+                "population_min_for_timer": 14,
+                "population_max_for_timer": 26
+              },
               "progression": {
-                "build_ticks_base": 240,
-                "build_ticks_per_depth": 150,
+                "min_frontier_miners": 1,
+                "build_ticks_base": 190,
+                "build_ticks_per_depth": 120,
                 "stockpile_cost_base": {
-                  "stone": 50,
-                  "iron": 20
+                  "stone": 42,
+                  "iron": 16
                 },
                 "stockpile_cost_per_depth": {
-                  "stone": 36,
+                  "stone": 30,
+                  "iron": 13
+                },
+                "mined_cost_base": {
+                  "stone": 54,
+                  "iron": 20
+                },
+                "mined_cost_per_depth": {
+                  "stone": 34,
                   "iron": 16
                 }
               },
@@ -1852,12 +1987,12 @@
                   "warning_zone_hard_guard": {
                     "enabled": true,
                     "min_depth": 2,
-                    "min_recommended_score_ratio": 0.97
+                    "min_recommended_score_ratio": 1.02
                   }
                 },
                 "encounter": {
-                  "retry_cooldown_ticks_base": 120,
-                  "retry_cooldown_ticks_per_depth": 42
+                  "retry_cooldown_ticks_base": 100,
+                  "retry_cooldown_ticks_per_depth": 36
                 },
                 "floors": {
                   "defaults": {
@@ -1871,8 +2006,8 @@
                 }
               },
               "crew": {
-                "surface_reserve_ratio": 0.67,
-                "max_underrealm_ratio": 0.24
+                "surface_reserve_ratio": 0.62,
+                "max_underrealm_ratio": 0.3
               }
             },
             "ruins": {
@@ -1937,8 +2072,8 @@
                 "max": 0.3
               },
               "deathRate": {
-                "min": 0.22,
-                "max": 0.44
+                "min": 0.18,
+                "max": 0.34
               },
               "resourceLoss": {
                 "min": 0.05,
@@ -1965,10 +2100,10 @@
         },
         {
           "name": "governance_pressure",
-          "weight": 0.1,
-          "difficultyMin": 0.55,
+          "weight": 0.2,
+          "difficultyMin": 0.45,
           "difficultyMax": 1,
-          "difficultyMinMultiplier": 0.2,
+          "difficultyMinMultiplier": 0.45,
           "difficultyMaxMultiplier": 1,
           "overrides": {
             "worldEvents": {
@@ -2000,11 +2135,40 @@
                 "min": 300,
                 "max": 520
               },
+              "influence": {
+                "tradeRadius": 36,
+                "militiaRadius": 34,
+                "raiderRadius": 32,
+                "minStrength": 0.35
+              },
+              "caravans": {
+                "intercept": {
+                  "baseChancePerStep": 0.012,
+                  "raiderPressureScale": 0.07,
+                  "militiaMitigationScale": 0.015
+                }
+              },
+              "militia": {
+                "contractIntervalTicks": 60,
+                "baseRaidDefenseBonus": 0.07
+              },
               "raider": {
+                "demandIntervalTicks": 72,
                 "hostilityInitial": 0.45,
-                "hostilityGainOnReject": 0.12,
+                "hostilityGainOnReject": 0.14,
                 "raidDeathRateBonusMax": 0.22,
                 "raidResourceLossBonusMax": 0.26
+              },
+              "factions": {
+                "thronesteel_concord": {
+                  "weight": 0.95
+                },
+                "shadowdeep_vanguard": {
+                  "weight": 1
+                },
+                "ashen_marauders": {
+                  "weight": 1.35
+                }
               }
             },
             "schism": {
@@ -2019,6 +2183,77 @@
                 "drift_per_tick": 0.001,
                 "world_failure_shock": 0.065,
                 "contract_failure_shock": 0.055
+              }
+            }
+          }
+        },
+        {
+          "name": "warrior_realism_pressure",
+          "weight": 0.18,
+          "difficultyMin": 0.35,
+          "difficultyMax": 1,
+          "difficultyMinMultiplier": 0.55,
+          "difficultyMaxMultiplier": 1,
+          "overrides": {
+            "dwarves": {
+              "count": 24
+            },
+            "ruins": {
+              "expedition": {
+                "cooldownTicks": 10,
+                "failureCooldownTicks": 26,
+                "partySizeMin": 2,
+                "partySizeMax": 7,
+                "minStockpileRatio": {
+                  "food": 0.38,
+                  "water": 0.38,
+                  "wood": 0.34,
+                  "stone": 0.34
+                }
+              }
+            },
+            "warriors": {
+              "tournaments": {
+                "interval_seasons": 1,
+                "max_participants": 20,
+                "consequences": {
+                  "injury_base_chance": 0.28,
+                  "injury_score_gap_scale": 0.4,
+                  "risk_intent_injury_scale": 0.9,
+                  "recovery_intent_injury_reduction": 0.65,
+                  "allow_retirements": true
+                }
+              },
+              "training": {
+                "tick_interval": 30,
+                "base_participants": 3,
+                "max_participants": 7,
+                "rotation_window_ticks": 140,
+                "min_condition_score": 0.38,
+                "fatigue_ceiling": 0.84,
+                "stress_ceiling": 0.86
+              }
+            },
+            "externalCamps": {
+              "influence": {
+                "tradeRadius": 30,
+                "militiaRadius": 28,
+                "raiderRadius": 28,
+                "minStrength": 0.3
+              },
+              "caravans": {
+                "intercept": {
+                  "baseChancePerStep": 0.008,
+                  "raiderPressureScale": 0.06
+                }
+              },
+              "militia": {
+                "contractIntervalTicks": 64,
+                "baseRaidDefenseBonus": 0.06
+              },
+              "raider": {
+                "demandIntervalTicks": 78,
+                "hostilityInitial": 0.48
               }
             }
           }
@@ -2153,8 +2388,10 @@
         "food_scarce",
         "ruins_focus",
         "underrealm_push",
+        "underrealm_late_gauntlet",
         "compound_crisis",
-        "governance_pressure"
+        "governance_pressure",
+        "warrior_realism_pressure"
       ],
       "promotion": {
         "canonical": {
@@ -2190,16 +2427,19 @@
         "valueHuberDelta": 1,
         "obsNorm": true,
         "obsNormClip": 5,
-        "obsNormEpsilon": 0.00000001,
+        "obsNormEpsilon": 1e-8,
         "returnNorm": true,
         "returnNormClip": 5,
-        "returnNormEpsilon": 0.00000001,
+        "returnNormEpsilon": 1e-8,
         "lr": 0.00025,
         "lrFinal": 0.0001,
         "epochs": 4,
         "miniBatchSize": 512,
         "batchEpisodes": 16,
-        "hiddenSizes": [128, 128],
+        "hiddenSizes": [
+          128,
+          128
+        ],
         "featureNames": [
           "shortage",
           "nodeScarcity",
@@ -2237,12 +2477,14 @@
           "worldEventOfferPhase",
           "worldEventOfferReady",
           "worldEventTimeLeft",
+          "worldEventSpawnImminence",
           "worldEventPressure",
           "contractActive",
           "contractReady",
           "contractTimeLeft",
           "contractFailurePressure",
           "contractReputation",
+          "contractPressure",
           "externalCampActiveRatio",
           "externalCampRaiderPressure",
           "externalCampCaravanRisk",
@@ -2255,12 +2497,14 @@
           "schismRitualOpen",
           "schismClimaxActive",
           "schismInstability",
-          "warriorEnabled",
-          "warriorRosterCoverage",
           "warriorEliteScore",
           "warriorLegacyAura",
           "warriorChampionMomentum",
           "warriorTournamentRecency",
+          "warriorInjuryShare",
+          "warriorRetiredShare",
+          "warriorSurvivability",
+          "warriorHeroTurnoverPressure",
           "clanShare_abyssborn",
           "clanShare_khorg_embers",
           "clanShare_threshold_wardens",
@@ -2275,7 +2519,7 @@
         "saveEvery": 4000,
         "debugMode": "summary",
         "evalEvery": 3000,
-        "evalEpisodes": 8,
+        "evalEpisodes": 20,
         "evalMaxSteps": 0,
         "evalDifficulty": 1,
         "evalScore": "rpt",
@@ -2395,11 +2639,11 @@
       "progression_mode": "champion_gate",
       "readiness": {
         "hard_min_gate": true,
-        "warning_zone_risk_multiplier": 1.25,
+        "warning_zone_risk_multiplier": 1.1,
         "warning_zone_hard_guard": {
           "enabled": true,
-          "min_depth": 4,
-          "min_recommended_score_ratio": 0.99
+          "min_depth": 2,
+          "min_recommended_score_ratio": 1.12
         },
         "score_weights": {
           "offense": 1,
@@ -2416,8 +2660,8 @@
       "encounter": {
         "rounds_base": 4,
         "rounds_per_depth": 1,
-        "retry_cooldown_ticks_base": 90,
-        "retry_cooldown_ticks_per_depth": 30
+        "retry_cooldown_ticks_base": 110,
+        "retry_cooldown_ticks_per_depth": 38
       },
       "dwarf_champion": {
         "enabled": true,
@@ -2454,10 +2698,10 @@
           "min_armory_level_base": 1,
           "min_armory_level_per_depth": 0.35,
           "readiness": {
-            "min_score_base": 18,
-            "min_score_per_depth": 8,
-            "recommended_score_base": 27,
-            "recommended_score_per_depth": 10
+            "min_score_base": 21,
+            "min_score_per_depth": 10,
+            "recommended_score_base": 31,
+            "recommended_score_per_depth": 12
           },
           "champion": {
             "enabled": true,
@@ -2622,14 +2866,14 @@
       "raid_duration_base": 30,
       "raid_duration_per_depth": 8,
       "strength_base": 0.16,
-      "strength_per_depth": 0.07,
-      "casualty_rate": 0.05,
-      "casualty_severity": 0.16,
+      "strength_per_depth": 0.06,
+      "casualty_rate": 0.042,
+      "casualty_severity": 0.13,
       "guard_mitigation_per_guard": 0.07,
       "stockpile_loss_ratio_base": 0.013,
       "stockpile_loss_ratio_per_depth": 0.006,
       "stockpile_loss_tick_interval": 6,
-      "cooldown_ticks": 130,
+      "cooldown_ticks": 150,
       "stockpile_loss_weights": {
         "food": 0.12,
         "water": 0.12,
@@ -2908,10 +3152,20 @@
       "ember_resin": "EmberResin"
     },
     "terrainAllowed": {
-      "food": ["food", "pasture"],
-      "water": ["river", "lake"],
-      "wood": ["forest"],
-      "stone": ["mountain"]
+      "food": [
+        "food",
+        "pasture"
+      ],
+      "water": [
+        "river",
+        "lake"
+      ],
+      "wood": [
+        "forest"
+      ],
+      "stone": [
+        "mountain"
+      ]
     },
     "useTerrainTiles": true,
     "defaultNodeCapacity": 12,
@@ -2946,7 +3200,10 @@
       },
       "storage": {
         "enabled": true,
-        "resources": ["food", "water"],
+        "resources": [
+          "food",
+          "water"
+        ],
         "capacityPerLevel": {
           "1": 2,
           "2": 3,
@@ -3067,7 +3324,10 @@
         "minDistanceBetween": 1,
         "minStructureDistance": 6,
         "maxAttempts": 800,
-        "avoidTerrain": ["river", "lake"]
+        "avoidTerrain": [
+          "river",
+          "lake"
+        ]
       },
       "cluster": {
         "enabled": false,
@@ -3114,7 +3374,10 @@
         "minDistanceBetween": 1,
         "minStructureDistance": 6,
         "maxAttempts": 800,
-        "avoidTerrain": ["river", "lake"]
+        "avoidTerrain": [
+          "river",
+          "lake"
+        ]
       },
       "cluster": {
         "enabled": false,
@@ -3143,7 +3406,12 @@
         "minDistanceBetween": 4,
         "minStructureDistance": 3,
         "maxAttempts": 700,
-        "avoidTerrain": ["river", "lake", "mountain", "stone"],
+        "avoidTerrain": [
+          "river",
+          "lake",
+          "mountain",
+          "stone"
+        ],
         "district": {
           "enabled": true,
           "autoAngle": true,
@@ -3193,7 +3461,12 @@
         "minDistanceBetween": 2,
         "minStructureDistance": 2,
         "maxAttempts": 600,
-        "avoidTerrain": ["river", "lake", "mountain", "stone"],
+        "avoidTerrain": [
+          "river",
+          "lake",
+          "mountain",
+          "stone"
+        ],
         "district": {
           "enabled": true,
           "autoAngle": true,
@@ -3231,7 +3504,12 @@
         "minDistanceBetween": 2,
         "minStructureDistance": 2,
         "maxAttempts": 600,
-        "avoidTerrain": ["river", "lake", "mountain", "stone"],
+        "avoidTerrain": [
+          "river",
+          "lake",
+          "mountain",
+          "stone"
+        ],
         "district": {
           "enabled": true,
           "autoAngle": true,
@@ -3271,7 +3549,9 @@
       "levels": {
         "1": {
           "equipment_tier_max": 1,
-          "allowed_minerals": ["iron"]
+          "allowed_minerals": [
+            "iron"
+          ]
         },
         "2": {
           "upgradeTicks": 95,
@@ -3281,7 +3561,10 @@
             "iron": 16
           },
           "equipment_tier_max": 2,
-          "allowed_minerals": ["iron", "mithril"]
+          "allowed_minerals": [
+            "iron",
+            "mithril"
+          ]
         },
         "3": {
           "upgradeTicks": 125,
@@ -3292,7 +3575,11 @@
             "mithril": 6
           },
           "equipment_tier_max": 3,
-          "allowed_minerals": ["iron", "mithril", "mana_crystal"]
+          "allowed_minerals": [
+            "iron",
+            "mithril",
+            "mana_crystal"
+          ]
         },
         "4": {
           "upgradeTicks": 160,
@@ -3304,7 +3591,12 @@
             "mana_crystal": 6
           },
           "equipment_tier_max": 4,
-          "allowed_minerals": ["iron", "mithril", "mana_crystal", "adamantio"]
+          "allowed_minerals": [
+            "iron",
+            "mithril",
+            "mana_crystal",
+            "adamantio"
+          ]
         },
         "5": {
           "upgradeTicks": 205,
@@ -3317,7 +3609,12 @@
             "adamantio": 6
           },
           "equipment_tier_max": 5,
-          "allowed_minerals": ["iron", "mithril", "mana_crystal", "adamantio"]
+          "allowed_minerals": [
+            "iron",
+            "mithril",
+            "mana_crystal",
+            "adamantio"
+          ]
         },
         "6": {
           "upgradeTicks": 255,
@@ -3330,7 +3627,13 @@
             "adamantio": 8
           },
           "equipment_tier_max": 6,
-          "allowed_minerals": ["iron", "mithril", "mana_crystal", "adamantio", "embersteel"]
+          "allowed_minerals": [
+            "iron",
+            "mithril",
+            "mana_crystal",
+            "adamantio",
+            "embersteel"
+          ]
         },
         "7": {
           "upgradeTicks": 315,
@@ -3344,7 +3647,13 @@
             "embersteel": 4
           },
           "equipment_tier_max": 7,
-          "allowed_minerals": ["iron", "mithril", "mana_crystal", "adamantio", "embersteel"]
+          "allowed_minerals": [
+            "iron",
+            "mithril",
+            "mana_crystal",
+            "adamantio",
+            "embersteel"
+          ]
         },
         "8": {
           "upgradeTicks": 390,
@@ -3359,7 +3668,14 @@
             "ironshade": 3
           },
           "equipment_tier_max": 8,
-          "allowed_minerals": ["iron", "mithril", "mana_crystal", "adamantio", "embersteel", "ironshade"]
+          "allowed_minerals": [
+            "iron",
+            "mithril",
+            "mana_crystal",
+            "adamantio",
+            "embersteel",
+            "ironshade"
+          ]
         },
         "9": {
           "upgradeTicks": 480,
@@ -3374,7 +3690,14 @@
             "ironshade": 5
           },
           "equipment_tier_max": 9,
-          "allowed_minerals": ["iron", "mithril", "mana_crystal", "adamantio", "embersteel", "ironshade"]
+          "allowed_minerals": [
+            "iron",
+            "mithril",
+            "mana_crystal",
+            "adamantio",
+            "embersteel",
+            "ironshade"
+          ]
         },
         "10": {
           "upgradeTicks": 590,
@@ -3389,7 +3712,14 @@
             "ironshade": 8
           },
           "equipment_tier_max": 10,
-          "allowed_minerals": ["iron", "mithril", "mana_crystal", "adamantio", "embersteel", "ironshade"]
+          "allowed_minerals": [
+            "iron",
+            "mithril",
+            "mana_crystal",
+            "adamantio",
+            "embersteel",
+            "ironshade"
+          ]
         }
       },
       "workersPerArmory": 2,
@@ -3404,16 +3734,26 @@
         "enabled": true,
         "craft_order": [
           "expedition_kit",
-          "weapon_tier_1", "armor_tier_1",
-          "weapon_tier_2", "armor_tier_2",
-          "weapon_tier_3", "armor_tier_3",
-          "weapon_tier_4", "armor_tier_4",
-          "weapon_tier_5", "armor_tier_5",
-          "weapon_tier_6", "armor_tier_6",
-          "weapon_tier_7", "armor_tier_7",
-          "weapon_tier_8", "armor_tier_8",
-          "weapon_tier_9", "armor_tier_9",
-          "weapon_tier_10", "armor_tier_10"
+          "weapon_tier_1",
+          "armor_tier_1",
+          "weapon_tier_2",
+          "armor_tier_2",
+          "weapon_tier_3",
+          "armor_tier_3",
+          "weapon_tier_4",
+          "armor_tier_4",
+          "weapon_tier_5",
+          "armor_tier_5",
+          "weapon_tier_6",
+          "armor_tier_6",
+          "weapon_tier_7",
+          "armor_tier_7",
+          "weapon_tier_8",
+          "armor_tier_8",
+          "weapon_tier_9",
+          "armor_tier_9",
+          "weapon_tier_10",
+          "armor_tier_10"
         ],
         "recipes": {
           "weapon_tier_1": {
@@ -3423,8 +3763,13 @@
             "max_stock": 18,
             "work_ticks": 18,
             "output": 1,
-            "minerals": ["iron"],
-            "cost": { "iron": 2, "wood": 1 }
+            "minerals": [
+              "iron"
+            ],
+            "cost": {
+              "iron": 2,
+              "wood": 1
+            }
           },
           "armor_tier_1": {
             "type": "armor",
@@ -3433,8 +3778,13 @@
             "max_stock": 18,
             "work_ticks": 18,
             "output": 1,
-            "minerals": ["iron"],
-            "cost": { "iron": 2, "stone": 1 }
+            "minerals": [
+              "iron"
+            ],
+            "cost": {
+              "iron": 2,
+              "stone": 1
+            }
           },
           "weapon_tier_2": {
             "type": "weapon",
@@ -3443,8 +3793,15 @@
             "max_stock": 16,
             "work_ticks": 20,
             "output": 1,
-            "minerals": ["iron", "mithril"],
-            "cost": { "iron": 3, "mithril": 1, "wood": 1 }
+            "minerals": [
+              "iron",
+              "mithril"
+            ],
+            "cost": {
+              "iron": 3,
+              "mithril": 1,
+              "wood": 1
+            }
           },
           "armor_tier_2": {
             "type": "armor",
@@ -3453,8 +3810,15 @@
             "max_stock": 16,
             "work_ticks": 20,
             "output": 1,
-            "minerals": ["iron", "mithril"],
-            "cost": { "iron": 3, "mithril": 1, "stone": 2 }
+            "minerals": [
+              "iron",
+              "mithril"
+            ],
+            "cost": {
+              "iron": 3,
+              "mithril": 1,
+              "stone": 2
+            }
           },
           "weapon_tier_3": {
             "type": "weapon",
@@ -3463,8 +3827,15 @@
             "max_stock": 14,
             "work_ticks": 22,
             "output": 1,
-            "minerals": ["mithril", "mana_crystal"],
-            "cost": { "mithril": 2, "mana_crystal": 1, "iron": 1 }
+            "minerals": [
+              "mithril",
+              "mana_crystal"
+            ],
+            "cost": {
+              "mithril": 2,
+              "mana_crystal": 1,
+              "iron": 1
+            }
           },
           "armor_tier_3": {
             "type": "armor",
@@ -3473,8 +3844,15 @@
             "max_stock": 14,
             "work_ticks": 22,
             "output": 1,
-            "minerals": ["mithril", "mana_crystal"],
-            "cost": { "mithril": 2, "mana_crystal": 1, "stone": 2 }
+            "minerals": [
+              "mithril",
+              "mana_crystal"
+            ],
+            "cost": {
+              "mithril": 2,
+              "mana_crystal": 1,
+              "stone": 2
+            }
           },
           "weapon_tier_4": {
             "type": "weapon",
@@ -3483,8 +3861,14 @@
             "max_stock": 12,
             "work_ticks": 24,
             "output": 1,
-            "minerals": ["adamantio"],
-            "cost": { "adamantio": 2, "mithril": 1, "mana_crystal": 1 }
+            "minerals": [
+              "adamantio"
+            ],
+            "cost": {
+              "adamantio": 2,
+              "mithril": 1,
+              "mana_crystal": 1
+            }
           },
           "armor_tier_4": {
             "type": "armor",
@@ -3493,8 +3877,14 @@
             "max_stock": 12,
             "work_ticks": 24,
             "output": 1,
-            "minerals": ["adamantio"],
-            "cost": { "adamantio": 2, "mithril": 1, "stone": 3 }
+            "minerals": [
+              "adamantio"
+            ],
+            "cost": {
+              "adamantio": 2,
+              "mithril": 1,
+              "stone": 3
+            }
           },
           "weapon_tier_5": {
             "type": "weapon",
@@ -3503,8 +3893,15 @@
             "max_stock": 10,
             "work_ticks": 26,
             "output": 1,
-            "minerals": ["adamantio", "mana_crystal"],
-            "cost": { "adamantio": 3, "mana_crystal": 2, "mithril": 1 }
+            "minerals": [
+              "adamantio",
+              "mana_crystal"
+            ],
+            "cost": {
+              "adamantio": 3,
+              "mana_crystal": 2,
+              "mithril": 1
+            }
           },
           "armor_tier_5": {
             "type": "armor",
@@ -3513,8 +3910,15 @@
             "max_stock": 10,
             "work_ticks": 26,
             "output": 1,
-            "minerals": ["adamantio", "mana_crystal"],
-            "cost": { "adamantio": 3, "mana_crystal": 2, "stone": 3 }
+            "minerals": [
+              "adamantio",
+              "mana_crystal"
+            ],
+            "cost": {
+              "adamantio": 3,
+              "mana_crystal": 2,
+              "stone": 3
+            }
           },
           "weapon_tier_6": {
             "type": "weapon",
@@ -3523,8 +3927,14 @@
             "max_stock": 8,
             "work_ticks": 28,
             "output": 1,
-            "minerals": ["embersteel"],
-            "cost": { "embersteel": 2, "adamantio": 2, "mana_crystal": 1 }
+            "minerals": [
+              "embersteel"
+            ],
+            "cost": {
+              "embersteel": 2,
+              "adamantio": 2,
+              "mana_crystal": 1
+            }
           },
           "armor_tier_6": {
             "type": "armor",
@@ -3533,8 +3943,14 @@
             "max_stock": 8,
             "work_ticks": 28,
             "output": 1,
-            "minerals": ["embersteel"],
-            "cost": { "embersteel": 2, "adamantio": 2, "stone": 4 }
+            "minerals": [
+              "embersteel"
+            ],
+            "cost": {
+              "embersteel": 2,
+              "adamantio": 2,
+              "stone": 4
+            }
           },
           "weapon_tier_7": {
             "type": "weapon",
@@ -3543,8 +3959,15 @@
             "max_stock": 6,
             "work_ticks": 30,
             "output": 1,
-            "minerals": ["embersteel", "mana_crystal"],
-            "cost": { "embersteel": 3, "mana_crystal": 2, "adamantio": 1 }
+            "minerals": [
+              "embersteel",
+              "mana_crystal"
+            ],
+            "cost": {
+              "embersteel": 3,
+              "mana_crystal": 2,
+              "adamantio": 1
+            }
           },
           "armor_tier_7": {
             "type": "armor",
@@ -3553,8 +3976,15 @@
             "max_stock": 6,
             "work_ticks": 30,
             "output": 1,
-            "minerals": ["embersteel", "mana_crystal"],
-            "cost": { "embersteel": 3, "mana_crystal": 2, "stone": 4 }
+            "minerals": [
+              "embersteel",
+              "mana_crystal"
+            ],
+            "cost": {
+              "embersteel": 3,
+              "mana_crystal": 2,
+              "stone": 4
+            }
           },
           "weapon_tier_8": {
             "type": "weapon",
@@ -3563,8 +3993,14 @@
             "max_stock": 5,
             "work_ticks": 33,
             "output": 1,
-            "minerals": ["ironshade"],
-            "cost": { "ironshade": 2, "embersteel": 2, "mana_crystal": 2 }
+            "minerals": [
+              "ironshade"
+            ],
+            "cost": {
+              "ironshade": 2,
+              "embersteel": 2,
+              "mana_crystal": 2
+            }
           },
           "armor_tier_8": {
             "type": "armor",
@@ -3573,8 +4009,14 @@
             "max_stock": 5,
             "work_ticks": 33,
             "output": 1,
-            "minerals": ["ironshade"],
-            "cost": { "ironshade": 2, "embersteel": 2, "stone": 5 }
+            "minerals": [
+              "ironshade"
+            ],
+            "cost": {
+              "ironshade": 2,
+              "embersteel": 2,
+              "stone": 5
+            }
           },
           "weapon_tier_9": {
             "type": "weapon",
@@ -3583,8 +4025,17 @@
             "max_stock": 4,
             "work_ticks": 36,
             "output": 1,
-            "minerals": ["ironshade", "embersteel", "mana_crystal"],
-            "cost": { "ironshade": 3, "embersteel": 2, "mana_crystal": 2, "adamantio": 1 }
+            "minerals": [
+              "ironshade",
+              "embersteel",
+              "mana_crystal"
+            ],
+            "cost": {
+              "ironshade": 3,
+              "embersteel": 2,
+              "mana_crystal": 2,
+              "adamantio": 1
+            }
           },
           "armor_tier_9": {
             "type": "armor",
@@ -3593,8 +4044,17 @@
             "max_stock": 4,
             "work_ticks": 36,
             "output": 1,
-            "minerals": ["ironshade", "embersteel", "mana_crystal"],
-            "cost": { "ironshade": 3, "embersteel": 2, "stone": 5, "adamantio": 1 }
+            "minerals": [
+              "ironshade",
+              "embersteel",
+              "mana_crystal"
+            ],
+            "cost": {
+              "ironshade": 3,
+              "embersteel": 2,
+              "stone": 5,
+              "adamantio": 1
+            }
           },
           "weapon_tier_10": {
             "type": "weapon",
@@ -3603,8 +4063,22 @@
             "max_stock": 3,
             "work_ticks": 40,
             "output": 1,
-            "minerals": ["ironshade", "embersteel", "mana_crystal", "adamantio", "mithril", "iron"],
-            "cost": { "ironshade": 3, "embersteel": 3, "mana_crystal": 3, "adamantio": 2, "mithril": 2, "iron": 2 }
+            "minerals": [
+              "ironshade",
+              "embersteel",
+              "mana_crystal",
+              "adamantio",
+              "mithril",
+              "iron"
+            ],
+            "cost": {
+              "ironshade": 3,
+              "embersteel": 3,
+              "mana_crystal": 3,
+              "adamantio": 2,
+              "mithril": 2,
+              "iron": 2
+            }
           },
           "armor_tier_10": {
             "type": "armor",
@@ -3613,8 +4087,23 @@
             "max_stock": 3,
             "work_ticks": 40,
             "output": 1,
-            "minerals": ["ironshade", "embersteel", "mana_crystal", "adamantio", "mithril", "iron"],
-            "cost": { "ironshade": 3, "embersteel": 3, "mana_crystal": 3, "adamantio": 2, "mithril": 2, "iron": 2, "stone": 6 }
+            "minerals": [
+              "ironshade",
+              "embersteel",
+              "mana_crystal",
+              "adamantio",
+              "mithril",
+              "iron"
+            ],
+            "cost": {
+              "ironshade": 3,
+              "embersteel": 3,
+              "mana_crystal": 3,
+              "adamantio": 2,
+              "mithril": 2,
+              "iron": 2,
+              "stone": 6
+            }
           }
         }
       },
@@ -3634,7 +4123,12 @@
         "minDistanceBetween": 2,
         "minStructureDistance": 3,
         "maxAttempts": 700,
-        "avoidTerrain": ["river", "lake", "mountain", "stone"],
+        "avoidTerrain": [
+          "river",
+          "lake",
+          "mountain",
+          "stone"
+        ],
         "district": {
           "enabled": true,
           "autoAngle": true,
@@ -3733,7 +4227,12 @@
         "minDistanceBetween": 2,
         "minStructureDistance": 3,
         "maxAttempts": 700,
-        "avoidTerrain": ["river", "lake", "mountain", "stone"],
+        "avoidTerrain": [
+          "river",
+          "lake",
+          "mountain",
+          "stone"
+        ],
         "district": {
           "enabled": true,
           "autoAngle": true,
@@ -3750,7 +4249,10 @@
           "avoidRoadTiles": true
         }
       },
-      "requiresStructures": ["mithril_forge", "armory"],
+      "requiresStructures": [
+        "mithril_forge",
+        "armory"
+      ],
       "buildMinResources": {
         "food": 0.92,
         "water": 0.92,
@@ -3781,7 +4283,12 @@
         "minDistanceBetween": 3,
         "minStructureDistance": 2,
         "maxAttempts": 700,
-        "avoidTerrain": ["river", "lake", "mountain", "stone"],
+        "avoidTerrain": [
+          "river",
+          "lake",
+          "mountain",
+          "stone"
+        ],
         "district": {
           "enabled": true,
           "autoAngle": true,
@@ -3836,7 +4343,10 @@
       "buildMinRadius": 4,
       "buildOuterBuffer": 2,
       "ignorePeripheralRadius": true,
-      "buildTerrain": ["mountain", "stone"],
+      "buildTerrain": [
+        "mountain",
+        "stone"
+      ],
       "buildTicks": 55,
       "buildTicksExtra": 45,
       "buildCost": {
@@ -3894,7 +4404,10 @@
     "ruins": {
       "count": 1,
       "capacity": 1,
-      "spawnTerrain": ["mountain", "stone"],
+      "spawnTerrain": [
+        "mountain",
+        "stone"
+      ],
       "minSpawnTiles": 48
     },
     "watchtower": {
@@ -3919,7 +4432,10 @@
       "placement": {
         "minDistanceBetween": 6,
         "maxAttempts": 200,
-        "avoidTerrain": ["river", "lake"]
+        "avoidTerrain": [
+          "river",
+          "lake"
+        ]
       },
       "raid": {
         "range": 6,
@@ -3979,10 +4495,24 @@
       ],
       "footprintShape": "square",
       "site": {
-        "preferTerrain": ["mountain", "hill", "stone"],
-        "highlandTerrain": ["mountain", "hill", "stone"],
-        "avoidTerrain": ["river", "lake"],
-        "waterTerrain": ["river", "lake"],
+        "preferTerrain": [
+          "mountain",
+          "hill",
+          "stone"
+        ],
+        "highlandTerrain": [
+          "mountain",
+          "hill",
+          "stone"
+        ],
+        "avoidTerrain": [
+          "river",
+          "lake"
+        ],
+        "waterTerrain": [
+          "river",
+          "lake"
+        ],
         "searchPadding": 3,
         "minDistanceFromVillage": 6,
         "maxDistanceFromVillage": 40,
@@ -4082,7 +4612,12 @@
   },
   "ruins": {
     "enabled": true,
-    "outputBonusApplyTo": ["wood", "stone", "iron", "mithril"],
+    "outputBonusApplyTo": [
+      "wood",
+      "stone",
+      "iron",
+      "mithril"
+    ],
     "expedition": {
       "requiresArmory": true,
       "kitResource": "expedition_kit",
@@ -4290,15 +4825,30 @@
     },
     "setBonuses": {
       "forge": {
-        "2": { "outputMultiplier": 0.05 },
-        "3": { "outputMultiplier": 0.1 },
-        "4": { "outputMultiplier": 0.15 },
-        "5": { "outputMultiplier": 0.25 }
+        "2": {
+          "outputMultiplier": 0.05
+        },
+        "3": {
+          "outputMultiplier": 0.1
+        },
+        "4": {
+          "outputMultiplier": 0.15
+        },
+        "5": {
+          "outputMultiplier": 0.25
+        }
       },
       "wardens": {
-        "2": { "hazardReduction": 0.05 },
-        "3": { "combatBonus": 0.1 },
-        "4": { "artifactChanceBonus": 0.1, "casualtyReduction": 0.15 },
+        "2": {
+          "hazardReduction": 0.05
+        },
+        "3": {
+          "combatBonus": 0.1
+        },
+        "4": {
+          "artifactChanceBonus": 0.1,
+          "casualtyReduction": 0.15
+        },
         "5": {
           "combatBonus": 0.2,
           "hazardReduction": 0.1,
@@ -4310,19 +4860,34 @@
       {
         "id": "2_2",
         "label": "Runic Pacts",
-        "requires": { "forge": 2, "wardens": 2 },
-        "bonus": { "outputMultiplier": 0.03, "combatBonus": 0.05 }
+        "requires": {
+          "forge": 2,
+          "wardens": 2
+        },
+        "bonus": {
+          "outputMultiplier": 0.03,
+          "combatBonus": 0.05
+        }
       },
       {
         "id": "3_3",
         "label": "Oath of Stone",
-        "requires": { "forge": 3, "wardens": 3 },
-        "bonus": { "outputMultiplier": 0.06, "combatBonus": 0.1 }
+        "requires": {
+          "forge": 3,
+          "wardens": 3
+        },
+        "bonus": {
+          "outputMultiplier": 0.06,
+          "combatBonus": 0.1
+        }
       },
       {
         "id": "5_5",
         "label": "Dominion of the Ancients",
-        "requires": { "forge": 5, "wardens": 5 },
+        "requires": {
+          "forge": 5,
+          "wardens": 5
+        },
         "bonus": {
           "outputMultiplier": 0.1,
           "combatBonus": 0.2,
@@ -4366,7 +4931,10 @@
     },
     "stayTicks": 20,
     "maxTradesPerVisit": 10,
-    "neverGive": ["food", "water"],
+    "neverGive": [
+      "food",
+      "water"
+    ],
     "reserveRatio": 0.7,
     "tradeRate": {
       "default": 1
@@ -4388,7 +4956,12 @@
       "max": 0.45
     },
     "targetBoost": 1.2,
-    "allowedResources": ["wood", "stone", "iron", "beer"],
+    "allowedResources": [
+      "wood",
+      "stone",
+      "iron",
+      "beer"
+    ],
     "requestTargets": {
       "iron": 12,
       "beer": 18
@@ -4565,7 +5138,7 @@
       "eventEveryInterceptions": 1,
       "intercept": {
         "enabled": true,
-        "baseChancePerStep": 0,
+        "baseChancePerStep": 0.004,
         "raiderPressureScale": 0.03,
         "militiaMitigationScale": 0.02
       }
@@ -4638,7 +5211,13 @@
         "wood": 0.8,
         "stone": 0.6
       },
-      "blockedTerrain": ["river", "lake", "mountain", "forest", "stone"]
+      "blockedTerrain": [
+        "river",
+        "lake",
+        "mountain",
+        "forest",
+        "stone"
+      ]
     },
     "pathing": {
       "mode": "field",
@@ -4682,7 +5261,10 @@
       "managerRatio": 0.12,
       "switchCooldownTicks": 200,
       "emergencyMinRatio": 0.52,
-      "emergencyResources": ["food", "water"]
+      "emergencyResources": [
+        "food",
+        "water"
+      ]
     },
     "reproduction": {
       "enabled": true,
@@ -4716,12 +5298,22 @@
     "enabled": true,
     "maxCount": 3,
     "founderCount": 8,
-    "populationThresholds": [200, 400],
+    "populationThresholds": [
+      200,
+      400
+    ],
     "minDistanceBetween": 20,
-    "requiredResources": ["food", "water"],
+    "requiredResources": [
+      "food",
+      "water"
+    ],
     "requiredResourceDistance": 12,
     "structureRadius": 12,
-    "expandStructures": ["house", "well", "field"]
+    "expandStructures": [
+      "house",
+      "well",
+      "field"
+    ]
   },
   "roads": {
     "enabled": true,
@@ -4731,8 +5323,18 @@
       "water": 0.5
     },
     "avoidTerrain": [],
-    "softAvoidTerrain": ["lake", "water", "shore", "hill", "mountain"],
-    "waterTerrain": ["lake", "water", "shore"],
+    "softAvoidTerrain": [
+      "lake",
+      "water",
+      "shore",
+      "hill",
+      "mountain"
+    ],
+    "waterTerrain": [
+      "lake",
+      "water",
+      "shore"
+    ],
     "pathStyle": {
       "enabled": true,
       "profile": "scenic",
@@ -4778,7 +5380,12 @@
   },
   "clans": {
     "enabled": true,
-    "list": ["abyssborn", "khorg_embers", "threshold_wardens", "deep_lantern"],
+    "list": [
+      "abyssborn",
+      "khorg_embers",
+      "threshold_wardens",
+      "deep_lantern"
+    ],
     "labels": {
       "abyssborn": "Abyssborn",
       "khorg_embers": "Embers",
@@ -4815,7 +5422,10 @@
         "ruins_combat_bonus": 0.08,
         "ruins_hazard_reduction": 0.05,
         "gather_yield_penalty": 0.05,
-        "gather_penalty_resources": ["wood", "stone"]
+        "gather_penalty_resources": [
+          "wood",
+          "stone"
+        ]
       }
     }
   },
@@ -4875,6 +5485,74 @@
         "valor_win_delta": 0.008,
         "valor_loss_delta": -0.004,
         "champion_valor_bonus": 0.02
+      },
+      "consequences": {
+        "enabled": true,
+        "injury_base_chance": 0.22,
+        "injury_score_gap_scale": 0.32,
+        "injury_tie_break_bonus": 0.05,
+        "risk_intent_injury_scale": 0.65,
+        "recovery_intent_injury_reduction": 0.5,
+        "risk_intent_severity_bias": 0.4,
+        "recovery_intent_severity_bias": 0.35,
+        "winner_fatigue_gain": 0.025,
+        "winner_stress_gain": 0.01,
+        "allow_retirements": true,
+        "allow_death": false,
+        "severity_weights": {
+          "light": 0.58,
+          "moderate": 0.3,
+          "severe": 0.12
+        },
+        "recovery_ticks": {
+          "light": 45,
+          "moderate": 95,
+          "severe": 170
+        },
+        "rating_penalty": {
+          "light": -0.005,
+          "moderate": -0.015,
+          "severe": -0.04
+        },
+        "valor_penalty": {
+          "light": -0.004,
+          "moderate": -0.012,
+          "severe": -0.03
+        },
+        "fatigue_gain": {
+          "light": 0.08,
+          "moderate": 0.18,
+          "severe": 0.32
+        },
+        "stress_gain": {
+          "light": 0.03,
+          "moderate": 0.08,
+          "severe": 0.16
+        },
+        "morale_delta": {
+          "light": -0.01,
+          "moderate": -0.03,
+          "severe": -0.08
+        },
+        "retirement_chance": {
+          "light": 0,
+          "moderate": 0.01,
+          "severe": 0.06
+        },
+        "death_chance": {
+          "light": 0,
+          "moderate": 0,
+          "severe": 0.01
+        }
+      },
+      "hero_succession": {
+        "enabled": true,
+        "require_champion_defeat": true,
+        "sync_underrealm_on_defeat": true,
+        "min_condition_score": 0.42,
+        "min_rating": 0.45,
+        "min_valor": 0.45,
+        "min_hero_potential": 0.42
       }
     },
     "progression": {
@@ -4890,17 +5568,24 @@
         "rules": [
           {
             "id": "scar_broken_guard",
-            "outcomes": ["failure"],
+            "outcomes": [
+              "failure"
+            ],
             "losses_min": 1
           },
           {
             "id": "scar_ashen_step",
-            "outcomes": ["retreat"],
+            "outcomes": [
+              "retreat"
+            ],
             "retreats_min": 1
           },
           {
             "id": "scar_deep_mark",
-            "outcomes": ["failure", "retreat"],
+            "outcomes": [
+              "failure",
+              "retreat"
+            ],
             "expeditions_min": 5,
             "losses_min": 2
           }
@@ -5067,12 +5752,42 @@
         },
         "risk_win_bonus": 0.02
       }
+    },
+    "training": {
+      "enabled": true,
+      "tick_interval": 36,
+      "base_participants": 2,
+      "max_participants": 6,
+      "rotation_window_ticks": 160,
+      "min_condition_score": 0.4,
+      "fatigue_ceiling": 0.82,
+      "stress_ceiling": 0.85,
+      "skip_injured": true,
+      "cost_per_session": {
+        "food": 2,
+        "beer": 1,
+        "iron": 1
+      },
+      "progression": {
+        "rating_gain": 0.005,
+        "valor_gain": 0.004,
+        "hero_potential_gain": 0.003,
+        "fatigue_gain": 0.05,
+        "stress_gain": 0.02,
+        "morale_delta": 0.01,
+        "recovery_relief": 0.12
+      }
     }
   },
   "seasons": {
     "enabled": true,
     "durationTicks": 200,
-    "order": ["spring", "summer", "autumn", "winter"],
+    "order": [
+      "spring",
+      "summer",
+      "autumn",
+      "winter"
+    ],
     "modifiers": {
       "spring": {
         "needDecay": 0.95,
@@ -5111,7 +5826,10 @@
   "festivals": {
     "enabled": true,
     "label": "Seasonal Festival",
-    "seasonNames": ["spring", "autumn"],
+    "seasonNames": [
+      "spring",
+      "autumn"
+    ],
     "seasonWindowTicks": 28,
     "durationTicks": 52,
     "cooldownSeasons": 0,
@@ -5200,7 +5918,10 @@
     },
     "ritual_windows": {
       "enabled": true,
-      "season_names": ["spring", "autumn"],
+      "season_names": [
+        "spring",
+        "autumn"
+      ],
       "window_ticks": 28,
       "min_legitimacy": 0.22,
       "max_pressure": 0.92,
@@ -5345,7 +6066,12 @@
     },
     "temple": {
       "legitimacy_path_enabled": true,
-      "min_legitimacy_by_stage": [0.32, 0.45, 0.58, 0.7]
+      "min_legitimacy_by_stage": [
+        0.32,
+        0.45,
+        0.58,
+        0.7
+      ]
     },
     "modifiers": {
       "phase": {
@@ -5522,7 +6248,12 @@
       "cooldownTicks": 280,
       "expiryTicks": 110,
       "failureLossRatio": 0.04,
-      "failureLossResources": ["food", "water", "wood", "stone"],
+      "failureLossResources": [
+        "food",
+        "water",
+        "wood",
+        "stone"
+      ],
       "templates": [
         {
           "id": "stone_surge",
@@ -5684,7 +6415,12 @@
       "moraleMax": 0.95,
       "bonusMax": 0.3,
       "exponent": 1.3,
-      "resources": ["food", "water", "wood", "stone"]
+      "resources": [
+        "food",
+        "water",
+        "wood",
+        "stone"
+      ]
     }
   },
   "jobs": {

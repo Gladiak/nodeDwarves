@@ -75,8 +75,13 @@ function buildWarriorPanelLines(state, config, width, height) {
   if (rows.length === 0) {
     pushLine(lines, '-', width, null);
   } else {
-    for (const row of rows) {
-      pushWrappedLines(lines, stripAnsi(row), width);
+    const rowEntries = buildWarriorPanelRowEntries(rows);
+    for (const entry of rowEntries) {
+      if (entry.separator) {
+        lines.push({ text: '', colorKey: null });
+        continue;
+      }
+      pushWrappedLines(lines, entry.text, width, entry.colorKey);
     }
   }
 
@@ -101,18 +106,95 @@ function pushLine(lines, value, width, colorKey = null) {
   });
 }
 
-// Push wrapped lines from one long value.
-function pushWrappedLines(lines, value, width) {
+// Push wrapped lines from one long value while keeping one color style.
+function pushWrappedLines(lines, value, width, colorKey = null) {
   const safeWidth = Math.max(1, Math.floor(Number(width || 1)));
   const wrapped = wrapLine(String(value || ''), safeWidth);
   for (const row of wrapped) {
-    pushLine(lines, row, safeWidth, null);
+    pushLine(lines, row, safeWidth, colorKey);
   }
 }
 
 // Strip ANSI escapes from telemetry rows before re-wrapping.
 function stripAnsi(value) {
   return String(value || '').replace(ANSI_PATTERN, '');
+}
+
+// Build color-aware row entries and spacing hints for Warrior League content.
+function buildWarriorPanelRowEntries(rows) {
+  const entries = [];
+  let hasVisibleRow = false;
+  let previousBlank = true;
+  for (const rawRow of rows) {
+    const text = stripAnsi(rawRow);
+    const trimmed = text.trim();
+    const blankRow = trimmed.length === 0;
+    if (
+      !blankRow
+      && hasVisibleRow
+      && !previousBlank
+      && shouldInsertWarriorSectionSpacer(trimmed)
+    ) {
+      entries.push({ separator: true, text: '', colorKey: null });
+      previousBlank = true;
+    }
+    entries.push({
+      separator: false,
+      text,
+      colorKey: resolveWarriorRowColorKey(trimmed),
+    });
+    if (!blankRow) {
+      hasVisibleRow = true;
+    }
+    previousBlank = blankRow;
+  }
+  return entries;
+}
+
+// Decide whether one row starts a new visual section in Warrior panel.
+function shouldInsertWarriorSectionSpacer(rowText) {
+  return (
+    rowText.startsWith('Champion:')
+    || rowText.startsWith('Top 5 fighters:')
+    || rowText.startsWith('Clan board:')
+    || rowText.startsWith('Hall of fame:')
+  );
+}
+
+// Resolve selective color highlights for key Warrior panel rows.
+function resolveWarriorRowColorKey(rowText) {
+  if (!rowText) {
+    return null;
+  }
+  if (rowText.startsWith('Warrior League: disabled')) {
+    return 'alert_warning';
+  }
+  if (rowText.startsWith('Champion:')) {
+    return 'temple_of_ancestors';
+  }
+  if (rowText.startsWith('League metrics:')) {
+    return 'armory';
+  }
+  if (rowText.startsWith('Champion marks:')) {
+    return 'temple_of_ancestors';
+  }
+  if (rowText.startsWith('#')) {
+    return resolveWarriorFighterRowColorKey(rowText);
+  }
+  if (rowText.startsWith('Hall of fame:')) {
+    return 'temple_of_ancestors';
+  }
+  return null;
+}
+
+// Resolve color for one fighter row, highlighting only rank #1.
+function resolveWarriorFighterRowColorKey(rowText) {
+  const rankMatch = rowText.match(/^#(\d+)\s/);
+  const rank = rankMatch ? Math.max(0, Math.floor(Number(rankMatch[1]))) : 0;
+  if (rank === 1) {
+    return 'temple_of_ancestors';
+  }
+  return null;
 }
 
 // Build framed panel box from inner content lines.

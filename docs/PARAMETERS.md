@@ -403,6 +403,13 @@ Merchant:
 - `ai.governors.ruins.enabled`: enable action-driven ruins dispatch/mithril posture hooks.
 - `ai.governors.ruins.warningDispatchIntentThreshold`: minimum normalized `action.ruins.warningDispatchIntent` required to allow warning-zone dispatches.
 - `ai.governors.ruins.mithrilReinforcementIntentThreshold`: minimum normalized `action.ruins.mithrilReinforcementIntent` required to spend mithril reinforcement when eligible.
+- `ai.governors.warriors.enabled`: enable action-driven Warrior League advisory intents.
+- `ai.governors.warriors.actionHeadEnabled`: include/exclude warriors governor pseudo action-ids from policy/training action heads.
+- `ai.governors.warriors.trainingIntentThreshold`: minimum normalized `action.warriors.trainingIntent` considered an active training push.
+- `ai.governors.warriors.rotationIntentThreshold`: minimum normalized `action.warriors.rotationIntent` considered an active roster-rotation push.
+- `ai.governors.warriors.tournamentRiskIntentThreshold`: minimum normalized `action.warriors.tournamentRiskIntent` considered an aggressive tournament-risk posture.
+- `ai.governors.warriors.championChallengeIntentThreshold`: minimum normalized `action.warriors.championChallengeIntent` considered an active champion-challenge posture.
+- `ai.governors.warriors.recoveryPriorityIntentThreshold`: minimum normalized `action.warriors.recoveryPriorityIntent` considered an active recovery-first posture.
 
 Contracts:
 
@@ -1252,6 +1259,34 @@ Warriors:
 - `warriors.tournaments.progression.valor_win_delta`: valor delta for duel winners.
 - `warriors.tournaments.progression.valor_loss_delta`: valor delta for duel losers.
 - `warriors.tournaments.progression.champion_valor_bonus`: extra valor bonus for final season champion.
+- `warriors.tournaments.consequences.enabled`: enable bounded post-duel consequence processing (injury/retirement/death gates).
+- `warriors.tournaments.consequences.injury_base_chance`: base injury chance applied to duel loser.
+- `warriors.tournaments.consequences.injury_score_gap_scale`: extra injury chance scale from duel score gap.
+- `warriors.tournaments.consequences.injury_tie_break_bonus`: additive injury chance when duel resolved by tie-break.
+- `warriors.tournaments.consequences.risk_intent_injury_scale`: injury chance multiplier from active warriors-governor risk posture.
+- `warriors.tournaments.consequences.recovery_intent_injury_reduction`: injury chance reduction scale from active warriors-governor recovery posture.
+- `warriors.tournaments.consequences.risk_intent_severity_bias`: severity weighting bias toward harsher injuries when risk posture is active.
+- `warriors.tournaments.consequences.recovery_intent_severity_bias`: severity weighting bias toward lighter injuries when recovery posture is active.
+- `warriors.tournaments.consequences.winner_fatigue_gain`: fatigue gain applied to duel winners.
+- `warriors.tournaments.consequences.winner_stress_gain`: stress gain applied to duel winners.
+- `warriors.tournaments.consequences.allow_retirements`: allow injury-driven retirement rolls.
+- `warriors.tournaments.consequences.allow_death`: allow injury-driven death rolls (off by default).
+- `warriors.tournaments.consequences.severity_weights.<severity>`: relative injury severity weight (`light`, `moderate`, `severe`).
+- `warriors.tournaments.consequences.recovery_ticks.<severity>`: recovery lockout ticks by injury severity.
+- `warriors.tournaments.consequences.rating_penalty.<severity>`: rating penalty applied on injury by severity.
+- `warriors.tournaments.consequences.valor_penalty.<severity>`: valor penalty applied on injury by severity.
+- `warriors.tournaments.consequences.fatigue_gain.<severity>`: fatigue gain applied on injury by severity.
+- `warriors.tournaments.consequences.stress_gain.<severity>`: stress gain applied on injury by severity.
+- `warriors.tournaments.consequences.morale_delta.<severity>`: morale delta applied on injury by severity.
+- `warriors.tournaments.consequences.retirement_chance.<severity>`: retirement roll chance by injury severity.
+- `warriors.tournaments.consequences.death_chance.<severity>`: death roll chance by injury severity.
+- `warriors.tournaments.hero_succession.enabled`: enable champion-defeat hero succession checks after tournament duels.
+- `warriors.tournaments.hero_succession.require_champion_defeat`: require defeated fighter to be the current champion before succession evaluation.
+- `warriors.tournaments.hero_succession.sync_underrealm_on_defeat`: allow promoting duel winner to Underrealm hero slot when succession passes.
+- `warriors.tournaments.hero_succession.min_condition_score`: minimum winner condition score required for succession.
+- `warriors.tournaments.hero_succession.min_rating`: minimum winner rating required for succession.
+- `warriors.tournaments.hero_succession.min_valor`: minimum winner valor required for succession.
+- `warriors.tournaments.hero_succession.min_hero_potential`: minimum winner hero potential required for succession.
 - `warriors.progression.enabled`: bootstrap switch for warrior progression defaults at initialization (`rating_start`, `valor_start`).
 - `warriors.progression.rating_start`: initial warrior rating value in 0..1.
 - `warriors.progression.valor_start`: initial warrior valor value in 0..1.
@@ -1344,6 +1379,23 @@ Warriors:
 - `warriors.expeditions.progression.morale_delta.failure`: direct morale delta on failed expedition.
 - `warriors.expeditions.progression.morale_delta.retreat`: direct morale delta on retreat outcome.
 - `warriors.expeditions.progression.risk_win_bonus`: additional bonus applied to rating/valor when a risky expedition succeeds.
+- `warriors.training.enabled`: enable periodic warrior training sessions.
+- `warriors.training.tick_interval`: cadence (ticks) between training attempts.
+- `warriors.training.base_participants`: baseline number of fighters selected when one training session triggers.
+- `warriors.training.max_participants`: hard cap for training participants per session.
+- `warriors.training.rotation_window_ticks`: preferred cooldown window before selecting the same fighter again.
+- `warriors.training.min_condition_score`: minimum condition score required to join training.
+- `warriors.training.fatigue_ceiling`: max fatigue gate for training eligibility.
+- `warriors.training.stress_ceiling`: max stress gate for training eligibility.
+- `warriors.training.skip_injured`: when true, fighters with active injury recovery are excluded from training.
+- `warriors.training.cost_per_session.<resource>`: stockpile cost consumed once per training session.
+- `warriors.training.progression.rating_gain`: rating gain per participant per training session.
+- `warriors.training.progression.valor_gain`: valor gain per participant per training session.
+- `warriors.training.progression.hero_potential_gain`: hero-potential gain per participant per training session.
+- `warriors.training.progression.fatigue_gain`: fatigue gain per participant per training session.
+- `warriors.training.progression.stress_gain`: stress gain per participant per training session.
+- `warriors.training.progression.morale_delta`: morale delta per participant per training session.
+- `warriors.training.progression.recovery_relief`: recovery-tick reduction applied to injured roster after each completed session.
 
 Structures (houses):
 
@@ -1856,6 +1908,13 @@ AI and training:
 - `ai.governors.underrealm.roleRatioMin`: floor clamp applied to each effective role ratio before normalization.
 - `ai.governors.underrealm.roleRatioMax`: ceiling clamp applied to each effective role ratio before normalization.
 - Stability default note: underrealm governor defaults are intentionally conservative (`surfaceReserveBiasMax=0.14`, `depthAllocationBiasMax=0.12`, `roleMixBiasMax=0.12`, `surfaceReserveRatioMin=0.34`, `reallocationCooldownTicks=60`) to keep deterministic deep-death regressions bounded.
+- `ai.governors.warriors.enabled`: enable/disable warriors-governor advisory intents.
+- `ai.governors.warriors.actionHeadEnabled`: include/exclude warriors pseudo action-ids in policy/training action-head generation (useful for backward-compatible checkpoint loading).
+- `ai.governors.warriors.trainingIntentThreshold`: minimum normalized training intent to mark training posture as active.
+- `ai.governors.warriors.rotationIntentThreshold`: minimum normalized rotation intent to mark roster-rotation posture as active.
+- `ai.governors.warriors.tournamentRiskIntentThreshold`: minimum normalized tournament-risk intent to mark aggressive tournament posture as active.
+- `ai.governors.warriors.championChallengeIntentThreshold`: minimum normalized champion-challenge intent to mark challenge posture as active.
+- `ai.governors.warriors.recoveryPriorityIntentThreshold`: minimum normalized recovery-priority intent to mark recovery posture as active.
 - `ai.governors.building.enabled`: enable/disable building-governor ranked class selection.
 - `ai.governors.building.defaultWeights.housing`: fallback class weight for housing builds when `action.building.housingWeight` is missing.
 - `ai.governors.building.defaultWeights.economy`: fallback class weight for economy builds when `action.building.economyWeight` is missing.
@@ -1914,6 +1973,18 @@ AI and training:
 - `ai.reward.diplomacyPressure`: penalty for current aggregate diplomacy pressure score.
 - `ai.reward.diplomacyPressureDelta`: reward for reducing aggregate diplomacy pressure.
 - `ai.reward.diplomacyLegitimacyDelta`: reward for schism-legitimacy improvements.
+- `ai.reward.warriorEliteScore`: reward contribution for current Warrior League elite-score aggregate.
+- `ai.reward.warriorEliteScoreDelta`: reward for improving elite-score aggregate.
+- `ai.reward.warriorChampionMomentum`: reward contribution for current champion-momentum aggregate.
+- `ai.reward.warriorChampionMomentumDelta`: reward for improving champion-momentum aggregate.
+- `ai.reward.warriorSurvivability`: reward contribution for current survivability aggregate.
+- `ai.reward.warriorSurvivabilityDelta`: reward for improving survivability aggregate.
+- `ai.reward.warriorInjuryShare`: penalty for current injured-fighter share.
+- `ai.reward.warriorInjuryShareDelta`: reward for reducing injured-fighter share.
+- `ai.reward.warriorRetiredShare`: penalty for current retired-fighter share.
+- `ai.reward.warriorRetiredShareDelta`: reward for reducing retired-fighter share.
+- `ai.reward.warriorHeroTurnoverPressure`: penalty for current hero-turnover pressure aggregate.
+- `ai.reward.warriorHeroLoss`: penalty for each positive hero-turnover delta step.
 - `ai.reward.deltaClip`: symmetric clip for per-step delta channels (`0` disables clipping).
 - `ai.reward.eventClip`: symmetric clip for aggregated event/progression channels (`0` disables clipping).
 - `ai.reward.totalClip`: symmetric clip for final step reward (`0` disables clipping).
@@ -1975,13 +2046,13 @@ AI and training:
 - Current default scenario catalog:
   - `baseline`, `full_sim`, `mid_sim`
   - `wildlife_raid`, `ruins_focus`
-  - `underrealm_push`, `underrealm_late_gauntlet`, `compound_crisis`, `governance_pressure`
+  - `underrealm_push`, `underrealm_late_gauntlet`, `compound_crisis`, `governance_pressure`, `warrior_realism_pressure`
   - `clan_abyssborn`, `clan_embers`, `clan_wardens`, `clan_lantern`
   - `water_scarce`, `food_scarce`, `low_stockpile`, `housing_pressure`
 - `ai.training.evalScenarios`: list of scenario names evaluated at eval checkpoints.
 - Default eval scenario list:
   - `baseline`, `full_sim`, `wildlife_raid`, `water_scarce`
-  - `food_scarce`, `ruins_focus`, `underrealm_push`, `compound_crisis`, `governance_pressure`
+  - `food_scarce`, `ruins_focus`, `underrealm_push`, `compound_crisis`, `governance_pressure`, `warrior_realism_pressure`
 - `ai.training.scenarioSampling.mode`: `static` or `adaptive` scenario reweighting.
 - `ai.training.scenarioSampling.updateEvery`: episodes between adaptive weight updates.
 - `ai.training.scenarioSampling.emaAlpha`: EMA smoothing for per-scenario reward.
@@ -2038,7 +2109,7 @@ AI and training:
 - `ai.training.trainer.miniBatchSize`: minibatch size for PPO updates.
 - `ai.training.trainer.batchEpisodes`: episodes per update batch.
 - `ai.training.trainer.hiddenSizes`: MLP hidden layer sizes (e.g. `[128, 128]`).
-- `ai.training.trainer.featureNames`: ordered list of observation features per resource (e.g. `shortage`, `nodeScarcity`, `criticalNeeds`, `idleAdults`, `populationBalance`, `seasonIndex`, `seasonProgress`, `weatherSeverity`, `weatherTimeLeft`, `raidActive`, `raidTimeLeft`, `raidExposed`, `raidDefense`, `housingShortage`, `seasonEligible`, `ruinsActive`, `ruinsCooldown`, `ruinsProgress`, `ruinsArtifacts`, `underrealmDepthProgress`, `underrealmChampionProgress`, `underrealmFrontierContested`, `underrealmChampionCooldown`, `underrealmReadinessScore`, `underrealmReadinessGap`, `underrealmReadinessBlocked`, `underrealmReadinessWarning`, `underrealmCombatPressure`, `worldEventActive`, `worldEventOfferReady`, `contractReady`, `contractFailurePressure`, `externalCampRaiderPressure`, `schismPressure`, `schismLegitimacy`, `warriorEnabled`, `warriorRosterCoverage`, `warriorEliteScore`, `warriorLegacyAura`, `warriorChampionMomentum`, `warriorTournamentRecency`, `clanShare_abyssborn`).
+- `ai.training.trainer.featureNames`: ordered list of observation features per resource (e.g. `shortage`, `nodeScarcity`, `criticalNeeds`, `idleAdults`, `populationBalance`, `seasonIndex`, `seasonProgress`, `weatherSeverity`, `weatherTimeLeft`, `raidActive`, `raidTimeLeft`, `raidExposed`, `raidDefense`, `housingShortage`, `seasonEligible`, `ruinsActive`, `ruinsCooldown`, `ruinsProgress`, `ruinsArtifacts`, `underrealmDepthProgress`, `underrealmChampionProgress`, `underrealmFrontierContested`, `underrealmChampionCooldown`, `underrealmReadinessScore`, `underrealmReadinessGap`, `underrealmReadinessBlocked`, `underrealmReadinessWarning`, `underrealmCombatPressure`, `worldEventActive`, `worldEventOfferPhase`, `worldEventOfferReady`, `worldEventTimeLeft`, `worldEventSpawnImminence`, `worldEventPressure`, `contractActive`, `contractReady`, `contractTimeLeft`, `contractFailurePressure`, `contractReputation`, `contractPressure`, `externalCampActiveRatio`, `externalCampRaiderPressure`, `externalCampCaravanRisk`, `externalCampMilitiaSupport`, `externalCampTradeInfluence`, `externalCampPressure`, `schismPressure`, `schismLegitimacy`, `schismPhase`, `schismRitualOpen`, `schismClimaxActive`, `schismInstability`, `warriorEliteScore`, `warriorLegacyAura`, `warriorChampionMomentum`, `warriorTournamentRecency`, `warriorInjuryShare`, `warriorRetiredShare`, `warriorSurvivability`, `warriorHeroTurnoverPressure`, `clanShare_abyssborn`).
 - Dynamic feature names are accepted for `mythFlag_<mythId>` and `clanShare_<clanId>`.
 - `ai.training.trainer.activation`: hidden-layer activation (`tanh` or `relu`).
 - `ai.training.trainer.logStdInit`: initial log-std for action sampling.
@@ -2050,6 +2121,7 @@ AI and training:
 - `ai.training.trainer.debugMode`: debug payload mode for ai_server (`full`, `summary`, `final`, `off`).
 - `ai.training.trainer.evalEvery`: episodes between evaluation runs.
 - `ai.training.trainer.evalEpisodes`: evaluation episode count.
+  - Recommended: keep this value `>= len(ai.training.evalScenarios)` to ensure every configured eval scenario is exercised at each trainer eval pass.
 - `ai.training.trainer.evalMaxSteps`: max steps per eval episode (0 = use maxSteps).
 - `ai.training.trainer.evalDifficulty`: fixed difficulty for eval (0..1, omit to use current ramp).
 - `ai.training.trainer.evalScore`: metric used for best-eval selection (`reward`, `rps`, or `rpt`).
