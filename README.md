@@ -136,10 +136,11 @@ npm run ai:validate:risk
 Four practical quality scenarios:
 
 ```bash
-npm run ai:train:quality:daily              # fast daily loop (phase+canonical LCB off, promote progress every episode)
+npm run ai:train:quality:daily              # fast daily loop (canonical 12x1600, phase+canonical LCB off, promote progress every episode)
 npm run ai:train:quality:high               # high-quality loop (full curriculum + stricter final canonical promote)
 npm run ai:train:quality:acceptance         # strict final-only canonical + full validation gate
-npm run ai:train:continuous -- --cycles 24 --full-every 4 --high-every 8 --gate-every 8  # continuous loop with periodic consolidation/gate
+npm run ai:train:continuous                 # default continuous cadence (daily + periodic full/high + optional gate)
+npm run ai:train:continuous:balanced        # anti-stagnation balanced preset (36 cycles, full every 6, high every 12, gate every 6)
 ```
 
 Quality-first full curriculum (early game + endgame + consolidation):
@@ -161,7 +162,8 @@ Canonical promotion now owns best-checkpoint writes: wrapper training disables i
 - 🪶 `ai:train:quality:lite` adds a laptop-friendly low-load preset (worker cap, lighter canonical defaults, canonical-final check, and promote progress heartbeat).
 - 🧬 `ai:train:quality:mixed` adds a mixed curriculum preset (~76% light foundation, ~24% full-sim finetune) for better throughput/quality trade-off on slower machines.
 - 🧱 `ai:train:quality:high` runs the full 4-phase curriculum with stricter promotion guardrails (positive LCB on canonical and phase checks) plus heavier final canonical eval (`32x2400`), aimed at maximizing checkpoint quality before promotion.
-- ♻️ `ai:train:continuous` orchestrates long-running incremental learning (`daily` baseline, periodic `full` consolidation, periodic `high` certification, optional gate cadence, and auto-stop guardrails) with run reports in `debug/continuous_train_*.json/.md`.
+- ♻️ `ai:train:continuous` orchestrates long-running incremental learning with the historical default cadence (`daily` baseline, periodic `full`, periodic `high`, optional gate cadence, auto-stop guardrails) and writes run reports to `debug/continuous_train_*.json/.md`.
+- ⚖️ `ai:train:continuous:balanced` provides an anti-stagnation cadence preset (`--cycles 36 --full-every 6 --high-every 12 --gate-every 6 --max-no-improve 14 --max-gate-fail 3`) to reduce premature no-improve stops while keeping regular quality pressure.
 - ✅ Continuous stop logic is now strict promotion-aligned: a cycle resets no-improve streaks only when canonical promotion succeeds (positive-not-promoted deltas are reported but do not count as improvement).
 - 🧪 Training scenario curriculum now includes dedicated deep/governance stress slices (`underrealm_push`, `compound_crisis`, `governance_pressure`), and canonical eval covers high-risk survival/deep/governance cases (`wildlife_raid`, `compound_crisis`, `underrealm_push`, `governance_pressure`).
 - 🎯 Warrior/governance determinative tuning now raises pressure in the dedicated curriculum slices (`warrior_realism_pressure`, `governance_pressure`), widens adaptive scenario reweighting (`0.6..1.8`), and uses `evalEpisodes=20` during in-training eval so all configured eval scenarios are exercised in checkpoint selection.

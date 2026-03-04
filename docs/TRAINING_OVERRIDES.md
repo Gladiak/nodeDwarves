@@ -75,7 +75,10 @@ Wrapper low-load tuning (no config edit needed):
 
 - `npm run ai:train:quality:lite`: quality preset with wrapper low-load mode.
 - `npm run ai:train:quality:mixed`: mixed curriculum preset (`quality-mixed`) with ~`76/24` episode split between light foundation (`160` episodes, non-full-sim) and full-sim finetune (`50` episodes).
-- `npm run ai:train:continuous`: cycle orchestrator for cumulative learning using existing presets (`daily` by default, periodic `full`, periodic `high`, optional `ai:validate:gate` cadence).
+- `npm run ai:train:quality:daily`: daily shortcut with canonical final-only promote, canonical eval `12x1600`, and paired-LCB disabled for canonical/non-canonical phase promotes.
+- `npm run ai:train:continuous`: cycle orchestrator for cumulative learning using existing presets with historical defaults from `scripts/train_continuous.js` (`daily` by default, periodic `full`, periodic `high`, optional `ai:validate:gate` cadence).
+- `npm run ai:train:continuous:balanced`: explicit anti-stagnation balanced alias:
+  - `--cycles 36 --full-every 6 --high-every 12 --gate-every 6 --max-no-improve 14 --max-gate-fail 3`
   - Key options:
     - `--cycles <n>`
     - `--full-every <n>` / `--high-every <n>` (high takes precedence when both match)

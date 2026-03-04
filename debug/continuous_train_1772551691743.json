@@ -1,0 +1,433 @@
+{
+  "version": 1,
+  "status": "stopped_no_improve",
+  "stopReason": "reached max-no-improve=8 at cycle 14",
+  "startedAt": "2026-03-03T08:04:58.506Z",
+  "finishedAt": "2026-03-03T15:28:11.743Z",
+  "options": {
+    "cycles": 24,
+    "fullEvery": 8,
+    "highEvery": 0,
+    "gateEvery": 12,
+    "maxNoImprove": 8,
+    "maxGateFail": 2,
+    "improveThreshold": 0,
+    "improvementPolicy": "strict_promotion_only",
+    "freshFirst": false,
+    "dryRun": false
+  },
+  "completedCycles": 14,
+  "noImproveStreak": 8,
+  "gateFailStreak": 1,
+  "cycles": [
+    {
+      "index": 1,
+      "train": {
+        "kind": "daily",
+        "script": "ai:train:quality:daily",
+        "forwardedArgs": [],
+        "status": 0
+      },
+      "canonical": {
+        "phase": "canonical-final",
+        "promoted": false,
+        "reason": "best_retained",
+        "deltaScore": -0.03659997218252542,
+        "pairedLcb": 0,
+        "latestScore": 4.450842879660264,
+        "bestScoreBefore": 4.48744285184279
+      },
+      "improved": false,
+      "improvedReason": "not_promoted",
+      "promotionAligned": true,
+      "deltaPositive": false,
+      "noImproveStreakAfter": 1,
+      "gate": {
+        "enabled": false,
+        "status": null,
+        "gateFailStreakAfter": 0
+      },
+      "summaryPath": "/Users/gladiak/ProgettiLavoro/NodeDwarves/debug/run_1772525098821_7057_871366/report_training_promotion_summary.json"
+    },
+    {
+      "index": 2,
+      "train": {
+        "kind": "daily",
+        "script": "ai:train:quality:daily",
+        "forwardedArgs": [],
+        "status": 0
+      },
+      "canonical": {
+        "phase": "canonical-final",
+        "promoted": false,
+        "reason": "best_retained",
+        "deltaScore": -0.010296025651099328,
+        "pairedLcb": 0,
+        "latestScore": 4.4771468261916905,
+        "bestScoreBefore": 4.48744285184279
+      },
+      "improved": false,
+      "improvedReason": "not_promoted",
+      "promotionAligned": true,
+      "deltaPositive": false,
+      "noImproveStreakAfter": 2,
+      "gate": {
+        "enabled": false,
+        "status": null,
+        "gateFailStreakAfter": 0
+      },
+      "summaryPath": "/Users/gladiak/ProgettiLavoro/NodeDwarves/debug/run_1772526605593_10052_371936/report_training_promotion_summary.json"
+    },
+    {
+      "index": 3,
+      "train": {
+        "kind": "daily",
+        "script": "ai:train:quality:daily",
+        "forwardedArgs": [],
+        "status": 0
+      },
+      "canonical": {
+        "phase": "canonical-final",
+        "promoted": false,
+        "reason": "best_retained",
+        "deltaScore": -0.03786100901298628,
+        "pairedLcb": 0,
+        "latestScore": 4.4495818428298035,
+        "bestScoreBefore": 4.48744285184279
+      },
+      "improved": false,
+      "improvedReason": "not_promoted",
+      "promotionAligned": true,
+      "deltaPositive": false,
+      "noImproveStreakAfter": 3,
+      "gate": {
+        "enabled": false,
+        "status": null,
+        "gateFailStreakAfter": 0
+      },
+      "summaryPath": "/Users/gladiak/ProgettiLavoro/NodeDwarves/debug/run_1772528065910_12937_958706/report_training_promotion_summary.json"
+    },
+    {
+      "index": 4,
+      "train": {
+        "kind": "daily",
+        "script": "ai:train:quality:daily",
+        "forwardedArgs": [],
+        "status": 0
+      },
+      "canonical": {
+        "phase": "canonical-final",
+        "promoted": false,
+        "reason": "best_retained",
+        "deltaScore": -0.08783943483476175,
+        "pairedLcb": 0,
+        "latestScore": 4.399603417008028,
+        "bestScoreBefore": 4.48744285184279
+      },
+      "improved": false,
+      "improvedReason": "not_promoted",
+      "promotionAligned": true,
+      "deltaPositive": false,
+      "noImproveStreakAfter": 4,
+      "gate": {
+        "enabled": false,
+        "status": null,
+        "gateFailStreakAfter": 0
+      },
+      "summaryPath": "/Users/gladiak/ProgettiLavoro/NodeDwarves/debug/run_1772529543800_15866_511281/report_training_promotion_summary.json"
+    },
+    {
+      "index": 5,
+      "train": {
+        "kind": "daily",
+        "script": "ai:train:quality:daily",
+        "forwardedArgs": [],
+        "status": 0
+      },
+      "canonical": {
+        "phase": "canonical-final",
+        "promoted": false,
+        "reason": "best_retained",
+        "deltaScore": -0.06348165283396145,
+        "pairedLcb": 0,
+        "latestScore": 4.423961199008828,
+        "bestScoreBefore": 4.48744285184279
+      },
+      "improved": false,
+      "improvedReason": "not_promoted",
+      "promotionAligned": true,
+      "deltaPositive": false,
+      "noImproveStreakAfter": 5,
+      "gate": {
+        "enabled": false,
+        "status": null,
+        "gateFailStreakAfter": 0
+      },
+      "summaryPath": "/Users/gladiak/ProgettiLavoro/NodeDwarves/debug/run_1772531009430_18720_283129/report_training_promotion_summary.json"
+    },
+    {
+      "index": 6,
+      "train": {
+        "kind": "daily",
+        "script": "ai:train:quality:daily",
+        "forwardedArgs": [],
+        "status": 0
+      },
+      "canonical": {
+        "phase": "canonical-final",
+        "promoted": true,
+        "reason": "score_improved",
+        "deltaScore": 0.013752931560458315,
+        "pairedLcb": 0,
+        "latestScore": 4.501195783403248,
+        "bestScoreBefore": 4.48744285184279
+      },
+      "improved": true,
+      "improvedReason": "promoted",
+      "promotionAligned": true,
+      "deltaPositive": true,
+      "noImproveStreakAfter": 0,
+      "gate": {
+        "enabled": false,
+        "status": null,
+        "gateFailStreakAfter": 0
+      },
+      "summaryPath": "/Users/gladiak/ProgettiLavoro/NodeDwarves/debug/run_1772532495931_21629_843075/report_training_promotion_summary.json"
+    },
+    {
+      "index": 7,
+      "train": {
+        "kind": "daily",
+        "script": "ai:train:quality:daily",
+        "forwardedArgs": [],
+        "status": 0
+      },
+      "canonical": {
+        "phase": "canonical-final",
+        "promoted": false,
+        "reason": "best_retained",
+        "deltaScore": -0.041286333046311796,
+        "pairedLcb": 0,
+        "latestScore": 4.459909450356936,
+        "bestScoreBefore": 4.501195783403248
+      },
+      "improved": false,
+      "improvedReason": "not_promoted",
+      "promotionAligned": true,
+      "deltaPositive": false,
+      "noImproveStreakAfter": 1,
+      "gate": {
+        "enabled": false,
+        "status": null,
+        "gateFailStreakAfter": 0
+      },
+      "summaryPath": "/Users/gladiak/ProgettiLavoro/NodeDwarves/debug/run_1772533987149_24510_749910/report_training_promotion_summary.json"
+    },
+    {
+      "index": 8,
+      "train": {
+        "kind": "full",
+        "script": "ai:train:full",
+        "forwardedArgs": [
+          "--canonical-final-only",
+          "--phase-promote-no-positive-lcb"
+        ],
+        "status": 0
+      },
+      "canonical": {
+        "phase": "canonical-final",
+        "promoted": false,
+        "reason": "best_retained",
+        "deltaScore": -0.06759130047791206,
+        "pairedLcb": -0.17253316279452421,
+        "latestScore": 4.242347282440858,
+        "bestScoreBefore": 4.30993858291877
+      },
+      "improved": false,
+      "improvedReason": "not_promoted",
+      "promotionAligned": true,
+      "deltaPositive": false,
+      "noImproveStreakAfter": 2,
+      "gate": {
+        "enabled": false,
+        "status": null,
+        "gateFailStreakAfter": 0
+      },
+      "summaryPath": "/Users/gladiak/ProgettiLavoro/NodeDwarves/debug/run_1772535500231_27438_384343/report_training_promotion_summary.json"
+    },
+    {
+      "index": 9,
+      "train": {
+        "kind": "daily",
+        "script": "ai:train:quality:daily",
+        "forwardedArgs": [],
+        "status": 0
+      },
+      "canonical": {
+        "phase": "canonical-final",
+        "promoted": false,
+        "reason": "best_retained",
+        "deltaScore": -0.05254549317073742,
+        "pairedLcb": 0,
+        "latestScore": 4.448650290232511,
+        "bestScoreBefore": 4.501195783403248
+      },
+      "improved": false,
+      "improvedReason": "not_promoted",
+      "promotionAligned": true,
+      "deltaPositive": false,
+      "noImproveStreakAfter": 3,
+      "gate": {
+        "enabled": false,
+        "status": null,
+        "gateFailStreakAfter": 0
+      },
+      "summaryPath": "/Users/gladiak/ProgettiLavoro/NodeDwarves/debug/run_1772539904325_35720_546852/report_training_promotion_summary.json"
+    },
+    {
+      "index": 10,
+      "train": {
+        "kind": "daily",
+        "script": "ai:train:quality:daily",
+        "forwardedArgs": [],
+        "status": 0
+      },
+      "canonical": {
+        "phase": "canonical-final",
+        "promoted": false,
+        "reason": "best_retained",
+        "deltaScore": -0.035987519784566935,
+        "pairedLcb": 0,
+        "latestScore": 4.465208263618681,
+        "bestScoreBefore": 4.501195783403248
+      },
+      "improved": false,
+      "improvedReason": "not_promoted",
+      "promotionAligned": true,
+      "deltaPositive": false,
+      "noImproveStreakAfter": 4,
+      "gate": {
+        "enabled": false,
+        "status": null,
+        "gateFailStreakAfter": 0
+      },
+      "summaryPath": "/Users/gladiak/ProgettiLavoro/NodeDwarves/debug/run_1772541426551_38646_381657/report_training_promotion_summary.json"
+    },
+    {
+      "index": 11,
+      "train": {
+        "kind": "daily",
+        "script": "ai:train:quality:daily",
+        "forwardedArgs": [],
+        "status": 0
+      },
+      "canonical": {
+        "phase": "canonical-final",
+        "promoted": false,
+        "reason": "best_retained",
+        "deltaScore": -0.037589383991010195,
+        "pairedLcb": 0,
+        "latestScore": 4.463606399412238,
+        "bestScoreBefore": 4.501195783403248
+      },
+      "improved": false,
+      "improvedReason": "not_promoted",
+      "promotionAligned": true,
+      "deltaPositive": false,
+      "noImproveStreakAfter": 5,
+      "gate": {
+        "enabled": false,
+        "status": null,
+        "gateFailStreakAfter": 0
+      },
+      "summaryPath": "/Users/gladiak/ProgettiLavoro/NodeDwarves/debug/run_1772542955189_41664_772373/report_training_promotion_summary.json"
+    },
+    {
+      "index": 12,
+      "train": {
+        "kind": "daily",
+        "script": "ai:train:quality:daily",
+        "forwardedArgs": [],
+        "status": 0
+      },
+      "canonical": {
+        "phase": "canonical-final",
+        "promoted": false,
+        "reason": "best_retained",
+        "deltaScore": -0.02947923322812862,
+        "pairedLcb": 0,
+        "latestScore": 4.4717165501751195,
+        "bestScoreBefore": 4.501195783403248
+      },
+      "improved": false,
+      "improvedReason": "not_promoted",
+      "promotionAligned": true,
+      "deltaPositive": false,
+      "noImproveStreakAfter": 6,
+      "gate": {
+        "enabled": true,
+        "status": 1,
+        "gateFailStreakAfter": 1
+      },
+      "summaryPath": "/Users/gladiak/ProgettiLavoro/NodeDwarves/debug/run_1772544539189_44727_262062/report_training_promotion_summary.json"
+    },
+    {
+      "index": 13,
+      "train": {
+        "kind": "daily",
+        "script": "ai:train:quality:daily",
+        "forwardedArgs": [],
+        "status": 0
+      },
+      "canonical": {
+        "phase": "canonical-final",
+        "promoted": false,
+        "reason": "best_retained",
+        "deltaScore": -0.03643869619271989,
+        "pairedLcb": 0,
+        "latestScore": 4.464757087210528,
+        "bestScoreBefore": 4.501195783403248
+      },
+      "improved": false,
+      "improvedReason": "not_promoted",
+      "promotionAligned": true,
+      "deltaPositive": false,
+      "noImproveStreakAfter": 7,
+      "gate": {
+        "enabled": false,
+        "status": null,
+        "gateFailStreakAfter": 1
+      },
+      "summaryPath": "/Users/gladiak/ProgettiLavoro/NodeDwarves/debug/run_1772548706384_52670_678935/report_training_promotion_summary.json"
+    },
+    {
+      "index": 14,
+      "train": {
+        "kind": "daily",
+        "script": "ai:train:quality:daily",
+        "forwardedArgs": [],
+        "status": 0
+      },
+      "canonical": {
+        "phase": "canonical-final",
+        "promoted": false,
+        "reason": "best_retained",
+        "deltaScore": -0.012008488208405055,
+        "pairedLcb": 0,
+        "latestScore": 4.489187295194843,
+        "bestScoreBefore": 4.501195783403248
+      },
+      "improved": false,
+      "improvedReason": "not_promoted",
+      "promotionAligned": true,
+      "deltaPositive": false,
+      "noImproveStreakAfter": 8,
+      "gate": {
+        "enabled": false,
+        "status": null,
+        "gateFailStreakAfter": 1
+      },
+      "summaryPath": "/Users/gladiak/ProgettiLavoro/NodeDwarves/debug/run_1772550231288_55647_745988/report_training_promotion_summary.json"
+    }
+  ]
+}

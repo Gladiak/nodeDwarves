@@ -327,6 +327,8 @@ function buildCanonicalPromoteArgs(canonicalPromote, files) {
   if (canonicalPromote.requirePositiveLcb) {
     args.push("--require-positive-lcb");
     args.push("--lcb-z", String(canonicalPromote.lcbZ));
+  } else {
+    args.push("--no-require-positive-lcb");
   }
   return args;
 }
@@ -1213,7 +1215,7 @@ function buildPhases(profile, runDir, files) {
           "--eval-max-steps", "1600",
           "--eval-difficulty", "1.0",
           "--eval-score", "rpt",
-          "--min-improve", "0.010",
+          "--min-improve", "0.007",
           "--max-steps", "1600",
           "--step-ticks", "2",
         ],
@@ -1259,7 +1261,7 @@ function buildPhases(profile, runDir, files) {
           "--eval-max-steps", "1800",
           "--eval-difficulty", "1.0",
           "--eval-score", "rpt",
-          "--min-improve", "0.012",
+          "--min-improve", "0.009",
           "--max-steps", "1800",
           "--step-ticks", "2",
         ],
