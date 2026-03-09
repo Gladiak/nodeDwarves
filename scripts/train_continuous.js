@@ -4,6 +4,7 @@
 const fs = require("fs");
 const path = require("path");
 const { spawnSync } = require("child_process");
+const { runCleanup } = require("./clean_debug");
 
 const ANSI_RESET = "\x1b[0m";
 const ANSI_BOLD = "\x1b[1m";
@@ -69,6 +70,11 @@ function parseArgs(rawArgs) {
     freshFirst: false,
     dryRun: false,
     help: false,
+    lowWrite: false,
+    autoCleanDebug: false,
+    debugKeepRuns: null,
+    debugKeepContinuousReports: null,
+    debugKeepRegressionReports: null,
   };
 
   for (let index = 0; index < args.length; index += 1) {
@@ -82,6 +88,65 @@ function parseArgs(rawArgs) {
     }
     if (arg === "--dry-run") {
       options.dryRun = true;
+      continue;
+    }
+    if (arg === "--low-write") {
+      options.lowWrite = true;
+      continue;
+    }
+    if (arg === "--auto-clean-debug") {
+      options.autoCleanDebug = true;
+      continue;
+    }
+    if (arg === "--no-auto-clean-debug") {
+      options.autoCleanDebug = false;
+      continue;
+    }
+    if (arg === "--debug-keep-runs") {
+      options.debugKeepRuns = parseIntegerOption(args[index + 1], "--debug-keep-runs", 0);
+      index += 1;
+      continue;
+    }
+    if (arg.startsWith("--debug-keep-runs=")) {
+      options.debugKeepRuns = parseIntegerOption(
+        arg.slice("--debug-keep-runs=".length),
+        "--debug-keep-runs",
+        0,
+      );
+      continue;
+    }
+    if (arg === "--debug-keep-continuous-reports") {
+      options.debugKeepContinuousReports = parseIntegerOption(
+        args[index + 1],
+        "--debug-keep-continuous-reports",
+        0,
+      );
+      index += 1;
+      continue;
+    }
+    if (arg.startsWith("--debug-keep-continuous-reports=")) {
+      options.debugKeepContinuousReports = parseIntegerOption(
+        arg.slice("--debug-keep-continuous-reports=".length),
+        "--debug-keep-continuous-reports",
+        0,
+      );
+      continue;
+    }
+    if (arg === "--debug-keep-regression-reports") {
+      options.debugKeepRegressionReports = parseIntegerOption(
+        args[index + 1],
+        "--debug-keep-regression-reports",
+        0,
+      );
+      index += 1;
+      continue;
+    }
+    if (arg.startsWith("--debug-keep-regression-reports=")) {
+      options.debugKeepRegressionReports = parseIntegerOption(
+        arg.slice("--debug-keep-regression-reports=".length),
+        "--debug-keep-regression-reports",
+        0,
+      );
       continue;
     }
     if (arg === "--fresh-first") {
@@ -182,6 +247,12 @@ function printHelp() {
     "  --max-no-improve <n>     Stop after n consecutive non-improving cycles (0 disables, default: 10)",
     "  --max-gate-fail <n>      Stop after n consecutive gate failures (0 disables, default: 2)",
     "  --improve-threshold <x>  Delta score threshold for delta-positive tagging (default: 0)",
+    "  --low-write              Forward low-write checkpoint mode to wrapper runs",
+    "  --auto-clean-debug       Forward post-run debug cleanup to wrapper runs and prune old reports at end",
+    "  --no-auto-clean-debug    Skip post-run debug cleanup forwarding",
+    "  --debug-keep-runs <n>    Keep latest run_* folders during forwarded cleanup",
+    "  --debug-keep-continuous-reports <n> Keep latest continuous reports during cleanup",
+    "  --debug-keep-regression-reports <n> Keep latest regression report bundles during cleanup",
     "  --fresh-first            Add --fresh only on cycle 1 training command",
     "  --dry-run                Print commands and schedule without executing",
     "  --help, -h               Show this help",
@@ -227,7 +298,7 @@ function runCommand(command, args, options = {}) {
 }
 
 // Return one run label and npm arguments for the requested training kind.
-function buildTrainCommand(kind, includeFresh) {
+function buildTrainCommand(kind, includeFresh, options = {}) {
   const safeKind = String(kind || "");
   const forwardedArgs = [];
   let scriptName = "ai:train:quality:daily";
@@ -244,6 +315,27 @@ function buildTrainCommand(kind, includeFresh) {
 
   if (includeFresh) {
     forwardedArgs.push("--fresh");
+  }
+  if (options.lowWrite === true) {
+    forwardedArgs.push("--low-write");
+  }
+  if (options.autoCleanDebug === true) {
+    forwardedArgs.push("--auto-clean-debug");
+    if (Number.isInteger(options.debugKeepRuns)) {
+      forwardedArgs.push("--debug-keep-runs", String(options.debugKeepRuns));
+    }
+    if (Number.isInteger(options.debugKeepContinuousReports)) {
+      forwardedArgs.push(
+        "--debug-keep-continuous-reports",
+        String(options.debugKeepContinuousReports),
+      );
+    }
+    if (Number.isInteger(options.debugKeepRegressionReports)) {
+      forwardedArgs.push(
+        "--debug-keep-regression-reports",
+        String(options.debugKeepRegressionReports),
+      );
+    }
   }
 
   const args = ["run", scriptName];
@@ -409,6 +501,8 @@ function buildMarkdownReport(report) {
     `- maxGateFail: \`${report.options.maxGateFail}\``,
     `- improveThreshold: \`${fmtNumber(report.options.improveThreshold, 6)}\``,
     `- improvementPolicy: \`${report.options.improvementPolicy || "strict_promotion_only"}\``,
+    `- lowWrite: \`${report.options.lowWrite === true}\``,
+    `- autoCleanDebug: \`${report.options.autoCleanDebug === true}\``,
     `- freshFirst: \`${report.options.freshFirst === true}\``,
     `- dryRun: \`${report.options.dryRun === true}\``,
     "",
@@ -450,6 +544,25 @@ function writeContinuousReport(rootDir, report) {
   return { jsonPath, mdPath };
 }
 
+// Run one final cleanup pass after the continuous report is written.
+function runFinalDebugCleanup(rootDir, options = {}) {
+  if (options.autoCleanDebug !== true) {
+    return;
+  }
+  printStatus("cleanup", "Pruning debug artifacts after continuous run", ANSI_CYAN);
+  runCleanup({
+    cwd: rootDir,
+    dryRun: options.dryRun === true,
+    keepRuns: Number.isInteger(options.debugKeepRuns) ? options.debugKeepRuns : undefined,
+    keepContinuousReports: Number.isInteger(options.debugKeepContinuousReports)
+      ? options.debugKeepContinuousReports
+      : undefined,
+    keepRegressionReports: Number.isInteger(options.debugKeepRegressionReports)
+      ? options.debugKeepRegressionReports
+      : undefined,
+  });
+}
+
 // Run one full continuous training loop and return report + exit code.
 function runContinuous(rootDir, options) {
   const npmCommand = getNpmCommand();
@@ -472,11 +585,18 @@ function runContinuous(rootDir, options) {
     + `improveThreshold=${fmtNumber(options.improveThreshold, 6)}`,
     ANSI_CYAN,
   );
+  if (options.lowWrite === true || options.autoCleanDebug === true) {
+    printStatus(
+      "mode",
+      `low-write=${options.lowWrite === true ? "on" : "off"} auto-clean=${options.autoCleanDebug === true ? "on" : "off"}`,
+      ANSI_CYAN,
+    );
+  }
 
   for (let cycleIndex = 1; cycleIndex <= options.cycles; cycleIndex += 1) {
     const trainKind = selectTrainKind(cycleIndex, options);
     const includeFresh = options.freshFirst === true && cycleIndex === 1;
-    const trainCommand = buildTrainCommand(trainKind, includeFresh);
+    const trainCommand = buildTrainCommand(trainKind, includeFresh, options);
     const gateEnabled = options.gateEvery > 0 && cycleIndex % options.gateEvery === 0;
 
     process.stdout.write("\n");
@@ -654,6 +774,8 @@ function runContinuous(rootDir, options) {
       maxGateFail: options.maxGateFail,
       improveThreshold: options.improveThreshold,
       improvementPolicy: "strict_promotion_only",
+      lowWrite: options.lowWrite === true,
+      autoCleanDebug: options.autoCleanDebug === true,
       freshFirst: options.freshFirst,
       dryRun: options.dryRun,
     },
@@ -669,6 +791,7 @@ function runContinuous(rootDir, options) {
     const reportPaths = writeContinuousReport(rootDir, report);
     printStatus("report", `json=${reportPaths.jsonPath}`, ANSI_CYAN);
     printStatus("report", `md=${reportPaths.mdPath}`, ANSI_CYAN);
+    runFinalDebugCleanup(rootDir, options);
   }
   if (!stopReason) {
     printStatus("done", `completed cycles=${cycles.length}/${options.cycles}`, ANSI_GREEN);

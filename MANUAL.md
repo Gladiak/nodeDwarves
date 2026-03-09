@@ -53,6 +53,8 @@ npm run ai:train:continuous
 npm run ai:train:continuous:balanced
 ```
 
+For laptop / SSD-conscious workflows, prefer `ai:train:quality:daily`, `ai:train:quality:lite`, or `ai:train:continuous`: these npm entrypoints now forward low-write checkpoint cadence and automatic debug cleanup.
+
 Pass extra trainer flags safely through any profile command (for example):
 
 ```bash
@@ -108,6 +110,7 @@ Clean debug artifacts after a completed cycle:
 ```bash
 npm run debug:clean                # keep latest 3 run_* folders
 npm run debug:clean -- --keep-runs 2
+npm run debug:clean -- --keep-continuous-reports 2 --keep-regression-reports 2
 npm run debug:clean:dry            # preview only
 ```
 
@@ -1732,15 +1735,17 @@ Training presets:
 - `ai:train:fast:fresh` (or `ai:train -- --fresh`) runs the same fast preset but clears existing policy and best-eval snapshots first.
 - `ai:train:quality` runs the fast phase plus a short full-sim finetune at max difficulty (40 episodes, max_steps=1800). Eval cadence is 20 episodes in the fast phase and 10 episodes in finetune, with phase promote checks now using `10` (foundation) and `12` (finetune) eval episodes for better promotion stability (`min_improve=0.007` foundation, `0.009` finetune).
 - `ai:train:quality:mixed` runs a mixed curriculum profile with ~`76/24` episode split between a lighter foundation phase (`160` episodes, non-full-sim) and a full-sim finetune phase (`50` episodes, max difficulty); phase promote checks use `10` (foundation) and `12` (finetune) eval episodes.
-- `ai:train:quality:lite` runs the quality profile with a low-load wrapper preset (worker cap, lighter canonical benchmark defaults, canonical check at run end, and partial promote progress logs) for laptops/interactive sessions.
-- `ai:train:quality:daily` runs the recommended daily loop shortcut: quality profile with final-only canonical promote and lighter canonical eval (`12x1600`), disables paired-LCB on both canonical and non-canonical phase promotes, and enables promote progress every episode for easier diagnosis.
-- `ai:train:quality:high` runs a high-quality shortcut on top of the full 4-phase curriculum, keeps canonical promote final-only, enables paired-LCB on canonical and non-canonical phase promotes, and uses heavier canonical eval (`32` episodes, `2400` max steps).
+- `ai:train:quality:lite` runs the quality profile with a low-load wrapper preset (worker cap, lighter canonical benchmark defaults, canonical check at run end, low-write checkpoint cadence, post-run debug cleanup, and partial promote progress logs) for laptops/interactive sessions.
+- `ai:train:quality:daily` runs the recommended daily loop shortcut: quality profile with final-only canonical promote and lighter canonical eval (`12x1600`), disables paired-LCB on both canonical and non-canonical phase promotes, enables promote progress every episode for easier diagnosis, and now forwards low-write checkpoint cadence plus post-run debug cleanup.
+- `ai:train:quality:high` runs a high-quality shortcut on top of the full 4-phase curriculum, keeps canonical promote final-only, enables paired-LCB on canonical and non-canonical phase promotes, uses heavier canonical eval (`32` episodes, `2400` max steps), and now forwards low-write checkpoint cadence plus post-run debug cleanup.
 - `ai:train:quality:acceptance` runs the strict acceptance shortcut: quality profile with final-only canonical promote (default strict canonical settings), then full benchmark+regression gate via `ai:validate:gate`.
-- `ai:train:continuous` runs a cycle orchestrator over existing presets for long-horizon cumulative learning with the historical default schedule (defaults from `scripts/train_continuous.js`: `cycles=24`, `fullEvery=4`, `highEvery=8`, `gateEvery=8`). In general, each cycle picks `daily` by default, upgrades to `full` every `--full-every N` cycles (with `--canonical-final-only --phase-promote-no-positive-lcb`), upgrades to `high` every `--high-every N` cycles (high takes precedence when both match), and can run `ai:validate:gate` every `--gate-every N` cycles.
-- `ai:train:continuous:balanced` is an explicit anti-stagnation alias that runs `--cycles 36 --full-every 6 --high-every 12 --gate-every 6 --max-no-improve 14 --max-gate-fail 3`.
+- `ai:train:continuous` runs a cycle orchestrator over existing presets for long-horizon cumulative learning with the historical default schedule (defaults from `scripts/train_continuous.js`: `cycles=24`, `fullEvery=4`, `highEvery=8`, `gateEvery=8`). In general, each cycle picks `daily` by default, upgrades to `full` every `--full-every N` cycles (with `--canonical-final-only --phase-promote-no-positive-lcb`), upgrades to `high` every `--high-every N` cycles (high takes precedence when both match), can run `ai:validate:gate` every `--gate-every N` cycles, and now forwards low-write + auto-clean debug flags to underlying wrapper runs.
+- `ai:train:continuous:balanced` is an explicit anti-stagnation alias that runs `--cycles 36 --full-every 6 --high-every 12 --gate-every 6 --max-no-improve 14 --max-gate-fail 3` with the same low-write + auto-clean defaults.
 - Continuous stop rules are CLI-driven: `--max-no-improve` halts after N consecutive cycles without canonical promotion (strict promotion-aligned semantics), and `--max-gate-fail` halts after N consecutive validation-gate failures.
 - `--improve-threshold` remains diagnostic in continuous mode: it tags `delta_positive_not_promoted` cycles in reports, but does not reset no-improve streaks.
-- Continuous reports are emitted to `debug/continuous_train_<timestamp>.json/.md` with per-cycle command selection, canonical delta/promote outcome, improvement reason (`promoted` / `not_promoted` / `delta_positive_not_promoted` / missing-summary guards), promotion-alignment flag, gate status, and final stop reason.
+- Continuous reports are emitted to `debug/continuous_train_<timestamp>.json/.md` with per-cycle command selection, canonical delta/promote outcome, improvement reason (`promoted` / `not_promoted` / `delta_positive_not_promoted` / missing-summary guards), promotion-alignment flag, gate status, final stop reason, and the active low-write / auto-clean flags.
+- `scripts/train_wrapper.js` now exposes `--low-write`, `--auto-clean-debug`, `--debug-keep-runs`, `--debug-keep-continuous-reports`, and `--debug-keep-regression-reports` for SSD-conscious npm workflows.
+- `scripts/train_continuous.js` accepts the same low-write / cleanup flags and forwards them to the underlying wrapper runs.
 - `ai:train:full` runs the quality-first full curriculum in four phases: foundation (280 episodes), full-sim finetune (90), endgame specialization (24), and final consolidation (40). It is optimized for model quality over runtime and keeps promote checks after every phase.
 - `ai:train:full:fresh` runs the same full curriculum but starts from a clean checkpoint set (`--fresh` is applied to phase 1 only, then latest-resume carries forward across later phases).
 - `ai:train:endgame` runs an endgame-enabled long-horizon pass (8 episodes, max_steps=10000, step_ticks=2, target horizon 20k ticks per episode) with eval every 4 episodes. It is tuned to specialize on late-game pressure while keeping the profile compact.
@@ -1880,7 +1885,7 @@ Training presets:
   - `ai:validate:risk` runs `r001` (deterministic collapse pressure benchmark) + `r002` (normalization shape guardrail).
   - `ai:validate:extended:optimized` runs canonical + benchmark + regression + `risk:r002` + horizon with per-phase runtime timing reports.
   - `ai:validate:horizon:weekly` runs the horizon profile using deterministic weekly seed-pack rotation.
-  - `debug:clean` removes transient debug artifacts and keeps only the latest run-history folders (default `3`, configurable).
+  - `debug:clean` removes transient debug artifacts, keeps only the latest run-history folders (default `3`, configurable), and can also prune older timestamped `continuous_train_*` / `regression_report_*` bundles.
 - Recommended cadence split (OQ-6.4):
   - per-change feedback: `ai:validate:canonical` + `ai:validate:gate` + `ai:validate:risk:r002`
   - acceptance/nightly full check: `ai:validate:extended:optimized`

@@ -113,6 +113,8 @@ npm run ai:train:endgame -- --episodes 16   # endgame (16 episodes)
 npm run ai:play
 ```
 
+For laptop / SSD-conscious loops, prefer `ai:train:quality:daily`, `ai:train:quality:lite`, or `ai:train:continuous`: these npm wrappers now use low-write checkpoint cadence and automatic debug cleanup.
+
 Operational 3-cycle tuning loop (single-change iterations):
 
 ```bash
@@ -136,11 +138,11 @@ npm run ai:validate:risk
 Four practical quality scenarios:
 
 ```bash
-npm run ai:train:quality:daily              # fast daily loop (canonical 12x1600, phase+canonical LCB off, promote progress every episode)
-npm run ai:train:quality:high               # high-quality loop (full curriculum + stricter final canonical promote)
+npm run ai:train:quality:daily              # fast daily loop + low-write checkpoints + auto cleanup
+npm run ai:train:quality:high               # high-quality loop + low-write checkpoints + auto cleanup
 npm run ai:train:quality:acceptance         # strict final-only canonical + full validation gate
-npm run ai:train:continuous                 # default continuous cadence (daily + periodic full/high + optional gate)
-npm run ai:train:continuous:balanced        # anti-stagnation balanced preset (36 cycles, full every 6, high every 12, gate every 6)
+npm run ai:train:continuous                 # default continuous cadence + low-write wrapper forwarding + auto cleanup
+npm run ai:train:continuous:balanced        # anti-stagnation balanced preset with the same low-write + cleanup defaults
 ```
 
 Quality-first full curriculum (early game + endgame + consolidation):
@@ -159,11 +161,11 @@ Canonical promotion now owns best-checkpoint writes: wrapper training disables i
 - 🧠 Latest-checkpoint writes are now decoupled from log windows (`saveEvery` / `--save-every`) so long curriculum runs spend less time on disk I/O.
 - ⚡ Promote checks use one canonical benchmark contract (same config/episodes/steps/seed), with wrapper modes for per-phase or final-only canonical checks and optional paired lower-confidence promotion guardrails.
 - 📈 Quality profile phase-promotion windows now use more episodes (`10` foundation, `12` finetune) to reduce noisy retain decisions when deltas are small-but-real.
-- 🪶 `ai:train:quality:lite` adds a laptop-friendly low-load preset (worker cap, lighter canonical defaults, canonical-final check, and promote progress heartbeat).
+- 🪶 `ai:train:quality:lite` adds a laptop-friendly low-load preset (worker cap, lighter canonical defaults, canonical-final check, low-write checkpoint cadence, post-run debug cleanup, and promote progress heartbeat).
 - 🧬 `ai:train:quality:mixed` adds a mixed curriculum preset (~76% light foundation, ~24% full-sim finetune) for better throughput/quality trade-off on slower machines.
-- 🧱 `ai:train:quality:high` runs the full 4-phase curriculum with stricter promotion guardrails (positive LCB on canonical and phase checks) plus heavier final canonical eval (`32x2400`), aimed at maximizing checkpoint quality before promotion.
-- ♻️ `ai:train:continuous` orchestrates long-running incremental learning with the historical default cadence (`daily` baseline, periodic `full`, periodic `high`, optional gate cadence, auto-stop guardrails) and writes run reports to `debug/continuous_train_*.json/.md`.
-- ⚖️ `ai:train:continuous:balanced` provides an anti-stagnation cadence preset (`--cycles 36 --full-every 6 --high-every 12 --gate-every 6 --max-no-improve 14 --max-gate-fail 3`) to reduce premature no-improve stops while keeping regular quality pressure.
+- 🧱 `ai:train:quality:high` runs the full 4-phase curriculum with stricter promotion guardrails (positive LCB on canonical and phase checks) plus heavier final canonical eval (`32x2400`), while the npm shortcut now keeps low-write latest checkpoints and post-run debug cleanup enabled.
+- ♻️ `ai:train:continuous` orchestrates long-running incremental learning with the historical default cadence (`daily` baseline, periodic `full`, periodic `high`, optional gate cadence, auto-stop guardrails), now forwarding low-write wrapper mode plus automatic debug cleanup, and writes run reports to `debug/continuous_train_*.json/.md`.
+- ⚖️ `ai:train:continuous:balanced` provides an anti-stagnation cadence preset (`--cycles 36 --full-every 6 --high-every 12 --gate-every 6 --max-no-improve 14 --max-gate-fail 3`) with the same low-write + cleanup defaults to reduce premature no-improve stops while keeping regular quality pressure.
 - ✅ Continuous stop logic is now strict promotion-aligned: a cycle resets no-improve streaks only when canonical promotion succeeds (positive-not-promoted deltas are reported but do not count as improvement).
 - 🧪 Training scenario curriculum now includes dedicated deep/governance stress slices (`underrealm_push`, `compound_crisis`, `governance_pressure`), and canonical eval covers high-risk survival/deep/governance cases (`wildlife_raid`, `compound_crisis`, `underrealm_push`, `governance_pressure`).
 - 🎯 Warrior/governance determinative tuning now raises pressure in the dedicated curriculum slices (`warrior_realism_pressure`, `governance_pressure`), widens adaptive scenario reweighting (`0.6..1.8`), and uses `evalEpisodes=20` during in-training eval so all configured eval scenarios are exercised in checkpoint selection.
@@ -179,7 +181,7 @@ Canonical promotion now owns best-checkpoint writes: wrapper training disables i
 - 🧭 Horizon regression runs now honor `ai.training.deepChecks.seedPackRotation.defaultMode` automatically when you do not pass `--seed-pack` / `--seeds`, so deep-check seed rotation is config-driven by default.
 - ⏱️ Runtime-optimized full gate is available as `ai:validate:extended:optimized`: it preserves quality signal while removing duplicate benchmark execution and writes per-phase runtime reports.
 - 🧭 Recommended validation cadence: per-change (`canonical` + `gate` + `risk:r002`), acceptance/nightly (`ai:validate:extended:optimized`), weekly deep sentinel (`ai:validate:horizon:weekly`).
-- 🧹 Debug housekeeping is scripted as `debug:clean` (`--keep-runs 2|3`, plus `debug:clean:dry` preview) to keep `debug/` lean after each cycle.
+- 🧹 Debug housekeeping is scripted as `debug:clean` (`--keep-runs 2|3`, `--keep-continuous-reports`, `--keep-regression-reports`, plus `debug:clean:dry` preview) to keep `debug/` lean after each cycle.
 - 🛰️ `python/promote_best.py --eval-only` now supports controllable partial progress logs via `--eval-progress/--no-eval-progress` and `--eval-progress-every`.
 - 🔎 Promote output now prints paired per-episode score deltas (`latest` vs `best`) when paired-LCB checks are enabled.
 - 🧪 Phase-1 training optimization adds bounded delta reward shaping (stockpile/population/deep signals) plus training-only smart plateau termination from `ai.training.terminationProfile`.

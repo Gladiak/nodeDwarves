@@ -5,6 +5,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const { spawnSync } = require("child_process");
+const { runCleanup } = require("./clean_debug");
 
 const PROFILE_FAST = "fast";
 const PROFILE_QUALITY = "quality";
@@ -195,6 +196,8 @@ function applyLowLoadPreset(args) {
     return;
   }
   args.lowLoad = true;
+  args.lowWrite = true;
+  args.autoCleanDebug = true;
   args.workersAutoMin = Math.min(args.workersAutoMin, LOW_LOAD_WORKERS_AUTO_MAX);
   args.workersAutoMax = Math.min(args.workersAutoMax, LOW_LOAD_WORKERS_AUTO_MAX);
   args.workersReserve = Math.max(args.workersReserve, LOW_LOAD_WORKERS_RESERVE_MIN);
@@ -480,6 +483,49 @@ function parsePositiveInt(value) {
   return numeric;
 }
 
+// Apply low-write checkpoint cadence to one phase train invocation.
+function applyLowWriteTrainArgs(args) {
+  let nextArgs = Array.isArray(args) ? [...args] : [];
+  const episodes = parsePositiveInt(findOptionValue(nextArgs, "--episodes"));
+  if (episodes !== null) {
+    nextArgs = upsertCliOption(nextArgs, "--save-every", episodes);
+  }
+  return nextArgs;
+}
+
+// Resolve file-summary cadence for one phase under low-write mode.
+function resolvePhaseSummaryLogEvery(phase, trainArgs, lowWriteEnabled) {
+  if (lowWriteEnabled !== true) {
+    return String(phase && phase.summaryLogEvery ? phase.summaryLogEvery : "1");
+  }
+  const episodes = parsePositiveInt(findOptionValue(trainArgs, "--episodes"));
+  if (episodes === null) {
+    return String(phase && phase.summaryLogEvery ? phase.summaryLogEvery : "1");
+  }
+  return String(episodes);
+}
+
+// Run post-training debug cleanup with wrapper-configured retention knobs.
+function runAutoDebugCleanup(rootDir, workerOptions = {}, dryRun = false) {
+  if (workerOptions.autoCleanDebug !== true) {
+    return;
+  }
+  printStatus("cleanup", "Pruning debug artifacts after wrapper run", ANSI_CYAN);
+  runCleanup({
+    cwd: rootDir,
+    dryRun: dryRun === true,
+    keepRuns: Number.isInteger(workerOptions.debugKeepRuns)
+      ? workerOptions.debugKeepRuns
+      : undefined,
+    keepContinuousReports: Number.isInteger(workerOptions.debugKeepContinuousReports)
+      ? workerOptions.debugKeepContinuousReports
+      : undefined,
+    keepRegressionReports: Number.isInteger(workerOptions.debugKeepRegressionReports)
+      ? workerOptions.debugKeepRegressionReports
+      : undefined,
+  });
+}
+
 // Derive one phase category from its wrapper name.
 function getPhaseWorkerCategory(phaseName) {
   const name = String(phaseName || "").toLowerCase();
@@ -587,6 +633,11 @@ function parseArgs(argv) {
     trainExtraArgs: [],
     dryRun: false,
     help: false,
+    lowWrite: false,
+    autoCleanDebug: false,
+    debugKeepRuns: null,
+    debugKeepContinuousReports: null,
+    debugKeepRegressionReports: null,
     workersAutoMin: DEFAULT_WORKERS_AUTO_MIN,
     workersAutoMax: DEFAULT_WORKERS_AUTO_MAX,
     workersReserve: DEFAULT_WORKERS_RESERVE,
@@ -616,6 +667,69 @@ function parseArgs(argv) {
     }
     if (arg === "--dry-run") {
       result.dryRun = true;
+      continue;
+    }
+    if (arg === "--low-write") {
+      result.lowWrite = true;
+      continue;
+    }
+    if (arg === "--auto-clean-debug") {
+      result.autoCleanDebug = true;
+      continue;
+    }
+    if (arg === "--no-auto-clean-debug") {
+      result.autoCleanDebug = false;
+      continue;
+    }
+    if (arg === "--debug-keep-runs") {
+      result.debugKeepRuns = parseIntegerOptionValue(
+        args[index + 1],
+        "--debug-keep-runs",
+        0,
+      );
+      index += 1;
+      continue;
+    }
+    if (arg.startsWith("--debug-keep-runs=")) {
+      result.debugKeepRuns = parseIntegerOptionValue(
+        arg.slice("--debug-keep-runs=".length),
+        "--debug-keep-runs",
+        0,
+      );
+      continue;
+    }
+    if (arg === "--debug-keep-continuous-reports") {
+      result.debugKeepContinuousReports = parseIntegerOptionValue(
+        args[index + 1],
+        "--debug-keep-continuous-reports",
+        0,
+      );
+      index += 1;
+      continue;
+    }
+    if (arg.startsWith("--debug-keep-continuous-reports=")) {
+      result.debugKeepContinuousReports = parseIntegerOptionValue(
+        arg.slice("--debug-keep-continuous-reports=".length),
+        "--debug-keep-continuous-reports",
+        0,
+      );
+      continue;
+    }
+    if (arg === "--debug-keep-regression-reports") {
+      result.debugKeepRegressionReports = parseIntegerOptionValue(
+        args[index + 1],
+        "--debug-keep-regression-reports",
+        0,
+      );
+      index += 1;
+      continue;
+    }
+    if (arg.startsWith("--debug-keep-regression-reports=")) {
+      result.debugKeepRegressionReports = parseIntegerOptionValue(
+        arg.slice("--debug-keep-regression-reports=".length),
+        "--debug-keep-regression-reports",
+        0,
+      );
       continue;
     }
     if (arg === "--workers-auto-min") {
@@ -797,6 +911,12 @@ function printHelp() {
     "  benchmark",
     "",
     "Wrapper options:",
+    "  --low-write            Reduce latest-checkpoint writes to one end-of-phase save",
+    "  --auto-clean-debug     Run debug cleanup after the wrapper finishes",
+    "  --no-auto-clean-debug  Skip post-run debug cleanup",
+    "  --debug-keep-runs <n>  Keep latest run_* folders during auto-clean",
+    "  --debug-keep-continuous-reports <n>  Keep newest continuous reports during auto-clean",
+    "  --debug-keep-regression-reports <n>  Keep newest regression report bundles during auto-clean",
     `  --workers-auto-min <n>  Auto workers lower bound (default: ${DEFAULT_WORKERS_AUTO_MIN})`,
     `  --workers-auto-max <n>  Auto workers upper bound (default: ${DEFAULT_WORKERS_AUTO_MAX})`,
     `  --workers-reserve <n>   Keep CPU slots free (default: ${DEFAULT_WORKERS_RESERVE})`,
@@ -825,6 +945,7 @@ function printHelp() {
     "  - Forward --workers <n> to force a manual worker count on every phase.",
     "  - promote_best.py never receives forwarded args.",
     "  - Wrapper enforces --no-save-best-during-training and uses a canonical promote profile from ai.training.promotion.canonical.",
+    "  - --low-write keeps one latest checkpoint write per phase; promotion checks still run unchanged.",
     "  - Low-load preset defaults: canonical-final-only, 8x1600 canonical eval, no paired-LCB, progress every 2 episodes.",
     "  - Promotion reports are written per phase plus one run summary in the run directory.",
   ];
@@ -1718,6 +1839,9 @@ function runProfile(rootDir, profile, trainExtraArgs, dryRun, workerOptions = {}
   if (workerOptions.lowLoad === true) {
     printStatus("profile", "low-load preset enabled", ANSI_CYAN);
   }
+  if (workerOptions.lowWrite === true) {
+    printStatus("profile", "low-write checkpoint cadence enabled", ANSI_CYAN);
+  }
   const seedRotationEnabled = workerOptions.trainSeedRotation !== false;
   const runSeedBase = resolveRunSeedBase(runDir);
   if (seedRotationEnabled) {
@@ -1803,16 +1927,16 @@ function runProfile(rootDir, profile, trainExtraArgs, dryRun, workerOptions = {}
         ANSI_CYAN,
       );
     }
-    const trainEnv = {
-      ...process.env,
-      SUMMARY_LOG_EVERY: phase.summaryLogEvery,
-    };
     const trainArgsBase = [
       ...phase.trainArgs,
       ...phaseExtras,
       "--no-save-best-during-training",
     ];
-    let trainArgsWithSeed = trainArgsBase;
+    let trainArgsPrepared = trainArgsBase;
+    if (workerOptions.lowWrite === true) {
+      trainArgsPrepared = applyLowWriteTrainArgs(trainArgsPrepared);
+    }
+    let trainArgsWithSeed = trainArgsPrepared;
     if (seedRotationEnabled && findOptionValue(trainArgsBase, "--seed") === null) {
       const phaseSeed = (runSeedBase + (index + 1) * TRAIN_PHASE_SEED_STEP) % (TRAIN_SEED_MODULUS - 1) + 1;
       trainArgsWithSeed = upsertCliOption(trainArgsWithSeed, "--seed", phaseSeed);
@@ -1823,6 +1947,14 @@ function runProfile(rootDir, profile, trainExtraArgs, dryRun, workerOptions = {}
       "--workers",
       phaseWorkers.workers,
     );
+    const trainEnv = {
+      ...process.env,
+      SUMMARY_LOG_EVERY: resolvePhaseSummaryLogEvery(
+        phase,
+        trainArgs,
+        workerOptions.lowWrite === true,
+      ),
+    };
     printStatus("train", `Launching optimizer loop (${phaseName})`, ANSI_YELLOW);
     runCommand(
       pythonCommand,
@@ -1846,6 +1978,7 @@ function runProfile(rootDir, profile, trainExtraArgs, dryRun, workerOptions = {}
     printStatus("report", `summary json=${summaryPaths.jsonPath}`, ANSI_CYAN);
     printStatus("report", `summary md=${summaryPaths.mdPath}`, ANSI_CYAN);
   }
+  runAutoDebugCleanup(rootDir, workerOptions, dryRun);
   process.stdout.write("\n");
   printStatus("done", `Training profile completed: ${profile}`, ANSI_GREEN);
 }
@@ -1883,6 +2016,11 @@ function main() {
     phasePromoteRequirePositiveLcb: args.phasePromoteRequirePositiveLcb,
     promoteEvalProgress: args.promoteEvalProgress,
     promoteEvalProgressEvery: args.promoteEvalProgressEvery,
+    lowWrite: args.lowWrite,
+    autoCleanDebug: args.autoCleanDebug,
+    debugKeepRuns: args.debugKeepRuns,
+    debugKeepContinuousReports: args.debugKeepContinuousReports,
+    debugKeepRegressionReports: args.debugKeepRegressionReports,
     lowLoad: args.lowLoad,
   });
 }
