@@ -6,6 +6,7 @@ const { pushEvent } = require('./events');
 const SCHISM_PHASES = ['concord', 'murmurs', 'fracture', 'reckoning'];
 const SCHISM_DOCTRINES = ['austerity', 'revelry'];
 const DEFAULT_RITUAL_HISTORY_LIMIT = 12;
+const DEFAULT_DECREE_HISTORY_LIMIT = 16;
 
 // Resolve schism config safely.
 function getSchismConfig(config) {
@@ -61,6 +62,24 @@ function createSchismState(config) {
       },
     },
     ritualHistory: [],
+    decree: {
+      active: false,
+      id: null,
+      label: null,
+      source: null,
+      startedTick: 0,
+      endsAtTick: 0,
+      durationTicks: 0,
+      seasonIndex: null,
+      issuedSeasonIndex: null,
+      options: [],
+      effects: {},
+      deltas: {
+        pressure: 0,
+        legitimacy: 0,
+      },
+    },
+    decreeHistory: [],
     markers: {
       contractSuccesses: 0,
       contractFailures: 0,
@@ -76,6 +95,7 @@ function createSchismState(config) {
       doctrineShifts: 0,
       phaseShifts: 0,
       councilFestivals: 0,
+      councilDecrees: 0,
       climaxes: 0,
     },
   };
@@ -107,8 +127,12 @@ function ensureSchismState(state, config) {
   schism.ritualWindow = normalizeRitualWindowState(schism.ritualWindow);
   schism.climax = normalizeClimaxState(schism.climax, schism.doctrine);
   schism.ritual = normalizeActiveRitualState(schism.ritual);
+  schism.decree = normalizeActiveDecreeState(schism.decree);
   if (!Array.isArray(schism.ritualHistory)) {
     schism.ritualHistory = [];
+  }
+  if (!Array.isArray(schism.decreeHistory)) {
+    schism.decreeHistory = [];
   }
   schism.lastDoctrineSwitchTick = Math.max(0, Number(schism.lastDoctrineSwitchTick || 0));
   schism.councilCooldownUntilTick = Math.max(0, Number(schism.councilCooldownUntilTick || 0));
@@ -127,6 +151,7 @@ function updateSchism(state, config) {
 
   const tick = Math.max(0, Number(state.tick || 0));
   updateActiveRitualLifecycle(state, config, schism, schismConfig, tick);
+  updateActiveDecreeLifecycle(state, config, schism, schismConfig, tick);
   const season = state && state.season ? state.season : null;
   const seasonIndex = resolveSeasonIndex(state);
   const tickInSeason = Math.max(0, Number(season && season.tickInSeason || 0));
@@ -197,6 +222,17 @@ function updateSchism(state, config) {
   }
 
   updateSchismClimax(state, config, schism, schismConfig, tick);
+  maybeIssueCouncilDecree(
+    state,
+    config,
+    schism,
+    schismConfig,
+    metrics,
+    tick,
+    seasonIndex,
+    seasonName,
+    tickInSeason,
+  );
   schism.modifiers = resolveActiveModifierMap(schismConfig, schism);
 }
 
@@ -400,8 +436,12 @@ function getSchismStatus(state, config) {
   const ritualWindow = schism.ritualWindow || {};
   const climax = schism.climax || {};
   const ritual = schism.ritual || {};
+  const decree = schism.decree || {};
   const ticksLeft = ritual.active
     ? Math.max(0, Number(ritual.endsAtTick || 0) - Math.max(0, Number(state && state.tick || 0)))
+    : 0;
+  const decreeTicksLeft = decree.active
+    ? Math.max(0, Number(decree.endsAtTick || 0) - Math.max(0, Number(state && state.tick || 0)))
     : 0;
   return {
     enabled: schism.enabled !== false,
@@ -415,6 +455,10 @@ function getSchismStatus(state, config) {
     ritualLabel: ritual.label ? String(ritual.label) : null,
     ritualSource: ritual.source ? String(ritual.source) : null,
     ritualTicksLeft: ticksLeft,
+    decreeActive: decree.active === true,
+    decreeLabel: decree.label ? String(decree.label) : null,
+    decreeSource: decree.source ? String(decree.source) : null,
+    decreeTicksLeft,
     climaxActive: climax.active === true,
   };
 }
@@ -489,6 +533,39 @@ function normalizeActiveRitualState(rawState) {
   };
 }
 
+// Normalize active decree runtime state.
+function normalizeActiveDecreeState(rawState) {
+  const decree = rawState && typeof rawState === 'object' ? rawState : {};
+  const options = Array.isArray(decree.options)
+    ? decree.options.map((entry) => String(entry || '').trim()).filter(Boolean).slice(0, 3)
+    : [];
+  return {
+    active: decree.active === true,
+    id: decree.id ? String(decree.id) : null,
+    label: decree.label ? String(decree.label) : null,
+    source: decree.source ? String(decree.source) : null,
+    startedTick: Math.max(0, Number(decree.startedTick || 0)),
+    endsAtTick: Math.max(0, Number(decree.endsAtTick || 0)),
+    durationTicks: Math.max(0, Number(decree.durationTicks || 0)),
+    seasonIndex: Number.isFinite(Number(decree.seasonIndex))
+      ? Number(decree.seasonIndex)
+      : null,
+    issuedSeasonIndex: Number.isFinite(Number(decree.issuedSeasonIndex))
+      ? Number(decree.issuedSeasonIndex)
+      : null,
+    options,
+    effects: normalizePositiveMultiplierMap(decree.effects),
+    deltas: {
+      pressure: Number.isFinite(Number(decree && decree.deltas && decree.deltas.pressure))
+        ? Number(decree.deltas.pressure)
+        : 0,
+      legitimacy: Number.isFinite(Number(decree && decree.deltas && decree.deltas.legitimacy))
+        ? Number(decree.deltas.legitimacy)
+        : 0,
+    },
+  };
+}
+
 // Normalize marker counters used to process one-shot events.
 function normalizeSchismMarkers(rawMarkers) {
   const markers = rawMarkers && typeof rawMarkers === 'object' ? rawMarkers : {};
@@ -512,6 +589,7 @@ function normalizeSchismStats(rawStats) {
     doctrineShifts: Math.max(0, Number(stats.doctrineShifts || 0)),
     phaseShifts: Math.max(0, Number(stats.phaseShifts || 0)),
     councilFestivals: Math.max(0, Number(stats.councilFestivals || 0)),
+    councilDecrees: Math.max(0, Number(stats.councilDecrees || 0)),
     climaxes: Math.max(0, Number(stats.climaxes || 0)),
   };
 }
@@ -616,6 +694,40 @@ function resolveFestivalRitualConfig(schismConfig) {
   };
 }
 
+// Resolve normalized seasonal council-decree configuration.
+function resolveCouncilDecreeConfig(schismConfig) {
+  const decrees = schismConfig && schismConfig.decrees && typeof schismConfig.decrees === 'object'
+    ? schismConfig.decrees
+    : {};
+  const definitionsRaw = decrees.definitions && typeof decrees.definitions === 'object'
+    ? decrees.definitions
+    : {};
+  const definitions = Object.entries(definitionsRaw)
+    .map(([id, rawDef]) => normalizeCouncilDecreeDefinition(id, rawDef))
+    .filter((entry) => entry && entry.enabled !== false);
+  const seasonNames = Array.isArray(decrees.season_names)
+    ? decrees.season_names.map((entry) => String(entry || '').trim()).filter(Boolean)
+    : ['spring', 'summer', 'autumn', 'winter'];
+  return {
+    enabled: decrees.enabled === true,
+    season_names: seasonNames,
+    window_ticks: Math.max(1, Math.floor(Number(decrees.window_ticks || 24))),
+    options_count: Math.max(1, Math.floor(Number(decrees.options_count || 3))),
+    min_legitimacy: clamp(Number(decrees.min_legitimacy ?? 0.16), 0, 1),
+    max_pressure: clamp(Number(decrees.max_pressure ?? 0.96), 0, 1),
+    allow_during_climax: decrees.allow_during_climax === true,
+    duration_mode: String(decrees.duration_mode || 'season'),
+    duration_ticks: Math.max(1, Math.floor(Number(decrees.duration_ticks || 1))),
+    repeatProtection: normalizeRepeatProtectionConfig(decrees.repeat_protection),
+    history_limit: Math.max(
+      0,
+      Math.floor(Number(decrees.history_limit ?? DEFAULT_DECREE_HISTORY_LIMIT)),
+    ),
+    announce_options: decrees.announce_options !== false,
+    definitions,
+  };
+}
+
 // Normalize anti-repeat ritual protection config.
 function normalizeRepeatProtectionConfig(rawRepeatProtection) {
   const repeat = rawRepeatProtection && typeof rawRepeatProtection === 'object'
@@ -654,6 +766,59 @@ function normalizeFestivalRitualDefinition(id, rawDefinition) {
     minStockpileRatios: normalizeRatioMap(def.min_stockpile_ratios),
     effects: normalizePositiveMultiplierMap(def.effects),
     festivalEffects: normalizePositiveMultiplierMap(def.festival_effects),
+    deltas: {
+      pressure: Number.isFinite(Number(def && def.deltas && def.deltas.pressure))
+        ? Number(def.deltas.pressure)
+        : 0,
+      legitimacy: Number.isFinite(Number(def && def.deltas && def.deltas.legitimacy))
+        ? Number(def.deltas.legitimacy)
+        : 0,
+    },
+    gates: {
+      raid_required: context.raid_required === true,
+      no_raid_required: context.no_raid_required === true,
+      deep_raid_required: context.deep_raid_required === true,
+      pressure_min: clamp(Number(context.pressure_min ?? 0), 0, 1),
+      pressure_max: clamp(Number(context.pressure_max ?? 1), 0, 1),
+      legitimacy_min: clamp(Number(context.legitimacy_min ?? 0), 0, 1),
+      legitimacy_max: clamp(Number(context.legitimacy_max ?? 1), 0, 1),
+      stock_floor_min: clamp(Number(context.stock_floor_min ?? 0), 0, 1),
+      stock_floor_max: clamp(Number(context.stock_floor_max ?? 1), 0, 1),
+      shortage_min: Math.max(0, Number(context.shortage_min ?? 0)),
+      shortage_max: Math.max(0, Number(context.shortage_max ?? Number.POSITIVE_INFINITY)),
+    },
+    contextWeight: {
+      pressure_scale: Math.max(0, Number(context.pressure_scale ?? 0)),
+      legitimacy_scale: Math.max(0, Number(context.legitimacy_scale ?? 0)),
+      shortage_scale: Math.max(0, Number(context.shortage_scale ?? 0)),
+      raid_bonus: Math.max(0, Number(context.raid_bonus ?? 0)),
+      deep_raid_bonus: Math.max(0, Number(context.deep_raid_bonus ?? 0)),
+      stock_floor_bonus: Math.max(0, Number(context.stock_floor_bonus ?? 0)),
+    },
+    durationTicks: Math.max(0, Math.floor(Number(def.duration_ticks || 0))),
+  };
+}
+
+// Normalize one seasonal council decree definition.
+function normalizeCouncilDecreeDefinition(id, rawDefinition) {
+  const def = rawDefinition && typeof rawDefinition === 'object' ? rawDefinition : {};
+  const doctrineWeight = def.doctrine_weight && typeof def.doctrine_weight === 'object'
+    ? def.doctrine_weight
+    : {};
+  const context = def.context && typeof def.context === 'object' ? def.context : {};
+  return {
+    id: String(id || def.id || ''),
+    enabled: def.enabled !== false,
+    label: String(def.label || id || 'Council Decree'),
+    weight: Math.max(0, Number(def.weight ?? 1)),
+    doctrineWeight: {
+      austerity: Math.max(0, Number(doctrineWeight.austerity ?? 1)),
+      revelry: Math.max(0, Number(doctrineWeight.revelry ?? 1)),
+      default: Math.max(0, Number(doctrineWeight.default ?? 1)),
+    },
+    costs: normalizePositiveAmountMap(def.costs),
+    minStockpileRatios: normalizeRatioMap(def.min_stockpile_ratios),
+    effects: normalizePositiveMultiplierMap(def.effects),
     deltas: {
       pressure: Number.isFinite(Number(def && def.deltas && def.deltas.pressure))
         ? Number(def.deltas.pressure)
@@ -897,6 +1062,295 @@ function updateActiveRitualLifecycle(state, config, schism, schismConfig, tick) 
   });
   trimRitualHistory(schism, ritualConfig.history_limit);
   schism.ritual = normalizeActiveRitualState(null);
+}
+
+// Tick active council-decree lifecycle and expire decree effects.
+function updateActiveDecreeLifecycle(state, config, schism, schismConfig, tick) {
+  const decree = schism && schism.decree ? schism.decree : null;
+  if (!decree || decree.active !== true) {
+    return;
+  }
+  if (tick < Number(decree.endsAtTick || 0)) {
+    return;
+  }
+  pushEvent(state, config, `Council decree expired: ${decree.label || decree.id || 'Unnamed Decree'}`);
+  schism.decreeHistory.push({
+    id: decree.id || null,
+    label: decree.label || null,
+    source: decree.source || null,
+    startedTick: Number(decree.startedTick || 0),
+    endedTick: tick,
+    seasonIndex: Number.isFinite(Number(decree.seasonIndex)) ? Number(decree.seasonIndex) : null,
+    options: Array.isArray(decree.options) ? decree.options.slice(0, 3) : [],
+  });
+  trimDecreeHistory(schism, resolveCouncilDecreeConfig(schismConfig).history_limit);
+  schism.decree = normalizeActiveDecreeState({
+    issuedSeasonIndex: decree.issuedSeasonIndex,
+  });
+}
+
+// Resolve and issue one seasonal council decree (pick 1 out of 3 options).
+function maybeIssueCouncilDecree(
+  state,
+  config,
+  schism,
+  schismConfig,
+  metrics,
+  tick,
+  seasonIndex,
+  seasonName,
+  tickInSeason,
+) {
+  const decreeConfig = resolveCouncilDecreeConfig(schismConfig);
+  if (!decreeConfig.enabled) {
+    return;
+  }
+  const decree = schism && schism.decree ? schism.decree : null;
+  if (!decree || decree.active === true) {
+    return;
+  }
+  if (!seasonName || !decreeConfig.season_names.includes(seasonName)) {
+    return;
+  }
+  if (tickInSeason <= 0 || tickInSeason > decreeConfig.window_ticks) {
+    return;
+  }
+  if (decree.issuedSeasonIndex === seasonIndex) {
+    return;
+  }
+  if (schism.legitimacy < decreeConfig.min_legitimacy || schism.pressure > decreeConfig.max_pressure) {
+    return;
+  }
+  if (!decreeConfig.allow_during_climax && schism.climax && schism.climax.active === true) {
+    return;
+  }
+
+  const candidates = resolveCouncilDecreeCandidates(
+    state,
+    config,
+    schism,
+    decreeConfig,
+    metrics,
+    tick,
+  );
+  if (candidates.length <= 0) {
+    return;
+  }
+
+  const optionsCount = Math.max(1, Math.min(decreeConfig.options_count, candidates.length));
+  const options = candidates.slice(0, optionsCount);
+  const chosen = options[0];
+  if (!chosen || !chosen.definition) {
+    return;
+  }
+
+  const optionLabels = options.map((entry) => String(entry.definition.label || entry.definition.id || 'Decree'));
+  if (decreeConfig.announce_options && optionLabels.length > 1) {
+    pushEvent(state, config, `Council decrees proposed: ${optionLabels.join(' | ')}`);
+  }
+
+  const decreeDef = chosen.definition;
+  const costs = decreeDef.costs || {};
+  if (!hasCostInputs(state && state.stockpile, costs)) {
+    return;
+  }
+  consumeCostInputs(state.stockpile, costs);
+  const durationTicks = resolveCouncilDecreeDurationTicks(state, config, decreeConfig, decreeDef);
+  activateCouncilDecree(
+    state,
+    config,
+    schism,
+    decreeDef,
+    durationTicks,
+    seasonIndex,
+    optionLabels,
+    tick,
+  );
+}
+
+// Build eligible seasonal council-decree candidates sorted by context score.
+function resolveCouncilDecreeCandidates(state, config, schism, decreeConfig, metrics, tick) {
+  const candidates = [];
+  for (const definition of decreeConfig.definitions) {
+    if (!definition || definition.enabled === false) {
+      continue;
+    }
+    if (!passesCouncilDecreeGates(definition, state, config, schism, metrics)) {
+      continue;
+    }
+    if (!hasCostInputs(state && state.stockpile, definition.costs)) {
+      continue;
+    }
+    const doctrineWeight = Math.max(
+      0,
+      Number(definition.doctrineWeight[schism.doctrine] ?? definition.doctrineWeight.default ?? 1),
+    );
+    const contextWeight = Math.max(0, resolveRitualContextWeight(definition, schism, metrics));
+    const repeatWeight = Math.max(
+      0,
+      resolveCouncilDecreeRepeatWeight(definition.id, schism, decreeConfig.repeatProtection, tick),
+    );
+    const weight = Math.max(0, Number(definition.weight || 0))
+      * doctrineWeight
+      * contextWeight
+      * repeatWeight;
+    if (weight <= 0) {
+      continue;
+    }
+    candidates.push({ definition, weight });
+  }
+  candidates.sort((left, right) => {
+    const delta = Number(right.weight || 0) - Number(left.weight || 0);
+    if (delta !== 0) {
+      return delta;
+    }
+    const leftId = String(left && left.definition && left.definition.id || '');
+    const rightId = String(right && right.definition && right.definition.id || '');
+    return leftId.localeCompare(rightId);
+  });
+  return candidates;
+}
+
+// Validate one council-decree definition against hard gates + stock ratios.
+function passesCouncilDecreeGates(definition, state, config, schism, metrics) {
+  const gates = definition.gates || {};
+  if (gates.raid_required && !metrics.raidActive) {
+    return false;
+  }
+  if (gates.no_raid_required && metrics.raidActive) {
+    return false;
+  }
+  if (gates.deep_raid_required && !metrics.deepRaidActive) {
+    return false;
+  }
+  if (schism.pressure < gates.pressure_min || schism.pressure > gates.pressure_max) {
+    return false;
+  }
+  if (schism.legitimacy < gates.legitimacy_min || schism.legitimacy > gates.legitimacy_max) {
+    return false;
+  }
+  if (metrics.coreStockFloor < gates.stock_floor_min || metrics.coreStockFloor > gates.stock_floor_max) {
+    return false;
+  }
+  if (metrics.shortageScore < gates.shortage_min || metrics.shortageScore > gates.shortage_max) {
+    return false;
+  }
+  return passesStockpileRatioMap(state, config, definition.minStockpileRatios);
+}
+
+// Compute anti-repeat council-decree weight from decree history.
+function resolveCouncilDecreeRepeatWeight(decreeId, schism, repeatProtection, tick) {
+  if (!decreeId || !repeatProtection || repeatProtection.enabled === false) {
+    return 1;
+  }
+  const recentWindow = Math.max(1, Math.floor(Number(repeatProtection.recent_window || 3)));
+  const cooldownTicks = Math.max(0, Math.floor(Number(repeatProtection.cooldown_ticks || 0)));
+  const repeatMultiplier = clamp(
+    Number(repeatProtection.same_ritual_weight_multiplier ?? 0.45),
+    0,
+    1,
+  );
+  const history = schism && Array.isArray(schism.decreeHistory) ? schism.decreeHistory : [];
+  const safeTick = Math.max(0, Number(tick || 0));
+
+  let lastMatchTick = null;
+  let repeatCount = 0;
+  let scanned = 0;
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const entry = history[index];
+    if (!entry || !entry.id) {
+      continue;
+    }
+    scanned += 1;
+    if (entry.id === decreeId) {
+      repeatCount += 1;
+      if (lastMatchTick === null) {
+        const endedTick = Number(entry.endedTick);
+        const startedTick = Number(entry.startedTick);
+        if (Number.isFinite(endedTick)) {
+          lastMatchTick = Math.max(0, Math.floor(endedTick));
+        } else if (Number.isFinite(startedTick)) {
+          lastMatchTick = Math.max(0, Math.floor(startedTick));
+        }
+      }
+    }
+    if (scanned >= recentWindow) {
+      break;
+    }
+  }
+
+  if (schism && schism.decree && schism.decree.active === true && schism.decree.id === decreeId) {
+    repeatCount += 1;
+    const startedTick = Number(schism.decree.startedTick);
+    if (lastMatchTick === null && Number.isFinite(startedTick)) {
+      lastMatchTick = Math.max(0, Math.floor(startedTick));
+    }
+  }
+
+  if (
+    cooldownTicks > 0
+    && lastMatchTick !== null
+    && safeTick - lastMatchTick < cooldownTicks
+  ) {
+    return 0;
+  }
+  if (repeatCount <= 0) {
+    return 1;
+  }
+  if (repeatMultiplier <= 0) {
+    return 0;
+  }
+  return Math.pow(repeatMultiplier, repeatCount);
+}
+
+// Resolve council-decree duration from definition/config/season.
+function resolveCouncilDecreeDurationTicks(state, config, decreeConfig, definition) {
+  const explicit = Math.max(0, Number(definition.durationTicks || 0));
+  if (explicit > 0) {
+    return Math.max(1, Math.floor(explicit));
+  }
+  const mode = String(decreeConfig.duration_mode || 'season').toLowerCase();
+  if (mode === 'season') {
+    const seasons = config && config.seasons ? config.seasons : {};
+    return Math.max(1, Math.floor(Number(seasons.durationTicks || 200)));
+  }
+  return Math.max(1, Math.floor(Number(decreeConfig.duration_ticks || 1)));
+}
+
+// Activate one council decree and apply immediate pressure/legitimacy deltas.
+function activateCouncilDecree(state, config, schism, decreeDef, durationTicks, seasonIndex, optionLabels, tick) {
+  const decree = normalizeActiveDecreeState({
+    active: true,
+    id: decreeDef.id,
+    label: decreeDef.label,
+    source: 'council',
+    startedTick: tick,
+    endsAtTick: tick + Math.max(1, Math.floor(Number(durationTicks || 1))),
+    durationTicks: Math.max(1, Math.floor(Number(durationTicks || 1))),
+    seasonIndex,
+    issuedSeasonIndex: seasonIndex,
+    options: optionLabels,
+    effects: decreeDef.effects,
+    deltas: decreeDef.deltas,
+  });
+  schism.decree = decree;
+  schism.stats.councilDecrees = Math.max(0, Number(schism.stats.councilDecrees || 0)) + 1;
+
+  const deltaPressure = Number(decree.deltas && decree.deltas.pressure || 0);
+  const deltaLegitimacy = Number(decree.deltas && decree.deltas.legitimacy || 0);
+  if (deltaPressure !== 0) {
+    schism.pressure = clamp(schism.pressure + deltaPressure, 0, 1);
+  }
+  if (deltaLegitimacy !== 0) {
+    schism.legitimacy = clamp(schism.legitimacy + deltaLegitimacy, 0, 1);
+  }
+
+  const deltaText = formatCouncilDecreeDeltaText(decree.deltas);
+  pushEvent(
+    state,
+    config,
+    `Council decree enacted: ${decree.label || decree.id || 'Unnamed Decree'} (${decree.durationTicks} ticks${deltaText ? `, ${deltaText}` : ''})`,
+  );
 }
 
 // Activate a selected ritual and apply immediate pressure/legitimacy deltas.
@@ -1217,11 +1671,15 @@ function resolveActiveModifierMap(schismConfig, schism) {
   const ritualMap = schism.ritual && schism.ritual.active === true
     ? (schism.ritual.effects || {})
     : {};
+  const decreeMap = schism.decree && schism.decree.active === true
+    ? (schism.decree.effects || {})
+    : {};
   const climaxMap = schism.climax && schism.climax.active === true
     ? (modifiers.climax && typeof modifiers.climax === 'object' ? modifiers.climax : {})
     : {};
   mergeMultiplierMap(out, phaseMap);
   mergeMultiplierMap(out, doctrineMap);
+  mergeMultiplierMap(out, decreeMap);
   mergeMultiplierMap(out, ritualMap);
   mergeMultiplierMap(out, climaxMap);
   return out;
@@ -1463,6 +1921,21 @@ function hasCostInputs(stockpile, costs) {
   return true;
 }
 
+// Consume one cost map from stockpile using bounded non-negative subtraction.
+function consumeCostInputs(stockpile, costs) {
+  if (!stockpile || !costs || typeof costs !== 'object') {
+    return;
+  }
+  for (const [resource, amountRaw] of Object.entries(costs)) {
+    const amount = Math.max(0, Number(amountRaw || 0));
+    if (amount <= 0) {
+      continue;
+    }
+    const current = Math.max(0, Number(stockpile[resource] || 0));
+    stockpile[resource] = Math.max(0, current - amount);
+  }
+}
+
 // Trim ritual history to configured limit.
 function trimRitualHistory(schism, limitRaw) {
   if (!schism || !Array.isArray(schism.ritualHistory)) {
@@ -1474,6 +1947,20 @@ function trimRitualHistory(schism, limitRaw) {
   }
   if (schism.ritualHistory.length > limit) {
     schism.ritualHistory = schism.ritualHistory.slice(schism.ritualHistory.length - limit);
+  }
+}
+
+// Trim decree history to configured limit.
+function trimDecreeHistory(schism, limitRaw) {
+  if (!schism || !Array.isArray(schism.decreeHistory)) {
+    return;
+  }
+  const limit = Math.max(0, Math.floor(Number(limitRaw || 0)));
+  if (limit <= 0) {
+    return;
+  }
+  if (schism.decreeHistory.length > limit) {
+    schism.decreeHistory = schism.decreeHistory.slice(schism.decreeHistory.length - limit);
   }
 }
 
@@ -1541,6 +2028,23 @@ function mergeMultiplierMap(target, source) {
     }
     target[key] = Number(target[key] || 1) * value;
   }
+}
+
+// Build compact readable immediate-delta text for decree event lines.
+function formatCouncilDecreeDeltaText(deltas) {
+  const safeDeltas = deltas && typeof deltas === 'object' ? deltas : {};
+  const pressure = Number(safeDeltas.pressure || 0);
+  const legitimacy = Number(safeDeltas.legitimacy || 0);
+  const parts = [];
+  if (pressure !== 0) {
+    const sign = pressure > 0 ? '+' : '';
+    parts.push(`pressure ${sign}${(pressure * 100).toFixed(1)}pp`);
+  }
+  if (legitimacy !== 0) {
+    const sign = legitimacy > 0 ? '+' : '';
+    parts.push(`legitimacy ${sign}${(legitimacy * 100).toFixed(1)}pp`);
+  }
+  return parts.join(', ');
 }
 
 // Build doctrine-shift event text.

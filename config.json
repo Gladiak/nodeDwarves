@@ -6054,6 +6054,199 @@
         }
       }
     },
+    "decrees": {
+      "enabled": true,
+      "season_names": [
+        "spring",
+        "autumn"
+      ],
+      "window_ticks": 26,
+      "options_count": 3,
+      "min_legitimacy": 0.22,
+      "max_pressure": 0.9,
+      "allow_during_climax": false,
+      "duration_mode": "season",
+      "duration_ticks": 220,
+      "repeat_protection": {
+        "enabled": true,
+        "recent_window": 4,
+        "same_ritual_weight_multiplier": 0.35,
+        "cooldown_ticks": 200
+      },
+      "history_limit": 20,
+      "announce_options": true,
+      "definitions": {
+        "granary_compact": {
+          "enabled": true,
+          "label": "Granary Compact",
+          "weight": 1.05,
+          "doctrine_weight": {
+            "austerity": 1.25,
+            "revelry": 0.85
+          },
+          "costs": {
+            "food": 42,
+            "water": 34
+          },
+          "min_stockpile_ratios": {
+            "food": 0.64,
+            "water": 0.66
+          },
+          "effects": {
+            "gatherYield": 1.04,
+            "fieldRegen": 1.05,
+            "nodeRegen": 1.03,
+            "needDecay": 1.015,
+            "underrealmExploration": 0.96
+          },
+          "deltas": {
+            "pressure": -0.03,
+            "legitimacy": 0.02
+          },
+          "context": {
+            "pressure_scale": 0.4,
+            "shortage_scale": 0.55,
+            "stock_floor_bonus": 0.25
+          }
+        },
+        "hearth_festivity": {
+          "enabled": true,
+          "label": "Hearth Festivity Accord",
+          "weight": 1,
+          "doctrine_weight": {
+            "austerity": 0.75,
+            "revelry": 1.4
+          },
+          "costs": {
+            "beer": 72,
+            "food": 34
+          },
+          "min_stockpile_ratios": {
+            "beer": 0.52,
+            "food": 0.62
+          },
+          "effects": {
+            "needDecay": 0.97,
+            "underrealmMorale": 1.08,
+            "gatherTicks": 0.985,
+            "outputBonus": 0.97,
+            "raidDefense": 0.97
+          },
+          "deltas": {
+            "pressure": -0.05,
+            "legitimacy": 0.035
+          },
+          "context": {
+            "legitimacy_max": 0.62,
+            "pressure_min": 0.42,
+            "legitimacy_scale": 0.75,
+            "pressure_scale": 0.35
+          }
+        },
+        "frontier_levy": {
+          "enabled": true,
+          "label": "Frontier Levy Charter",
+          "weight": 0.95,
+          "doctrine_weight": {
+            "austerity": 1.3,
+            "revelry": 0.9
+          },
+          "costs": {
+            "stone": 38,
+            "iron": 28,
+            "beer": 18
+          },
+          "min_stockpile_ratios": {
+            "water": 0.63
+          },
+          "effects": {
+            "raidDefense": 1.14,
+            "underrealmReadiness": 1.08,
+            "underrealmRaidStrength": 0.95,
+            "outputBonus": 0.98,
+            "needDecay": 1.02,
+            "gatherYield": 0.97
+          },
+          "deltas": {
+            "pressure": 0.015,
+            "legitimacy": 0.03
+          },
+          "context": {
+            "raid_bonus": 0.7,
+            "deep_raid_bonus": 0.45,
+            "pressure_scale": 0.3
+          }
+        },
+        "deep_claims": {
+          "enabled": true,
+          "label": "Deep Claims Convention",
+          "weight": 0.9,
+          "doctrine_weight": {
+            "austerity": 1.05,
+            "revelry": 0.95
+          },
+          "costs": {
+            "wood": 34,
+            "stone": 42,
+            "iron": 22
+          },
+          "min_stockpile_ratios": {
+            "wood": 0.61,
+            "stone": 0.6
+          },
+          "effects": {
+            "underrealmExploration": 1.15,
+            "underrealmReadiness": 0.97,
+            "underrealmRaidLoss": 1.04,
+            "underrealmRaidCasualty": 1.05,
+            "gatherYield": 0.98,
+            "outputBonus": 1.02
+          },
+          "deltas": {
+            "pressure": 0.03,
+            "legitimacy": 0.015
+          },
+          "context": {
+            "deep_raid_bonus": 0.45,
+            "shortage_scale": 0.2
+          }
+        },
+        "forge_quota": {
+          "enabled": true,
+          "label": "Forge Quota Mandate",
+          "weight": 0.98,
+          "doctrine_weight": {
+            "austerity": 1.2,
+            "revelry": 0.82
+          },
+          "costs": {
+            "wood": 48,
+            "iron": 30,
+            "beer": 16
+          },
+          "min_stockpile_ratios": {
+            "wood": 0.66,
+            "iron": 0.63
+          },
+          "effects": {
+            "outputBonus": 1.08,
+            "gatherTicks": 1.04,
+            "needDecay": 1.03,
+            "raidDefense": 0.98,
+            "underrealmMorale": 0.96
+          },
+          "deltas": {
+            "pressure": 0.025,
+            "legitimacy": 0.02
+          },
+          "context": {
+            "stock_floor_min": 0.58,
+            "stock_floor_bonus": 0.3,
+            "pressure_scale": 0.2
+          }
+        }
+      }
+    },
     "festival": {
       "cost_multiplier": {
         "austerity": 1.18,

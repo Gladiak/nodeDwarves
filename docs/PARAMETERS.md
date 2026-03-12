@@ -940,6 +940,44 @@ Schism arc:
 - `schism.rituals.definitions.<ritual>.context.raid_bonus`: contextual weight gain when raid is active.
 - `schism.rituals.definitions.<ritual>.context.deep_raid_bonus`: contextual weight gain when deep raid is active.
 - `schism.rituals.definitions.<ritual>.context.stock_floor_bonus`: contextual weight gain when core stock floor is low.
+- `schism.decrees.enabled`: enable seasonal council decree lifecycle.
+- `schism.decrees.season_names[]`: seasons where decree windows are eligible.
+- `schism.decrees.window_ticks`: ticks-from-season-start where decree selection is allowed.
+- `schism.decrees.options_count`: size of the policy slate (runtime enacts one decree from this top-N list).
+- `schism.decrees.min_legitimacy`: minimum legitimacy required to issue a decree in-window.
+- `schism.decrees.max_pressure`: maximum pressure allowed to issue a decree in-window.
+- `schism.decrees.allow_during_climax`: allow decree issuance while schism climax is active.
+- `schism.decrees.duration_mode`: decree duration mode (`season` or fixed ticks).
+- `schism.decrees.duration_ticks`: fallback fixed duration when decree mode is not seasonal.
+- `schism.decrees.repeat_protection.enabled`: enable anti-repeat decree weighting/cooldown.
+- `schism.decrees.repeat_protection.recent_window`: number of recent decree entries considered for repeat penalty.
+- `schism.decrees.repeat_protection.same_ritual_weight_multiplier`: per-repeat weight multiplier for the same decree id.
+- `schism.decrees.repeat_protection.cooldown_ticks`: hard cooldown ticks for re-selecting the same decree id.
+- `schism.decrees.history_limit`: max entries retained in `state.schism.decreeHistory`.
+- `schism.decrees.announce_options`: emit policy-slate event line before enactment.
+- `schism.decrees.definitions.<decree>.enabled`: enable one decree definition.
+- `schism.decrees.definitions.<decree>.label`: decree label for event log/telemetry.
+- `schism.decrees.definitions.<decree>.weight`: base score weight before doctrine/context/repeat scaling.
+- `schism.decrees.definitions.<decree>.doctrine_weight.<doctrine>`: doctrine-specific decree score scalar.
+- `schism.decrees.definitions.<decree>.costs.<resource>`: stockpile cost consumed when decree is enacted.
+- `schism.decrees.definitions.<decree>.min_stockpile_ratios.<resource>`: ratio guardrails required for decree eligibility.
+- `schism.decrees.definitions.<decree>.effects.<key>`: timed global schism modifier while decree is active.
+- `schism.decrees.definitions.<decree>.deltas.pressure`: immediate pressure delta when decree starts.
+- `schism.decrees.definitions.<decree>.deltas.legitimacy`: immediate legitimacy delta when decree starts.
+- `schism.decrees.definitions.<decree>.duration_ticks`: optional per-decree duration override.
+- `schism.decrees.definitions.<decree>.context.raid_required`: require active surface raid.
+- `schism.decrees.definitions.<decree>.context.no_raid_required`: require no active surface raid.
+- `schism.decrees.definitions.<decree>.context.deep_raid_required`: require active deep raid.
+- `schism.decrees.definitions.<decree>.context.pressure_min` / `pressure_max`: pressure gate range.
+- `schism.decrees.definitions.<decree>.context.legitimacy_min` / `legitimacy_max`: legitimacy gate range.
+- `schism.decrees.definitions.<decree>.context.stock_floor_min` / `stock_floor_max`: core stock-floor gate range.
+- `schism.decrees.definitions.<decree>.context.shortage_min` / `shortage_max`: shortage-score gate range.
+- `schism.decrees.definitions.<decree>.context.pressure_scale`: contextual score gain from pressure.
+- `schism.decrees.definitions.<decree>.context.legitimacy_scale`: contextual score gain from low legitimacy.
+- `schism.decrees.definitions.<decree>.context.shortage_scale`: contextual score gain from shortage score.
+- `schism.decrees.definitions.<decree>.context.raid_bonus`: contextual score gain when raid is active.
+- `schism.decrees.definitions.<decree>.context.deep_raid_bonus`: contextual score gain when deep raid is active.
+- `schism.decrees.definitions.<decree>.context.stock_floor_bonus`: contextual score gain when core stock floor is low.
 - `schism.festival.cost_multiplier.austerity`: festival cost scalar while austerity doctrine is active.
 - `schism.festival.cost_multiplier.revelry`: festival cost scalar while revelry doctrine is active.
 - `schism.festival.effect_multiplier.austerity`: festival effect scalar while austerity doctrine is active.

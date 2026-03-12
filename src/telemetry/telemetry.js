@@ -1073,8 +1073,11 @@ function formatSchismStatus(status) {
   const activeRitual = status.ritualActive
     ? ` | active rite ${String(status.ritualLabel || "Rite")} (${Math.max(0, Number(status.ritualTicksLeft || 0))}t)`
     : "";
+  const activeDecree = status.decreeActive
+    ? ` | decree ${String(status.decreeLabel || "Decree")} (${Math.max(0, Number(status.decreeTicksLeft || 0))}t)`
+    : "";
   const climax = status.climaxActive ? " | climax active" : "";
-  return `Schism status: ${phase}/${doctrine} | pressure ${pressure}% | legitimacy ${legitimacy}% | ${ritual}${activeRitual}${climax}`;
+  return `Schism status: ${phase}/${doctrine} | pressure ${pressure}% | legitimacy ${legitimacy}% | ${ritual}${activeRitual}${activeDecree}${climax}`;
 }
 
 // Format one shortage line with urgency and stock ratio.

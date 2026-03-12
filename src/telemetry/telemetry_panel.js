@@ -1746,8 +1746,11 @@ function buildContextSchismSummary(snapshot) {
   const activeRitual = schism.ritualActive
     ? `:${String(schism.ritualLabel || 'rite').slice(0, 6).toLowerCase()}`
     : '';
+  const activeDecree = schism.decreeActive
+    ? `|d:${String(schism.decreeLabel || 'decree').slice(0, 6).toLowerCase()}`
+    : '';
   const climax = schism.climaxActive ? '+crisis' : '';
-  return `${phase}/${doctrine} p${pressure} l${legitimacy} ${ritual}${activeRitual}${climax}`;
+  return `${phase}/${doctrine} p${pressure} l${legitimacy} ${ritual}${activeRitual}${activeDecree}${climax}`;
 }
 
 // Build one compact festival summary token for context blocks.

@@ -23,7 +23,7 @@ Think of it as a living systems sandbox: you tune config, press run, and watch t
 - 📜 Merchant trading, caravan contracts, and faction reputation.
 - ⛺ Long-lived external faction camps: trade hubs, militia outposts, and raider pressure points with moving trade caravans, interception risk, and role-based influence zones on the map.
 - 🎭 World events now live: traveling bards, rival caravans, and short-deadline opportunities.
-- 🔥 Schism arc per run: doctrine shifts with hysteresis, branching anti-repeat festival rituals, social pressure/legitimacy swings, and climax moments that can reshape the economy.
+- 🔥 Schism arc per run: doctrine shifts with hysteresis, seasonal council decrees (`pick 1 of 3` edicts), branching anti-repeat festival rituals, social pressure/legitimacy swings, and climax moments that can reshape the economy.
 - 🗝️ Endgame ruins expeditions with artifacts, set bonuses, and cycle resets.
 - 🏛️ Dwarf Temple of Ancestors: biome-aware multi-stage final work with doctrine-path lock-in and prestige growth.
 - 🧭 Economy telemetry now includes an Endgame checklist with live step completion and reset ETA.
@@ -240,16 +240,17 @@ npm run balance:gate:standard -- --set jobs.gatherTriggerRatio.food=1.1 --set jo
 
 ## Roadmap ideas 🧭
 
-- 🧬 (high) Personal dwarf arcs: each dwarf gets origin, virtue, vice, and ambition that evolve into mini story outcomes.
-- 🏛️ (high) Seasonal council decrees: choose 1 of 3 political edicts per cycle with strong long-term trade-offs.
-- 📜 (high) Multi-act faction questlines: contracts and camps evolve into chapter-based stories with branching outcomes.
-- 🛡️ (high) Persistent hero company: named expedition roster gains scars, titles, vows, and legacy bonuses over time.
-- 💔 (high) Social drama engine: rivalries, friendships, mentorships, and grudges trigger emergent village events.
-- 👑 (medium) Titles and succession: leadership offices (Steward, Marshal, High Priest) shape policy and run identity.
-- 🔮 (medium) Ancestor omens and prophecies: periodic signs create high-risk/high-reward roleplay decisions.
-- ⚔️ (medium) Nemesis houses: recurring rival factions build personal history with your settlement across multiple cycles.
-- 🍻 (low) Tavern rumors and side quests: rotating rumor hooks unlock small narrative objectives with meaningful rewards.
-- 📚 (medium) Chronicle and saga system: runs generate an in-world annal that influences prestige and future-start modifiers.
+_Roadmap remainder snapshot (updated 2026-03-12): focus on what is still missing._
+
+- 🧬 (high, in progress) Personal dwarf arcs: deterministic lore is live; remaining: explicit `origin + vice + ambition`, arc progression triggers, and mini-outcome event beats.
+- 📜 (high, in progress) Multi-act faction questlines: contracts/camps/events are live; remaining: chapter-based faction quest chains with branching resolution paths and follow-up consequences.
+- 🛡️ (high, mostly implemented) Persistent hero company: scars/titles/vows/legacy are live; remaining: stronger company identity layer and cross-cycle carry-over hooks.
+- 💔 (high, in progress) Social drama engine: relationship bonding exists; remaining: rivalry/friendship/mentorship/grudge states and emergent social incidents tied to them.
+- 👑 (medium, in progress) Titles and succession: warrior succession exists; remaining: governance offices (`Steward`, `Marshal`, `High Priest`) that shape settlement policy identity.
+- 🔮 (medium, in progress) Ancestor omens and prophecies: myth/tradition systems exist; remaining: omen-style player/AI dilemma choices with high-risk/high-reward outcomes.
+- ⚔️ (medium, in progress) Nemesis houses: recurring factions and diplomacy pressure exist; remaining: persistent nemesis-house memory and escalating rivalry arcs across cycles.
+- 🍻 (low, in progress) Tavern rumors and side quests: timed opportunities exist; remaining: tavern-facing rumor hub, rotating side-quest hooks, and reward flavorization.
+- 📚 (medium, in progress) Chronicle and saga system: dwarf lore + multiple history streams exist; remaining: unified run annals that generate future-start prestige/modifier effects.
 
 ### Roadmap scoring rubric
 
@@ -269,7 +270,6 @@ Impact thresholds: `High >= 4.0`, `Medium >= 2.8 and < 4.0`, `Low < 2.8`
 | Idea | Breadth | Persistence | Frequency | Decision weight | Emergence/AI | Total | Impact |
 |---|---:|---:|---:|---:|---:|---:|---|
 | Personal dwarf arcs | 4 | 5 | 4 | 4 | 4 | 4.20 | High |
-| Seasonal council decrees | 5 | 5 | 3 | 5 | 4 | 4.55 | High |
 | Multi-act faction questlines | 5 | 4 | 4 | 4 | 4 | 4.25 | High |
 | Persistent hero company | 4 | 5 | 3 | 4 | 4 | 4.05 | High |
 | Social drama engine | 5 | 4 | 5 | 4 | 5 | 4.55 | High |
@@ -283,11 +283,11 @@ Impact thresholds: `High >= 4.0`, `Medium >= 2.8 and < 4.0`, `Low < 2.8`
 
 | Section | Avg | Min-Max | Strong ideas (>=4) | Weak ideas (<=2) |
 |---|---:|---|---:|---:|
-| Systemic breadth | 3.90 | 2-5 | 7 | 1 |
-| Persistence | 4.00 | 2-5 | 8 | 1 |
-| Frequency | 3.30 | 2-5 | 3 | 1 |
-| Decision weight | 3.70 | 2-5 | 7 | 1 |
-| Emergence / AI impact | 3.60 | 2-5 | 6 | 1 |
+| Systemic breadth | 3.78 | 2-5 | 6 | 1 |
+| Persistence | 3.89 | 2-5 | 7 | 1 |
+| Frequency | 3.33 | 2-5 | 2 | 1 |
+| Decision weight | 3.56 | 2-4 | 6 | 1 |
+| Emergence / AI impact | 3.56 | 2-5 | 5 | 1 |
 
 ## Project layout (high level) 🧱
 
@@ -298,7 +298,7 @@ Impact thresholds: `High >= 4.0`, `Medium >= 2.8 and < 4.0`, `Low < 2.8`
 - `src/simulation/underrealm.js`: Underrealm crew, shrine doctrine, deep economy, exploration unlocks, and hostile faction pressure.
 - `src/simulation/world_events.js`: world event lifecycle for bards, rival caravans, and time-limited opportunities.
 - `src/simulation/external_camps.js`: long-lived external faction camps with trade, militia support, raider pressure, moving caravans, and influence-zone modifiers.
-- `src/simulation/schism.js`: run-scale social schism arc (pressure/legitimacy, doctrine shifts, ritual festivals, and climax events).
+- `src/simulation/schism.js`: run-scale social schism arc (pressure/legitimacy, doctrine shifts, seasonal council decrees, ritual festivals, and climax events).
 - `src/simulation/alchemy.js`: alchemy rites, pact lifecycle, and backlash logic.
 - `src/simulation/temple.js`: Temple of Ancestors stages, map footprint, and prestige system.
 - `src/simulation/warriors.js`: Warrior League runtime helpers for deterministic combat profiles, risk-aware expedition dispatch, seasonal tournament progression, tournament consequences/succession/training, and persistent scars/titles/vows/legacy bonuses.

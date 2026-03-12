@@ -810,6 +810,11 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - Runtime doctrine (`austerity` or `revelry`) can shift at guarded intervals (`schism.doctrine.*`).
   - Hysteresis thresholds (`*_enter_*` / `*_exit_*`) reduce doctrine ping-pong by requiring stronger recovery before leaving austerity.
   - Doctrine affects economy via `schism.modifiers.doctrine.*`, and scales festival costs/effects (`schism.festival.*`).
+- Seasonal council decrees:
+  - During the configured seasonal window (`schism.decrees.*`), council evaluates decree candidates and enacts exactly one from the top policy slate (`options_count`, default `3`).
+  - Candidate scoring combines base weight, doctrine affinity, contextual pressure/legitimacy/shortage/raid gates, and anti-repeat decay (`schism.decrees.repeat_protection.*`).
+  - Decrees apply timed global multipliers through `effects.*` (merged into schism modifiers), optional up-front stockpile costs, and immediate narrative deltas (`deltas.pressure`, `deltas.legitimacy`).
+  - Runtime keeps explicit decree lifecycle state (`state.schism.decree`) plus bounded history (`state.schism.decreeHistory`) for observability and repeat protection.
 - Ritual windows:
   - Open on configured seasons/ticks (`schism.ritual_windows.*`).
   - Expose a council-driven fallback festival trigger when legitimacy/pressure gates pass.
