@@ -652,6 +652,8 @@ function buildWarriorLeagueSectionRows(state, config) {
   if (!runtime || runtime.enabled !== true) {
     return [
       "Warrior League: disabled (set warriors.enabled=true).",
+      "Company identity: -",
+      "Carry-over hooks: -",
       "Marks (Scars/Titles/Vows): -",
       "Marks = persistent progression tags: scars (wounds), titles (honors), vows (active oath effects).",
       "Top 5 fighters: -",
@@ -661,6 +663,9 @@ function buildWarriorLeagueSectionRows(state, config) {
   const league = runtime.league && typeof runtime.league === "object" ? runtime.league : {};
   const stats = runtime.stats && typeof runtime.stats === "object" ? runtime.stats : {};
   const company = runtime.company && typeof runtime.company === "object" ? runtime.company : {};
+  const identity = company.identity && typeof company.identity === "object" ? company.identity : {};
+  const carryover = company.carryover && typeof company.carryover === "object" ? company.carryover : {};
+  const cycleHistory = Array.isArray(company.cycleHistory) ? company.cycleHistory : [];
   const dwarves = Array.isArray(state && state.dwarves) ? state.dwarves : [];
   const nameCache = new Map();
   const topFighters = buildWarriorTopFighterEntries(state, config, 5, nameCache);
@@ -732,11 +737,28 @@ function buildWarriorLeagueSectionRows(state, config) {
   const hallLine = hallEntry
     ? `Hall of fame: S${Math.max(0, Math.floor(Number(hallEntry.seasonId || 0)))} ${hallEntry.leagueName || resolveWarriorLeagueEpicName(state, config, hallEntry.seasonId)} -> ${formatWarriorDisplayNameById(hallEntry.dwarfId, state, config, nameCache)}`
     : "Hall of fame: -";
+  const identityName = identity.name ? String(identity.name) : "-";
+  const identityFocus = identity.focus ? String(identity.focus) : "balanced";
+  const identityMotto = identity.motto ? String(identity.motto) : "-";
+  const identityRenown = clamp(Number(identity.renown || 0), 0, 1);
+  const sourceChampionId = carryover.sourceChampionId ? String(carryover.sourceChampionId) : "";
+  const sourceChampionLabel = sourceChampionId
+    ? formatWarriorDisplayNameById(sourceChampionId, state, config, nameCache)
+    : "-";
+  const lastMemory = cycleHistory.length > 0 && cycleHistory[cycleHistory.length - 1]
+    ? cycleHistory[cycleHistory.length - 1]
+    : null;
+  const memoryLine = lastMemory
+    ? `Lineage memory: C${Math.max(0, Math.floor(Number(lastMemory.cycle || 0)))} ${lastMemory.name || "Unknown"} (${lastMemory.focus || "balanced"}, ${(clamp(Number(lastMemory.renown || 0), 0, 1) * 100).toFixed(1)}%)`
+    : "Lineage memory: -";
 
   const rows = [
     `League: ${leagueName}`,
     `Season: S${seasonId}${seasonName ? ` ${seasonName}` : ""} | Last tournament tick ${Math.max(0, Math.floor(Number(league.lastTournamentTick || 0)))}`,
     `Champion: ${championLabel}${championClan ? ` (${championClan})` : ""}`,
+    `Company identity: ${identityName} | focus ${identityFocus} | renown ${(identityRenown * 100).toFixed(1)}%`,
+    `Company doctrine: ${identityMotto}`,
+    `Carry-over hooks: cycle ${Math.max(0, Math.floor(Number(carryover.cycleIndex || 0)))}, retained ${(clamp(Number(carryover.retainedRenown || 0), 0, 1) * 100).toFixed(1)}%, seed ${(clamp(Number(carryover.seedBonus || 0), 0, 1) * 100).toFixed(1)}%, source ${sourceChampionLabel}`,
     `League metrics: tournaments ${Math.max(0, Math.floor(Number(stats.tournaments || 0)))}, tie-breaks ${Math.max(0, Math.floor(Number(stats.tieBreaks || 0)))}, upsets ${Math.max(0, Math.floor(Number(stats.upsets || 0)))}, aura ${(clamp(Number(company.legacyAura || 0), 0, 1) * 100).toFixed(1)}%`,
     `League incidents: injuries ${Math.max(0, Math.floor(Number(stats.injuries || 0)))}, retirements ${Math.max(0, Math.floor(Number(stats.retirements || 0)))}, hero turnovers ${Math.max(0, Math.floor(Number(stats.heroTurnovers || 0)))}`,
     `Training: sessions ${Math.max(0, Math.floor(Number(stats.trainingSessions || 0)))}, participants ${Math.max(0, Math.floor(Number(stats.trainingParticipants || 0)))}, recoveries ${Math.max(0, Math.floor(Number(stats.recoveries || 0)))}`,
@@ -765,6 +787,8 @@ function buildWarriorLeagueSectionRows(state, config) {
   }
   rows.push(`Clan board: ${clanSummary || "-"}`);
   rows.push(hallLine);
+  rows.push(`Lineage ledger: ${cycleHistory.length} archived cycle entries`);
+  rows.push(memoryLine);
   return rows;
 }
 

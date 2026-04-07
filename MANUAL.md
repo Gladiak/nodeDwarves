@@ -424,7 +424,7 @@ Notes:
   - Terminal resize behavior is configured under `display.resize.*`: default profile keeps resize handling enabled but does not reflow world geometry (`reflow_world=false`) to avoid live road/village/temple resets.
   - Space toggles pause/resume during the live simulation.
   - Press `i` to open/close the dwarf inspect panel (works during pause or live); use `←`/`→` to browse spawn order.
-  - Press `w` to open/close the Warrior League modal panel (champion/top-5/marks analytics).
+  - Press `w` to open/close the Warrior League modal panel (company identity/carry-over hooks + champion/top-5/marks analytics).
   - Press `h` to open/close the telemetry Data Center panel (`Dashboard`, `Overview + Deep`, `Economy`, `Warrior League`).
   - While telemetry is open, use `←`/`→` to switch pages.
   - Press `↑` / `↓` to switch map view between surface and unlocked underrealm depths.
@@ -570,7 +570,7 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - top-5 fighter compact rows now ship with a static shorthand legend (`R` rating, `V` valor, `W` wins-losses, `RW` risky wins, `Mk` scars/titles/vow flag, `P` league points),
   - all warrior-facing labels now use `Name Surname <id>` instead of plain dwarf id,
   - Data Center includes a dedicated `Warrior League` page,
-  - `render/warrior_panel.js` provides a dedicated modal (toggle `w`) for focused champion/top-5 analytics, with selective key-row highlights and section spacing for faster read flow.
+  - `render/warrior_panel.js` provides a dedicated modal (toggle `w`) for focused company-identity/carry-over context + champion/top-5 analytics, with selective key-row highlights and section spacing for faster read flow.
 - Phase-6 adds AI/training integration for Warrior League:
   - AI observation now exports bounded aggregate warrior channels (`warriorEnabled`, `warriorRosterCoverage`, `warriorEliteScore`, `warriorLegacyAura`, `warriorChampionMomentum`, `warriorTournamentRecency`, `warriorInjuryShare`, `warriorRetiredShare`, `warriorSurvivability`, `warriorHeroTurnoverPressure`),
   - compact transport (`obsVector`) now maps these channels with parity against legacy JSON observation payloads,
@@ -580,6 +580,11 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - champion defeat can trigger explicit hero succession checks (`warriors.tournaments.hero_succession.*`) and optional Underrealm hero sync,
   - periodic paid training sessions (`warriors.training.*`) consume stockpile, improve combat growth (`rating`/`valor`/`heroPotential`), and apply fatigue/stress guardrails,
   - warrior runtime stats now track incidents and throughput (`injuries`, `retirements`, `recoveries`, `trainingSessions`, `trainingParticipants`, `heroTurnovers`) for telemetry and reward alignment.
+- Phase-8 completes persistent hero-company identity + cycle carry-over:
+  - company identity is synthesized from aura/hall-of-fame/marks/tournament pressure into explicit `state.warriors.company.identity` fields (`name`, `focus`, `motto`, `renown`, channel bonuses),
+  - identity bonuses are bounded and applied explicitly to dispatch ranking, tournament seed/duel scoring, and training intensity (`warriors.bonuses.legacy.company_identity.*`),
+  - cross-cycle carry-over hooks archive company lineage (`state.warriors.company.cycleHistory`), preserve bounded hall-of-fame depth, and inject capped startup seed bonuses in the next cycle (`warriors.bonuses.legacy.carryover.*`),
+  - Warrior League telemetry/panel now exposes identity, doctrine, carry-over signals, and lineage memory for deterministic operator debugging.
 - Default profile now ships with `warriors.enabled=true`, so Warrior League runtime is active from run start.
 
 ### Jobs and economy 📦
@@ -1230,7 +1235,7 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - optionally randomizes terrain seed when transition config requests it.
   - swaps old state in-place with new state object.
 - Persisted vs reset data:
-  - persisted: `cycleStats.count`, `cycleStats.lastTicks`, myth traditions/history carry-over.
+  - persisted: `cycleStats.count`, `cycleStats.lastTicks`, myth traditions/history carry-over, temple prestige meta-progression, warrior-company lineage carry-over (`hallOfFame` slice + identity/carryover memory hooks).
   - reset: terrain, nodes, structures, stockpile, jobs, raid/weather/alchemy/festival runtime state.
   - `endgameArtifactsTick` is cleared after reset.
 - Difficulty scaling:
@@ -2022,7 +2027,7 @@ Quick checklist:
     - `simulation/world_events.js` → global event lifecycle and temporary world modifiers
   - `simulation/external_camps.js` → long-lived external faction camps and map-level diplomacy pressure
   - `simulation/schism.js` → run-scale social schism arc, doctrine shifts, ritual windows, and climax events
-  - `simulation/warriors.js` → Warrior League runtime (combat profile bootstrap, risk-aware dispatch ranking, expedition progression, seasonal tournaments, bounded injury/recovery + succession/training loops, and persistent marks/vows/legacy bonuses)
+  - `simulation/warriors.js` → Warrior League runtime (combat profile bootstrap, risk-aware dispatch ranking, expedition progression, seasonal tournaments, bounded injury/recovery + succession/training loops, persistent marks/vows/legacy bonuses, and company identity/cycle carry-over hooks)
   - `simulation/roads.js` → road planning/build queue/pathing
     - `simulation/underrealm.js` → crew assignment, deep economy/exploration, and hostile deep raids
     - `simulation/temple.js` → Temple of Ancestors progression, effects, and prestige
@@ -2030,7 +2035,7 @@ Quick checklist:
   - `state/` → initial state + terrain generation
   - `render/` → ASCII output (grid, legend, inspect overlays, frame orchestration)
     - `render/map_inset_panel.js` → carved in-map Ops Snapshot component (stable counters + keyboard hints)
-    - `render/warrior_panel.js` → Warrior League modal overlay (champion lineage, top-5 fighters, marks/legacy summary)
+    - `render/warrior_panel.js` → Warrior League modal overlay (company identity/carry-over context, champion lineage, top-5 fighters, marks/legacy summary)
   - `telemetry/` → telemetry extraction and Data Center composition
     - `telemetry/telemetry.js` → telemetry section builders and formatting helpers
     - `telemetry/telemetry_panel.js` → paged in-game telemetry Data Center with section pages and full-height telemetry body

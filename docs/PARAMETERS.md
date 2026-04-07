@@ -1380,6 +1380,28 @@ Warriors:
 - `warriors.bonuses.legacy.company_cap`: max company legacy aura after diminishing/cap.
 - `warriors.bonuses.legacy.company_roster_size`: number of top roster ids considered for company aura computation.
 - `warriors.bonuses.legacy.company_dispatch_scale`: scale factor for applying company aura to dispatch score (roster members only).
+- `warriors.bonuses.legacy.company_identity.enabled`: enable company identity runtime (name/focus/renown + bounded identity bonuses).
+- `warriors.bonuses.legacy.company_identity.renown_scale`: global scale applied to identity renown synthesis.
+- `warriors.bonuses.legacy.company_identity.renown_cap`: hard cap for computed identity renown.
+- `warriors.bonuses.legacy.company_identity.renown_weights.aura`: identity renown weight for current company legacy aura.
+- `warriors.bonuses.legacy.company_identity.renown_weights.hall_of_fame`: identity renown weight for hall-of-fame depth.
+- `warriors.bonuses.legacy.company_identity.renown_weights.marks`: identity renown weight for roster marks/legacy density.
+- `warriors.bonuses.legacy.company_identity.renown_weights.tournaments`: identity renown weight for tournament throughput/history.
+- `warriors.bonuses.legacy.company_identity.dispatch_scale`: scale that maps renown into roster-biased dispatch bonus.
+- `warriors.bonuses.legacy.company_identity.duel_scale`: scale that maps renown into tournament seed/duel bonus.
+- `warriors.bonuses.legacy.company_identity.training_scale`: scale that maps renown into training-session intensity bonus.
+- `warriors.bonuses.legacy.company_identity.reserve_member_scale`: fallback multiplier for fighters outside the current company roster.
+- `warriors.bonuses.legacy.company_identity.max_hall_of_fame_carry`: max hall-of-fame entries preserved when carrying company memory across cycles.
+- `warriors.bonuses.legacy.company_identity.name_prefixes[]`: deterministic pool of company-name prefixes.
+- `warriors.bonuses.legacy.carryover.enabled`: enable cross-cycle company carry-over hooks.
+- `warriors.bonuses.legacy.carryover.history_limit`: max archived cycle entries kept in the company lineage ledger.
+- `warriors.bonuses.legacy.carryover.renown_retention`: retained fraction of previous-cycle renown before decay/cap.
+- `warriors.bonuses.legacy.carryover.per_cycle_decay`: multiplicative decay applied to retained renown as cycle index rises.
+- `warriors.bonuses.legacy.carryover.max_seed_bonus`: cap for startup seed bonus injected into the next cycle.
+- `warriors.bonuses.legacy.carryover.min_cycles_for_seed`: minimum completed cycles required before startup carry-over seed can apply.
+- `warriors.bonuses.legacy.carryover.starting_rating_scale`: startup rating bonus scale applied from carry-over seed.
+- `warriors.bonuses.legacy.carryover.starting_valor_scale`: startup valor bonus scale applied from carry-over seed.
+- `warriors.bonuses.legacy.carryover.starting_hero_potential_scale`: startup hero-potential bonus scale applied from carry-over seed.
 - `warriors.bonuses.legacy.points.expedition_success`: legacy points gained on successful expedition.
 - `warriors.bonuses.legacy.points.expedition_failure`: legacy points gained on failed expedition.
 - `warriors.bonuses.legacy.points.expedition_retreat`: legacy points gained on retreat outcome.

@@ -652,6 +652,9 @@ Rows include:
 - Epic league season name
 - Season and last tournament tick
 - Champion label in `Name Surname <id>` format
+- Company identity row (`name`, `focus`, live `renown%`)
+- Company doctrine row (current motto)
+- Carry-over hook row (`cycle`, retained renown, startup seed, source champion)
 - League metrics (`tournaments`, `tie-breaks`, `upsets`, company aura)
 - League incidents (`injuries`, `retirements`, `hero turnovers`)
 - Training operations (`sessions`, `participants`, `recoveries`)
@@ -662,6 +665,7 @@ Rows include:
 - Top 5 fighters list (rating, valor, W-L, risky wins, marks triplet, league points)
 - Clan score board
 - Latest hall-of-fame champion recap
+- Lineage ledger count + latest archived cycle memory snapshot
 
 `Marks` semantics:
 

@@ -155,9 +155,11 @@ function buildWarriorPanelRowEntries(rows) {
 function shouldInsertWarriorSectionSpacer(rowText) {
   return (
     rowText.startsWith('Champion:')
+    || rowText.startsWith('Company identity:')
     || rowText.startsWith('Top 5 fighters:')
     || rowText.startsWith('Clan board:')
     || rowText.startsWith('Hall of fame:')
+    || rowText.startsWith('Lineage ledger:')
   );
 }
 
@@ -172,6 +174,12 @@ function resolveWarriorRowColorKey(rowText) {
   if (rowText.startsWith('Champion:')) {
     return 'temple_of_ancestors';
   }
+  if (rowText.startsWith('Company identity:')) {
+    return 'temple_of_ancestors';
+  }
+  if (rowText.startsWith('Carry-over hooks:')) {
+    return 'armory';
+  }
   if (rowText.startsWith('League metrics:')) {
     return 'armory';
   }
@@ -183,6 +191,12 @@ function resolveWarriorRowColorKey(rowText) {
   }
   if (rowText.startsWith('Hall of fame:')) {
     return 'temple_of_ancestors';
+  }
+  if (rowText.startsWith('Lineage ledger:')) {
+    return 'armory';
+  }
+  if (rowText.startsWith('Lineage memory:')) {
+    return 'armory';
   }
   return null;
 }

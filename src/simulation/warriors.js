@@ -17,6 +17,65 @@ const WARRIOR_LEAGUE_EPITHETS = [
   'Arena',
 ];
 
+const WARRIOR_COMPANY_NAME_PREFIXES = [
+  'Anvil',
+  'Iron',
+  'Ember',
+  'Stone',
+  'Deep',
+  'Rune',
+  'Lantern',
+  'Ash',
+];
+
+const WARRIOR_COMPANY_FOCUS_PROFILES = {
+  balanced: {
+    id: 'balanced',
+    label: 'balanced',
+    nameSuffix: 'Company',
+    motto: 'Discipline in all fronts.',
+    dispatchMultiplier: 1,
+    duelMultiplier: 1,
+    trainingMultiplier: 1,
+  },
+  vanguard: {
+    id: 'vanguard',
+    label: 'vanguard',
+    nameSuffix: 'Vanguard',
+    motto: 'First in, last out.',
+    dispatchMultiplier: 1.16,
+    duelMultiplier: 1.04,
+    trainingMultiplier: 0.96,
+  },
+  glory: {
+    id: 'glory',
+    label: 'glory',
+    nameSuffix: 'Crownguard',
+    motto: 'Honor before comfort.',
+    dispatchMultiplier: 0.98,
+    duelMultiplier: 1.2,
+    trainingMultiplier: 1.03,
+  },
+  stoic: {
+    id: 'stoic',
+    label: 'stoic',
+    nameSuffix: 'Ironward',
+    motto: 'Scars are records, not failures.',
+    dispatchMultiplier: 1.05,
+    duelMultiplier: 0.94,
+    trainingMultiplier: 1.22,
+  },
+  sentinel: {
+    id: 'sentinel',
+    label: 'sentinel',
+    nameSuffix: 'Watch',
+    motto: 'Hold the depths and endure.',
+    dispatchMultiplier: 1.11,
+    duelMultiplier: 1,
+    trainingMultiplier: 1.12,
+  },
+};
+
 // Clamp a numeric value to the 0..1 interval.
 function clampUnit(value) {
   return clamp(Number(value || 0), 0, 1);
@@ -260,6 +319,15 @@ function normalizeIdList(raw, maxCount = Infinity) {
     }
   }
   return ids;
+}
+
+// Resolve one normalized company-focus profile.
+function getWarriorCompanyFocusProfile(focusId) {
+  const safeId = String(focusId || '').trim().toLowerCase();
+  if (Object.prototype.hasOwnProperty.call(WARRIOR_COMPANY_FOCUS_PROFILES, safeId)) {
+    return WARRIOR_COMPANY_FOCUS_PROFILES[safeId];
+  }
+  return WARRIOR_COMPANY_FOCUS_PROFILES.balanced;
 }
 
 // Normalize outcome filters for progression rule entries.
@@ -789,6 +857,25 @@ function getWarriorsConfig(config) {
     tournamentDuelLoss: Math.max(0, Number(legacyPointsRaw.tournament_duel_loss ?? 0.15)),
     tournamentChampionBonus: Math.max(0, Number(legacyPointsRaw.tournament_champion_bonus ?? 1.8)),
   };
+  const legacyCompanyIdentityRaw = legacyRaw.company_identity && typeof legacyRaw.company_identity === 'object'
+    ? legacyRaw.company_identity
+    : {};
+  const legacyCarryoverRaw = legacyRaw.carryover && typeof legacyRaw.carryover === 'object'
+    ? legacyRaw.carryover
+    : {};
+  const companyIdentityRenownWeights = normalizeWeightMap(
+    legacyCompanyIdentityRaw.renown_weights,
+    {
+      aura: 0.45,
+      hall_of_fame: 0.25,
+      marks: 0.2,
+      tournaments: 0.1,
+    },
+  );
+  const companyIdentityNamePrefixes = normalizeIdList(
+    legacyCompanyIdentityRaw.name_prefixes,
+    24,
+  );
 
   return {
     enabled: raw.enabled === true,
@@ -910,6 +997,45 @@ function getWarriorsConfig(config) {
         companyDispatchScale: clampUnit(
           Number(legacyRaw.company_dispatch_scale ?? 0.2),
         ),
+        companyIdentity: {
+          enabled: legacyCompanyIdentityRaw.enabled !== false,
+          renownScale: Math.max(1, Number(legacyCompanyIdentityRaw.renown_scale ?? 1)),
+          renownCap: clampUnit(Number(legacyCompanyIdentityRaw.renown_cap ?? 0.45)),
+          renownWeights: companyIdentityRenownWeights,
+          dispatchScale: clampUnit(Number(legacyCompanyIdentityRaw.dispatch_scale ?? 0.16)),
+          duelScale: clampUnit(Number(legacyCompanyIdentityRaw.duel_scale ?? 0.12)),
+          trainingScale: clampUnit(Number(legacyCompanyIdentityRaw.training_scale ?? 0.18)),
+          reserveMemberScale: clampUnit(
+            Number(legacyCompanyIdentityRaw.reserve_member_scale ?? 0.35),
+          ),
+          namePrefixes: companyIdentityNamePrefixes.length > 0
+            ? companyIdentityNamePrefixes
+            : WARRIOR_COMPANY_NAME_PREFIXES.slice(),
+          maxHallOfFameCarry: Math.max(
+            1,
+            Math.floor(Number(legacyCompanyIdentityRaw.max_hall_of_fame_carry ?? 16)),
+          ),
+        },
+        carryover: {
+          enabled: legacyCarryoverRaw.enabled !== false,
+          historyLimit: Math.max(1, Math.floor(Number(legacyCarryoverRaw.history_limit ?? 8))),
+          renownRetention: clampUnit(Number(legacyCarryoverRaw.renown_retention ?? 0.45)),
+          perCycleDecay: clampUnit(Number(legacyCarryoverRaw.per_cycle_decay ?? 0.1)),
+          maxSeedBonus: clampUnit(Number(legacyCarryoverRaw.max_seed_bonus ?? 0.18)),
+          minCyclesForSeed: Math.max(
+            0,
+            Math.floor(Number(legacyCarryoverRaw.min_cycles_for_seed ?? 1)),
+          ),
+          startingRatingScale: clampUnit(
+            Number(legacyCarryoverRaw.starting_rating_scale ?? 0.24),
+          ),
+          startingValorScale: clampUnit(
+            Number(legacyCarryoverRaw.starting_valor_scale ?? 0.22),
+          ),
+          startingHeroPotentialScale: clampUnit(
+            Number(legacyCarryoverRaw.starting_hero_potential_scale ?? 0.2),
+          ),
+        },
         points: legacyPoints,
       },
     },
@@ -1350,6 +1476,7 @@ function computeWarriorDispatchScore(dwarf, config, options = {}) {
       clanClassFit: 0.5,
       personalLegacyBonus: 0,
       companyLegacyBonus: 0,
+      companyIdentityBonus: 0,
       vowId: null,
       dispatchScore: 0,
       blockedByRest: false,
@@ -1380,6 +1507,7 @@ function computeWarriorDispatchScore(dwarf, config, options = {}) {
       clanClassFit: resolveWarriorClanClassFit(safeDwarf, config),
       personalLegacyBonus: 0,
       companyLegacyBonus: 0,
+      companyIdentityBonus: 0,
       vowId: warrior.vow || null,
       dispatchScore: 0,
       blockedByRest: true,
@@ -1412,6 +1540,12 @@ function computeWarriorDispatchScore(dwarf, config, options = {}) {
     safeDwarf.id,
     warriors,
   );
+  const companyIdentityBonus = resolveWarriorCompanyIdentityBonus(
+    options.state,
+    safeDwarf.id,
+    warriors,
+    'dispatch',
+  );
   const dispatchWeights = expeditions.dispatchWeights || {};
   const dispatchScore = clampUnit(
     rating * Number(dispatchWeights.rating || 0)
@@ -1421,6 +1555,7 @@ function computeWarriorDispatchScore(dwarf, config, options = {}) {
     + clanClassFit * Number(dispatchWeights.clan_class_fit || 0)
     + personalLegacyBonus * clampUnit(Number(legacy.personalDispatchScale || 0))
     + companyLegacyBonus
+    + companyIdentityBonus
     + Number(vowEffects.dispatchScoreBonus || 0)
     - Number(vowEffects.dispatchScorePenalty || 0),
   );
@@ -1447,6 +1582,7 @@ function computeWarriorDispatchScore(dwarf, config, options = {}) {
     clanClassFit,
     personalLegacyBonus,
     companyLegacyBonus,
+    companyIdentityBonus,
     vowId: vowEffects.id || null,
     dispatchScore,
     blockedByRest,
@@ -1696,6 +1832,270 @@ function refreshWarriorCompanyLegacyAura(state, config, warriors, runtime = null
   safeRuntime.company.legacyAura = clampUnit(aura);
   safeRuntime.company.rosterIds = rosterIds;
   return safeRuntime.company.legacyAura;
+}
+
+// Resolve deterministic focus id from roster marks/performance posture.
+function resolveWarriorCompanyFocusId(metrics, runtime) {
+  const safeMetrics = metrics && typeof metrics === 'object' ? metrics : {};
+  const rosterSize = Math.max(1, Number(safeMetrics.rosterSize || 1));
+  const scarsPerFighter = Math.max(0, Number(safeMetrics.totalScars || 0)) / rosterSize;
+  const titlesPerFighter = Math.max(0, Number(safeMetrics.totalTitles || 0)) / rosterSize;
+  const vowsRatio = clampUnit(Number(safeMetrics.totalVows || 0) / rosterSize);
+  const riskWinsPerFighter = Math.max(0, Number(safeMetrics.totalRiskWins || 0)) / rosterSize;
+  const survivalsPerFighter = Math.max(0, Number(safeMetrics.totalChampionSurvivals || 0)) / rosterSize;
+  const stats = runtime && runtime.stats && typeof runtime.stats === 'object'
+    ? runtime.stats
+    : {};
+  const tournaments = Math.max(1, Math.floor(Number(stats.tournaments || 0)));
+  const injuryPressure = clampUnit(
+    (Math.max(0, Number(stats.injuries || 0)) + Math.max(0, Number(stats.retirements || 0)))
+    / Math.max(1, tournaments * 5),
+  );
+  if (riskWinsPerFighter >= 1.15 || vowsRatio >= 0.58) {
+    return 'vanguard';
+  }
+  if (titlesPerFighter >= scarsPerFighter + 0.4 && titlesPerFighter >= 0.6) {
+    return 'glory';
+  }
+  if (scarsPerFighter >= titlesPerFighter + 0.45 || injuryPressure >= 0.28) {
+    return 'stoic';
+  }
+  if (survivalsPerFighter >= 0.8) {
+    return 'sentinel';
+  }
+  return 'balanced';
+}
+
+// Build deterministic company name from current focus + historical seed.
+function buildWarriorCompanyIdentityName(company, focusProfile, identityConfig) {
+  const safeCompany = company && typeof company === 'object' ? company : {};
+  const hall = Array.isArray(safeCompany.hallOfFame) ? safeCompany.hallOfFame : [];
+  const carryover = safeCompany.carryover && typeof safeCompany.carryover === 'object'
+    ? safeCompany.carryover
+    : {};
+  const prefixesRaw = identityConfig && Array.isArray(identityConfig.namePrefixes)
+    ? identityConfig.namePrefixes
+    : [];
+  const prefixes = prefixesRaw.length > 0
+    ? prefixesRaw
+    : WARRIOR_COMPANY_NAME_PREFIXES;
+  const seedSource = hall[0] && typeof hall[0] === 'object'
+    ? `${hall[0].dwarfId || ''}:${hall[0].seasonId || 0}:${hall[0].tick || 0}`
+    : `${safeCompany.rosterIds || ''}:${carryover.sourceChampionId || ''}:${carryover.cycleIndex || 0}`;
+  const prefix = prefixes[mixSeed(hashString(`${seedSource}:${focusProfile.id}:prefix`)) % prefixes.length] || 'Stone';
+  return `${prefix} ${focusProfile.nameSuffix}`.trim();
+}
+
+// Recompute company identity from roster marks/history and keep bounded bonuses explicit.
+function refreshWarriorCompanyIdentity(state, config, warriors, runtime = null) {
+  const safeRuntime = runtime || ensureWarriorsRuntimeState(state, config);
+  if (!safeRuntime || !safeRuntime.company || typeof safeRuntime.company !== 'object') {
+    return null;
+  }
+  const bonuses = warriors && warriors.bonuses ? warriors.bonuses : {};
+  const legacy = bonuses && bonuses.legacy ? bonuses.legacy : {};
+  const identityConfig = legacy && legacy.companyIdentity && typeof legacy.companyIdentity === 'object'
+    ? legacy.companyIdentity
+    : {};
+  const company = safeRuntime.company;
+  company.identity = company.identity && typeof company.identity === 'object'
+    ? company.identity
+    : {};
+  if (
+    bonuses.enabled === false
+    || legacy.enabled === false
+    || identityConfig.enabled === false
+  ) {
+    company.identity = {
+      name: '',
+      focus: 'balanced',
+      motto: '',
+      renown: 0,
+      dispatchBonus: 0,
+      duelBonus: 0,
+      trainingBonus: 0,
+      updatedTick: Math.max(0, Math.floor(Number(state && state.tick || 0))),
+    };
+    return company.identity;
+  }
+
+  const rosterLimit = Math.max(1, Math.floor(Number(legacy.companyRosterSize || 1)));
+  const rosterIds = normalizeIdList(company.rosterIds, rosterLimit);
+  const allDwarves = Array.isArray(state && state.dwarves) ? state.dwarves : [];
+  const byId = new Map(allDwarves.map((dwarf) => [String(dwarf && dwarf.id || ''), dwarf]));
+  if (rosterIds.length === 0) {
+    const seededRoster = allDwarves
+      .map((dwarf) => ({
+        dwarf,
+        warrior: dwarf && dwarf.warrior && typeof dwarf.warrior === 'object' ? dwarf.warrior : null,
+      }))
+      .filter((entry) => (
+        entry.warrior
+        && String(entry.dwarf && entry.dwarf.lifeStage || '') === 'adult'
+        && entry.warrior.retired !== true
+      ))
+      .sort((left, right) => {
+        const leftScore = Number(left.warrior.rating || 0) * 0.7 + Number(left.warrior.valor || 0) * 0.3;
+        const rightScore = Number(right.warrior.rating || 0) * 0.7 + Number(right.warrior.valor || 0) * 0.3;
+        if (Math.abs(rightScore - leftScore) > 1e-9) {
+          return rightScore - leftScore;
+        }
+        const leftSpawn = Math.max(0, Math.floor(Number(left.dwarf && left.dwarf.spawnIndex || 0)));
+        const rightSpawn = Math.max(0, Math.floor(Number(right.dwarf && right.dwarf.spawnIndex || 0)));
+        if (leftSpawn !== rightSpawn) {
+          return leftSpawn - rightSpawn;
+        }
+        return String(left.dwarf && left.dwarf.id || '').localeCompare(String(right.dwarf && right.dwarf.id || ''));
+      })
+      .slice(0, rosterLimit)
+      .map((entry) => String(entry.dwarf && entry.dwarf.id || ''));
+    company.rosterIds = seededRoster;
+  } else {
+    company.rosterIds = rosterIds;
+  }
+
+  const pointsCap = Math.max(1, Number(legacy.pointsCap || 1));
+  const activeRoster = company.rosterIds
+    .map((dwarfId) => byId.get(String(dwarfId || '')))
+    .filter(Boolean);
+  const metrics = {
+    rosterSize: activeRoster.length,
+    totalLegacyPoints: 0,
+    totalScars: 0,
+    totalTitles: 0,
+    totalVows: 0,
+    totalRiskWins: 0,
+    totalChampionSurvivals: 0,
+  };
+  for (const dwarf of activeRoster) {
+    const warrior = dwarf && dwarf.warrior && typeof dwarf.warrior === 'object'
+      ? dwarf.warrior
+      : null;
+    if (!warrior) {
+      continue;
+    }
+    metrics.totalLegacyPoints += Math.min(pointsCap, Math.max(0, Number(warrior.legacyPoints || 0)));
+    metrics.totalScars += Array.isArray(warrior.scars) ? warrior.scars.length : 0;
+    metrics.totalTitles += Array.isArray(warrior.titles) ? warrior.titles.length : 0;
+    metrics.totalVows += warrior.vow ? 1 : 0;
+    metrics.totalRiskWins += Math.max(0, Math.floor(Number(warrior.riskWins || 0)));
+    metrics.totalChampionSurvivals += Math.max(0, Math.floor(Number(dwarf && dwarf.underrealmChampionSurvivals || 0)));
+  }
+
+  const hall = Array.isArray(company.hallOfFame) ? company.hallOfFame : [];
+  const hallDepthNorm = clampUnit(
+    hall.length / Math.max(1, Number(identityConfig.maxHallOfFameCarry || 1)),
+  );
+  const marksNorm = metrics.rosterSize > 0
+    ? clampUnit(
+      (
+        metrics.totalScars
+        + metrics.totalTitles * 1.2
+        + metrics.totalVows * 1.5
+      ) / Math.max(1, metrics.rosterSize * 6),
+    )
+    : 0;
+  const legacyNorm = metrics.rosterSize > 0
+    ? clampUnit(metrics.totalLegacyPoints / Math.max(1, pointsCap * metrics.rosterSize))
+    : 0;
+  const stats = safeRuntime.stats && typeof safeRuntime.stats === 'object'
+    ? safeRuntime.stats
+    : {};
+  const tournamentNorm = clampUnit(Math.max(0, Number(stats.tournaments || 0)) / 24);
+  const auraNorm = clampUnit(Number(company.legacyAura || 0));
+  const renownWeights = identityConfig.renownWeights || {};
+  const renownRaw = (
+    auraNorm * Number(renownWeights.aura || 0)
+    + hallDepthNorm * Number(renownWeights.hall_of_fame || 0)
+    + clampUnit((marksNorm + legacyNorm) * 0.5) * Number(renownWeights.marks || 0)
+    + tournamentNorm * Number(renownWeights.tournaments || 0)
+  ) * Math.max(1, Number(identityConfig.renownScale || 1));
+  const carryover = company.carryover && typeof company.carryover === 'object'
+    ? company.carryover
+    : {};
+  const seededRenown = clampUnit(Number(carryover.seedBonus || 0));
+  const renown = clampUnit(
+    Math.min(
+      Number(identityConfig.renownCap || 0),
+      renownRaw + seededRenown,
+    ),
+  );
+  const focusId = resolveWarriorCompanyFocusId(metrics, safeRuntime);
+  const focusProfile = getWarriorCompanyFocusProfile(focusId);
+  company.identity = {
+    name: buildWarriorCompanyIdentityName(company, focusProfile, identityConfig),
+    focus: focusProfile.id,
+    motto: focusProfile.motto,
+    renown,
+    dispatchBonus: clampUnit(
+      renown
+      * clampUnit(Number(identityConfig.dispatchScale || 0))
+      * Number(focusProfile.dispatchMultiplier || 1),
+    ),
+    duelBonus: clampUnit(
+      renown
+      * clampUnit(Number(identityConfig.duelScale || 0))
+      * Number(focusProfile.duelMultiplier || 1),
+    ),
+    trainingBonus: clampUnit(
+      renown
+      * clampUnit(Number(identityConfig.trainingScale || 0))
+      * Number(focusProfile.trainingMultiplier || 1),
+    ),
+    updatedTick: Math.max(0, Math.floor(Number(state && state.tick || 0))),
+  };
+  return company.identity;
+}
+
+// Resolve one company identity bonus channel for a fighter (roster-aware).
+function resolveWarriorCompanyIdentityBonus(state, dwarfId, warriors, channel = 'dispatch') {
+  const bonuses = warriors && warriors.bonuses ? warriors.bonuses : {};
+  const legacy = bonuses && bonuses.legacy ? bonuses.legacy : {};
+  const identityConfig = legacy && legacy.companyIdentity && typeof legacy.companyIdentity === 'object'
+    ? legacy.companyIdentity
+    : {};
+  if (
+    bonuses.enabled === false
+    || legacy.enabled === false
+    || identityConfig.enabled === false
+  ) {
+    return 0;
+  }
+  const runtime = state && state.warriors && typeof state.warriors === 'object'
+    ? state.warriors
+    : null;
+  const company = runtime && runtime.company && typeof runtime.company === 'object'
+    ? runtime.company
+    : null;
+  if (!company) {
+    return 0;
+  }
+  const identity = company.identity && typeof company.identity === 'object'
+    ? company.identity
+    : {};
+  let baseBonus = 0;
+  if (channel === 'duel') {
+    baseBonus = clampUnit(Number(identity.duelBonus || 0));
+  } else if (channel === 'training') {
+    baseBonus = clampUnit(Number(identity.trainingBonus || 0));
+  } else {
+    baseBonus = clampUnit(Number(identity.dispatchBonus || 0));
+  }
+  if (baseBonus <= 0) {
+    return 0;
+  }
+  if (channel === 'training') {
+    return baseBonus;
+  }
+  const rosterIds = Array.isArray(company.rosterIds)
+    ? company.rosterIds
+    : [];
+  const safeId = String(dwarfId || '');
+  const onRoster = safeId && rosterIds.includes(safeId);
+  const membershipScale = onRoster
+    ? 1
+    : clampUnit(Number(identityConfig.reserveMemberScale || 0));
+  return clampUnit(baseBonus * membershipScale);
 }
 
 // Apply scars/titles/vow assignment for a single warrior progression event.
@@ -1964,6 +2364,7 @@ function applyWarriorExpeditionOutcome(state, config, expedition, outcome, optio
     });
   }
   refreshWarriorCompanyLegacyAura(state, config, warriors, runtime);
+  refreshWarriorCompanyIdentity(state, config, warriors, runtime);
 }
 
 // Ensure top-level warrior runtime payload exists and has normalized shape.
@@ -1988,6 +2389,43 @@ function ensureWarriorsRuntimeState(state, config) {
     ? runtime.company.hallOfFame
     : [];
   runtime.company.legacyAura = clampUnit(Number(runtime.company.legacyAura || 0));
+  runtime.company.identity = runtime.company.identity && typeof runtime.company.identity === 'object'
+    ? runtime.company.identity
+    : {};
+  runtime.company.identity.name = typeof runtime.company.identity.name === 'string'
+    ? runtime.company.identity.name
+    : '';
+  runtime.company.identity.focus = typeof runtime.company.identity.focus === 'string'
+    ? runtime.company.identity.focus
+    : 'balanced';
+  runtime.company.identity.motto = typeof runtime.company.identity.motto === 'string'
+    ? runtime.company.identity.motto
+    : '';
+  runtime.company.identity.renown = clampUnit(Number(runtime.company.identity.renown || 0));
+  runtime.company.identity.dispatchBonus = clampUnit(Number(runtime.company.identity.dispatchBonus || 0));
+  runtime.company.identity.duelBonus = clampUnit(Number(runtime.company.identity.duelBonus || 0));
+  runtime.company.identity.trainingBonus = clampUnit(Number(runtime.company.identity.trainingBonus || 0));
+  runtime.company.identity.updatedTick = Math.max(
+    0,
+    Math.floor(Number(runtime.company.identity.updatedTick || 0)),
+  );
+  runtime.company.carryover = runtime.company.carryover && typeof runtime.company.carryover === 'object'
+    ? runtime.company.carryover
+    : {};
+  runtime.company.carryover.cycleIndex = Math.max(
+    0,
+    Math.floor(Number(runtime.company.carryover.cycleIndex || 0)),
+  );
+  runtime.company.carryover.retainedRenown = clampUnit(
+    Number(runtime.company.carryover.retainedRenown || 0),
+  );
+  runtime.company.carryover.seedBonus = clampUnit(Number(runtime.company.carryover.seedBonus || 0));
+  runtime.company.carryover.sourceChampionId = runtime.company.carryover.sourceChampionId
+    ? String(runtime.company.carryover.sourceChampionId)
+    : null;
+  runtime.company.cycleHistory = Array.isArray(runtime.company.cycleHistory)
+    ? runtime.company.cycleHistory
+    : [];
   runtime.league = runtime.league && typeof runtime.league === 'object'
     ? runtime.league
     : {};
@@ -2109,7 +2547,7 @@ function addClanLeaguePoints(scoreByClan, clanId, points) {
 }
 
 // Build tournament seed-entry payload for one candidate.
-function buildTournamentSeedEntry(dwarf, config, warriors) {
+function buildTournamentSeedEntry(dwarf, state, config, warriors) {
   const warrior = ensureDwarfWarriorState(dwarf, config);
   if (!warrior) {
     return null;
@@ -2128,6 +2566,12 @@ function buildTournamentSeedEntry(dwarf, config, warriors) {
   );
   const vowEffects = resolveWarriorVowEffects(warrior, warriors);
   const personalLegacyBonus = resolveWarriorPersonalLegacyBonus(warrior, warriors);
+  const companyIdentityBonus = resolveWarriorCompanyIdentityBonus(
+    state,
+    dwarf && dwarf.id,
+    warriors,
+    'duel',
+  );
   const seedScore = clampUnit(
     Number(warrior.rating || 0) * Number(seedWeights.rating || 0)
     + Number(warrior.valor || 0) * Number(seedWeights.valor || 0)
@@ -2135,7 +2579,8 @@ function buildTournamentSeedEntry(dwarf, config, warriors) {
     + Number(warrior.condition && warrior.condition.score || 0) * Number(seedWeights.condition || 0)
     + survivalsNorm * Number(seedWeights.champion_survivals || 0)
     + Number(vowEffects.tournamentSeedBonus || 0)
-    + personalLegacyBonus * clampUnit(Number(legacy.personalDuelScale || 0)) * 0.4,
+    + personalLegacyBonus * clampUnit(Number(legacy.personalDuelScale || 0)) * 0.4
+    + companyIdentityBonus * 0.45
   );
   return {
     dwarf,
@@ -2150,6 +2595,7 @@ function buildTournamentSeedEntry(dwarf, config, warriors) {
     conditionScore: clampUnit(Number(warrior.condition && warrior.condition.score || 0)),
     baseCombatAptitude: clampUnit(Number(warrior.baseCombatAptitude || 0)),
     personalLegacyBonus,
+    companyIdentityBonus,
     vowId: vowEffects.id || null,
     championSurvivals,
     seedScore,
@@ -2218,7 +2664,8 @@ function computeTournamentDuelScore(entry, warriors) {
     + Number(entry && entry.baseCombatAptitude || 0) * Number(duelWeights.base_aptitude || 0)
     + Number(entry && entry.conditionScore || 0) * Number(duelWeights.condition || 0)
     + Number(vowEffects.tournamentDuelBonus || 0)
-    + personalLegacyBonus * clampUnit(Number(legacy.personalDuelScale || 0)),
+    + personalLegacyBonus * clampUnit(Number(legacy.personalDuelScale || 0))
+    + clampUnit(Number(entry && entry.companyIdentityBonus || 0))
   );
 }
 
@@ -2916,7 +3363,17 @@ function runWarriorTraining(state, config, runtime, warriors) {
   const recoveryIntent = recoveryApplied
     ? clamp(Number(governor.intents.recoveryPriorityIntent || 0), 0, 1)
     : 0;
-  const intensity = clamp(0.25 + trainingIntent * 0.9 - recoveryIntent * 0.35, 0.1, 1);
+  const companyTrainingBonus = resolveWarriorCompanyIdentityBonus(
+    state,
+    null,
+    warriors,
+    'training',
+  );
+  const intensity = clamp(
+    0.25 + trainingIntent * 0.9 - recoveryIntent * 0.35 + companyTrainingBonus,
+    0.1,
+    1,
+  );
   const maxParticipants = Math.max(
     Math.max(1, Math.floor(Number(training.baseParticipants || 1))),
     Math.floor(Number(training.maxParticipants || 1)),
@@ -3099,7 +3556,7 @@ function runSeasonWarriorTournament(state, config, runtime, warriors, seasonId) 
   const tick = Math.max(0, Math.floor(Number(state && state.tick || 0)));
   const adults = (Array.isArray(state && state.dwarves) ? state.dwarves : [])
     .filter(isWarriorLeagueAdult)
-    .map((dwarf) => buildTournamentSeedEntry(dwarf, config, warriors))
+    .map((dwarf) => buildTournamentSeedEntry(dwarf, state, config, warriors))
     .filter(Boolean)
     .sort(compareTournamentSeedEntries);
   const maxParticipants = Math.max(
@@ -3308,6 +3765,7 @@ function runSeasonWarriorTournament(state, config, runtime, warriors, seasonId) 
   const rosterSize = Math.max(1, Math.floor(Number(legacy.companyRosterSize || 12)));
   runtime.company.rosterIds = ranking.slice(0, rosterSize).map((entry) => String(entry.dwarfId || ''));
   refreshWarriorCompanyLegacyAura(state, config, warriors, runtime);
+  refreshWarriorCompanyIdentity(state, config, warriors, runtime);
   if (champion) {
     const championWarrior = champion.warrior && typeof champion.warrior === 'object'
       ? champion.warrior
@@ -3326,6 +3784,7 @@ function runSeasonWarriorTournament(state, config, runtime, warriors, seasonId) 
       legacyPoints: Math.max(0, Number(championWarrior.legacyPoints || 0)),
     });
     runtime.company.hallOfFame = runtime.company.hallOfFame.slice(0, 40);
+    refreshWarriorCompanyIdentity(state, config, warriors, runtime);
   }
 
   if (champion) {
@@ -3341,6 +3800,16 @@ function runSeasonWarriorTournament(state, config, runtime, warriors, seasonId) 
       config,
       `Warrior League ${leagueName} S${runtime.league.lastTournamentSeasonId}: champion ${championLabel}`,
     );
+    const identity = runtime.company && runtime.company.identity && typeof runtime.company.identity === 'object'
+      ? runtime.company.identity
+      : null;
+    if (identity && identity.name) {
+      pushEvent(
+        state,
+        config,
+        `Warrior Company ${identity.name}: ${identity.focus} doctrine active (${(clampUnit(Number(identity.renown || 0)) * 100).toFixed(1)}% renown)`,
+      );
+    }
     if (tournaments.syncUnderrealmChampion) {
       const synced = syncWarriorLeagueChampionToUnderrealm(state, champion.dwarfId, tick);
       if (synced) {
@@ -3545,8 +4014,11 @@ function updateWarriors(state, config, action = null) {
   }
   resolveWarriorsGovernorState(state, config, runtime, action);
   tickWarriorInjuryRecovery(state, config, runtime, warriors);
+  refreshWarriorCompanyLegacyAura(state, config, warriors, runtime);
+  refreshWarriorCompanyIdentity(state, config, warriors, runtime);
   runWarriorTraining(state, config, runtime, warriors);
   refreshWarriorCompanyLegacyAura(state, config, warriors, runtime);
+  refreshWarriorCompanyIdentity(state, config, warriors, runtime);
   const seasonId = resolveWarriorSeasonIndex(state);
   if (seasonId === null) {
     return;
@@ -3628,6 +4100,23 @@ function createWarriorsState(config) {
       rosterIds: [],
       hallOfFame: [],
       legacyAura: 0,
+      identity: {
+        name: '',
+        focus: 'balanced',
+        motto: '',
+        renown: 0,
+        dispatchBonus: 0,
+        duelBonus: 0,
+        trainingBonus: 0,
+        updatedTick: 0,
+      },
+      carryover: {
+        cycleIndex: 0,
+        retainedRenown: 0,
+        seedBonus: 0,
+        sourceChampionId: null,
+      },
+      cycleHistory: [],
     },
     league: {
       seasonId: 0,
@@ -3684,6 +4173,158 @@ function createWarriorsState(config) {
   };
 }
 
+// Carry warrior-company lineage and apply bounded startup hooks across endgame cycle resets.
+function carryWarriorCompanyAcrossCycle(previousState, nextState, config) {
+  const warriors = getWarriorsConfig(config);
+  const bonuses = warriors && warriors.bonuses ? warriors.bonuses : {};
+  const legacy = bonuses && bonuses.legacy ? bonuses.legacy : {};
+  const identityConfig = legacy && legacy.companyIdentity && typeof legacy.companyIdentity === 'object'
+    ? legacy.companyIdentity
+    : {};
+  const carryoverConfig = legacy && legacy.carryover && typeof legacy.carryover === 'object'
+    ? legacy.carryover
+    : {};
+  if (
+    warriors.enabled !== true
+    || bonuses.enabled === false
+    || legacy.enabled === false
+    || identityConfig.enabled === false
+    || carryoverConfig.enabled === false
+  ) {
+    return;
+  }
+
+  const previousRuntime = ensureWarriorsRuntimeState(previousState, config);
+  const nextRuntime = ensureWarriorsRuntimeState(nextState, config);
+  if (!previousRuntime || !nextRuntime) {
+    return;
+  }
+  const previousCompany = previousRuntime.company && typeof previousRuntime.company === 'object'
+    ? previousRuntime.company
+    : {};
+  const nextCompany = nextRuntime.company && typeof nextRuntime.company === 'object'
+    ? nextRuntime.company
+    : {};
+  const previousIdentity = previousCompany.identity && typeof previousCompany.identity === 'object'
+    ? previousCompany.identity
+    : {};
+  const previousCycleStats = previousState && previousState.cycleStats ? previousState.cycleStats : {};
+  const previousCycleCount = Math.max(0, Math.floor(Number(previousCycleStats.count || 0)));
+  const nextCycleIndex = previousCycleCount + 1;
+
+  const historyLimit = Math.max(1, Math.floor(Number(carryoverConfig.historyLimit || 1)));
+  const maxHallCarry = Math.max(1, Math.floor(Number(identityConfig.maxHallOfFameCarry || 1)));
+  const previousHall = Array.isArray(previousCompany.hallOfFame)
+    ? previousCompany.hallOfFame
+    : [];
+  nextCompany.hallOfFame = previousHall
+    .slice(0, maxHallCarry)
+    .map((entry) => ({ ...(entry && typeof entry === 'object' ? entry : {}) }));
+
+  const previousHistory = Array.isArray(previousCompany.cycleHistory)
+    ? previousCompany.cycleHistory
+    : [];
+  const previousChampionId = previousRuntime && previousRuntime.league && previousRuntime.league.championId
+    ? String(previousRuntime.league.championId)
+    : null;
+  const cycleSummary = {
+    cycle: previousCycleCount,
+    name: previousIdentity.name ? String(previousIdentity.name) : '',
+    focus: previousIdentity.focus ? String(previousIdentity.focus) : 'balanced',
+    renown: clampUnit(Number(previousIdentity.renown || 0)),
+    championId: previousChampionId,
+    tournaments: Math.max(
+      0,
+      Math.floor(Number(previousRuntime && previousRuntime.stats && previousRuntime.stats.tournaments || 0)),
+    ),
+    tick: Math.max(0, Math.floor(Number(previousState && previousState.tick || 0))),
+  };
+  nextCompany.cycleHistory = previousHistory
+    .concat([cycleSummary])
+    .slice(-historyLimit)
+    .map((entry) => ({ ...(entry && typeof entry === 'object' ? entry : {}) }));
+
+  const minCyclesForSeed = Math.max(0, Math.floor(Number(carryoverConfig.minCyclesForSeed || 0)));
+  const cyclesBeyondFloor = Math.max(0, nextCycleIndex - minCyclesForSeed);
+  const baseDecay = clampUnit(1 - Number(carryoverConfig.perCycleDecay || 0));
+  const decayMultiplier = cyclesBeyondFloor > 0 ? Math.pow(baseDecay, cyclesBeyondFloor) : 1;
+  const retainedRenown = nextCycleIndex >= minCyclesForSeed
+    ? clampUnit(
+      clampUnit(Number(previousIdentity.renown || 0))
+      * clampUnit(Number(carryoverConfig.renownRetention || 0))
+      * decayMultiplier,
+    )
+    : 0;
+  const seedBonus = clampUnit(Math.min(
+    Number(carryoverConfig.maxSeedBonus || 0),
+    retainedRenown,
+  ));
+
+  nextCompany.carryover = {
+    cycleIndex: nextCycleIndex,
+    retainedRenown,
+    seedBonus,
+    sourceChampionId: previousChampionId,
+  };
+
+  if (seedBonus > 0) {
+    const ratingScale = clampUnit(Number(carryoverConfig.startingRatingScale || 0));
+    const valorScale = clampUnit(Number(carryoverConfig.startingValorScale || 0));
+    const heroScale = clampUnit(Number(carryoverConfig.startingHeroPotentialScale || 0));
+    const dwarves = Array.isArray(nextState && nextState.dwarves) ? nextState.dwarves : [];
+    for (const dwarf of dwarves) {
+      const warrior = ensureDwarfWarriorState(dwarf, config);
+      if (!warrior) {
+        continue;
+      }
+      warrior.rating = clampUnit(Number(warrior.rating || 0) + seedBonus * ratingScale);
+      warrior.valor = clampUnit(Number(warrior.valor || 0) + seedBonus * valorScale);
+      warrior.heroPotential = clampUnit(
+        Number(warrior.heroPotential || 0) + seedBonus * heroScale,
+      );
+    }
+    pushEvent(
+      nextState,
+      config,
+      `Warrior Company carry-over: retained ${(retainedRenown * 100).toFixed(1)}% renown (${(seedBonus * 100).toFixed(1)}% startup seed)`,
+    );
+  }
+
+  const rosterSize = Math.max(1, Math.floor(Number(legacy.companyRosterSize || 1)));
+  const seededRoster = (Array.isArray(nextState && nextState.dwarves) ? nextState.dwarves : [])
+    .map((dwarf) => ({
+      dwarf,
+      warrior: ensureDwarfWarriorState(dwarf, config),
+    }))
+    .filter((entry) => (
+      entry.warrior
+      && String(entry.dwarf && entry.dwarf.lifeStage || '') === 'adult'
+      && entry.warrior.retired !== true
+    ))
+    .sort((left, right) => {
+      const leftScore = Number(left.warrior.rating || 0) * 0.5
+        + Number(left.warrior.valor || 0) * 0.3
+        + Number(left.warrior.heroPotential || 0) * 0.2;
+      const rightScore = Number(right.warrior.rating || 0) * 0.5
+        + Number(right.warrior.valor || 0) * 0.3
+        + Number(right.warrior.heroPotential || 0) * 0.2;
+      if (Math.abs(rightScore - leftScore) > 1e-9) {
+        return rightScore - leftScore;
+      }
+      const leftSpawn = Math.max(0, Math.floor(Number(left.dwarf && left.dwarf.spawnIndex || 0)));
+      const rightSpawn = Math.max(0, Math.floor(Number(right.dwarf && right.dwarf.spawnIndex || 0)));
+      if (leftSpawn !== rightSpawn) {
+        return leftSpawn - rightSpawn;
+      }
+      return String(left.dwarf && left.dwarf.id || '').localeCompare(String(right.dwarf && right.dwarf.id || ''));
+    })
+    .slice(0, rosterSize)
+    .map((entry) => String(entry.dwarf && entry.dwarf.id || ''));
+  nextCompany.rosterIds = seededRoster;
+  refreshWarriorCompanyLegacyAura(nextState, config, warriors, nextRuntime);
+  refreshWarriorCompanyIdentity(nextState, config, warriors, nextRuntime);
+}
+
 module.exports = {
   getWarriorsConfig,
   createDwarfWarriorState,
@@ -3698,6 +4339,7 @@ module.exports = {
   compareRiskDispatchCandidates,
   applyWarriorExpeditionOutcome,
   updateWarriors,
+  carryWarriorCompanyAcrossCycle,
   formatWarriorDisplayName,
   formatWarriorDisplayNameById,
   resolveWarriorLeagueEpicName,
