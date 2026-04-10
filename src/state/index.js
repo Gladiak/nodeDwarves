@@ -6,6 +6,10 @@ const { createTempleState, createPrestigeState } = require('../simulation/temple
 const { createSchismState } = require('../simulation/schism');
 const { createDwarfWarriorState, createWarriorsState } = require('../simulation/warriors');
 const {
+  createInitialDwarfSocialState,
+  createSocialDramaState,
+} = require('../simulation/social_drama');
+const {
   createTerrain,
   getTerrainSpawnPredicate,
   getTerrainResourcePredicate,
@@ -1788,6 +1792,7 @@ function createInitialState(config, runtime) {
   const temple = createTempleState(config);
   const prestige = createPrestigeState(config);
   const schism = createSchismState(config);
+  const socialDrama = createSocialDramaState(config);
   const underrealm = createUnderrealmState(config, runtime, terrain, null);
   const warriors = createWarriorsState(config);
 
@@ -1820,6 +1825,7 @@ function createInitialState(config, runtime) {
     temple,
     prestige,
     schism,
+    socialDrama,
     stockpile: buildInitialStockpile(config, mapScaleContext),
     resourceTargets: scaledTargets,
     villages: null,
@@ -2507,6 +2513,7 @@ function createDwarves(config, runtime, occupied, terrain) {
       partnerId: null,
       bondTargetId: null,
       bondScore: 0,
+      social: createInitialDwarfSocialState(),
       fertilityCooldown: 0,
       pregnancy: null,
       starvationTicks: 0,

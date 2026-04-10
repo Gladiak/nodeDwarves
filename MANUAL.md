@@ -511,6 +511,18 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - Housing assignment, couple co-housing, and winter penalties are driven by `population.housing.*`.
   - Relationships/bonding use `population.relationships.*`, with morale and housing multipliers,
     plus optional same-clan bond gain bonuses.
+  - `social_drama.js` extends those interactions with bounded per-dwarf link memory:
+    - each dwarf keeps only a capped set of remembered ties (`affinity`, `friction`, `grudge`, `mentor`, `protege`),
+    - strongest links become inspect/telemetry-facing states (`friend`, `rival`, `grudge`, `mentor`, `protege`),
+    - link memory decays every tick and weak ties are pruned to keep hot-path cost bounded.
+  - Passive social effects are small but systemic:
+    - friendship/mentorship lift morale and relieve stress,
+    - rivalry/grudge add stress, morale drag, and mild fatigue pressure,
+    - because these write into dwarf mood directly, they indirectly influence gathering speed, reproduction climate, schism pressure, warrior readiness, and other morale-aware systems.
+  - Social incidents are explicit, rare, and cooldown-guarded:
+    - at most the configured number per tick,
+    - drawn from active strong ties (friendship celebration, rivalry quarrel, hardening grudge, mentorship breakthrough),
+    - emitted into the event log and cached in bounded history for telemetry.
   - Reproduction uses `population.reproduction.*` (base chance, soft cap, gestation, cooldown, stockpile gates, birth cost).
 
 ### Clan culture 🛡️
@@ -2028,6 +2040,7 @@ Quick checklist:
     - `simulation/alchemy.js` → alchemy rite lifecycle and modifiers
     - `simulation/contracts.js` → contract offers, reputations, and boons
     - `simulation/world_events.js` → global event lifecycle and temporary world modifiers
+    - `simulation/social_drama.js` → bounded dwarf social ties, passive mood effects, emergent incidents, and social cleanup/status helpers
   - `simulation/external_camps.js` → long-lived external faction camps and map-level diplomacy pressure
   - `simulation/schism.js` → run-scale social schism arc, doctrine shifts, ritual windows, and climax events
   - `simulation/warriors.js` → Warrior League runtime (combat profile bootstrap, risk-aware dispatch ranking, expedition progression, seasonal tournaments, bounded injury/recovery + succession/training loops, persistent marks/vows/legacy bonuses, and company identity/cycle carry-over hooks)

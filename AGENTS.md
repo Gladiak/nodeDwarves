@@ -43,6 +43,7 @@ This file defines how to implement new features in a consistent, stable way.
 - `src/simulation/world_events.js`: world event lifecycle, timed opportunities, and temporary world modifiers.
 - `src/simulation/external_camps.js`: long-lived external faction camps with trade, militia support, and raider pressure.
 - `src/simulation/schism.js`: run-scale social schism arc (pressure/legitimacy, doctrine shifts, ritual windows, and climax events).
+- `src/simulation/social_drama.js`: bounded dwarf social ties, passive mood effects, emergent incidents, and social cleanup/status helpers.
 - `src/simulation/temple.js`: Temple of Ancestors stages, site selection, bonuses, and prestige.
 - `src/simulation/warriors.js`: Warrior League helpers for deterministic per-dwarf combat profiles, risk-aware expedition dispatch, and seasonal tournament runtime/champion sync.
 - `src/simulation.js`: thin wrapper for `src/simulation/index.js`.

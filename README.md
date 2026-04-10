@@ -24,6 +24,7 @@ Think of it as a living systems sandbox: you tune config, press run, and watch t
 - ⛺ Long-lived external faction camps: trade hubs, militia outposts, and raider pressure points with moving trade caravans, interception risk, and role-based influence zones on the map.
 - 🎭 World events now live: traveling bards, rival caravans, and short-deadline opportunities.
 - 🔥 Schism arc per run: doctrine shifts with hysteresis, seasonal council decrees (`pick 1 of 3` edicts), branching anti-repeat festival rituals, social pressure/legitimacy swings, and climax moments that can reshape the economy.
+- 💔 Social drama engine: dwarves now build bounded friendships, rivalries, grudges, and mentorships that nudge morale/stress and occasionally erupt into visible incidents.
 - ⚖️ Council decree defaults are now long-run tuned for steadier governance outcomes.
 - 🗝️ Endgame ruins expeditions with artifacts, set bonuses, and cycle resets.
 - 🏛️ Dwarf Temple of Ancestors: biome-aware multi-stage final work with doctrine-path lock-in and prestige growth.
@@ -213,6 +214,7 @@ Warrior League governor hooks now support `warriors` intents (training, rotation
 Telemetry now exposes compact governor signals directly in `Pressure`, `Diplomacy`, `Operations`, and `AI Explainability` so policy intent can be inspected live.
 Training action heads now include governor pseudo-action IDs when enabled (`gov_trade_*`, `gov_contract_*`, `gov_ruins_*`, `gov_underrealm_*`, `gov_building_*`, `gov_external_*`, `gov_warriors_*`); Warrior phase-6 AI features expand the observation shape, so restart training with `--fresh` when upgrading from pre-phase-6 checkpoints.
 By default, the warriors governor is active with `ai.governors.warriors.actionHeadEnabled=true`; when upgrading from legacy checkpoints without warrior action IDs, run training with `--fresh` (or temporarily set this flag to `false`).
+
 - 🛡️ Warrior League phase-4 now adds persistent hero progression: deterministic scars/titles/vows, event-earned legacy points with strict caps+diminishing returns, and legacy bonuses that influence risky dispatches and tournaments without uncontrolled snowballing.
 
 ## Four runs to try ⚡
@@ -247,8 +249,7 @@ _Roadmap remainder snapshot (updated 2026-04-07): focus on what is still missing
 
 - 🧬 (high, in progress) Personal dwarf arcs: deterministic lore is live; remaining: explicit `origin + vice + ambition`, arc progression triggers, and mini-outcome event beats.
 - 📜 (high, in progress) Multi-act faction questlines: contracts/camps/events are live; remaining: chapter-based faction quest chains with branching resolution paths and follow-up consequences.
-- ✅ (completed 2026-04-07) Persistent hero company: scars/titles/vows/legacy are live, with company identity + cross-cycle carry-over hooks now in production.
-- 💔 (high, in progress) Social drama engine: relationship bonding exists; remaining: rivalry/friendship/mentorship/grudge states and emergent social incidents tied to them.
+- 💔 (high, in progress) Social drama engine: core friendships/rivalries/grudges/mentorships and emergent incidents are live; remaining: larger cascading feuds and cross-cycle social memory.
 - 👑 (medium, in progress) Titles and succession: warrior succession exists; remaining: governance offices (`Steward`, `Marshal`, `High Priest`) that shape settlement policy identity.
 - 🔮 (medium, in progress) Ancestor omens and prophecies: myth/tradition systems exist; remaining: omen-style player/AI dilemma choices with high-risk/high-reward outcomes.
 - ⚔️ (medium, in progress) Nemesis houses: recurring factions and diplomacy pressure exist; remaining: persistent nemesis-house memory and escalating rivalry arcs across cycles.
@@ -257,40 +258,40 @@ _Roadmap remainder snapshot (updated 2026-04-07): focus on what is still missing
 
 ### Roadmap scoring rubric
 
-| Section | Weight | What it measures |
-|---|---:|---|
-| Systemic breadth | 0.25 | How many core systems are affected |
-| Persistence | 0.20 | How long effects stay relevant in a run |
-| Frequency | 0.15 | How often it appears during normal play |
-| Decision weight | 0.25 | How strongly it changes strategic trade-offs |
-| Emergence / AI impact | 0.15 | How much it changes emergent behavior and policy priorities |
+| Section               | Weight | What it measures                                            |
+| --------------------- | -----: | ----------------------------------------------------------- |
+| Systemic breadth      |   0.25 | How many core systems are affected                          |
+| Persistence           |   0.20 | How long effects stay relevant in a run                     |
+| Frequency             |   0.15 | How often it appears during normal play                     |
+| Decision weight       |   0.25 | How strongly it changes strategic trade-offs                |
+| Emergence / AI impact |   0.15 | How much it changes emergent behavior and policy priorities |
 
 Formula: `Total = sum(section_score * weight)`  
 Impact thresholds: `High >= 4.0`, `Medium >= 2.8 and < 4.0`, `Low < 2.8`
 
 ### Roadmap scorecard
 
-| Idea | Breadth | Persistence | Frequency | Decision weight | Emergence/AI | Total | Impact |
-|---|---:|---:|---:|---:|---:|---:|---|
-| Personal dwarf arcs | 4 | 5 | 4 | 4 | 4 | 4.20 | High |
-| Multi-act faction questlines | 5 | 4 | 4 | 4 | 4 | 4.25 | High |
-| Persistent hero company | 4 | 5 | 3 | 4 | 4 | 4.05 | High |
-| Social drama engine | 5 | 4 | 5 | 4 | 5 | 4.55 | High |
-| Titles and succession | 4 | 4 | 3 | 4 | 3 | 3.70 | Medium |
-| Ancestor omens and prophecies | 3 | 3 | 2 | 4 | 3 | 3.10 | Medium |
-| Nemesis houses | 4 | 4 | 3 | 3 | 4 | 3.60 | Medium |
-| Tavern rumors and side quests | 2 | 2 | 3 | 2 | 2 | 2.15 | Low |
-| Chronicle and saga system | 3 | 4 | 3 | 3 | 3 | 3.20 | Medium |
+| Idea                          | Breadth | Persistence | Frequency | Decision weight | Emergence/AI | Total | Impact |
+| ----------------------------- | ------: | ----------: | --------: | --------------: | -----------: | ----: | ------ |
+| Personal dwarf arcs           |       4 |           5 |         4 |               4 |            4 |  4.20 | High   |
+| Multi-act faction questlines  |       5 |           4 |         4 |               4 |            4 |  4.25 | High   |
+| Persistent hero company       |       4 |           5 |         3 |               4 |            4 |  4.05 | High   |
+| Social drama engine           |       5 |           4 |         5 |               4 |            5 |  4.55 | High   |
+| Titles and succession         |       4 |           4 |         3 |               4 |            3 |  3.70 | Medium |
+| Ancestor omens and prophecies |       3 |           3 |         2 |               4 |            3 |  3.10 | Medium |
+| Nemesis houses                |       4 |           4 |         3 |               3 |            4 |  3.60 | Medium |
+| Tavern rumors and side quests |       2 |           2 |         3 |               2 |            2 |  2.15 | Low    |
+| Chronicle and saga system     |       3 |           4 |         3 |               3 |            3 |  3.20 | Medium |
 
 ### Section summary
 
-| Section | Avg | Min-Max | Strong ideas (>=4) | Weak ideas (<=2) |
-|---|---:|---|---:|---:|
-| Systemic breadth | 3.78 | 2-5 | 6 | 1 |
-| Persistence | 3.89 | 2-5 | 7 | 1 |
-| Frequency | 3.33 | 2-5 | 2 | 1 |
-| Decision weight | 3.56 | 2-4 | 6 | 1 |
-| Emergence / AI impact | 3.56 | 2-5 | 5 | 1 |
+| Section               |  Avg | Min-Max | Strong ideas (>=4) | Weak ideas (<=2) |
+| --------------------- | ---: | ------- | -----------------: | ---------------: |
+| Systemic breadth      | 3.78 | 2-5     |                  6 |                1 |
+| Persistence           | 3.89 | 2-5     |                  7 |                1 |
+| Frequency             | 3.33 | 2-5     |                  2 |                1 |
+| Decision weight       | 3.56 | 2-4     |                  6 |                1 |
+| Emergence / AI impact | 3.56 | 2-5     |                  5 |                1 |
 
 ## Project layout (high level) 🧱
 
@@ -302,6 +303,7 @@ Impact thresholds: `High >= 4.0`, `Medium >= 2.8 and < 4.0`, `Low < 2.8`
 - `src/simulation/world_events.js`: world event lifecycle for bards, rival caravans, and time-limited opportunities.
 - `src/simulation/external_camps.js`: long-lived external faction camps with trade, militia support, raider pressure, moving caravans, and influence-zone modifiers.
 - `src/simulation/schism.js`: run-scale social schism arc (pressure/legitimacy, doctrine shifts, seasonal council decrees, ritual festivals, and climax events).
+- `src/simulation/social_drama.js`: bounded dwarf social ties, passive mood effects, emergent incidents, and social cleanup/status helpers.
 - `src/simulation/alchemy.js`: alchemy rites, pact lifecycle, and backlash logic.
 - `src/simulation/temple.js`: Temple of Ancestors stages, map footprint, and prestige system.
 - `src/simulation/warriors.js`: Warrior League runtime helpers for deterministic combat profiles, risk-aware expedition dispatch, seasonal tournament progression, tournament consequences/succession/training, persistent scars/titles/vows/legacy bonuses, and company identity/cycle carry-over hooks.

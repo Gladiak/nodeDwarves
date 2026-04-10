@@ -443,6 +443,8 @@ Rows:
 6. Births/deaths total
 7. Deaths by cause (starvation/raids/deep raids)
 8. Reproduction success rate
+9. Social drama counts (friends/rivals/grudges/mentors)
+10. Latest social incident or current drama heat fallback
 
 ## 7.5 Lore section
 

@@ -251,6 +251,11 @@ episodes from collapsing into extinction during long runs.
 - `population.relationships.moraleMax`: morale where bonding bonus caps (0..1).
 - `population.relationships.moraleBonusMax`: max bonding bonus added at peak morale (0..1).
 - `population.relationships.moraleExponent`: curve exponent for morale-based bonding bonus.
+- `population.relationships.socialDrama.enabled`: enable or disable the bounded social-drama layer during training runs.
+- `population.relationships.socialDrama.friendshipGain` / `rivalryGain` / `grudgeGain` / `mentorshipGain`: interaction-to-state conversion strength.
+- `population.relationships.socialDrama.thresholds.*`: minimum scores required before ties surface as active states.
+- `population.relationships.socialDrama.effects.*`: passive morale/stress/fatigue drift from active ties.
+- `population.relationships.socialDrama.incidents.*`: incident cadence, probability, and immediate mood deltas.
 - `population.pathing.mode`: pathing strategy (`detour` or `field`).
 - `population.pathing.field.radius`: potential-field radius (tiles).
 - `population.pathing.field.ttlTicks`: ticks to reuse a cached field.

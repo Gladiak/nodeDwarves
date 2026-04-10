@@ -5,6 +5,7 @@ const { getClanEffects } = require('../clans');
 const { buildDwarfLore } = require('../dwarf_lore');
 const { hasInputs, consumeInputs } = require('./resources');
 const { pushEvent } = require('./events');
+const { clearDeadSocialLinks } = require('./social_drama');
 
 const WARRIOR_LEAGUE_EPITHETS = [
   'Gauntlet',
@@ -2899,16 +2900,7 @@ function applyWarriorLeagueDeaths(state, deadIds) {
     .filter((dwarf) => !ids.has(String(dwarf && dwarf.id || '')));
   state.jobs = (Array.isArray(state.jobs) ? state.jobs : [])
     .filter((job) => !ids.has(String(job && job.dwarfId || '')));
-  for (const dwarf of state.dwarves) {
-    if (dwarf.partnerId && ids.has(String(dwarf.partnerId || ''))) {
-      dwarf.partnerId = null;
-      dwarf.bondTargetId = null;
-      dwarf.bondScore = 0;
-    }
-    if (dwarf.pregnancy && ids.has(String(dwarf.pregnancy.partnerId || ''))) {
-      dwarf.pregnancy = null;
-    }
-  }
+  clearDeadSocialLinks(state, ids);
 
   const runtime = state && state.warriors && typeof state.warriors === 'object'
     ? state.warriors

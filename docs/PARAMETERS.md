@@ -1127,6 +1127,59 @@ Population relationships:
 - `population.relationships.moraleMax`: morale where bonding bonus caps (0..1).
 - `population.relationships.moraleBonusMax`: max bonding bonus added at peak morale (0..1).
 - `population.relationships.moraleExponent`: curve exponent for morale-based bonding bonus.
+- `population.relationships.socialDrama.enabled`: enable bounded social ties and incidents on top of bonding.
+- `population.relationships.socialDrama.maxLinksPerDwarf`: max remembered social links per dwarf.
+- `population.relationships.socialDrama.scoreCap`: clamp cap shared by affinity/friction/grudge/mentor/protege scores.
+- `population.relationships.socialDrama.minScoreToKeep`: prune links that decay below this aggregate strength.
+- `population.relationships.socialDrama.friendshipGain`: base affinity gain per social interaction.
+- `population.relationships.socialDrama.rivalryGain`: base friction gain per stressed/competitive interaction.
+- `population.relationships.socialDrama.grudgeGain`: base resentment gain when rivalry remains high.
+- `population.relationships.socialDrama.mentorshipGain`: base mentor/protege gain for strong age-gap interactions.
+- `population.relationships.socialDrama.sameClanAffinityBonus`: extra affinity multiplier when both dwarves share the same clan.
+- `population.relationships.socialDrama.sameHomeAffinityBonus`: extra affinity multiplier when both dwarves share the same house.
+- `population.relationships.socialDrama.sameRoleRivalryBonus`: extra rivalry pressure for same-role competition.
+- `population.relationships.socialDrama.stressRivalryScale`: how strongly average stress pushes rivalry gain.
+- `population.relationships.socialDrama.lowMoraleRivalryScale`: how strongly low morale pushes rivalry gain.
+- `population.relationships.socialDrama.mentorAgeGapTicks`: minimum age gap required before mentor/protege ties can grow.
+- `population.relationships.socialDrama.menteeMaxAgeTicks`: max age for the younger dwarf to still qualify as a protege.
+- `population.relationships.socialDrama.thresholds.friendship`: minimum affinity score required to surface a `friend`.
+- `population.relationships.socialDrama.thresholds.rivalry`: minimum friction score required to surface a `rival`.
+- `population.relationships.socialDrama.thresholds.grudge`: minimum resentment score required to surface a `grudge`.
+- `population.relationships.socialDrama.thresholds.mentor`: minimum mentor score required to surface a `mentor`.
+- `population.relationships.socialDrama.thresholds.protege`: minimum protege score required to surface a `protege`.
+- `population.relationships.socialDrama.decayPerTick.affinity`: per-tick decay applied to positive affinity memory.
+- `population.relationships.socialDrama.decayPerTick.friction`: per-tick decay applied to rivalry memory.
+- `population.relationships.socialDrama.decayPerTick.grudge`: per-tick decay applied to long-lived grudge memory.
+- `population.relationships.socialDrama.decayPerTick.mentor`: per-tick decay applied to mentor memory.
+- `population.relationships.socialDrama.decayPerTick.protege`: per-tick decay applied to protege memory.
+- `population.relationships.socialDrama.effects.friendMoralePerTick`: per-tick morale gain from an active friendship.
+- `population.relationships.socialDrama.effects.friendStressReliefPerTick`: per-tick stress relief from an active friendship.
+- `population.relationships.socialDrama.effects.rivalStressPerTick`: per-tick stress gain from an active rivalry.
+- `population.relationships.socialDrama.effects.rivalMoralePenaltyPerTick`: per-tick morale penalty from an active rivalry.
+- `population.relationships.socialDrama.effects.grudgeStressPerTick`: per-tick stress gain from an active grudge.
+- `population.relationships.socialDrama.effects.grudgeMoralePenaltyPerTick`: per-tick morale penalty from an active grudge.
+- `population.relationships.socialDrama.effects.grudgeFatiguePerTick`: per-tick fatigue gain from an active grudge.
+- `population.relationships.socialDrama.effects.mentorMoralePerTick`: per-tick morale gain when a dwarf benefits from a mentor.
+- `population.relationships.socialDrama.effects.mentorStressReliefPerTick`: per-tick stress relief when a dwarf benefits from a mentor.
+- `population.relationships.socialDrama.effects.protegeMoralePerTick`: per-tick morale gain when a dwarf is actively mentoring someone else.
+- `population.relationships.socialDrama.effects.protegeStressReliefPerTick`: per-tick stress relief from active protege guidance.
+- `population.relationships.socialDrama.incidents.enabled`: enable rare social incidents on top of passive ties.
+- `population.relationships.socialDrama.incidents.historyLimit`: max recent incidents kept in runtime history.
+- `population.relationships.socialDrama.incidents.maxPerTick`: max incidents allowed to resolve in one tick.
+- `population.relationships.socialDrama.incidents.globalCooldownTicks`: minimum ticks between any two incidents.
+- `population.relationships.socialDrama.incidents.pairCooldownTicks`: minimum ticks before the same pair can generate another incident.
+- `population.relationships.socialDrama.incidents.friendshipChance`: base chance to resolve a friendship incident when a strong tie is picked.
+- `population.relationships.socialDrama.incidents.rivalryChance`: base chance to resolve a rivalry incident when a strong tie is picked.
+- `population.relationships.socialDrama.incidents.grudgeChance`: base chance to resolve a grudge incident when a strong tie is picked.
+- `population.relationships.socialDrama.incidents.mentorshipChance`: base chance to resolve a mentorship incident when a strong tie is picked.
+- `population.relationships.socialDrama.incidents.friendshipMoraleDelta`: immediate morale boost applied by a friendship incident.
+- `population.relationships.socialDrama.incidents.friendshipStressReliefDelta`: immediate stress relief applied by a friendship incident.
+- `population.relationships.socialDrama.incidents.rivalryStressDelta`: immediate stress spike applied by a rivalry incident.
+- `population.relationships.socialDrama.incidents.rivalryMoraleDelta`: immediate morale delta applied by a rivalry incident.
+- `population.relationships.socialDrama.incidents.grudgeStressDelta`: immediate stress spike applied by a grudge incident.
+- `population.relationships.socialDrama.incidents.grudgeMoraleDelta`: immediate morale delta applied by a grudge incident.
+- `population.relationships.socialDrama.incidents.mentorshipMoraleDelta`: immediate morale gain applied by a mentorship incident.
+- `population.relationships.socialDrama.incidents.mentorshipFatigueReliefDelta`: immediate fatigue/stress relief applied by a mentorship incident.
 - `population.idleWanderChance`: legacy per-tick wander chance (0..1), used as fallback for `population.idleWander.chance`.
 - `population.idleWander.enabled`: enable waypoint-style idle wandering.
 - `population.idleWander.chance`: chance per tick to start an idle stroll (0..1).

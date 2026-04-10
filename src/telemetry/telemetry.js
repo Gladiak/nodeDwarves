@@ -7,6 +7,7 @@ const { getAlchemyStatus } = require("../simulation/alchemy");
 const { getWorldEventStatus } = require("../simulation/world_events");
 const { getExternalCampStatus } = require("../simulation/external_camps");
 const { getSchismStatus } = require("../simulation/schism");
+const { getSocialDramaStatus } = require("../simulation/social_drama");
 const {
   formatWarriorDisplayNameById,
   resolveWarriorLeagueEpicName,
@@ -163,6 +164,7 @@ function collectTelemetrySnapshot(state, config, columnWidth, options = {}) {
   const festivalStatus = getFestivalStatus(safeState, safeConfig);
   const worldEventStatus = getWorldEventStatus(safeState, safeConfig);
   const schismStatus = getSchismStatus(safeState, safeConfig);
+  const socialDramaStatus = getSocialDramaStatus(safeState, safeConfig);
   const shortages = Array.isArray(safeState.lastPriorities) ? safeState.lastPriorities : [];
   const governorSignals = getGovernorSignals(safeState);
   const stockRatioLine = [
@@ -246,6 +248,7 @@ function collectTelemetrySnapshot(state, config, columnWidth, options = {}) {
     festivalStatus,
     worldEventStatus,
     schismStatus,
+    socialDramaStatus,
     shortages,
     governorSignals,
     stockRatioLine,
@@ -304,6 +307,8 @@ function buildTelemetrySectionModels(snapshot) {
         `Births / deaths: ${snapshot.birthsCount} / ${snapshot.deathsCount}`,
         `Deaths by cause: starvation ${Math.max(0, Number(snapshot.deathsByCause.starvation || 0))}, raids ${Math.max(0, Number(snapshot.deathsByCause.raid || 0))}, deep raids ${Math.max(0, Number(snapshot.deathsByCause.deepRaid || 0))}`,
         `Reproduction success: ${snapshot.reproSuccesses}/${snapshot.reproAttempts} (${snapshot.reproSuccessRatio}%)`,
+        formatSocialDramaOverview(snapshot.socialDramaStatus),
+        formatSocialDramaIncident(snapshot.socialDramaStatus),
       ],
     },
     {
@@ -2106,6 +2111,25 @@ function formatOpsLoadLine(jobCounts, totalJobs) {
     + Math.max(0, Number(counts.upgrade || 0));
   const other = Math.max(0, total - production - infra);
   return `Workload split: production ${production}, infrastructure ${infra}, other ${other}`;
+}
+
+// Format active social-state counts in one compact population row.
+function formatSocialDramaOverview(status) {
+  if (!status || status.enabled === false) {
+    return "Social drama: off";
+  }
+  return `Social drama: friends ${status.friendships}, rivals ${status.rivalries}, grudges ${status.grudges}, mentors ${status.mentorships}`;
+}
+
+// Format the latest social incident or a quiet-state fallback.
+function formatSocialDramaIncident(status) {
+  if (!status || status.enabled === false) {
+    return "Social incident: -";
+  }
+  if (status.latestIncident) {
+    return `Social incident: ${status.latestIncident}`;
+  }
+  return `Social incident: quiet (heat ${Math.round(Number(status.heat || 0) * 100)}%)`;
 }
 
 // Build a lore section with explicit myth and ruins summaries.

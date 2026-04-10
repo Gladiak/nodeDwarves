@@ -5,6 +5,7 @@ const { pushEvent } = require('./events');
 const { isAdult } = require('./population');
 const { getAlchemyMultiplier } = require('./alchemy');
 const { getSchismModifier } = require('./schism');
+const { clearDeadSocialLinks } = require('./social_drama');
 
 const DEFAULT_NODE_TEMPLATES = {
   stone: {
@@ -3018,16 +3019,7 @@ function applyDwarfDeaths(state, ids, cause) {
   state.deathsByCause = state.deathsByCause || {};
   const key = cause || 'deepRaid';
   state.deathsByCause[key] = Number(state.deathsByCause[key] || 0) + removed;
-  for (const dwarf of state.dwarves) {
-    if (dwarf.partnerId && deadIds.has(dwarf.partnerId)) {
-      dwarf.partnerId = null;
-      dwarf.bondTargetId = null;
-      dwarf.bondScore = 0;
-    }
-    if (dwarf.pregnancy && deadIds.has(dwarf.pregnancy.partnerId)) {
-      dwarf.pregnancy = null;
-    }
-  }
+  clearDeadSocialLinks(state, deadIds);
   return removed;
 }
 
