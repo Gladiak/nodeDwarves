@@ -5694,6 +5694,43 @@
         "company_cap": 0.34,
         "company_roster_size": 12,
         "company_dispatch_scale": 0.2,
+        "company_identity": {
+          "enabled": true,
+          "renown_scale": 1,
+          "renown_cap": 0.45,
+          "renown_weights": {
+            "aura": 0.45,
+            "hall_of_fame": 0.25,
+            "marks": 0.2,
+            "tournaments": 0.1
+          },
+          "dispatch_scale": 0.16,
+          "duel_scale": 0.12,
+          "training_scale": 0.18,
+          "reserve_member_scale": 0.35,
+          "max_hall_of_fame_carry": 16,
+          "name_prefixes": [
+            "Anvil",
+            "Iron",
+            "Ember",
+            "Stone",
+            "Deep",
+            "Rune",
+            "Lantern",
+            "Ash"
+          ]
+        },
+        "carryover": {
+          "enabled": true,
+          "history_limit": 8,
+          "renown_retention": 0.45,
+          "per_cycle_decay": 0.1,
+          "max_seed_bonus": 0.18,
+          "min_cycles_for_seed": 1,
+          "starting_rating_scale": 0.24,
+          "starting_valor_scale": 0.22,
+          "starting_hero_potential_scale": 0.2
+        },
         "points": {
           "expedition_success": 1,
           "expedition_failure": 0.35,

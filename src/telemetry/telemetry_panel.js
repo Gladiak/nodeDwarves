@@ -103,7 +103,7 @@ const TELEMETRY_PANEL_PAGES = [
   {
     id: 'warrior_league',
     title: 'Warrior League',
-    subtitle: 'Competitive lens: epic league naming, champion lineage, top 5 fighters, marks progression, and clan standings.',
+    subtitle: 'Competitive lens: epic league naming, company identity/carry-over hooks, champion lineage, top 5 fighters, marks progression, and clan standings.',
     sections: ['warriorLeague', 'underrealm', 'deepSignals'],
     preferredColumns: 2,
     minColumnWidth: 38,

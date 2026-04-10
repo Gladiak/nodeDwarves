@@ -36,6 +36,7 @@ Think of it as a living systems sandbox: you tune config, press run, and watch t
 - 🛡️ Clan culture traits that create trade-offs without micromanagement.
 - 🏅 Warrior League phase-5 integration: risky ruins dispatches prioritize stronger candidates via deterministic dispatch score, seasonal tournaments now carry epic league names, hero progression tracks scars/titles/vows with capped legacy bonuses, and observability includes top-5 fighters plus a dedicated Warrior League modal with inline shorthand legend (`R/V/W/RW/Mk/P`), selective key-row highlights, and section spacing for quicker scanning.
 - ⚔️ Warrior League realism phase-7: tournament duels can now create injuries/recovery windows (with optional retirement/death), champion-defeat succession can promote new heroes, and periodic training sessions materially grow fighter stats.
+- 🛡️ Persistent Hero Company completed: Warrior League now computes a stronger company identity layer (`name/focus/motto/renown`) with bounded gameplay effects, and endgame cycle resets carry bounded hero-company lineage + startup legacy hooks into the next cycle.
 - 🕳️ Underrealm Front: 10 depth layers with engineered dwarven halls and dense stone-hewn caverns.
 - 🧱 Underrealm V2 rollout: champion-gated floor unlock chain + 10-level armory progression + readiness-gated expedition dispatch, now with a high-impact Dwarf Champion command layer (deterministic vacancy auto-promotion, readiness boost, retry-cooldown reduction, champion-HP suppression, party-only duel-round extension, and frontier exploration/Deep Lift acceleration) plus contested-frontier-first champion targeting, deep warning hard-guard dispatch rails, per-depth failure-streak cooldown escalation, and dedicated deep telemetry cues.
 - 📦 Telemetry stockpile compaction: weapon/armor tier inventories are grouped into compact aggregate bars so the panel stays readable in long runs.
@@ -83,7 +84,7 @@ npm run ai:play
 - `Space`: pause/resume
 - `l`: legend panel
 - `i`: dwarf inspect panel
-- `w`: Warrior League modal (champion lineage, top 5 fighters, marks/legacy summary)
+- `w`: Warrior League modal (company identity + carry-over hooks, champion lineage, top 5 fighters, marks/legacy summary)
 - `h`: telemetry Data Center overlay (`Dashboard`, `Overview + Deep`, `Economy`, `Warrior League`) with expanded plain-language metric labels, adaptive section sizing, status-token highlights, ASCII mini-charts, `AI Explainability` drivers, and an `Endgame` progress checklist
 - `←` / `→`: change telemetry pages when telemetry is open, or browse dwarves when inspect is open
 - `↑` / `↓`: switch map view between surface and unlocked underrealm depths
@@ -242,11 +243,11 @@ npm run balance:gate:standard -- --set jobs.gatherTriggerRatio.food=1.1 --set jo
 
 ## Roadmap ideas 🧭
 
-_Roadmap remainder snapshot (updated 2026-03-12): focus on what is still missing._
+_Roadmap remainder snapshot (updated 2026-04-07): focus on what is still missing._
 
 - 🧬 (high, in progress) Personal dwarf arcs: deterministic lore is live; remaining: explicit `origin + vice + ambition`, arc progression triggers, and mini-outcome event beats.
 - 📜 (high, in progress) Multi-act faction questlines: contracts/camps/events are live; remaining: chapter-based faction quest chains with branching resolution paths and follow-up consequences.
-- 🛡️ (high, mostly implemented) Persistent hero company: scars/titles/vows/legacy are live; remaining: stronger company identity layer and cross-cycle carry-over hooks.
+- ✅ (completed 2026-04-07) Persistent hero company: scars/titles/vows/legacy are live, with company identity + cross-cycle carry-over hooks now in production.
 - 💔 (high, in progress) Social drama engine: relationship bonding exists; remaining: rivalry/friendship/mentorship/grudge states and emergent social incidents tied to them.
 - 👑 (medium, in progress) Titles and succession: warrior succession exists; remaining: governance offices (`Steward`, `Marshal`, `High Priest`) that shape settlement policy identity.
 - 🔮 (medium, in progress) Ancestor omens and prophecies: myth/tradition systems exist; remaining: omen-style player/AI dilemma choices with high-risk/high-reward outcomes.
@@ -303,9 +304,9 @@ Impact thresholds: `High >= 4.0`, `Medium >= 2.8 and < 4.0`, `Low < 2.8`
 - `src/simulation/schism.js`: run-scale social schism arc (pressure/legitimacy, doctrine shifts, seasonal council decrees, ritual festivals, and climax events).
 - `src/simulation/alchemy.js`: alchemy rites, pact lifecycle, and backlash logic.
 - `src/simulation/temple.js`: Temple of Ancestors stages, map footprint, and prestige system.
-- `src/simulation/warriors.js`: Warrior League runtime helpers for deterministic combat profiles, risk-aware expedition dispatch, seasonal tournament progression, tournament consequences/succession/training, and persistent scars/titles/vows/legacy bonuses.
+- `src/simulation/warriors.js`: Warrior League runtime helpers for deterministic combat profiles, risk-aware expedition dispatch, seasonal tournament progression, tournament consequences/succession/training, persistent scars/titles/vows/legacy bonuses, and company identity/cycle carry-over hooks.
 - `src/render/map_inset_panel.js`: carved in-map Ops Snapshot component with compact, width-aware runtime lines.
-- `src/render/warrior_panel.js`: dedicated Warrior League modal overlay with champion/top-5/marks analytics.
+- `src/render/warrior_panel.js`: dedicated Warrior League modal overlay with company identity/carry-over context, champion/top-5/marks analytics, and lineage memory cues.
 - `src/telemetry/`: telemetry engine and Data Center panel modules.
 - `src/telemetry/telemetry.js`: telemetry section builders and formatting helpers.
 - `src/telemetry/telemetry_panel.js`: in-game paged telemetry Data Center with section pages and full-height telemetry content area.
