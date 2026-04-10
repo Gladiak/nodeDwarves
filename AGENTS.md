@@ -9,6 +9,9 @@ This file defines how to implement new features in a consistent, stable way.
 - Use config-driven tuning for all gameplay parameters.
 - Favor gather-first economy; build structures only when shortages justify them.
 - Keep the simulation deterministic enough for training comparison.
+- Use one cached headless benchmark baseline in `benchmark_cache/` for all report-to-report comparisons.
+- Refresh the cached baseline automatically whenever benchmark profile metadata changes (config hash, ticks, seeds, resources, width, or height).
+- Avoid rerunning a baseline inside every candidate benchmark run when a cached baseline can be reused.
 - Continuously improve model intelligence and learning capability in measured, stable steps.
 - Validate every substantial change with dedicated short-run and long-run checks, and include explicit model non-regression tests before considering the change complete.
 - Prefer reliability over speed: there is no rush to finish runs quickly when quality evidence is still missing.
@@ -67,9 +70,12 @@ This file defines how to implement new features in a consistent, stable way.
 - `scripts/regression.js`: AI regression harness and profile recording.
 - `scripts/validate_extended_optimized.js`: optimized full-quality validation orchestrator with per-phase runtime reporting (deduplicates benchmark execution across gate+risk).
 - `scripts/headless_benchmark.js`: deterministic headless benchmark CLI for long-run tuning and validation.
+- `scripts/ensure_benchmark_baseline.js`: baseline cache guard that auto-refreshes cached baseline reports when benchmark profile metadata mismatches.
 - `scripts/compare_benchmark_reports.js`: report-to-report benchmark diff CLI for cached baseline/candidate comparisons.
 - `scripts/clean_debug.js`: debug artifact housekeeping utility (transient cleanup + run retention).
 - `scripts/test_training_contracts.js`: deterministic technical contract suite for training/validation schemas (`npm test`).
+- `benchmark_cache/headless_benchmark_baseline.json`: versioned cached headless benchmark baseline used for report diffs.
+- `benchmark_cache/headless_benchmark_baseline.md`: markdown companion of the cached headless benchmark baseline.
 - `regression/baselines/regression_baseline.json`: durable regression baseline profiles used by checks.
 - `python/bootstrap.py`: venv bootstrap.
 - `python/train.py`: PPO training loop and logging.
@@ -155,8 +161,11 @@ This file defines how to implement new features in a consistent, stable way.
 - Run `npm start` and confirm the telemetry/legend renders.
 - Run deterministic headless benchmark before finalizing balance defaults:
   `node scripts/headless_benchmark.js --ticks 8000 --seeds 101,202,303,404 --progress --progress-every 2000`.
-- For A/B tuning, compare variants in one run and review deltas seed-by-seed:
-  `node scripts/headless_benchmark.js --ticks 8000 --variant baseline --set path=value --variant candidate --progress --progress-every 2000`.
+- Ensure cached baseline is aligned with the active candidate profile:
+  `npm run bench:ensure-baseline`.
+- For A/B tuning, run candidate-only benchmark and diff against cached baseline:
+  `npm run bench:candidate -- --set path=value && npm run bench:diff`.
+- Always compare against `benchmark_cache/headless_benchmark_baseline.json` instead of writing ad-hoc baseline copies in `debug/`.
 - Do not stop long-running validations early just because they take longer than expected; keep them running when they are making progress so results remain statistically reliable over wide horizons.
 - Treat seed collapses (population crashes) and strong stockpile regressions as tuning blockers unless intentional and documented.
 - Confirm no crashes on resize and no negative stockpile values.

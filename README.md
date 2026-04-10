@@ -24,6 +24,7 @@ Think of it as a living systems sandbox: you tune config, press run, and watch t
 - ⛺ Long-lived external faction camps: trade hubs, militia outposts, and raider pressure points with moving trade caravans, interception risk, and role-based influence zones on the map.
 - 🎭 World events now live: traveling bards, rival caravans, and short-deadline opportunities.
 - 🔥 Schism arc per run: doctrine shifts with hysteresis, seasonal council decrees (`pick 1 of 3` edicts), branching anti-repeat festival rituals, social pressure/legitimacy swings, and climax moments that can reshape the economy.
+- ⚖️ Council decree defaults are now long-run tuned for steadier governance outcomes.
 - 🗝️ Endgame ruins expeditions with artifacts, set bonuses, and cycle resets.
 - 🏛️ Dwarf Temple of Ancestors: biome-aware multi-stage final work with doctrine-path lock-in and prestige growth.
 - 🧭 Economy telemetry now includes an Endgame checklist with live step completion and reset ETA.
@@ -195,7 +196,8 @@ Canonical promotion now owns best-checkpoint writes: wrapper training disables i
 - ⚙️ In auto mode, workers are also phase-aware (foundation/finetune/endgame/consolidation) and you can force flat behavior with `--workers-flat`.
 - 🧭 Regression runs now stream subprocess logs directly to per-run files, improving stability on long validation passes.
 - 🧪 Regression baseline profiles now live in `regression/baselines/` so reference snapshots are kept outside volatile debug artifacts.
-- 🗂️ Headless benchmark now supports comparative score, seed-by-seed deltas, and optional blocking gates (`--gate`) with tunable thresholds for A/B tuning.
+- 🗂️ Cached headless benchmark baseline now lives in versioned root folder `benchmark_cache/`, and `bench:diff` auto-refreshes it when profile metadata changes.
+- 🗂️ Headless benchmark now supports comparative score, seed-by-seed deltas, per-variant schism decree usage telemetry (issued counts + active-tick shares), and optional blocking gates (`--gate`) with tunable thresholds for A/B tuning.
 - 📈 Regression reports now auto-emit `.txt`, `.json`, and `.md` outputs for local inspection plus CI parsing (override paths with `--report-json/--report-md`).
 - 🧾 AI runtime now accepts a backward-compatible governor action envelope, so legacy policy files still run while jobs/trade/building sub-policies roll out.
 
@@ -219,7 +221,7 @@ By default, the warriors governor is active with `ai.governors.warriors.actionHe
 3. `Capture the world`: during runtime press `m` (or `Shift+M`) to export all unlocked layers
 4. `CLI map export`: `npm run map:export -- --width=120 --height=40 --season=spring --layers=surface,d1,d2 --underrealmUnlockedDepth=2`
 5. `Balance gate presets`: `npm run balance:gate:standard` (or `:strict` / `:relaxed`)
-6. `Cached benchmark loop`: `npm run bench:baseline` then `npm run bench:candidate -- --set path=value` and `npm run bench:diff` (baseline/candidate now stream progress logs during execution)
+6. `Cached benchmark loop`: `npm run bench:baseline` then `npm run bench:candidate -- --set path=value` and `npm run bench:diff` (`bench:diff` now ensures cached baseline freshness in `benchmark_cache/` before comparing, and diff includes schism decree usage deltas)
 7. `Underrealm stress loop`: `npm run bench:underrealm:hot` and `npm run bench:underrealm:full` for fixed deep-expedition long-run A/B (`legacy baseline` vs current tuned defaults in the same schism-off profile)
 
 Pass candidate overrides to the active preset with `--set`:
@@ -314,8 +316,10 @@ Impact thresholds: `High >= 4.0`, `Medium >= 2.8 and < 4.0`, `Low < 2.8`
 - `scripts/clean_debug.js`: debug housekeeping utility (removes transient smoke/regression temp artifacts and keeps only the latest run history).
 - `scripts/test_training_contracts.js`: deterministic training/validation contract suite used by `npm test` (policy shape + regression/promote report schema checks).
 - `regression/baselines/regression_baseline.json`: durable regression baseline profiles tracked outside `debug/`.
-- `scripts/headless_benchmark.js`: deterministic headless benchmark with comparative score, seed deltas, and optional gate for long-run balance tuning.
-- `scripts/compare_benchmark_reports.js`: cached report diff utility for baseline/candidate deltas without rerunning both variants.
+- `benchmark_cache/headless_benchmark_baseline.json`: versioned cached headless benchmark baseline used by report diffs.
+- `benchmark_cache/headless_benchmark_baseline.md`: markdown companion report for the cached benchmark baseline.
+- `scripts/headless_benchmark.js`: deterministic headless benchmark with comparative score, seed deltas, schism decree usage telemetry, and optional gate for long-run balance tuning.
+- `scripts/compare_benchmark_reports.js`: cached report diff utility for baseline/candidate deltas (including schism decree usage deltas) without rerunning both variants.
 - `python/regression_rollout.py`: rollout-only randomized regression runner used by `scripts/regression.js`.
 - `python/`: PPO training + agent example.
 - `docs/`: parameter reference, training overrides, current training status, training optimization workbook archive, and telemetry operator manual.

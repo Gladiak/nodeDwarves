@@ -7,8 +7,7 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
 const DEFAULT_BASELINE_PATH = path.join(
   ROOT,
-  'regression',
-  'baselines',
+  'benchmark_cache',
   'headless_benchmark_baseline.json',
 );
 const DEFAULT_CANDIDATE_PATH = path.join(ROOT, 'debug', 'headless_benchmark_candidate.json');
@@ -36,6 +35,7 @@ const METRICS = [
 function printHelp() {
   const lines = [
     'Compare two headless benchmark report JSON files.',
+    'Includes summary/seed deltas plus schism decree usage deltas when available.',
     '',
     'Usage:',
     '  node scripts/compare_benchmark_reports.js [options]',
@@ -211,6 +211,88 @@ function buildDelta(current, baseline) {
   };
 }
 
+// Build normalized share map from one counter map and total.
+function buildCounterShareMap(counterMap, totalRaw) {
+  const total = Math.max(0, Number(totalRaw || 0));
+  const shares = {};
+  for (const [key, valueRaw] of Object.entries(counterMap || {})) {
+    const value = Math.max(0, Number(valueRaw || 0));
+    shares[key] = total > 0 && Number.isFinite(value) ? value / total : 0;
+  }
+  return shares;
+}
+
+// Normalize one numeric counter map (drop non-finite/negative values).
+function normalizeCounterMap(counterMap) {
+  const normalized = {};
+  for (const [keyRaw, valueRaw] of Object.entries(counterMap || {})) {
+    const key = String(keyRaw || '').trim();
+    const value = Number(valueRaw);
+    if (!key || !Number.isFinite(value) || value <= 0) {
+      continue;
+    }
+    normalized[key] = value;
+  }
+  return normalized;
+}
+
+// Normalize schism decree summary payload from one benchmark summary.
+function normalizeSchismDecreeSummary(summary) {
+  const raw = summary && summary.schismDecrees && typeof summary.schismDecrees === 'object'
+    ? summary.schismDecrees
+    : {};
+  const issuedTotal = Math.max(0, Number(raw.issuedTotal || 0));
+  const activeTicksTotal = Math.max(0, Number(raw.activeTicksTotal || 0));
+  const byId = normalizeCounterMap(raw.byId);
+  const activeTicksById = normalizeCounterMap(raw.activeTicksById);
+  return {
+    issuedTotal,
+    activeTicksTotal,
+    byId,
+    byIdShare: buildCounterShareMap(byId, issuedTotal),
+    activeTicksById,
+    activeTicksByIdShare: buildCounterShareMap(activeTicksById, activeTicksTotal),
+  };
+}
+
+// Build schism decree usage deltas between candidate and baseline summaries.
+function buildSchismDecreeDeltas(baselineSummary, candidateSummary) {
+  const baseline = normalizeSchismDecreeSummary(baselineSummary);
+  const candidate = normalizeSchismDecreeSummary(candidateSummary);
+  const decreeIds = new Set([
+    ...Object.keys(baseline.byId || {}),
+    ...Object.keys(candidate.byId || {}),
+    ...Object.keys(baseline.activeTicksById || {}),
+    ...Object.keys(candidate.activeTicksById || {}),
+  ]);
+  const rows = Array.from(decreeIds)
+    .sort((left, right) => left.localeCompare(right))
+    .map((decreeId) => ({
+      decreeId,
+      issued: buildDelta(
+        Number(candidate.byId && candidate.byId[decreeId] || 0),
+        Number(baseline.byId && baseline.byId[decreeId] || 0),
+      ),
+      issuedShare: buildDelta(
+        Number(candidate.byIdShare && candidate.byIdShare[decreeId] || 0),
+        Number(baseline.byIdShare && baseline.byIdShare[decreeId] || 0),
+      ),
+      activeTicks: buildDelta(
+        Number(candidate.activeTicksById && candidate.activeTicksById[decreeId] || 0),
+        Number(baseline.activeTicksById && baseline.activeTicksById[decreeId] || 0),
+      ),
+      activeShare: buildDelta(
+        Number(candidate.activeTicksByIdShare && candidate.activeTicksByIdShare[decreeId] || 0),
+        Number(baseline.activeTicksByIdShare && baseline.activeTicksByIdShare[decreeId] || 0),
+      ),
+    }));
+  return {
+    issuedTotal: buildDelta(candidate.issuedTotal, baseline.issuedTotal),
+    activeTicksTotal: buildDelta(candidate.activeTicksTotal, baseline.activeTicksTotal),
+    rows,
+  };
+}
+
 // Resolve resource ids used for comparison.
 function resolveResourceIds(baselineSummary, candidateSummary, requestedResourceIds) {
   if (Array.isArray(requestedResourceIds) && requestedResourceIds.length > 0) {
@@ -306,6 +388,16 @@ function formatSignedPercent(value) {
   return `${sign}${percent.toFixed(2)}%`;
 }
 
+// Format one signed percentage-point delta from a [0,1] ratio.
+function formatSignedPercentPoints(value) {
+  if (!Number.isFinite(value)) {
+    return 'n/a';
+  }
+  const points = Number(value) * 100;
+  const sign = points > 0 ? '+' : '';
+  return `${sign}${points.toFixed(2)}pp`;
+}
+
 // Build a markdown report for one comparison payload.
 function renderMarkdown(payload) {
   const lines = [];
@@ -337,6 +429,29 @@ function renderMarkdown(payload) {
   }
   lines.push(`| resource_avg_rel | n/a | ${formatSignedPercent(payload.summary.deltas.resourceAverageRel)} |`);
   lines.push('');
+  if (payload.summary.schismDecrees) {
+    lines.push('## Schism Decree Deltas');
+    lines.push('');
+    lines.push('| metric | abs | rel |');
+    lines.push('| --- | ---: | ---: |');
+    lines.push(
+      `| decrees_issued_total | ${formatSigned(payload.summary.schismDecrees.issuedTotal.abs, 0)} | ${formatSignedPercent(payload.summary.schismDecrees.issuedTotal.rel)} |`,
+    );
+    lines.push(
+      `| decrees_active_ticks_total | ${formatSigned(payload.summary.schismDecrees.activeTicksTotal.abs, 0)} | ${formatSignedPercent(payload.summary.schismDecrees.activeTicksTotal.rel)} |`,
+    );
+    if (payload.summary.schismDecrees.rows.length > 0) {
+      lines.push('');
+      lines.push('| decree | issued abs | issued rel | issued share delta | active ticks abs | active ticks rel | active share delta |');
+      lines.push('| --- | ---: | ---: | ---: | ---: | ---: | ---: |');
+      for (const decreeRow of payload.summary.schismDecrees.rows) {
+        lines.push(
+          `| ${decreeRow.decreeId} | ${formatSigned(decreeRow.issued.abs, 0)} | ${formatSignedPercent(decreeRow.issued.rel)} | ${formatSignedPercentPoints(decreeRow.issuedShare.abs)} | ${formatSigned(decreeRow.activeTicks.abs, 0)} | ${formatSignedPercent(decreeRow.activeTicks.rel)} | ${formatSignedPercentPoints(decreeRow.activeShare.abs)} |`,
+        );
+      }
+    }
+    lines.push('');
+  }
   if (payload.seedDeltas.length > 0) {
     lines.push('## Seed Deltas');
     lines.push('');
@@ -389,6 +504,19 @@ function printTable(payload) {
   process.stdout.write(
     `resource_avg_rel ${formatSignedPercent(payload.summary.deltas.resourceAverageRel)}\n`,
   );
+  if (payload.summary.schismDecrees) {
+    process.stdout.write(
+      `decrees_issued_total ${formatSigned(payload.summary.schismDecrees.issuedTotal.abs, 0)} (${formatSignedPercent(payload.summary.schismDecrees.issuedTotal.rel)})\n`,
+    );
+    process.stdout.write(
+      `decrees_active_ticks_total ${formatSigned(payload.summary.schismDecrees.activeTicksTotal.abs, 0)} (${formatSignedPercent(payload.summary.schismDecrees.activeTicksTotal.rel)})\n`,
+    );
+    for (const decreeRow of payload.summary.schismDecrees.rows) {
+      process.stdout.write(
+        `decree ${decreeRow.decreeId}: issued ${formatSigned(decreeRow.issued.abs, 0)} (${formatSignedPercent(decreeRow.issued.rel)}), issued_share ${formatSignedPercentPoints(decreeRow.issuedShare.abs)}, active_ticks ${formatSigned(decreeRow.activeTicks.abs, 0)} (${formatSignedPercent(decreeRow.activeTicks.rel)}), active_share ${formatSignedPercentPoints(decreeRow.activeShare.abs)}\n`,
+      );
+    }
+  }
   process.stdout.write('\n');
   if (payload.seedDeltas.length > 0) {
     process.stdout.write('=== seed deltas ===\n');
@@ -454,6 +582,10 @@ function main() {
     candidateSummary,
     resourceIds,
   );
+  const schismDecreeDeltas = buildSchismDecreeDeltas(
+    baselineSummary,
+    candidateSummary,
+  );
   const seedDeltas = buildSeedDeltas(
     baselineVariant.rows || [],
     candidateVariant.rows || [],
@@ -480,6 +612,7 @@ function main() {
     },
     summary: {
       deltas: summaryDeltas,
+      schismDecrees: schismDecreeDeltas,
     },
     seedDeltas,
   };

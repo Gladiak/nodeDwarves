@@ -944,8 +944,8 @@ Schism arc:
 - `schism.decrees.season_names[]`: seasons where decree windows are eligible.
 - `schism.decrees.window_ticks`: ticks-from-season-start where decree selection is allowed.
 - `schism.decrees.options_count`: size of the policy slate (runtime enacts one decree from this top-N list).
-- `schism.decrees.min_legitimacy`: minimum legitimacy required to issue a decree in-window.
-- `schism.decrees.max_pressure`: maximum pressure allowed to issue a decree in-window.
+- `schism.decrees.min_legitimacy`: minimum legitimacy required to issue a decree in-window (default `0.28`).
+- `schism.decrees.max_pressure`: maximum pressure allowed to issue a decree in-window (default `0.82`).
 - `schism.decrees.allow_during_climax`: allow decree issuance while schism climax is active.
 - `schism.decrees.duration_mode`: decree duration mode (`season` or fixed ticks).
 - `schism.decrees.duration_ticks`: fallback fixed duration when decree mode is not seasonal.
