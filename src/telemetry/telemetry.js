@@ -18,7 +18,7 @@ const TELEMETRY_LAYOUT = [
   {
     id: "core_ops",
     title: "Core Ops",
-    sections: ["world", "population", "pressure", "stockpile"],
+    sections: ["world", "population", "social", "pressure", "stockpile"],
   },
   {
     id: "economy",
@@ -163,6 +163,7 @@ function collectTelemetrySnapshot(state, config, columnWidth, options = {}) {
   const festivalStatus = getFestivalStatus(safeState, safeConfig);
   const worldEventStatus = getWorldEventStatus(safeState, safeConfig);
   const schismStatus = getSchismStatus(safeState, safeConfig);
+  const socialSnapshot = buildSocialTelemetrySnapshot(safeState, safeConfig);
   const shortages = Array.isArray(safeState.lastPriorities) ? safeState.lastPriorities : [];
   const governorSignals = getGovernorSignals(safeState);
   const stockRatioLine = [
@@ -246,6 +247,7 @@ function collectTelemetrySnapshot(state, config, columnWidth, options = {}) {
     festivalStatus,
     worldEventStatus,
     schismStatus,
+    socialSnapshot,
     shortages,
     governorSignals,
     stockRatioLine,
@@ -305,6 +307,12 @@ function buildTelemetrySectionModels(snapshot) {
         `Deaths by cause: starvation ${Math.max(0, Number(snapshot.deathsByCause.starvation || 0))}, raids ${Math.max(0, Number(snapshot.deathsByCause.raid || 0))}, deep raids ${Math.max(0, Number(snapshot.deathsByCause.deepRaid || 0))}`,
         `Reproduction success: ${snapshot.reproSuccesses}/${snapshot.reproAttempts} (${snapshot.reproSuccessRatio}%)`,
       ],
+    },
+    {
+      column: "left",
+      key: "social",
+      label: "Social",
+      rows: buildSocialSectionRows(snapshot.socialSnapshot),
     },
     {
       column: "left",
@@ -1104,6 +1112,98 @@ function formatSchismStatus(status) {
   return `Schism status: ${phase}/${doctrine} | pressure ${pressure}% | legitimacy ${legitimacy}% | ${ritual}${activeRitual}${activeDecree}${climax}`;
 }
 
+// Resolve a compact social telemetry snapshot with safe defaults.
+function buildSocialTelemetrySnapshot(state, config) {
+  const socialConfig = config && config.population && config.population.socialDrama
+    ? config.population.socialDrama
+    : {};
+  const social = state && state.social && typeof state.social === "object"
+    ? state.social
+    : null;
+  const enabled = Boolean(
+    social
+    && social.enabled === true
+    && socialConfig.enabled !== false,
+  );
+  const stats = social && social.stats && typeof social.stats === "object"
+    ? social.stats
+    : {};
+  const incidentsByTypeRaw = stats.incidentsByType && typeof stats.incidentsByType === "object"
+    ? stats.incidentsByType
+    : {};
+  const history = Array.isArray(social && social.history) ? social.history : [];
+  const latestIncident = history.length > 0 ? history[history.length - 1] : null;
+  const tick = Math.max(0, Number(state && state.tick || 0));
+  const lastIncidentTick = enabled ? Math.max(0, Number(social.lastIncidentTick || 0)) : 0;
+  const incidentAge = lastIncidentTick > 0 ? Math.max(0, tick - lastIncidentTick) : null;
+  return {
+    enabled,
+    updates: Math.max(0, Number(stats.updates || 0)),
+    links: Math.max(0, Number(stats.links || 0)),
+    friendships: Math.max(0, Number(stats.friendships || 0)),
+    rivalries: Math.max(0, Number(stats.rivalries || 0)),
+    mentorships: Math.max(0, Number(stats.mentorships || 0)),
+    grudges: Math.max(0, Number(stats.grudges || 0)),
+    incidents: Math.max(0, Number(stats.incidents || 0)),
+    incidentsByType: {
+      mentorshipBreakthrough: Math.max(
+        0,
+        Number(incidentsByTypeRaw.mentorship_breakthrough || 0),
+      ),
+      rivalryClash: Math.max(0, Number(incidentsByTypeRaw.rivalry_clash || 0)),
+      grudgeEscalation: Math.max(0, Number(incidentsByTypeRaw.grudge_escalation || 0)),
+      reconciliation: Math.max(0, Number(incidentsByTypeRaw.reconciliation || 0)),
+    },
+    cohesion: enabled ? clamp(Number(social.cohesion || 0), 0, 1) : 0,
+    conflictPressure: enabled ? clamp(Number(social.conflictPressure || 0), 0, 1) : 0,
+    mentorshipCoverage: enabled ? clamp(Number(social.mentorshipCoverage || 0), 0, 1) : 0,
+    grudgeLoad: enabled ? clamp(Number(social.grudgeLoad || 0), 0, 1) : 0,
+    lastIncidentTick,
+    incidentAge,
+    latestIncidentType: latestIncident && latestIncident.type
+      ? String(latestIncident.type)
+      : "",
+  };
+}
+
+// Build stable social telemetry rows.
+function buildSocialSectionRows(snapshot) {
+  const social = snapshot && typeof snapshot === "object" ? snapshot : null;
+  if (!social || social.enabled !== true) {
+    return [
+      "Social runtime: off",
+      "Cohesion / conflict: -",
+      "Mentorship / grudge: -",
+      "Status counts: -",
+      "Incident ledger: -",
+      "Last incident: -",
+    ];
+  }
+  return [
+    `Social runtime: active | updates ${social.updates} | tracked links ${social.links}`,
+    `Cohesion / conflict: ${Math.round(social.cohesion * 100)}% / ${Math.round(social.conflictPressure * 100)}%`,
+    `Mentorship / grudge: ${Math.round(social.mentorshipCoverage * 100)}% / ${Math.round(social.grudgeLoad * 100)}%`,
+    `Status counts: friends ${social.friendships}, rivals ${social.rivalries}, mentors ${social.mentorships}, grudges ${social.grudges}`,
+    `Incident ledger: total ${social.incidents} | breakthrough ${social.incidentsByType.mentorshipBreakthrough} | clash ${social.incidentsByType.rivalryClash} | escalation ${social.incidentsByType.grudgeEscalation} | reconcile ${social.incidentsByType.reconciliation}`,
+    formatSocialLastIncidentLine(social),
+  ];
+}
+
+// Format one compact last-incident line for social telemetry.
+function formatSocialLastIncidentLine(social) {
+  if (!social || Math.max(0, Number(social.lastIncidentTick || 0)) <= 0) {
+    return "Last incident: none";
+  }
+  const tick = Math.max(0, Number(social.lastIncidentTick || 0));
+  const age = social.incidentAge === null ? null : Math.max(0, Number(social.incidentAge || 0));
+  const type = String(social.latestIncidentType || "").trim();
+  const typeLabel = type ? type.replace(/_/g, " ") : "unknown";
+  if (age === null) {
+    return `Last incident: ${typeLabel} at tick ${tick}`;
+  }
+  return `Last incident: ${typeLabel} at tick ${tick} (${age}t ago)`;
+}
+
 // Format one shortage line with urgency and stock ratio.
 function formatShortageStatus(shortages, index, state, config, resourceLabels) {
   const rankLabel = index === 0
@@ -1319,6 +1419,11 @@ function getDecisionTrace(state) {
       worldEventTicksLeft: Math.max(0, Number(context.worldEventTicksLeft || 0)),
       festivalActive: context.festivalActive === true,
       contractActive: context.contractActive === true,
+      socialCohesion: clamp(Number(context.socialCohesion || 0), 0, 1),
+      socialConflictPressure: clamp(Number(context.socialConflictPressure || 0), 0, 1),
+      socialMentorshipCoverage: clamp(Number(context.socialMentorshipCoverage || 0), 0, 1),
+      socialGrudgeLoad: clamp(Number(context.socialGrudgeLoad || 0), 0, 1),
+      socialIncidentRecency: clamp(Number(context.socialIncidentRecency || 0), 0, 1),
     },
     drivers: drivers.slice(0, 3).map((entry) => ({
       kind: String(entry && entry.kind || ""),
@@ -1355,6 +1460,7 @@ function buildExplainabilitySectionRows(state, governorSignals, shortages, resou
   rows.push(formatExplainabilityShortageLine(traceShortages, 0, resourceLabels));
   rows.push(formatExplainabilityShortageLine(traceShortages, 1, resourceLabels));
   rows.push(formatExplainabilityContextLine(trace.context));
+  rows.push(formatExplainabilitySocialContextLine(trace.context));
   rows.push(formatExplainabilityContractsLine(trace.governors, currentGovernorSignals.contracts));
   rows.push(formatExplainabilityRuinsLine(trace.governors, currentGovernorSignals.ruins));
   rows.push(formatExplainabilityUnderrealmLine(trace.governors, currentGovernorSignals.underrealm));
@@ -1422,6 +1528,20 @@ function formatExplainabilityContextLine(context) {
     : "none";
   const festival = safeContext.festivalActive === true ? "on" : "off";
   return `Context: weather ${weather}, ${raid}, event ${worldEvent}, festival ${festival}`;
+}
+
+// Format social context line for explainability.
+function formatExplainabilitySocialContextLine(context) {
+  const safeContext = context && typeof context === "object" ? context : {};
+  const cohesion = Math.round(clamp(Number(safeContext.socialCohesion || 0), 0, 1) * 100);
+  const conflict = Math.round(clamp(Number(safeContext.socialConflictPressure || 0), 0, 1) * 100);
+  const mentorship = Math.round(clamp(Number(safeContext.socialMentorshipCoverage || 0), 0, 1) * 100);
+  const grudge = Math.round(clamp(Number(safeContext.socialGrudgeLoad || 0), 0, 1) * 100);
+  const incident = Math.round(clamp(Number(safeContext.socialIncidentRecency || 0), 0, 1) * 100);
+  if (conflict <= 0 && grudge <= 0 && incident <= 0 && mentorship <= 0 && cohesion <= 0) {
+    return "Social context: stable/offline";
+  }
+  return `Social context: cohesion ${cohesion}% | conflict ${conflict}% | mentorship ${mentorship}% | grudge ${grudge}% | incident recency ${incident}%`;
 }
 
 // Format trade-governor explainability line.

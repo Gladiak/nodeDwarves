@@ -55,11 +55,12 @@ Scenario curriculum defaults:
   - `underrealm_late_gauntlet`: late-difficulty (`>=0.72`) deep gauntlet with tighter readiness/cooldown/surface-reserve constraints.
   - `compound_crisis`: combines low stockpiles, food/water scarcity, harsher needs/weather, stronger raids, and housing pressure.
   - `governance_pressure`: increases world-event and external-camp churn with higher schism pressure to stress diplomacy/governance control paths.
+  - `social_tension_pressure`: increases social-drama incident cadence and rivalry/grudge weighting (with elevated schism baseline pressure) to stress social-stability control paths.
 - 2026-02 deterministic safety retune (config-only):
   - `underrealm_push` now uses stricter deep readiness + slower retry pacing and keeps more adults on surface reserve.
   - `compound_crisis` now keeps the crisis profile but with moderated scarcity/need/raid pressure to avoid deterministic over-kill in hardened `underrealm`/`governance` regression slices.
 - Default canonical eval scenario list (`ai.training.evalScenarios`) is now:
-  - `baseline`, `full_sim`, `wildlife_raid`, `water_scarce`, `food_scarce`, `ruins_focus`, `underrealm_push`, `compound_crisis`, `governance_pressure`.
+  - `baseline`, `full_sim`, `wildlife_raid`, `water_scarce`, `food_scarce`, `ruins_focus`, `underrealm_push`, `compound_crisis`, `governance_pressure`, `social_tension_pressure`, `warrior_realism_pressure`.
 - Design intent: keep daily training focused on robustness under multi-system stress while still preserving baseline/full-sim comparability.
 - Adaptive scenario-sampling cadence is tuned for wrapper-sized runs:
   - `ai.training.scenarioSampling.updateEvery=80` by default, so normal quality/full phases can trigger weight updates within one run.
@@ -140,6 +141,7 @@ Operational cycle runbook (2026-02-19 baseline contract):
     - `standard`: `baseline`, `full_sim`
     - `underrealm`: `baseline`, `underrealm_push`, `compound_crisis`
     - `governance`: `baseline`, `governance_pressure`, `compound_crisis`
+    - `social`: `baseline`, `social_tension_pressure`, `governance_pressure`
 - Controlled A/B/C cycle template (single-change discipline):
   - Cycle A:
     - `npm run ai:train:quality:daily`
@@ -251,6 +253,48 @@ episodes from collapsing into extinction during long runs.
 - `population.relationships.moraleMax`: morale where bonding bonus caps (0..1).
 - `population.relationships.moraleBonusMax`: max bonding bonus added at peak morale (0..1).
 - `population.relationships.moraleExponent`: curve exponent for morale-based bonding bonus.
+- `population.socialDrama.enabled`: enable social-drama runtime updates (aggregate social pressure/cohesion channels).
+- `population.socialDrama.tickInterval`: ticks between social-drama updates.
+- `population.socialDrama.pairSamplesPerUpdate`: sampled adult pair interactions per social update.
+- `population.socialDrama.includeBondedPairs`: include currently bonded partner pairs in social-drama sampling.
+- `population.socialDrama.carryoverPairsPerDwarf`: keep top historical links active each update for relationship continuity.
+- `population.socialDrama.maxTrackedLinksPerDwarf`: retained social links cap per dwarf.
+- `population.socialDrama.linkEpsilon`: minimum link strength kept after decay/pruning.
+- `population.socialDrama.staleDecayPerTick`: passive per-tick link decay when interactions are stale.
+- `population.socialDrama.friendshipThreshold`: affinity threshold for friendship status.
+- `population.socialDrama.rivalryThreshold`: rivalry threshold for rivalry status.
+- `population.socialDrama.mentorshipThreshold`: mentorship threshold for mentorship status.
+- `population.socialDrama.grudgeThreshold`: grudge threshold for grudge status.
+- `population.socialDrama.mentorshipAgeGapMin`: minimum age gap for mentorship inference.
+- `population.socialDrama.mentorshipSkillGapMin`: minimum skill-gap scalar for mentorship inference.
+- `population.socialDrama.affinityGainBase`: baseline affinity gain per evaluated pair.
+- `population.socialDrama.affinityBondScale`: affinity gain contribution from partner bond ratio.
+- `population.socialDrama.affinitySameClanBonus`: affinity gain bonus for same-clan pairs.
+- `population.socialDrama.affinityDecayPerTick`: per-tick affinity decay.
+- `population.socialDrama.rivalryBaseGain`: baseline rivalry gain per evaluated pair.
+- `population.socialDrama.rivalryStressScale`: rivalry gain contribution from stress.
+- `population.socialDrama.rivalryLowMoraleScale`: rivalry gain contribution from low morale.
+- `population.socialDrama.rivalryBondShieldScale`: rivalry reduction from partner bond ratio.
+- `population.socialDrama.rivalryDecayPerTick`: per-tick rivalry decay.
+- `population.socialDrama.mentorshipBaseGain`: baseline mentorship gain when eligibility gates pass.
+- `population.socialDrama.mentorshipBondScale`: mentorship gain from partner bond ratio when eligible.
+- `population.socialDrama.mentorshipSkillScale`: mentorship gain from skill gap when eligible.
+- `population.socialDrama.mentorshipDecayPerTick`: per-tick mentorship decay.
+- `population.socialDrama.grudgeStressThreshold`: stress threshold that enables grudge gain.
+- `population.socialDrama.grudgeStressScale`: grudge gain scale once stress+rivalry gates are met.
+- `population.socialDrama.grudgeRivalryScale`: passive grudge gain from rivalry intensity.
+- `population.socialDrama.grudgeDecayPerTick`: per-tick grudge decay.
+- `population.socialDrama.incidents.enabled`: enable bounded social incidents during training/eval episodes.
+- `population.socialDrama.incidents.intervalTicks`: minimum ticks between incident roll windows.
+- `population.socialDrama.incidents.baseChancePerRoll`: incident roll probability when windows open.
+- `population.socialDrama.incidents.maxPerUpdate`: max incidents resolved per social update.
+- `population.socialDrama.incidents.globalCooldownTicks`: global incident cooldown after a trigger.
+- `population.socialDrama.incidents.perPairCooldownTicks`: cooldown before the same pair can trigger another incident.
+- `population.socialDrama.incidents.pairCooldownRetentionTicks`: stale pair-cooldown cleanup horizon.
+- `population.socialDrama.incidents.historyLimit`: max retained incident history entries.
+- `population.socialDrama.incidents.reconciliationAffinityMin`: affinity floor for reconciliation candidates.
+- `population.socialDrama.incidents.weights.<type>`: weighted type-selection bias for `mentorship_breakthrough`, `rivalry_clash`, `grudge_escalation`, `reconciliation`.
+- `population.socialDrama.incidents.effects.<type>.*`: bounded mood/link (and mentorship warrior-growth) incident effect deltas.
 - `population.pathing.mode`: pathing strategy (`detour` or `field`).
 - `population.pathing.field.radius`: potential-field radius (tiles).
 - `population.pathing.field.ttlTicks`: ticks to reuse a cached field.
@@ -364,7 +408,9 @@ Diplomacy/governance observation features (Workstream A):
 - Contracts: `contractActive`, `contractReady`, `contractTimeLeft`, `contractFailurePressure`, `contractReputation`.
 - External camps: `externalCampActiveRatio`, `externalCampRaiderPressure`, `externalCampCaravanRisk`, `externalCampMilitiaSupport`, `externalCampTradeInfluence`, `externalCampPressure`.
 - Schism: `schismPressure`, `schismLegitimacy`, `schismPhase`, `schismRitualOpen`, `schismClimaxActive`, `schismInstability`.
+- Social drama: `socialCohesion`, `socialConflictPressure`, `socialMentorshipCoverage`, `socialGrudgeLoad`, `socialIncidentRecency`.
 - Reward adds bounded diplomacy channels: `ai.reward.diplomacyCompletion`, `ai.reward.diplomacyFailure`, `ai.reward.diplomacyExpiration`, `ai.reward.diplomacyPressure`, `ai.reward.diplomacyPressureDelta`, `ai.reward.diplomacyLegitimacyDelta`.
+- Reward adds bounded social channels: `ai.reward.socialCohesion`, `ai.reward.socialCohesionDelta`, `ai.reward.socialConflictPressure`, `ai.reward.socialConflictPressureDelta`, `ai.reward.socialMentorshipCoverage`, `ai.reward.socialMentorshipCoverageDelta`, `ai.reward.socialGrudgeLoad`, `ai.reward.socialGrudgeLoadDelta`, `ai.reward.socialIncidentRecency`.
 
 Endgame cycles:
 

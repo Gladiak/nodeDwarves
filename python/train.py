@@ -85,6 +85,11 @@ EXTENDED_FEATURE_NAMES = [
     "schismRitualActive",
     "schismClimaxActive",
     "schismInstability",
+    "socialCohesion",
+    "socialConflictPressure",
+    "socialMentorshipCoverage",
+    "socialGrudgeLoad",
+    "socialIncidentRecency",
     "warriorEnabled",
     "warriorRosterCoverage",
     "warriorEliteScore",
@@ -2535,6 +2540,12 @@ def build_features(obs, resource, feature_names):
     schism_ritual_active = clamp(float(schism.get("ritualActive", 0.0)), 0.0, 1.0)
     schism_climax_active = clamp(float(schism.get("climaxActive", 0.0)), 0.0, 1.0)
     schism_instability = clamp(float(schism.get("instability", 0.0)), 0.0, 1.0)
+    social = obs.get("social") or {}
+    social_cohesion = clamp(float(social.get("cohesion", 0.0)), 0.0, 1.0)
+    social_conflict_pressure = clamp(float(social.get("conflictPressure", 0.0)), 0.0, 1.0)
+    social_mentorship_coverage = clamp(float(social.get("mentorshipCoverage", 0.0)), 0.0, 1.0)
+    social_grudge_load = clamp(float(social.get("grudgeLoad", 0.0)), 0.0, 1.0)
+    social_incident_recency = clamp(float(social.get("incidentRecency", 0.0)), 0.0, 1.0)
     warriors = obs.get("warriors") or {}
     warrior_enabled = clamp(float(warriors.get("enabled", 0.0)), 0.0, 1.0)
     warrior_roster_coverage = clamp(float(warriors.get("rosterCoverage", 0.0)), 0.0, 1.0)
@@ -2609,6 +2620,11 @@ def build_features(obs, resource, feature_names):
         "schismRitualActive": schism_ritual_active,
         "schismClimaxActive": schism_climax_active,
         "schismInstability": schism_instability,
+        "socialCohesion": social_cohesion,
+        "socialConflictPressure": social_conflict_pressure,
+        "socialMentorshipCoverage": social_mentorship_coverage,
+        "socialGrudgeLoad": social_grudge_load,
+        "socialIncidentRecency": social_incident_recency,
         "warriorEnabled": warrior_enabled,
         "warriorRosterCoverage": warrior_roster_coverage,
         "warriorEliteScore": warrior_elite_score,

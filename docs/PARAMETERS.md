@@ -1127,6 +1127,58 @@ Population relationships:
 - `population.relationships.moraleMax`: morale where bonding bonus caps (0..1).
 - `population.relationships.moraleBonusMax`: max bonding bonus added at peak morale (0..1).
 - `population.relationships.moraleExponent`: curve exponent for morale-based bonding bonus.
+
+Population social drama:
+
+- `population.socialDrama.enabled`: enable the social-drama runtime (`state.social`) and per-dwarf social payload updates.
+- `population.socialDrama.tickInterval`: ticks between social-drama updates.
+- `population.socialDrama.pairSamplesPerUpdate`: random adult-pair samples evaluated per social update (bounded, non O(n^2)).
+- `population.socialDrama.includeBondedPairs`: when true, always includes currently bonded partner pairs in sampled interactions.
+- `population.socialDrama.carryoverPairsPerDwarf`: number of top existing links per dwarf carried into each social update to preserve relationship continuity.
+- `population.socialDrama.maxTrackedLinksPerDwarf`: max retained social links per dwarf after pruning.
+- `population.socialDrama.linkEpsilon`: minimum link strength required to keep a link alive after decay/pruning.
+- `population.socialDrama.staleDecayPerTick`: passive decay applied per tick to stale links that were not refreshed.
+- `population.socialDrama.friendshipThreshold`: minimum affinity required to classify a link as friendship.
+- `population.socialDrama.rivalryThreshold`: minimum rivalry intensity required to classify a link as rivalry.
+- `population.socialDrama.mentorshipThreshold`: minimum mentorship intensity required to classify a link as mentorship candidate.
+- `population.socialDrama.grudgeThreshold`: minimum grudge intensity required to classify a link as grudge.
+- `population.socialDrama.mentorshipAgeGapMin`: minimum age gap (ticks) required for mentorship inference.
+- `population.socialDrama.mentorshipSkillGapMin`: minimum mentor-vs-mentee skill gap scalar required for mentorship inference (0..1).
+- `population.socialDrama.affinityGainBase`: baseline affinity gain per evaluated pair update.
+- `population.socialDrama.affinityBondScale`: additional affinity gain scaled by existing partner-bond ratio.
+- `population.socialDrama.affinitySameClanBonus`: extra affinity gain for same-clan pairs.
+- `population.socialDrama.affinityDecayPerTick`: per-tick decay for affinity channel.
+- `population.socialDrama.rivalryBaseGain`: baseline rivalry gain per evaluated pair.
+- `population.socialDrama.rivalryStressScale`: rivalry gain scale from average pair stress.
+- `population.socialDrama.rivalryLowMoraleScale`: rivalry gain scale from average pair low morale.
+- `population.socialDrama.rivalryBondShieldScale`: rivalry reduction scale from existing partner-bond ratio.
+- `population.socialDrama.rivalryDecayPerTick`: per-tick decay for rivalry channel.
+- `population.socialDrama.mentorshipBaseGain`: baseline mentorship gain when mentorship gates pass.
+- `population.socialDrama.mentorshipBondScale`: mentorship gain scale from partner-bond ratio when age/skill gates pass.
+- `population.socialDrama.mentorshipSkillScale`: mentorship gain scale from skill-gap intensity when age/skill gates pass.
+- `population.socialDrama.mentorshipDecayPerTick`: per-tick decay for mentorship channel.
+- `population.socialDrama.grudgeStressThreshold`: average pair stress threshold that enables grudge gain (0..1).
+- `population.socialDrama.grudgeStressScale`: grudge gain scale once stress threshold and rivalry gate are satisfied.
+- `population.socialDrama.grudgeRivalryScale`: passive grudge gain scale from existing rivalry intensity.
+- `population.socialDrama.grudgeDecayPerTick`: per-tick decay for grudge channel.
+- `population.socialDrama.incidents.enabled`: enable social incident generation (mentorship breakthrough, rivalry clash, grudge escalation, reconciliation).
+- `population.socialDrama.incidents.intervalTicks`: minimum ticks between incident rolls.
+- `population.socialDrama.incidents.baseChancePerRoll`: probability of attempting one incident when a roll window opens (0..1).
+- `population.socialDrama.incidents.maxPerUpdate`: max incidents resolved per social update tick.
+- `population.socialDrama.incidents.globalCooldownTicks`: global cooldown after any incident resolves.
+- `population.socialDrama.incidents.perPairCooldownTicks`: per-pair cooldown after a pair triggers any incident.
+- `population.socialDrama.incidents.pairCooldownRetentionTicks`: retention horizon for stale per-pair cooldown entries before cleanup.
+- `population.socialDrama.incidents.historyLimit`: max history entries retained in `state.social.history`.
+- `population.socialDrama.incidents.reconciliationAffinityMin`: minimum pair affinity required for reconciliation candidacy (0..1).
+- `population.socialDrama.incidents.weights.mentorship_breakthrough`: weighted selection bias for mentorship-breakthrough incidents.
+- `population.socialDrama.incidents.weights.rivalry_clash`: weighted selection bias for rivalry-clash incidents.
+- `population.socialDrama.incidents.weights.grudge_escalation`: weighted selection bias for grudge-escalation incidents.
+- `population.socialDrama.incidents.weights.reconciliation`: weighted selection bias for reconciliation incidents.
+- `population.socialDrama.incidents.effects.mentorship_breakthrough.*`: bounded mentor/mentee mood deltas, mentee warrior-growth deltas, and link tension-relief deltas for mentorship breakthroughs.
+- `population.socialDrama.incidents.effects.rivalry_clash.*`: bounded mood penalties and rivalry/grudge tension gains for rivalry clashes.
+- `population.socialDrama.incidents.effects.grudge_escalation.*`: bounded mood penalties and hostility gains for grudge escalations.
+- `population.socialDrama.incidents.effects.reconciliation.*`: bounded mood relief and hostility-reduction deltas for reconciliation incidents.
+
 - `population.idleWanderChance`: legacy per-tick wander chance (0..1), used as fallback for `population.idleWander.chance`.
 - `population.idleWander.enabled`: enable waypoint-style idle wandering.
 - `population.idleWander.chance`: chance per tick to start an idle stroll (0..1).
@@ -2033,6 +2085,15 @@ AI and training:
 - `ai.reward.diplomacyPressure`: penalty for current aggregate diplomacy pressure score.
 - `ai.reward.diplomacyPressureDelta`: reward for reducing aggregate diplomacy pressure.
 - `ai.reward.diplomacyLegitimacyDelta`: reward for schism-legitimacy improvements.
+- `ai.reward.socialCohesion`: reward contribution for current social cohesion ratio.
+- `ai.reward.socialCohesionDelta`: reward for improving social cohesion ratio.
+- `ai.reward.socialConflictPressure`: penalty for current social conflict pressure.
+- `ai.reward.socialConflictPressureDelta`: reward for reducing social conflict pressure.
+- `ai.reward.socialMentorshipCoverage`: reward contribution for current mentorship coverage ratio.
+- `ai.reward.socialMentorshipCoverageDelta`: reward for improving mentorship coverage ratio.
+- `ai.reward.socialGrudgeLoad`: penalty for current social grudge load ratio.
+- `ai.reward.socialGrudgeLoadDelta`: reward for reducing social grudge load ratio.
+- `ai.reward.socialIncidentRecency`: penalty for recent social incident volatility.
 - `ai.reward.warriorEliteScore`: reward contribution for current Warrior League elite-score aggregate.
 - `ai.reward.warriorEliteScoreDelta`: reward for improving elite-score aggregate.
 - `ai.reward.warriorChampionMomentum`: reward contribution for current champion-momentum aggregate.
@@ -2106,13 +2167,13 @@ AI and training:
 - Current default scenario catalog:
   - `baseline`, `full_sim`, `mid_sim`
   - `wildlife_raid`, `ruins_focus`
-  - `underrealm_push`, `underrealm_late_gauntlet`, `compound_crisis`, `governance_pressure`, `warrior_realism_pressure`
+  - `underrealm_push`, `underrealm_late_gauntlet`, `compound_crisis`, `governance_pressure`, `social_tension_pressure`, `warrior_realism_pressure`
   - `clan_abyssborn`, `clan_embers`, `clan_wardens`, `clan_lantern`
   - `water_scarce`, `food_scarce`, `low_stockpile`, `housing_pressure`
 - `ai.training.evalScenarios`: list of scenario names evaluated at eval checkpoints.
 - Default eval scenario list:
   - `baseline`, `full_sim`, `wildlife_raid`, `water_scarce`
-  - `food_scarce`, `ruins_focus`, `underrealm_push`, `compound_crisis`, `governance_pressure`, `warrior_realism_pressure`
+  - `food_scarce`, `ruins_focus`, `underrealm_push`, `compound_crisis`, `governance_pressure`, `social_tension_pressure`, `warrior_realism_pressure`
 - `ai.training.scenarioSampling.mode`: `static` or `adaptive` scenario reweighting.
 - `ai.training.scenarioSampling.updateEvery`: episodes between adaptive weight updates.
 - `ai.training.scenarioSampling.emaAlpha`: EMA smoothing for per-scenario reward.
@@ -2169,7 +2230,7 @@ AI and training:
 - `ai.training.trainer.miniBatchSize`: minibatch size for PPO updates.
 - `ai.training.trainer.batchEpisodes`: episodes per update batch.
 - `ai.training.trainer.hiddenSizes`: MLP hidden layer sizes (e.g. `[128, 128]`).
-- `ai.training.trainer.featureNames`: ordered list of observation features per resource (e.g. `shortage`, `nodeScarcity`, `criticalNeeds`, `idleAdults`, `populationBalance`, `seasonIndex`, `seasonProgress`, `weatherSeverity`, `weatherTimeLeft`, `raidActive`, `raidTimeLeft`, `raidExposed`, `raidDefense`, `housingShortage`, `seasonEligible`, `ruinsActive`, `ruinsCooldown`, `ruinsProgress`, `ruinsArtifacts`, `underrealmDepthProgress`, `underrealmChampionProgress`, `underrealmFrontierContested`, `underrealmChampionCooldown`, `underrealmReadinessScore`, `underrealmReadinessGap`, `underrealmReadinessBlocked`, `underrealmReadinessWarning`, `underrealmCombatPressure`, `worldEventActive`, `worldEventOfferPhase`, `worldEventOfferReady`, `worldEventTimeLeft`, `worldEventSpawnImminence`, `worldEventPressure`, `contractActive`, `contractReady`, `contractTimeLeft`, `contractFailurePressure`, `contractReputation`, `contractPressure`, `externalCampActiveRatio`, `externalCampRaiderPressure`, `externalCampCaravanRisk`, `externalCampMilitiaSupport`, `externalCampTradeInfluence`, `externalCampPressure`, `schismPressure`, `schismLegitimacy`, `schismPhase`, `schismRitualOpen`, `schismClimaxActive`, `schismInstability`, `warriorEliteScore`, `warriorLegacyAura`, `warriorChampionMomentum`, `warriorTournamentRecency`, `warriorInjuryShare`, `warriorRetiredShare`, `warriorSurvivability`, `warriorHeroTurnoverPressure`, `clanShare_abyssborn`).
+- `ai.training.trainer.featureNames`: ordered list of observation features per resource (e.g. `shortage`, `nodeScarcity`, `criticalNeeds`, `idleAdults`, `populationBalance`, `seasonIndex`, `seasonProgress`, `weatherSeverity`, `weatherTimeLeft`, `raidActive`, `raidTimeLeft`, `raidExposed`, `raidDefense`, `housingShortage`, `seasonEligible`, `ruinsActive`, `ruinsCooldown`, `ruinsProgress`, `ruinsArtifacts`, `underrealmDepthProgress`, `underrealmChampionProgress`, `underrealmFrontierContested`, `underrealmChampionCooldown`, `underrealmReadinessScore`, `underrealmReadinessGap`, `underrealmReadinessBlocked`, `underrealmReadinessWarning`, `underrealmCombatPressure`, `worldEventActive`, `worldEventOfferPhase`, `worldEventOfferReady`, `worldEventTimeLeft`, `worldEventSpawnImminence`, `worldEventPressure`, `contractActive`, `contractReady`, `contractTimeLeft`, `contractFailurePressure`, `contractReputation`, `contractPressure`, `externalCampActiveRatio`, `externalCampRaiderPressure`, `externalCampCaravanRisk`, `externalCampMilitiaSupport`, `externalCampTradeInfluence`, `externalCampPressure`, `schismPressure`, `schismLegitimacy`, `schismPhase`, `schismRitualOpen`, `schismClimaxActive`, `schismInstability`, `socialCohesion`, `socialConflictPressure`, `socialMentorshipCoverage`, `socialGrudgeLoad`, `socialIncidentRecency`, `warriorEliteScore`, `warriorLegacyAura`, `warriorChampionMomentum`, `warriorTournamentRecency`, `warriorInjuryShare`, `warriorRetiredShare`, `warriorSurvivability`, `warriorHeroTurnoverPressure`, `clanShare_abyssborn`).
 - Dynamic feature names are accepted for `mythFlag_<mythId>` and `clanShare_<clanId>`.
 - `ai.training.trainer.activation`: hidden-layer activation (`tanh` or `relu`).
 - `ai.training.trainer.logStdInit`: initial log-std for action sampling.

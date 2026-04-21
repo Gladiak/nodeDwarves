@@ -82,6 +82,7 @@ This produces canonical section rows for:
 - `World`
 - `Underrealm`
 - `Population`
+- `Social`
 - `Pressure`
 - `Lore`
 - `Structures`
@@ -581,14 +582,15 @@ Rows:
 3. Shortage #1 with score/weight/boost
 4. Shortage #2 with score/weight/boost
 5. Runtime context (weather/raid/event/festival)
-6. Contracts explainability
-7. Ruins explainability
-8. Underrealm explainability
-9. External camps explainability
-10. Warriors explainability
-11. Trade explainability
-12. Build explainability
-13. Job load summary
+6. Social context (cohesion/conflict/mentorship/grudge/incident recency)
+7. Contracts explainability
+8. Ruins explainability
+9. Underrealm explainability
+10. External camps explainability
+11. Warriors explainability
+12. Trade explainability
+13. Build explainability
+14. Job load summary
 
 Driver logic:
 

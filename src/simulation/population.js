@@ -7,6 +7,7 @@ const { hasInputs, consumeInputs, getStockpileRatio } = require('./resources');
 const { getMythMultiplier } = require('./myths');
 const { getClanConfig, pickClanId } = require('../clans');
 const { createDwarfWarriorState } = require('./warriors');
+const { createDwarfSocialState } = require('./social_drama');
 
 // Resolve the clan id for a newborn based on config and parents.
 function resolveNewbornClanId(parentA, parentB, config) {
@@ -937,6 +938,7 @@ function spawnNewborn(state, config, parentA, parentB) {
     pregnancy: null,
     starvationTicks: 0,
     underrealmChampionSurvivals: 0,
+    social: createDwarfSocialState(),
   };
   newborn.warrior = createDwarfWarriorState(
     newbornId,

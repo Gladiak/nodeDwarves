@@ -155,6 +155,11 @@ const STATIC_FEATURE_NAMES = new Set([
   'schismRitualActive',
   'schismClimaxActive',
   'schismInstability',
+  'socialCohesion',
+  'socialConflictPressure',
+  'socialMentorshipCoverage',
+  'socialGrudgeLoad',
+  'socialIncidentRecency',
   'warriorEnabled',
   'warriorRosterCoverage',
   'warriorEliteScore',
@@ -793,6 +798,12 @@ function buildTrainingSignals(metrics) {
     && typeof metrics.aiObservation.schism === 'object'
     ? metrics.aiObservation.schism
     : {};
+  const social = metrics
+    && metrics.aiObservation
+    && metrics.aiObservation.social
+    && typeof metrics.aiObservation.social === 'object'
+    ? metrics.aiObservation.social
+    : {};
   const warriors = metrics
     && metrics.aiObservation
     && metrics.aiObservation.warriors
@@ -816,6 +827,11 @@ function buildTrainingSignals(metrics) {
     externalCampRaiderPressure: Number(externalCamps.raiderPressure || 0),
     schismPressure: Number(schism.pressure || 0),
     schismLegitimacy: Number(schism.legitimacy || 0),
+    socialCohesion: Number(social.cohesion || 0),
+    socialConflictPressure: Number(social.conflictPressure || 0),
+    socialMentorshipCoverage: Number(social.mentorshipCoverage || 0),
+    socialGrudgeLoad: Number(social.grudgeLoad || 0),
+    socialIncidentRecency: Number(social.incidentRecency || 0),
     warriorEnabled: Number(warriors.enabled || 0),
     warriorRosterCoverage: Number(warriors.rosterCoverage || 0),
     warriorEliteScore: Number(warriors.eliteScore || 0),
@@ -1106,6 +1122,9 @@ function resolveAiObservation(state, config) {
     schism: aiObservation.schism && typeof aiObservation.schism === 'object'
       ? aiObservation.schism
       : {},
+    social: aiObservation.social && typeof aiObservation.social === 'object'
+      ? aiObservation.social
+      : {},
     warriors: aiObservation.warriors && typeof aiObservation.warriors === 'object'
       ? aiObservation.warriors
       : {},
@@ -1135,6 +1154,9 @@ function getAiRewardSignals(aiObservation) {
   const schism = aiObservation && aiObservation.schism
     ? aiObservation.schism
     : {};
+  const social = aiObservation && aiObservation.social
+    ? aiObservation.social
+    : {};
   const worldEventPressure = clamp(Number(worldEvents.pressure || 0), 0, 1);
   const contractFailurePressure = clamp(Number(contracts.failurePressure || 0), 0, 1);
   const externalCampPressure = clamp(Number(externalCamps.pressure || 0), 0, 1);
@@ -1142,14 +1164,28 @@ function getAiRewardSignals(aiObservation) {
   const schismPressure = clamp(Number(schism.pressure || 0), 0, 1);
   const schismLegitimacy = clamp(Number(schism.legitimacy || 0), 0, 1);
   const schismInstability = clamp(Number(schism.instability || 0), 0, 1);
+  const socialCohesion = clamp(Number(social.cohesion || 0), 0, 1);
+  const socialConflictPressure = clamp(Number(social.conflictPressure || 0), 0, 1);
+  const socialMentorshipCoverage = clamp(Number(social.mentorshipCoverage || 0), 0, 1);
+  const socialGrudgeLoad = clamp(Number(social.grudgeLoad || 0), 0, 1);
+  const socialIncidentRecency = clamp(Number(social.incidentRecency || 0), 0, 1);
+  const socialPressure = clamp(
+    socialConflictPressure * 0.52
+      + socialGrudgeLoad * 0.28
+      + (1 - socialCohesion) * 0.14
+      + socialIncidentRecency * 0.06,
+    0,
+    1,
+  );
   const diplomacyPressure = clamp(
-    worldEventPressure * 0.2
-      + contractFailurePressure * 0.25
-      + externalCampPressure * 0.25
-      + externalCampRaiderPressure * 0.1
+    worldEventPressure * 0.18
+      + contractFailurePressure * 0.23
+      + externalCampPressure * 0.22
+      + externalCampRaiderPressure * 0.09
       + schismPressure * 0.1
       + schismInstability * 0.05
-      + (1 - schismLegitimacy) * 0.05,
+      + (1 - schismLegitimacy) * 0.05
+      + socialPressure * 0.08,
     0,
     1,
   );
@@ -1166,6 +1202,12 @@ function getAiRewardSignals(aiObservation) {
     externalCampRaiderPressure,
     schismPressure,
     schismLegitimacy,
+    socialCohesion,
+    socialConflictPressure,
+    socialMentorshipCoverage,
+    socialGrudgeLoad,
+    socialIncidentRecency,
+    socialPressure,
     diplomacyPressure,
   };
 }
@@ -1451,6 +1493,13 @@ function buildObservation(state, config, metrics) {
       climaxActive: 0,
       instability: 0,
     },
+    social: aiObservation.social || {
+      cohesion: 0,
+      conflictPressure: 0,
+      mentorshipCoverage: 0,
+      grudgeLoad: 0,
+      incidentRecency: 0,
+    },
     warriors: aiObservation.warriors || {
       enabled: 0,
       rosterCoverage: 0,
@@ -1506,6 +1555,9 @@ function buildCompactObservationVector(metrics, config) {
     : {};
   const schism = aiObservation.schism && typeof aiObservation.schism === 'object'
     ? aiObservation.schism
+    : {};
+  const social = aiObservation.social && typeof aiObservation.social === 'object'
+    ? aiObservation.social
     : {};
   const warriors = aiObservation.warriors && typeof aiObservation.warriors === 'object'
     ? aiObservation.warriors
@@ -1588,6 +1640,11 @@ function buildCompactObservationVector(metrics, config) {
     schismRitualActive: clamp(Number(schism.ritualActive || 0), 0, 1),
     schismClimaxActive: clamp(Number(schism.climaxActive || 0), 0, 1),
     schismInstability: clamp(Number(schism.instability || 0), 0, 1),
+    socialCohesion: clamp(Number(social.cohesion || 0), 0, 1),
+    socialConflictPressure: clamp(Number(social.conflictPressure || 0), 0, 1),
+    socialMentorshipCoverage: clamp(Number(social.mentorshipCoverage || 0), 0, 1),
+    socialGrudgeLoad: clamp(Number(social.grudgeLoad || 0), 0, 1),
+    socialIncidentRecency: clamp(Number(social.incidentRecency || 0), 0, 1),
     warriorEnabled: clamp(Number(warriors.enabled || 0), 0, 1),
     warriorRosterCoverage: clamp(Number(warriors.rosterCoverage || 0), 0, 1),
     warriorEliteScore: clamp(Number(warriors.eliteScore || 0), 0, 1),
@@ -1776,6 +1833,12 @@ function computeMetrics(state, config) {
     externalCampRaiderPressure: aiSignals.externalCampRaiderPressure,
     schismPressure: aiSignals.schismPressure,
     schismLegitimacy: aiSignals.schismLegitimacy,
+    socialCohesion: aiSignals.socialCohesion,
+    socialConflictPressure: aiSignals.socialConflictPressure,
+    socialMentorshipCoverage: aiSignals.socialMentorshipCoverage,
+    socialGrudgeLoad: aiSignals.socialGrudgeLoad,
+    socialIncidentRecency: aiSignals.socialIncidentRecency,
+    socialPressure: aiSignals.socialPressure,
     warriorEliteScore,
     warriorChampionMomentum,
     warriorSurvivability,
@@ -1875,6 +1938,15 @@ function computeReward(prevMetrics, metrics, config, action) {
   const diplomacyPressureWeight = Number(rewardConfig.diplomacyPressure ?? 0);
   const diplomacyPressureDeltaWeight = Number(rewardConfig.diplomacyPressureDelta ?? 0);
   const diplomacyLegitimacyDeltaWeight = Number(rewardConfig.diplomacyLegitimacyDelta ?? 0);
+  const socialCohesionWeight = Number(rewardConfig.socialCohesion ?? 0);
+  const socialCohesionDeltaWeight = Number(rewardConfig.socialCohesionDelta ?? 0);
+  const socialConflictPressureWeight = Number(rewardConfig.socialConflictPressure ?? 0);
+  const socialConflictPressureDeltaWeight = Number(rewardConfig.socialConflictPressureDelta ?? 0);
+  const socialMentorshipCoverageWeight = Number(rewardConfig.socialMentorshipCoverage ?? 0);
+  const socialMentorshipCoverageDeltaWeight = Number(rewardConfig.socialMentorshipCoverageDelta ?? 0);
+  const socialGrudgeLoadWeight = Number(rewardConfig.socialGrudgeLoad ?? 0);
+  const socialGrudgeLoadDeltaWeight = Number(rewardConfig.socialGrudgeLoadDelta ?? 0);
+  const socialIncidentRecencyWeight = Number(rewardConfig.socialIncidentRecency ?? 0);
   const warriorEliteScoreWeight = Number(rewardConfig.warriorEliteScore ?? 0);
   const warriorEliteScoreDeltaWeight = Number(rewardConfig.warriorEliteScoreDelta ?? 0);
   const warriorChampionMomentumWeight = Number(rewardConfig.warriorChampionMomentum ?? 0);
@@ -1989,6 +2061,18 @@ function computeReward(prevMetrics, metrics, config, action) {
   const prevSchismLegitimacy = prevMetrics
     ? Number(prevMetrics.schismLegitimacy || 0)
     : Number(metrics.schismLegitimacy || 0);
+  const prevSocialCohesion = prevMetrics
+    ? Number(prevMetrics.socialCohesion || 0)
+    : Number(metrics.socialCohesion || 0);
+  const prevSocialConflictPressure = prevMetrics
+    ? Number(prevMetrics.socialConflictPressure || 0)
+    : Number(metrics.socialConflictPressure || 0);
+  const prevSocialMentorshipCoverage = prevMetrics
+    ? Number(prevMetrics.socialMentorshipCoverage || 0)
+    : Number(metrics.socialMentorshipCoverage || 0);
+  const prevSocialGrudgeLoad = prevMetrics
+    ? Number(prevMetrics.socialGrudgeLoad || 0)
+    : Number(metrics.socialGrudgeLoad || 0);
   const prevWarriorEliteScore = prevMetrics
     ? Number(prevMetrics.warriorEliteScore || 0)
     : Number(metrics.warriorEliteScore || 0);
@@ -2075,6 +2159,26 @@ function computeReward(prevMetrics, metrics, config, action) {
     prevSchismLegitimacy,
     deltaClip,
   );
+  const socialCohesionDelta = getMetricDelta(
+    metrics.socialCohesion,
+    prevSocialCohesion,
+    deltaClip,
+  );
+  const socialConflictPressureDelta = getImprovementDelta(
+    prevSocialConflictPressure,
+    metrics.socialConflictPressure,
+    deltaClip,
+  );
+  const socialMentorshipCoverageDelta = getMetricDelta(
+    metrics.socialMentorshipCoverage,
+    prevSocialMentorshipCoverage,
+    deltaClip,
+  );
+  const socialGrudgeLoadDelta = getImprovementDelta(
+    prevSocialGrudgeLoad,
+    metrics.socialGrudgeLoad,
+    deltaClip,
+  );
   const warriorEliteScoreDelta = getMetricDelta(
     metrics.warriorEliteScore,
     prevWarriorEliteScore,
@@ -2135,6 +2239,15 @@ function computeReward(prevMetrics, metrics, config, action) {
     + (diplomacyPressureDelta * diplomacyPressureDeltaWeight)
     + (diplomacyLegitimacyDelta * diplomacyLegitimacyDeltaWeight)
     - (Number(metrics.diplomacyPressure || 0) * diplomacyPressureWeight)
+    + (Number(metrics.socialCohesion || 0) * socialCohesionWeight)
+    + (socialCohesionDelta * socialCohesionDeltaWeight)
+    + (Number(metrics.socialMentorshipCoverage || 0) * socialMentorshipCoverageWeight)
+    + (socialMentorshipCoverageDelta * socialMentorshipCoverageDeltaWeight)
+    + (socialConflictPressureDelta * socialConflictPressureDeltaWeight)
+    + (socialGrudgeLoadDelta * socialGrudgeLoadDeltaWeight)
+    - (Number(metrics.socialConflictPressure || 0) * socialConflictPressureWeight)
+    - (Number(metrics.socialGrudgeLoad || 0) * socialGrudgeLoadWeight)
+    - (Number(metrics.socialIncidentRecency || 0) * socialIncidentRecencyWeight)
     + (Number(metrics.warriorEliteScore || 0) * warriorEliteScoreWeight)
     + (warriorEliteScoreDelta * warriorEliteScoreDeltaWeight)
     + (Number(metrics.warriorChampionMomentum || 0) * warriorChampionMomentumWeight)

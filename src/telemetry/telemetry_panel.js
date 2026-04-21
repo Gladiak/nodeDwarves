@@ -43,6 +43,7 @@ const SECTION_TOKEN_COLOR_KEYS = {
   'actionable insights': 'dwarf',
   world: 'weather_clear',
   population: 'dwarf',
+  social: 'dwarf',
   pressure: 'alert_critical',
   stockpile: 'food',
   structures: 'workshop',
@@ -87,8 +88,8 @@ const TELEMETRY_PANEL_PAGES = [
   {
     id: 'overview_deep',
     title: 'Overview + Deep',
-    subtitle: 'Core world, underrealm combat gates/readiness counters, population, pressure, lore, and deep signals.',
-    sections: ['world', 'underrealm', 'population', 'lore', 'pressure', 'deepSignals'],
+    subtitle: 'Core world, underrealm combat gates/readiness counters, population + social climate, pressure, lore, and deep signals.',
+    sections: ['world', 'underrealm', 'population', 'social', 'lore', 'pressure', 'deepSignals'],
     preferredColumns: 2,
     minColumnWidth: 38,
   },
@@ -576,6 +577,32 @@ function collectDashboardSnapshot(state, config, alertState, alertConfig) {
   const worldEventsState = safeState.worldEvents && typeof safeState.worldEvents === 'object'
     ? safeState.worldEvents
     : null;
+  const socialState = safeState.social && typeof safeState.social === 'object'
+    ? safeState.social
+    : null;
+  const social = {
+    enabled: Boolean(
+      socialState
+      && socialState.enabled === true
+      && safeConfig.population
+      && safeConfig.population.socialDrama
+      && safeConfig.population.socialDrama.enabled !== false,
+    ),
+    cohesion: clampUnit(socialState && socialState.cohesion, 0),
+    conflictPressure: clampUnit(socialState && socialState.conflictPressure, 0),
+    mentorshipCoverage: clampUnit(socialState && socialState.mentorshipCoverage, 0),
+    grudgeLoad: clampUnit(socialState && socialState.grudgeLoad, 0),
+    incidents: Math.max(
+      0,
+      Number(
+        socialState
+        && socialState.stats
+        && socialState.stats.incidents
+        || 0,
+      ),
+    ),
+    lastIncidentTick: Math.max(0, Number(socialState && socialState.lastIncidentTick || 0)),
+  };
   const contract = resolveContractStatus(safeState);
   const risk = computeDashboardRiskScore(alertState, alertConfig);
 
@@ -610,6 +637,7 @@ function collectDashboardSnapshot(state, config, alertState, alertConfig) {
     worldEventStatus,
     externalCampStatus,
     schismStatus,
+    social,
     worldEventsState,
     contract,
     risk,
@@ -1662,10 +1690,11 @@ function buildOverviewContextRows(snapshot, history, deltaWindowTicks) {
   return [
     `Risk posture: ${snapshot.alertLevel.toUpperCase()} (${snapshot.alertCause}) ${formatRatioPct(snapshot.risk.score)} | Delta ${riskDelta}/${formatCompactNumber(deltaWindowTicks)}t`,
     `Population lens: ${formatCompactNumber(snapshot.population)} (${popDelta}) | Morale ${formatRatioPct(snapshot.moraleRatio)} (${moraleDelta}) | Stress ${formatRatioPct(snapshot.stressRatio)}`,
+    `Social climate: ${buildContextSocialSummary(snapshot)}`,
     `Frontier posture: ${underrealmText}`,
     `Raid status: surface ${snapshot.alertState.raidActive ? 'ACTIVE' : 'off'} | deep ${snapshot.alertState.deepRaidActive ? 'ACTIVE' : 'off'}`,
     `Core stock floor: ${formatRatioPct(snapshot.stockMinRatio)} | ${snapshot.food.label} ${formatRatioPct(snapshot.food.ratio)} | ${snapshot.water.label} ${formatRatioPct(snapshot.water.ratio)} | ${snapshot.beer.label} ${formatRatioPct(snapshot.beer.ratio)}`,
-    `Timeline: contract ${buildContextContractSummary(snapshot)} | event ${buildContextWorldEventSummary(snapshot)} | schism ${buildContextSchismSummary(snapshot)}`,
+    `Timeline: contract ${buildContextContractSummary(snapshot)} | event ${buildContextWorldEventSummary(snapshot)} | schism ${buildContextSchismSummary(snapshot)} | social ${buildContextSocialSummary(snapshot)}`,
   ];
 }
 
@@ -1694,7 +1723,7 @@ function buildEconomyContextRows(snapshot, history, deltaWindowTicks) {
     `Trend context (${formatCompactNumber(deltaWindowTicks)}t): ${snapshot.food.label} ${foodDelta} | ${snapshot.water.label} ${waterDelta} | ${snapshot.beer.label} ${beerDelta} | risk ${riskDelta}`,
     `Workforce load: utilization ${formatRatioPct(utilization)} | active jobs ${snapshot.jobMix.total} | I${snapshot.workforce.idle} J${snapshot.workforce.job} U${snapshot.workforce.under} E${snapshot.workforce.exped}`,
     `Shortage drivers: primary ${buildContextShortageSummary(snapshot.shortages[0])} | secondary ${buildContextShortageSummary(snapshot.shortages[1])}`,
-    `Ops clocks: contract ${buildContextContractSummary(snapshot)} | festival ${buildContextFestivalSummary(snapshot)} | schism ${buildContextSchismSummary(snapshot)} | alchemy ${buildContextAlchemySummary(snapshot)}`,
+    `Ops clocks: contract ${buildContextContractSummary(snapshot)} | festival ${buildContextFestivalSummary(snapshot)} | schism ${buildContextSchismSummary(snapshot)} | social ${buildContextSocialSummary(snapshot)} | alchemy ${buildContextAlchemySummary(snapshot)}`,
   ];
 }
 
@@ -1751,6 +1780,23 @@ function buildContextSchismSummary(snapshot) {
     : '';
   const climax = schism.climaxActive ? '+crisis' : '';
   return `${phase}/${doctrine} p${pressure} l${legitimacy} ${ritual}${activeRitual}${activeDecree}${climax}`;
+}
+
+// Build one compact social summary token for context blocks.
+function buildContextSocialSummary(snapshot) {
+  if (!(snapshot && snapshot.social && snapshot.social.enabled === true)) {
+    return 'off';
+  }
+  const social = snapshot.social;
+  const cohesion = Math.round(clampUnit(social.cohesion, 0) * 100);
+  const conflict = Math.round(clampUnit(social.conflictPressure, 0) * 100);
+  const mentorship = Math.round(clampUnit(social.mentorshipCoverage, 0) * 100);
+  const grudge = Math.round(clampUnit(social.grudgeLoad, 0) * 100);
+  const incidents = Math.max(0, Number(social.incidents || 0));
+  const tick = Math.max(0, Number(snapshot.tick || 0));
+  const lastIncidentTick = Math.max(0, Number(social.lastIncidentTick || 0));
+  const recency = lastIncidentTick > 0 ? `${Math.max(0, tick - lastIncidentTick)}t` : 'none';
+  return `c${cohesion}/f${conflict}/m${mentorship}/g${grudge} inc${incidents}@${recency}`;
 }
 
 // Build one compact festival summary token for context blocks.

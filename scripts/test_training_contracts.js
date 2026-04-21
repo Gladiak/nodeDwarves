@@ -2381,6 +2381,214 @@ function validateWarriorsAiPhase6Contract(tmpDir) {
   }
 }
 
+// Validate social-drama AI observation extraction and compact parity (Slice 4).
+function validateSocialDramaAiSlice4Contract(tmpDir) {
+  const config = loadConfig();
+  config.population = config.population || {};
+  config.population.socialDrama = {
+    ...((config.population && config.population.socialDrama) || {}),
+    enabled: true,
+  };
+  config.ai = config.ai || {};
+  config.ai.stepTicks = 1;
+  const socialFeatureNames = [
+    'socialCohesion',
+    'socialConflictPressure',
+    'socialMentorshipCoverage',
+    'socialGrudgeLoad',
+    'socialIncidentRecency',
+  ];
+  const runtime = buildRuntime(config.display, {
+    columns: Number(config.display.width || 80),
+    rows: Number(config.display.height || 24),
+  });
+  const state = createInitialState(config, runtime);
+  state.tick = 1;
+  const aiObs = buildAiObservation(state, config);
+  const socialObs = aiObs && aiObs.social && typeof aiObs.social === 'object'
+    ? aiObs.social
+    : null;
+  assert(socialObs, 'Social Slice 4 contract: AI observation missing social block.');
+  const values = buildAiFeatures(aiObs, 'food', config, socialFeatureNames);
+  assert(
+    Array.isArray(values) && values.length === socialFeatureNames.length,
+    'Social Slice 4 contract: social feature extraction returned unexpected length.',
+  );
+  const expected = [
+    Number(socialObs.cohesion || 0),
+    Number(socialObs.conflictPressure || 0),
+    Number(socialObs.mentorshipCoverage || 0),
+    Number(socialObs.grudgeLoad || 0),
+    Number(socialObs.incidentRecency || 0),
+  ];
+  for (let index = 0; index < expected.length; index += 1) {
+    assert(
+      Math.abs(Number(values[index] || 0) - expected[index]) <= 1e-9,
+      `Social Slice 4 contract: legacy feature mismatch at index ${index}.`,
+    );
+  }
+
+  const compactConfigPath = path.join(tmpDir, 'social_slice4_transport_config.json');
+  fs.writeFileSync(compactConfigPath, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
+  const legacyResponses = runAiServerSession(compactConfigPath, [
+    { cmd: 'reset', seed: 19, training: true, transport: { mode: 'legacy' } },
+    { cmd: 'step', action: { ticks: 1 } },
+    { cmd: 'close' },
+  ]);
+  const legacyObs = legacyResponses[1] && legacyResponses[1].obs;
+  assert(legacyObs && legacyObs.social, 'Social Slice 4 contract: legacy step response missing social observation.');
+  const compactResponses = runAiServerSession(compactConfigPath, [
+    {
+      cmd: 'reset',
+      seed: 19,
+      training: true,
+      transport: {
+        mode: 'compact',
+        resources: ['food'],
+        featureNames: socialFeatureNames,
+      },
+    },
+    { cmd: 'step', action: { ticks: 1 } },
+    { cmd: 'close' },
+  ]);
+  const compactVector = compactResponses[1] && compactResponses[1].obsVector;
+  assert(Array.isArray(compactVector), 'Social Slice 4 contract: compact step response missing obsVector.');
+  assert(
+    compactVector.length === socialFeatureNames.length,
+    'Social Slice 4 contract: compact obsVector length mismatch for social features.',
+  );
+  const legacyExpected = [
+    Number(legacyObs.social.cohesion || 0),
+    Number(legacyObs.social.conflictPressure || 0),
+    Number(legacyObs.social.mentorshipCoverage || 0),
+    Number(legacyObs.social.grudgeLoad || 0),
+    Number(legacyObs.social.incidentRecency || 0),
+  ];
+  for (let index = 0; index < legacyExpected.length; index += 1) {
+    assert(
+      Math.abs(Number(compactVector[index] || 0) - legacyExpected[index]) <= 1e-9,
+      `Social Slice 4 contract: compact/legacy mismatch at index ${index}.`,
+    );
+  }
+}
+
+// Validate social-drama telemetry/explainability wiring and training scenario closure (Slice 5).
+function validateSocialDramaSlice5Contract() {
+  const config = loadConfig();
+  const training = config && config.ai && config.ai.training
+    ? config.ai.training
+    : {};
+  const scenarios = Array.isArray(training.scenarios) ? training.scenarios : [];
+  const socialScenario = scenarios.find((entry) => String(entry && entry.name || '') === 'social_tension_pressure');
+  assert(
+    socialScenario && typeof socialScenario === 'object',
+    'Social Slice 5 contract: social_tension_pressure scenario is missing.',
+  );
+  const evalScenarios = Array.isArray(training.evalScenarios) ? training.evalScenarios : [];
+  assert(
+    evalScenarios.includes('social_tension_pressure'),
+    'Social Slice 5 contract: evalScenarios missing social_tension_pressure.',
+  );
+
+  const runtime = buildRuntime(config.display, {
+    columns: Number(config.display.width || 96),
+    rows: Number(config.display.height || 40),
+  });
+  const state = createInitialState(config, runtime);
+  state.tick = 640;
+  state.social = {
+    ...(state.social && typeof state.social === 'object' ? state.social : {}),
+    enabled: true,
+    cohesion: 0.63,
+    conflictPressure: 0.47,
+    mentorshipCoverage: 0.34,
+    grudgeLoad: 0.26,
+    lastIncidentTick: 632,
+    history: [
+      { tick: 608, type: 'rivalry_clash' },
+      { tick: 632, type: 'grudge_escalation' },
+    ],
+    stats: {
+      ...((state.social && state.social.stats) || {}),
+      updates: 14,
+      links: 28,
+      friendships: 11,
+      rivalries: 9,
+      mentorships: 4,
+      grudges: 5,
+      incidents: 7,
+      incidentsByType: {
+        mentorship_breakthrough: 1,
+        rivalry_clash: 3,
+        grudge_escalation: 2,
+        reconciliation: 1,
+      },
+    },
+  };
+  state.lastDecisionTrace = {
+    tick: state.tick,
+    governors: {
+      jobsSource: 'action',
+      tradeSource: 'default',
+      buildingSource: 'default',
+      contractsSource: 'default',
+      ruinsSource: 'default',
+      underrealmSource: 'default',
+      externalCampsSource: 'default',
+      warriorsSource: 'default',
+    },
+    shortages: [],
+    jobs: {
+      total: 0,
+      byType: {},
+    },
+    context: {
+      weather: 'clear',
+      raidActive: false,
+      raidTicksLeft: 0,
+      worldEventActive: false,
+      worldEventLabel: '',
+      worldEventTicksLeft: 0,
+      festivalActive: false,
+      contractActive: false,
+      socialCohesion: 0.63,
+      socialConflictPressure: 0.47,
+      socialMentorshipCoverage: 0.34,
+      socialGrudgeLoad: 0.26,
+      socialIncidentRecency: 0.82,
+    },
+    drivers: [
+      { kind: 'social', label: 'Social pressure', key: 'social:pressure', score: 0.78 },
+    ],
+  };
+
+  const sections = buildTelemetrySections(state, config, 100, {
+    includeRuins: true,
+    includeMyths: true,
+  });
+  const socialSection = sections && sections.social ? sections.social : null;
+  assert(socialSection, 'Social Slice 5 contract: Social telemetry section missing.');
+  assert(
+    Array.isArray(socialSection.rows) && socialSection.rows.length >= 5,
+    'Social Slice 5 contract: Social telemetry rows are empty.',
+  );
+  assert(
+    socialSection.rows.some((row) => String(row).startsWith('Cohesion / conflict:')),
+    'Social Slice 5 contract: Social cohesion/conflict row missing.',
+  );
+  assert(
+    socialSection.rows.some((row) => String(row).startsWith('Incident ledger:')),
+    'Social Slice 5 contract: Social incident ledger row missing.',
+  );
+  const explainabilitySection = sections && sections.explainability ? sections.explainability : null;
+  assert(explainabilitySection, 'Social Slice 5 contract: AI Explainability section missing.');
+  assert(
+    Array.isArray(explainabilitySection.rows)
+    && explainabilitySection.rows.some((row) => String(row).startsWith('Social context:')),
+    'Social Slice 5 contract: AI Explainability missing social context row.',
+  );
+}
+
 // Execute the full contract suite in one deterministic temporary workspace.
 function main() {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nodedwarves_test_contracts_'));
@@ -2423,10 +2631,12 @@ function main() {
     validateWarriorsProgressionPhase4Contract();
     validateWarriorsTelemetryPhase5Contract();
     validateWarriorsAiPhase6Contract(tmpDir);
+    validateSocialDramaAiSlice4Contract(tmpDir);
+    validateSocialDramaSlice5Contract();
     validateRegressionReportSchema(tmpDir);
     validateRegressionSeedPackDefaultModeContract(tmpDir);
     validatePromoteReportSchema(tmpDir);
-    console.log('[test:contracts] PASS policy_shape external_camps_governor contracts_governor ruins_governor underrealm_governor warriors_disabled warriors_bootstrap warriors_phase1 warriors_thresholds warriors_phase2 warriors_phase3 warriors_phase4 warriors_phase5 warriors_phase6 regression_schema regression_seedpack_default promote_schema');
+    console.log('[test:contracts] PASS policy_shape external_camps_governor contracts_governor ruins_governor underrealm_governor warriors_disabled warriors_bootstrap warriors_phase1 warriors_thresholds warriors_phase2 warriors_phase3 warriors_phase4 warriors_phase5 warriors_phase6 social_slice4 social_slice5 regression_schema regression_seedpack_default promote_schema');
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }

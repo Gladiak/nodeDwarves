@@ -94,6 +94,7 @@ const PROFILE_EVAL_SCENARIOS = {
   standard: ['baseline', 'full_sim'],
   underrealm: ['baseline', 'underrealm_push', 'compound_crisis'],
   governance: ['baseline', 'governance_pressure', 'compound_crisis'],
+  social: ['baseline', 'social_tension_pressure', 'governance_pressure'],
   horizon: ['baseline', 'underrealm_push', 'governance_pressure', 'compound_crisis'],
 };
 const DEFAULT_SEED_PACKS = {
@@ -862,7 +863,7 @@ function buildLegendLines() {
   return [
     'Legend:',
     '- Eval (deterministic): fixed terrain seed=1337, randomization off (compare training quality).',
-    '- Deterministic eval scenarios are profile-specific (standard/underrealm/governance stress slices).',
+    '- Deterministic eval scenarios are profile-specific (standard/underrealm/governance/social stress slices).',
     '- Randomized: terrain seed=0, randomization on (robustness/stability).',
     '- Columns: current, baseline, delta(abs), delta(%), threshold, status.',
     '- threshold: rel limit -0.05 means max -5% drop; abs limit 0.05 means max +0.05 increase.',

@@ -350,6 +350,103 @@
           "under_readinessWarning": 0.125
         }
       }
+    },
+    "social": {
+      "generatedAt": "2026-04-20T11:44:42.475Z",
+      "config": {
+        "seeds": [
+          12345,
+          22222
+        ],
+        "seedPack": null,
+        "evalEpisodes": 20,
+        "evalMaxSteps": 1200,
+        "randomEpisodes": 40,
+        "randomMaxSteps": 520,
+        "evalScenarios": [
+          "baseline",
+          "social_tension_pressure",
+          "governance_pressure"
+        ]
+      },
+      "tolerances": {
+        "eval": {
+          "avg_reward": {
+            "mode": "rel",
+            "limit": -0.05
+          },
+          "score": {
+            "mode": "rel",
+            "limit": -0.05
+          },
+          "avg_deaths": {
+            "mode": "rel",
+            "limit": 0.15
+          }
+        },
+        "random": {
+          "avg_reward": {
+            "mode": "rel",
+            "limit": -0.08
+          },
+          "stock_min": {
+            "mode": "rel",
+            "limit": -0.08
+          },
+          "extinction_rate": {
+            "mode": "abs",
+            "limit": 0.05
+          }
+        }
+      },
+      "baseline": {
+        "eval": {
+          "avg_reward": 10803.801199337748,
+          "avg_steps": 1200,
+          "avg_births": 49.925,
+          "avg_deaths": 1.6,
+          "score": 4.501583833057395
+        },
+        "random": {
+          "avg_reward": 4162.125,
+          "avg_steps": 520,
+          "avg_births": 12.5,
+          "avg_deaths": 0.75,
+          "stock_min": 0.915,
+          "stock_avg": 0.97,
+          "crit": 0.09,
+          "idle": 0.08499999999999999,
+          "extinction_rate": 0,
+          "raid_count": 0.39,
+          "raid_deaths": 0.41500000000000004,
+          "raid_exposed": 0.855,
+          "raid_defense": 0.6,
+          "death_deepRaid": 0,
+          "death_hunt": 0.34,
+          "death_oldAge": 0,
+          "death_raid": 0.41500000000000004,
+          "death_ruins": 0,
+          "death_starvation": 0,
+          "death_warriorLeague": 0,
+          "short_food": 0.07500000000000001,
+          "short_stone": 0.060000000000000005,
+          "short_water": 0.01,
+          "short_wood": 0.235,
+          "node_food": 0.15,
+          "node_stone": 0.07500000000000001,
+          "node_water": 0.055,
+          "node_wood": 0.165,
+          "under_championCooldown": 0,
+          "under_championProgress": 0,
+          "under_combatPressure": 0.22999999999999998,
+          "under_depthProgress": 0,
+          "under_frontierContested": 0,
+          "under_readinessBlocked": 0.61,
+          "under_readinessGap": 0.445,
+          "under_readinessScore": 0.555,
+          "under_readinessWarning": 0.315
+        }
+      }
     }
   }
 }
