@@ -251,8 +251,6 @@ _Roadmap remainder snapshot (updated 2026-05-12): focus on what is still missing
 
 - 🧬 (high, in progress) Personal dwarf arcs: deterministic lore is live; remaining: explicit `origin + vice + ambition`, arc progression triggers, and mini-outcome event beats.
 - 📜 (high, in progress) Multi-act faction questlines: contracts/camps/events are live; remaining: chapter-based faction quest chains with branching resolution paths and follow-up consequences.
-- ✅ (completed 2026-04-07) Persistent hero company: scars/titles/vows/legacy are live, with company identity + cross-cycle carry-over hooks now in production.
-- ✅ (completed 2026-05-12) Social drama engine: long-horizon social memory consequences + explicit AI-facing social governor channels are now implemented end-to-end (runtime, telemetry, explainability, and training action-head plumbing), with long-arc defaults currently conservative (`population.socialDrama.longArc.enabled=false`).
 - 👑 (medium, in progress) Titles and succession: warrior succession exists; remaining: governance offices (`Steward`, `Marshal`, `High Priest`) that shape settlement policy identity.
 - 🔮 (medium, in progress) Ancestor omens and prophecies: myth/tradition systems exist; remaining: omen-style player/AI dilemma choices with high-risk/high-reward outcomes.
 - ⚔️ (medium, in progress) Nemesis houses: recurring factions and diplomacy pressure exist; remaining: persistent nemesis-house memory and escalating rivalry arcs across cycles.
