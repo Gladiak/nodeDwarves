@@ -563,9 +563,10 @@ Rows:
 9. Building governor line
 10. Ruins governor line
 11. Underrealm governor line
-12. Warriors governor line
-13. Total shortage pressure (sum of shortage scores)
-14. Workload split (production/infrastructure/other)
+12. Social governor line
+13. Warriors governor line
+14. Total shortage pressure (sum of shortage scores)
+15. Workload split (production/infrastructure/other)
 
 The stock trend window uses a rolling history in renderState (`telemetryStockHistory`).
 
@@ -577,7 +578,7 @@ When policy behavior looks surprising, this section provides provenance and rati
 
 Rows:
 
-1. Decision tick and source provenance (`jobs/trade/build/contracts/ruins/underrealm/camps/warriors`: action vs default)
+1. Decision tick and source provenance (`jobs/trade/build/contracts/ruins/underrealm/camps/social/warriors`: action vs default)
 2. Top ranked drivers
 3. Shortage #1 with score/weight/boost
 4. Shortage #2 with score/weight/boost
@@ -587,10 +588,11 @@ Rows:
 8. Ruins explainability
 9. Underrealm explainability
 10. External camps explainability
-11. Warriors explainability
-12. Trade explainability
-13. Build explainability
-14. Job load summary
+11. Social explainability
+12. Warriors explainability
+13. Trade explainability
+14. Build explainability
+15. Job load summary
 
 Driver logic:
 

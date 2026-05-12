@@ -123,6 +123,9 @@ UNDERREALM_HAULER_MIX_BIAS_ACTION_ID = "gov_underrealm_hauler_mix_bias"
 UNDERREALM_GUARD_MIX_BIAS_ACTION_ID = "gov_underrealm_guard_mix_bias"
 EXTERNAL_CAMPS_MILITIA_INTENT_ACTION_ID = "gov_external_militia_support_intent"
 EXTERNAL_CAMPS_RAIDER_INTENT_ACTION_ID = "gov_external_raider_tribute_intent"
+SOCIAL_MEDIATION_BIAS_ACTION_ID = "gov_social_mediation_bias"
+SOCIAL_MENTORSHIP_BIAS_ACTION_ID = "gov_social_mentorship_bias"
+SOCIAL_ACCOUNTABILITY_BIAS_ACTION_ID = "gov_social_accountability_bias"
 WARRIORS_TRAINING_INTENT_ACTION_ID = "gov_warriors_training_intent"
 WARRIORS_ROTATION_INTENT_ACTION_ID = "gov_warriors_rotation_intent"
 WARRIORS_TOURNAMENT_RISK_INTENT_ACTION_ID = "gov_warriors_tournament_risk_intent"
@@ -148,6 +151,9 @@ GOVERNOR_ACTION_ID_SET = {
     UNDERREALM_GUARD_MIX_BIAS_ACTION_ID,
     EXTERNAL_CAMPS_MILITIA_INTENT_ACTION_ID,
     EXTERNAL_CAMPS_RAIDER_INTENT_ACTION_ID,
+    SOCIAL_MEDIATION_BIAS_ACTION_ID,
+    SOCIAL_MENTORSHIP_BIAS_ACTION_ID,
+    SOCIAL_ACCOUNTABILITY_BIAS_ACTION_ID,
     WARRIORS_TRAINING_INTENT_ACTION_ID,
     WARRIORS_ROTATION_INTENT_ACTION_ID,
     WARRIORS_TOURNAMENT_RISK_INTENT_ACTION_ID,
@@ -1538,6 +1544,16 @@ def append_governor_actions(resources, config):
             if action_id not in merged:
                 merged.append(action_id)
 
+    social = governors.get("social") or {}
+    if social.get("enabled", True) is not False and social.get("actionHeadEnabled", True) is not False:
+        for action_id in (
+            SOCIAL_MEDIATION_BIAS_ACTION_ID,
+            SOCIAL_MENTORSHIP_BIAS_ACTION_ID,
+            SOCIAL_ACCOUNTABILITY_BIAS_ACTION_ID,
+        ):
+            if action_id not in merged:
+                merged.append(action_id)
+
     warriors = governors.get("warriors") or {}
     if warriors.get("enabled", True) is not False and warriors.get("actionHeadEnabled", True) is not False:
         for action_id in (
@@ -1566,6 +1582,7 @@ def split_action_payload(action, resources):
     ruins = {}
     underrealm = {}
     external_camps = {}
+    social = {}
     warriors = {}
     for idx, resource in enumerate(resources):
         raw = action[idx] if idx < len(action) else 0.0
@@ -1613,6 +1630,12 @@ def split_action_payload(action, resources):
             external_camps["militiaSupportIntent"] = value
         elif resource == EXTERNAL_CAMPS_RAIDER_INTENT_ACTION_ID:
             external_camps["raiderTributeIntent"] = value
+        elif resource == SOCIAL_MEDIATION_BIAS_ACTION_ID:
+            social["mediationBias"] = value
+        elif resource == SOCIAL_MENTORSHIP_BIAS_ACTION_ID:
+            social["mentorshipBias"] = value
+        elif resource == SOCIAL_ACCOUNTABILITY_BIAS_ACTION_ID:
+            social["accountabilityBias"] = value
         elif resource == WARRIORS_TRAINING_INTENT_ACTION_ID:
             warriors["trainingIntent"] = value
         elif resource == WARRIORS_ROTATION_INTENT_ACTION_ID:
@@ -1634,6 +1657,7 @@ def split_action_payload(action, resources):
         ruins,
         underrealm,
         external_camps,
+        social,
         warriors,
     )
 
@@ -1713,6 +1737,7 @@ def build_step_message(action, resources, step_ticks, transport=TRANSPORT_LEGACY
         ruins_payload,
         underrealm_payload,
         external_camps_payload,
+        social_payload,
         warriors_payload,
     ) = split_action_payload(action, resources)
     action_payload = {"weights": weights, "ticks": step_ticks}
@@ -1730,6 +1755,8 @@ def build_step_message(action, resources, step_ticks, transport=TRANSPORT_LEGACY
         action_payload["underrealm"] = underrealm_payload
     if external_camps_payload:
         action_payload["externalCamps"] = external_camps_payload
+    if social_payload:
+        action_payload["social"] = social_payload
     if warriors_payload:
         action_payload["warriors"] = warriors_payload
     if debug:

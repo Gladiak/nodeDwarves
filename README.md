@@ -24,7 +24,7 @@ Think of it as a living systems sandbox: you tune config, press run, and watch t
 - ⛺ Long-lived external faction camps: trade hubs, militia outposts, and raider pressure points with moving trade caravans, interception risk, and role-based influence zones on the map.
 - 🎭 World events now live: traveling bards, rival caravans, and short-deadline opportunities.
 - 🔥 Schism arc per run: doctrine shifts with hysteresis, seasonal council decrees (`pick 1 of 3` edicts), branching anti-repeat festival rituals, social pressure/legitimacy swings, and climax moments that can reshape the economy.
-- 💞 Social drama engine phase-2: explicit friendship/rivalry/mentorship/grudge states are live with bounded incidents, plus a dedicated `Social` telemetry section and explainability social-context traces for easier model diagnostics.
+- 💞 Social drama engine phase-3: explicit friendship/rivalry/mentorship/grudge states are live with bounded incidents, long-horizon social memory consequences are implemented (toggle via `population.socialDrama.longArc.enabled`, default `false` for stability), and AI-facing social governor channels are available end-to-end.
 - 🗝️ Endgame ruins expeditions with artifacts, set bonuses, and cycle resets.
 - 🏛️ Dwarf Temple of Ancestors: biome-aware multi-stage final work with doctrine-path lock-in and prestige growth.
 - 🧭 Economy telemetry now includes an Endgame checklist with live step completion and reset ETA.
@@ -209,10 +209,12 @@ Ruins governor hooks now support advisory `ruins` stances for warning-zone dispa
 Underrealm crew governor hooks now support advisory `underrealm` biases for surface reserve, depth allocation, and role mix (miner/hauler/guard), with smoothing and major-reallocation cooldown guardrails; defaults now lean conservative to keep deep-survival outcomes stable in regression gates.
 Building governor hooks now support advisory `building` ranking signals for housing/economy/defense/special queues, with guardrails still enforced by the existing structure checks.
 External camps governor hooks now support advisory `externalCamps` stances for militia support renewal and raider tribute handling, with critical-collapse force-compliance guardrails.
+Social governor hooks now support advisory `social` biases (`mediationBias`, `mentorshipBias`, `accountabilityBias`) that steer incident weighting, hostility de-escalation, and long-horizon social climate pressure.
 Warrior League governor hooks now support `warriors` intents (training, rotation, tournament risk, champion challenge, recovery priority) with real threshold-gated runtime effects plus telemetry instrumentation.
 Telemetry now exposes compact governor signals directly in `Pressure`, `Diplomacy`, `Operations`, and `AI Explainability` so policy intent can be inspected live.
-Training action heads now include governor pseudo-action IDs when enabled (`gov_trade_*`, `gov_contract_*`, `gov_ruins_*`, `gov_underrealm_*`, `gov_building_*`, `gov_external_*`, `gov_warriors_*`); Warrior phase-6 AI features expand the observation shape, so restart training with `--fresh` when upgrading from pre-phase-6 checkpoints.
+Training action heads now include governor pseudo-action IDs when enabled (`gov_trade_*`, `gov_contract_*`, `gov_ruins_*`, `gov_underrealm_*`, `gov_building_*`, `gov_external_*`, `gov_social_*`, `gov_warriors_*`); Warrior phase-6 AI features expand the observation shape, so restart training with `--fresh` when upgrading from pre-phase-6 checkpoints.
 By default, the warriors governor is active with `ai.governors.warriors.actionHeadEnabled=true`; when upgrading from legacy checkpoints without warrior action IDs, run training with `--fresh` (or temporarily set this flag to `false`).
+Social governor action-head IDs are available behind `ai.governors.social.actionHeadEnabled` (default `false` for backward compatibility with existing checkpoints); set it to `true` together with `--fresh` training when you want policy-controlled social biases in production.
 
 - 🛡️ Warrior League phase-4 now adds persistent hero progression: deterministic scars/titles/vows, event-earned legacy points with strict caps+diminishing returns, and legacy bonuses that influence risky dispatches and tournaments without uncontrolled snowballing.
 
@@ -244,12 +246,12 @@ npm run balance:gate:standard -- --set jobs.gatherTriggerRatio.food=1.1 --set jo
 
 ## Roadmap ideas 🧭
 
-_Roadmap remainder snapshot (updated 2026-04-20): focus on what is still missing._
+_Roadmap remainder snapshot (updated 2026-05-12): focus on what is still missing._
 
 - 🧬 (high, in progress) Personal dwarf arcs: deterministic lore is live; remaining: explicit `origin + vice + ambition`, arc progression triggers, and mini-outcome event beats.
 - 📜 (high, in progress) Multi-act faction questlines: contracts/camps/events are live; remaining: chapter-based faction quest chains with branching resolution paths and follow-up consequences.
 - ✅ (completed 2026-04-07) Persistent hero company: scars/titles/vows/legacy are live, with company identity + cross-cycle carry-over hooks now in production.
-- 💔 (high, in progress) Social drama engine: phase-2 observability/training closure is live (telemetry + explainability + stress curriculum slice); remaining: deeper long-horizon consequences and explicit AI-facing governance channels.
+- ✅ (completed 2026-05-12) Social drama engine: long-horizon social memory consequences + explicit AI-facing social governor channels are now implemented end-to-end (runtime, telemetry, explainability, and training action-head plumbing), with long-arc defaults currently conservative (`population.socialDrama.longArc.enabled=false`).
 - 👑 (medium, in progress) Titles and succession: warrior succession exists; remaining: governance offices (`Steward`, `Marshal`, `High Priest`) that shape settlement policy identity.
 - 🔮 (medium, in progress) Ancestor omens and prophecies: myth/tradition systems exist; remaining: omen-style player/AI dilemma choices with high-risk/high-reward outcomes.
 - ⚔️ (medium, in progress) Nemesis houses: recurring factions and diplomacy pressure exist; remaining: persistent nemesis-house memory and escalating rivalry arcs across cycles.

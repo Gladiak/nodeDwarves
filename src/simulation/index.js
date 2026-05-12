@@ -108,7 +108,7 @@ function stepState(state, config, runtime, action, options = {}) {
   updateRuins(state, config, runtime, resolvedAction);
   assignHousing(state, config);
   updateRelationships(state, config);
-  updateSocialDrama(state, config);
+  updateSocialDrama(state, config, resolvedAction);
   cohouseCouples(state, config);
   handleReproduction(state, config);
   updateVillages(state, config, runtime);
@@ -179,6 +179,9 @@ function normalizeActionEnvelope(action) {
   if (action.externalCamps && typeof action.externalCamps === 'object') {
     normalized.externalCamps = { ...action.externalCamps };
   }
+  if (action.social && typeof action.social === 'object') {
+    normalized.social = { ...action.social };
+  }
   if (action.warriors && typeof action.warriors === 'object') {
     normalized.warriors = { ...action.warriors };
   }
@@ -219,6 +222,7 @@ function buildGovernorSignals(config, action) {
     ruins: buildRuinsGovernorSignals(config, action),
     underrealm: buildUnderrealmGovernorSignals(config, action),
     externalCamps: buildExternalCampsGovernorSignals(config, action),
+    social: buildSocialGovernorSignals(config, action),
     warriors: buildWarriorsGovernorSignals(config, action),
   };
 }
@@ -512,6 +516,52 @@ function buildExternalCampsGovernorSignals(config, action) {
   };
 }
 
+// Build social-governor telemetry summary.
+function buildSocialGovernorSignals(config, action) {
+  const aiConfig = (config && config.ai) || {};
+  const governors = aiConfig.governors && typeof aiConfig.governors === 'object'
+    ? aiConfig.governors
+    : {};
+  const socialConfig = governors.social && typeof governors.social === 'object'
+    ? governors.social
+    : {};
+  const enabled = socialConfig.enabled !== false;
+  const socialAction = action && action.social && typeof action.social === 'object'
+    ? action.social
+    : null;
+  const mediationBiasMax = clamp(Number(socialConfig.mediationBiasMax ?? 0), 0, 1);
+  const mentorshipBiasMax = clamp(Number(socialConfig.mentorshipBiasMax ?? 0), 0, 1);
+  const accountabilityBiasMax = clamp(Number(socialConfig.accountabilityBiasMax ?? 0), 0, 1);
+  const mediationBias = enabled && socialAction && Object.prototype.hasOwnProperty.call(socialAction, 'mediationBias')
+    ? clamp(
+      normalizeSignedIntent(socialAction.mediationBias, config) * mediationBiasMax,
+      -mediationBiasMax,
+      mediationBiasMax,
+    )
+    : 0;
+  const mentorshipBias = enabled && socialAction && Object.prototype.hasOwnProperty.call(socialAction, 'mentorshipBias')
+    ? clamp(
+      normalizeSignedIntent(socialAction.mentorshipBias, config) * mentorshipBiasMax,
+      -mentorshipBiasMax,
+      mentorshipBiasMax,
+    )
+    : 0;
+  const accountabilityBias = enabled && socialAction && Object.prototype.hasOwnProperty.call(socialAction, 'accountabilityBias')
+    ? clamp(
+      normalizeSignedIntent(socialAction.accountabilityBias, config) * accountabilityBiasMax,
+      -accountabilityBiasMax,
+      accountabilityBiasMax,
+    )
+    : 0;
+  return {
+    enabled,
+    source: socialAction ? 'action' : 'default',
+    mediationBias,
+    mentorshipBias,
+    accountabilityBias,
+  };
+}
+
 // Build warriors-governor telemetry summary.
 function buildWarriorsGovernorSignals(config, action) {
   const aiConfig = (config && config.ai) || {};
@@ -663,6 +713,9 @@ function buildDecisionTrace(state, config) {
   const externalCampsGovernor = governorSignals.externalCamps && typeof governorSignals.externalCamps === 'object'
     ? governorSignals.externalCamps
     : {};
+  const socialGovernor = governorSignals.social && typeof governorSignals.social === 'object'
+    ? governorSignals.social
+    : {};
   const warriorsGovernor = governorSignals.warriors && typeof governorSignals.warriors === 'object'
     ? governorSignals.warriors
     : {};
@@ -736,6 +789,7 @@ function buildDecisionTrace(state, config) {
       ruinsSource: ruinsGovernor.source === 'action' ? 'action' : 'default',
       underrealmSource: underrealmGovernor.source === 'action' ? 'action' : 'default',
       externalCampsSource: externalCampsGovernor.source === 'action' ? 'action' : 'default',
+      socialSource: socialGovernor.source === 'action' ? 'action' : 'default',
       warriorsSource: warriorsGovernor.source === 'action' ? 'action' : 'default',
       jobsTop: Array.isArray(jobsGovernor.top)
         ? jobsGovernor.top.slice(0, 2).map((entry) => ({
@@ -761,6 +815,9 @@ function buildDecisionTrace(state, config) {
       buildUpgradeBias: Number(buildingGovernor.upgradeBias || 0),
       militiaSupportIntent: clamp(Number(externalCampsGovernor.militiaSupportIntent || 0), 0, 1),
       raiderTributeIntent: clamp(Number(externalCampsGovernor.raiderTributeIntent || 0), 0, 1),
+      socialMediationBias: clamp(Number(socialGovernor.mediationBias || 0), -1, 1),
+      socialMentorshipBias: clamp(Number(socialGovernor.mentorshipBias || 0), -1, 1),
+      socialAccountabilityBias: clamp(Number(socialGovernor.accountabilityBias || 0), -1, 1),
       warriorTrainingIntent: clamp(Number(warriorsGovernor.trainingIntent || 0), 0, 1),
       warriorRotationIntent: clamp(Number(warriorsGovernor.rotationIntent || 0), 0, 1),
       warriorTournamentRiskIntent: clamp(Number(warriorsGovernor.tournamentRiskIntent || 0), 0, 1),
@@ -872,6 +929,7 @@ function buildDecisionDrivers(shortages, context, governorSignals) {
   const ruinsSource = signals.ruins && signals.ruins.source === 'action';
   const underrealmSource = signals.underrealm && signals.underrealm.source === 'action';
   const externalCampsSource = signals.externalCamps && signals.externalCamps.source === 'action';
+  const socialSource = signals.social && signals.social.source === 'action';
   const warriorsSource = signals.warriors && signals.warriors.source === 'action';
   const actionDrivenCount = Number(jobsSource)
     + Number(tradeSource)
@@ -880,11 +938,12 @@ function buildDecisionDrivers(shortages, context, governorSignals) {
     + Number(ruinsSource)
     + Number(underrealmSource)
     + Number(externalCampsSource)
+    + Number(socialSource)
     + Number(warriorsSource);
   if (actionDrivenCount > 0) {
     drivers.push({
       key: 'governor:action',
-      label: `Policy action envelope (${actionDrivenCount}/8)`,
+      label: `Policy action envelope (${actionDrivenCount}/9)`,
       kind: 'policy',
       score: 0.45 + actionDrivenCount * 0.1,
     });

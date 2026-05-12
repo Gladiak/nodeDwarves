@@ -403,6 +403,11 @@ Merchant:
 - `ai.governors.ruins.enabled`: enable action-driven ruins dispatch/mithril posture hooks.
 - `ai.governors.ruins.warningDispatchIntentThreshold`: minimum normalized `action.ruins.warningDispatchIntent` required to allow warning-zone dispatches.
 - `ai.governors.ruins.mithrilReinforcementIntentThreshold`: minimum normalized `action.ruins.mithrilReinforcementIntent` required to spend mithril reinforcement when eligible.
+- `ai.governors.social.enabled`: enable action-driven social-governor advisory biases.
+- `ai.governors.social.actionHeadEnabled`: include/exclude social-governor pseudo action-ids from policy/training action heads (set `true` with fresh training when activating social control channels in policy outputs).
+- `ai.governors.social.mediationBiasMax`: max absolute signed de-escalation bias from `action.social.mediationBias`.
+- `ai.governors.social.mentorshipBiasMax`: max absolute signed mentorship-growth bias from `action.social.mentorshipBias`.
+- `ai.governors.social.accountabilityBiasMax`: max absolute signed discipline bias from `action.social.accountabilityBias`.
 - `ai.governors.warriors.enabled`: enable action-driven Warrior League advisory intents.
 - `ai.governors.warriors.actionHeadEnabled`: include/exclude warriors governor pseudo action-ids from policy/training action heads.
 - `ai.governors.warriors.trainingIntentThreshold`: minimum normalized `action.warriors.trainingIntent` required to run Warrior League training sessions.
@@ -1161,6 +1166,34 @@ Population social drama:
 - `population.socialDrama.grudgeStressScale`: grudge gain scale once stress threshold and rivalry gate are satisfied.
 - `population.socialDrama.grudgeRivalryScale`: passive grudge gain scale from existing rivalry intensity.
 - `population.socialDrama.grudgeDecayPerTick`: per-tick decay for grudge channel.
+- `population.socialDrama.longArc.enabled`: enable long-horizon social memory consequences (per-dwarf support/burden memory + settlement harmony/strife drift); default is currently `false` for conservative regression stability.
+- `population.socialDrama.longArc.memoryDecayPerTick`: per-tick decay for per-dwarf support/burden memory.
+- `population.socialDrama.longArc.memoryGainPerUpdate`: blend gain applied from current status targets into per-dwarf support/burden memory.
+- `population.socialDrama.longArc.friendSupportWeight`: support-memory contribution per active friend link.
+- `population.socialDrama.longArc.mentorshipSupportWeight`: support-memory contribution per mentorship tie (`mentor` + `mentee`).
+- `population.socialDrama.longArc.rivalBurdenWeight`: burden-memory contribution per rivalry tie.
+- `population.socialDrama.longArc.grudgeBurdenWeight`: burden-memory contribution per grudge tie.
+- `population.socialDrama.longArc.supportShockOnPositiveIncident`: one-step support-memory boost from positive incidents (`mentorship_breakthrough`, `reconciliation`).
+- `population.socialDrama.longArc.burdenShockOnNegativeIncident`: one-step burden-memory boost from negative incidents (`rivalry_clash`, `grudge_escalation`).
+- `population.socialDrama.longArc.moraleSupportScale`: morale gain scale from support memory.
+- `population.socialDrama.longArc.moraleBurdenScale`: morale penalty scale from burden memory.
+- `population.socialDrama.longArc.stressSupportReliefScale`: stress relief scale from support memory.
+- `population.socialDrama.longArc.stressBurdenScale`: stress pressure scale from burden memory.
+- `population.socialDrama.longArc.fatigueSupportReliefScale`: fatigue relief scale from support memory.
+- `population.socialDrama.longArc.fatigueBurdenScale`: fatigue pressure scale from burden memory.
+- `population.socialDrama.longArc.settlementMemoryDecayPerTick`: per-tick decay for settlement-level social climate memory.
+- `population.socialDrama.longArc.settlementMemoryGainPerUpdate`: blend gain from current social aggregates into settlement `harmony/strife`.
+- `population.socialDrama.longArc.affinityHarmonyScale`: affinity-gain multiplier contribution from settlement harmony.
+- `population.socialDrama.longArc.affinityStrifePenaltyScale`: affinity-gain penalty contribution from settlement strife.
+- `population.socialDrama.longArc.rivalryStrifeScale`: rivalry-gain multiplier contribution from settlement strife.
+- `population.socialDrama.longArc.rivalryHarmonyReliefScale`: rivalry-gain relief contribution from settlement harmony.
+- `population.socialDrama.longArc.mentorshipHarmonyScale`: mentorship-gain multiplier contribution from settlement harmony.
+- `population.socialDrama.longArc.grudgeStrifeScale`: grudge-gain multiplier contribution from settlement strife.
+- `population.socialDrama.longArc.grudgeHarmonyReliefScale`: grudge-gain relief contribution from settlement harmony.
+- `population.socialDrama.longArc.cohesionBonusScale`: post-aggregation cohesion bonus from settlement harmony.
+- `population.socialDrama.longArc.cohesionStrifePenaltyScale`: post-aggregation cohesion penalty from settlement strife.
+- `population.socialDrama.longArc.conflictStrifeScale`: post-aggregation conflict-pressure bonus from settlement strife.
+- `population.socialDrama.longArc.conflictHarmonyReliefScale`: post-aggregation conflict-pressure relief from settlement harmony.
 - `population.socialDrama.incidents.enabled`: enable social incident generation (mentorship breakthrough, rivalry clash, grudge escalation, reconciliation).
 - `population.socialDrama.incidents.intervalTicks`: minimum ticks between incident rolls.
 - `population.socialDrama.incidents.baseChancePerRoll`: probability of attempting one incident when a roll window opens (0..1).
@@ -2040,6 +2073,21 @@ AI and training:
 - `ai.governors.externalCamps.forceComplianceOnCritical`: force tribute compliance when affordable under critical stockpile collapse.
 - `ai.governors.externalCamps.criticalStockpileFloor`: stockpile-ratio floor used for critical-collapse compliance.
 - `ai.governors.externalCamps.criticalResources[]`: stockpile resources used for critical-collapse checks.
+- `ai.governors.social.enabled`: enable/disable social-governor advisory bias hooks.
+- `ai.governors.social.actionHeadEnabled`: include/exclude social-governor pseudo action-ids in policy/training action-head generation.
+- `ai.governors.social.mediationBiasMax`: max absolute signed bias from `action.social.mediationBias` (de-escalation/reconciliation posture).
+- `ai.governors.social.mentorshipBiasMax`: max absolute signed bias from `action.social.mentorshipBias` (mentorship-growth posture).
+- `ai.governors.social.accountabilityBiasMax`: max absolute signed bias from `action.social.accountabilityBias` (incident-discipline posture).
+- `ai.governors.social.mediationRivalryReductionScale`: rivalry-gain reduction scale from positive mediation bias.
+- `ai.governors.social.mediationGrudgeReductionScale`: grudge-gain reduction scale from positive mediation bias.
+- `ai.governors.social.mentorshipGainScale`: mentorship-gain increase scale from positive mentorship bias.
+- `ai.governors.social.accountabilityRivalryReductionScale`: rivalry-gain reduction scale from positive accountability bias.
+- `ai.governors.social.accountabilityGrudgeReductionScale`: grudge-gain reduction scale from positive accountability bias.
+- `ai.governors.social.mediationReconciliationWeightScale`: reconciliation incident-weight boost scale from positive mediation bias.
+- `ai.governors.social.mentorshipIncidentWeightScale`: mentorship-breakthrough incident-weight boost scale from positive mentorship bias.
+- `ai.governors.social.accountabilityIncidentChanceScale`: incident-roll chance reduction scale from positive accountability bias.
+- `ai.governors.social.mediationIncidentChanceScale`: incident-roll chance reduction scale from positive mediation bias.
+- `ai.governors.social.accountabilityEscalationWeightReductionScale`: grudge-escalation incident-weight reduction scale from positive accountability bias.
 - `ai.reward.stockpileAvg`: reward contribution for average stockpile ratio.
 - `ai.reward.stockpileMin`: reward contribution for minimum stockpile ratio.
 - `ai.reward.waterStockpile`: extra reward contribution for the water stockpile ratio.

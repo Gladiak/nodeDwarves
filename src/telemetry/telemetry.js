@@ -1133,6 +1133,12 @@ function buildSocialTelemetrySnapshot(state, config) {
     : {};
   const history = Array.isArray(social && social.history) ? social.history : [];
   const latestIncident = history.length > 0 ? history[history.length - 1] : null;
+  const longArc = social && social.longArc && typeof social.longArc === "object"
+    ? social.longArc
+    : {};
+  const governor = social && social.governor && typeof social.governor === "object"
+    ? social.governor
+    : {};
   const tick = Math.max(0, Number(state && state.tick || 0));
   const lastIncidentTick = enabled ? Math.max(0, Number(social.lastIncidentTick || 0)) : 0;
   const incidentAge = lastIncidentTick > 0 ? Math.max(0, tick - lastIncidentTick) : null;
@@ -1158,6 +1164,17 @@ function buildSocialTelemetrySnapshot(state, config) {
     conflictPressure: enabled ? clamp(Number(social.conflictPressure || 0), 0, 1) : 0,
     mentorshipCoverage: enabled ? clamp(Number(social.mentorshipCoverage || 0), 0, 1) : 0,
     grudgeLoad: enabled ? clamp(Number(social.grudgeLoad || 0), 0, 1) : 0,
+    longArcHarmony: enabled ? clamp(Number(longArc.harmony || 0), 0, 1) : 0,
+    longArcStrife: enabled ? clamp(Number(longArc.strife || 0), 0, 1) : 0,
+    longArcSupport: enabled ? clamp(Number(longArc.avgSupport || 0), 0, 1) : 0,
+    longArcBurden: enabled ? clamp(Number(longArc.avgBurden || 0), 0, 1) : 0,
+    governor: {
+      enabled: governor.enabled !== false,
+      source: governor.source === "action" ? "action" : "default",
+      mediationBias: clamp(Number(governor.mediationBias || 0), -1, 1),
+      mentorshipBias: clamp(Number(governor.mentorshipBias || 0), -1, 1),
+      accountabilityBias: clamp(Number(governor.accountabilityBias || 0), -1, 1),
+    },
     lastIncidentTick,
     incidentAge,
     latestIncidentType: latestIncident && latestIncident.type
@@ -1174,6 +1191,9 @@ function buildSocialSectionRows(snapshot) {
       "Social runtime: off",
       "Cohesion / conflict: -",
       "Mentorship / grudge: -",
+      "Long arc climate: -",
+      "Long arc memory: -",
+      "Social governor: -",
       "Status counts: -",
       "Incident ledger: -",
       "Last incident: -",
@@ -1183,6 +1203,9 @@ function buildSocialSectionRows(snapshot) {
     `Social runtime: active | updates ${social.updates} | tracked links ${social.links}`,
     `Cohesion / conflict: ${Math.round(social.cohesion * 100)}% / ${Math.round(social.conflictPressure * 100)}%`,
     `Mentorship / grudge: ${Math.round(social.mentorshipCoverage * 100)}% / ${Math.round(social.grudgeLoad * 100)}%`,
+    `Long arc climate: harmony ${Math.round(social.longArcHarmony * 100)}% | strife ${Math.round(social.longArcStrife * 100)}%`,
+    `Long arc memory: support ${Math.round(social.longArcSupport * 100)}% | burden ${Math.round(social.longArcBurden * 100)}%`,
+    formatSocialGovernorLine(social.governor),
     `Status counts: friends ${social.friendships}, rivals ${social.rivalries}, mentors ${social.mentorships}, grudges ${social.grudges}`,
     `Incident ledger: total ${social.incidents} | breakthrough ${social.incidentsByType.mentorshipBreakthrough} | clash ${social.incidentsByType.rivalryClash} | escalation ${social.incidentsByType.grudgeEscalation} | reconcile ${social.incidentsByType.reconciliation}`,
     formatSocialLastIncidentLine(social),
@@ -1316,6 +1339,7 @@ function getGovernorSignals(state) {
     ruins: raw.ruins && typeof raw.ruins === "object" ? raw.ruins : {},
     underrealm: raw.underrealm && typeof raw.underrealm === "object" ? raw.underrealm : {},
     externalCamps: raw.externalCamps && typeof raw.externalCamps === "object" ? raw.externalCamps : {},
+    social: raw.social && typeof raw.social === "object" ? raw.social : {},
     warriors: raw.warriors && typeof raw.warriors === "object" ? raw.warriors : {},
   };
 }
@@ -1346,6 +1370,7 @@ function getDecisionTrace(state) {
       ruinsSource: governors.ruinsSource === "action" ? "action" : "default",
       underrealmSource: governors.underrealmSource === "action" ? "action" : "default",
       externalCampsSource: governors.externalCampsSource === "action" ? "action" : "default",
+      socialSource: governors.socialSource === "action" ? "action" : "default",
       warriorsSource: governors.warriorsSource === "action" ? "action" : "default",
       tradeReserveBias: Number(governors.tradeReserveBias || 0),
       tradeContestIntent: clamp(Number(governors.tradeContestIntent || 0), 0, 1),
@@ -1362,6 +1387,9 @@ function getDecisionTrace(state) {
       buildUpgradeBias: Number(governors.buildUpgradeBias || 0),
       militiaSupportIntent: clamp(Number(governors.militiaSupportIntent || 0), 0, 1),
       raiderTributeIntent: clamp(Number(governors.raiderTributeIntent || 0), 0, 1),
+      socialMediationBias: clamp(Number(governors.socialMediationBias || 0), -1, 1),
+      socialMentorshipBias: clamp(Number(governors.socialMentorshipBias || 0), -1, 1),
+      socialAccountabilityBias: clamp(Number(governors.socialAccountabilityBias || 0), -1, 1),
       warriorTrainingIntent: clamp(Number(governors.warriorTrainingIntent || 0), 0, 1),
       warriorRotationIntent: clamp(Number(governors.warriorRotationIntent || 0), 0, 1),
       warriorTournamentRiskIntent: clamp(Number(governors.warriorTournamentRiskIntent || 0), 0, 1),
@@ -1454,7 +1482,7 @@ function buildExplainabilitySectionRows(state, governorSignals, shortages, resou
 
   const rows = [];
   rows.push(
-    `Decision tick ${trace.tick}: jobs ${trace.governors.jobsSource}, trade ${trace.governors.tradeSource}, build ${trace.governors.buildingSource}, contracts ${trace.governors.contractsSource}, ruins ${trace.governors.ruinsSource}, underrealm ${trace.governors.underrealmSource}, camps ${trace.governors.externalCampsSource}, warriors ${trace.governors.warriorsSource}`,
+    `Decision tick ${trace.tick}: jobs ${trace.governors.jobsSource}, trade ${trace.governors.tradeSource}, build ${trace.governors.buildingSource}, contracts ${trace.governors.contractsSource}, ruins ${trace.governors.ruinsSource}, underrealm ${trace.governors.underrealmSource}, camps ${trace.governors.externalCampsSource}, social ${trace.governors.socialSource}, warriors ${trace.governors.warriorsSource}`,
   );
   rows.push(formatExplainabilityDriversLine(trace.drivers, resourceLabels));
   rows.push(formatExplainabilityShortageLine(traceShortages, 0, resourceLabels));
@@ -1465,6 +1493,7 @@ function buildExplainabilitySectionRows(state, governorSignals, shortages, resou
   rows.push(formatExplainabilityRuinsLine(trace.governors, currentGovernorSignals.ruins));
   rows.push(formatExplainabilityUnderrealmLine(trace.governors, currentGovernorSignals.underrealm));
   rows.push(formatExplainabilityExternalCampsLine(trace.governors, currentGovernorSignals.externalCamps));
+  rows.push(formatExplainabilitySocialLine(trace.governors, currentGovernorSignals.social));
   rows.push(formatExplainabilityWarriorsLine(trace.governors, currentGovernorSignals.warriors));
   rows.push(formatExplainabilityTradeLine(trace.governors, currentGovernorSignals.trade));
   rows.push(formatExplainabilityBuildLine(trace.governors, currentGovernorSignals.building));
@@ -1607,6 +1636,19 @@ function formatExplainabilityExternalCampsLine(governors, externalCampsGovernor)
   return `External camps explain (${source}): militia ${militia}, raider ${raider}`;
 }
 
+// Format social-governor explainability line.
+function formatExplainabilitySocialLine(governors, socialGovernor) {
+  const traceGovernors = governors && typeof governors === "object" ? governors : {};
+  const source = traceGovernors.socialSource === "action" ? "action" : "default";
+  const mediation = formatSignedGovernorValue(traceGovernors.socialMediationBias);
+  const mentorship = formatSignedGovernorValue(traceGovernors.socialMentorshipBias);
+  const accountability = formatSignedGovernorValue(traceGovernors.socialAccountabilityBias);
+  if (!socialGovernor || socialGovernor.enabled === false) {
+    return `Social explain (${source}): disabled`;
+  }
+  return `Social explain (${source}): med ${mediation}, mnt ${mentorship}, acc ${accountability}`;
+}
+
 // Format warriors-governor explainability line.
 function formatExplainabilityWarriorsLine(governors, warriorsGovernor) {
   const traceGovernors = governors && typeof governors === "object" ? governors : {};
@@ -1738,6 +1780,18 @@ function formatExternalCampsGovernorLine(governor) {
   const militia = clamp(Number(governor.militiaSupportIntent || 0), 0, 1).toFixed(2);
   const raider = clamp(Number(governor.raiderTributeIntent || 0), 0, 1).toFixed(2);
   return `External camps governor (${source}): militia ${militia}, raider ${raider}`;
+}
+
+// Format social-governor line with signed bias bundle.
+function formatSocialGovernorLine(governor) {
+  if (!governor || governor.enabled === false) {
+    return "Social governor: disabled";
+  }
+  const source = governor.source === "action" ? "action" : "default";
+  const mediation = formatSignedGovernorValue(governor.mediationBias);
+  const mentorship = formatSignedGovernorValue(governor.mentorshipBias);
+  const accountability = formatSignedGovernorValue(governor.accountabilityBias);
+  return `Social governor (${source}): med ${mediation}, mnt ${mentorship}, acc ${accountability}`;
 }
 
 // Format warriors-governor line with normalized intent bundle and dominant direction.
@@ -2056,6 +2110,7 @@ function buildOperationsSectionRows(
     formatBuildingGovernorLine(governorSignals && governorSignals.building),
     formatRuinsGovernorLine(governorSignals && governorSignals.ruins),
     formatUnderrealmGovernorLine(governorSignals && governorSignals.underrealm),
+    formatSocialGovernorLine(governorSignals && governorSignals.social),
     formatWarriorsGovernorLine(governorSignals && governorSignals.warriors),
     `Total shortage pressure: ${formatShortageHeat(shortages)}`,
     formatOpsLoadLine(jobCounts, jobs.length),

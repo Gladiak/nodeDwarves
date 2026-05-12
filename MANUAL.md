@@ -512,7 +512,8 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - Social-drama phase-1 (`social_drama.js`) derives explicit per-dwarf relationship statuses (`friendship`, `rivalry`, `mentorship`, `grudge`) from sampled adult interactions, pair bond intensity, mood stressors, and bounded decay/pruning.
   - Social-drama phase-1.5 adds bounded incident resolution (`mentorship_breakthrough`, `rivalry_clash`, `grudge_escalation`, `reconciliation`) with global/per-pair cooldowns, capped mood/warrior/link deltas, and rolling incident history.
   - Social-drama phase-2 closes observability loops: telemetry includes a dedicated `Social` section and AI explainability now prints compact social context (`cohesion/conflict/mentorship/grudge/incident recency`) from decision traces.
-  - Runtime aggregates are exported in `state.social` (`cohesion`, `conflictPressure`, `mentorshipCoverage`, `grudgeLoad` + counters) for deterministic monitoring and AI reward/observation integration (`social*` channels).
+  - Social-drama phase-3 adds explicit AI-facing social governor channels (`action.social.mediationBias|mentorshipBias|accountabilityBias`) plus long-horizon social memory (`support/burden` per dwarf + settlement `harmony/strife`) implemented in runtime; `population.socialDrama.longArc.enabled` is currently `false` by default for conservative regression stability.
+  - Runtime aggregates are exported in `state.social` (`cohesion`, `conflictPressure`, `mentorshipCoverage`, `grudgeLoad`, `longArc.*`, `governor.*` + counters) for deterministic monitoring and AI reward/observation integration (`social*` channels).
   - Reproduction uses `population.reproduction.*` (base chance, soft cap, gestation, cooldown, stockpile gates, birth cost).
 
 ### Clan culture 🛡️
@@ -1583,8 +1584,8 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
   - `Diplomacy` is the trade/diplomacy block (merchant status/flows, external camp mix/effects, convoy activity/interception risk, contracts, world-event cadence/counters, plus trade + contracts + external-camps governor intents).
   - `Deep Signals` consolidates world-event cadence/totals plus contract reliability for late-game monitoring.
     - Its `World log` mirror also wraps to multiple rows (up to 3).
-  - `Operations` reports adult workforce split, job mix, build pipeline, 200-tick stockpile deltas, building/ruins/underrealm/warriors governor advisory signals, and production-vs-infrastructure load split.
-  - `AI Explainability` reads `state.lastDecisionTrace` to expose top pressure drivers, shortage score decomposition (including boost context), world pressure context, social pressure context, and governor intent source (`action` vs `default`).
+  - `Operations` reports adult workforce split, job mix, build pipeline, 200-tick stockpile deltas, building/ruins/underrealm/social/warriors governor advisory signals, and production-vs-infrastructure load split.
+  - `AI Explainability` reads `state.lastDecisionTrace` to expose top pressure drivers, shortage score decomposition (including boost context), world pressure context, social pressure context, governor intent source (`action` vs `default`), and compact social-governor bias traces.
   - `Endgame` reports a checklist path for cycle reset pacing (ruins rooms, artifacts, post-artifact window, trigger arm), plus ETA reason when blocked/pending.
   - `Lore` summarizes myths/traditions and ruins progress without bottom overlays.
 
@@ -1620,7 +1621,7 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
     - `warriorEnabled`, `warriorRosterCoverage`, `warriorEliteScore`
     - `warriorLegacyAura`, `warriorChampionMomentum`, `warriorTournamentRecency`
     - `warriorInjuryShare`, `warriorRetiredShare`, `warriorSurvivability`, `warriorHeroTurnoverPressure`
-  - Social-drama phase-2 features include:
+  - Social-drama phase-2 observation features include:
     - `socialCohesion`, `socialConflictPressure`, `socialMentorshipCoverage`
     - `socialGrudgeLoad`, `socialIncidentRecency`
 - `src/ai/policy.js`
@@ -1628,7 +1629,7 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
   - Feature order is defined by `featureNames`; defaults live in the file.
   - Applies policy-side observation normalization when `normalization.observation` metadata is present in the checkpoint.
   - Emits fail-fast warnings if normalization metadata version/shape is incompatible with runtime feature shape.
-  - Normalizes actions to a governor-ready envelope (`jobs.weights`, `festivalIntent`, optional `trade`/`contracts`/`ruins`/`underrealm`/`building`/`externalCamps`/`warriors`) and mirrors legacy `weights` for compatibility.
+  - Normalizes actions to a governor-ready envelope (`jobs.weights`, `festivalIntent`, optional `trade`/`contracts`/`ruins`/`underrealm`/`building`/`externalCamps`/`social`/`warriors`) and mirrors legacy `weights` for compatibility.
   - Supports explicit governor pseudo action-ids in policy `resources`:
     - trade: `gov_trade_reserve_ratio_bias`, `gov_trade_contest_intent`, `gov_trade_opportunity_intent`
     - contracts: `gov_contract_commit_intent`
@@ -1636,6 +1637,7 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
     - underrealm: `gov_underrealm_surface_reserve_bias`, `gov_underrealm_depth_allocation_bias`, `gov_underrealm_miner_mix_bias`, `gov_underrealm_hauler_mix_bias`, `gov_underrealm_guard_mix_bias`
     - building: `gov_building_housing_weight`, `gov_building_economy_weight`, `gov_building_defense_weight`, `gov_building_special_weight`, `gov_building_mine_bias`, `gov_building_upgrade_bias`
     - external camps: `gov_external_militia_support_intent`, `gov_external_raider_tribute_intent`
+    - social: `gov_social_mediation_bias`, `gov_social_mentorship_bias`, `gov_social_accountability_bias`
     - warriors: `gov_warriors_training_intent`, `gov_warriors_rotation_intent`, `gov_warriors_tournament_risk_intent`, `gov_warriors_champion_challenge_intent`, `gov_warriors_recovery_priority_intent`
   - Trade intents currently consumed at runtime: `reserveRatioBias`, `contestIntent`, `opportunityIntent`.
   - Contract intents currently consumed at runtime: `commitIntent`.
@@ -1643,6 +1645,7 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
   - Underrealm intents currently consumed at runtime: `surfaceReserveBias`, `depthAllocationBias`, `minerMixBias`, `haulerMixBias`, `guardMixBias`.
   - Building intents currently consumed at runtime: class weights (`housing/economy/defense/special`) plus advisory `mineBias` and `upgradeBias`.
   - External-camps intents currently consumed at runtime: `militiaSupportIntent`, `raiderTributeIntent`.
+  - Social intents currently consumed at runtime: `mediationBias`, `mentorshipBias`, `accountabilityBias`.
   - Warriors intents currently consumed at runtime: `trainingIntent`, `rotationIntent`, `tournamentRiskIntent`, `championChallengeIntent`, `recoveryPriorityIntent`.
   - Warrior thresholds are behavior-gating (not telemetry-only): below-threshold intents now hold the corresponding subsystem in neutral mode (training off, rotation off, risk multipliers off, recovery boost off), while `championChallenge` continues to gate hero succession checks.
 - `src/ai_policy.js`
@@ -1663,6 +1666,7 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
   - `ai.training.trainer.algorithm` is startup-validated; currently only `ppo` is accepted (fail-fast on unsupported values).
   - Exports JSON weights for JS inference.
   - Builds action heads from resource ids plus optional festival and governor pseudo action-ids (when `ai.governors.*.enabled`).
+  - Social action-head ids are additionally gated by `ai.governors.social.actionHeadEnabled`; default is `false` for backward compatibility with legacy checkpoints, and should be enabled with `--fresh` training when activating policy-driven social biases.
   - Warriors action-head ids are additionally gated by `ai.governors.warriors.actionHeadEnabled`; default is `true`, and legacy checkpoints that do not include warrior action IDs require `--fresh` (or a temporary flag rollback to `false`).
   - Resume guard validates both `featureNames` and action-head ids (`resources` list); mismatch requires `--fresh`.
 - `python/agent.py`

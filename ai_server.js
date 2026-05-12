@@ -57,6 +57,9 @@ const UNDERREALM_HAULER_MIX_BIAS_ACTION_ID = 'gov_underrealm_hauler_mix_bias';
 const UNDERREALM_GUARD_MIX_BIAS_ACTION_ID = 'gov_underrealm_guard_mix_bias';
 const EXTERNAL_CAMPS_MILITIA_INTENT_ACTION_ID = 'gov_external_militia_support_intent';
 const EXTERNAL_CAMPS_RAIDER_INTENT_ACTION_ID = 'gov_external_raider_tribute_intent';
+const SOCIAL_MEDIATION_BIAS_ACTION_ID = 'gov_social_mediation_bias';
+const SOCIAL_MENTORSHIP_BIAS_ACTION_ID = 'gov_social_mentorship_bias';
+const SOCIAL_ACCOUNTABILITY_BIAS_ACTION_ID = 'gov_social_accountability_bias';
 const WARRIORS_TRAINING_INTENT_ACTION_ID = 'gov_warriors_training_intent';
 const WARRIORS_ROTATION_INTENT_ACTION_ID = 'gov_warriors_rotation_intent';
 const WARRIORS_TOURNAMENT_RISK_INTENT_ACTION_ID = 'gov_warriors_tournament_risk_intent';
@@ -83,6 +86,9 @@ const ACTION_SLOT_UNDERREALM_HAULER_MIX = 'underrealmHaulerMixBias';
 const ACTION_SLOT_UNDERREALM_GUARD_MIX = 'underrealmGuardMixBias';
 const ACTION_SLOT_EXTERNAL_CAMPS_MILITIA = 'externalCampsMilitiaIntent';
 const ACTION_SLOT_EXTERNAL_CAMPS_RAIDER = 'externalCampsRaiderIntent';
+const ACTION_SLOT_SOCIAL_MEDIATION = 'socialMediationBias';
+const ACTION_SLOT_SOCIAL_MENTORSHIP = 'socialMentorshipBias';
+const ACTION_SLOT_SOCIAL_ACCOUNTABILITY = 'socialAccountabilityBias';
 const ACTION_SLOT_WARRIORS_TRAINING = 'warriorsTrainingIntent';
 const ACTION_SLOT_WARRIORS_ROTATION = 'warriorsRotationIntent';
 const ACTION_SLOT_WARRIORS_TOURNAMENT_RISK = 'warriorsTournamentRiskIntent';
@@ -433,6 +439,15 @@ function resolveActionSlotKind(actionId) {
   if (actionId === EXTERNAL_CAMPS_RAIDER_INTENT_ACTION_ID) {
     return ACTION_SLOT_EXTERNAL_CAMPS_RAIDER;
   }
+  if (actionId === SOCIAL_MEDIATION_BIAS_ACTION_ID) {
+    return ACTION_SLOT_SOCIAL_MEDIATION;
+  }
+  if (actionId === SOCIAL_MENTORSHIP_BIAS_ACTION_ID) {
+    return ACTION_SLOT_SOCIAL_MENTORSHIP;
+  }
+  if (actionId === SOCIAL_ACCOUNTABILITY_BIAS_ACTION_ID) {
+    return ACTION_SLOT_SOCIAL_ACCOUNTABILITY;
+  }
   if (actionId === WARRIORS_TRAINING_INTENT_ACTION_ID) {
     return ACTION_SLOT_WARRIORS_TRAINING;
   }
@@ -580,6 +595,7 @@ function decodeCompactActionPayload(actionValues, sourcePayload) {
   let ruins;
   let underrealm;
   let externalCamps;
+  let social;
   let warriors;
   const action = {};
 
@@ -671,6 +687,18 @@ function decodeCompactActionPayload(actionValues, sourcePayload) {
         externalCamps = externalCamps || {};
         externalCamps.raiderTributeIntent = value;
         break;
+      case ACTION_SLOT_SOCIAL_MEDIATION:
+        social = social || {};
+        social.mediationBias = value;
+        break;
+      case ACTION_SLOT_SOCIAL_MENTORSHIP:
+        social = social || {};
+        social.mentorshipBias = value;
+        break;
+      case ACTION_SLOT_SOCIAL_ACCOUNTABILITY:
+        social = social || {};
+        social.accountabilityBias = value;
+        break;
       case ACTION_SLOT_WARRIORS_TRAINING:
         warriors = warriors || {};
         warriors.trainingIntent = value;
@@ -722,6 +750,9 @@ function decodeCompactActionPayload(actionValues, sourcePayload) {
   }
   if (externalCamps && Object.keys(externalCamps).length > 0) {
     action.externalCamps = externalCamps;
+  }
+  if (social && Object.keys(social).length > 0) {
+    action.social = social;
   }
   if (warriors && Object.keys(warriors).length > 0) {
     action.warriors = warriors;

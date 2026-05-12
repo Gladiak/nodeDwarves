@@ -9,6 +9,7 @@ const { loadConfig } = require('../src/config');
 const { buildRuntime } = require('../src/runtime');
 const { createInitialState } = require('../src/state');
 const { buildObservation: buildAiObservation, buildFeatures: buildAiFeatures } = require('../src/ai/observation');
+const { stepState } = require('../src/simulation');
 const { updateExternalCamps } = require('../src/simulation/external_camps');
 const { updateContracts } = require('../src/simulation/contracts');
 const { updateRuins } = require('../src/simulation/ruins');
@@ -2472,6 +2473,97 @@ function validateSocialDramaAiSlice4Contract(tmpDir) {
   }
 }
 
+// Validate social-governor action envelope wiring through runtime + governor snapshots.
+function validateSocialGovernorContract() {
+  const config = loadConfig();
+  config.ai = config.ai || {};
+  config.ai.stepTicks = 1;
+  config.ai.minWeight = 0;
+  config.ai.maxWeight = 2;
+  config.ai.governors = config.ai.governors || {};
+  config.ai.governors.social = {
+    ...((config.ai.governors && config.ai.governors.social) || {}),
+    enabled: true,
+    mediationBiasMax: 0.4,
+    mentorshipBiasMax: 0.4,
+    accountabilityBiasMax: 0.4,
+  };
+  config.population = config.population || {};
+  config.population.socialDrama = {
+    ...((config.population && config.population.socialDrama) || {}),
+    enabled: true,
+    tickInterval: 1,
+  };
+
+  const runtime = buildRuntime(config.display, {
+    columns: Number(config.display.width || 96),
+    rows: Number(config.display.height || 40),
+  });
+  const state = createInitialState(config, runtime);
+
+  stepState(state, config, runtime, {
+    social: {
+      mediationBias: 2,
+      mentorshipBias: 2,
+      accountabilityBias: 2,
+    },
+  });
+  const positiveSignals = state.lastGovernorSignals && state.lastGovernorSignals.social
+    ? state.lastGovernorSignals.social
+    : null;
+  assert(positiveSignals, 'Social governor contract: missing lastGovernorSignals.social after positive-bias step.');
+  assert(positiveSignals.source === 'action', 'Social governor contract: positive-bias step should set source=action.');
+  assert(
+    Number(positiveSignals.mediationBias || 0) > 0.35,
+    'Social governor contract: positive mediation bias did not map to expected signed range.',
+  );
+  assert(
+    Number(positiveSignals.mentorshipBias || 0) > 0.35,
+    'Social governor contract: positive mentorship bias did not map to expected signed range.',
+  );
+  assert(
+    Number(positiveSignals.accountabilityBias || 0) > 0.35,
+    'Social governor contract: positive accountability bias did not map to expected signed range.',
+  );
+  const positiveRuntimeGovernor = state.social && state.social.governor && typeof state.social.governor === 'object'
+    ? state.social.governor
+    : null;
+  assert(positiveRuntimeGovernor, 'Social governor contract: runtime social governor snapshot missing after positive-bias step.');
+  assert(positiveRuntimeGovernor.source === 'action', 'Social governor contract: runtime social governor source should be action.');
+
+  stepState(state, config, runtime, {
+    social: {
+      mediationBias: 0,
+      mentorshipBias: 0,
+      accountabilityBias: 0,
+    },
+  });
+  const negativeSignals = state.lastGovernorSignals && state.lastGovernorSignals.social
+    ? state.lastGovernorSignals.social
+    : null;
+  assert(negativeSignals, 'Social governor contract: missing lastGovernorSignals.social after negative-bias step.');
+  assert(
+    Number(negativeSignals.mediationBias || 0) < -0.35,
+    'Social governor contract: negative mediation bias did not map to expected signed range.',
+  );
+  assert(
+    Number(negativeSignals.mentorshipBias || 0) < -0.35,
+    'Social governor contract: negative mentorship bias did not map to expected signed range.',
+  );
+  assert(
+    Number(negativeSignals.accountabilityBias || 0) < -0.35,
+    'Social governor contract: negative accountability bias did not map to expected signed range.',
+  );
+  const longArc = state.social && state.social.longArc && typeof state.social.longArc === 'object'
+    ? state.social.longArc
+    : null;
+  assert(longArc, 'Social governor contract: longArc state missing.');
+  assert(
+    Number.isFinite(Number(longArc.harmony)) && Number.isFinite(Number(longArc.strife)),
+    'Social governor contract: longArc harmony/strife are not numeric.',
+  );
+}
+
 // Validate social-drama telemetry/explainability wiring and training scenario closure (Slice 5).
 function validateSocialDramaSlice5Contract() {
   const config = loadConfig();
@@ -2631,12 +2723,13 @@ function main() {
     validateWarriorsProgressionPhase4Contract();
     validateWarriorsTelemetryPhase5Contract();
     validateWarriorsAiPhase6Contract(tmpDir);
+    validateSocialGovernorContract();
     validateSocialDramaAiSlice4Contract(tmpDir);
     validateSocialDramaSlice5Contract();
     validateRegressionReportSchema(tmpDir);
     validateRegressionSeedPackDefaultModeContract(tmpDir);
     validatePromoteReportSchema(tmpDir);
-    console.log('[test:contracts] PASS policy_shape external_camps_governor contracts_governor ruins_governor underrealm_governor warriors_disabled warriors_bootstrap warriors_phase1 warriors_thresholds warriors_phase2 warriors_phase3 warriors_phase4 warriors_phase5 warriors_phase6 social_slice4 social_slice5 regression_schema regression_seedpack_default promote_schema');
+    console.log('[test:contracts] PASS policy_shape external_camps_governor contracts_governor ruins_governor underrealm_governor warriors_disabled warriors_bootstrap warriors_phase1 warriors_thresholds warriors_phase2 warriors_phase3 warriors_phase4 warriors_phase5 warriors_phase6 social_governor social_slice4 social_slice5 regression_schema regression_seedpack_default promote_schema');
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }

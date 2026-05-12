@@ -1113,6 +1113,23 @@
           "food",
           "water"
         ]
+      },
+      "social": {
+        "enabled": true,
+        "actionHeadEnabled": false,
+        "mediationBiasMax": 0.45,
+        "mentorshipBiasMax": 0.45,
+        "accountabilityBiasMax": 0.45,
+        "mediationRivalryReductionScale": 0.55,
+        "mediationGrudgeReductionScale": 0.65,
+        "mentorshipGainScale": 0.5,
+        "accountabilityRivalryReductionScale": 0.3,
+        "accountabilityGrudgeReductionScale": 0.48,
+        "mediationReconciliationWeightScale": 0.75,
+        "mentorshipIncidentWeightScale": 0.65,
+        "accountabilityIncidentChanceScale": 0.32,
+        "mediationIncidentChanceScale": 0.12,
+        "accountabilityEscalationWeightReductionScale": 0.6
       }
     },
     "reward": {
@@ -2220,6 +2237,9 @@
                 "rivalryStressScale": 0.08,
                 "grudgeStressThreshold": 0.56,
                 "grudgeStressScale": 0.07,
+                "longArc": {
+                  "enabled": false
+                },
                 "incidents": {
                   "intervalTicks": 18,
                   "baseChancePerRoll": 0.58,
@@ -5285,6 +5305,36 @@
       "grudgeStressScale": 0.045,
       "grudgeRivalryScale": 0.02,
       "grudgeDecayPerTick": 0.0012,
+      "longArc": {
+        "enabled": false,
+        "memoryDecayPerTick": 0.0022,
+        "memoryGainPerUpdate": 0.12,
+        "friendSupportWeight": 0.035,
+        "mentorshipSupportWeight": 0.07,
+        "rivalBurdenWeight": 0.028,
+        "grudgeBurdenWeight": 0.05,
+        "supportShockOnPositiveIncident": 0.03,
+        "burdenShockOnNegativeIncident": 0.04,
+        "moraleSupportScale": 0.005,
+        "moraleBurdenScale": 0.0035,
+        "stressSupportReliefScale": 0.0032,
+        "stressBurdenScale": 0.0038,
+        "fatigueSupportReliefScale": 0.0015,
+        "fatigueBurdenScale": 0.002,
+        "settlementMemoryDecayPerTick": 0.0032,
+        "settlementMemoryGainPerUpdate": 0.11,
+        "affinityHarmonyScale": 0.1,
+        "affinityStrifePenaltyScale": 0.05,
+        "rivalryStrifeScale": 0.03,
+        "rivalryHarmonyReliefScale": 0.08,
+        "mentorshipHarmonyScale": 0.1,
+        "grudgeStrifeScale": 0.04,
+        "grudgeHarmonyReliefScale": 0.09,
+        "cohesionBonusScale": 0.03,
+        "cohesionStrifePenaltyScale": 0.015,
+        "conflictStrifeScale": 0.02,
+        "conflictHarmonyReliefScale": 0.03
+      },
       "incidents": {
         "enabled": true,
         "intervalTicks": 24,
