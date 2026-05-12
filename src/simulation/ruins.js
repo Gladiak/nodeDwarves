@@ -9,6 +9,7 @@ const { getAlchemyMultiplier } = require('./alchemy');
 const { getContractRuinsCombatBonus } = require('./contracts');
 const { getSchismModifier } = require('./schism');
 const { isAdult } = require('./population');
+const { clearDeadSocialLinks } = require('./social_drama');
 const {
   getWarriorsConfig,
   isWarriorRiskyDispatch,
@@ -1996,17 +1997,7 @@ function applyExpeditionDeaths(state, deadIds) {
   state.deathsByCause.ruins = Number(state.deathsByCause.ruins || 0) + deadIds.size;
   state.dwarves = state.dwarves.filter((dwarf) => !deadIds.has(dwarf.id));
   state.jobs = state.jobs.filter((job) => !deadIds.has(job.dwarfId));
-
-  for (const dwarf of state.dwarves) {
-    if (dwarf.partnerId && deadIds.has(dwarf.partnerId)) {
-      dwarf.partnerId = null;
-      dwarf.bondTargetId = null;
-      dwarf.bondScore = 0;
-    }
-    if (dwarf.pregnancy && deadIds.has(dwarf.pregnancy.partnerId)) {
-      dwarf.pregnancy = null;
-    }
-  }
+  clearDeadSocialLinks(state, deadIds);
 }
 
 function releaseExpeditioners(state, expedition) {

@@ -7,6 +7,7 @@ const { getAlchemyStatus } = require("../simulation/alchemy");
 const { getWorldEventStatus } = require("../simulation/world_events");
 const { getExternalCampStatus } = require("../simulation/external_camps");
 const { getSchismStatus } = require("../simulation/schism");
+const { getSocialDramaStatus } = require("../simulation/social_drama");
 const {
   formatWarriorDisplayNameById,
   resolveWarriorLeagueEpicName,
@@ -23,7 +24,13 @@ const TELEMETRY_LAYOUT = [
   {
     id: "economy",
     title: "Economy",
-    sections: ["structures", "diplomacy", "operations", "explainability", "endgame"],
+    sections: [
+      "structures",
+      "diplomacy",
+      "operations",
+      "explainability",
+      "endgame",
+    ],
   },
   {
     id: "deep_meta",
@@ -55,7 +62,12 @@ function getTelemetryLayouts() {
 
 // Build the left and right telemetry columns.
 function buildTelemetryColumns(state, config, columnWidth, options = {}) {
-  const snapshot = collectTelemetrySnapshot(state, config, columnWidth, options);
+  const snapshot = collectTelemetrySnapshot(
+    state,
+    config,
+    columnWidth,
+    options,
+  );
   const sectionModels = buildTelemetrySectionModels(snapshot);
   return renderTelemetryColumns(sectionModels, snapshot.colors);
 }
@@ -66,10 +78,18 @@ function collectTelemetrySnapshot(state, config, columnWidth, options = {}) {
   const safeConfig = config && typeof config === "object" ? config : {};
   const dwarves = Array.isArray(safeState.dwarves) ? safeState.dwarves : [];
   const jobs = Array.isArray(safeState.jobs) ? safeState.jobs : [];
-  const structures = Array.isArray(safeState.structures) ? safeState.structures : [];
-  const structureCounts = countEntriesByValue(structures, (entry) => entry && entry.type);
-  const houses = structures.filter((structure) => structure && structure.type === "house");
-  const housingConfig = (safeConfig.population && safeConfig.population.housing) || {};
+  const structures = Array.isArray(safeState.structures)
+    ? safeState.structures
+    : [];
+  const structureCounts = countEntriesByValue(
+    structures,
+    (entry) => entry && entry.type,
+  );
+  const houses = structures.filter(
+    (structure) => structure && structure.type === "house",
+  );
+  const housingConfig =
+    (safeConfig.population && safeConfig.population.housing) || {};
   const housingEnabled = housingConfig.enabled !== false;
   const bedsTotal = housingEnabled
     ? houses.reduce(
@@ -84,22 +104,31 @@ function collectTelemetrySnapshot(state, config, columnWidth, options = {}) {
     : 1;
   const wildlifeConfig = safeConfig.wildlife || {};
   const wildlifeEnabled = wildlifeConfig.enabled === true;
-  const herdCount = wildlifeEnabled && safeState.wildlife && Array.isArray(safeState.wildlife.herds)
-    ? safeState.wildlife.herds.filter((herd) => herd && Number(herd.remaining || 0) > 0).length
-    : 0;
+  const herdCount =
+    wildlifeEnabled &&
+    safeState.wildlife &&
+    Array.isArray(safeState.wildlife.herds)
+      ? safeState.wildlife.herds.filter(
+          (herd) => herd && Number(herd.remaining || 0) > 0,
+        ).length
+      : 0;
   const huntCount = wildlifeEnabled
     ? jobs.filter((job) => job && job.type === "hunt").length
     : 0;
   const seasonLabel = formatSeasonLabel(safeState.season);
   const yearLabel = formatYearLabel(safeState, safeConfig);
-  const underrealmRows = buildStableUnderrealmRows(getUnderrealmTelemetryLines(safeState));
+  const underrealmRows = buildStableUnderrealmRows(
+    getUnderrealmTelemetryLines(safeState),
+  );
   const stageCounts = countLifeStages(dwarves);
   const targets =
-    (safeConfig.resources
-      && (safeConfig.resources.targets || safeConfig.resources.stockpile))
-    || {};
-  const resourceLabels = (safeConfig.resources && safeConfig.resources.labels) || {};
-  const telemetryConfig = (safeConfig.display && safeConfig.display.telemetry) || {};
+    (safeConfig.resources &&
+      (safeConfig.resources.targets || safeConfig.resources.stockpile)) ||
+    {};
+  const resourceLabels =
+    (safeConfig.resources && safeConfig.resources.labels) || {};
+  const telemetryConfig =
+    (safeConfig.display && safeConfig.display.telemetry) || {};
   const stockBarMax = Number(telemetryConfig.stockBarMax || 0);
   const colors = getColorConfig(safeConfig);
   const cycleStats = safeState.cycleStats || {};
@@ -107,56 +136,64 @@ function collectTelemetrySnapshot(state, config, columnWidth, options = {}) {
   const villageCount = Array.isArray(safeState.villages)
     ? safeState.villages.length
     : 1;
-  const templeState = safeState.temple && typeof safeState.temple === "object"
-    ? safeState.temple
-    : null;
-  const templeMaxStageConfig = safeConfig.structures
-    && safeConfig.structures.temple_of_ancestors
-    && Array.isArray(safeConfig.structures.temple_of_ancestors.stages)
-    ? safeConfig.structures.temple_of_ancestors.stages.length
-    : 0;
+  const templeState =
+    safeState.temple && typeof safeState.temple === "object"
+      ? safeState.temple
+      : null;
+  const templeMaxStageConfig =
+    safeConfig.structures &&
+    safeConfig.structures.temple_of_ancestors &&
+    Array.isArray(safeConfig.structures.temple_of_ancestors.stages)
+      ? safeConfig.structures.temple_of_ancestors.stages.length
+      : 0;
   const templeMaxStage = Math.max(
     templeMaxStageConfig,
-    Math.max(0, Number(templeState && templeState.maxStage || 0)),
+    Math.max(0, Number((templeState && templeState.maxStage) || 0)),
   );
   const templeStage = clamp(
-    Math.floor(Number(templeState && templeState.stage || 0)),
+    Math.floor(Number((templeState && templeState.stage) || 0)),
     0,
     Math.max(0, templeMaxStage),
   );
-  const templeJob = jobs.find(
-    (job) => job.type === "build" && job.structureType === "temple_of_ancestors",
-  ) || null;
-  const prestigeState = safeState.prestige && typeof safeState.prestige === "object"
-    ? safeState.prestige
-    : null;
-  const prestigeTotal = Math.max(0, Number(prestigeState && prestigeState.total || 0));
-  const prestigeRank = prestigeState && prestigeState.rank
-    ? String(prestigeState.rank)
-    : "Unproven";
+  const templeJob =
+    jobs.find(
+      (job) =>
+        job.type === "build" && job.structureType === "temple_of_ancestors",
+    ) || null;
+  const prestigeState =
+    safeState.prestige && typeof safeState.prestige === "object"
+      ? safeState.prestige
+      : null;
+  const prestigeTotal = Math.max(
+    0,
+    Number((prestigeState && prestigeState.total) || 0),
+  );
+  const prestigeRank =
+    prestigeState && prestigeState.rank
+      ? String(prestigeState.rank)
+      : "Unproven";
   const reproductionStats = safeState.reproductionStats || {};
   const deathsByCause = safeState.deathsByCause || {};
   const birthsCount = Math.max(0, Number(safeState.birthsCount || 0));
   const deathsCount = Math.max(0, Number(safeState.deathsCount || 0));
   const reproAttempts = Math.max(0, Number(reproductionStats.attempts || 0));
   const reproSuccesses = Math.max(0, Number(reproductionStats.successes || 0));
-  const reproSuccessRatio = reproAttempts > 0
-    ? Math.round((reproSuccesses / reproAttempts) * 100)
-    : 0;
+  const reproSuccessRatio =
+    reproAttempts > 0 ? Math.round((reproSuccesses / reproAttempts) * 100) : 0;
   const raidStats = safeState.raidStats || {};
   const merchantStats = safeState.merchantStats || {};
-  const contractsState = safeState.contracts && typeof safeState.contracts === "object"
-    ? safeState.contracts
-    : null;
-  const contractsStats = contractsState && contractsState.stats
-    ? contractsState.stats
-    : {};
-  const worldEventsState = safeState.worldEvents && typeof safeState.worldEvents === "object"
-    ? safeState.worldEvents
-    : null;
-  const worldEventsStats = worldEventsState && worldEventsState.stats
-    ? worldEventsState.stats
-    : null;
+  const contractsState =
+    safeState.contracts && typeof safeState.contracts === "object"
+      ? safeState.contracts
+      : null;
+  const contractsStats =
+    contractsState && contractsState.stats ? contractsState.stats : {};
+  const worldEventsState =
+    safeState.worldEvents && typeof safeState.worldEvents === "object"
+      ? safeState.worldEvents
+      : null;
+  const worldEventsStats =
+    worldEventsState && worldEventsState.stats ? worldEventsState.stats : null;
   const externalCampStatus = getExternalCampStatus(safeState, safeConfig);
   const includeRuins = options.includeRuins !== false;
   const includeMyths = options.includeMyths !== false;
@@ -164,7 +201,9 @@ function collectTelemetrySnapshot(state, config, columnWidth, options = {}) {
   const worldEventStatus = getWorldEventStatus(safeState, safeConfig);
   const schismStatus = getSchismStatus(safeState, safeConfig);
   const socialSnapshot = buildSocialTelemetrySnapshot(safeState, safeConfig);
-  const shortages = Array.isArray(safeState.lastPriorities) ? safeState.lastPriorities : [];
+  const shortages = Array.isArray(safeState.lastPriorities)
+    ? safeState.lastPriorities
+    : [];
   const governorSignals = getGovernorSignals(safeState);
   const stockRatioLine = [
     formatStockRatio("food", safeState, safeConfig, resourceLabels),
@@ -177,9 +216,10 @@ function collectTelemetrySnapshot(state, config, columnWidth, options = {}) {
     formatStockRatio("iron", safeState, safeConfig, resourceLabels),
   ].join(" | ");
   const structureLevelSummary = getStructureLevelSummary(structures);
-  const toolState = safeState.tools && typeof safeState.tools === "object"
-    ? safeState.tools
-    : null;
+  const toolState =
+    safeState.tools && typeof safeState.tools === "object"
+      ? safeState.tools
+      : null;
   let toolLine = "Tool upgrade level: -";
   if (toolState) {
     const maxLevel = Math.max(1, Number(toolState.maxLevel || 1));
@@ -193,12 +233,9 @@ function collectTelemetrySnapshot(state, config, columnWidth, options = {}) {
     resourceLabels,
     stockBarMax,
   );
-  const stockpileLines = stockpileEntries.map((entry) => formatBarLine(
-    entry.label,
-    entry.ratio,
-    entry.detail,
-    columnWidth,
-  ));
+  const stockpileLines = stockpileEntries.map((entry) =>
+    formatBarLine(entry.label, entry.ratio, entry.detail, columnWidth),
+  );
 
   return {
     state: safeState,
@@ -212,9 +249,13 @@ function collectTelemetrySnapshot(state, config, columnWidth, options = {}) {
     structures,
     stageCounts,
     avgMorale: averageValue(dwarves, (dwarf) => dwarf.state.morale),
-    avgMoraleBoost: averageValue(dwarves, (dwarf) => dwarf.state.moraleBoostBeer),
+    avgMoraleBoost: averageValue(
+      dwarves,
+      (dwarf) => dwarf.state.moraleBoostBeer,
+    ),
     avgStress: averageValue(dwarves, (dwarf) => dwarf.state.stress),
-    idleCount: dwarves.filter((dwarf) => !dwarf.job && !dwarf.expedition).length,
+    idleCount: dwarves.filter((dwarf) => !dwarf.job && !dwarf.expedition)
+      .length,
     wildlifeEnabled,
     herdCount,
     huntCount,
@@ -262,8 +303,9 @@ function collectTelemetrySnapshot(state, config, columnWidth, options = {}) {
 
 // Build telemetry sections as plain section models (key/label/column/rows).
 function buildTelemetrySectionModels(snapshot) {
-  const templeProgress = formatTempleProgressStatus(snapshot.templeJob, snapshot.config)
-    || "Temple construction progress: -";
+  const templeProgress =
+    formatTempleProgressStatus(snapshot.templeJob, snapshot.config) ||
+    "Temple construction progress: -";
   return [
     {
       column: "left",
@@ -278,8 +320,16 @@ function buildTelemetrySectionModels(snapshot) {
         formatFestivalStatus(snapshot.festivalStatus),
         formatSchismStatus(snapshot.schismStatus),
         formatWorldEventStatus(snapshot.worldEventStatus),
-        formatContractStatus(snapshot.state, snapshot.config, snapshot.columnWidth),
-        formatAlchemyStatus(snapshot.state, snapshot.config, snapshot.columnWidth),
+        formatContractStatus(
+          snapshot.state,
+          snapshot.config,
+          snapshot.columnWidth,
+        ),
+        formatAlchemyStatus(
+          snapshot.state,
+          snapshot.config,
+          snapshot.columnWidth,
+        ),
         ...buildWorldLogRows(snapshot.state.events, snapshot.columnWidth, 3),
       ],
     },
@@ -336,17 +386,25 @@ function buildTelemetrySectionModels(snapshot) {
         `Core stock targets: ${snapshot.stockRatioLine}`,
         `Build stock targets: ${snapshot.buildRatioLine}`,
         formatRaidStatus(snapshot.raidStats),
-        formatJobsGovernorLine(snapshot.governorSignals.jobs, snapshot.resourceLabels),
+        formatJobsGovernorLine(
+          snapshot.governorSignals.jobs,
+          snapshot.resourceLabels,
+        ),
       ],
     },
     {
       column: "left",
       key: "lore",
       label: "Lore",
-      rows: buildLoreSectionRows(snapshot.state, snapshot.config, snapshot.columnWidth, {
-        includeRuins: snapshot.includeRuins,
-        includeMyths: snapshot.includeMyths,
-      }),
+      rows: buildLoreSectionRows(
+        snapshot.state,
+        snapshot.config,
+        snapshot.columnWidth,
+        {
+          includeRuins: snapshot.includeRuins,
+          includeMyths: snapshot.includeMyths,
+        },
+      ),
     },
     {
       column: "right",
@@ -389,8 +447,16 @@ function buildTelemetrySectionModels(snapshot) {
         formatExternalCampStatus(snapshot.externalCampStatus),
         formatExternalCampModifiers(snapshot.externalCampStatus),
         formatExternalCampsGovernorLine(snapshot.governorSignals.externalCamps),
-        formatContractStatus(snapshot.state, snapshot.config, snapshot.columnWidth),
-        formatContractReputation(snapshot.state, snapshot.config, snapshot.columnWidth),
+        formatContractStatus(
+          snapshot.state,
+          snapshot.config,
+          snapshot.columnWidth,
+        ),
+        formatContractReputation(
+          snapshot.state,
+          snapshot.config,
+          snapshot.columnWidth,
+        ),
         formatContractRecordLine(snapshot.contractsStats),
         formatContractsGovernorLine(snapshot.governorSignals.contracts),
         formatTradeGovernorLine(snapshot.governorSignals.trade),
@@ -459,10 +525,7 @@ function buildTelemetrySectionModels(snapshot) {
       column: "right",
       key: "warriorLeague",
       label: "Warrior League",
-      rows: buildWarriorLeagueSectionRows(
-        snapshot.state,
-        snapshot.config,
-      ),
+      rows: buildWarriorLeagueSectionRows(snapshot.state, snapshot.config),
     },
   ];
 }
@@ -507,9 +570,11 @@ function normalizeTelemetryRows(rows) {
   if (normalized.length === 0) {
     return ["-"];
   }
-  while (normalized.length > 1
-    && normalized[normalized.length - 1] === "-"
-    && normalized[normalized.length - 2] === "-") {
+  while (
+    normalized.length > 1 &&
+    normalized[normalized.length - 1] === "-" &&
+    normalized[normalized.length - 2] === "-"
+  ) {
     normalized.pop();
   }
   return normalized;
@@ -557,55 +622,75 @@ function compareWarriorFallbackFighters(left, right) {
 }
 
 // Build top-fighter entries from league ranking (or deterministic runtime fallback).
-function buildWarriorTopFighterEntries(state, config, limit = 5, nameCache = null) {
+function buildWarriorTopFighterEntries(
+  state,
+  config,
+  limit = 5,
+  nameCache = null,
+) {
   const maxEntries = Math.max(0, Math.floor(Number(limit || 0)));
   if (maxEntries <= 0) {
     return [];
   }
   const runtime = resolveWarriorRuntimeState(state);
-  const league = runtime && runtime.league && typeof runtime.league === "object"
-    ? runtime.league
-    : {};
+  const league =
+    runtime && runtime.league && typeof runtime.league === "object"
+      ? runtime.league
+      : {};
   const ranking = Array.isArray(league.ranking) ? league.ranking : [];
   const dwarves = Array.isArray(state && state.dwarves) ? state.dwarves : [];
   const byId = new Map(
-    dwarves.map((dwarf) => [String(dwarf && dwarf.id || ""), dwarf]),
+    dwarves.map((dwarf) => [String((dwarf && dwarf.id) || ""), dwarf]),
   );
 
   if (ranking.length > 0) {
-    return ranking
-      .slice(0, maxEntries)
-      .map((entry, index) => {
-        const dwarfId = String(entry && entry.dwarfId || "");
-        const dwarf = byId.get(dwarfId) || null;
-        const warrior = dwarf && dwarf.warrior && typeof dwarf.warrior === "object"
+    return ranking.slice(0, maxEntries).map((entry, index) => {
+      const dwarfId = String((entry && entry.dwarfId) || "");
+      const dwarf = byId.get(dwarfId) || null;
+      const warrior =
+        dwarf && dwarf.warrior && typeof dwarf.warrior === "object"
           ? dwarf.warrior
           : {};
-        const points = Number(entry && entry.points);
-        return {
-          rank: Math.max(1, Math.floor(Number(entry && entry.rank || index + 1))),
-          dwarfId,
-          label: formatWarriorDisplayNameById(dwarfId, state, config, nameCache),
-          clanId: entry && entry.clanId ? String(entry.clanId) : (dwarf && dwarf.clanId ? String(dwarf.clanId) : ""),
-          rating: clamp(Number(warrior.rating || 0), 0, 1),
-          valor: clamp(Number(warrior.valor || 0), 0, 1),
-          wins: Math.max(0, Math.floor(Number(warrior.wins || entry && entry.wins || 0))),
-          losses: Math.max(0, Math.floor(Number(warrior.losses || entry && entry.losses || 0))),
-          riskWins: Math.max(0, Math.floor(Number(warrior.riskWins || 0))),
-          scars: Array.isArray(warrior.scars) ? warrior.scars.length : 0,
-          titles: Array.isArray(warrior.titles) ? warrior.titles.length : 0,
-          vowId: warrior && warrior.vow ? String(warrior.vow) : null,
-          legacyPoints: Math.max(0, Number(warrior.legacyPoints || 0)),
-          points: Number.isFinite(points) ? Math.max(0, points) : null,
-        };
-      });
+      const points = Number(entry && entry.points);
+      return {
+        rank: Math.max(
+          1,
+          Math.floor(Number((entry && entry.rank) || index + 1)),
+        ),
+        dwarfId,
+        label: formatWarriorDisplayNameById(dwarfId, state, config, nameCache),
+        clanId:
+          entry && entry.clanId
+            ? String(entry.clanId)
+            : dwarf && dwarf.clanId
+              ? String(dwarf.clanId)
+              : "",
+        rating: clamp(Number(warrior.rating || 0), 0, 1),
+        valor: clamp(Number(warrior.valor || 0), 0, 1),
+        wins: Math.max(
+          0,
+          Math.floor(Number(warrior.wins || (entry && entry.wins) || 0)),
+        ),
+        losses: Math.max(
+          0,
+          Math.floor(Number(warrior.losses || (entry && entry.losses) || 0)),
+        ),
+        riskWins: Math.max(0, Math.floor(Number(warrior.riskWins || 0))),
+        scars: Array.isArray(warrior.scars) ? warrior.scars.length : 0,
+        titles: Array.isArray(warrior.titles) ? warrior.titles.length : 0,
+        vowId: warrior && warrior.vow ? String(warrior.vow) : null,
+        legacyPoints: Math.max(0, Number(warrior.legacyPoints || 0)),
+        points: Number.isFinite(points) ? Math.max(0, points) : null,
+      };
+    });
   }
 
   return dwarves
     .map((dwarf) => {
-      const warrior = dwarf && dwarf.warrior && typeof dwarf.warrior === "object"
-        ? dwarf.warrior
-        : null;
+      const warrior =
+        dwarf && dwarf.warrior && typeof dwarf.warrior === "object"
+          ? dwarf.warrior
+          : null;
       if (!dwarf || !warrior) {
         return null;
       }
@@ -631,7 +716,12 @@ function buildWarriorTopFighterEntries(state, config, limit = 5, nameCache = nul
     .map((entry, index) => ({
       rank: index + 1,
       dwarfId: entry.dwarfId,
-      label: formatWarriorDisplayNameById(entry.dwarfId, state, config, nameCache),
+      label: formatWarriorDisplayNameById(
+        entry.dwarfId,
+        state,
+        config,
+        nameCache,
+      ),
       clanId: entry.clanId,
       rating: entry.rating,
       valor: entry.valor,
@@ -668,48 +758,80 @@ function buildWarriorLeagueSectionRows(state, config) {
       ...buildWarriorTopFighterLegendRows(),
     ];
   }
-  const league = runtime.league && typeof runtime.league === "object" ? runtime.league : {};
-  const stats = runtime.stats && typeof runtime.stats === "object" ? runtime.stats : {};
-  const company = runtime.company && typeof runtime.company === "object" ? runtime.company : {};
-  const identity = company.identity && typeof company.identity === "object" ? company.identity : {};
-  const carryover = company.carryover && typeof company.carryover === "object" ? company.carryover : {};
-  const cycleHistory = Array.isArray(company.cycleHistory) ? company.cycleHistory : [];
+  const league =
+    runtime.league && typeof runtime.league === "object" ? runtime.league : {};
+  const stats =
+    runtime.stats && typeof runtime.stats === "object" ? runtime.stats : {};
+  const company =
+    runtime.company && typeof runtime.company === "object"
+      ? runtime.company
+      : {};
+  const identity =
+    company.identity && typeof company.identity === "object"
+      ? company.identity
+      : {};
+  const carryover =
+    company.carryover && typeof company.carryover === "object"
+      ? company.carryover
+      : {};
+  const cycleHistory = Array.isArray(company.cycleHistory)
+    ? company.cycleHistory
+    : [];
   const dwarves = Array.isArray(state && state.dwarves) ? state.dwarves : [];
   const nameCache = new Map();
-  const topFighters = buildWarriorTopFighterEntries(state, config, 5, nameCache);
-  const seasonId = Math.max(0, Math.floor(Number(league.lastTournamentSeasonId || 0)));
-  const seasonName = league.lastTournamentSeasonName ? String(league.lastTournamentSeasonName) : "";
+  const topFighters = buildWarriorTopFighterEntries(
+    state,
+    config,
+    5,
+    nameCache,
+  );
+  const seasonId = Math.max(
+    0,
+    Math.floor(Number(league.lastTournamentSeasonId || 0)),
+  );
+  const seasonName = league.lastTournamentSeasonName
+    ? String(league.lastTournamentSeasonName)
+    : "";
   const leagueName = league.lastTournamentLeagueName
     ? String(league.lastTournamentLeagueName)
     : resolveWarriorLeagueEpicName(state, config, seasonId);
   const championId = league.championId
     ? String(league.championId)
-    : (topFighters[0] ? String(topFighters[0].dwarfId || "") : "");
+    : topFighters[0]
+      ? String(topFighters[0].dwarfId || "")
+      : "";
   const championLabel = championId
     ? formatWarriorDisplayNameById(championId, state, config, nameCache)
     : "none";
   const ranking = Array.isArray(league.ranking) ? league.ranking : [];
   const championStanding = championId
-    ? ranking.find((entry) => String(entry && entry.dwarfId || "") === championId)
+    ? ranking.find(
+        (entry) => String((entry && entry.dwarfId) || "") === championId,
+      )
     : null;
-  const championClan = championStanding && championStanding.clanId
-    ? String(championStanding.clanId)
-    : "";
+  const championClan =
+    championStanding && championStanding.clanId
+      ? String(championStanding.clanId)
+      : "";
   const championDwarf = championId
-    ? dwarves.find((dwarf) => String(dwarf && dwarf.id || "") === championId)
+    ? dwarves.find((dwarf) => String((dwarf && dwarf.id) || "") === championId)
     : null;
-  const championWarrior = championDwarf && championDwarf.warrior && typeof championDwarf.warrior === "object"
-    ? championDwarf.warrior
-    : null;
+  const championWarrior =
+    championDwarf &&
+    championDwarf.warrior &&
+    typeof championDwarf.warrior === "object"
+      ? championDwarf.warrior
+      : null;
 
   let totalScars = 0;
   let totalTitles = 0;
   let totalVows = 0;
   let totalLegacyPoints = 0;
   for (const dwarf of dwarves) {
-    const warrior = dwarf && dwarf.warrior && typeof dwarf.warrior === "object"
-      ? dwarf.warrior
-      : null;
+    const warrior =
+      dwarf && dwarf.warrior && typeof dwarf.warrior === "object"
+        ? dwarf.warrior
+        : null;
     if (!warrior) {
       continue;
     }
@@ -721,9 +843,10 @@ function buildWarriorLeagueSectionRows(state, config) {
     totalLegacyPoints += Math.max(0, Number(warrior.legacyPoints || 0));
   }
 
-  const clanScoreById = league.clanScoreById && typeof league.clanScoreById === "object"
-    ? league.clanScoreById
-    : {};
+  const clanScoreById =
+    league.clanScoreById && typeof league.clanScoreById === "object"
+      ? league.clanScoreById
+      : {};
   const clanSummary = Object.entries(clanScoreById)
     .map(([clanId, points]) => ({
       clanId: String(clanId || ""),
@@ -740,8 +863,11 @@ function buildWarriorLeagueSectionRows(state, config) {
     .map((entry) => `${entry.clanId} ${formatCompactNumber(entry.points)}`)
     .join(" | ");
 
-  const hallOfFame = Array.isArray(company.hallOfFame) ? company.hallOfFame : [];
-  const hallEntry = hallOfFame[0] && typeof hallOfFame[0] === "object" ? hallOfFame[0] : null;
+  const hallOfFame = Array.isArray(company.hallOfFame)
+    ? company.hallOfFame
+    : [];
+  const hallEntry =
+    hallOfFame[0] && typeof hallOfFame[0] === "object" ? hallOfFame[0] : null;
   const hallLine = hallEntry
     ? `Hall of fame: S${Math.max(0, Math.floor(Number(hallEntry.seasonId || 0)))} ${hallEntry.leagueName || resolveWarriorLeagueEpicName(state, config, hallEntry.seasonId)} -> ${formatWarriorDisplayNameById(hallEntry.dwarfId, state, config, nameCache)}`
     : "Hall of fame: -";
@@ -749,13 +875,16 @@ function buildWarriorLeagueSectionRows(state, config) {
   const identityFocus = identity.focus ? String(identity.focus) : "balanced";
   const identityMotto = identity.motto ? String(identity.motto) : "-";
   const identityRenown = clamp(Number(identity.renown || 0), 0, 1);
-  const sourceChampionId = carryover.sourceChampionId ? String(carryover.sourceChampionId) : "";
+  const sourceChampionId = carryover.sourceChampionId
+    ? String(carryover.sourceChampionId)
+    : "";
   const sourceChampionLabel = sourceChampionId
     ? formatWarriorDisplayNameById(sourceChampionId, state, config, nameCache)
     : "-";
-  const lastMemory = cycleHistory.length > 0 && cycleHistory[cycleHistory.length - 1]
-    ? cycleHistory[cycleHistory.length - 1]
-    : null;
+  const lastMemory =
+    cycleHistory.length > 0 && cycleHistory[cycleHistory.length - 1]
+      ? cycleHistory[cycleHistory.length - 1]
+      : null;
   const memoryLine = lastMemory
     ? `Lineage memory: C${Math.max(0, Math.floor(Number(lastMemory.cycle || 0)))} ${lastMemory.name || "Unknown"} (${lastMemory.focus || "balanced"}, ${(clamp(Number(lastMemory.renown || 0), 0, 1) * 100).toFixed(1)}%)`
     : "Lineage memory: -";
@@ -829,19 +958,22 @@ function buildEndgameSectionRows(state, config, options = {}) {
   const cycleStats = state && state.cycleStats ? state.cycleStats : {};
   const cycleCount = Math.max(0, Number(cycleStats.count || 0));
   const lastCycleTicks = Math.max(0, Number(cycleStats.lastTicks || 0));
-  const lastCycleLabel = lastCycleTicks > 0
-    ? `${formatCompactNumber(lastCycleTicks)} ticks`
-    : "-";
-  const structures = Array.isArray(state && state.structures) ? state.structures : [];
-  const hasRuinsStructure = ruinsEnabled
-    && structures.some((structure) => structure && structure.type === "ruins");
+  const lastCycleLabel =
+    lastCycleTicks > 0 ? `${formatCompactNumber(lastCycleTicks)} ticks` : "-";
+  const structures = Array.isArray(state && state.structures)
+    ? state.structures
+    : [];
+  const hasRuinsStructure =
+    ruinsEnabled &&
+    structures.some((structure) => structure && structure.type === "ruins");
   const rooms = Array.isArray(ruinsConfig.rooms) ? ruinsConfig.rooms : [];
   const roomTarget = Math.max(0, rooms.length);
-  const ruinsState = state && state.ruins && typeof state.ruins === "object"
-    ? state.ruins
-    : null;
+  const ruinsState =
+    state && state.ruins && typeof state.ruins === "object"
+      ? state.ruins
+      : null;
   const roomsCleared = clamp(
-    Math.floor(Number(ruinsState && ruinsState.roomsCleared || 0)),
+    Math.floor(Number((ruinsState && ruinsState.roomsCleared) || 0)),
     0,
     roomTarget,
   );
@@ -850,35 +982,44 @@ function buildEndgameSectionRows(state, config, options = {}) {
     ? Object.keys((ruinsConfig.artifacts && ruinsConfig.artifacts.pool) || {})
     : [];
   const artifactTarget = artifactPool.length;
-  const artifactsFoundMap = ruinsState && ruinsState.artifactsFound
-    ? ruinsState.artifactsFound
-    : {};
+  const artifactsFoundMap =
+    ruinsState && ruinsState.artifactsFound ? ruinsState.artifactsFound : {};
   let artifactFoundCount = 0;
   for (const artifactId of artifactPool) {
     if (artifactsFoundMap[artifactId]) {
       artifactFoundCount += 1;
     }
   }
-  const artifactsComplete = ruinsEnabled
-    && (artifactTarget <= 0 || artifactFoundCount >= artifactTarget);
+  const artifactsComplete =
+    ruinsEnabled &&
+    (artifactTarget <= 0 || artifactFoundCount >= artifactTarget);
 
   const minTicksAfterArtifacts = getEndgameMinTicks(endgameConfig);
-  const tick = Math.max(0, Math.floor(Number(state && state.tick || 0)));
+  const tick = Math.max(0, Math.floor(Number((state && state.tick) || 0)));
   const rawCompletionTick = state ? state.endgameArtifactsTick : null;
-  const hasCompletionTick = Number.isFinite(rawCompletionTick) && Number(rawCompletionTick) >= 0;
+  const hasCompletionTick =
+    Number.isFinite(rawCompletionTick) && Number(rawCompletionTick) >= 0;
   const completionTick = hasCompletionTick
     ? Math.max(0, Math.floor(Number(rawCompletionTick)))
     : 0;
-  const waitElapsed = artifactsComplete && hasCompletionTick
-    ? Math.max(0, tick - completionTick)
-    : 0;
+  const waitElapsed =
+    artifactsComplete && hasCompletionTick
+      ? Math.max(0, tick - completionTick)
+      : 0;
   const waitTarget = Math.max(0, minTicksAfterArtifacts);
-  const waitShown = waitTarget > 0 ? Math.min(waitElapsed, waitTarget) : waitElapsed;
+  const waitShown =
+    waitTarget > 0 ? Math.min(waitElapsed, waitTarget) : waitElapsed;
   const waitRemaining = waitTarget > waitElapsed ? waitTarget - waitElapsed : 0;
-  const waitComplete = artifactsComplete && (waitTarget <= 0 || waitElapsed >= waitTarget);
+  const waitComplete =
+    artifactsComplete && (waitTarget <= 0 || waitElapsed >= waitTarget);
   const triggerArmed = endgameEnabled && artifactsComplete && waitComplete;
 
-  const requiredSteps = [roomsComplete, artifactsComplete, waitComplete, triggerArmed];
+  const requiredSteps = [
+    roomsComplete,
+    artifactsComplete,
+    waitComplete,
+    triggerArmed,
+  ];
   const requiredDone = requiredSteps.filter(Boolean).length;
 
   const ruinsGatewayLabel = !ruinsEnabled
@@ -886,13 +1027,21 @@ function buildEndgameSectionRows(state, config, options = {}) {
     : hasRuinsStructure
       ? "online"
       : "no ruins structure";
-  const templeStage = Math.max(0, Number(options && options.templeStage || 0));
-  const templeMaxStage = Math.max(0, Number(options && options.templeMaxStage || 0));
+  const templeStage = Math.max(
+    0,
+    Number((options && options.templeStage) || 0),
+  );
+  const templeMaxStage = Math.max(
+    0,
+    Number((options && options.templeMaxStage) || 0),
+  );
   const templeComplete = templeMaxStage > 0 && templeStage >= templeMaxStage;
-  const templeDetail = templeMaxStage > 0
-    ? `stage ${templeStage}/${templeMaxStage}`
-    : "disabled";
-  const difficulty = Math.max(1, Number(state && state.endgameDifficulty || 1));
+  const templeDetail =
+    templeMaxStage > 0 ? `stage ${templeStage}/${templeMaxStage}` : "disabled";
+  const difficulty = Math.max(
+    1,
+    Number((state && state.endgameDifficulty) || 1),
+  );
 
   return [
     `Cycle reset loop: ${endgameEnabled ? "enabled" : "disabled"}`,
@@ -934,7 +1083,11 @@ function buildEndgameSectionRows(state, config, options = {}) {
       waitRemaining,
       waitTarget,
     })}`,
-    formatChecklistStep(templeComplete, "Temple completion (optional)", templeDetail),
+    formatChecklistStep(
+      templeComplete,
+      "Temple completion (optional)",
+      templeDetail,
+    ),
     `Cycle pressure multiplier: x${difficulty.toFixed(2)}`,
   ];
 }
@@ -966,7 +1119,10 @@ function getEndgameEtaLabel(context) {
     return "blocked (ruins disabled)";
   }
   if (!data.roomsComplete) {
-    const missingRooms = Math.max(0, Number(data.roomTarget || 0) - Number(data.roomsCleared || 0));
+    const missingRooms = Math.max(
+      0,
+      Number(data.roomTarget || 0) - Number(data.roomsCleared || 0),
+    );
     return `${missingRooms} room(s) left`;
   }
   if (!data.artifactsComplete) {
@@ -1039,7 +1195,11 @@ function buildStableUnderrealmRows(underrealmLines) {
   }
   return [
     findLineByPrefix(lines, ["Realm:"], "Realm: -"),
-    findLineByPrefix(lines, ["Hidden gate search time:", "Hidden gate:"], "Hidden gate: -"),
+    findLineByPrefix(
+      lines,
+      ["Hidden gate search time:", "Hidden gate:"],
+      "Hidden gate: -",
+    ),
     findLineByPrefix(
       lines,
       ["Depth progression:", "Deep lift progress", "Depth survey progress:"],
@@ -1052,7 +1212,12 @@ function buildStableUnderrealmRows(underrealmLines) {
     findLineByPrefix(lines, ["Assigned delvers:"], "Assigned delvers: -"),
     findLineByPrefix(
       lines,
-      ["Underrealm pressure:", "Deep threat level:", "Ward charges available:", "Shrine oath status:"],
+      [
+        "Underrealm pressure:",
+        "Deep threat level:",
+        "Ward charges available:",
+        "Shrine oath status:",
+      ],
       "Underrealm pressure: -",
     ),
   ];
@@ -1100,7 +1265,9 @@ function formatSchismStatus(status) {
   const phase = String(status.phase || "concord");
   const doctrine = String(status.doctrine || "austerity");
   const pressure = Math.round(clamp(Number(status.pressure || 0), 0, 1) * 100);
-  const legitimacy = Math.round(clamp(Number(status.legitimacy || 0), 0, 1) * 100);
+  const legitimacy = Math.round(
+    clamp(Number(status.legitimacy || 0), 0, 1) * 100,
+  );
   const ritual = status.ritualOpen ? "ritual open" : "ritual closed";
   const activeRitual = status.ritualActive
     ? ` | active rite ${String(status.ritualLabel || "Rite")} (${Math.max(0, Number(status.ritualTicksLeft || 0))}t)`
@@ -1114,34 +1281,42 @@ function formatSchismStatus(status) {
 
 // Resolve a compact social telemetry snapshot with safe defaults.
 function buildSocialTelemetrySnapshot(state, config) {
-  const socialConfig = config && config.population && config.population.socialDrama
-    ? config.population.socialDrama
-    : {};
-  const social = state && state.social && typeof state.social === "object"
-    ? state.social
-    : null;
+  const socialConfig =
+    config && config.population && config.population.socialDrama
+      ? config.population.socialDrama
+      : {};
+  const social =
+    state && state.social && typeof state.social === "object"
+      ? state.social
+      : null;
   const enabled = Boolean(
-    social
-    && social.enabled === true
-    && socialConfig.enabled !== false,
+    social && social.enabled === true && socialConfig.enabled !== false,
   );
-  const stats = social && social.stats && typeof social.stats === "object"
-    ? social.stats
-    : {};
-  const incidentsByTypeRaw = stats.incidentsByType && typeof stats.incidentsByType === "object"
-    ? stats.incidentsByType
-    : {};
+  const stats =
+    social && social.stats && typeof social.stats === "object"
+      ? social.stats
+      : {};
+  const incidentsByTypeRaw =
+    stats.incidentsByType && typeof stats.incidentsByType === "object"
+      ? stats.incidentsByType
+      : {};
   const history = Array.isArray(social && social.history) ? social.history : [];
-  const latestIncident = history.length > 0 ? history[history.length - 1] : null;
-  const longArc = social && social.longArc && typeof social.longArc === "object"
-    ? social.longArc
-    : {};
-  const governor = social && social.governor && typeof social.governor === "object"
-    ? social.governor
-    : {};
-  const tick = Math.max(0, Number(state && state.tick || 0));
-  const lastIncidentTick = enabled ? Math.max(0, Number(social.lastIncidentTick || 0)) : 0;
-  const incidentAge = lastIncidentTick > 0 ? Math.max(0, tick - lastIncidentTick) : null;
+  const latestIncident =
+    history.length > 0 ? history[history.length - 1] : null;
+  const longArc =
+    social && social.longArc && typeof social.longArc === "object"
+      ? social.longArc
+      : {};
+  const governor =
+    social && social.governor && typeof social.governor === "object"
+      ? social.governor
+      : {};
+  const tick = Math.max(0, Number((state && state.tick) || 0));
+  const lastIncidentTick = enabled
+    ? Math.max(0, Number(social.lastIncidentTick || 0))
+    : 0;
+  const incidentAge =
+    lastIncidentTick > 0 ? Math.max(0, tick - lastIncidentTick) : null;
   return {
     enabled,
     updates: Math.max(0, Number(stats.updates || 0)),
@@ -1157,12 +1332,22 @@ function buildSocialTelemetrySnapshot(state, config) {
         Number(incidentsByTypeRaw.mentorship_breakthrough || 0),
       ),
       rivalryClash: Math.max(0, Number(incidentsByTypeRaw.rivalry_clash || 0)),
-      grudgeEscalation: Math.max(0, Number(incidentsByTypeRaw.grudge_escalation || 0)),
-      reconciliation: Math.max(0, Number(incidentsByTypeRaw.reconciliation || 0)),
+      grudgeEscalation: Math.max(
+        0,
+        Number(incidentsByTypeRaw.grudge_escalation || 0),
+      ),
+      reconciliation: Math.max(
+        0,
+        Number(incidentsByTypeRaw.reconciliation || 0),
+      ),
     },
     cohesion: enabled ? clamp(Number(social.cohesion || 0), 0, 1) : 0,
-    conflictPressure: enabled ? clamp(Number(social.conflictPressure || 0), 0, 1) : 0,
-    mentorshipCoverage: enabled ? clamp(Number(social.mentorshipCoverage || 0), 0, 1) : 0,
+    conflictPressure: enabled
+      ? clamp(Number(social.conflictPressure || 0), 0, 1)
+      : 0,
+    mentorshipCoverage: enabled
+      ? clamp(Number(social.mentorshipCoverage || 0), 0, 1)
+      : 0,
     grudgeLoad: enabled ? clamp(Number(social.grudgeLoad || 0), 0, 1) : 0,
     longArcHarmony: enabled ? clamp(Number(longArc.harmony || 0), 0, 1) : 0,
     longArcStrife: enabled ? clamp(Number(longArc.strife || 0), 0, 1) : 0,
@@ -1173,13 +1358,16 @@ function buildSocialTelemetrySnapshot(state, config) {
       source: governor.source === "action" ? "action" : "default",
       mediationBias: clamp(Number(governor.mediationBias || 0), -1, 1),
       mentorshipBias: clamp(Number(governor.mentorshipBias || 0), -1, 1),
-      accountabilityBias: clamp(Number(governor.accountabilityBias || 0), -1, 1),
+      accountabilityBias: clamp(
+        Number(governor.accountabilityBias || 0),
+        -1,
+        1,
+      ),
     },
     lastIncidentTick,
     incidentAge,
-    latestIncidentType: latestIncident && latestIncident.type
-      ? String(latestIncident.type)
-      : "",
+    latestIncidentType:
+      latestIncident && latestIncident.type ? String(latestIncident.type) : "",
   };
 }
 
@@ -1218,7 +1406,10 @@ function formatSocialLastIncidentLine(social) {
     return "Last incident: none";
   }
   const tick = Math.max(0, Number(social.lastIncidentTick || 0));
-  const age = social.incidentAge === null ? null : Math.max(0, Number(social.incidentAge || 0));
+  const age =
+    social.incidentAge === null
+      ? null
+      : Math.max(0, Number(social.incidentAge || 0));
   const type = String(social.latestIncidentType || "").trim();
   const typeLabel = type ? type.replace(/_/g, " ") : "unknown";
   if (age === null) {
@@ -1229,11 +1420,12 @@ function formatSocialLastIncidentLine(social) {
 
 // Format one shortage line with urgency and stock ratio.
 function formatShortageStatus(shortages, index, state, config, resourceLabels) {
-  const rankLabel = index === 0
-    ? "Primary shortage"
-    : index === 1
-      ? "Secondary shortage"
-      : `Shortage ${index + 1}`;
+  const rankLabel =
+    index === 0
+      ? "Primary shortage"
+      : index === 1
+        ? "Secondary shortage"
+        : `Shortage ${index + 1}`;
   if (!Array.isArray(shortages) || !shortages[index]) {
     return `${rankLabel}: -`;
   }
@@ -1244,19 +1436,30 @@ function formatShortageStatus(shortages, index, state, config, resourceLabels) {
   }
   const label = getTelemetryResourceLabel(resourceId, resourceLabels);
   const target = getStockpileTarget(state, config, resourceId);
-  const current = Math.max(0, Number(state.stockpile && state.stockpile[resourceId] || 0));
-  const ratio = target > 0 ? Math.round(clamp(current / target, 0, 1) * 100) : 0;
+  const current = Math.max(
+    0,
+    Number((state.stockpile && state.stockpile[resourceId]) || 0),
+  );
+  const ratio =
+    target > 0 ? Math.round(clamp(current / target, 0, 1) * 100) : 0;
   const urgency = Math.max(0, Number(shortage.score || 0)).toFixed(2);
   return `${rankLabel}: ${label} at ${ratio}% of target (urgency ${urgency})`;
 }
 
 // Format one shortage signal line for operations telemetry.
-function formatShortageCompact(shortages, index, state, config, resourceLabels) {
-  const rankLabel = index === 0
-    ? "Primary shortage signal"
-    : index === 1
-      ? "Secondary shortage signal"
-      : `Shortage signal ${index + 1}`;
+function formatShortageCompact(
+  shortages,
+  index,
+  state,
+  config,
+  resourceLabels,
+) {
+  const rankLabel =
+    index === 0
+      ? "Primary shortage signal"
+      : index === 1
+        ? "Secondary shortage signal"
+        : `Shortage signal ${index + 1}`;
   if (!Array.isArray(shortages) || !shortages[index]) {
     return `${rankLabel}: -`;
   }
@@ -1267,8 +1470,12 @@ function formatShortageCompact(shortages, index, state, config, resourceLabels) 
   }
   const label = getTelemetryResourceLabel(resourceId, resourceLabels);
   const target = getStockpileTarget(state, config, resourceId);
-  const current = Math.max(0, Number(state.stockpile && state.stockpile[resourceId] || 0));
-  const ratio = target > 0 ? Math.round(clamp(current / target, 0, 1) * 100) : 0;
+  const current = Math.max(
+    0,
+    Number((state.stockpile && state.stockpile[resourceId]) || 0),
+  );
+  const ratio =
+    target > 0 ? Math.round(clamp(current / target, 0, 1) * 100) : 0;
   const urgency = Math.max(0, Number(shortage.score || 0)).toFixed(2);
   return `${rankLabel}: ${label} at ${ratio}% of target (urgency ${urgency})`;
 }
@@ -1276,7 +1483,10 @@ function formatShortageCompact(shortages, index, state, config, resourceLabels) 
 // Format stockpile ratio with explicit labels.
 function formatStockRatio(resourceId, state, config, resourceLabels) {
   const target = getStockpileTarget(state, config, resourceId);
-  const current = Math.max(0, Number(state.stockpile && state.stockpile[resourceId] || 0));
+  const current = Math.max(
+    0,
+    Number((state.stockpile && state.stockpile[resourceId]) || 0),
+  );
   const label = getTelemetryResourceLabel(resourceId, resourceLabels);
   if (target <= 0) {
     return `${label}: no target`;
@@ -1291,14 +1501,20 @@ function getTelemetryResourceLabel(resourceId, resourceLabels) {
   if (!id) {
     return "-";
   }
-  const configured = String(resourceLabels && resourceLabels[id] ? resourceLabels[id] : "").trim();
+  const configured = String(
+    resourceLabels && resourceLabels[id] ? resourceLabels[id] : "",
+  ).trim();
   const fallback = humanizeResourceId(id);
   if (!configured) {
     return fallback;
   }
   const configuredHasSpaces = /\s/.test(configured);
   const fallbackHasSpaces = /\s/.test(fallback);
-  if (!configuredHasSpaces && fallbackHasSpaces && configured.toLowerCase() !== fallback.toLowerCase()) {
+  if (
+    !configuredHasSpaces &&
+    fallbackHasSpaces &&
+    configured.toLowerCase() !== fallback.toLowerCase()
+  ) {
     return fallback;
   }
   return configured;
@@ -1320,83 +1536,190 @@ function humanizeResourceId(resourceId) {
 
 // Format raid pressure summary in a fixed short line.
 function formatRaidStatus(raidStats) {
-  const count = Math.max(0, Number(raidStats && raidStats.count || 0));
-  const deaths = Math.max(0, Number(raidStats && raidStats.deaths || 0));
-  const lastDeaths = Math.max(0, Number(raidStats && raidStats.lastRaidDeaths || 0));
+  const count = Math.max(0, Number((raidStats && raidStats.count) || 0));
+  const deaths = Math.max(0, Number((raidStats && raidStats.deaths) || 0));
+  const lastDeaths = Math.max(
+    0,
+    Number((raidStats && raidStats.lastRaidDeaths) || 0),
+  );
   return `Surface raids: ${count} total | Deaths: ${deaths} total | Last raid deaths: ${lastDeaths}`;
 }
 
 // Resolve the latest governor observability snapshot with safe defaults.
 function getGovernorSignals(state) {
-  const raw = state && state.lastGovernorSignals && typeof state.lastGovernorSignals === "object"
-    ? state.lastGovernorSignals
-    : {};
+  const raw =
+    state &&
+    state.lastGovernorSignals &&
+    typeof state.lastGovernorSignals === "object"
+      ? state.lastGovernorSignals
+      : {};
   return {
     jobs: raw.jobs && typeof raw.jobs === "object" ? raw.jobs : {},
     trade: raw.trade && typeof raw.trade === "object" ? raw.trade : {},
-    building: raw.building && typeof raw.building === "object" ? raw.building : {},
-    contracts: raw.contracts && typeof raw.contracts === "object" ? raw.contracts : {},
+    building:
+      raw.building && typeof raw.building === "object" ? raw.building : {},
+    contracts:
+      raw.contracts && typeof raw.contracts === "object" ? raw.contracts : {},
     ruins: raw.ruins && typeof raw.ruins === "object" ? raw.ruins : {},
-    underrealm: raw.underrealm && typeof raw.underrealm === "object" ? raw.underrealm : {},
-    externalCamps: raw.externalCamps && typeof raw.externalCamps === "object" ? raw.externalCamps : {},
+    underrealm:
+      raw.underrealm && typeof raw.underrealm === "object"
+        ? raw.underrealm
+        : {},
+    externalCamps:
+      raw.externalCamps && typeof raw.externalCamps === "object"
+        ? raw.externalCamps
+        : {},
     social: raw.social && typeof raw.social === "object" ? raw.social : {},
-    warriors: raw.warriors && typeof raw.warriors === "object" ? raw.warriors : {},
+    warriors:
+      raw.warriors && typeof raw.warriors === "object" ? raw.warriors : {},
   };
 }
 
 // Resolve the latest simulation decision trace with normalized safe defaults.
 function getDecisionTrace(state) {
-  const raw = state && state.lastDecisionTrace && typeof state.lastDecisionTrace === "object"
-    ? state.lastDecisionTrace
-    : {};
-  const governors = raw.governors && typeof raw.governors === "object"
-    ? raw.governors
-    : {};
+  const raw =
+    state &&
+    state.lastDecisionTrace &&
+    typeof state.lastDecisionTrace === "object"
+      ? state.lastDecisionTrace
+      : {};
+  const governors =
+    raw.governors && typeof raw.governors === "object" ? raw.governors : {};
   const shortages = Array.isArray(raw.shortages) ? raw.shortages : [];
-  const jobs = raw.jobs && typeof raw.jobs === "object"
-    ? raw.jobs
-    : {};
-  const context = raw.context && typeof raw.context === "object"
-    ? raw.context
-    : {};
+  const jobs = raw.jobs && typeof raw.jobs === "object" ? raw.jobs : {};
+  const context =
+    raw.context && typeof raw.context === "object" ? raw.context : {};
   const drivers = Array.isArray(raw.drivers) ? raw.drivers : [];
   return {
     tick: Math.max(0, Number(raw.tick || (state && state.tick) || 0)),
     governors: {
       jobsSource: governors.jobsSource === "action" ? "action" : "default",
       tradeSource: governors.tradeSource === "action" ? "action" : "default",
-      buildingSource: governors.buildingSource === "action" ? "action" : "default",
-      contractsSource: governors.contractsSource === "action" ? "action" : "default",
+      buildingSource:
+        governors.buildingSource === "action" ? "action" : "default",
+      contractsSource:
+        governors.contractsSource === "action" ? "action" : "default",
       ruinsSource: governors.ruinsSource === "action" ? "action" : "default",
-      underrealmSource: governors.underrealmSource === "action" ? "action" : "default",
-      externalCampsSource: governors.externalCampsSource === "action" ? "action" : "default",
+      underrealmSource:
+        governors.underrealmSource === "action" ? "action" : "default",
+      externalCampsSource:
+        governors.externalCampsSource === "action" ? "action" : "default",
       socialSource: governors.socialSource === "action" ? "action" : "default",
-      warriorsSource: governors.warriorsSource === "action" ? "action" : "default",
+      warriorsSource:
+        governors.warriorsSource === "action" ? "action" : "default",
       tradeReserveBias: Number(governors.tradeReserveBias || 0),
-      tradeContestIntent: clamp(Number(governors.tradeContestIntent || 0), 0, 1),
-      tradeOpportunityIntent: clamp(Number(governors.tradeOpportunityIntent || 0), 0, 1),
-      contractCommitIntent: clamp(Number(governors.contractCommitIntent || 0), 0, 1),
-      ruinsWarningDispatchIntent: clamp(Number(governors.ruinsWarningDispatchIntent || 0), 0, 1),
-      ruinsMithrilReinforcementIntent: clamp(Number(governors.ruinsMithrilReinforcementIntent || 0), 0, 1),
-      underrealmSurfaceReserveBias: clamp(Number(governors.underrealmSurfaceReserveBias || 0), -1, 1),
-      underrealmDepthAllocationBias: clamp(Number(governors.underrealmDepthAllocationBias || 0), -1, 1),
-      underrealmMinerMixBias: clamp(Number(governors.underrealmMinerMixBias || 0), -1, 1),
-      underrealmHaulerMixBias: clamp(Number(governors.underrealmHaulerMixBias || 0), -1, 1),
-      underrealmGuardMixBias: clamp(Number(governors.underrealmGuardMixBias || 0), -1, 1),
+      tradeContestIntent: clamp(
+        Number(governors.tradeContestIntent || 0),
+        0,
+        1,
+      ),
+      tradeOpportunityIntent: clamp(
+        Number(governors.tradeOpportunityIntent || 0),
+        0,
+        1,
+      ),
+      contractCommitIntent: clamp(
+        Number(governors.contractCommitIntent || 0),
+        0,
+        1,
+      ),
+      ruinsWarningDispatchIntent: clamp(
+        Number(governors.ruinsWarningDispatchIntent || 0),
+        0,
+        1,
+      ),
+      ruinsMithrilReinforcementIntent: clamp(
+        Number(governors.ruinsMithrilReinforcementIntent || 0),
+        0,
+        1,
+      ),
+      underrealmSurfaceReserveBias: clamp(
+        Number(governors.underrealmSurfaceReserveBias || 0),
+        -1,
+        1,
+      ),
+      underrealmDepthAllocationBias: clamp(
+        Number(governors.underrealmDepthAllocationBias || 0),
+        -1,
+        1,
+      ),
+      underrealmMinerMixBias: clamp(
+        Number(governors.underrealmMinerMixBias || 0),
+        -1,
+        1,
+      ),
+      underrealmHaulerMixBias: clamp(
+        Number(governors.underrealmHaulerMixBias || 0),
+        -1,
+        1,
+      ),
+      underrealmGuardMixBias: clamp(
+        Number(governors.underrealmGuardMixBias || 0),
+        -1,
+        1,
+      ),
       buildMineBias: Number(governors.buildMineBias || 0),
       buildUpgradeBias: Number(governors.buildUpgradeBias || 0),
-      militiaSupportIntent: clamp(Number(governors.militiaSupportIntent || 0), 0, 1),
-      raiderTributeIntent: clamp(Number(governors.raiderTributeIntent || 0), 0, 1),
-      socialMediationBias: clamp(Number(governors.socialMediationBias || 0), -1, 1),
-      socialMentorshipBias: clamp(Number(governors.socialMentorshipBias || 0), -1, 1),
-      socialAccountabilityBias: clamp(Number(governors.socialAccountabilityBias || 0), -1, 1),
-      warriorTrainingIntent: clamp(Number(governors.warriorTrainingIntent || 0), 0, 1),
-      warriorRotationIntent: clamp(Number(governors.warriorRotationIntent || 0), 0, 1),
-      warriorTournamentRiskIntent: clamp(Number(governors.warriorTournamentRiskIntent || 0), 0, 1),
-      warriorChampionChallengeIntent: clamp(Number(governors.warriorChampionChallengeIntent || 0), 0, 1),
-      warriorRecoveryPriorityIntent: clamp(Number(governors.warriorRecoveryPriorityIntent || 0), 0, 1),
-      warriorTrainingIntentThreshold: clamp(Number(governors.warriorTrainingIntentThreshold || 0.5), 0, 1),
-      warriorRotationIntentThreshold: clamp(Number(governors.warriorRotationIntentThreshold || 0.5), 0, 1),
+      militiaSupportIntent: clamp(
+        Number(governors.militiaSupportIntent || 0),
+        0,
+        1,
+      ),
+      raiderTributeIntent: clamp(
+        Number(governors.raiderTributeIntent || 0),
+        0,
+        1,
+      ),
+      socialMediationBias: clamp(
+        Number(governors.socialMediationBias || 0),
+        -1,
+        1,
+      ),
+      socialMentorshipBias: clamp(
+        Number(governors.socialMentorshipBias || 0),
+        -1,
+        1,
+      ),
+      socialAccountabilityBias: clamp(
+        Number(governors.socialAccountabilityBias || 0),
+        -1,
+        1,
+      ),
+      warriorTrainingIntent: clamp(
+        Number(governors.warriorTrainingIntent || 0),
+        0,
+        1,
+      ),
+      warriorRotationIntent: clamp(
+        Number(governors.warriorRotationIntent || 0),
+        0,
+        1,
+      ),
+      warriorTournamentRiskIntent: clamp(
+        Number(governors.warriorTournamentRiskIntent || 0),
+        0,
+        1,
+      ),
+      warriorChampionChallengeIntent: clamp(
+        Number(governors.warriorChampionChallengeIntent || 0),
+        0,
+        1,
+      ),
+      warriorRecoveryPriorityIntent: clamp(
+        Number(governors.warriorRecoveryPriorityIntent || 0),
+        0,
+        1,
+      ),
+      warriorTrainingIntentThreshold: clamp(
+        Number(governors.warriorTrainingIntentThreshold || 0.5),
+        0,
+        1,
+      ),
+      warriorRotationIntentThreshold: clamp(
+        Number(governors.warriorRotationIntentThreshold || 0.5),
+        0,
+        1,
+      ),
       warriorTournamentRiskIntentThreshold: clamp(
         Number(governors.warriorTournamentRiskIntentThreshold || 0.5),
         0,
@@ -1414,25 +1737,39 @@ function getDecisionTrace(state) {
       ),
       warriorTrainingApplied: governors.warriorTrainingApplied === true,
       warriorRotationApplied: governors.warriorRotationApplied === true,
-      warriorTournamentRiskApplied: governors.warriorTournamentRiskApplied === true,
-      warriorChampionChallengeApplied: governors.warriorChampionChallengeApplied === true,
-      warriorRecoveryPriorityApplied: governors.warriorRecoveryPriorityApplied === true,
-      warriorDominantIntent: typeof governors.warriorDominantIntent === "string" && governors.warriorDominantIntent
-        ? governors.warriorDominantIntent
-        : "-",
+      warriorTournamentRiskApplied:
+        governors.warriorTournamentRiskApplied === true,
+      warriorChampionChallengeApplied:
+        governors.warriorChampionChallengeApplied === true,
+      warriorRecoveryPriorityApplied:
+        governors.warriorRecoveryPriorityApplied === true,
+      warriorDominantIntent:
+        typeof governors.warriorDominantIntent === "string" &&
+        governors.warriorDominantIntent
+          ? governors.warriorDominantIntent
+          : "-",
       buildingClassOrder: Array.isArray(governors.buildingClassOrder)
-        ? governors.buildingClassOrder.slice(0, 3).map((entry) => String(entry || "")).filter(Boolean)
+        ? governors.buildingClassOrder
+            .slice(0, 3)
+            .map((entry) => String(entry || ""))
+            .filter(Boolean)
         : [],
     },
-    shortages: shortages.slice(0, 2).map((entry) => ({
-      resource: String(entry && entry.resource || ""),
-      score: Math.max(0, Number(entry && entry.score || 0)),
-      current: Math.max(0, Number(entry && entry.current || 0)),
-      target: Math.max(0, Number(entry && entry.target || 0)),
-      weight: Math.max(0, Number(entry && entry.weight || 0)),
-      boostApplied: entry && entry.boostApplied === true,
-      boostMultiplier: Math.max(1, Number(entry && entry.boostMultiplier || 1)),
-    })).filter((entry) => entry.resource.length > 0),
+    shortages: shortages
+      .slice(0, 2)
+      .map((entry) => ({
+        resource: String((entry && entry.resource) || ""),
+        score: Math.max(0, Number((entry && entry.score) || 0)),
+        current: Math.max(0, Number((entry && entry.current) || 0)),
+        target: Math.max(0, Number((entry && entry.target) || 0)),
+        weight: Math.max(0, Number((entry && entry.weight) || 0)),
+        boostApplied: entry && entry.boostApplied === true,
+        boostMultiplier: Math.max(
+          1,
+          Number((entry && entry.boostMultiplier) || 1),
+        ),
+      }))
+      .filter((entry) => entry.resource.length > 0),
     jobs: {
       total: Math.max(0, Math.floor(Number(jobs.total || 0))),
       byType: jobs.byType && typeof jobs.byType === "object" ? jobs.byType : {},
@@ -1444,59 +1781,133 @@ function getDecisionTrace(state) {
       worldEventActive: context.worldEventActive === true,
       worldEventLabel: String(context.worldEventLabel || ""),
       worldEventPhase: String(context.worldEventPhase || ""),
-      worldEventTicksLeft: Math.max(0, Number(context.worldEventTicksLeft || 0)),
+      worldEventTicksLeft: Math.max(
+        0,
+        Number(context.worldEventTicksLeft || 0),
+      ),
       festivalActive: context.festivalActive === true,
       contractActive: context.contractActive === true,
       socialCohesion: clamp(Number(context.socialCohesion || 0), 0, 1),
-      socialConflictPressure: clamp(Number(context.socialConflictPressure || 0), 0, 1),
-      socialMentorshipCoverage: clamp(Number(context.socialMentorshipCoverage || 0), 0, 1),
+      socialConflictPressure: clamp(
+        Number(context.socialConflictPressure || 0),
+        0,
+        1,
+      ),
+      socialMentorshipCoverage: clamp(
+        Number(context.socialMentorshipCoverage || 0),
+        0,
+        1,
+      ),
       socialGrudgeLoad: clamp(Number(context.socialGrudgeLoad || 0), 0, 1),
-      socialIncidentRecency: clamp(Number(context.socialIncidentRecency || 0), 0, 1),
+      socialIncidentRecency: clamp(
+        Number(context.socialIncidentRecency || 0),
+        0,
+        1,
+      ),
     },
     drivers: drivers.slice(0, 3).map((entry) => ({
-      kind: String(entry && entry.kind || ""),
-      label: String(entry && entry.label || ""),
-      key: String(entry && entry.key || ""),
-      score: Math.max(0, Number(entry && entry.score || 0)),
+      kind: String((entry && entry.kind) || ""),
+      label: String((entry && entry.label) || ""),
+      key: String((entry && entry.key) || ""),
+      score: Math.max(0, Number((entry && entry.score) || 0)),
     })),
   };
 }
 
 // Build explainability rows with driver, shortage, and governor context.
-function buildExplainabilitySectionRows(state, governorSignals, shortages, resourceLabels) {
+function buildExplainabilitySectionRows(
+  state,
+  governorSignals,
+  shortages,
+  resourceLabels,
+) {
   const trace = getDecisionTrace(state);
-  const currentGovernorSignals = governorSignals && typeof governorSignals === "object"
-    ? governorSignals
-    : getGovernorSignals(state);
-  const traceShortages = trace.shortages.length > 0
-    ? trace.shortages
-    : (Array.isArray(shortages) ? shortages.slice(0, 2).map((entry) => ({
-      resource: String(entry && entry.resource || ""),
-      score: Math.max(0, Number(entry && entry.score || 0)),
-      current: Math.max(0, Number(entry && entry.current || 0)),
-      target: Math.max(0, Number(entry && entry.target || 0)),
-      weight: Math.max(0, Number(entry && entry.weight || 0)),
-      boostApplied: entry && entry.boostApplied === true,
-      boostMultiplier: Math.max(1, Number(entry && entry.boostMultiplier || 1)),
-    })).filter((entry) => entry.resource.length > 0) : []);
+  const currentGovernorSignals =
+    governorSignals && typeof governorSignals === "object"
+      ? governorSignals
+      : getGovernorSignals(state);
+  const traceShortages =
+    trace.shortages.length > 0
+      ? trace.shortages
+      : Array.isArray(shortages)
+        ? shortages
+            .slice(0, 2)
+            .map((entry) => ({
+              resource: String((entry && entry.resource) || ""),
+              score: Math.max(0, Number((entry && entry.score) || 0)),
+              current: Math.max(0, Number((entry && entry.current) || 0)),
+              target: Math.max(0, Number((entry && entry.target) || 0)),
+              weight: Math.max(0, Number((entry && entry.weight) || 0)),
+              boostApplied: entry && entry.boostApplied === true,
+              boostMultiplier: Math.max(
+                1,
+                Number((entry && entry.boostMultiplier) || 1),
+              ),
+            }))
+            .filter((entry) => entry.resource.length > 0)
+        : [];
 
   const rows = [];
   rows.push(
     `Decision tick ${trace.tick}: jobs ${trace.governors.jobsSource}, trade ${trace.governors.tradeSource}, build ${trace.governors.buildingSource}, contracts ${trace.governors.contractsSource}, ruins ${trace.governors.ruinsSource}, underrealm ${trace.governors.underrealmSource}, camps ${trace.governors.externalCampsSource}, social ${trace.governors.socialSource}, warriors ${trace.governors.warriorsSource}`,
   );
   rows.push(formatExplainabilityDriversLine(trace.drivers, resourceLabels));
-  rows.push(formatExplainabilityShortageLine(traceShortages, 0, resourceLabels));
-  rows.push(formatExplainabilityShortageLine(traceShortages, 1, resourceLabels));
+  rows.push(
+    formatExplainabilityShortageLine(traceShortages, 0, resourceLabels),
+  );
+  rows.push(
+    formatExplainabilityShortageLine(traceShortages, 1, resourceLabels),
+  );
   rows.push(formatExplainabilityContextLine(trace.context));
   rows.push(formatExplainabilitySocialContextLine(trace.context));
-  rows.push(formatExplainabilityContractsLine(trace.governors, currentGovernorSignals.contracts));
-  rows.push(formatExplainabilityRuinsLine(trace.governors, currentGovernorSignals.ruins));
-  rows.push(formatExplainabilityUnderrealmLine(trace.governors, currentGovernorSignals.underrealm));
-  rows.push(formatExplainabilityExternalCampsLine(trace.governors, currentGovernorSignals.externalCamps));
-  rows.push(formatExplainabilitySocialLine(trace.governors, currentGovernorSignals.social));
-  rows.push(formatExplainabilityWarriorsLine(trace.governors, currentGovernorSignals.warriors));
-  rows.push(formatExplainabilityTradeLine(trace.governors, currentGovernorSignals.trade));
-  rows.push(formatExplainabilityBuildLine(trace.governors, currentGovernorSignals.building));
+  rows.push(
+    formatExplainabilityContractsLine(
+      trace.governors,
+      currentGovernorSignals.contracts,
+    ),
+  );
+  rows.push(
+    formatExplainabilityRuinsLine(
+      trace.governors,
+      currentGovernorSignals.ruins,
+    ),
+  );
+  rows.push(
+    formatExplainabilityUnderrealmLine(
+      trace.governors,
+      currentGovernorSignals.underrealm,
+    ),
+  );
+  rows.push(
+    formatExplainabilityExternalCampsLine(
+      trace.governors,
+      currentGovernorSignals.externalCamps,
+    ),
+  );
+  rows.push(
+    formatExplainabilitySocialLine(
+      trace.governors,
+      currentGovernorSignals.social,
+    ),
+  );
+  rows.push(
+    formatExplainabilityWarriorsLine(
+      trace.governors,
+      currentGovernorSignals.warriors,
+    ),
+  );
+  rows.push(
+    formatExplainabilityTradeLine(
+      trace.governors,
+      currentGovernorSignals.trade,
+    ),
+  );
+  rows.push(
+    formatExplainabilityBuildLine(
+      trace.governors,
+      currentGovernorSignals.building,
+    ),
+  );
   rows.push(formatExplainabilityWorkloadLine(trace.jobs));
   return rows;
 }
@@ -1507,18 +1918,20 @@ function formatExplainabilityDriversLine(drivers, resourceLabels) {
   if (ranked.length === 0) {
     return "Drivers: no dominant pressure detected";
   }
-  const parts = ranked.map((entry) => {
-    if (!entry || !entry.kind) {
-      return null;
-    }
-    if (entry.kind === "shortage") {
-      const label = String(entry.key || "").replace(/^shortage:/, "");
-      const readable = getTelemetryResourceLabel(label, resourceLabels);
-      return `${readable} ${Number(entry.score || 0).toFixed(2)}`;
-    }
-    const rawLabel = String(entry.label || entry.kind).trim();
-    return `${rawLabel} ${Number(entry.score || 0).toFixed(2)}`;
-  }).filter(Boolean);
+  const parts = ranked
+    .map((entry) => {
+      if (!entry || !entry.kind) {
+        return null;
+      }
+      if (entry.kind === "shortage") {
+        const label = String(entry.key || "").replace(/^shortage:/, "");
+        const readable = getTelemetryResourceLabel(label, resourceLabels);
+        return `${readable} ${Number(entry.score || 0).toFixed(2)}`;
+      }
+      const rawLabel = String(entry.label || entry.kind).trim();
+      return `${rawLabel} ${Number(entry.score || 0).toFixed(2)}`;
+    })
+    .filter(Boolean);
   if (parts.length === 0) {
     return "Drivers: no dominant pressure detected";
   }
@@ -1530,18 +1943,17 @@ function formatExplainabilityShortageLine(shortages, index, resourceLabels) {
   const list = Array.isArray(shortages) ? shortages : [];
   const shortage = list[index];
   if (!shortage || !shortage.resource) {
-    return index === 0
-      ? "Shortage #1: none"
-      : "Shortage #2: none";
+    return index === 0 ? "Shortage #1: none" : "Shortage #2: none";
   }
   const label = getTelemetryResourceLabel(shortage.resource, resourceLabels);
   const current = Math.max(0, Number(shortage.current || 0));
   const target = Math.max(0, Number(shortage.target || 0));
   const score = Math.max(0, Number(shortage.score || 0));
   const weight = Math.max(0, Number(shortage.weight || 0));
-  const boost = shortage.boostApplied === true
-    ? `, boost x${Math.max(1, Number(shortage.boostMultiplier || 1)).toFixed(2)}`
-    : "";
+  const boost =
+    shortage.boostApplied === true
+      ? `, boost x${Math.max(1, Number(shortage.boostMultiplier || 1)).toFixed(2)}`
+      : "";
   return `Shortage #${index + 1}: ${label} ${formatCompactNumber(current)}/${formatCompactNumber(target)} | score ${score.toFixed(2)} | w ${weight.toFixed(2)}${boost}`;
 }
 
@@ -1549,12 +1961,14 @@ function formatExplainabilityShortageLine(shortages, index, resourceLabels) {
 function formatExplainabilityContextLine(context) {
   const safeContext = context && typeof context === "object" ? context : {};
   const weather = String(safeContext.weather || "clear");
-  const raid = safeContext.raidActive === true
-    ? `raid active (${Math.max(0, Number(safeContext.raidTicksLeft || 0))}t)`
-    : "raid idle";
-  const worldEvent = safeContext.worldEventActive === true
-    ? `${String(safeContext.worldEventLabel || "event")} (${Math.max(0, Number(safeContext.worldEventTicksLeft || 0))}t)`
-    : "none";
+  const raid =
+    safeContext.raidActive === true
+      ? `raid active (${Math.max(0, Number(safeContext.raidTicksLeft || 0))}t)`
+      : "raid idle";
+  const worldEvent =
+    safeContext.worldEventActive === true
+      ? `${String(safeContext.worldEventLabel || "event")} (${Math.max(0, Number(safeContext.worldEventTicksLeft || 0))}t)`
+      : "none";
   const festival = safeContext.festivalActive === true ? "on" : "off";
   return `Context: weather ${weather}, ${raid}, event ${worldEvent}, festival ${festival}`;
 }
@@ -1562,12 +1976,28 @@ function formatExplainabilityContextLine(context) {
 // Format social context line for explainability.
 function formatExplainabilitySocialContextLine(context) {
   const safeContext = context && typeof context === "object" ? context : {};
-  const cohesion = Math.round(clamp(Number(safeContext.socialCohesion || 0), 0, 1) * 100);
-  const conflict = Math.round(clamp(Number(safeContext.socialConflictPressure || 0), 0, 1) * 100);
-  const mentorship = Math.round(clamp(Number(safeContext.socialMentorshipCoverage || 0), 0, 1) * 100);
-  const grudge = Math.round(clamp(Number(safeContext.socialGrudgeLoad || 0), 0, 1) * 100);
-  const incident = Math.round(clamp(Number(safeContext.socialIncidentRecency || 0), 0, 1) * 100);
-  if (conflict <= 0 && grudge <= 0 && incident <= 0 && mentorship <= 0 && cohesion <= 0) {
+  const cohesion = Math.round(
+    clamp(Number(safeContext.socialCohesion || 0), 0, 1) * 100,
+  );
+  const conflict = Math.round(
+    clamp(Number(safeContext.socialConflictPressure || 0), 0, 1) * 100,
+  );
+  const mentorship = Math.round(
+    clamp(Number(safeContext.socialMentorshipCoverage || 0), 0, 1) * 100,
+  );
+  const grudge = Math.round(
+    clamp(Number(safeContext.socialGrudgeLoad || 0), 0, 1) * 100,
+  );
+  const incident = Math.round(
+    clamp(Number(safeContext.socialIncidentRecency || 0), 0, 1) * 100,
+  );
+  if (
+    conflict <= 0 &&
+    grudge <= 0 &&
+    incident <= 0 &&
+    mentorship <= 0 &&
+    cohesion <= 0
+  ) {
     return "Social context: stable/offline";
   }
   return `Social context: cohesion ${cohesion}% | conflict ${conflict}% | mentorship ${mentorship}% | grudge ${grudge}% | incident recency ${incident}%`;
@@ -1575,11 +2005,20 @@ function formatExplainabilitySocialContextLine(context) {
 
 // Format trade-governor explainability line.
 function formatExplainabilityTradeLine(governors, tradeGovernor) {
-  const traceGovernors = governors && typeof governors === "object" ? governors : {};
+  const traceGovernors =
+    governors && typeof governors === "object" ? governors : {};
   const source = traceGovernors.tradeSource === "action" ? "action" : "default";
   const reserve = formatSignedGovernorValue(traceGovernors.tradeReserveBias);
-  const contest = clamp(Number(traceGovernors.tradeContestIntent || 0), 0, 1).toFixed(2);
-  const opportunity = clamp(Number(traceGovernors.tradeOpportunityIntent || 0), 0, 1).toFixed(2);
+  const contest = clamp(
+    Number(traceGovernors.tradeContestIntent || 0),
+    0,
+    1,
+  ).toFixed(2);
+  const opportunity = clamp(
+    Number(traceGovernors.tradeOpportunityIntent || 0),
+    0,
+    1,
+  ).toFixed(2);
   if (!tradeGovernor || tradeGovernor.enabled === false) {
     return `Trade explain (${source}): disabled`;
   }
@@ -1588,9 +2027,15 @@ function formatExplainabilityTradeLine(governors, tradeGovernor) {
 
 // Format contracts-governor explainability line.
 function formatExplainabilityContractsLine(governors, contractsGovernor) {
-  const traceGovernors = governors && typeof governors === "object" ? governors : {};
-  const source = traceGovernors.contractsSource === "action" ? "action" : "default";
-  const commit = clamp(Number(traceGovernors.contractCommitIntent || 0), 0, 1).toFixed(2);
+  const traceGovernors =
+    governors && typeof governors === "object" ? governors : {};
+  const source =
+    traceGovernors.contractsSource === "action" ? "action" : "default";
+  const commit = clamp(
+    Number(traceGovernors.contractCommitIntent || 0),
+    0,
+    1,
+  ).toFixed(2);
   if (!contractsGovernor || contractsGovernor.enabled === false) {
     return `Contracts explain (${source}): disabled`;
   }
@@ -1599,10 +2044,19 @@ function formatExplainabilityContractsLine(governors, contractsGovernor) {
 
 // Format ruins-governor explainability line.
 function formatExplainabilityRuinsLine(governors, ruinsGovernor) {
-  const traceGovernors = governors && typeof governors === "object" ? governors : {};
+  const traceGovernors =
+    governors && typeof governors === "object" ? governors : {};
   const source = traceGovernors.ruinsSource === "action" ? "action" : "default";
-  const warning = clamp(Number(traceGovernors.ruinsWarningDispatchIntent || 0), 0, 1).toFixed(2);
-  const mithril = clamp(Number(traceGovernors.ruinsMithrilReinforcementIntent || 0), 0, 1).toFixed(2);
+  const warning = clamp(
+    Number(traceGovernors.ruinsWarningDispatchIntent || 0),
+    0,
+    1,
+  ).toFixed(2);
+  const mithril = clamp(
+    Number(traceGovernors.ruinsMithrilReinforcementIntent || 0),
+    0,
+    1,
+  ).toFixed(2);
   if (!ruinsGovernor || ruinsGovernor.enabled === false) {
     return `Ruins explain (${source}): disabled`;
   }
@@ -1611,13 +2065,25 @@ function formatExplainabilityRuinsLine(governors, ruinsGovernor) {
 
 // Format underrealm-governor explainability line.
 function formatExplainabilityUnderrealmLine(governors, underrealmGovernor) {
-  const traceGovernors = governors && typeof governors === "object" ? governors : {};
-  const source = traceGovernors.underrealmSource === "action" ? "action" : "default";
-  const reserve = formatSignedGovernorValue(traceGovernors.underrealmSurfaceReserveBias);
-  const depth = formatSignedGovernorValue(traceGovernors.underrealmDepthAllocationBias);
-  const miner = formatSignedGovernorValue(traceGovernors.underrealmMinerMixBias);
-  const hauler = formatSignedGovernorValue(traceGovernors.underrealmHaulerMixBias);
-  const guard = formatSignedGovernorValue(traceGovernors.underrealmGuardMixBias);
+  const traceGovernors =
+    governors && typeof governors === "object" ? governors : {};
+  const source =
+    traceGovernors.underrealmSource === "action" ? "action" : "default";
+  const reserve = formatSignedGovernorValue(
+    traceGovernors.underrealmSurfaceReserveBias,
+  );
+  const depth = formatSignedGovernorValue(
+    traceGovernors.underrealmDepthAllocationBias,
+  );
+  const miner = formatSignedGovernorValue(
+    traceGovernors.underrealmMinerMixBias,
+  );
+  const hauler = formatSignedGovernorValue(
+    traceGovernors.underrealmHaulerMixBias,
+  );
+  const guard = formatSignedGovernorValue(
+    traceGovernors.underrealmGuardMixBias,
+  );
   if (!underrealmGovernor || underrealmGovernor.enabled === false) {
     return `Underrealm explain (${source}): disabled`;
   }
@@ -1625,11 +2091,24 @@ function formatExplainabilityUnderrealmLine(governors, underrealmGovernor) {
 }
 
 // Format external-camps-governor explainability line.
-function formatExplainabilityExternalCampsLine(governors, externalCampsGovernor) {
-  const traceGovernors = governors && typeof governors === "object" ? governors : {};
-  const source = traceGovernors.externalCampsSource === "action" ? "action" : "default";
-  const militia = clamp(Number(traceGovernors.militiaSupportIntent || 0), 0, 1).toFixed(2);
-  const raider = clamp(Number(traceGovernors.raiderTributeIntent || 0), 0, 1).toFixed(2);
+function formatExplainabilityExternalCampsLine(
+  governors,
+  externalCampsGovernor,
+) {
+  const traceGovernors =
+    governors && typeof governors === "object" ? governors : {};
+  const source =
+    traceGovernors.externalCampsSource === "action" ? "action" : "default";
+  const militia = clamp(
+    Number(traceGovernors.militiaSupportIntent || 0),
+    0,
+    1,
+  ).toFixed(2);
+  const raider = clamp(
+    Number(traceGovernors.raiderTributeIntent || 0),
+    0,
+    1,
+  ).toFixed(2);
   if (!externalCampsGovernor || externalCampsGovernor.enabled === false) {
     return `External camps explain (${source}): disabled`;
   }
@@ -1638,11 +2117,19 @@ function formatExplainabilityExternalCampsLine(governors, externalCampsGovernor)
 
 // Format social-governor explainability line.
 function formatExplainabilitySocialLine(governors, socialGovernor) {
-  const traceGovernors = governors && typeof governors === "object" ? governors : {};
-  const source = traceGovernors.socialSource === "action" ? "action" : "default";
-  const mediation = formatSignedGovernorValue(traceGovernors.socialMediationBias);
-  const mentorship = formatSignedGovernorValue(traceGovernors.socialMentorshipBias);
-  const accountability = formatSignedGovernorValue(traceGovernors.socialAccountabilityBias);
+  const traceGovernors =
+    governors && typeof governors === "object" ? governors : {};
+  const source =
+    traceGovernors.socialSource === "action" ? "action" : "default";
+  const mediation = formatSignedGovernorValue(
+    traceGovernors.socialMediationBias,
+  );
+  const mentorship = formatSignedGovernorValue(
+    traceGovernors.socialMentorshipBias,
+  );
+  const accountability = formatSignedGovernorValue(
+    traceGovernors.socialAccountabilityBias,
+  );
   if (!socialGovernor || socialGovernor.enabled === false) {
     return `Social explain (${source}): disabled`;
   }
@@ -1651,13 +2138,35 @@ function formatExplainabilitySocialLine(governors, socialGovernor) {
 
 // Format warriors-governor explainability line.
 function formatExplainabilityWarriorsLine(governors, warriorsGovernor) {
-  const traceGovernors = governors && typeof governors === "object" ? governors : {};
-  const source = traceGovernors.warriorsSource === "action" ? "action" : "default";
-  const training = clamp(Number(traceGovernors.warriorTrainingIntent || 0), 0, 1).toFixed(2);
-  const rotation = clamp(Number(traceGovernors.warriorRotationIntent || 0), 0, 1).toFixed(2);
-  const risk = clamp(Number(traceGovernors.warriorTournamentRiskIntent || 0), 0, 1).toFixed(2);
-  const challenge = clamp(Number(traceGovernors.warriorChampionChallengeIntent || 0), 0, 1).toFixed(2);
-  const recovery = clamp(Number(traceGovernors.warriorRecoveryPriorityIntent || 0), 0, 1).toFixed(2);
+  const traceGovernors =
+    governors && typeof governors === "object" ? governors : {};
+  const source =
+    traceGovernors.warriorsSource === "action" ? "action" : "default";
+  const training = clamp(
+    Number(traceGovernors.warriorTrainingIntent || 0),
+    0,
+    1,
+  ).toFixed(2);
+  const rotation = clamp(
+    Number(traceGovernors.warriorRotationIntent || 0),
+    0,
+    1,
+  ).toFixed(2);
+  const risk = clamp(
+    Number(traceGovernors.warriorTournamentRiskIntent || 0),
+    0,
+    1,
+  ).toFixed(2);
+  const challenge = clamp(
+    Number(traceGovernors.warriorChampionChallengeIntent || 0),
+    0,
+    1,
+  ).toFixed(2);
+  const recovery = clamp(
+    Number(traceGovernors.warriorRecoveryPriorityIntent || 0),
+    0,
+    1,
+  ).toFixed(2);
   const dominant = traceGovernors.warriorDominantIntent
     ? String(traceGovernors.warriorDominantIntent)
     : "-";
@@ -1669,8 +2178,10 @@ function formatExplainabilityWarriorsLine(governors, warriorsGovernor) {
 
 // Format building-governor explainability line.
 function formatExplainabilityBuildLine(governors, buildingGovernor) {
-  const traceGovernors = governors && typeof governors === "object" ? governors : {};
-  const source = traceGovernors.buildingSource === "action" ? "action" : "default";
+  const traceGovernors =
+    governors && typeof governors === "object" ? governors : {};
+  const source =
+    traceGovernors.buildingSource === "action" ? "action" : "default";
   if (!buildingGovernor || buildingGovernor.enabled === false) {
     return `Build explain (${source}): disabled`;
   }
@@ -1679,14 +2190,19 @@ function formatExplainabilityBuildLine(governors, buildingGovernor) {
     : "";
   const rank = classOrder || "-";
   const mineBias = formatSignedGovernorValue(traceGovernors.buildMineBias);
-  const upgradeBias = formatSignedGovernorValue(traceGovernors.buildUpgradeBias);
+  const upgradeBias = formatSignedGovernorValue(
+    traceGovernors.buildUpgradeBias,
+  );
   return `Build explain (${source}): ${rank}, mine ${mineBias}, upgrade ${upgradeBias}`;
 }
 
 // Format workload summary line using traced job counts.
 function formatExplainabilityWorkloadLine(jobs) {
   const safeJobs = jobs && typeof jobs === "object" ? jobs : {};
-  const byType = safeJobs.byType && typeof safeJobs.byType === "object" ? safeJobs.byType : {};
+  const byType =
+    safeJobs.byType && typeof safeJobs.byType === "object"
+      ? safeJobs.byType
+      : {};
   const total = Math.max(0, Number(safeJobs.total || 0));
   const topTypeEntries = Object.entries(byType)
     .map(([type, count]) => ({
@@ -1698,23 +2214,27 @@ function formatExplainabilityWorkloadLine(jobs) {
   if (topTypeEntries.length === 0) {
     return `Job load: ${total} active jobs`;
   }
-  const top = topTypeEntries.slice(0, 2).map((entry) => `${entry.type} ${entry.count}`).join(", ");
+  const top = topTypeEntries
+    .slice(0, 2)
+    .map((entry) => `${entry.type} ${entry.count}`)
+    .join(", ");
   return `Job load: ${total} active jobs | top ${top}`;
 }
 
 // Format one jobs-governor line from top weighted resources.
 function formatJobsGovernorLine(governor, resourceLabels) {
-  const source = governor && governor.source === "action" ? "action" : "default";
+  const source =
+    governor && governor.source === "action" ? "action" : "default";
   const top = governor && Array.isArray(governor.top) ? governor.top : [];
   const entries = top
     .slice(0, 2)
     .map((entry) => {
-      const resourceId = String(entry && entry.resource || "");
+      const resourceId = String((entry && entry.resource) || "");
       if (!resourceId) {
         return "";
       }
       const label = getTelemetryResourceLabel(resourceId, resourceLabels);
-      const weight = Number(entry && entry.weight || 0);
+      const weight = Number((entry && entry.weight) || 0);
       return `${label} x${weight.toFixed(2)}`;
     })
     .filter((value) => value.length > 0);
@@ -1732,7 +2252,11 @@ function formatTradeGovernorLine(governor) {
   const source = governor.source === "action" ? "action" : "default";
   const reserve = formatSignedGovernorValue(governor.reserveRatioBias);
   const contest = clamp(Number(governor.contestIntent || 0), 0, 1).toFixed(2);
-  const opportunity = clamp(Number(governor.opportunityIntent || 0), 0, 1).toFixed(2);
+  const opportunity = clamp(
+    Number(governor.opportunityIntent || 0),
+    0,
+    1,
+  ).toFixed(2);
   return `Trade governor (${source}): reserve ${reserve}, contest ${contest}, opp ${opportunity}`;
 }
 
@@ -1752,8 +2276,16 @@ function formatRuinsGovernorLine(governor) {
     return "Ruins governor: disabled";
   }
   const source = governor.source === "action" ? "action" : "default";
-  const warning = clamp(Number(governor.warningDispatchIntent || 0), 0, 1).toFixed(2);
-  const mithril = clamp(Number(governor.mithrilReinforcementIntent || 0), 0, 1).toFixed(2);
+  const warning = clamp(
+    Number(governor.warningDispatchIntent || 0),
+    0,
+    1,
+  ).toFixed(2);
+  const mithril = clamp(
+    Number(governor.mithrilReinforcementIntent || 0),
+    0,
+    1,
+  ).toFixed(2);
   return `Ruins governor (${source}): warning ${warning}, mithril ${mithril}`;
 }
 
@@ -1777,8 +2309,14 @@ function formatExternalCampsGovernorLine(governor) {
     return "External camps governor: disabled";
   }
   const source = governor.source === "action" ? "action" : "default";
-  const militia = clamp(Number(governor.militiaSupportIntent || 0), 0, 1).toFixed(2);
-  const raider = clamp(Number(governor.raiderTributeIntent || 0), 0, 1).toFixed(2);
+  const militia = clamp(
+    Number(governor.militiaSupportIntent || 0),
+    0,
+    1,
+  ).toFixed(2);
+  const raider = clamp(Number(governor.raiderTributeIntent || 0), 0, 1).toFixed(
+    2,
+  );
   return `External camps governor (${source}): militia ${militia}, raider ${raider}`;
 }
 
@@ -1802,10 +2340,22 @@ function formatWarriorsGovernorLine(governor) {
   const source = governor.source === "action" ? "action" : "default";
   const training = clamp(Number(governor.trainingIntent || 0), 0, 1).toFixed(2);
   const rotation = clamp(Number(governor.rotationIntent || 0), 0, 1).toFixed(2);
-  const risk = clamp(Number(governor.tournamentRiskIntent || 0), 0, 1).toFixed(2);
-  const challenge = clamp(Number(governor.championChallengeIntent || 0), 0, 1).toFixed(2);
-  const recovery = clamp(Number(governor.recoveryPriorityIntent || 0), 0, 1).toFixed(2);
-  const dominant = governor.dominantIntent ? String(governor.dominantIntent) : "-";
+  const risk = clamp(Number(governor.tournamentRiskIntent || 0), 0, 1).toFixed(
+    2,
+  );
+  const challenge = clamp(
+    Number(governor.championChallengeIntent || 0),
+    0,
+    1,
+  ).toFixed(2);
+  const recovery = clamp(
+    Number(governor.recoveryPriorityIntent || 0),
+    0,
+    1,
+  ).toFixed(2);
+  const dominant = governor.dominantIntent
+    ? String(governor.dominantIntent)
+    : "-";
   return `Warriors governor (${source}): trn ${training}, rot ${rotation}, risk ${risk}, chall ${challenge}, rec ${recovery}, dom ${dominant}`;
 }
 
@@ -1816,7 +2366,10 @@ function formatBuildingGovernorLine(governor) {
   }
   const source = governor.source === "action" ? "action" : "default";
   const classOrder = Array.isArray(governor.classOrder)
-    ? governor.classOrder.slice(0, 2).map((name) => String(name || "").trim()).filter(Boolean)
+    ? governor.classOrder
+        .slice(0, 2)
+        .map((name) => String(name || "").trim())
+        .filter(Boolean)
     : [];
   const rank = classOrder.length > 0 ? classOrder.join(">") : "-";
   const mineBias = formatSignedGovernorValue(governor.mineBias);
@@ -1854,15 +2407,15 @@ function formatMerchantFlowLine(prefix, amounts, resourceLabels) {
 
 // Format compact contract win/loss record.
 function formatContractRecordLine(stats) {
-  const wins = Math.max(0, Number(stats && stats.successes || 0));
-  const losses = Math.max(0, Number(stats && stats.failures || 0));
+  const wins = Math.max(0, Number((stats && stats.successes) || 0));
+  const losses = Math.max(0, Number((stats && stats.failures) || 0));
   return `Contract record: ${wins} successful, ${losses} failed`;
 }
 
 // Format contract success rate percentage.
 function formatContractWinRateLine(stats) {
-  const wins = Math.max(0, Number(stats && stats.successes || 0));
-  const losses = Math.max(0, Number(stats && stats.failures || 0));
+  const wins = Math.max(0, Number((stats && stats.successes) || 0));
+  const losses = Math.max(0, Number((stats && stats.failures) || 0));
   const total = wins + losses;
   if (total <= 0) {
     return "Contract success rate: -";
@@ -1888,7 +2441,10 @@ function formatWorldEventCadence(worldEventsState, tick) {
   if (!worldEventsState || typeof worldEventsState !== "object") {
     return "Next world event in: -";
   }
-  const nextSpawnTick = Math.max(0, Number(worldEventsState.nextSpawnTick || 0));
+  const nextSpawnTick = Math.max(
+    0,
+    Number(worldEventsState.nextSpawnTick || 0),
+  );
   const nowTick = Math.max(0, Number(tick || 0));
   const eta = Math.max(0, nextSpawnTick - nowTick);
   return `Next world event in: ${eta} ticks`;
@@ -1911,7 +2467,9 @@ function formatWorldEventLiveLine(status, worldEventsState, tick) {
 
 // Build a stable stockpile display order from config + runtime state.
 function getStockpileDisplayOrder(state, config) {
-  const configured = Object.keys((config.resources && config.resources.stockpile) || {});
+  const configured = Object.keys(
+    (config.resources && config.resources.stockpile) || {},
+  );
   const runtime = Object.keys((state && state.stockpile) || {});
   const seen = new Set();
   const order = [];
@@ -1927,7 +2485,13 @@ function getStockpileDisplayOrder(state, config) {
 }
 
 // Build stockpile telemetry entries with compact weapon/armor tier aggregation.
-function buildStockpileTelemetryEntries(state, config, targets, resourceLabels, stockBarMax) {
+function buildStockpileTelemetryEntries(
+  state,
+  config,
+  targets,
+  resourceLabels,
+  stockBarMax,
+) {
   const order = getStockpileDisplayOrder(state, config);
   const entries = [];
   const weaponTierIds = [];
@@ -1948,14 +2512,26 @@ function buildStockpileTelemetryEntries(state, config, targets, resourceLabels, 
       continue;
     }
     entries.push(
-      buildStockpileEntryForResource(state, config, targets, resourceLabels, stockBarMax, id),
+      buildStockpileEntryForResource(
+        state,
+        config,
+        targets,
+        resourceLabels,
+        stockBarMax,
+        id,
+      ),
     );
   }
 
   const compactEntries = [];
   if (weaponTierIds.length > 0) {
     compactEntries.push(
-      buildCompactEquipmentStockpileEntry(state, config, "weapon", weaponTierIds),
+      buildCompactEquipmentStockpileEntry(
+        state,
+        config,
+        "weapon",
+        weaponTierIds,
+      ),
     );
   }
   if (armorTierIds.length > 0) {
@@ -1964,7 +2540,8 @@ function buildStockpileTelemetryEntries(state, config, targets, resourceLabels, 
     );
   }
   if (compactEntries.length > 0) {
-    const insertAt = compactInsertIndex >= 0 ? compactInsertIndex : entries.length;
+    const insertAt =
+      compactInsertIndex >= 0 ? compactInsertIndex : entries.length;
     entries.splice(insertAt, 0, ...compactEntries);
   }
 
@@ -1972,12 +2549,20 @@ function buildStockpileTelemetryEntries(state, config, targets, resourceLabels, 
 }
 
 // Build one standard stockpile telemetry entry from a single resource id.
-function buildStockpileEntryForResource(state, config, targets, resourceLabels, stockBarMax, resourceId) {
-  const count = Number(state && state.stockpile && state.stockpile[resourceId] || 0);
+function buildStockpileEntryForResource(
+  state,
+  config,
+  targets,
+  resourceLabels,
+  stockBarMax,
+  resourceId,
+) {
+  const count = Number(
+    (state && state.stockpile && state.stockpile[resourceId]) || 0,
+  );
   const target = getStockpileTarget(state, config, resourceId, targets);
-  const maxValue = stockBarMax > 0
-    ? stockBarMax
-    : Math.max(1, target, Math.round(count));
+  const maxValue =
+    stockBarMax > 0 ? stockBarMax : Math.max(1, target, Math.round(count));
   const ratio = maxValue > 0 ? clamp(count / maxValue, 0, 1) : 0;
   const detail = formatCountDetail(count, maxValue);
   const label = getTelemetryResourceLabel(resourceId, resourceLabels);
@@ -2000,13 +2585,14 @@ function parseEquipmentTierResourceId(resourceId) {
 // Resolve one compact stockpile entry for all tiers of one equipment type.
 function buildCompactEquipmentStockpileEntry(state, config, type, resourceIds) {
   const normalizedType = String(type || "") === "armor" ? "armor" : "weapon";
-  const sorted = resourceIds
-    .slice()
-    .sort((left, right) => {
-      const leftTier = parseEquipmentTierResourceId(left);
-      const rightTier = parseEquipmentTierResourceId(right);
-      return Number(leftTier && leftTier.tier || 0) - Number(rightTier && rightTier.tier || 0);
-    });
+  const sorted = resourceIds.slice().sort((left, right) => {
+    const leftTier = parseEquipmentTierResourceId(left);
+    const rightTier = parseEquipmentTierResourceId(right);
+    return (
+      Number((leftTier && leftTier.tier) || 0) -
+      Number((rightTier && rightTier.tier) || 0)
+    );
+  });
 
   let totalCount = 0;
   let highestTierWithStock = 0;
@@ -2015,8 +2601,14 @@ function buildCompactEquipmentStockpileEntry(state, config, type, resourceIds) {
   let maxTier = 0;
   for (const id of sorted) {
     const tierInfo = parseEquipmentTierResourceId(id);
-    const tier = Math.max(1, Math.floor(Number(tierInfo && tierInfo.tier || 1)));
-    const count = Math.max(0, Number(state && state.stockpile && state.stockpile[id] || 0));
+    const tier = Math.max(
+      1,
+      Math.floor(Number((tierInfo && tierInfo.tier) || 1)),
+    );
+    const count = Math.max(
+      0,
+      Number((state && state.stockpile && state.stockpile[id]) || 0),
+    );
     totalCount += count;
     minTier = Math.min(minTier, tier);
     maxTier = Math.max(maxTier, tier);
@@ -2032,17 +2624,24 @@ function buildCompactEquipmentStockpileEntry(state, config, type, resourceIds) {
     maxTier = minTier;
   }
 
-  const target = resolveEquipmentTypeStockTarget(config, normalizedType, sorted);
+  const target = resolveEquipmentTypeStockTarget(
+    config,
+    normalizedType,
+    sorted,
+  );
   const maxValue = Math.max(1, Math.round(Math.max(target, totalCount)));
   const ratio = maxValue > 0 ? clamp(totalCount / maxValue, 0, 1) : 0;
   const detailParts = [formatCountDetail(totalCount, maxValue)];
   if (highestTierWithStock > 0) {
-    detailParts.push(`hiT${highestTierWithStock}:${formatCompactNumber(highestTierCount)}`);
+    detailParts.push(
+      `hiT${highestTierWithStock}:${formatCompactNumber(highestTierCount)}`,
+    );
   }
   return {
-    label: normalizedType === "weapon"
-      ? `Weapons T${minTier}-${maxTier}`
-      : `Armor T${minTier}-${maxTier}`,
+    label:
+      normalizedType === "weapon"
+        ? `Weapons T${minTier}-${maxTier}`
+        : `Armor T${minTier}-${maxTier}`,
     ratio,
     detail: detailParts.join(" "),
   };
@@ -2052,13 +2651,14 @@ function buildCompactEquipmentStockpileEntry(state, config, type, resourceIds) {
 function resolveEquipmentTypeStockTarget(config, type, resourceIds) {
   const armory = config && config.structures && config.structures.armory;
   const equipment = armory && armory.equipment;
-  const recipes = equipment && equipment.recipes && typeof equipment.recipes === "object"
-    ? equipment.recipes
-    : {};
+  const recipes =
+    equipment && equipment.recipes && typeof equipment.recipes === "object"
+      ? equipment.recipes
+      : {};
   let total = 0;
   for (const id of resourceIds) {
     const recipe = recipes[id];
-    const recipeType = String(recipe && recipe.type || "").trim();
+    const recipeType = String((recipe && recipe.type) || "").trim();
     if (recipeType !== type) {
       continue;
     }
@@ -2089,11 +2689,14 @@ function buildOperationsSectionRows(
   const toolsMax = tools
     ? Math.max(1, Math.round(Number(tools.maxLevel || 1)))
     : 0;
-  const stockWindow = getStockpileWindowDelta(
-    state,
-    200,
-    ["food", "water", "beer", "wood", "stone", "iron"],
-  );
+  const stockWindow = getStockpileWindowDelta(state, 200, [
+    "food",
+    "water",
+    "beer",
+    "wood",
+    "stone",
+    "iron",
+  ]);
   const delta = stockWindow.deltas || {};
   const windowLabel = `${stockWindow.dt}-tick window`;
   const templeActive = templeJob ? 1 : 0;
@@ -2103,7 +2706,9 @@ function buildOperationsSectionRows(
     `Active jobs by type: gathering ${jobCounts.gather}, crafting ${jobCounts.craft}, building ${jobCounts.build}, mining ${jobCounts.mine}`,
     `Operations queue: brewery ${jobCounts.brewery}, hunting ${jobCounts.hunt}, upgrades ${jobCounts.upgrade}, other ${jobCounts.other}`,
     `Build pipeline status: build jobs ${jobCounts.build}, upgrade jobs ${jobCounts.upgrade}, temple job active ${templeActive > 0 ? "yes" : "no"}`,
-    tools ? `Tool upgrades: level ${toolsLevel}/${toolsMax} | Active jobs total: ${jobs.length}` : `Tool upgrades: - | Active jobs total: ${jobs.length}`,
+    tools
+      ? `Tool upgrades: level ${toolsLevel}/${toolsMax} | Active jobs total: ${jobs.length}`
+      : `Tool upgrades: - | Active jobs total: ${jobs.length}`,
     `Stockpile trend (${windowLabel}) core: food ${formatSignedDelta(delta.food)}, water ${formatSignedDelta(delta.water)}, beer ${formatSignedDelta(delta.beer)}`,
     `Stockpile trend (${windowLabel}) build: wood ${formatSignedDelta(delta.wood)}, stone ${formatSignedDelta(delta.stone)}, iron ${formatSignedDelta(delta.iron)}`,
     formatShortageCompact(shortages, 0, state, config, resourceLabels),
@@ -2126,9 +2731,9 @@ function getWorkforceCounts(dwarves) {
       continue;
     }
     const underrealmDutyActive = Boolean(
-      dwarf.underrealmDuty
-      && dwarf.underrealmDuty.active !== false
-      && Number(dwarf.underrealmDuty.depth || 0) > 0,
+      dwarf.underrealmDuty &&
+      dwarf.underrealmDuty.active !== false &&
+      Number(dwarf.underrealmDuty.depth || 0) > 0,
     );
     if (underrealmDutyActive) {
       counts.under += 1;
@@ -2186,7 +2791,11 @@ function countJobTypes(jobs) {
       counts.hunt += 1;
       continue;
     }
-    if (type === "upgrade" || type === "upgrade_tools" || type === "upgrade_structure") {
+    if (
+      type === "upgrade" ||
+      type === "upgrade_tools" ||
+      type === "upgrade_structure"
+    ) {
       counts.upgrade += 1;
       continue;
     }
@@ -2197,11 +2806,13 @@ function countJobTypes(jobs) {
 
 // Compute stockpile deltas over a rolling window of ticks for telemetry observability.
 function getStockpileWindowDelta(state, windowTicks, resourceIds) {
-  const tick = Math.max(0, Number(state && state.tick || 0));
+  const tick = Math.max(0, Number((state && state.tick) || 0));
   const resources = Array.isArray(resourceIds) ? resourceIds : [];
   const snapshot = {};
   for (const id of resources) {
-    snapshot[id] = Number(state && state.stockpile && state.stockpile[id] || 0);
+    snapshot[id] = Number(
+      (state && state.stockpile && state.stockpile[id]) || 0,
+    );
   }
   if (!state || typeof state !== "object") {
     return { dt: 1, deltas: snapshot };
@@ -2263,7 +2874,7 @@ function formatShortageHeat(shortages) {
   }
   let total = 0;
   for (const shortage of list) {
-    total += Math.max(0, Number(shortage && shortage.score || 0));
+    total += Math.max(0, Number((shortage && shortage.score) || 0));
   }
   return total.toFixed(2);
 }
@@ -2272,15 +2883,36 @@ function formatShortageHeat(shortages) {
 function formatOpsLoadLine(jobCounts, totalJobs) {
   const counts = jobCounts && typeof jobCounts === "object" ? jobCounts : {};
   const total = Math.max(0, Number(totalJobs || 0));
-  const production = Math.max(0, Number(counts.gather || 0))
-    + Math.max(0, Number(counts.craft || 0))
-    + Math.max(0, Number(counts.mine || 0))
-    + Math.max(0, Number(counts.brewery || 0))
-    + Math.max(0, Number(counts.hunt || 0));
-  const infra = Math.max(0, Number(counts.build || 0))
-    + Math.max(0, Number(counts.upgrade || 0));
+  const production =
+    Math.max(0, Number(counts.gather || 0)) +
+    Math.max(0, Number(counts.craft || 0)) +
+    Math.max(0, Number(counts.mine || 0)) +
+    Math.max(0, Number(counts.brewery || 0)) +
+    Math.max(0, Number(counts.hunt || 0));
+  const infra =
+    Math.max(0, Number(counts.build || 0)) +
+    Math.max(0, Number(counts.upgrade || 0));
   const other = Math.max(0, total - production - infra);
   return `Workload split: production ${production}, infrastructure ${infra}, other ${other}`;
+}
+
+// Format active social-state counts in one compact population row.
+function formatSocialDramaOverview(status) {
+  if (!status || status.enabled === false) {
+    return "Social drama: off";
+  }
+  return `Social drama: friends ${status.friendships}, rivals ${status.rivalries}, grudges ${status.grudges}, mentors ${status.mentorships}`;
+}
+
+// Format the latest social incident or a quiet-state fallback.
+function formatSocialDramaIncident(status) {
+  if (!status || status.enabled === false) {
+    return "Social incident: -";
+  }
+  if (status.latestIncident) {
+    return `Social incident: ${status.latestIncident}`;
+  }
+  return `Social incident: quiet (heat ${Math.round(Number(status.heat || 0) * 100)}%)`;
 }
 
 // Build a lore section with explicit myth and ruins summaries.
@@ -2294,15 +2926,18 @@ function buildLoreSectionRows(state, config, columnWidth, options = {}) {
   const maxActive = Math.max(0, Number(mythsConfig.maxActive || 0));
   const traditionsCount = Object.keys(myths.traditions || {}).length;
   const maxTraditions = Math.max(0, Number(mythsConfig.maxTraditions || 0));
-  const mythBonusParts = includeMyths && mythsConfig.enabled !== false
-    ? getMythBonusParts(state, config)
-    : [];
-  const activeNames = includeMyths && mythsConfig.enabled !== false
-    ? getLoreMythNames(myths.active, mythDefs)
-    : [];
-  const traditionNames = includeMyths && mythsConfig.enabled !== false
-    ? getLoreMythNames(myths.traditions, mythDefs)
-    : [];
+  const mythBonusParts =
+    includeMyths && mythsConfig.enabled !== false
+      ? getMythBonusParts(state, config)
+      : [];
+  const activeNames =
+    includeMyths && mythsConfig.enabled !== false
+      ? getLoreMythNames(myths.active, mythDefs)
+      : [];
+  const traditionNames =
+    includeMyths && mythsConfig.enabled !== false
+      ? getLoreMythNames(myths.traditions, mythDefs)
+      : [];
 
   const ruinsLines = includeRuins
     ? buildRuinsTelemetryLines(state, config, columnWidth)
@@ -2312,7 +2947,11 @@ function buildLoreSectionRows(state, config, columnWidth, options = {}) {
     "Ruins rooms explored",
   );
   const expeditionLine = compactLoreRuinsLine(
-    findLineByPrefix(ruinsLines, ["Expeditions:", "Expedition:"], "Expedition: -"),
+    findLineByPrefix(
+      ruinsLines,
+      ["Expeditions:", "Expedition:"],
+      "Expedition: -",
+    ),
     "Ruins expedition status",
   );
   const artifactsLine = compactLoreRuinsLine(
@@ -2404,7 +3043,9 @@ function buildRuinsTelemetryLines(state, config, columnWidth) {
 
   if (expeditions.length > 0) {
     if (repeatable) {
-      lines.push(`Expeditions: ${expeditions.length}/${maxConcurrentAfterClear} active`);
+      lines.push(
+        `Expeditions: ${expeditions.length}/${maxConcurrentAfterClear} active`,
+      );
       const maxLines = Math.min(expeditions.length, maxConcurrentAfterClear);
       for (let index = 0; index < maxLines; index += 1) {
         const expedition = expeditions[index];
@@ -2416,7 +3057,9 @@ function buildRuinsTelemetryLines(state, config, columnWidth) {
         const partySize = Array.isArray(expedition.dwarfIds)
           ? expedition.dwarfIds.length
           : 0;
-        lines.push(`Expedition ${index + 1}: room ${roomNumber}, ${ticks} ticks left, party size ${partySize}`);
+        lines.push(
+          `Expedition ${index + 1}: room ${roomNumber}, ${ticks} ticks left, party size ${partySize}`,
+        );
       }
     } else {
       const expedition = expeditions[0];
@@ -2428,10 +3071,14 @@ function buildRuinsTelemetryLines(state, config, columnWidth) {
       const partySize = Array.isArray(expedition.dwarfIds)
         ? expedition.dwarfIds.length
         : 0;
-      lines.push(`Expedition: room ${roomNumber}, ${ticks} ticks left, party size ${partySize}`);
+      lines.push(
+        `Expedition: room ${roomNumber}, ${ticks} ticks left, party size ${partySize}`,
+      );
     }
   } else if (!repeatable && Number(ruins.cooldown || 0) > 0) {
-    lines.push(`Expedition: cooldown ${Math.floor(Number(ruins.cooldown || 0))} ticks`);
+    lines.push(
+      `Expedition: cooldown ${Math.floor(Number(ruins.cooldown || 0))} ticks`,
+    );
   } else if (cleared >= rooms.length && allArtifacts) {
     lines.push("Expedition: complete");
   } else if (cleared >= rooms.length) {
@@ -2445,9 +3092,10 @@ function buildRuinsTelemetryLines(state, config, columnWidth) {
   const kitResource = expeditionConfig.kitResource || "expedition_kit";
   const kits = Number(state.stockpile[kitResource] || 0);
   lines.push(`Expedition kits in stock: ${formatCompactNumber(kits)}`);
-  const readinessGate = ruins.readinessGate && typeof ruins.readinessGate === "object"
-    ? ruins.readinessGate
-    : null;
+  const readinessGate =
+    ruins.readinessGate && typeof ruins.readinessGate === "object"
+      ? ruins.readinessGate
+      : null;
   if (readinessGate && Number(readinessGate.depth || 0) > 0) {
     lines.push(formatRuinsReadinessGateLine(readinessGate));
   }
@@ -2569,11 +3217,20 @@ function formatRuinsReadinessGateLine(readinessGate) {
   const status = String(readinessGate.status || "unknown");
   const score = Math.max(0, Number(readinessGate.score || 0)).toFixed(1);
   const minScore = Math.max(0, Number(readinessGate.minScore || 0)).toFixed(1);
-  const recommended = Math.max(minScore, Number(readinessGate.recommendedScore || 0)).toFixed(1);
+  const recommended = Math.max(
+    minScore,
+    Number(readinessGate.recommendedScore || 0),
+  ).toFixed(1);
   if (status === "blocked") {
     if (readinessGate.reason === "armory_level") {
-      const level = Math.max(0, Math.floor(Number(readinessGate.armoryLevel || 0)));
-      const required = Math.max(1, Math.floor(Number(readinessGate.minArmoryLevel || 1)));
+      const level = Math.max(
+        0,
+        Math.floor(Number(readinessGate.armoryLevel || 0)),
+      );
+      const required = Math.max(
+        1,
+        Math.floor(Number(readinessGate.minArmoryLevel || 1)),
+      );
       return `Readiness gate: D${depth} BLOCKED armory ${level}/${required}`;
     }
     if (readinessGate.reason === "warning_deep_guard") {
@@ -2584,13 +3241,19 @@ function formatRuinsReadinessGateLine(readinessGate) {
       return `Readiness gate: D${depth} BLOCKED deep guard ${score}/${threshold}`;
     }
     if (readinessGate.reason === "champion_cooldown") {
-      const cooldown = Math.max(0, Math.floor(Number(readinessGate.championCooldownTicks || 0)));
+      const cooldown = Math.max(
+        0,
+        Math.floor(Number(readinessGate.championCooldownTicks || 0)),
+      );
       return `Readiness gate: D${depth} BLOCKED champion cd ${cooldown}t`;
     }
     return `Readiness gate: D${depth} BLOCKED score ${score}/${minScore}`;
   }
   if (status === "warning") {
-    const risk = Math.max(1, Number(readinessGate.warningRiskMultiplier || 1)).toFixed(2);
+    const risk = Math.max(
+      1,
+      Number(readinessGate.warningRiskMultiplier || 1),
+    ).toFixed(2);
     return `Readiness gate: D${depth} warning score ${score}/${recommended} risk x${risk}`;
   }
   return `Readiness gate: D${depth} ready score ${score}/${recommended}`;
@@ -2598,20 +3261,30 @@ function formatRuinsReadinessGateLine(readinessGate) {
 
 // Resolve compact Underrealm readiness counter snapshot from combat stats.
 function getRuinsReadinessCounterSnapshot(state) {
-  const stats = state
-    && state.underrealm
-    && state.underrealm.combat
-    && state.underrealm.combat.stats
-    && typeof state.underrealm.combat.stats === "object"
-    ? state.underrealm.combat.stats
-    : null;
+  const stats =
+    state &&
+    state.underrealm &&
+    state.underrealm.combat &&
+    state.underrealm.combat.stats &&
+    typeof state.underrealm.combat.stats === "object"
+      ? state.underrealm.combat.stats
+      : null;
   if (!stats) {
     return null;
   }
   return {
-    hardGuardBlocks: Math.max(0, Math.floor(Number(stats.hardGuardBlocks || 0))),
-    warningDispatches: Math.max(0, Math.floor(Number(stats.warningDispatches || 0))),
-    cooldownEscalations: Math.max(0, Math.floor(Number(stats.cooldownEscalations || 0))),
+    hardGuardBlocks: Math.max(
+      0,
+      Math.floor(Number(stats.hardGuardBlocks || 0)),
+    ),
+    warningDispatches: Math.max(
+      0,
+      Math.floor(Number(stats.warningDispatches || 0)),
+    ),
+    cooldownEscalations: Math.max(
+      0,
+      Math.floor(Number(stats.cooldownEscalations || 0)),
+    ),
     hardGuardBlocksByDepth: stats.hardGuardBlocksByDepth || {},
     warningDispatchesByDepth: stats.warningDispatchesByDepth || {},
     cooldownEscalationsByDepth: stats.cooldownEscalationsByDepth || {},
@@ -2620,13 +3293,17 @@ function getRuinsReadinessCounterSnapshot(state) {
 
 // Render one compact per-depth counter map (`D<depth>:<count>`).
 function formatRuinsDepthCounterMap(counterMap, maxEntries = 3) {
-  const entries = Object.entries(counterMap && typeof counterMap === "object" ? counterMap : {})
+  const entries = Object.entries(
+    counterMap && typeof counterMap === "object" ? counterMap : {},
+  )
     .map(([depthRaw, countRaw]) => ({
       depth: Math.max(1, Math.floor(Number(depthRaw || 0))),
       count: Math.max(0, Math.floor(Number(countRaw || 0))),
     }))
     .filter((entry) => entry.depth > 0 && entry.count > 0)
-    .sort((left, right) => (right.count - left.count) || (left.depth - right.depth));
+    .sort(
+      (left, right) => right.count - left.count || left.depth - right.depth,
+    );
   if (entries.length === 0) {
     return "-";
   }
@@ -2642,9 +3319,10 @@ function buildRuinsReadinessCounterLines(state, columnWidth) {
   if (!snapshot) {
     return [];
   }
-  const hasAny = snapshot.hardGuardBlocks > 0
-    || snapshot.warningDispatches > 0
-    || snapshot.cooldownEscalations > 0;
+  const hasAny =
+    snapshot.hardGuardBlocks > 0 ||
+    snapshot.warningDispatches > 0 ||
+    snapshot.cooldownEscalations > 0;
   if (!hasAny) {
     return [];
   }
@@ -2663,9 +3341,10 @@ function buildRuinsReadinessCounterLines(state, columnWidth) {
 // Resolve one Underrealm combat floor snapshot by depth.
 function getUnderrealmCombatFloor(underrealm, depth) {
   const combat = underrealm && underrealm.combat;
-  const floors = combat && combat.floorsByDepth && typeof combat.floorsByDepth === "object"
-    ? combat.floorsByDepth
-    : null;
+  const floors =
+    combat && combat.floorsByDepth && typeof combat.floorsByDepth === "object"
+      ? combat.floorsByDepth
+      : null;
   if (!floors) {
     return null;
   }
@@ -2676,9 +3355,10 @@ function getUnderrealmCombatFloor(underrealm, depth) {
 // Resolve dwarf-champion runtime metadata from Underrealm combat state.
 function getUnderrealmDwarfChampionRuntime(underrealm) {
   const combat = underrealm && underrealm.combat;
-  const runtime = combat && combat.dwarfChampion && typeof combat.dwarfChampion === "object"
-    ? combat.dwarfChampion
-    : null;
+  const runtime =
+    combat && combat.dwarfChampion && typeof combat.dwarfChampion === "object"
+      ? combat.dwarfChampion
+      : null;
   if (!runtime || runtime.enabled === false) {
     return null;
   }
@@ -2691,22 +3371,33 @@ function formatUnderrealmDwarfChampionToken(state, underrealm) {
   if (!runtime) {
     return "Hero off";
   }
-  const dwarfId = typeof runtime.activeDwarfId === "string" ? runtime.activeDwarfId : "";
+  const dwarfId =
+    typeof runtime.activeDwarfId === "string" ? runtime.activeDwarfId : "";
   if (!dwarfId) {
     return "Hero none";
   }
   const dwarf = Array.isArray(state && state.dwarves)
-    ? state.dwarves.find((entry) => String(entry && entry.id || "") === dwarfId)
+    ? state.dwarves.find(
+        (entry) => String((entry && entry.id) || "") === dwarfId,
+      )
     : null;
   if (!dwarf) {
     return "Hero none";
   }
-  const survivals = Math.max(0, Math.floor(Number(dwarf.underrealmChampionSurvivals || 0)));
+  const survivals = Math.max(
+    0,
+    Math.floor(Number(dwarf.underrealmChampionSurvivals || 0)),
+  );
   return `Hero ${dwarfId} S${survivals}`;
 }
 
 // Build a compact progression status line for the current frontier depth.
-function formatUnderrealmProgressionLine(underrealm, frontierLayer, maxUnlockedDepth, maxDepth) {
+function formatUnderrealmProgressionLine(
+  underrealm,
+  frontierLayer,
+  maxUnlockedDepth,
+  maxDepth,
+) {
   if (maxDepth <= 0) {
     return "Depth progression: unavailable";
   }
@@ -2721,30 +3412,39 @@ function formatUnderrealmProgressionLine(underrealm, frontierLayer, maxUnlockedD
   if (lift && lift.active === true) {
     const totalTicks = Math.max(1, Number(lift.totalTicks || 1));
     const remainingTicks = Math.max(0, Number(lift.ticksRemaining || 0));
-    const pct = Math.max(0, Math.min(100, Math.round((1 - remainingTicks / totalTicks) * 100)));
+    const pct = Math.max(
+      0,
+      Math.min(100, Math.round((1 - remainingTicks / totalTicks) * 100)),
+    );
     return `Depth progression: lift D${lift.fromDepth}->D${lift.targetDepth} ${pct}%`;
   }
 
   const frontierFloor = getUnderrealmCombatFloor(underrealm, maxUnlockedDepth);
   const championRequired = Boolean(
-    frontierFloor
-    && frontierFloor.unlock
-    && frontierFloor.unlock.required === true
-    && frontierFloor.champion
-    && frontierFloor.champion.enabled !== false,
+    frontierFloor &&
+    frontierFloor.unlock &&
+    frontierFloor.unlock.required === true &&
+    frontierFloor.champion &&
+    frontierFloor.champion.enabled !== false,
   );
   const championCleared = Boolean(
-    frontierFloor
-    && frontierFloor.unlock
-    && frontierFloor.unlock.cleared === true,
+    frontierFloor &&
+    frontierFloor.unlock &&
+    frontierFloor.unlock.cleared === true,
   );
   if (championRequired && !championCleared) {
     return `Depth progression: D${maxUnlockedDepth + 1} locked by champion`;
   }
 
   if (frontierLayer && frontierLayer.economy) {
-    const progress = Math.max(0, Number(frontierLayer.economy.explorationProgress || 0));
-    const target = Math.max(0, Number(frontierLayer.economy.explorationTarget || 0));
+    const progress = Math.max(
+      0,
+      Number(frontierLayer.economy.explorationProgress || 0),
+    );
+    const target = Math.max(
+      0,
+      Number(frontierLayer.economy.explorationTarget || 0),
+    );
     if (target > 0) {
       const pct = Math.min(100, Math.round((progress / target) * 100));
       return `Depth progression: D${maxUnlockedDepth} survey ${pct}%`;
@@ -2769,23 +3469,27 @@ function formatUnderrealmChampionGateLine(state, underrealm, frontierDepth) {
     return `Champion gate: D${frontierDepth} missing | ${heroToken}`;
   }
   const championRequired = Boolean(
-    floor.unlock
-    && floor.unlock.required === true
-    && floor.champion
-    && floor.champion.enabled !== false,
+    floor.unlock &&
+    floor.unlock.required === true &&
+    floor.champion &&
+    floor.champion.enabled !== false,
   );
   if (!championRequired) {
     return `Champion gate: D${frontierDepth} bypassed | ${heroToken}`;
   }
 
-  const encounter = floor.encounter && typeof floor.encounter === "object"
-    ? floor.encounter
-    : {};
+  const encounter =
+    floor.encounter && typeof floor.encounter === "object"
+      ? floor.encounter
+      : {};
   const attempts = Math.max(0, Math.floor(Number(encounter.attempts || 0)));
   const wins = Math.max(0, Math.floor(Number(encounter.victories || 0)));
   const defeats = Math.max(0, Math.floor(Number(encounter.defeats || 0)));
   const retreats = Math.max(0, Math.floor(Number(encounter.retreats || 0)));
-  const cooldown = Math.max(0, Math.floor(Number(encounter.cooldownTicksRemaining || 0)));
+  const cooldown = Math.max(
+    0,
+    Math.floor(Number(encounter.cooldownTicksRemaining || 0)),
+  );
   const cleared = floor.unlock && floor.unlock.cleared === true;
   const stateLabel = cleared ? "cleared" : String(floor.state || "accessible");
 
@@ -2810,11 +3514,11 @@ function formatUnderrealmReadinessFallbackLine(underrealm, frontierDepth) {
   }
   const minScore = Math.max(
     0,
-    Number(floor.readiness && floor.readiness.minScore || 0),
+    Number((floor.readiness && floor.readiness.minScore) || 0),
   ).toFixed(1);
   const recommendedValue = Math.max(
     Number(minScore),
-    Number(floor.readiness && floor.readiness.recommendedScore || minScore),
+    Number((floor.readiness && floor.readiness.recommendedScore) || minScore),
   );
   const recommended = Number.isFinite(recommendedValue)
     ? recommendedValue.toFixed(1)
@@ -2824,19 +3528,25 @@ function formatUnderrealmReadinessFallbackLine(underrealm, frontierDepth) {
 }
 
 // Build a compact pressure line from ward/oath status and deep hostile activity.
-function formatUnderrealmPressureLine(underrealm, activeDepth, activeRaidCount) {
+function formatUnderrealmPressureLine(
+  underrealm,
+  activeDepth,
+  activeRaidCount,
+) {
   const parts = [];
   if (activeDepth > 0 && underrealm && underrealm.shrines) {
     const depthKey = String(activeDepth);
     const charges = Math.max(
       0,
       Number(
-        underrealm.shrines.wardChargesByDepth
-        && underrealm.shrines.wardChargesByDepth[depthKey],
+        underrealm.shrines.wardChargesByDepth &&
+          underrealm.shrines.wardChargesByDepth[depthKey],
       ),
     );
     parts.push(`ward ${Math.floor(charges)}`);
-    const oath = underrealm.shrines.oathByDepth && underrealm.shrines.oathByDepth[depthKey];
+    const oath =
+      underrealm.shrines.oathByDepth &&
+      underrealm.shrines.oathByDepth[depthKey];
     if (oath && Number(oath.activeTicks || 0) > 0) {
       parts.push(`oath active ${Math.floor(Number(oath.activeTicks || 0))}t`);
     } else if (oath && Number(oath.penaltyTicks || 0) > 0) {
@@ -2845,7 +3555,9 @@ function formatUnderrealmPressureLine(underrealm, activeDepth, activeRaidCount) 
       parts.push("oath idle");
     }
   }
-  parts.push(`threats ${Math.max(0, Math.floor(Number(activeRaidCount || 0)))}`);
+  parts.push(
+    `threats ${Math.max(0, Math.floor(Number(activeRaidCount || 0)))}`,
+  );
   return `Underrealm pressure: ${parts.join(" | ")}`;
 }
 
@@ -2868,29 +3580,54 @@ function getUnderrealmTelemetryLines(state) {
   );
   const lines = [];
   if (activeDepth <= 0) {
-    lines.push(`Realm: Surface view (unlocked depths ${maxUnlockedDepth}/${maxDepth})`);
+    lines.push(
+      `Realm: Surface view (unlocked depths ${maxUnlockedDepth}/${maxDepth})`,
+    );
   } else {
-    lines.push(`Realm: Underrealm depth ${activeDepth} (unlocked depths ${maxUnlockedDepth}/${maxDepth})`);
+    lines.push(
+      `Realm: Underrealm depth ${activeDepth} (unlocked depths ${maxUnlockedDepth}/${maxDepth})`,
+    );
   }
   const frontierDepth = clamp(maxUnlockedDepth, 0, maxDepth);
   const layers = Array.isArray(underrealm.layers) ? underrealm.layers : [];
-  const frontierLayer = layers.find((layer) => Number(layer && layer.depth) === frontierDepth);
+  const frontierLayer = layers.find(
+    (layer) => Number(layer && layer.depth) === frontierDepth,
+  );
   const discovery = underrealm.discovery || null;
-  if (maxUnlockedDepth <= 0 && discovery && discovery.enabled !== false && discovery.found !== true) {
-    const threshold = Math.max(1, Math.floor(Number(discovery.populationThreshold || 1)));
-    const nowPopulation = Array.isArray(state.dwarves) ? state.dwarves.length : 0;
+  if (
+    maxUnlockedDepth <= 0 &&
+    discovery &&
+    discovery.enabled !== false &&
+    discovery.found !== true
+  ) {
+    const threshold = Math.max(
+      1,
+      Math.floor(Number(discovery.populationThreshold || 1)),
+    );
+    const nowPopulation = Array.isArray(state.dwarves)
+      ? state.dwarves.length
+      : 0;
     const timerStartedTick = discovery.timerStartedTick;
-    const hasTimerStarted = typeof timerStartedTick === 'number'
-      && Number.isFinite(timerStartedTick);
+    const hasTimerStarted =
+      typeof timerStartedTick === "number" && Number.isFinite(timerStartedTick);
     if (!hasTimerStarted) {
-      lines.push(`Hidden gate: waiting for population ${nowPopulation}/${threshold}`);
+      lines.push(
+        `Hidden gate: waiting for population ${nowPopulation}/${threshold}`,
+      );
     } else {
-      const targetTick = Math.max(0, Math.floor(Number(discovery.targetTick || 0)));
+      const targetTick = Math.max(
+        0,
+        Math.floor(Number(discovery.targetTick || 0)),
+      );
       const eta = Math.max(0, targetTick - Math.floor(Number(state.tick || 0)));
       lines.push(`Hidden gate search time: ${eta} ticks remaining`);
     }
-  } else if (discovery && discovery.enabled !== false && discovery.found === true) {
-    lines.push('Hidden gate: discovered');
+  } else if (
+    discovery &&
+    discovery.enabled !== false &&
+    discovery.found === true
+  ) {
+    lines.push("Hidden gate: discovered");
   }
   lines.push(
     formatUnderrealmProgressionLine(
@@ -2900,14 +3637,18 @@ function getUnderrealmTelemetryLines(state) {
       maxDepth,
     ),
   );
-  lines.push(formatUnderrealmChampionGateLine(state, underrealm, frontierDepth));
+  lines.push(
+    formatUnderrealmChampionGateLine(state, underrealm, frontierDepth),
+  );
 
-  const activeLayer = layers.find((layer) => Number(layer && layer.depth) === activeDepth);
+  const activeLayer = layers.find(
+    (layer) => Number(layer && layer.depth) === activeDepth,
+  );
   if (activeLayer) {
     lines.push(
-      `Strata: ${activeLayer.width}x${activeLayer.height}`
-      + ` | difficulty ${formatMultiplierPercent(activeLayer.difficultyMultiplier)}`
-      + ` | rare drops ${formatMultiplierPercent(activeLayer.rareDropMultiplier)}`,
+      `Strata: ${activeLayer.width}x${activeLayer.height}` +
+        ` | difficulty ${formatMultiplierPercent(activeLayer.difficultyMultiplier)}` +
+        ` | rare drops ${formatMultiplierPercent(activeLayer.rareDropMultiplier)}`,
     );
     if (activeLayer.economy && Array.isArray(activeLayer.economy.nodes)) {
       const nodes = activeLayer.economy.nodes;
@@ -2919,12 +3660,26 @@ function getUnderrealmTelemetryLines(state) {
       }
       if (capacity > 0) {
         const pct = Math.round((remaining / capacity) * 100);
-        lines.push(`Depth stock reserves: ${pct}% (${formatCompactNumber(remaining)}/${formatCompactNumber(capacity)})`);
+        lines.push(
+          `Depth stock reserves: ${pct}% (${formatCompactNumber(remaining)}/${formatCompactNumber(capacity)})`,
+        );
       }
-      const progress = Math.max(0, Number(activeLayer.economy.explorationProgress || 0));
-      const target = Math.max(0, Number(activeLayer.economy.explorationTarget || 0));
-      if (target > 0 && activeDepth === maxUnlockedDepth && maxUnlockedDepth < maxDepth) {
-        lines.push(`Depth survey progress: ${Math.min(100, Math.round(progress / target * 100))}%`);
+      const progress = Math.max(
+        0,
+        Number(activeLayer.economy.explorationProgress || 0),
+      );
+      const target = Math.max(
+        0,
+        Number(activeLayer.economy.explorationTarget || 0),
+      );
+      if (
+        target > 0 &&
+        activeDepth === maxUnlockedDepth &&
+        maxUnlockedDepth < maxDepth
+      ) {
+        lines.push(
+          `Depth survey progress: ${Math.min(100, Math.round((progress / target) * 100))}%`,
+        );
       }
     }
   }
@@ -2932,9 +3687,9 @@ function getUnderrealmTelemetryLines(state) {
   if (crew && crew.enabled !== false) {
     const roles = crew.roles || {};
     lines.push(
-      `Delver role ratios: M${Math.round(clamp(Number(roles.minerRatio || 0), 0, 1) * 100)}%`
-      + ` H${Math.round(clamp(Number(roles.haulerRatio || 0), 0, 1) * 100)}%`
-      + ` G${Math.round(clamp(Number(roles.guardRatio || 0), 0, 1) * 100)}%`,
+      `Delver role ratios: M${Math.round(clamp(Number(roles.minerRatio || 0), 0, 1) * 100)}%` +
+        ` H${Math.round(clamp(Number(roles.haulerRatio || 0), 0, 1) * 100)}%` +
+        ` G${Math.round(clamp(Number(roles.guardRatio || 0), 0, 1) * 100)}%`,
     );
     const assignedByDepth = crew.assignedByDepth || {};
     let assignedTotal = 0;
@@ -2942,27 +3697,35 @@ function getUnderrealmTelemetryLines(state) {
       assignedTotal += Math.max(0, Number(count || 0));
     }
     const surfaceAdults = Math.max(0, Number(crew.surfaceAdults || 0));
-    lines.push(`Assigned delvers: ${assignedTotal} | Surface adults: ${surfaceAdults}`);
+    lines.push(
+      `Assigned delvers: ${assignedTotal} | Surface adults: ${surfaceAdults}`,
+    );
   }
   const deepFaction = underrealm.deepFaction || null;
   let activeRaidCount = 0;
   if (deepFaction && deepFaction.activeRaidsByDepth) {
-    const activeRaids = Object.values(deepFaction.activeRaidsByDepth)
-      .filter((raid) => raid && Number(raid.ticksRemaining || 0) > 0);
+    const activeRaids = Object.values(deepFaction.activeRaidsByDepth).filter(
+      (raid) => raid && Number(raid.ticksRemaining || 0) > 0,
+    );
     activeRaidCount = activeRaids.length;
   }
-  lines.push(formatUnderrealmPressureLine(underrealm, activeDepth, activeRaidCount));
+  lines.push(
+    formatUnderrealmPressureLine(underrealm, activeDepth, activeRaidCount),
+  );
 
-  const ruinsGate = state
-    && state.ruins
-    && state.ruins.readinessGate
-    && typeof state.ruins.readinessGate === "object"
-    ? state.ruins.readinessGate
-    : null;
+  const ruinsGate =
+    state &&
+    state.ruins &&
+    state.ruins.readinessGate &&
+    typeof state.ruins.readinessGate === "object"
+      ? state.ruins.readinessGate
+      : null;
   if (ruinsGate && Number(ruinsGate.depth || 0) > 0) {
     lines.push(formatRuinsReadinessGateLine(ruinsGate));
   } else {
-    lines.push(formatUnderrealmReadinessFallbackLine(underrealm, frontierDepth));
+    lines.push(
+      formatUnderrealmReadinessFallbackLine(underrealm, frontierDepth),
+    );
   }
   return lines;
 }
@@ -3098,7 +3861,10 @@ function formatLastEvent(events) {
 function buildWorldLogRows(events, width, maxLines = 3) {
   const safeWidth = Math.max(1, Number(width || 1));
   const rows = Math.max(1, Math.floor(Number(maxLines || 1)));
-  const wrapped = wrapLine(`Latest world log: ${formatLastEvent(events)}`, safeWidth);
+  const wrapped = wrapLine(
+    `Latest world log: ${formatLastEvent(events)}`,
+    safeWidth,
+  );
   const lines = wrapped.slice(0, rows);
   if (wrapped.length > rows) {
     const lastIndex = rows - 1;
@@ -3153,9 +3919,18 @@ function formatExternalCampStatus(status) {
   if (!status) {
     return "External camps: off";
   }
-  const trade = Math.max(0, Number(status.byRole && status.byRole.trade || 0));
-  const militia = Math.max(0, Number(status.byRole && status.byRole.militia || 0));
-  const raider = Math.max(0, Number(status.byRole && status.byRole.raider || 0));
+  const trade = Math.max(
+    0,
+    Number((status.byRole && status.byRole.trade) || 0),
+  );
+  const militia = Math.max(
+    0,
+    Number((status.byRole && status.byRole.militia) || 0),
+  );
+  const raider = Math.max(
+    0,
+    Number((status.byRole && status.byRole.raider) || 0),
+  );
   const caravans = status.caravans || {};
   const caravanActive = Math.max(0, Number(caravans.active || 0));
   const inbound = Math.max(0, Number(caravans.toVillage || 0));
@@ -3564,9 +4339,10 @@ function formatTempleStageStatus(templeState, stage, maxStage) {
   if (maxStage <= 0 || !templeState || templeState.enabled === false) {
     return "Temple status: disabled";
   }
-  const doctrinePath = templeState && templeState.doctrinePath
-    ? ` | path ${String(templeState.doctrinePath)}`
-    : "";
+  const doctrinePath =
+    templeState && templeState.doctrinePath
+      ? ` | path ${String(templeState.doctrinePath)}`
+      : "";
   if (!templeState.site) {
     return `Temple status: stage ${stage}/${maxStage} (site scan in progress)${doctrinePath}`;
   }
@@ -3584,13 +4360,24 @@ function formatTempleProgressStatus(templeJob, config) {
   if (!templeJob) {
     return "";
   }
-  const templeConfig = (config.structures && config.structures.temple_of_ancestors) || {};
+  const templeConfig =
+    (config.structures && config.structures.temple_of_ancestors) || {};
   const stages = Array.isArray(templeConfig.stages) ? templeConfig.stages : [];
-  const stageIndex = Math.max(0, Math.floor(Number(templeJob.templeStage || 1)) - 1);
+  const stageIndex = Math.max(
+    0,
+    Math.floor(Number(templeJob.templeStage || 1)) - 1,
+  );
   const stageConfig = stages[stageIndex] || {};
   const totalTicks = Math.max(
     1,
-    Math.floor(Number(templeJob.totalWork || stageConfig.buildTicks || templeJob.workRemaining || 1)),
+    Math.floor(
+      Number(
+        templeJob.totalWork ||
+          stageConfig.buildTicks ||
+          templeJob.workRemaining ||
+          1,
+      ),
+    ),
   );
   const remainingTicks = clamp(
     Math.floor(Number(templeJob.workRemaining || 0)),
@@ -3598,9 +4385,10 @@ function formatTempleProgressStatus(templeJob, config) {
     totalTicks,
   );
   const progress = clamp((totalTicks - remainingTicks) / totalTicks, 0, 1);
-  const path = templeJob && templeJob.templeDoctrinePath
-    ? ` | ${String(templeJob.templeDoctrinePath)}`
-    : "";
+  const path =
+    templeJob && templeJob.templeDoctrinePath
+      ? ` | ${String(templeJob.templeDoctrinePath)}`
+      : "";
   return `Temple construction progress: ${Math.round(progress * 100)}%${path}`;
 }
 

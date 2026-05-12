@@ -1,0 +1,267 @@
+{
+  "meta": {
+    "ticks": 3000,
+    "seeds": [
+      101,
+      202,
+      303,
+      404
+    ],
+    "configPath": "/Users/gladiak/ProgettiLavoro/nodeDwarves/config.json",
+    "configHash": "619598a2315b57c594203e260dd896b739c1c55d0a41057ed2777843aac07dab",
+    "resources": [
+      "beer",
+      "food",
+      "water"
+    ],
+    "width": 120,
+    "height": 40,
+    "generatedAt": "2026-03-16T22:02:41.355Z"
+  },
+  "variants": [
+    {
+      "label": "c_bias_safe",
+      "assignments": [
+        {
+          "path": "schism.decrees.definitions.granary_compact.weight",
+          "value": 1.22
+        },
+        {
+          "path": "schism.decrees.definitions.hearth_festivity.weight",
+          "value": 1.15
+        },
+        {
+          "path": "schism.decrees.definitions.frontier_levy.weight",
+          "value": 0.74
+        },
+        {
+          "path": "schism.decrees.definitions.deep_claims.weight",
+          "value": 0.72
+        },
+        {
+          "path": "schism.decrees.definitions.forge_quota.weight",
+          "value": 0.76
+        },
+        {
+          "path": "schism.decrees.definitions.frontier_levy.context.raid_required",
+          "value": true
+        },
+        {
+          "path": "schism.decrees.definitions.deep_claims.context.deep_raid_required",
+          "value": true
+        },
+        {
+          "path": "schism.decrees.definitions.forge_quota.context.stock_floor_min",
+          "value": 0.7
+        }
+      ],
+      "rows": [
+        {
+          "seed": 101,
+          "tick": 3000,
+          "population": 265,
+          "morale": 0.8844184003915166,
+          "beerBoost": 0.016240000000000022,
+          "hunger": 0.14373268690677365,
+          "thirst": 0.11492450060887767,
+          "underrealmDepth": 1,
+          "underrealmChampions": 0,
+          "underrealmFailedExpeditions": 0,
+          "underrealmBlockedDispatches": 2,
+          "underrealmFrontierContested": 1,
+          "underrealmReadinessScore": 0.5290697674418605,
+          "underrealmHeroPromotions": 1,
+          "underrealmHeroLosses": 0,
+          "underrealmHeroActive": 1,
+          "underrealmHeroSurvivals": 0,
+          "schismDecreeIssued": 7,
+          "schismDecreeActiveTicks": 1400,
+          "schismDecreeById": {
+            "granary_compact": 4,
+            "forge_quota": 2,
+            "hearth_festivity": 1
+          },
+          "schismDecreeActiveTicksById": {
+            "granary_compact": 800,
+            "forge_quota": 400,
+            "hearth_festivity": 200
+          },
+          "resources": {
+            "beer": 8698.737235511371,
+            "food": 403.14919953950937,
+            "water": 382.52655046834207
+          }
+        },
+        {
+          "seed": 202,
+          "tick": 3000,
+          "population": 266,
+          "morale": 0.877339466952405,
+          "beerBoost": 0.017363909774436095,
+          "hunger": 0.1591847152094169,
+          "thirst": 0.1141161459140348,
+          "underrealmDepth": 1,
+          "underrealmChampions": 0,
+          "underrealmFailedExpeditions": 0,
+          "underrealmBlockedDispatches": 2,
+          "underrealmFrontierContested": 1,
+          "underrealmReadinessScore": 0.5290697674418605,
+          "underrealmHeroPromotions": 1,
+          "underrealmHeroLosses": 0,
+          "underrealmHeroActive": 1,
+          "underrealmHeroSurvivals": 0,
+          "schismDecreeIssued": 6,
+          "schismDecreeActiveTicks": 1200,
+          "schismDecreeById": {
+            "granary_compact": 3,
+            "forge_quota": 2,
+            "hearth_festivity": 1
+          },
+          "schismDecreeActiveTicksById": {
+            "granary_compact": 600,
+            "forge_quota": 400,
+            "hearth_festivity": 200
+          },
+          "resources": {
+            "beer": 7748.415184287987,
+            "food": 367.6802542244976,
+            "water": 418.38939668741125
+          }
+        },
+        {
+          "seed": 303,
+          "tick": 3000,
+          "population": 163,
+          "morale": 0.8785473153123181,
+          "beerBoost": 0.0210711656441718,
+          "hunger": 0.16350780888932556,
+          "thirst": 0.11526042773237792,
+          "underrealmDepth": 1,
+          "underrealmChampions": 0,
+          "underrealmFailedExpeditions": 0,
+          "underrealmBlockedDispatches": 2,
+          "underrealmFrontierContested": 1,
+          "underrealmReadinessScore": 0.5222180967639999,
+          "underrealmHeroPromotions": 1,
+          "underrealmHeroLosses": 0,
+          "underrealmHeroActive": 1,
+          "underrealmHeroSurvivals": 0,
+          "schismDecreeIssued": 1,
+          "schismDecreeActiveTicks": 200,
+          "schismDecreeById": {
+            "granary_compact": 1
+          },
+          "schismDecreeActiveTicksById": {
+            "granary_compact": 200
+          },
+          "resources": {
+            "beer": 8918.317728735557,
+            "food": 261.1583694870131,
+            "water": 266.70067837923506
+          }
+        },
+        {
+          "seed": 404,
+          "tick": 3000,
+          "population": 295,
+          "morale": 0.8804895936404294,
+          "beerBoost": 0.01819593220338986,
+          "hunger": 0.158677468608051,
+          "thirst": 0.11162087413749966,
+          "underrealmDepth": 1,
+          "underrealmChampions": 0,
+          "underrealmFailedExpeditions": 0,
+          "underrealmBlockedDispatches": 2,
+          "underrealmFrontierContested": 1,
+          "underrealmReadinessScore": 0.4977008332279069,
+          "underrealmHeroPromotions": 3,
+          "underrealmHeroLosses": 0,
+          "underrealmHeroActive": 1,
+          "underrealmHeroSurvivals": 0,
+          "schismDecreeIssued": 6,
+          "schismDecreeActiveTicks": 1200,
+          "schismDecreeById": {
+            "granary_compact": 4,
+            "forge_quota": 1,
+            "hearth_festivity": 1
+          },
+          "schismDecreeActiveTicksById": {
+            "granary_compact": 800,
+            "forge_quota": 200,
+            "hearth_festivity": 200
+          },
+          "resources": {
+            "beer": 7800.501735390829,
+            "food": 375.17923000081845,
+            "water": 464.9587179328698
+          }
+        }
+      ],
+      "summary": {
+        "population": 247.25,
+        "morale": 0.8801986940741673,
+        "beerBoost": 0.018217751905499444,
+        "hunger": 0.15627566990339178,
+        "thirst": 0.11398048709819751,
+        "underrealmDepth": 1,
+        "underrealmChampions": 0,
+        "underrealmFailedExpeditions": 0,
+        "underrealmBlockedDispatches": 2,
+        "underrealmFrontierContested": 1,
+        "underrealmReadinessScore": 0.519514616218907,
+        "underrealmHeroPromotions": 1.5,
+        "underrealmHeroLosses": 0,
+        "underrealmHeroActive": 1,
+        "underrealmHeroSurvivals": 0,
+        "schismDecrees": {
+          "issuedTotal": 20,
+          "issuedPerSeedAvg": 5,
+          "activeTicksTotal": 4000,
+          "activeTicksPerSeedAvg": 1000,
+          "byId": {
+            "granary_compact": 12,
+            "forge_quota": 5,
+            "hearth_festivity": 3
+          },
+          "byIdShare": {
+            "granary_compact": 0.6,
+            "forge_quota": 0.25,
+            "hearth_festivity": 0.15
+          },
+          "activeTicksById": {
+            "granary_compact": 2400,
+            "forge_quota": 1000,
+            "hearth_festivity": 600
+          },
+          "activeTicksByIdShare": {
+            "granary_compact": 0.6,
+            "forge_quota": 0.25,
+            "hearth_festivity": 0.15
+          }
+        },
+        "resources": {
+          "beer": 8291.492970981435,
+          "food": 351.79176331295963,
+          "water": 383.14383586696454
+        }
+      }
+    }
+  ],
+  "deltas": [],
+  "comparisons": [],
+  "seedDeltas": [],
+  "gate": {
+    "enabled": false,
+    "thresholds": {
+      "minScore": -2,
+      "maxPopulationDrop": 0.08,
+      "maxMoraleDrop": 0.05,
+      "maxHungerRise": 0.1,
+      "maxThirstRise": 0.1,
+      "maxResourceDrop": 0.12
+    },
+    "results": [],
+    "failed": [],
+    "allPassed": true
+  }
+}

@@ -234,6 +234,7 @@ How it works (under the hood):
 - Produces:
   - per-variant per-seed end-state rows,
   - per-variant averages,
+  - per-variant schism decree telemetry (`issued` totals, per-decree shares, active-tick shares),
   - summary deltas vs baseline,
   - seed-by-seed deltas,
   - a compact comparison score (`higher is better`),
@@ -300,9 +301,10 @@ npm run bench:candidate -- --set path=value
 npm run bench:diff
 ```
 
-- `bench:baseline` writes `regression/baselines/headless_benchmark_baseline.json|.md`.
+- `bench:baseline` writes `benchmark_cache/headless_benchmark_baseline.json|.md` (versioned cache in project root).
 - `bench:candidate` writes `debug/headless_benchmark_candidate.json|.md`.
-- `bench:diff` compares the two saved reports (no baseline rerun) and writes `debug/headless_benchmark_diff.json|.md`.
+- `bench:diff` first runs baseline cache guard (`scripts/ensure_benchmark_baseline.js`) and refreshes the cached baseline automatically when profile metadata mismatches (config hash/ticks/seeds/resources/layout), then compares cached baseline vs candidate and writes `debug/headless_benchmark_diff.json|.md`.
+- `bench:ensure-baseline` is available for explicit baseline cache refresh checks before long tuning sessions.
 - `bench:underrealm:hot` writes `debug/underrealm_stress_hot.json|.md` using fixed hot seeds (`303,404 @ 12000`).
 - `bench:underrealm:full` writes `debug/underrealm_stress_full.json|.md` using fixed full set (`101,202,303,404 @ 8000`).
 - Underrealm stress scripts use symmetric scenario overrides on both variants (`schism=false`, `festivals=true`, doctrine path disabled) and pin legacy underrealm guard/cooldown knobs only on `baseline` so `candidate` reflects active tuned defaults.
@@ -444,17 +446,17 @@ Notes:
 
 ### Core state builder 🧱
 
-  - `src/state/index.js`
-  - `createInitialState(config, runtime)` builds the authoritative world state:
-    - `dwarves`, `nodes`, `structures`, `merchant`, `worldEvents`, `externalCamps`, `weather`, `raid`, `tools`, etc.
-    - `temple` and `prestige` meta-state for Temple of Ancestors progression.
-    - `underrealm` depth metadata (active depth, unlocked depths, full-size layer terrains), plus deep economy/faction runtime.
-    - `stockpile` initialized from `config.resources.stockpile`.
-    - Initial stockpiles (and optional node counts) can scale with map size via `resources.mapScale`
-      using effective playable map area as a baseline (grid area minus carved inset when enabled).
-    - Counters and stats used by AI, raids, ruins, myths, alchemy, and endgame cycles.
-    - Decision observability snapshots: `lastGovernorSignals`, `lastPriorities`, `lastDecisionTrace` (used by telemetry explainability rows).
-  - `fitStateToGrid(...)` repositions entities after resize and keeps everything in-bounds (used when `display.resize.reflow_world=true`).
+- `src/state/index.js`
+- `createInitialState(config, runtime)` builds the authoritative world state:
+  - `dwarves`, `nodes`, `structures`, `merchant`, `worldEvents`, `externalCamps`, `weather`, `raid`, `tools`, etc.
+  - `temple` and `prestige` meta-state for Temple of Ancestors progression.
+  - `underrealm` depth metadata (active depth, unlocked depths, full-size layer terrains), plus deep economy/faction runtime.
+  - `stockpile` initialized from `config.resources.stockpile`.
+  - Initial stockpiles (and optional node counts) can scale with map size via `resources.mapScale`
+    using effective playable map area as a baseline (grid area minus carved inset when enabled).
+  - Counters and stats used by AI, raids, ruins, myths, alchemy, and endgame cycles.
+  - Decision observability snapshots: `lastGovernorSignals`, `lastPriorities`, `lastDecisionTrace` (used by telemetry explainability rows).
+- `fitStateToGrid(...)` repositions entities after resize and keeps everything in-bounds (used when `display.resize.reflow_world=true`).
 
 ### Terrain generation 🗺️
 
@@ -822,6 +824,7 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - Doctrine affects economy via `schism.modifiers.doctrine.*`, and scales festival costs/effects (`schism.festival.*`).
 - Seasonal council decrees:
   - During the configured seasonal window (`schism.decrees.*`), council evaluates decree candidates and enacts exactly one from the top policy slate (`options_count`, default `3`).
+  - Default issuance gates are benchmark-tuned for long-run stability: `min_legitimacy=0.28`, `max_pressure=0.82`.
   - Candidate scoring combines base weight, doctrine affinity, contextual pressure/legitimacy/shortage/raid gates, and anti-repeat decay (`schism.decrees.repeat_protection.*`).
   - Decrees apply timed global multipliers through `effects.*` (merged into schism modifiers), optional up-front stockpile costs, and immediate narrative deltas (`deltas.pressure`, `deltas.legitimacy`).
   - Runtime keeps explicit decree lifecycle state (`state.schism.decree`) plus bounded history (`state.schism.decreeHistory`) for observability and repeat protection.
@@ -1154,7 +1157,7 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - AI observation exports normalized Underrealm combat/progression signals for PPO (`depth/champion/readiness/pressure` bundle).
   - Trainer summary line now includes `under=...` and `deaths_by_cause=...` diagnostics, so randomized regression can ingest `under_*` rollout metrics plus cause-split death metrics (`death_*`).
   - `scripts/regression.js` randomized suite reports now include both `under_*` and `death_*` rows when summary diagnostics are available.
-  - `scripts/headless_benchmark.js` now includes compact Underrealm KPIs (`underDepth`, `underChamp`, `underFail`, `underBlocked`, `underContested`, `underReady`) in summaries, comparisons, and seed deltas.
+  - `scripts/headless_benchmark.js` now includes compact Underrealm KPIs (`underDepth`, `underChamp`, `underFail`, `underBlocked`, `underContested`, `underReady`) in summaries, comparisons, and seed deltas, plus schism decree usage telemetry (`issued`, per-decree share, active-tick share) in table/JSON/Markdown reports.
 - Underrealm M8 safe Dwarf Champion integration:
   - Adds one optional runtime slot (`underrealm.combat.dwarf_champion`) for a unique active hero.
   - Promotion is deterministic and has two entry paths:
@@ -2041,6 +2044,7 @@ Quick checklist:
     - `simulation/alchemy.js` → alchemy rite lifecycle and modifiers
     - `simulation/contracts.js` → contract offers, reputations, and boons
     - `simulation/world_events.js` → global event lifecycle and temporary world modifiers
+    - `simulation/social_drama.js` → bounded dwarf social ties, passive mood effects, emergent incidents, and social cleanup/status helpers
   - `simulation/external_camps.js` → long-lived external faction camps and map-level diplomacy pressure
   - `simulation/schism.js` → run-scale social schism arc, doctrine shifts, ritual windows, and climax events
   - `simulation/social_drama.js` → social-drama runtime for friendship/rivalry/mentorship/grudge inference and aggregate cohesion/conflict metrics
@@ -2065,9 +2069,12 @@ Quick checklist:
 - `scripts/clean_debug.js` → deterministic debug cleanup (transient artifacts + keep latest `run_*` history)
 - `scripts/test_training_contracts.js` → deterministic technical test suite for policy shape and report-schema contracts (`npm test`)
 - `regression/baselines/regression_baseline.json` → durable profile baselines used by regression checks
+- `benchmark_cache/headless_benchmark_baseline.json` → versioned cached headless benchmark baseline for report-to-report diffs
+- `benchmark_cache/headless_benchmark_baseline.md` → markdown companion of cached headless benchmark baseline
 - `scripts/export_map.js` → map export pipeline (PNG + SVG)
-- `scripts/headless_benchmark.js` → deterministic long-run headless benchmark with comparative score, seed deltas, and optional gate checks
-- `scripts/compare_benchmark_reports.js` → report-to-report benchmark diff utility for cached baseline/candidate comparisons
+- `scripts/headless_benchmark.js` → deterministic long-run headless benchmark with comparative score, seed deltas, schism decree telemetry, and optional gate checks
+- `scripts/ensure_benchmark_baseline.js` → auto-refresh guard for cached headless benchmark baseline metadata coherence
+- `scripts/compare_benchmark_reports.js` → report-to-report benchmark diff utility for cached baseline/candidate comparisons, including schism decree usage deltas
 - `python/train.py` → PPO trainer and best-checkpoint updates
 - `python/promote_best.py` → post-train promotion check (latest vs best)
 - `python/regression_rollout.py` → randomized regression rollouts without PPO updates/checkpoint writes

@@ -5,6 +5,7 @@ const { fitLine, wrapLine } = require('./format');
 const { applyColor } = require('./colors');
 const { getClanLabel, getClanEffects } = require('../clans');
 const { buildDwarfLore, capitalize, describeMorale, resolveRoleLabel } = require('../dwarf_lore');
+const { ensureDwarfSocialState } = require('../simulation/social_drama');
 
 const SECTION_RUNES = {
   PROFILE: 'ᚦ',
@@ -12,6 +13,7 @@ const SECTION_RUNES = {
   STATS: 'ᚱ',
   CLAN: 'ᚲ',
   CHARACTER: 'ᛉ',
+  SOCIAL: 'ᛖ',
   LEGACY: 'ᛞ',
 };
 
@@ -121,6 +123,7 @@ function buildInspectLines(dwarf, index, total, state, config, width, height) {
       `Taboo: ${capitalize(lore.taboo)}`,
       `Mark: ${capitalize(lore.mark)}`,
     ]);
+    pushSection(content, 'SOCIAL', width, buildSocialSectionLines(dwarf, state, config));
 
     const legacyLines = [];
     if (lore.oath) {
@@ -158,6 +161,33 @@ function buildInspectLines(dwarf, index, total, state, config, width, height) {
     text: fitLine(entry.text, width),
     colorKey: entry.colorKey || null,
   }));
+}
+
+// Build inspect rows for the current dwarf's strongest social ties.
+function buildSocialSectionLines(dwarf, state, config) {
+  const social = ensureDwarfSocialState(dwarf);
+  const summary = social.summary || {};
+  return [
+    formatSocialLinkLine('Friend', summary.friendId, summary.friendScore, state, config),
+    formatSocialLinkLine('Rival', summary.rivalId, summary.rivalScore, state, config),
+    formatSocialLinkLine('Grudge', summary.grudgeId, summary.grudgeScore, state, config),
+    formatSocialLinkLine('Mentor', summary.mentorId, summary.mentorScore, state, config),
+    formatSocialLinkLine('Protege', summary.protegeId, summary.protegeScore, state, config),
+    `Incidents seen: ${Math.max(0, Number(social.incidentCount || 0))}`,
+  ];
+}
+
+// Format one social tie line with dwarf name, id, and current score.
+function formatSocialLinkLine(label, targetId, score, state, config) {
+  const id = targetId ? String(targetId) : '';
+  if (!id) {
+    return `${label}: -`;
+  }
+  const dwarves = Array.isArray(state && state.dwarves) ? state.dwarves : [];
+  const target = dwarves.find((entry) => entry && entry.id === id) || null;
+  const lore = target ? buildDwarfLore(target, state, config) : null;
+  const name = lore && lore.name ? String(lore.name) : id;
+  return `${label}: ${name} <${id}> (${Number(score || 0).toFixed(1)})`;
 }
 
 // Push a single line into the buffer.

@@ -949,8 +949,8 @@ Schism arc:
 - `schism.decrees.season_names[]`: seasons where decree windows are eligible.
 - `schism.decrees.window_ticks`: ticks-from-season-start where decree selection is allowed.
 - `schism.decrees.options_count`: size of the policy slate (runtime enacts one decree from this top-N list).
-- `schism.decrees.min_legitimacy`: minimum legitimacy required to issue a decree in-window.
-- `schism.decrees.max_pressure`: maximum pressure allowed to issue a decree in-window.
+- `schism.decrees.min_legitimacy`: minimum legitimacy required to issue a decree in-window (default `0.28`).
+- `schism.decrees.max_pressure`: maximum pressure allowed to issue a decree in-window (default `0.82`).
 - `schism.decrees.allow_during_climax`: allow decree issuance while schism climax is active.
 - `schism.decrees.duration_mode`: decree duration mode (`season` or fixed ticks).
 - `schism.decrees.duration_ticks`: fallback fixed duration when decree mode is not seasonal.
@@ -1280,11 +1280,11 @@ Roads:
 - `roads.avoidTerrain`: terrain types treated as blocked for road pathfinding.
 - `roads.softAvoidTerrain`: terrain types avoided when possible; if no other route exists the path can traverse them.
 - `roads.waterTerrain`: terrain types rendered as bridges when a path must traverse them.
-- `roads.pathStyle.enabled`: enable weighted road pathfinding (A* with style costs).
+- `roads.pathStyle.enabled`: enable weighted road pathfinding (A\* with style costs).
 - `roads.pathStyle.profile`: road style profile (`pragmatic`, `scenic`) controlling baseline deviation behavior.
 - `roads.pathStyle.profile=pragmatic`: favors direct routes, lower detour tolerance, stricter long-link waypoint guardrails.
 - `roads.pathStyle.profile=scenic`: allows broader meanders, stronger noise/curvature, and more permissive long-link waypoints.
-- `roads.pathStyle.heuristicWeight`: A* heuristic multiplier (higher = more direct, lower = more exploratory).
+- `roads.pathStyle.heuristicWeight`: A\* heuristic multiplier (higher = more direct, lower = more exploratory).
 - `roads.pathStyle.turnPenalty`: additive cost for changing direction between adjacent road steps.
 - `roads.pathStyle.straightStepThreshold`: straight-run length before extra straightness penalty starts.
 - `roads.pathStyle.straightStepPenalty`: additive per-step penalty for long straight runs beyond the threshold.

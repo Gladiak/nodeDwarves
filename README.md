@@ -198,7 +198,8 @@ Canonical promotion now owns best-checkpoint writes: wrapper training disables i
 - ⚙️ In auto mode, workers are also phase-aware (foundation/finetune/endgame/consolidation) and you can force flat behavior with `--workers-flat`.
 - 🧭 Regression runs now stream subprocess logs directly to per-run files, improving stability on long validation passes.
 - 🧪 Regression baseline profiles now live in `regression/baselines/` so reference snapshots are kept outside volatile debug artifacts.
-- 🗂️ Headless benchmark now supports comparative score, seed-by-seed deltas, and optional blocking gates (`--gate`) with tunable thresholds for A/B tuning.
+- 🗂️ Cached headless benchmark baseline now lives in versioned root folder `benchmark_cache/`, and `bench:diff` auto-refreshes it when profile metadata changes.
+- 🗂️ Headless benchmark now supports comparative score, seed-by-seed deltas, per-variant schism decree usage telemetry (issued counts + active-tick shares), and optional blocking gates (`--gate`) with tunable thresholds for A/B tuning.
 - 📈 Regression reports now auto-emit `.txt`, `.json`, and `.md` outputs for local inspection plus CI parsing (override paths with `--report-json/--report-md`).
 - 🧾 AI runtime now accepts a backward-compatible governor action envelope, so legacy policy files still run while jobs/trade/building sub-policies roll out.
 
@@ -225,7 +226,7 @@ Social governor action-head IDs are available behind `ai.governors.social.action
 3. `Capture the world`: during runtime press `m` (or `Shift+M`) to export all unlocked layers
 4. `CLI map export`: `npm run map:export -- --width=120 --height=40 --season=spring --layers=surface,d1,d2 --underrealmUnlockedDepth=2`
 5. `Balance gate presets`: `npm run balance:gate:standard` (or `:strict` / `:relaxed`)
-6. `Cached benchmark loop`: `npm run bench:baseline` then `npm run bench:candidate -- --set path=value` and `npm run bench:diff` (baseline/candidate now stream progress logs during execution)
+6. `Cached benchmark loop`: `npm run bench:baseline` then `npm run bench:candidate -- --set path=value` and `npm run bench:diff` (`bench:diff` now ensures cached baseline freshness in `benchmark_cache/` before comparing, and diff includes schism decree usage deltas)
 7. `Underrealm stress loop`: `npm run bench:underrealm:hot` and `npm run bench:underrealm:full` for fixed deep-expedition long-run A/B (`legacy baseline` vs current tuned defaults in the same schism-off profile)
 
 Pass candidate overrides to the active preset with `--set`:
@@ -267,6 +268,13 @@ _Roadmap remainder snapshot (updated 2026-05-12): focus on what is still missing
 | Frequency             |   0.15 | How often it appears during normal play                     |
 | Decision weight       |   0.25 | How strongly it changes strategic trade-offs                |
 | Emergence / AI impact |   0.15 | How much it changes emergent behavior and policy priorities |
+| Section               | Weight | What it measures                                            |
+| --------------------- | -----: | ----------------------------------------------------------- |
+| Systemic breadth      |   0.25 | How many core systems are affected                          |
+| Persistence           |   0.20 | How long effects stay relevant in a run                     |
+| Frequency             |   0.15 | How often it appears during normal play                     |
+| Decision weight       |   0.25 | How strongly it changes strategic trade-offs                |
+| Emergence / AI impact |   0.15 | How much it changes emergent behavior and policy priorities |
 
 Formula: `Total = sum(section_score * weight)`  
 Impact thresholds: `High >= 4.0`, `Medium >= 2.8 and < 4.0`, `Low < 2.8`
@@ -284,9 +292,27 @@ Impact thresholds: `High >= 4.0`, `Medium >= 2.8 and < 4.0`, `Low < 2.8`
 | Nemesis houses                |       4 |           4 |         3 |               3 |            4 |  3.60 | Medium |
 | Tavern rumors and side quests |       2 |           2 |         3 |               2 |            2 |  2.15 | Low    |
 | Chronicle and saga system     |       3 |           4 |         3 |               3 |            3 |  3.20 | Medium |
+| Idea                          | Breadth | Persistence | Frequency | Decision weight | Emergence/AI | Total | Impact |
+| ----------------------------- | ------: | ----------: | --------: | --------------: | -----------: | ----: | ------ |
+| Personal dwarf arcs           |       4 |           5 |         4 |               4 |            4 |  4.20 | High   |
+| Multi-act faction questlines  |       5 |           4 |         4 |               4 |            4 |  4.25 | High   |
+| Persistent hero company       |       4 |           5 |         3 |               4 |            4 |  4.05 | High   |
+| Social drama engine           |       5 |           4 |         5 |               4 |            5 |  4.55 | High   |
+| Titles and succession         |       4 |           4 |         3 |               4 |            3 |  3.70 | Medium |
+| Ancestor omens and prophecies |       3 |           3 |         2 |               4 |            3 |  3.10 | Medium |
+| Nemesis houses                |       4 |           4 |         3 |               3 |            4 |  3.60 | Medium |
+| Tavern rumors and side quests |       2 |           2 |         3 |               2 |            2 |  2.15 | Low    |
+| Chronicle and saga system     |       3 |           4 |         3 |               3 |            3 |  3.20 | Medium |
 
 ### Section summary
 
+| Section               |  Avg | Min-Max | Strong ideas (>=4) | Weak ideas (<=2) |
+| --------------------- | ---: | ------- | -----------------: | ---------------: |
+| Systemic breadth      | 3.78 | 2-5     |                  6 |                1 |
+| Persistence           | 3.89 | 2-5     |                  7 |                1 |
+| Frequency             | 3.33 | 2-5     |                  2 |                1 |
+| Decision weight       | 3.56 | 2-4     |                  6 |                1 |
+| Emergence / AI impact | 3.56 | 2-5     |                  5 |                1 |
 | Section               |  Avg | Min-Max | Strong ideas (>=4) | Weak ideas (<=2) |
 | --------------------- | ---: | ------- | -----------------: | ---------------: |
 | Systemic breadth      | 3.78 | 2-5     |                  6 |                1 |
@@ -321,8 +347,10 @@ Impact thresholds: `High >= 4.0`, `Medium >= 2.8 and < 4.0`, `Low < 2.8`
 - `scripts/clean_debug.js`: debug housekeeping utility (removes transient smoke/regression temp artifacts and keeps only the latest run history).
 - `scripts/test_training_contracts.js`: deterministic training/validation contract suite used by `npm test` (policy shape + regression/promote report schema checks).
 - `regression/baselines/regression_baseline.json`: durable regression baseline profiles tracked outside `debug/`.
-- `scripts/headless_benchmark.js`: deterministic headless benchmark with comparative score, seed deltas, and optional gate for long-run balance tuning.
-- `scripts/compare_benchmark_reports.js`: cached report diff utility for baseline/candidate deltas without rerunning both variants.
+- `benchmark_cache/headless_benchmark_baseline.json`: versioned cached headless benchmark baseline used by report diffs.
+- `benchmark_cache/headless_benchmark_baseline.md`: markdown companion report for the cached benchmark baseline.
+- `scripts/headless_benchmark.js`: deterministic headless benchmark with comparative score, seed deltas, schism decree usage telemetry, and optional gate for long-run balance tuning.
+- `scripts/compare_benchmark_reports.js`: cached report diff utility for baseline/candidate deltas (including schism decree usage deltas) without rerunning both variants.
 - `python/regression_rollout.py`: rollout-only randomized regression runner used by `scripts/regression.js`.
 - `python/`: PPO training + agent example.
 - `docs/`: parameter reference, training overrides, current training status, training optimization workbook archive, and telemetry operator manual.

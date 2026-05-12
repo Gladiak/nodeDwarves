@@ -3,6 +3,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 const { buildRuntime } = require('../src/runtime');
 const { createInitialState } = require('../src/state');
@@ -422,6 +423,12 @@ function loadConfig(configPath) {
   return JSON.parse(raw);
 }
 
+// Compute stable SHA-256 hash for one file payload.
+function computeFileHash(filePath) {
+  const raw = fs.readFileSync(filePath, 'utf8');
+  return crypto.createHash('sha256').update(raw).digest('hex');
+}
+
 // Apply one variant's overrides to a cloned config.
 function buildVariantConfig(baseConfig, variant) {
   const nextConfig = clone(baseConfig);
@@ -535,11 +542,114 @@ function collectUnderrealmMetrics(state) {
   };
 }
 
+// Increment one string-keyed counter map.
+function incrementCounter(counterMap, keyRaw, amountRaw) {
+  if (!counterMap || typeof counterMap !== 'object') {
+    return;
+  }
+  const key = String(keyRaw || '').trim() || 'unknown';
+  const amount = Number(amountRaw);
+  if (!Number.isFinite(amount) || amount === 0) {
+    return;
+  }
+  counterMap[key] = Math.max(0, Number(counterMap[key] || 0) + amount);
+}
+
+// Merge all numeric entries from source counter map into target map.
+function mergeCounterMaps(targetMap, sourceMap) {
+  if (!targetMap || typeof targetMap !== 'object') {
+    return;
+  }
+  if (!sourceMap || typeof sourceMap !== 'object') {
+    return;
+  }
+  for (const [key, value] of Object.entries(sourceMap)) {
+    incrementCounter(targetMap, key, Number(value || 0));
+  }
+}
+
+// Sort one counter map by value desc and key asc for stable reports.
+function sortCounterMap(counterMap) {
+  const entries = Object.entries(counterMap || {})
+    .map(([key, value]) => [String(key || '').trim() || 'unknown', Number(value || 0)])
+    .filter((entry) => Number.isFinite(entry[1]) && entry[1] > 0);
+  entries.sort((left, right) => {
+    const delta = right[1] - left[1];
+    if (delta !== 0) {
+      return delta;
+    }
+    return left[0].localeCompare(right[0]);
+  });
+  const sorted = {};
+  for (const [key, value] of entries) {
+    sorted[key] = value;
+  }
+  return sorted;
+}
+
+// Build normalized share map from one counter map and total.
+function buildCounterShareMap(counterMap, totalRaw) {
+  const total = Math.max(0, Number(totalRaw || 0));
+  const shares = {};
+  for (const [key, valueRaw] of Object.entries(counterMap || {})) {
+    const value = Math.max(0, Number(valueRaw || 0));
+    shares[key] = total > 0 && Number.isFinite(value) ? value / total : 0;
+  }
+  return shares;
+}
+
+// Create per-seed schism decree tracker for tick-by-tick benchmark telemetry.
+function createSchismDecreeTracker() {
+  return {
+    issued: 0,
+    activeTicks: 0,
+    byId: {},
+    activeTicksById: {},
+    lastIssuedCount: 0,
+  };
+}
+
+// Collect schism decree telemetry from one simulation tick.
+function trackSchismDecreeTick(state, tracker) {
+  if (!tracker || typeof tracker !== 'object') {
+    return;
+  }
+  const schism = state && state.schism && state.schism.enabled !== false ? state.schism : null;
+  const decree = schism && schism.decree && typeof schism.decree === 'object'
+    ? schism.decree
+    : null;
+  if (decree && decree.active === true) {
+    const decreeId = String(decree.id || 'unknown');
+    tracker.activeTicks = Math.max(0, Number(tracker.activeTicks || 0)) + 1;
+    incrementCounter(tracker.activeTicksById, decreeId, 1);
+  }
+
+  const issuedCount = schism
+    ? Math.max(0, Number(schism && schism.stats && schism.stats.councilDecrees || 0))
+    : 0;
+  const previousCount = Math.max(0, Number(tracker.lastIssuedCount || 0));
+
+  if (issuedCount < previousCount) {
+    tracker.lastIssuedCount = issuedCount;
+    return;
+  }
+  if (issuedCount > previousCount) {
+    const delta = issuedCount - previousCount;
+    const decreeId = String(decree && decree.id || 'unknown');
+    tracker.issued = Math.max(0, Number(tracker.issued || 0)) + delta;
+    incrementCounter(tracker.byId, decreeId, delta);
+  }
+  tracker.lastIssuedCount = issuedCount;
+}
+
 // Capture end-of-run metrics from simulation state.
-function collectRow(state, resources, seed) {
+function collectRow(state, resources, seed, decreeTracker) {
   const dwarves = Array.isArray(state.dwarves) ? state.dwarves : [];
   const stockpile = state.stockpile || {};
   const underrealm = collectUnderrealmMetrics(state);
+  const decree = decreeTracker && typeof decreeTracker === 'object'
+    ? decreeTracker
+    : createSchismDecreeTracker();
   const resourceValues = {};
   for (const resourceId of resources) {
     resourceValues[resourceId] = Number(stockpile[resourceId] || 0);
@@ -562,6 +672,10 @@ function collectRow(state, resources, seed) {
     underrealmHeroLosses: underrealm.heroLosses,
     underrealmHeroActive: underrealm.heroActive,
     underrealmHeroSurvivals: underrealm.heroSurvivals,
+    schismDecreeIssued: Math.max(0, Number(decree.issued || 0)),
+    schismDecreeActiveTicks: Math.max(0, Number(decree.activeTicks || 0)),
+    schismDecreeById: sortCounterMap(decree.byId),
+    schismDecreeActiveTicksById: sortCounterMap(decree.activeTicksById),
     resources: resourceValues,
   };
 }
@@ -569,9 +683,22 @@ function collectRow(state, resources, seed) {
 // Compute summary averages from per-seed rows.
 function summarizeRows(rows, resources) {
   const resourceAverages = {};
+  const decreeByIdTotals = {};
+  const decreeActiveTicksByIdTotals = {};
+  let decreeIssuedTotal = 0;
+  let decreeActiveTicksTotal = 0;
   for (const resourceId of resources) {
     resourceAverages[resourceId] = average(rows, (row) => row.resources[resourceId]);
   }
+  for (const row of rows) {
+    decreeIssuedTotal += Math.max(0, Number(row && row.schismDecreeIssued || 0));
+    decreeActiveTicksTotal += Math.max(0, Number(row && row.schismDecreeActiveTicks || 0));
+    mergeCounterMaps(decreeByIdTotals, row && row.schismDecreeById);
+    mergeCounterMaps(decreeActiveTicksByIdTotals, row && row.schismDecreeActiveTicksById);
+  }
+
+  const decreeById = sortCounterMap(decreeByIdTotals);
+  const decreeActiveTicksById = sortCounterMap(decreeActiveTicksByIdTotals);
   return {
     population: average(rows, (row) => row.population),
     morale: average(rows, (row) => row.morale),
@@ -588,6 +715,16 @@ function summarizeRows(rows, resources) {
     underrealmHeroLosses: average(rows, (row) => row.underrealmHeroLosses),
     underrealmHeroActive: average(rows, (row) => row.underrealmHeroActive),
     underrealmHeroSurvivals: average(rows, (row) => row.underrealmHeroSurvivals),
+    schismDecrees: {
+      issuedTotal: decreeIssuedTotal,
+      issuedPerSeedAvg: average(rows, (row) => row.schismDecreeIssued),
+      activeTicksTotal: decreeActiveTicksTotal,
+      activeTicksPerSeedAvg: average(rows, (row) => row.schismDecreeActiveTicks),
+      byId: decreeById,
+      byIdShare: buildCounterShareMap(decreeById, decreeIssuedTotal),
+      activeTicksById: decreeActiveTicksById,
+      activeTicksByIdShare: buildCounterShareMap(decreeActiveTicksById, decreeActiveTicksTotal),
+    },
     resources: resourceAverages,
   };
 }
@@ -607,11 +744,13 @@ function runVariant(baseConfig, options, variant) {
 
       const runtime = buildFixedRuntime(variantConfig, options.width, options.height);
       const state = createInitialState(variantConfig, runtime);
+      const decreeTracker = createSchismDecreeTracker();
       const progressEvery = resolveProgressEvery(options.ticks, options.progressEvery);
       let nextProgressTick = progressEvery;
 
       for (let index = 0; index < options.ticks; index += 1) {
         stepState(state, variantConfig, runtime, null);
+        trackSchismDecreeTick(state, decreeTracker);
         const tick = index + 1;
         if (options.progress === true && (tick >= nextProgressTick || tick === options.ticks)) {
           const elapsedMs = Date.now() - seedStartMs;
@@ -629,7 +768,7 @@ function runVariant(baseConfig, options, variant) {
         }
       }
 
-      const collected = collectRow(state, options.resources, seed);
+      const collected = collectRow(state, options.resources, seed, decreeTracker);
       writeProgress(
         options,
         `variant=${variant.label} seed=${seed} done tick=${collected.tick} pop=${collected.population} elapsed=${formatElapsedMs(Date.now() - seedStartMs)}`,
@@ -720,6 +859,15 @@ function formatSignedPercent(value, decimals = 2) {
   }
   const scaled = (numeric * 100).toFixed(decimals);
   return numeric >= 0 ? `+${scaled}%` : `${scaled}%`;
+}
+
+// Format one unsigned percentage from a [0,1] ratio.
+function formatPercent(value, decimals = 2) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return 'n/a';
+  }
+  return `${(numeric * 100).toFixed(decimals)}%`;
 }
 
 // Compute relative delta as (current - baseline) / abs(baseline).
@@ -1050,6 +1198,63 @@ function buildMarkdownReport(report) {
       `| ${variant.label} | ${formatNumber(variant.summary.underrealmDepth, 2)} | ${formatNumber(variant.summary.underrealmChampions, 2)} | ${formatNumber(variant.summary.underrealmFailedExpeditions, 2)} | ${formatNumber(variant.summary.underrealmBlockedDispatches, 2)} | ${formatNumber(variant.summary.underrealmFrontierContested, 2)} | ${formatNumber(variant.summary.underrealmReadinessScore, 3)} | ${formatNumber(variant.summary.underrealmHeroPromotions, 2)} | ${formatNumber(variant.summary.underrealmHeroLosses, 2)} | ${formatNumber(variant.summary.underrealmHeroActive, 2)} | ${formatNumber(variant.summary.underrealmHeroSurvivals, 2)} |`,
     );
   }
+  const hasSchismDecreeTelemetry = report.variants.some((variant) => {
+    const decrees = variant
+      && variant.summary
+      && variant.summary.schismDecrees
+      && typeof variant.summary.schismDecrees === 'object'
+      ? variant.summary.schismDecrees
+      : null;
+    return decrees && Number(decrees.issuedTotal || 0) > 0;
+  });
+  if (hasSchismDecreeTelemetry) {
+    lines.push('');
+    lines.push('## Schism Decree Usage');
+    lines.push('');
+    lines.push('| Variant | Issued total | Issued / seed | Active ticks total | Active ticks / seed |');
+    lines.push('| --- | ---: | ---: | ---: | ---: |');
+    for (const variant of report.variants) {
+      const decrees = variant
+        && variant.summary
+        && variant.summary.schismDecrees
+        && typeof variant.summary.schismDecrees === 'object'
+        ? variant.summary.schismDecrees
+        : {};
+      lines.push(
+        `| ${variant.label} | ${formatNumber(decrees.issuedTotal, 0)} | ${formatNumber(decrees.issuedPerSeedAvg, 2)} | ${formatNumber(decrees.activeTicksTotal, 0)} | ${formatNumber(decrees.activeTicksPerSeedAvg, 2)} |`,
+      );
+    }
+    for (const variant of report.variants) {
+      const decrees = variant
+        && variant.summary
+        && variant.summary.schismDecrees
+        && typeof variant.summary.schismDecrees === 'object'
+        ? variant.summary.schismDecrees
+        : {};
+      const decreeIds = Object.keys(decrees.byId || {});
+      if (!decreeIds.length) {
+        continue;
+      }
+      lines.push('');
+      lines.push(`### Schism Decrees (${variant.label})`);
+      lines.push('');
+      lines.push('| Decree | Issued | Issued share | Active ticks | Active share |');
+      lines.push('| --- | ---: | ---: | ---: | ---: |');
+      for (const decreeId of decreeIds) {
+        const issued = Number(decrees.byId && decrees.byId[decreeId] || 0);
+        const issuedShare = Number(decrees.byIdShare && decrees.byIdShare[decreeId] || 0);
+        const activeTicks = Number(
+          decrees.activeTicksById && decrees.activeTicksById[decreeId] || 0,
+        );
+        const activeShare = Number(
+          decrees.activeTicksByIdShare && decrees.activeTicksByIdShare[decreeId] || 0,
+        );
+        lines.push(
+          `| ${decreeId} | ${formatNumber(issued, 0)} | ${formatPercent(issuedShare, 1)} | ${formatNumber(activeTicks, 0)} | ${formatPercent(activeShare, 1)} |`,
+        );
+      }
+    }
+  }
   if (report.comparisons.length > 0) {
     lines.push('');
     lines.push('## Comparisons (vs baseline)');
@@ -1135,7 +1340,32 @@ function printTable(report) {
       `underHeroAct ${formatNumber(variant.summary.underrealmHeroActive, 2)}, ` +
       `underHeroSurv ${formatNumber(variant.summary.underrealmHeroSurvivals, 2)}, ` +
       formatResources(variant.summary.resources, report.meta.resources);
-    process.stdout.write(`${summaryLine}\n\n`);
+    process.stdout.write(`${summaryLine}\n`);
+
+    const decrees = variant
+      && variant.summary
+      && variant.summary.schismDecrees
+      && typeof variant.summary.schismDecrees === 'object'
+      ? variant.summary.schismDecrees
+      : null;
+    const decreeIds = decrees ? Object.keys(decrees.byId || {}) : [];
+    if (decrees && decreeIds.length > 0) {
+      process.stdout.write(
+        `decrees: issued ${formatNumber(decrees.issuedTotal, 0)}, issued/seed ${formatNumber(decrees.issuedPerSeedAvg, 2)}, activeTicks ${formatNumber(decrees.activeTicksTotal, 0)}, activeTicks/seed ${formatNumber(decrees.activeTicksPerSeedAvg, 2)}\n`,
+      );
+      for (const decreeId of decreeIds) {
+        const issued = Number(decrees.byId && decrees.byId[decreeId] || 0);
+        const issuedShare = Number(decrees.byIdShare && decrees.byIdShare[decreeId] || 0);
+        const activeTicks = Number(decrees.activeTicksById && decrees.activeTicksById[decreeId] || 0);
+        const activeShare = Number(
+          decrees.activeTicksByIdShare && decrees.activeTicksByIdShare[decreeId] || 0,
+        );
+        process.stdout.write(
+          `decree ${decreeId}: issued ${formatNumber(issued, 0)} (${formatPercent(issuedShare, 1)}), activeTicks ${formatNumber(activeTicks, 0)} (${formatPercent(activeShare, 1)})\n`,
+        );
+      }
+    }
+    process.stdout.write('\n');
   }
 
   for (const comparison of report.comparisons) {
@@ -1246,6 +1476,7 @@ function printJson(report) {
 // Build report from CLI options and simulation runs.
 function runBenchmark(options) {
   const baseConfig = loadConfig(options.configPath);
+  const configHash = computeFileHash(options.configPath);
   const variants = options.variants.map((variant) => runVariant(baseConfig, options, variant));
   const comparisons = buildSummaryComparisons(variants, options.resources);
   const seedDeltas = buildSeedDeltas(variants, options.resources);
@@ -1263,6 +1494,7 @@ function runBenchmark(options) {
       ticks: options.ticks,
       seeds: options.seeds,
       configPath: options.configPath,
+      configHash,
       resources: options.resources,
       width: options.width,
       height: options.height,
