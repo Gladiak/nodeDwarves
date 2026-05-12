@@ -25,6 +25,9 @@ const UNDERREALM_HAULER_MIX_BIAS_ACTION_ID = 'gov_underrealm_hauler_mix_bias';
 const UNDERREALM_GUARD_MIX_BIAS_ACTION_ID = 'gov_underrealm_guard_mix_bias';
 const EXTERNAL_CAMPS_MILITIA_INTENT_ACTION_ID = 'gov_external_militia_support_intent';
 const EXTERNAL_CAMPS_RAIDER_INTENT_ACTION_ID = 'gov_external_raider_tribute_intent';
+const SOCIAL_MEDIATION_BIAS_ACTION_ID = 'gov_social_mediation_bias';
+const SOCIAL_MENTORSHIP_BIAS_ACTION_ID = 'gov_social_mentorship_bias';
+const SOCIAL_ACCOUNTABILITY_BIAS_ACTION_ID = 'gov_social_accountability_bias';
 const WARRIORS_TRAINING_INTENT_ACTION_ID = 'gov_warriors_training_intent';
 const WARRIORS_ROTATION_INTENT_ACTION_ID = 'gov_warriors_rotation_intent';
 const WARRIORS_TOURNAMENT_RISK_INTENT_ACTION_ID = 'gov_warriors_tournament_risk_intent';
@@ -240,6 +243,7 @@ function buildActionEnvelopeFromVector(resources, outputVector, minWeight, maxWe
   const ruins = {};
   const underrealm = {};
   const externalCamps = {};
+  const social = {};
   const warriors = {};
 
   for (let i = 0; i < resources.length; i += 1) {
@@ -332,6 +336,18 @@ function buildActionEnvelopeFromVector(resources, outputVector, minWeight, maxWe
       externalCamps.raiderTributeIntent = scaled;
       continue;
     }
+    if (actionId === SOCIAL_MEDIATION_BIAS_ACTION_ID) {
+      social.mediationBias = scaled;
+      continue;
+    }
+    if (actionId === SOCIAL_MENTORSHIP_BIAS_ACTION_ID) {
+      social.mentorshipBias = scaled;
+      continue;
+    }
+    if (actionId === SOCIAL_ACCOUNTABILITY_BIAS_ACTION_ID) {
+      social.accountabilityBias = scaled;
+      continue;
+    }
     if (actionId === WARRIORS_TRAINING_INTENT_ACTION_ID) {
       warriors.trainingIntent = scaled;
       continue;
@@ -379,6 +395,9 @@ function buildActionEnvelopeFromVector(resources, outputVector, minWeight, maxWe
   }
   if (Object.keys(externalCamps).length > 0) {
     payload.externalCamps = externalCamps;
+  }
+  if (Object.keys(social).length > 0) {
+    payload.social = social;
   }
   if (Object.keys(warriors).length > 0) {
     payload.warriors = warriors;
@@ -428,6 +447,9 @@ function normalizeActionEnvelope(action) {
   }
   if (action.externalCamps && typeof action.externalCamps === 'object') {
     normalized.externalCamps = { ...action.externalCamps };
+  }
+  if (action.social && typeof action.social === 'object') {
+    normalized.social = { ...action.social };
   }
   if (action.warriors && typeof action.warriors === 'object') {
     normalized.warriors = { ...action.warriors };

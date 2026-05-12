@@ -32,6 +32,7 @@ function buildObservation(state, config) {
   const contractsObservation = buildContractsObservation(state, config);
   const externalCampsObservation = buildExternalCampsObservation(state, config);
   const schismObservation = buildSchismObservation(state, config);
+  const socialObservation = buildSocialObservation(state, config);
   const warriorsObservation = buildWarriorsObservation(state, config);
   const clanShares = getClanShares(state, config);
 
@@ -53,6 +54,7 @@ function buildObservation(state, config) {
     contracts: contractsObservation,
     externalCamps: externalCampsObservation,
     schism: schismObservation,
+    social: socialObservation,
     warriors: warriorsObservation,
     clanShares,
   };
@@ -134,6 +136,12 @@ function buildFeatures(obs, resource, config, featureNames) {
   const schismRitualActive = clamp(Number(schism.ritualActive ?? 0), 0, 1);
   const schismClimaxActive = clamp(Number(schism.climaxActive ?? 0), 0, 1);
   const schismInstability = clamp(Number(schism.instability ?? 0), 0, 1);
+  const social = obs.social || {};
+  const socialCohesion = clamp(Number(social.cohesion ?? 0), 0, 1);
+  const socialConflictPressure = clamp(Number(social.conflictPressure ?? 0), 0, 1);
+  const socialMentorshipCoverage = clamp(Number(social.mentorshipCoverage ?? 0), 0, 1);
+  const socialGrudgeLoad = clamp(Number(social.grudgeLoad ?? 0), 0, 1);
+  const socialIncidentRecency = clamp(Number(social.incidentRecency ?? 0), 0, 1);
   const warriors = obs.warriors || {};
   const warriorEnabled = clamp(Number(warriors.enabled ?? 0), 0, 1);
   const warriorRosterCoverage = clamp(Number(warriors.rosterCoverage ?? 0), 0, 1);
@@ -208,6 +216,11 @@ function buildFeatures(obs, resource, config, featureNames) {
     schismRitualActive,
     schismClimaxActive,
     schismInstability,
+    socialCohesion,
+    socialConflictPressure,
+    socialMentorshipCoverage,
+    socialGrudgeLoad,
+    socialIncidentRecency,
     warriorEnabled,
     warriorRosterCoverage,
     warriorEliteScore,
@@ -446,6 +459,46 @@ function buildSchismObservation(state, config) {
     ritualActive,
     climaxActive,
     instability,
+  };
+}
+
+// Build social-drama aggregate observation scalars.
+function buildSocialObservation(state, config) {
+  const socialConfig = config && config.population && config.population.socialDrama
+    ? config.population.socialDrama
+    : {};
+  const social = state && state.social && typeof state.social === 'object'
+    ? state.social
+    : null;
+  if (!social || socialConfig.enabled === false || social.enabled !== true) {
+    return {
+      cohesion: 0,
+      conflictPressure: 0,
+      mentorshipCoverage: 0,
+      grudgeLoad: 0,
+      incidentRecency: 0,
+    };
+  }
+
+  const incidentsConfig = socialConfig && socialConfig.incidents && typeof socialConfig.incidents === 'object'
+    ? socialConfig.incidents
+    : {};
+  const intervalTicks = Math.max(
+    1,
+    Number(incidentsConfig.intervalTicks || socialConfig.tickInterval || 12),
+  );
+  const recencyWindow = Math.max(1, intervalTicks * 4);
+  const tick = Math.max(0, Number(state && state.tick || 0));
+  const lastIncidentTick = Math.max(0, Number(social.lastIncidentTick || 0));
+  const incidentRecency = lastIncidentTick > 0
+    ? clamp(1 - Math.max(0, tick - lastIncidentTick) / recencyWindow, 0, 1)
+    : 0;
+  return {
+    cohesion: clamp(Number(social.cohesion || 0), 0, 1),
+    conflictPressure: clamp(Number(social.conflictPressure || 0), 0, 1),
+    mentorshipCoverage: clamp(Number(social.mentorshipCoverage || 0), 0, 1),
+    grudgeLoad: clamp(Number(social.grudgeLoad || 0), 0, 1),
+    incidentRecency,
   };
 }
 

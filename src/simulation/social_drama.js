@@ -3,911 +3,1569 @@
 const { clamp } = require('../utils');
 const { pushEvent } = require('./events');
 
-const DEFAULT_HISTORY_LIMIT = 12;
-const DEFAULT_MAX_LINKS = 6;
+const SOCIAL_INCIDENT_TYPES = [
+  'mentorship_breakthrough',
+  'rivalry_clash',
+  'grudge_escalation',
+  'reconciliation',
+];
 
-// Return the social-drama config nested under population relationships.
+// Resolve social-drama config safely.
 function getSocialDramaConfig(config) {
-  const relationships = (config && config.population && config.population.relationships) || {};
-  return relationships.socialDrama && typeof relationships.socialDrama === 'object'
-    ? relationships.socialDrama
+  return (config && config.population && config.population.socialDrama) || {};
+}
+
+// Resolve social-governor config safely.
+function getSocialGovernorConfig(config) {
+  const aiConfig = (config && config.ai) || {};
+  const governors = aiConfig.governors && typeof aiConfig.governors === 'object'
+    ? aiConfig.governors
+    : {};
+  return governors.social && typeof governors.social === 'object'
+    ? governors.social
     : {};
 }
 
-// Build one empty per-dwarf social runtime state.
-function createInitialDwarfSocialState() {
-  return {
-    links: [],
-    lastIncidentTick: 0,
-    incidentCount: 0,
-    summary: createEmptySummary(),
-  };
+// Resolve long-arc social config safely.
+function getSocialLongArcConfig(socialConfig) {
+  return socialConfig && socialConfig.longArc && typeof socialConfig.longArc === 'object'
+    ? socialConfig.longArc
+    : {};
 }
 
-// Build one empty summary snapshot for inspect/telemetry usage.
-function createEmptySummary() {
+// Build one normalized social payload for a dwarf.
+function createDwarfSocialState() {
   return {
-    friendId: null,
-    friendScore: 0,
-    rivalId: null,
-    rivalScore: 0,
-    grudgeId: null,
-    grudgeScore: 0,
-    mentorId: null,
-    mentorScore: 0,
-    protegeId: null,
-    protegeScore: 0,
-  };
-}
-
-// Build one empty social-drama runtime state for the run.
-function createSocialDramaState(config) {
-  const dramaConfig = getSocialDramaConfig(config);
-  if (dramaConfig.enabled === false) {
-    return null;
-  }
-  return {
-    enabled: true,
-    lastIncidentTick: 0,
-    history: [],
-    stats: {
-      incidents: 0,
-      friendship: 0,
-      rivalry: 0,
-      grudge: 0,
-      mentorship: 0,
+    links: {},
+    status: {
+      friendIds: [],
+      rivalIds: [],
+      grudgeIds: [],
+      mentorId: null,
+      menteeIds: [],
+    },
+    cooldowns: {
+      lastIncidentTick: 0,
+      lastIncidentType: '',
+      lastStatusTick: 0,
+    },
+    arc: {
+      supportMemory: 0,
+      burdenMemory: 0,
     },
   };
 }
 
-// Ensure one dwarf carries a normalized social runtime payload.
-function ensureDwarfSocialState(dwarf) {
-  if (!dwarf || typeof dwarf !== 'object') {
-    return createInitialDwarfSocialState();
+// Build the social-drama runtime container.
+function createSocialDramaState(config) {
+  const socialConfig = getSocialDramaConfig(config);
+  if (socialConfig.enabled === false) {
+    return null;
   }
-  if (!dwarf.social || typeof dwarf.social !== 'object') {
-    dwarf.social = createInitialDwarfSocialState();
-  }
-  const social = dwarf.social;
-  social.links = Array.isArray(social.links)
-    ? social.links.map(normalizeSocialLink).filter(Boolean)
-    : [];
-  social.lastIncidentTick = Math.max(0, Math.floor(Number(social.lastIncidentTick || 0)));
-  social.incidentCount = Math.max(0, Math.floor(Number(social.incidentCount || 0)));
-  social.summary = normalizeSummary(social.summary);
-  return social;
+  return {
+    enabled: true,
+    cohesion: 0,
+    conflictPressure: 0,
+    mentorshipCoverage: 0,
+    grudgeLoad: 0,
+    longArc: {
+      harmony: 0,
+      strife: 0,
+      avgSupport: 0,
+      avgBurden: 0,
+    },
+    governor: {
+      source: 'default',
+      mediationBias: 0,
+      mentorshipBias: 0,
+      accountabilityBias: 0,
+    },
+    lastUpdateTick: 0,
+    lastIncidentTick: 0,
+    incidentCooldownUntilTick: 0,
+    pairCooldownByKey: {},
+    history: [],
+    stats: {
+      updates: 0,
+      links: 0,
+      friendships: 0,
+      rivalries: 0,
+      mentorships: 0,
+      grudges: 0,
+      incidents: 0,
+      incidentsByType: createIncidentTypeCounters(),
+    },
+  };
 }
 
-// Ensure the global social-drama runtime state exists and is normalized.
+// Ensure social runtime and dwarf payloads are present and normalized.
 function ensureSocialDramaState(state, config) {
-  const dramaConfig = getSocialDramaConfig(config);
-  if (!state || dramaConfig.enabled === false) {
+  const socialConfig = getSocialDramaConfig(config);
+  if (!state || socialConfig.enabled === false) {
     if (state) {
-      state.socialDrama = null;
+      state.social = null;
+      if (Array.isArray(state.dwarves)) {
+        for (const dwarf of state.dwarves) {
+          if (dwarf && typeof dwarf === 'object') {
+            dwarf.social = null;
+          }
+        }
+      }
     }
     return null;
   }
-  if (!state.socialDrama || typeof state.socialDrama !== 'object') {
-    state.socialDrama = createSocialDramaState(config);
+  if (!state.social || typeof state.social !== 'object') {
+    state.social = createSocialDramaState(config);
   }
-  const socialDrama = state.socialDrama;
-  socialDrama.enabled = true;
-  socialDrama.lastIncidentTick = Math.max(0, Math.floor(Number(socialDrama.lastIncidentTick || 0)));
-  socialDrama.history = Array.isArray(socialDrama.history)
-    ? socialDrama.history
-      .map((entry) => normalizeIncidentEntry(entry))
-      .filter(Boolean)
-    : [];
-  socialDrama.stats = normalizeDramaStats(socialDrama.stats);
-  trimIncidentHistory(socialDrama, resolveDramaSettings(dramaConfig).incidents.historyLimit);
-  return socialDrama;
-}
-
-// Record one social interaction between two dwarves and update bounded link memory.
-function noteSocialInteraction(state, config, dwarf, partner) {
-  const dramaConfig = getSocialDramaConfig(config);
-  if (dramaConfig.enabled === false) {
-    return;
+  if (!state.social || typeof state.social !== 'object') {
+    return null;
   }
-  if (!dwarf || !partner || !dwarf.id || !partner.id || dwarf.id === partner.id) {
-    return;
-  }
-  const socialDrama = ensureSocialDramaState(state, config);
-  if (!socialDrama) {
-    return;
-  }
-  const settings = resolveDramaSettings(dramaConfig);
-  const tick = Math.max(0, Math.floor(Number(state && state.tick || 0)));
-  const socialA = ensureDwarfSocialState(dwarf);
-  const socialB = ensureDwarfSocialState(partner);
-  const linkA = ensureSocialLink(socialA, partner.id, settings, tick);
-  const linkB = ensureSocialLink(socialB, dwarf.id, settings, tick);
-  if (!linkA || !linkB) {
-    return;
-  }
+  const social = state.social;
+  social.enabled = true;
+  social.cohesion = clamp(Number(social.cohesion || 0), 0, 1);
+  social.conflictPressure = clamp(Number(social.conflictPressure || 0), 0, 1);
+  social.mentorshipCoverage = clamp(Number(social.mentorshipCoverage || 0), 0, 1);
+  social.grudgeLoad = clamp(Number(social.grudgeLoad || 0), 0, 1);
+  social.longArc = social.longArc && typeof social.longArc === 'object'
+    ? social.longArc
+    : {};
+  social.longArc.harmony = clamp(Number(social.longArc.harmony || 0), 0, 1);
+  social.longArc.strife = clamp(Number(social.longArc.strife || 0), 0, 1);
+  social.longArc.avgSupport = clamp(Number(social.longArc.avgSupport || 0), 0, 1);
+  social.longArc.avgBurden = clamp(Number(social.longArc.avgBurden || 0), 0, 1);
+  social.governor = normalizeSocialGovernorSnapshot(social.governor);
+  social.lastUpdateTick = Math.max(0, Number(social.lastUpdateTick || 0));
+  social.lastIncidentTick = Math.max(0, Number(social.lastIncidentTick || 0));
+  social.incidentCooldownUntilTick = Math.max(0, Number(social.incidentCooldownUntilTick || 0));
+  social.pairCooldownByKey = social.pairCooldownByKey && typeof social.pairCooldownByKey === 'object'
+    ? social.pairCooldownByKey
+    : {};
+  social.history = Array.isArray(social.history) ? social.history : [];
+  social.stats = normalizeSocialStats(social.stats);
+  social.stats.incidentsByType = normalizeIncidentTypeCounters(social.stats.incidentsByType);
 
-  const moraleA = clampUnit(dwarf.state && dwarf.state.morale, 0.5);
-  const moraleB = clampUnit(partner.state && partner.state.morale, 0.5);
-  const stressA = clampUnit(dwarf.state && dwarf.state.stress, 0.5);
-  const stressB = clampUnit(partner.state && partner.state.stress, 0.5);
-  const avgMorale = (moraleA + moraleB) / 2;
-  const avgStress = (stressA + stressB) / 2;
-  const sameClan = Boolean(dwarf.clanId && partner.clanId && dwarf.clanId === partner.clanId);
-  const sameHome = Boolean(dwarf.homeId && partner.homeId && dwarf.homeId === partner.homeId);
-  const sameRole = Boolean(dwarf.role && partner.role && dwarf.role === partner.role);
-
-  const affinityFactor =
-    1
-    + (sameClan ? settings.sameClanAffinityBonus : 0)
-    + (sameHome ? settings.sameHomeAffinityBonus : 0)
-    + avgMorale * 0.35;
-  const rivalryPressure =
-    0.08
-    + avgStress * settings.stressRivalryScale
-    + (1 - avgMorale) * settings.lowMoraleRivalryScale
-    + (sameRole ? settings.sameRoleRivalryBonus : 0)
-    + (!sameClan && sameHome ? 0.12 : 0)
-    + (!sameClan && !sameRole ? 0.04 : 0)
-    + (linkA.grudge > 0 || linkB.grudge > 0 ? 0.12 : 0);
-
-  const affinityGain = settings.friendshipGain * affinityFactor;
-  const frictionGain = settings.rivalryGain * rivalryPressure;
-  const frictionRelief = affinityGain * 0.04;
-  const affinityErosion = frictionGain * 0.22;
-
-  linkA.affinity = clampScore(linkA.affinity + affinityGain, settings.scoreCap);
-  linkB.affinity = clampScore(linkB.affinity + affinityGain, settings.scoreCap);
-  linkA.friction = clampScore(Math.max(0, linkA.friction - frictionRelief) + frictionGain, settings.scoreCap);
-  linkB.friction = clampScore(Math.max(0, linkB.friction - frictionRelief) + frictionGain, settings.scoreCap);
-  linkA.affinity = clampScore(Math.max(0, linkA.affinity - affinityErosion), settings.scoreCap);
-  linkB.affinity = clampScore(Math.max(0, linkB.affinity - affinityErosion), settings.scoreCap);
-
-  const grudgeFloor = settings.thresholds.rivalry * 0.75;
-  const frictionAverage = (linkA.friction + linkB.friction) / 2;
-  if (frictionAverage >= grudgeFloor) {
-    const grudgeGain = settings.grudgeGain * (1 + frictionAverage / Math.max(1, settings.scoreCap));
-    linkA.grudge = clampScore(linkA.grudge + grudgeGain, settings.scoreCap);
-    linkB.grudge = clampScore(linkB.grudge + grudgeGain, settings.scoreCap);
-  } else if (avgMorale > 0.68 && avgStress < 0.38) {
-    const softRelief = affinityGain * 0.04;
-    linkA.grudge = Math.max(0, linkA.grudge - softRelief);
-    linkB.grudge = Math.max(0, linkB.grudge - softRelief);
-  }
-
-  updateMentorshipLinks(dwarf, partner, linkA, linkB, settings);
-  linkA.lastInteractionTick = tick;
-  linkB.lastInteractionTick = tick;
-}
-
-// Decay social link memory, apply passive effects, and trigger rare incidents.
-function updateSocialDrama(state, config) {
-  const socialDrama = ensureSocialDramaState(state, config);
-  if (!socialDrama) {
-    return;
-  }
-  const settings = resolveDramaSettings(getSocialDramaConfig(config));
-  const dwarves = Array.isArray(state && state.dwarves) ? state.dwarves : [];
-  const validIds = new Set(dwarves.map((dwarf) => String(dwarf && dwarf.id || '')).filter(Boolean));
-
-  for (const dwarf of dwarves) {
-    const social = ensureDwarfSocialState(dwarf);
-    social.links = social.links
-      .map(normalizeSocialLink)
-      .filter((link) => link && validIds.has(String(link.targetId || '')));
-    decaySocialLinks(social.links, settings);
-    pruneWeakLinks(social.links, settings);
-    social.summary = buildSocialSummary(social.links, settings);
-    applyPassiveDramaEffects(dwarf, social.summary, settings.effects);
-  }
-
-  maybeTriggerIncident(state, config, socialDrama, settings);
-}
-
-// Clear dead-id references from pair bonds, pregnancies, and social memory.
-function clearDeadSocialLinks(state, deadIds) {
-  const ids = normalizeIdSet(deadIds);
-  if (ids.size === 0 || !state) {
-    return;
-  }
   const dwarves = Array.isArray(state.dwarves) ? state.dwarves : [];
   for (const dwarf of dwarves) {
     if (!dwarf || typeof dwarf !== 'object') {
       continue;
     }
-    if (dwarf.partnerId && ids.has(String(dwarf.partnerId || ''))) {
-      dwarf.partnerId = null;
-      dwarf.bondTargetId = null;
-      dwarf.bondScore = 0;
-    }
-    if (dwarf.pregnancy && ids.has(String(dwarf.pregnancy.partnerId || ''))) {
-      dwarf.pregnancy = null;
-    }
-    const social = ensureDwarfSocialState(dwarf);
-    social.links = social.links.filter((link) => !ids.has(String(link && link.targetId || '')));
-    social.summary = buildSocialSummary(social.links, resolveDramaSettings(getSocialDramaConfig(state.lastConfig || {})));
+    dwarf.social = normalizeDwarfSocialState(dwarf.social);
   }
+  return social;
 }
 
-// Build a telemetry-friendly social-drama status snapshot.
-function getSocialDramaStatus(state, config) {
-  const dramaConfig = getSocialDramaConfig(config);
-  if (dramaConfig.enabled === false) {
-    return {
-      enabled: false,
-      friendships: 0,
-      rivalries: 0,
-      grudges: 0,
-      mentorships: 0,
-      heat: 0,
-      latestIncident: null,
-      ticksSinceIncident: null,
-      totalIncidents: 0,
+// Tick social-drama state and derive explicit relationship statuses.
+function updateSocialDrama(state, config, action) {
+  const social = ensureSocialDramaState(state, config);
+  if (!social) {
+    return;
+  }
+  const socialConfig = getSocialDramaConfig(config);
+  const longArcConfig = getSocialLongArcConfig(socialConfig);
+  const governorConfig = getSocialGovernorConfig(config);
+  const governor = resolveSocialGovernor(action, config, governorConfig);
+  social.governor = normalizeSocialGovernorSnapshot(governor);
+  const tick = Math.max(0, Number(state.tick || 0));
+  const tickInterval = Math.max(1, Math.floor(Number(socialConfig.tickInterval ?? 12)));
+  if (social.lastUpdateTick > 0 && tick - social.lastUpdateTick < tickInterval) {
+    return;
+  }
+
+  const adults = (Array.isArray(state.dwarves) ? state.dwarves : [])
+    .filter((dwarf) => isAdultDwarf(dwarf, config));
+  const byId = new Map(adults.map((dwarf) => [String(dwarf.id || ''), dwarf]));
+  if (adults.length < 2) {
+    for (const dwarf of adults) {
+      const socialState = normalizeDwarfSocialState(dwarf.social);
+      socialState.links = {};
+      socialState.status.friendIds = [];
+      socialState.status.rivalIds = [];
+      socialState.status.grudgeIds = [];
+      socialState.status.mentorId = null;
+      socialState.status.menteeIds = [];
+      socialState.cooldowns.lastStatusTick = tick;
+      dwarf.social = socialState;
+    }
+    social.cohesion = 0;
+    social.conflictPressure = 0;
+    social.mentorshipCoverage = 0;
+    social.grudgeLoad = 0;
+    social.longArc.avgSupport = 0;
+    social.longArc.avgBurden = 0;
+    social.longArc.harmony = clamp(
+      Number(social.longArc.harmony || 0) * (1 - clamp(Number(longArcConfig.settlementMemoryDecayPerTick ?? 0.004), 0, 1)),
+      0,
+      1,
+    );
+    social.longArc.strife = clamp(
+      Number(social.longArc.strife || 0) * (1 - clamp(Number(longArcConfig.settlementMemoryDecayPerTick ?? 0.004), 0, 1)),
+      0,
+      1,
+    );
+    social.stats.links = 0;
+    social.stats.friendships = 0;
+    social.stats.rivalries = 0;
+    social.stats.mentorships = 0;
+    social.stats.grudges = 0;
+    social.stats.updates = Math.max(0, Number(social.stats.updates || 0)) + 1;
+    social.lastUpdateTick = tick;
+    return;
+  }
+
+  const pairs = buildInteractionPairs(adults, socialConfig);
+  for (const [left, right] of pairs) {
+    updateSocialLinkPair(left, right, config, social, socialConfig, longArcConfig, governor, tick);
+  }
+
+  let summary = finalizeSocialStatuses(adults, byId, socialConfig, tick);
+  const incidentsTriggered = updateSocialIncidents(
+    state,
+    config,
+    social,
+    adults,
+    byId,
+    socialConfig,
+    governorConfig,
+    governor,
+    tick,
+  );
+  if (incidentsTriggered > 0) {
+    summary = finalizeSocialStatuses(adults, byId, socialConfig, tick);
+  }
+
+  const adultCount = adults.length;
+  const friendRatio = adultCount > 0 ? summary.friendships / adultCount : 0;
+  const rivalryRatio = adultCount > 0 ? summary.rivalries / adultCount : 0;
+  const mentorshipCoverage = adultCount > 0 ? summary.mentoredAdults / adultCount : 0;
+  const grudgeRatio = adultCount > 0 ? summary.grudges / adultCount : 0;
+  social.cohesion = clamp(friendRatio * 0.68 + mentorshipCoverage * 0.44 - rivalryRatio * 0.4 - grudgeRatio * 0.28, 0, 1);
+  social.conflictPressure = clamp(rivalryRatio * 0.58 + grudgeRatio * 0.82 + (1 - social.cohesion) * 0.12, 0, 1);
+  social.mentorshipCoverage = clamp(mentorshipCoverage, 0, 1);
+  social.grudgeLoad = clamp(grudgeRatio, 0, 1);
+  applyLongArcConsequences(adults, social, longArcConfig, tick);
+  applyLongArcSettlementDrift(social, longArcConfig);
+  social.cohesion = clamp(
+    social.cohesion
+      + social.longArc.harmony * clamp(Number(longArcConfig.cohesionBonusScale ?? 0.08), 0, 1)
+      - social.longArc.strife * clamp(Number(longArcConfig.cohesionStrifePenaltyScale ?? 0.1), 0, 1),
+    0,
+    1,
+  );
+  social.conflictPressure = clamp(
+    social.conflictPressure
+      + social.longArc.strife * clamp(Number(longArcConfig.conflictStrifeScale ?? 0.12), 0, 1)
+      - social.longArc.harmony * clamp(Number(longArcConfig.conflictHarmonyReliefScale ?? 0.08), 0, 1),
+    0,
+    1,
+  );
+  social.grudgeLoad = clamp(
+    social.grudgeLoad
+      + social.longArc.strife * clamp(Number(longArcConfig.grudgeStrifeScale ?? 0.08), 0, 1)
+      - social.longArc.harmony * clamp(Number(longArcConfig.grudgeHarmonyReliefScale ?? 0.05), 0, 1),
+    0,
+    1,
+  );
+  social.stats.links = Math.max(0, Number(summary.links || 0));
+  social.stats.friendships = Math.max(0, Number(summary.friendships || 0));
+  social.stats.rivalries = Math.max(0, Number(summary.rivalries || 0));
+  social.stats.mentorships = Math.max(0, Number(summary.mentorships || 0));
+  social.stats.grudges = Math.max(0, Number(summary.grudges || 0));
+  social.stats.updates = Math.max(0, Number(social.stats.updates || 0)) + 1;
+  social.lastUpdateTick = tick;
+}
+
+// Normalize social summary stats.
+function normalizeSocialStats(raw) {
+  const stats = raw && typeof raw === 'object' ? raw : {};
+  const incidentsByType = normalizeIncidentTypeCounters(stats.incidentsByType);
+  return {
+    updates: Math.max(0, Number(stats.updates || 0)),
+    links: Math.max(0, Number(stats.links || 0)),
+    friendships: Math.max(0, Number(stats.friendships || 0)),
+    rivalries: Math.max(0, Number(stats.rivalries || 0)),
+    mentorships: Math.max(0, Number(stats.mentorships || 0)),
+    grudges: Math.max(0, Number(stats.grudges || 0)),
+    incidents: Math.max(0, Number(stats.incidents || 0)),
+    incidentsByType,
+  };
+}
+
+// Normalize one dwarf social payload.
+function normalizeDwarfSocialState(raw) {
+  const next = raw && typeof raw === 'object' ? raw : createDwarfSocialState();
+  next.links = next.links && typeof next.links === 'object' ? next.links : {};
+  next.status = next.status && typeof next.status === 'object' ? next.status : {};
+  next.cooldowns = next.cooldowns && typeof next.cooldowns === 'object' ? next.cooldowns : {};
+  next.arc = next.arc && typeof next.arc === 'object' ? next.arc : {};
+  next.status.friendIds = toIdList(next.status.friendIds);
+  next.status.rivalIds = toIdList(next.status.rivalIds);
+  next.status.grudgeIds = toIdList(next.status.grudgeIds);
+  next.status.mentorId = next.status.mentorId ? String(next.status.mentorId) : null;
+  next.status.menteeIds = toIdList(next.status.menteeIds);
+  next.cooldowns.lastIncidentTick = Math.max(0, Number(next.cooldowns.lastIncidentTick || 0));
+  next.cooldowns.lastIncidentType = String(next.cooldowns.lastIncidentType || '');
+  next.cooldowns.lastStatusTick = Math.max(0, Number(next.cooldowns.lastStatusTick || 0));
+  next.arc.supportMemory = clamp(Number(next.arc.supportMemory || 0), 0, 1);
+  next.arc.burdenMemory = clamp(Number(next.arc.burdenMemory || 0), 0, 1);
+  return next;
+}
+
+// Build deterministic-sized pair samples without O(n^2) scans.
+function buildInteractionPairs(adults, socialConfig) {
+  const pairs = [];
+  const pairIds = new Set();
+  const byId = new Map(adults.map((dwarf) => [String(dwarf && dwarf.id || ''), dwarf]));
+  const maxSamples = Math.max(0, Math.floor(Number(socialConfig.pairSamplesPerUpdate ?? 24)));
+  const includePartners = socialConfig.includeBondedPairs !== false;
+  const carryoverPairsPerDwarf = Math.max(0, Math.floor(Number(socialConfig.carryoverPairsPerDwarf ?? 1)));
+
+  if (includePartners) {
+    for (const dwarf of adults) {
+      const leftId = String(dwarf && dwarf.id || '');
+      const partnerId = dwarf && dwarf.partnerId ? String(dwarf.partnerId) : null;
+      if (!leftId || !partnerId || leftId >= partnerId) {
+        continue;
+      }
+      const partner = byId.get(partnerId);
+      if (!partner) {
+        continue;
+      }
+      const key = `${leftId}|${partnerId}`;
+      if (pairIds.has(key)) {
+        continue;
+      }
+      pairIds.add(key);
+      pairs.push([dwarf, partner]);
+    }
+  }
+
+  if (maxSamples <= 0 || adults.length < 2) {
+    return pairs;
+  }
+  if (carryoverPairsPerDwarf > 0) {
+    for (const dwarf of adults) {
+      const dwarfId = String(dwarf && dwarf.id || '');
+      if (!dwarfId || !dwarf.social || typeof dwarf.social !== 'object') {
+        continue;
+      }
+      const candidateLinks = Object.entries(dwarf.social.links || {})
+        .map(([peerId, link]) => ({
+          peerId: String(peerId || ''),
+          score: resolveLinkStrength(link),
+        }))
+        .filter((entry) => entry.peerId && entry.peerId !== dwarfId && entry.score > 0)
+        .sort((left, right) => right.score - left.score || left.peerId.localeCompare(right.peerId))
+        .slice(0, carryoverPairsPerDwarf);
+      for (const entry of candidateLinks) {
+        const leftId = dwarfId < entry.peerId ? dwarfId : entry.peerId;
+        const rightId = dwarfId < entry.peerId ? entry.peerId : dwarfId;
+        const key = `${leftId}|${rightId}`;
+        if (pairIds.has(key)) {
+          continue;
+        }
+        const peer = byId.get(entry.peerId);
+        if (!peer) {
+          continue;
+        }
+        pairIds.add(key);
+        pairs.push([dwarf, peer]);
+      }
+    }
+  }
+  const target = maxSamples;
+  const maxAttempts = Math.max(target * 6, 20);
+  let attempts = 0;
+  while (pairs.length < target && attempts < maxAttempts) {
+    attempts += 1;
+    const left = adults[Math.floor(Math.random() * adults.length)];
+    const right = adults[Math.floor(Math.random() * adults.length)];
+    if (!left || !right || left === right) {
+      continue;
+    }
+    const leftId = String(left.id || '');
+    const rightId = String(right.id || '');
+    if (!leftId || !rightId) {
+      continue;
+    }
+    const key = leftId < rightId ? `${leftId}|${rightId}` : `${rightId}|${leftId}`;
+    if (pairIds.has(key)) {
+      continue;
+    }
+    pairIds.add(key);
+    pairs.push([left, right]);
+  }
+  return pairs;
+}
+
+// Update one social link pair from current mood, bond, and profile distance.
+function updateSocialLinkPair(left, right, config, social, socialConfig, longArcConfig, governor, tick) {
+  if (!left || !right) {
+    return;
+  }
+  const leftSocial = normalizeDwarfSocialState(left.social);
+  const rightSocial = normalizeDwarfSocialState(right.social);
+  left.social = leftSocial;
+  right.social = rightSocial;
+  const leftId = String(left.id || '');
+  const rightId = String(right.id || '');
+  if (!leftId || !rightId || leftId === rightId) {
+    return;
+  }
+
+  const leftLink = ensureSocialLink(leftSocial, rightId, tick);
+  const rightLink = ensureSocialLink(rightSocial, leftId, tick);
+  const relationships = (config && config.population && config.population.relationships) || {};
+  const bondRatio = resolvePairBondRatio(left, right, relationships);
+  const sameClan = left.clanId && right.clanId && left.clanId === right.clanId;
+  const leftMood = left.state && typeof left.state === 'object' ? left.state : {};
+  const rightMood = right.state && typeof right.state === 'object' ? right.state : {};
+  const avgStress = clamp((Number(leftMood.stress || 0) + Number(rightMood.stress || 0)) / 2, 0, 1);
+  const avgMorale = clamp((Number(leftMood.morale || 0) + Number(rightMood.morale || 0)) / 2, 0, 1);
+  const lowMorale = 1 - avgMorale;
+  const ageGap = Math.abs(Number(left.ageTicks || 0) - Number(right.ageTicks || 0));
+  const leftSkill = resolveSocialSkillScore(left);
+  const rightSkill = resolveSocialSkillScore(right);
+  const skillGap = Math.abs(leftSkill - rightSkill);
+
+  const affinityGain =
+    Math.max(0, Number(socialConfig.affinityGainBase ?? 0.02))
+    + bondRatio * Math.max(0, Number(socialConfig.affinityBondScale ?? 0.08))
+    + (sameClan ? Math.max(0, Number(socialConfig.affinitySameClanBonus ?? 0.02)) : 0);
+  const rivalryGain = Math.max(
+    0,
+    Math.max(0, Number(socialConfig.rivalryBaseGain ?? 0.002))
+      + avgStress * Math.max(0, Number(socialConfig.rivalryStressScale ?? 0.06))
+      + lowMorale * Math.max(0, Number(socialConfig.rivalryLowMoraleScale ?? 0.05))
+      - bondRatio * Math.max(0, Number(socialConfig.rivalryBondShieldScale ?? 0.07)),
+  );
+  const mentorshipAgeGapMin = Math.max(0, Number(socialConfig.mentorshipAgeGapMin ?? 220));
+  const mentorshipSkillGapMin = clamp(Number(socialConfig.mentorshipSkillGapMin ?? 0.18), 0, 1);
+  const mentorshipEligible = bondRatio > 0.05
+    && (ageGap >= mentorshipAgeGapMin || skillGap >= mentorshipSkillGapMin);
+  const mentorshipGain = mentorshipEligible
+    ? Math.max(0, Number(socialConfig.mentorshipBaseGain ?? 0.002))
+      + bondRatio * Math.max(0, Number(socialConfig.mentorshipBondScale ?? 0.05))
+      + clamp(skillGap, 0, 1) * Math.max(0, Number(socialConfig.mentorshipSkillScale ?? 0.04))
+    : 0;
+  const rivalryThreshold = clamp(Number(socialConfig.rivalryThreshold ?? 0.55), 0, 1);
+  const grudgeStressThreshold = clamp(Number(socialConfig.grudgeStressThreshold ?? 0.72), 0, 1);
+  const grudgeGain = Math.max(
+    0,
+    avgStress >= grudgeStressThreshold
+      && (leftLink.rivalry >= rivalryThreshold || rightLink.rivalry >= rivalryThreshold)
+      ? Math.max(0, Number(socialConfig.grudgeStressScale ?? 0.045))
+        * clamp(avgStress - grudgeStressThreshold + 0.12, 0, 1)
+      : 0,
+  ) + Math.max(0, Number(socialConfig.grudgeRivalryScale ?? 0.006))
+      * clamp((Number(leftLink.rivalry || 0) + Number(rightLink.rivalry || 0)) / 2, 0, 1);
+
+  const harmony = clamp(Number(social && social.longArc && social.longArc.harmony || 0), 0, 1);
+  const strife = clamp(Number(social && social.longArc && social.longArc.strife || 0), 0, 1);
+  const governance = normalizeSocialGovernorSnapshot(governor);
+  const affinityScale = clamp(
+    1
+      + harmony * clamp(Number(longArcConfig.affinityHarmonyScale ?? 0.2), 0, 2)
+      - strife * clamp(Number(longArcConfig.affinityStrifePenaltyScale ?? 0.24), 0, 2),
+    0.2,
+    2.5,
+  );
+  const rivalryScale = clamp(
+    1
+      + strife * clamp(Number(longArcConfig.rivalryStrifeScale ?? 0.22), 0, 2)
+      - harmony * clamp(Number(longArcConfig.rivalryHarmonyReliefScale ?? 0.14), 0, 2)
+      - governance.mediationBias * clamp(Number(governance.mediationRivalryReductionScale ?? 0.55), 0, 1.5)
+      - governance.accountabilityBias * clamp(Number(governance.accountabilityRivalryReductionScale ?? 0.3), 0, 1.5),
+    0.15,
+    2.8,
+  );
+  const mentorshipScale = clamp(
+    1
+      + harmony * clamp(Number(longArcConfig.mentorshipHarmonyScale ?? 0.2), 0, 2)
+      + governance.mentorshipBias * clamp(Number(governance.mentorshipGainScale ?? 0.5), 0, 1.5),
+    0.2,
+    2.8,
+  );
+  const grudgeScale = clamp(
+    1
+      + strife * clamp(Number(longArcConfig.grudgeStrifeScale ?? 0.24), 0, 2)
+      - harmony * clamp(Number(longArcConfig.grudgeHarmonyReliefScale ?? 0.16), 0, 2)
+      - governance.mediationBias * clamp(Number(governance.mediationGrudgeReductionScale ?? 0.65), 0, 1.5)
+      - governance.accountabilityBias * clamp(Number(governance.accountabilityGrudgeReductionScale ?? 0.48), 0, 1.5),
+    0.15,
+    2.9,
+  );
+
+  const affinityDecay = Math.max(0, Number(socialConfig.affinityDecayPerTick ?? 0.0015));
+  const rivalryDecay = Math.max(0, Number(socialConfig.rivalryDecayPerTick ?? 0.0025));
+  const mentorshipDecay = Math.max(0, Number(socialConfig.mentorshipDecayPerTick ?? 0.0018));
+  const grudgeDecay = Math.max(0, Number(socialConfig.grudgeDecayPerTick ?? 0.0012));
+  applyLinkDelta(
+    leftLink,
+    affinityGain * affinityScale,
+    rivalryGain * rivalryScale,
+    mentorshipGain * mentorshipScale,
+    grudgeGain * grudgeScale,
+    affinityDecay,
+    rivalryDecay,
+    mentorshipDecay,
+    grudgeDecay,
+    tick,
+  );
+  applyLinkDelta(
+    rightLink,
+    affinityGain * affinityScale,
+    rivalryGain * rivalryScale,
+    mentorshipGain * mentorshipScale,
+    grudgeGain * grudgeScale,
+    affinityDecay,
+    rivalryDecay,
+    mentorshipDecay,
+    grudgeDecay,
+    tick,
+  );
+}
+
+// Ensure one normalized link entry exists for a peer.
+function ensureSocialLink(socialState, peerId, tick) {
+  const key = String(peerId || '');
+  if (!key) {
+    return null;
+  }
+  if (!socialState.links[key] || typeof socialState.links[key] !== 'object') {
+    socialState.links[key] = {
+      affinity: 0,
+      rivalry: 0,
+      mentorship: 0,
+      grudge: 0,
+      lastTick: tick,
     };
   }
-  const socialDrama = ensureSocialDramaState(state, config);
-  const settings = resolveDramaSettings(dramaConfig);
-  const dwarves = Array.isArray(state && state.dwarves) ? state.dwarves : [];
-  const friendships = countUniquePeerPairs(dwarves, 'friendId');
-  const rivalries = countUniquePeerPairs(dwarves, 'rivalId');
-  const grudges = countUniquePeerPairs(dwarves, 'grudgeId');
-  const mentorships = countUniqueMentorships(dwarves);
-  const latestIncident = socialDrama && Array.isArray(socialDrama.history) && socialDrama.history.length > 0
-    ? socialDrama.history[0]
-    : null;
-  const tick = Math.max(0, Number(state && state.tick || 0));
-  const totalHeat = dwarves.reduce((sum, dwarf) => {
-    const summary = ensureDwarfSocialState(dwarf).summary;
-    const value =
-      Math.max(0, Number(summary.rivalScore || 0))
-      + Math.max(0, Number(summary.grudgeScore || 0)) * 1.2
-      - Math.max(0, Number(summary.friendScore || 0)) * 0.4
-      - Math.max(0, Number(summary.mentorScore || 0)) * 0.3;
-    return sum + value;
-  }, 0);
-  const heat = dwarves.length > 0
-    ? clamp(totalHeat / (dwarves.length * Math.max(1, settings.scoreCap)), 0, 1)
-    : 0;
-  return {
-    enabled: true,
-    friendships,
-    rivalries,
-    grudges,
-    mentorships,
-    heat,
-    latestIncident: latestIncident ? latestIncident.text : null,
-    ticksSinceIncident: latestIncident ? Math.max(0, tick - Number(latestIncident.tick || tick)) : null,
-    totalIncidents: socialDrama ? Math.max(0, Number(socialDrama.stats.incidents || 0)) : 0,
-  };
-}
-
-// Normalize one incident entry loaded from state or history.
-function normalizeIncidentEntry(entry) {
-  if (!entry || typeof entry !== 'object') {
-    return null;
-  }
-  return {
-    type: String(entry.type || 'unknown'),
-    tick: Math.max(0, Math.floor(Number(entry.tick || 0))),
-    sourceId: entry.sourceId ? String(entry.sourceId) : null,
-    targetId: entry.targetId ? String(entry.targetId) : null,
-    text: entry.text ? String(entry.text) : '',
-  };
-}
-
-// Normalize the global drama statistics shape.
-function normalizeDramaStats(stats) {
-  const source = stats && typeof stats === 'object' ? stats : {};
-  return {
-    incidents: Math.max(0, Math.floor(Number(source.incidents || 0))),
-    friendship: Math.max(0, Math.floor(Number(source.friendship || 0))),
-    rivalry: Math.max(0, Math.floor(Number(source.rivalry || 0))),
-    grudge: Math.max(0, Math.floor(Number(source.grudge || 0))),
-    mentorship: Math.max(0, Math.floor(Number(source.mentorship || 0))),
-  };
-}
-
-// Normalize one per-target social link.
-function normalizeSocialLink(link) {
-  if (!link || typeof link !== 'object' || !link.targetId) {
-    return null;
-  }
-  return {
-    targetId: String(link.targetId),
-    affinity: Math.max(0, Number(link.affinity || 0)),
-    friction: Math.max(0, Number(link.friction || 0)),
-    grudge: Math.max(0, Number(link.grudge || 0)),
-    mentor: Math.max(0, Number(link.mentor || 0)),
-    protege: Math.max(0, Number(link.protege || 0)),
-    lastInteractionTick: Math.max(0, Math.floor(Number(link.lastInteractionTick || 0))),
-    lastIncidentTick: Math.max(0, Math.floor(Number(link.lastIncidentTick || 0))),
-  };
-}
-
-// Normalize one cached summary block.
-function normalizeSummary(summary) {
-  const source = summary && typeof summary === 'object' ? summary : {};
-  return {
-    friendId: source.friendId ? String(source.friendId) : null,
-    friendScore: Math.max(0, Number(source.friendScore || 0)),
-    rivalId: source.rivalId ? String(source.rivalId) : null,
-    rivalScore: Math.max(0, Number(source.rivalScore || 0)),
-    grudgeId: source.grudgeId ? String(source.grudgeId) : null,
-    grudgeScore: Math.max(0, Number(source.grudgeScore || 0)),
-    mentorId: source.mentorId ? String(source.mentorId) : null,
-    mentorScore: Math.max(0, Number(source.mentorScore || 0)),
-    protegeId: source.protegeId ? String(source.protegeId) : null,
-    protegeScore: Math.max(0, Number(source.protegeScore || 0)),
-  };
-}
-
-// Resolve normalized drama settings with safe defaults.
-function resolveDramaSettings(dramaConfig) {
-  const source = dramaConfig && typeof dramaConfig === 'object' ? dramaConfig : {};
-  const thresholds = source.thresholds && typeof source.thresholds === 'object'
-    ? source.thresholds
-    : {};
-  const decayPerTick = source.decayPerTick && typeof source.decayPerTick === 'object'
-    ? source.decayPerTick
-    : {};
-  const effects = source.effects && typeof source.effects === 'object'
-    ? source.effects
-    : {};
-  const incidents = source.incidents && typeof source.incidents === 'object'
-    ? source.incidents
-    : {};
-  return {
-    maxLinksPerDwarf: Math.max(1, Math.floor(Number(source.maxLinksPerDwarf || DEFAULT_MAX_LINKS))),
-    scoreCap: Math.max(1, Number(source.scoreCap || 12)),
-    minScoreToKeep: Math.max(0, Number(source.minScoreToKeep ?? 0.25)),
-    friendshipGain: Math.max(0, Number(source.friendshipGain ?? 0.7)),
-    rivalryGain: Math.max(0, Number(source.rivalryGain ?? 0.45)),
-    grudgeGain: Math.max(0, Number(source.grudgeGain ?? 0.32)),
-    mentorshipGain: Math.max(0, Number(source.mentorshipGain ?? 0.55)),
-    sameClanAffinityBonus: Math.max(0, Number(source.sameClanAffinityBonus ?? 0.25)),
-    sameHomeAffinityBonus: Math.max(0, Number(source.sameHomeAffinityBonus ?? 0.18)),
-    sameRoleRivalryBonus: Math.max(0, Number(source.sameRoleRivalryBonus ?? 0.2)),
-    stressRivalryScale: Math.max(0, Number(source.stressRivalryScale ?? 0.7)),
-    lowMoraleRivalryScale: Math.max(0, Number(source.lowMoraleRivalryScale ?? 0.6)),
-    mentorAgeGapTicks: Math.max(0, Number(source.mentorAgeGapTicks ?? 260)),
-    menteeMaxAgeTicks: Math.max(0, Number(source.menteeMaxAgeTicks ?? 1400)),
-    thresholds: {
-      friendship: Math.max(0, Number(thresholds.friendship ?? 4.8)),
-      rivalry: Math.max(0, Number(thresholds.rivalry ?? 3.6)),
-      grudge: Math.max(0, Number(thresholds.grudge ?? 4.6)),
-      mentor: Math.max(0, Number(thresholds.mentor ?? 4.2)),
-      protege: Math.max(0, Number(thresholds.protege ?? 4.2)),
-    },
-    decayPerTick: {
-      affinity: Math.max(0, Number(decayPerTick.affinity ?? 0.05)),
-      friction: Math.max(0, Number(decayPerTick.friction ?? 0.04)),
-      grudge: Math.max(0, Number(decayPerTick.grudge ?? 0.025)),
-      mentor: Math.max(0, Number(decayPerTick.mentor ?? 0.03)),
-      protege: Math.max(0, Number(decayPerTick.protege ?? 0.03)),
-    },
-    effects: {
-      friendMoralePerTick: Number(effects.friendMoralePerTick ?? 0.012),
-      friendStressReliefPerTick: Number(effects.friendStressReliefPerTick ?? 0.01),
-      rivalStressPerTick: Number(effects.rivalStressPerTick ?? 0.012),
-      rivalMoralePenaltyPerTick: Number(effects.rivalMoralePenaltyPerTick ?? 0.006),
-      grudgeStressPerTick: Number(effects.grudgeStressPerTick ?? 0.016),
-      grudgeMoralePenaltyPerTick: Number(effects.grudgeMoralePenaltyPerTick ?? 0.01),
-      grudgeFatiguePerTick: Number(effects.grudgeFatiguePerTick ?? 0.008),
-      mentorMoralePerTick: Number(effects.mentorMoralePerTick ?? 0.01),
-      mentorStressReliefPerTick: Number(effects.mentorStressReliefPerTick ?? 0.012),
-      protegeMoralePerTick: Number(effects.protegeMoralePerTick ?? 0.008),
-      protegeStressReliefPerTick: Number(effects.protegeStressReliefPerTick ?? 0.006),
-    },
-    incidents: {
-      enabled: incidents.enabled !== false,
-      historyLimit: Math.max(1, Math.floor(Number(incidents.historyLimit || DEFAULT_HISTORY_LIMIT))),
-      maxPerTick: Math.max(0, Math.floor(Number(incidents.maxPerTick || 1))),
-      globalCooldownTicks: Math.max(0, Math.floor(Number(incidents.globalCooldownTicks || 20))),
-      pairCooldownTicks: Math.max(0, Math.floor(Number(incidents.pairCooldownTicks || 80))),
-      friendshipChance: clamp(Number(incidents.friendshipChance ?? 0.03), 0, 1),
-      rivalryChance: clamp(Number(incidents.rivalryChance ?? 0.025), 0, 1),
-      grudgeChance: clamp(Number(incidents.grudgeChance ?? 0.022), 0, 1),
-      mentorshipChance: clamp(Number(incidents.mentorshipChance ?? 0.03), 0, 1),
-      friendshipMoraleDelta: Number(incidents.friendshipMoraleDelta ?? 0.06),
-      friendshipStressReliefDelta: Number(incidents.friendshipStressReliefDelta ?? 0.05),
-      rivalryStressDelta: Number(incidents.rivalryStressDelta ?? 0.08),
-      rivalryMoraleDelta: Number(incidents.rivalryMoraleDelta ?? -0.04),
-      grudgeStressDelta: Number(incidents.grudgeStressDelta ?? 0.11),
-      grudgeMoraleDelta: Number(incidents.grudgeMoraleDelta ?? -0.07),
-      mentorshipMoraleDelta: Number(incidents.mentorshipMoraleDelta ?? 0.07),
-      mentorshipFatigueReliefDelta: Number(incidents.mentorshipFatigueReliefDelta ?? 0.05),
-    },
-  };
-}
-
-// Ensure one bounded social link exists for the requested target.
-function ensureSocialLink(social, targetId, settings, tick) {
-  const id = String(targetId || '');
-  if (!id) {
-    return null;
-  }
-  let link = social.links.find((entry) => entry.targetId === id);
-  if (link) {
-    return link;
-  }
-  if (social.links.length >= settings.maxLinksPerDwarf) {
-    social.links.sort((left, right) => {
-      const leftScore = getLinkStrength(left);
-      const rightScore = getLinkStrength(right);
-      if (leftScore !== rightScore) {
-        return leftScore - rightScore;
-      }
-      return Number(left.lastInteractionTick || 0) - Number(right.lastInteractionTick || 0);
-    });
-    social.links.shift();
-  }
-  link = normalizeSocialLink({
-    targetId: id,
-    affinity: 0,
-    friction: 0,
-    grudge: 0,
-    mentor: 0,
-    protege: 0,
-    lastInteractionTick: tick,
-    lastIncidentTick: 0,
-  });
-  social.links.push(link);
+  const link = socialState.links[key];
+  link.affinity = clamp(Number(link.affinity || 0), 0, 1);
+  link.rivalry = clamp(Number(link.rivalry || 0), 0, 1);
+  link.mentorship = clamp(Number(link.mentorship || 0), 0, 1);
+  link.grudge = clamp(Number(link.grudge || 0), 0, 1);
+  link.lastTick = Math.max(0, Number(link.lastTick || 0));
   return link;
 }
 
-// Update mentorship/protege directional links when age gap and mood allow it.
-function updateMentorshipLinks(dwarf, partner, linkA, linkB, settings) {
-  const ageA = Math.max(0, Number(dwarf.ageTicks || 0));
-  const ageB = Math.max(0, Number(partner.ageTicks || 0));
-  const gap = Math.abs(ageA - ageB);
-  if (gap < settings.mentorAgeGapTicks) {
+// Apply bounded social deltas on one link.
+function applyLinkDelta(link, affinityGain, rivalryGain, mentorshipGain, grudgeGain, affinityDecay, rivalryDecay, mentorshipDecay, grudgeDecay, tick) {
+  if (!link) {
     return;
   }
-  let younger = null;
-  let older = null;
-  let youngerLink = null;
-  let olderLink = null;
-  if (ageA < ageB) {
-    younger = dwarf;
-    older = partner;
-    youngerLink = linkA;
-    olderLink = linkB;
-  } else if (ageB < ageA) {
-    younger = partner;
-    older = dwarf;
-    youngerLink = linkB;
-    olderLink = linkA;
-  }
-  if (!younger || !older || !youngerLink || !olderLink) {
-    return;
-  }
-  if (Math.max(0, Number(younger.ageTicks || 0)) > settings.menteeMaxAgeTicks) {
-    return;
-  }
-  const mentorGain = settings.mentorshipGain * (1 + gap / Math.max(1, settings.mentorAgeGapTicks * 4));
-  youngerLink.mentor = clampScore(youngerLink.mentor + mentorGain, settings.scoreCap);
-  olderLink.protege = clampScore(olderLink.protege + mentorGain, settings.scoreCap);
+  link.affinity = clamp(link.affinity + affinityGain - affinityDecay, 0, 1);
+  link.rivalry = clamp(link.rivalry + rivalryGain - rivalryDecay, 0, 1);
+  link.mentorship = clamp(link.mentorship + mentorshipGain - mentorshipDecay, 0, 1);
+  link.grudge = clamp(link.grudge + grudgeGain - grudgeDecay, 0, 1);
+  link.lastTick = Math.max(0, Number(tick || 0));
 }
 
-// Decay all social metrics by their configured per-tick amounts.
-function decaySocialLinks(links, settings) {
-  for (const link of links) {
-    link.affinity = Math.max(0, link.affinity - settings.decayPerTick.affinity);
-    link.friction = Math.max(0, link.friction - settings.decayPerTick.friction);
-    link.grudge = Math.max(0, link.grudge - settings.decayPerTick.grudge);
-    link.mentor = Math.max(0, link.mentor - settings.decayPerTick.mentor);
-    link.protege = Math.max(0, link.protege - settings.decayPerTick.protege);
-  }
-}
+// Finalize status arrays and aggregate summary counters.
+function finalizeSocialStatuses(adults, byId, socialConfig, tick) {
+  const maxLinks = Math.max(1, Math.floor(Number(socialConfig.maxTrackedLinksPerDwarf ?? 6)));
+  const staleDecay = Math.max(0, Number(socialConfig.staleDecayPerTick ?? 0.001));
+  const friendshipThreshold = clamp(Number(socialConfig.friendshipThreshold ?? 0.58), 0, 1);
+  const rivalryThreshold = clamp(Number(socialConfig.rivalryThreshold ?? 0.55), 0, 1);
+  const mentorshipThreshold = clamp(Number(socialConfig.mentorshipThreshold ?? 0.5), 0, 1);
+  const grudgeThreshold = clamp(Number(socialConfig.grudgeThreshold ?? 0.42), 0, 1);
+  const mentorshipAgeGapMin = Math.max(0, Number(socialConfig.mentorshipAgeGapMin ?? 220));
+  const mentorshipSkillGapMin = clamp(Number(socialConfig.mentorshipSkillGapMin ?? 0.18), 0, 1);
+  const scoreEps = Math.max(0.0001, Number(socialConfig.linkEpsilon ?? 0.01));
+  const summary = {
+    links: 0,
+    friendships: 0,
+    rivalries: 0,
+    mentorships: 0,
+    grudges: 0,
+    mentoredAdults: 0,
+  };
 
-// Drop links that no longer carry enough meaningful memory.
-function pruneWeakLinks(links, settings) {
-  const keepThreshold = Math.max(0, settings.minScoreToKeep);
-  for (let i = links.length - 1; i >= 0; i -= 1) {
-    if (getLinkStrength(links[i]) < keepThreshold) {
-      links.splice(i, 1);
+  for (const dwarf of adults) {
+    const socialState = normalizeDwarfSocialState(dwarf.social);
+    dwarf.social = socialState;
+    const entries = [];
+    for (const [peerId] of Object.entries(socialState.links)) {
+      const peer = byId.get(String(peerId || ''));
+      if (!peer) {
+        continue;
+      }
+      const link = ensureSocialLink(socialState, peerId, tick);
+      if (!link) {
+        continue;
+      }
+      const idleTicks = Math.max(0, tick - Number(link.lastTick || tick));
+      if (idleTicks > 0) {
+        const idleDecay = staleDecay * idleTicks;
+        link.affinity = clamp(link.affinity - idleDecay, 0, 1);
+        link.rivalry = clamp(link.rivalry - idleDecay, 0, 1);
+        link.mentorship = clamp(link.mentorship - idleDecay, 0, 1);
+        link.grudge = clamp(link.grudge - idleDecay, 0, 1);
+      }
+      const strength = resolveLinkStrength(link);
+      if (strength < scoreEps) {
+        continue;
+      }
+      entries.push({
+        peerId: String(peerId),
+        peer,
+        link,
+        strength,
+      });
+    }
+
+    entries.sort((left, right) => right.strength - left.strength || left.peerId.localeCompare(right.peerId));
+    const kept = entries.slice(0, maxLinks);
+    const keptIds = new Set(kept.map((entry) => entry.peerId));
+    for (const peerId of Object.keys(socialState.links)) {
+      if (!keptIds.has(peerId)) {
+        delete socialState.links[peerId];
+      }
+    }
+
+    const friendIds = [];
+    const rivalIds = [];
+    const grudgeIds = [];
+    let mentorId = null;
+    let mentorScore = -1;
+    const menteeIds = [];
+    const selfAge = Number(dwarf.ageTicks || 0);
+    const selfSkill = resolveSocialSkillScore(dwarf);
+
+    for (const entry of kept) {
+      const link = entry.link;
+      const peerId = entry.peerId;
+      if (link.affinity >= friendshipThreshold && link.rivalry < rivalryThreshold) {
+        friendIds.push(peerId);
+      }
+      if (link.rivalry >= rivalryThreshold) {
+        rivalIds.push(peerId);
+      }
+      if (link.grudge >= grudgeThreshold) {
+        grudgeIds.push(peerId);
+      }
+      if (link.mentorship >= mentorshipThreshold) {
+        const peerAge = Number(entry.peer.ageTicks || 0);
+        const peerSkill = resolveSocialSkillScore(entry.peer);
+        const ageGap = peerAge - selfAge;
+        const skillGap = peerSkill - selfSkill;
+        if (ageGap >= mentorshipAgeGapMin && skillGap >= mentorshipSkillGapMin && link.mentorship > mentorScore) {
+          mentorScore = link.mentorship;
+          mentorId = peerId;
+        }
+        if (ageGap <= -mentorshipAgeGapMin && skillGap <= -mentorshipSkillGapMin) {
+          menteeIds.push(peerId);
+        }
+      }
+    }
+
+    socialState.status.friendIds = friendIds.slice(0, maxLinks);
+    socialState.status.rivalIds = rivalIds.slice(0, maxLinks);
+    socialState.status.grudgeIds = grudgeIds.slice(0, maxLinks);
+    socialState.status.mentorId = mentorId;
+    socialState.status.menteeIds = menteeIds.slice(0, maxLinks);
+    socialState.cooldowns.lastStatusTick = tick;
+
+    summary.links += kept.length;
+    summary.friendships += socialState.status.friendIds.length;
+    summary.rivalries += socialState.status.rivalIds.length;
+    summary.grudges += socialState.status.grudgeIds.length;
+    summary.mentorships += (socialState.status.mentorId ? 1 : 0) + socialState.status.menteeIds.length;
+    if (socialState.status.mentorId) {
+      summary.mentoredAdults += 1;
     }
   }
+
+  return {
+    links: Math.floor(summary.links / 2),
+    friendships: Math.floor(summary.friendships / 2),
+    rivalries: Math.floor(summary.rivalries / 2),
+    mentorships: Math.floor(summary.mentorships / 2),
+    grudges: Math.floor(summary.grudges / 2),
+    mentoredAdults: summary.mentoredAdults,
+  };
 }
 
-// Rebuild one dwarf's best social states from bounded link memory.
-function buildSocialSummary(links, settings) {
-  const summary = createEmptySummary();
-  for (const link of links) {
-    if (!link) {
+// Run bounded social incidents with global/per-pair cooldown guardrails.
+function updateSocialIncidents(state, config, social, adults, byId, socialConfig, governorConfig, governor, tick) {
+  const incidentConfig = getSocialIncidentConfig(socialConfig);
+  if (incidentConfig.enabled === false || adults.length < 2) {
+    return 0;
+  }
+  if (tick < Math.max(0, Number(social.incidentCooldownUntilTick || 0))) {
+    return 0;
+  }
+  const intervalTicks = Math.max(1, Math.floor(Number(incidentConfig.intervalTicks ?? 24)));
+  if (social.lastIncidentTick > 0 && tick - social.lastIncidentTick < intervalTicks) {
+    return 0;
+  }
+
+  const retentionTicks = Math.max(0, Math.floor(Number(incidentConfig.pairCooldownRetentionTicks ?? 480)));
+  prunePairCooldowns(social.pairCooldownByKey, tick, retentionTicks);
+  const maxPerUpdate = Math.max(1, Math.floor(Number(incidentConfig.maxPerUpdate ?? 1)));
+  const governance = normalizeSocialGovernorSnapshot(governor, governorConfig);
+  const accountabilityChanceScale = clamp(Number(governance.accountabilityIncidentChanceScale ?? 0.32), 0, 1.5);
+  const mediationChanceScale = clamp(Number(governance.mediationIncidentChanceScale ?? 0.12), 0, 1.5);
+  let triggered = 0;
+
+  for (let i = 0; i < maxPerUpdate; i += 1) {
+    const baseChance = clamp(Number(incidentConfig.baseChancePerRoll ?? 0.45), 0, 1);
+    const chanceMultiplier = clamp(
+      1
+        - governance.accountabilityBias * accountabilityChanceScale
+        - governance.mediationBias * mediationChanceScale,
+      0.2,
+      1.8,
+    );
+    const incidentChance = clamp(baseChance * chanceMultiplier, 0, 1);
+    if (Math.random() > incidentChance) {
+      break;
+    }
+    const candidates = buildIncidentCandidates(adults, byId, social, socialConfig, incidentConfig, tick);
+    const selection = selectIncidentCandidate(candidates, incidentConfig, governance);
+    if (!selection) {
+      break;
+    }
+    const applied = applyIncidentSelection(selection, state, config, social, socialConfig, incidentConfig, tick);
+    if (!applied) {
+      break;
+    }
+    triggered += 1;
+  }
+
+  if (triggered > 0) {
+    social.lastIncidentTick = tick;
+    const globalCooldownTicks = Math.max(0, Math.floor(Number(incidentConfig.globalCooldownTicks ?? 18)));
+    social.incidentCooldownUntilTick = tick + globalCooldownTicks;
+  }
+  return triggered;
+}
+
+// Resolve social incidents config with safe defaults.
+function getSocialIncidentConfig(socialConfig) {
+  return socialConfig && socialConfig.incidents && typeof socialConfig.incidents === 'object'
+    ? socialConfig.incidents
+    : {};
+}
+
+// Build candidate buckets for each incident type.
+function buildIncidentCandidates(adults, byId, social, socialConfig, incidentConfig, tick) {
+  const buckets = {};
+  for (const type of SOCIAL_INCIDENT_TYPES) {
+    buckets[type] = [];
+  }
+  const seenPairs = new Set();
+  const rivalryThreshold = clamp(Number(socialConfig.rivalryThreshold ?? 0.55), 0, 1);
+  const grudgeThreshold = clamp(Number(socialConfig.grudgeThreshold ?? 0.42), 0, 1);
+  const mentorshipThreshold = clamp(Number(socialConfig.mentorshipThreshold ?? 0.5), 0, 1);
+  const rivalryIncidentThreshold = Math.max(0.08, rivalryThreshold * 0.4);
+  const grudgeIncidentThreshold = Math.max(0.025, grudgeThreshold * 0.2);
+  const mentorshipIncidentThreshold = Math.max(0.1, mentorshipThreshold * 0.5);
+  const reconciliationAffinityMin = clamp(Number(incidentConfig.reconciliationAffinityMin ?? 0.34), 0, 1);
+  const perPairCooldownTicks = Math.max(0, Math.floor(Number(incidentConfig.perPairCooldownTicks ?? 120)));
+
+  for (const left of adults) {
+    const leftId = String(left && left.id || '');
+    if (!leftId || !left.social || typeof left.social !== 'object') {
       continue;
     }
-    if (
-      link.affinity >= settings.thresholds.friendship
-      && link.affinity >= link.friction
-      && link.affinity > summary.friendScore
-    ) {
-      summary.friendId = link.targetId;
-      summary.friendScore = link.affinity;
-    }
-    if (
-      link.friction >= settings.thresholds.rivalry
-      && link.friction >= link.affinity * 0.7
-      && summary.friendId !== link.targetId
-      && link.friction > summary.rivalScore
-    ) {
-      summary.rivalId = link.targetId;
-      summary.rivalScore = link.friction;
-    }
-    if (link.grudge >= settings.thresholds.grudge && link.grudge > summary.grudgeScore) {
-      summary.grudgeId = link.targetId;
-      summary.grudgeScore = link.grudge;
-    }
-    if (link.mentor >= settings.thresholds.mentor && link.mentor > summary.mentorScore) {
-      summary.mentorId = link.targetId;
-      summary.mentorScore = link.mentor;
-    }
-    if (link.protege >= settings.thresholds.protege && link.protege > summary.protegeScore) {
-      summary.protegeId = link.targetId;
-      summary.protegeScore = link.protege;
+    for (const [peerId] of Object.entries(left.social.links || {})) {
+      const rightId = String(peerId || '');
+      if (!rightId || leftId >= rightId) {
+        continue;
+      }
+      const right = byId.get(rightId);
+      if (!right || !right.social || typeof right.social !== 'object') {
+        continue;
+      }
+      const pairKey = `${leftId}|${rightId}`;
+      if (seenPairs.has(pairKey)) {
+        continue;
+      }
+      seenPairs.add(pairKey);
+      const cooldownTick = Math.max(0, Number(social.pairCooldownByKey[pairKey] || 0));
+      if (perPairCooldownTicks > 0 && cooldownTick > 0 && tick - cooldownTick < perPairCooldownTicks) {
+        continue;
+      }
+
+      const leftLink = ensureSocialLink(left.social, rightId, tick);
+      const rightLink = ensureSocialLink(right.social, leftId, tick);
+      if (!leftLink || !rightLink) {
+        continue;
+      }
+      const metrics = computePairIncidentMetrics(left, right, leftLink, rightLink, socialConfig);
+      const entry = {
+        left,
+        right,
+        leftLink,
+        rightLink,
+        pairKey,
+        metrics,
+      };
+
+      if (metrics.mentorship >= mentorshipIncidentThreshold || metrics.hasMentorTie) {
+        buckets.mentorship_breakthrough.push({
+          ...entry,
+          score: clamp(metrics.mentorship + metrics.affinity * 0.42 + metrics.skillGap * 0.38, 0.0001, 1.5),
+        });
+      }
+      if (metrics.rivalry >= rivalryIncidentThreshold) {
+        buckets.rivalry_clash.push({
+          ...entry,
+          score: clamp(metrics.rivalry + metrics.stress * 0.45 + metrics.grudge * 0.22, 0.0001, 1.5),
+        });
+      }
+      if (metrics.grudge >= grudgeIncidentThreshold) {
+        buckets.grudge_escalation.push({
+          ...entry,
+          score: clamp(metrics.grudge + metrics.stress * 0.35 + metrics.rivalry * 0.26, 0.0001, 1.5),
+        });
+      }
+      if ((metrics.rivalry > 0.18 || metrics.grudge > 0.14) && metrics.affinity >= reconciliationAffinityMin) {
+        buckets.reconciliation.push({
+          ...entry,
+          score: clamp(metrics.affinity + (1 - metrics.rivalry) * 0.35 + (1 - metrics.grudge) * 0.2, 0.0001, 1.5),
+        });
+      }
     }
   }
-  if (!summary.rivalId && summary.grudgeId) {
-    summary.rivalId = summary.grudgeId;
-    summary.rivalScore = summary.grudgeScore;
-  }
-  return summary;
+  return buckets;
 }
 
-// Apply low-amplitude persistent mood effects from active social states.
-function applyPassiveDramaEffects(dwarf, summary, effects) {
-  if (!dwarf || !dwarf.state || !summary) {
-    return;
-  }
-  if (summary.friendId) {
-    adjustDwarfState(dwarf, {
-      morale: Number(effects.friendMoralePerTick || 0),
-      stress: -Number(effects.friendStressReliefPerTick || 0),
-    });
-  }
-  if (summary.rivalId) {
-    adjustDwarfState(dwarf, {
-      morale: -Number(effects.rivalMoralePenaltyPerTick || 0),
-      stress: Number(effects.rivalStressPerTick || 0),
-    });
-  }
-  if (summary.grudgeId) {
-    adjustDwarfState(dwarf, {
-      morale: -Number(effects.grudgeMoralePenaltyPerTick || 0),
-      stress: Number(effects.grudgeStressPerTick || 0),
-      fatigue: Number(effects.grudgeFatiguePerTick || 0),
-    });
-  }
-  if (summary.mentorId) {
-    adjustDwarfState(dwarf, {
-      morale: Number(effects.mentorMoralePerTick || 0),
-      stress: -Number(effects.mentorStressReliefPerTick || 0),
-    });
-  }
-  if (summary.protegeId) {
-    adjustDwarfState(dwarf, {
-      morale: Number(effects.protegeMoralePerTick || 0),
-      stress: -Number(effects.protegeStressReliefPerTick || 0),
-    });
-  }
-}
-
-// Trigger at most one rare social incident when scores and cooldowns allow it.
-function maybeTriggerIncident(state, config, socialDrama, settings) {
-  if (!socialDrama || settings.incidents.enabled === false || settings.incidents.maxPerTick <= 0) {
-    return;
-  }
-  const tick = Math.max(0, Math.floor(Number(state && state.tick || 0)));
-  for (let i = 0; i < settings.incidents.maxPerTick; i += 1) {
-    if (tick - Number(socialDrama.lastIncidentTick || 0) < settings.incidents.globalCooldownTicks) {
-      return;
-    }
-    const candidates = buildIncidentCandidates(state, settings, tick);
-    if (candidates.length === 0) {
-      return;
-    }
-    const chosen = pickWeightedCandidate(candidates);
-    if (!chosen) {
-      return;
-    }
-    const baseChance = resolveIncidentChance(chosen.type, settings.incidents);
-    const scoreRatio = clamp(Number(chosen.score || 0) / Math.max(1, settings.scoreCap), 0.25, 1);
-    if (Math.random() > clamp(baseChance * scoreRatio, 0, 1)) {
-      continue;
-    }
-    applyIncident(state, config, socialDrama, chosen, settings.incidents, tick);
-  }
-}
-
-// Build all incident candidates from current social summaries.
-function buildIncidentCandidates(state, settings, tick) {
-  const dwarves = Array.isArray(state && state.dwarves) ? state.dwarves : [];
-  const byId = new Map(dwarves.map((dwarf) => [String(dwarf.id || ''), dwarf]));
-  const candidates = [];
-  const seen = new Set();
-
-  for (const dwarf of dwarves) {
-    const social = ensureDwarfSocialState(dwarf);
-    pushIncidentCandidate(candidates, seen, byId, dwarf, social.summary.friendId, social.summary.friendScore, 'friendship', tick, settings);
-    pushIncidentCandidate(candidates, seen, byId, dwarf, social.summary.rivalId, social.summary.rivalScore, 'rivalry', tick, settings);
-    pushIncidentCandidate(candidates, seen, byId, dwarf, social.summary.grudgeId, social.summary.grudgeScore, 'grudge', tick, settings);
-    pushIncidentCandidate(candidates, seen, byId, dwarf, social.summary.mentorId, social.summary.mentorScore, 'mentorship', tick, settings, true);
-  }
-
-  return candidates;
-}
-
-// Push one eligible incident candidate if cooldowns and identities allow it.
-function pushIncidentCandidate(candidates, seen, byId, dwarf, targetId, score, type, tick, settings, directional = false) {
-  const sourceId = dwarf && dwarf.id ? String(dwarf.id) : '';
-  const targetKey = targetId ? String(targetId) : '';
-  if (!sourceId || !targetKey || sourceId === targetKey || Number(score || 0) <= 0) {
-    return;
-  }
-  const target = byId.get(targetKey);
-  if (!target) {
-    return;
-  }
-  const key = directional
-    ? `${type}:${sourceId}->${targetKey}`
-    : `${type}:${buildPairKey(sourceId, targetKey)}`;
-  if (seen.has(key)) {
-    return;
-  }
-  const sourceSocial = ensureDwarfSocialState(dwarf);
-  const targetSocial = ensureDwarfSocialState(target);
-  const sourceLink = sourceSocial.links.find((link) => link.targetId === targetKey) || null;
-  const targetLink = targetSocial.links.find((link) => link.targetId === sourceId) || null;
-  const lastPairIncidentTick = Math.max(
-    Number(sourceSocial.lastIncidentTick || 0),
-    Number(targetSocial.lastIncidentTick || 0),
-    Number(sourceLink && sourceLink.lastIncidentTick || 0),
-    Number(targetLink && targetLink.lastIncidentTick || 0),
+// Compute one compact pair metric bundle for incident scoring.
+function computePairIncidentMetrics(left, right, leftLink, rightLink, socialConfig) {
+  const affinity = clamp((Number(leftLink.affinity || 0) + Number(rightLink.affinity || 0)) / 2, 0, 1);
+  const rivalry = clamp((Number(leftLink.rivalry || 0) + Number(rightLink.rivalry || 0)) / 2, 0, 1);
+  const mentorship = clamp((Number(leftLink.mentorship || 0) + Number(rightLink.mentorship || 0)) / 2, 0, 1);
+  const grudge = clamp((Number(leftLink.grudge || 0) + Number(rightLink.grudge || 0)) / 2, 0, 1);
+  const leftMood = left && left.state && typeof left.state === 'object' ? left.state : {};
+  const rightMood = right && right.state && typeof right.state === 'object' ? right.state : {};
+  const stress = clamp((Number(leftMood.stress || 0) + Number(rightMood.stress || 0)) / 2, 0, 1);
+  const skillGap = clamp(
+    Math.abs(resolveSocialSkillScore(left) - resolveSocialSkillScore(right)),
+    0,
+    1,
   );
-  if (tick - lastPairIncidentTick < settings.incidents.pairCooldownTicks) {
-    return;
-  }
-  seen.add(key);
-  candidates.push({
-    type,
-    source: dwarf,
-    target,
-    sourceLink,
-    targetLink,
-    score: Math.max(0, Number(score || 0)),
-  });
+  const mentorshipAgeGapMin = Math.max(0, Number(socialConfig.mentorshipAgeGapMin ?? 220));
+  const ageGap = Math.abs(Number(left && left.ageTicks || 0) - Number(right && right.ageTicks || 0));
+  const leftStatus = left && left.social && left.social.status && typeof left.social.status === 'object'
+    ? left.social.status
+    : {};
+  const rightStatus = right && right.social && right.social.status && typeof right.social.status === 'object'
+    ? right.social.status
+    : {};
+  const leftId = String(left && left.id || '');
+  const rightId = String(right && right.id || '');
+  const hasMentorTie = String(leftStatus.mentorId || '') === rightId || String(rightStatus.mentorId || '') === leftId;
+  const mentorshipAgeGate = ageGap >= mentorshipAgeGapMin;
+  return {
+    affinity,
+    rivalry,
+    mentorship: mentorshipAgeGate ? mentorship : mentorship * 0.4,
+    grudge,
+    stress,
+    skillGap,
+    hasMentorTie,
+  };
 }
 
-// Pick one incident candidate using weighted score.
-function pickWeightedCandidate(candidates) {
-  if (!Array.isArray(candidates) || candidates.length === 0) {
+// Select one incident type and one pair candidate using weighted random scores.
+function selectIncidentCandidate(candidates, incidentConfig, governor) {
+  const weights = incidentConfig.weights && typeof incidentConfig.weights === 'object'
+    ? incidentConfig.weights
+    : {};
+  const governance = normalizeSocialGovernorSnapshot(governor);
+  const typePool = [];
+  for (const type of SOCIAL_INCIDENT_TYPES) {
+    const entries = Array.isArray(candidates[type]) ? candidates[type] : [];
+    if (entries.length === 0) {
+      continue;
+    }
+    const baseWeight = Math.max(0, Number(weights[type] ?? 1));
+    const governorScale = resolveIncidentTypeGovernorWeightScale(type, governance);
+    const weight = Math.max(0, baseWeight * governorScale);
+    if (weight <= 0) {
+      continue;
+    }
+    const scoreSum = entries.reduce((sum, entry) => sum + Math.max(0.0001, Number(entry.score || 0.0001)), 0);
+    if (scoreSum <= 0) {
+      continue;
+    }
+    typePool.push({
+      type,
+      entries,
+      score: scoreSum * weight,
+    });
+  }
+  if (typePool.length === 0) {
     return null;
   }
-  const total = candidates.reduce((sum, entry) => sum + Math.max(0, Number(entry.score || 0)), 0);
+
+  const selectedType = pickWeighted(typePool, (entry) => entry.score);
+  if (!selectedType) {
+    return null;
+  }
+  const selectedPair = pickWeighted(selectedType.entries, (entry) => Math.max(0.0001, Number(entry.score || 0.0001)));
+  if (!selectedPair) {
+    return null;
+  }
+  return {
+    type: selectedType.type,
+    pair: selectedPair,
+  };
+}
+
+// Resolve governor weight scaling for one incident type.
+function resolveIncidentTypeGovernorWeightScale(type, governor) {
+  const safeType = String(type || '');
+  const mediation = clamp(Number(governor && governor.mediationBias || 0), -1, 1);
+  const mentorship = clamp(Number(governor && governor.mentorshipBias || 0), -1, 1);
+  const accountability = clamp(Number(governor && governor.accountabilityBias || 0), -1, 1);
+  const mentorshipWeightScale = clamp(Number((governor && governor.mentorshipIncidentWeightScale) ?? 0.65), 0, 2);
+  const reconciliationWeightScale = clamp(Number((governor && governor.mediationReconciliationWeightScale) ?? 0.75), 0, 2);
+  const rivalryReductionScale = clamp(Number((governor && governor.mediationRivalryReductionScale) ?? 0.55), 0, 2);
+  const escalationReductionScale = clamp(Number((governor && governor.accountabilityEscalationWeightReductionScale) ?? 0.6), 0, 2);
+
+  if (safeType === 'mentorship_breakthrough') {
+    return clamp(
+      1 + mentorship * mentorshipWeightScale + mediation * 0.1,
+      0.1,
+      3.2,
+    );
+  }
+  if (safeType === 'reconciliation') {
+    return clamp(
+      1 + mediation * reconciliationWeightScale + accountability * 0.18,
+      0.1,
+      3.2,
+    );
+  }
+  if (safeType === 'rivalry_clash') {
+    return clamp(
+      1 - mediation * rivalryReductionScale - accountability * 0.25,
+      0.08,
+      3.4,
+    );
+  }
+  if (safeType === 'grudge_escalation') {
+    return clamp(
+      1 - mediation * (rivalryReductionScale + 0.08) - accountability * escalationReductionScale,
+      0.05,
+      3.8,
+    );
+  }
+  return 1;
+}
+
+// Apply one selected incident and persist cooldown/history/stats.
+function applyIncidentSelection(selection, state, config, social, socialConfig, incidentConfig, tick) {
+  if (!selection || !selection.pair) {
+    return false;
+  }
+  const type = String(selection.type || '');
+  const pair = selection.pair;
+  const left = pair.left;
+  const right = pair.right;
+  const leftId = String(left && left.id || '');
+  const rightId = String(right && right.id || '');
+  if (!left || !right || !leftId || !rightId || leftId === rightId) {
+    return false;
+  }
+  const effects = resolveIncidentEffects(incidentConfig, type);
+  if (!effects) {
+    return false;
+  }
+
+  let eventMessage = '';
+  if (type === 'mentorship_breakthrough') {
+    eventMessage = applyMentorshipBreakthrough(pair, effects, socialConfig);
+  } else if (type === 'rivalry_clash') {
+    eventMessage = applyRivalryClash(pair, effects);
+  } else if (type === 'grudge_escalation') {
+    eventMessage = applyGrudgeEscalation(pair, effects);
+  } else if (type === 'reconciliation') {
+    eventMessage = applyReconciliation(pair, effects);
+  } else {
+    return false;
+  }
+  if (!eventMessage) {
+    return false;
+  }
+
+  const pairKey = pair.pairKey || (leftId < rightId ? `${leftId}|${rightId}` : `${rightId}|${leftId}`);
+  social.pairCooldownByKey[pairKey] = tick;
+  social.stats.incidents = Math.max(0, Number(social.stats.incidents || 0)) + 1;
+  if (!social.stats.incidentsByType || typeof social.stats.incidentsByType !== 'object') {
+    social.stats.incidentsByType = createIncidentTypeCounters();
+  }
+  social.stats.incidentsByType[type] = Math.max(0, Number(social.stats.incidentsByType[type] || 0)) + 1;
+  social.history.push({
+    tick,
+    type,
+    leftId,
+    rightId,
+    pairKey,
+  });
+  const historyLimit = Math.max(1, Math.floor(Number(incidentConfig.historyLimit ?? 48)));
+  social.history = social.history.slice(-historyLimit);
+  social.lastIncidentTick = tick;
+  const leftSocial = left && left.social && typeof left.social === 'object' ? normalizeDwarfSocialState(left.social) : null;
+  const rightSocial = right && right.social && typeof right.social === 'object' ? normalizeDwarfSocialState(right.social) : null;
+  if (leftSocial) {
+    leftSocial.cooldowns.lastIncidentTick = tick;
+    leftSocial.cooldowns.lastIncidentType = type;
+    left.social = leftSocial;
+  }
+  if (rightSocial) {
+    rightSocial.cooldowns.lastIncidentTick = tick;
+    rightSocial.cooldowns.lastIncidentType = type;
+    right.social = rightSocial;
+  }
+  if (state && Array.isArray(state.events)) {
+    pushEvent(state, config, eventMessage);
+  }
+  return true;
+}
+
+// Resolve per-type effects payload with fallback defaults.
+function resolveIncidentEffects(incidentConfig, type) {
+  const effectsRoot = incidentConfig.effects && typeof incidentConfig.effects === 'object'
+    ? incidentConfig.effects
+    : {};
+  const raw = effectsRoot[type];
+  return raw && typeof raw === 'object' ? raw : null;
+}
+
+// Apply mentorship breakthrough bonuses and tension relief.
+function applyMentorshipBreakthrough(pair, effects, socialConfig) {
+  const mentor = resolveMentorForPair(pair);
+  const mentee = mentor === pair.left ? pair.right : pair.left;
+  const mentorMoraleDelta = Number(effects.mentorMoraleDelta ?? 0.007);
+  const menteeMoraleDelta = Number(effects.menteeMoraleDelta ?? 0.012);
+  const stressDelta = Number(effects.stressDelta ?? -0.018);
+  const fatigueDelta = Number(effects.fatigueDelta ?? -0.01);
+  applyMoodDelta(mentor, mentorMoraleDelta, stressDelta, fatigueDelta);
+  applyMoodDelta(mentee, menteeMoraleDelta, stressDelta, fatigueDelta);
+  applyWarriorDelta(mentee, effects);
+  applyLinkPairDelta(pair, {
+    affinity: Number(effects.affinityGain ?? 0.06),
+    mentorship: Number(effects.mentorshipGain ?? 0.05),
+    rivalry: -Math.abs(Number(effects.rivalryRelief ?? 0.03)),
+    grudge: -Math.abs(Number(effects.grudgeRelief ?? 0.02)),
+  });
+  const mentorId = String(mentor && mentor.id || '');
+  const menteeId = String(mentee && mentee.id || '');
+  return `Social incident: mentorship breakthrough (${mentorId} guided ${menteeId})`;
+}
+
+// Apply rivalry-clash penalties and tension growth.
+function applyRivalryClash(pair, effects) {
+  const moraleDelta = Number(effects.moraleDelta ?? -0.015);
+  const stressDelta = Number(effects.stressDelta ?? 0.02);
+  const fatigueDelta = Number(effects.fatigueDelta ?? 0.014);
+  applyMoodDelta(pair.left, moraleDelta, stressDelta, fatigueDelta);
+  applyMoodDelta(pair.right, moraleDelta, stressDelta, fatigueDelta);
+  applyLinkPairDelta(pair, {
+    affinity: -Math.abs(Number(effects.affinityLoss ?? 0.04)),
+    rivalry: Number(effects.rivalryGain ?? 0.07),
+    grudge: Number(effects.grudgeGain ?? 0.03),
+  });
+  return `Social incident: rivalry clash between ${pair.left.id} and ${pair.right.id}`;
+}
+
+// Apply grudge-escalation penalties and hostility growth.
+function applyGrudgeEscalation(pair, effects) {
+  const moraleDelta = Number(effects.moraleDelta ?? -0.02);
+  const stressDelta = Number(effects.stressDelta ?? 0.026);
+  applyMoodDelta(pair.left, moraleDelta, stressDelta, 0);
+  applyMoodDelta(pair.right, moraleDelta, stressDelta, 0);
+  applyLinkPairDelta(pair, {
+    affinity: -Math.abs(Number(effects.affinityLoss ?? 0.03)),
+    rivalry: Number(effects.rivalryGain ?? 0.05),
+    grudge: Number(effects.grudgeGain ?? 0.08),
+  });
+  return `Social incident: grudge escalation between ${pair.left.id} and ${pair.right.id}`;
+}
+
+// Apply reconciliation relief and hostility reduction.
+function applyReconciliation(pair, effects) {
+  const moraleDelta = Number(effects.moraleDelta ?? 0.014);
+  const stressDelta = Number(effects.stressDelta ?? -0.02);
+  applyMoodDelta(pair.left, moraleDelta, stressDelta, 0);
+  applyMoodDelta(pair.right, moraleDelta, stressDelta, 0);
+  applyLinkPairDelta(pair, {
+    affinity: Number(effects.affinityGain ?? 0.05),
+    rivalry: -Math.abs(Number(effects.rivalryRelief ?? 0.09)),
+    grudge: -Math.abs(Number(effects.grudgeRelief ?? 0.1)),
+  });
+  return `Social incident: reconciliation between ${pair.left.id} and ${pair.right.id}`;
+}
+
+// Resolve mentor/mentee direction for a mentorship incident pair.
+function resolveMentorForPair(pair) {
+  const left = pair.left;
+  const right = pair.right;
+  const leftStatus = left && left.social && left.social.status && typeof left.social.status === 'object'
+    ? left.social.status
+    : {};
+  const rightStatus = right && right.social && right.social.status && typeof right.social.status === 'object'
+    ? right.social.status
+    : {};
+  const leftId = String(left && left.id || '');
+  const rightId = String(right && right.id || '');
+  if (String(rightStatus.mentorId || '') === leftId) {
+    return left;
+  }
+  if (String(leftStatus.mentorId || '') === rightId) {
+    return right;
+  }
+  return resolveSocialSkillScore(left) >= resolveSocialSkillScore(right) ? left : right;
+}
+
+// Apply bounded mood deltas on one dwarf.
+function applyMoodDelta(dwarf, moraleDelta, stressDelta, fatigueDelta) {
+  if (!dwarf || !dwarf.state || typeof dwarf.state !== 'object') {
+    return;
+  }
+  dwarf.state.morale = clamp(Number(dwarf.state.morale || 0) + Number(moraleDelta || 0), 0, 1);
+  dwarf.state.stress = clamp(Number(dwarf.state.stress || 0) + Number(stressDelta || 0), 0, 1);
+  dwarf.state.fatigue = clamp(Number(dwarf.state.fatigue || 0) + Number(fatigueDelta || 0), 0, 1);
+}
+
+// Apply bounded warrior progression deltas used by mentorship breakthroughs.
+function applyWarriorDelta(dwarf, effects) {
+  if (!dwarf || !dwarf.warrior || typeof dwarf.warrior !== 'object') {
+    return;
+  }
+  dwarf.warrior.rating = clamp(
+    Number(dwarf.warrior.rating || 0) + Number(effects.ratingGain ?? 0.0025),
+    0,
+    1,
+  );
+  dwarf.warrior.valor = clamp(
+    Number(dwarf.warrior.valor || 0) + Number(effects.valorGain ?? 0.002),
+    0,
+    1,
+  );
+  dwarf.warrior.heroPotential = clamp(
+    Number(dwarf.warrior.heroPotential || 0) + Number(effects.heroPotentialGain ?? 0.0015),
+    0,
+    1,
+  );
+}
+
+// Apply symmetric link-channel deltas to both directions of one pair.
+function applyLinkPairDelta(pair, deltas) {
+  const leftLink = pair.leftLink;
+  const rightLink = pair.rightLink;
+  const affinityDelta = Number(deltas.affinity || 0);
+  const rivalryDelta = Number(deltas.rivalry || 0);
+  const mentorshipDelta = Number(deltas.mentorship || 0);
+  const grudgeDelta = Number(deltas.grudge || 0);
+  for (const link of [leftLink, rightLink]) {
+    if (!link || typeof link !== 'object') {
+      continue;
+    }
+    link.affinity = clamp(Number(link.affinity || 0) + affinityDelta, 0, 1);
+    link.rivalry = clamp(Number(link.rivalry || 0) + rivalryDelta, 0, 1);
+    link.mentorship = clamp(Number(link.mentorship || 0) + mentorshipDelta, 0, 1);
+    link.grudge = clamp(Number(link.grudge || 0) + grudgeDelta, 0, 1);
+  }
+}
+
+// Remove stale per-pair cooldown entries.
+function prunePairCooldowns(cooldownMap, tick, retentionTicks) {
+  if (!cooldownMap || typeof cooldownMap !== 'object' || retentionTicks <= 0) {
+    return;
+  }
+  const minTick = tick - retentionTicks;
+  for (const [pairKey, lastTick] of Object.entries(cooldownMap)) {
+    if (Math.max(0, Number(lastTick || 0)) < minTick) {
+      delete cooldownMap[pairKey];
+    }
+  }
+}
+
+// Weighted random pick helper.
+function pickWeighted(entries, weightSelector) {
+  if (!Array.isArray(entries) || entries.length === 0) {
+    return null;
+  }
+  let total = 0;
+  for (const entry of entries) {
+    total += Math.max(0, Number(weightSelector(entry) || 0));
+  }
   if (total <= 0) {
-    return candidates[0];
+    return null;
   }
   let roll = Math.random() * total;
-  for (const entry of candidates) {
-    roll -= Math.max(0, Number(entry.score || 0));
+  for (const entry of entries) {
+    roll -= Math.max(0, Number(weightSelector(entry) || 0));
     if (roll <= 0) {
       return entry;
     }
   }
-  return candidates[candidates.length - 1];
+  return entries[entries.length - 1] || null;
 }
 
-// Resolve the chance gate for one incident type.
-function resolveIncidentChance(type, incidents) {
-  if (type === 'friendship') {
-    return incidents.friendshipChance;
+// Build empty by-type counters for social incidents.
+function createIncidentTypeCounters() {
+  const byType = {};
+  for (const type of SOCIAL_INCIDENT_TYPES) {
+    byType[type] = 0;
   }
-  if (type === 'rivalry') {
-    return incidents.rivalryChance;
-  }
-  if (type === 'grudge') {
-    return incidents.grudgeChance;
-  }
-  if (type === 'mentorship') {
-    return incidents.mentorshipChance;
-  }
-  return 0;
+  return byType;
 }
 
-// Apply one social incident payload to runtime mood and event history.
-function applyIncident(state, config, socialDrama, candidate, incidents, tick) {
-  const source = candidate.source;
-  const target = candidate.target;
-  let text = '';
-  if (candidate.type === 'friendship') {
-    adjustDwarfState(source, {
-      morale: incidents.friendshipMoraleDelta,
-      stress: -incidents.friendshipStressReliefDelta,
-    });
-    adjustDwarfState(target, {
-      morale: incidents.friendshipMoraleDelta,
-      stress: -incidents.friendshipStressReliefDelta,
-    });
-    text = `Social drama: ${source.id} and ${target.id} share a hearth-song`;
-  } else if (candidate.type === 'rivalry') {
-    adjustDwarfState(source, {
-      morale: incidents.rivalryMoraleDelta,
-      stress: incidents.rivalryStressDelta,
-    });
-    adjustDwarfState(target, {
-      morale: incidents.rivalryMoraleDelta,
-      stress: incidents.rivalryStressDelta,
-    });
-    text = `Social drama: ${source.id} and ${target.id} quarrel over duty`;
-  } else if (candidate.type === 'grudge') {
-    adjustDwarfState(source, {
-      morale: incidents.grudgeMoraleDelta,
-      stress: incidents.grudgeStressDelta,
-      fatigue: incidents.grudgeStressDelta * 0.4,
-    });
-    adjustDwarfState(target, {
-      morale: incidents.grudgeMoraleDelta,
-      stress: incidents.grudgeStressDelta,
-      fatigue: incidents.grudgeStressDelta * 0.4,
-    });
-    text = `Social drama: ${source.id} and ${target.id} let a grudge harden`;
-  } else if (candidate.type === 'mentorship') {
-    adjustDwarfState(source, {
-      morale: incidents.mentorshipMoraleDelta * 0.7,
-      fatigue: -incidents.mentorshipFatigueReliefDelta * 0.4,
-    });
-    adjustDwarfState(target, {
-      morale: incidents.mentorshipMoraleDelta,
-      stress: -incidents.mentorshipFatigueReliefDelta * 0.6,
-      fatigue: -incidents.mentorshipFatigueReliefDelta,
-    });
-    text = `Social drama: ${target.id} steadies ${source.id} with hard-earned craft wisdom`;
+// Normalize social-incident counters by type.
+function normalizeIncidentTypeCounters(raw) {
+  const source = raw && typeof raw === 'object' ? raw : {};
+  const normalized = {};
+  for (const type of SOCIAL_INCIDENT_TYPES) {
+    normalized[type] = Math.max(0, Number(source[type] || 0));
   }
-  if (!text) {
-    return;
-  }
-
-  const sourceSocial = ensureDwarfSocialState(source);
-  const targetSocial = ensureDwarfSocialState(target);
-  sourceSocial.lastIncidentTick = tick;
-  targetSocial.lastIncidentTick = tick;
-  sourceSocial.incidentCount = Math.max(0, Number(sourceSocial.incidentCount || 0)) + 1;
-  targetSocial.incidentCount = Math.max(0, Number(targetSocial.incidentCount || 0)) + 1;
-  if (candidate.sourceLink) {
-    candidate.sourceLink.lastIncidentTick = tick;
-  }
-  if (candidate.targetLink) {
-    candidate.targetLink.lastIncidentTick = tick;
-  }
-
-  socialDrama.lastIncidentTick = tick;
-  socialDrama.stats.incidents = Math.max(0, Number(socialDrama.stats.incidents || 0)) + 1;
-  if (candidate.type === 'friendship') {
-    socialDrama.stats.friendship = Math.max(0, Number(socialDrama.stats.friendship || 0)) + 1;
-  } else if (candidate.type === 'rivalry') {
-    socialDrama.stats.rivalry = Math.max(0, Number(socialDrama.stats.rivalry || 0)) + 1;
-  } else if (candidate.type === 'grudge') {
-    socialDrama.stats.grudge = Math.max(0, Number(socialDrama.stats.grudge || 0)) + 1;
-  } else if (candidate.type === 'mentorship') {
-    socialDrama.stats.mentorship = Math.max(0, Number(socialDrama.stats.mentorship || 0)) + 1;
-  }
-
-  socialDrama.history.unshift({
-    type: candidate.type,
-    tick,
-    sourceId: source.id,
-    targetId: target.id,
-    text,
-  });
-  trimIncidentHistory(socialDrama, incidents.historyLimit);
-  pushEvent(state, config, text);
+  return normalized;
 }
 
-// Trim incident history to its configured upper bound.
-function trimIncidentHistory(socialDrama, limit) {
-  if (!socialDrama || !Array.isArray(socialDrama.history)) {
-    return;
-  }
-  const maxEntries = Math.max(1, Math.floor(Number(limit || DEFAULT_HISTORY_LIMIT)));
-  if (socialDrama.history.length > maxEntries) {
-    socialDrama.history = socialDrama.history.slice(0, maxEntries);
-  }
-}
-
-// Count unique peer-pair states such as friendships, rivalries, or grudges.
-function countUniquePeerPairs(dwarves, key) {
-  const pairs = new Set();
-  for (const dwarf of dwarves) {
-    const summary = ensureDwarfSocialState(dwarf).summary;
-    const targetId = summary && summary[key] ? String(summary[key]) : '';
-    const sourceId = dwarf && dwarf.id ? String(dwarf.id) : '';
-    if (!sourceId || !targetId || sourceId === targetId) {
-      continue;
-    }
-    pairs.add(buildPairKey(sourceId, targetId));
-  }
-  return pairs.size;
-}
-
-// Count unique mentorship relations from protege -> mentor summaries.
-function countUniqueMentorships(dwarves) {
-  const pairs = new Set();
-  for (const dwarf of dwarves) {
-    const summary = ensureDwarfSocialState(dwarf).summary;
-    const mentorId = summary && summary.mentorId ? String(summary.mentorId) : '';
-    const protegeId = dwarf && dwarf.id ? String(dwarf.id) : '';
-    if (!mentorId || !protegeId || mentorId === protegeId) {
-      continue;
-    }
-    pairs.add(`${mentorId}->${protegeId}`);
-  }
-  return pairs.size;
-}
-
-// Build one stable sorted pair key.
-function buildPairKey(a, b) {
-  return [String(a || ''), String(b || '')].sort().join('::');
-}
-
-// Return the aggregate strength of one bounded link entry.
-function getLinkStrength(link) {
-  if (!link) {
+// Resolve one social link ranking strength.
+function resolveLinkStrength(link) {
+  if (!link || typeof link !== 'object') {
     return 0;
   }
-  return Number(link.affinity || 0)
-    + Number(link.friction || 0)
-    + Number(link.grudge || 0)
-    + Number(link.mentor || 0)
-    + Number(link.protege || 0);
+  const affinity = clamp(Number(link.affinity || 0), 0, 1);
+  const rivalry = clamp(Number(link.rivalry || 0), 0, 1);
+  const mentorship = clamp(Number(link.mentorship || 0), 0, 1);
+  const grudge = clamp(Number(link.grudge || 0), 0, 1);
+  return Math.max(affinity, rivalry, mentorship, grudge);
 }
 
-// Clamp one drama score into the legal [0, scoreCap] interval.
-function clampScore(value, scoreCap) {
-  return clamp(Number(value || 0), 0, Math.max(1, Number(scoreCap || 1)));
-}
-
-// Clamp one runtime metric into [0, 1] with a fallback.
-function clampUnit(value, fallback) {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) {
-    return clamp(Number(fallback || 0), 0, 1);
+// Resolve one bounded skill scalar used for mentorship inference.
+function resolveSocialSkillScore(dwarf) {
+  if (!dwarf || typeof dwarf !== 'object') {
+    return 0;
   }
-  return clamp(numeric, 0, 1);
+  const warrior = dwarf.warrior && typeof dwarf.warrior === 'object'
+    ? dwarf.warrior
+    : null;
+  if (!warrior) {
+    return 0;
+  }
+  return clamp(
+    Number(warrior.rating || 0) * 0.55
+      + Number(warrior.valor || 0) * 0.25
+      + Number(warrior.heroPotential || 0) * 0.2,
+    0,
+    1,
+  );
 }
 
-// Adjust dwarf morale/stress/fatigue with safe clamping.
-function adjustDwarfState(dwarf, deltas) {
-  if (!dwarf || !dwarf.state || !deltas || typeof deltas !== 'object') {
+// Resolve pair bond strength from existing relationship channels.
+function resolvePairBondRatio(left, right, relationships) {
+  const threshold = Math.max(1, Number(relationships && relationships.bondThreshold || 12));
+  const leftRatio = left
+    && left.partnerId === right.id
+    ? clamp(Number(left.bondScore || 0) / threshold, 0, 1)
+    : 0;
+  const rightRatio = right
+    && right.partnerId === left.id
+    ? clamp(Number(right.bondScore || 0) / threshold, 0, 1)
+    : 0;
+  return clamp((leftRatio + rightRatio) / 2, 0, 1);
+}
+
+// Resolve one social-governor snapshot from the action envelope.
+function resolveSocialGovernor(action, config, governorConfig) {
+  const sourceConfig = governorConfig && typeof governorConfig === 'object'
+    ? governorConfig
+    : getSocialGovernorConfig(config);
+  const enabled = sourceConfig.enabled !== false;
+  const socialAction = action && action.social && typeof action.social === 'object'
+    ? action.social
+    : null;
+  const mediationBiasMax = clamp(Number(sourceConfig.mediationBiasMax ?? 0.45), 0, 1);
+  const mentorshipBiasMax = clamp(Number(sourceConfig.mentorshipBiasMax ?? 0.45), 0, 1);
+  const accountabilityBiasMax = clamp(Number(sourceConfig.accountabilityBiasMax ?? 0.45), 0, 1);
+  const mediationBias = enabled && socialAction && Object.prototype.hasOwnProperty.call(socialAction, 'mediationBias')
+    ? clamp(
+      normalizeSocialSignedIntent(socialAction.mediationBias, config) * mediationBiasMax,
+      -mediationBiasMax,
+      mediationBiasMax,
+    )
+    : 0;
+  const mentorshipBias = enabled && socialAction && Object.prototype.hasOwnProperty.call(socialAction, 'mentorshipBias')
+    ? clamp(
+      normalizeSocialSignedIntent(socialAction.mentorshipBias, config) * mentorshipBiasMax,
+      -mentorshipBiasMax,
+      mentorshipBiasMax,
+    )
+    : 0;
+  const accountabilityBias = enabled && socialAction && Object.prototype.hasOwnProperty.call(socialAction, 'accountabilityBias')
+    ? clamp(
+      normalizeSocialSignedIntent(socialAction.accountabilityBias, config) * accountabilityBiasMax,
+      -accountabilityBiasMax,
+      accountabilityBiasMax,
+    )
+    : 0;
+  return {
+    enabled,
+    source: socialAction ? 'action' : 'default',
+    mediationBias,
+    mentorshipBias,
+    accountabilityBias,
+    mediationRivalryReductionScale: clamp(Number(sourceConfig.mediationRivalryReductionScale ?? 0.55), 0, 2),
+    mediationGrudgeReductionScale: clamp(Number(sourceConfig.mediationGrudgeReductionScale ?? 0.65), 0, 2),
+    mentorshipGainScale: clamp(Number(sourceConfig.mentorshipGainScale ?? 0.5), 0, 2),
+    accountabilityRivalryReductionScale: clamp(Number(sourceConfig.accountabilityRivalryReductionScale ?? 0.3), 0, 2),
+    accountabilityGrudgeReductionScale: clamp(Number(sourceConfig.accountabilityGrudgeReductionScale ?? 0.48), 0, 2),
+    mediationReconciliationWeightScale: clamp(Number(sourceConfig.mediationReconciliationWeightScale ?? 0.75), 0, 2),
+    mentorshipIncidentWeightScale: clamp(Number(sourceConfig.mentorshipIncidentWeightScale ?? 0.65), 0, 2),
+    accountabilityIncidentChanceScale: clamp(Number(sourceConfig.accountabilityIncidentChanceScale ?? 0.32), 0, 2),
+    mediationIncidentChanceScale: clamp(Number(sourceConfig.mediationIncidentChanceScale ?? 0.12), 0, 2),
+    accountabilityEscalationWeightReductionScale: clamp(Number(sourceConfig.accountabilityEscalationWeightReductionScale ?? 0.6), 0, 2),
+  };
+}
+
+// Normalize one persisted social-governor snapshot.
+function normalizeSocialGovernorSnapshot(raw, governorConfig) {
+  const safeRaw = raw && typeof raw === 'object' ? raw : {};
+  const sourceConfig = governorConfig && typeof governorConfig === 'object'
+    ? governorConfig
+    : {};
+  return {
+    enabled: safeRaw.enabled !== false,
+    source: safeRaw.source === 'action' ? 'action' : 'default',
+    mediationBias: clamp(Number(safeRaw.mediationBias || 0), -1, 1),
+    mentorshipBias: clamp(Number(safeRaw.mentorshipBias || 0), -1, 1),
+    accountabilityBias: clamp(Number(safeRaw.accountabilityBias || 0), -1, 1),
+    mediationRivalryReductionScale: clamp(
+      Number(safeRaw.mediationRivalryReductionScale ?? sourceConfig.mediationRivalryReductionScale ?? 0.55),
+      0,
+      2,
+    ),
+    mediationGrudgeReductionScale: clamp(
+      Number(safeRaw.mediationGrudgeReductionScale ?? sourceConfig.mediationGrudgeReductionScale ?? 0.65),
+      0,
+      2,
+    ),
+    mentorshipGainScale: clamp(
+      Number(safeRaw.mentorshipGainScale ?? sourceConfig.mentorshipGainScale ?? 0.5),
+      0,
+      2,
+    ),
+    accountabilityRivalryReductionScale: clamp(
+      Number(safeRaw.accountabilityRivalryReductionScale ?? sourceConfig.accountabilityRivalryReductionScale ?? 0.3),
+      0,
+      2,
+    ),
+    accountabilityGrudgeReductionScale: clamp(
+      Number(safeRaw.accountabilityGrudgeReductionScale ?? sourceConfig.accountabilityGrudgeReductionScale ?? 0.48),
+      0,
+      2,
+    ),
+    mediationReconciliationWeightScale: clamp(
+      Number(safeRaw.mediationReconciliationWeightScale ?? sourceConfig.mediationReconciliationWeightScale ?? 0.75),
+      0,
+      2,
+    ),
+    mentorshipIncidentWeightScale: clamp(
+      Number(safeRaw.mentorshipIncidentWeightScale ?? sourceConfig.mentorshipIncidentWeightScale ?? 0.65),
+      0,
+      2,
+    ),
+    accountabilityIncidentChanceScale: clamp(
+      Number(safeRaw.accountabilityIncidentChanceScale ?? sourceConfig.accountabilityIncidentChanceScale ?? 0.32),
+      0,
+      2,
+    ),
+    mediationIncidentChanceScale: clamp(
+      Number(safeRaw.mediationIncidentChanceScale ?? sourceConfig.mediationIncidentChanceScale ?? 0.12),
+      0,
+      2,
+    ),
+    accountabilityEscalationWeightReductionScale: clamp(
+      Number(safeRaw.accountabilityEscalationWeightReductionScale ?? sourceConfig.accountabilityEscalationWeightReductionScale ?? 0.6),
+      0,
+      2,
+    ),
+  };
+}
+
+// Apply long-horizon social memory consequences on adult mood and aggregate climate.
+function applyLongArcConsequences(adults, social, longArcConfig, tick) {
+  const enabled = longArcConfig.enabled !== false;
+  if (!enabled || !Array.isArray(adults) || adults.length === 0) {
+    if (social && social.longArc && typeof social.longArc === 'object') {
+      social.longArc.avgSupport = 0;
+      social.longArc.avgBurden = 0;
+    }
     return;
   }
-  if (deltas.morale !== undefined) {
-    dwarf.state.morale = clampUnit(Number(dwarf.state.morale || 0) + Number(deltas.morale || 0), 0);
+  const memoryDecay = clamp(Number(longArcConfig.memoryDecayPerTick ?? 0.0026), 0, 1);
+  const memoryGain = clamp(Number(longArcConfig.memoryGainPerUpdate ?? 0.26), 0, 1);
+  const friendSupportWeight = Math.max(0, Number(longArcConfig.friendSupportWeight ?? 0.06));
+  const mentorshipSupportWeight = Math.max(0, Number(longArcConfig.mentorshipSupportWeight ?? 0.12));
+  const rivalBurdenWeight = Math.max(0, Number(longArcConfig.rivalBurdenWeight ?? 0.08));
+  const grudgeBurdenWeight = Math.max(0, Number(longArcConfig.grudgeBurdenWeight ?? 0.14));
+  const supportFromIncident = clamp(Number(longArcConfig.supportShockOnPositiveIncident ?? 0.06), 0, 1);
+  const burdenFromIncident = clamp(Number(longArcConfig.burdenShockOnNegativeIncident ?? 0.08), 0, 1);
+  const moraleSupportScale = Math.max(0, Number(longArcConfig.moraleSupportScale ?? 0.03));
+  const moraleBurdenScale = Math.max(0, Number(longArcConfig.moraleBurdenScale ?? 0.035));
+  const stressSupportReliefScale = Math.max(0, Number(longArcConfig.stressSupportReliefScale ?? 0.024));
+  const stressBurdenScale = Math.max(0, Number(longArcConfig.stressBurdenScale ?? 0.04));
+  const fatigueSupportReliefScale = Math.max(0, Number(longArcConfig.fatigueSupportReliefScale ?? 0.012));
+  const fatigueBurdenScale = Math.max(0, Number(longArcConfig.fatigueBurdenScale ?? 0.018));
+  let supportSum = 0;
+  let burdenSum = 0;
+  let count = 0;
+
+  for (const dwarf of adults) {
+    if (!dwarf || typeof dwarf !== 'object') {
+      continue;
+    }
+    const socialState = normalizeDwarfSocialState(dwarf.social);
+    dwarf.social = socialState;
+    const status = socialState.status && typeof socialState.status === 'object'
+      ? socialState.status
+      : {};
+    const friendCount = Array.isArray(status.friendIds) ? status.friendIds.length : 0;
+    const rivalCount = Array.isArray(status.rivalIds) ? status.rivalIds.length : 0;
+    const grudgeCount = Array.isArray(status.grudgeIds) ? status.grudgeIds.length : 0;
+    const mentorshipCount = (status.mentorId ? 1 : 0) + (Array.isArray(status.menteeIds) ? status.menteeIds.length : 0);
+    let supportTarget = clamp(friendCount * friendSupportWeight + mentorshipCount * mentorshipSupportWeight, 0, 1);
+    let burdenTarget = clamp(rivalCount * rivalBurdenWeight + grudgeCount * grudgeBurdenWeight, 0, 1);
+    const lastIncidentTick = Math.max(0, Number(socialState.cooldowns.lastIncidentTick || 0));
+    const incidentAge = lastIncidentTick > 0 ? Math.max(0, tick - lastIncidentTick) : null;
+    const incidentType = String(socialState.cooldowns.lastIncidentType || '');
+    if (incidentAge !== null && incidentAge <= 1) {
+      if (incidentType === 'mentorship_breakthrough' || incidentType === 'reconciliation') {
+        supportTarget = clamp(supportTarget + supportFromIncident, 0, 1);
+        burdenTarget = clamp(burdenTarget - supportFromIncident * 0.45, 0, 1);
+      } else if (incidentType === 'rivalry_clash' || incidentType === 'grudge_escalation') {
+        burdenTarget = clamp(burdenTarget + burdenFromIncident, 0, 1);
+        supportTarget = clamp(supportTarget - burdenFromIncident * 0.35, 0, 1);
+      }
+    }
+
+    socialState.arc.supportMemory = clamp(
+      Number(socialState.arc.supportMemory || 0) * (1 - memoryDecay)
+      + supportTarget * memoryGain,
+      0,
+      1,
+    );
+    socialState.arc.burdenMemory = clamp(
+      Number(socialState.arc.burdenMemory || 0) * (1 - memoryDecay)
+      + burdenTarget * memoryGain,
+      0,
+      1,
+    );
+    const supportMemory = clamp(Number(socialState.arc.supportMemory || 0), 0, 1);
+    const burdenMemory = clamp(Number(socialState.arc.burdenMemory || 0), 0, 1);
+    applyMoodDelta(
+      dwarf,
+      supportMemory * moraleSupportScale - burdenMemory * moraleBurdenScale,
+      burdenMemory * stressBurdenScale - supportMemory * stressSupportReliefScale,
+      burdenMemory * fatigueBurdenScale - supportMemory * fatigueSupportReliefScale,
+    );
+    supportSum += supportMemory;
+    burdenSum += burdenMemory;
+    count += 1;
   }
-  if (deltas.stress !== undefined) {
-    dwarf.state.stress = clampUnit(Number(dwarf.state.stress || 0) + Number(deltas.stress || 0), 0);
-  }
-  if (deltas.fatigue !== undefined) {
-    dwarf.state.fatigue = clampUnit(Number(dwarf.state.fatigue || 0) + Number(deltas.fatigue || 0), 0);
-  }
+
+  const avgSupport = count > 0 ? clamp(supportSum / count, 0, 1) : 0;
+  const avgBurden = count > 0 ? clamp(burdenSum / count, 0, 1) : 0;
+  social.longArc.avgSupport = avgSupport;
+  social.longArc.avgBurden = avgBurden;
 }
 
-// Normalize dead-id inputs into a clean string set.
-function normalizeIdSet(deadIds) {
-  if (deadIds instanceof Set) {
-    return new Set(Array.from(deadIds).map((id) => String(id || '')).filter(Boolean));
+// Update settlement-level social climate memory with slow drift.
+function applyLongArcSettlementDrift(social, longArcConfig) {
+  if (!social || !social.longArc || typeof social.longArc !== 'object') {
+    return;
   }
-  if (Array.isArray(deadIds)) {
-    return new Set(deadIds.map((id) => String(id || '')).filter(Boolean));
+  const enabled = longArcConfig.enabled !== false;
+  if (!enabled) {
+    social.longArc.harmony = 0;
+    social.longArc.strife = 0;
+    return;
   }
-  return new Set();
+  const decay = clamp(Number(longArcConfig.settlementMemoryDecayPerTick ?? 0.004), 0, 1);
+  const gain = clamp(Number(longArcConfig.settlementMemoryGainPerUpdate ?? 0.22), 0, 1);
+  const harmonyTarget = clamp(
+    Number(social.longArc.avgSupport || 0) * 0.7
+      + Number(social.cohesion || 0) * 0.45
+      - Number(social.conflictPressure || 0) * 0.22,
+    0,
+    1,
+  );
+  const strifeTarget = clamp(
+    Number(social.longArc.avgBurden || 0) * 0.74
+      + Number(social.conflictPressure || 0) * 0.48
+      + Number(social.grudgeLoad || 0) * 0.34
+      - Number(social.cohesion || 0) * 0.2,
+    0,
+    1,
+  );
+  social.longArc.harmony = clamp(
+    Number(social.longArc.harmony || 0) * (1 - decay) + harmonyTarget * gain,
+    0,
+    1,
+  );
+  social.longArc.strife = clamp(
+    Number(social.longArc.strife || 0) * (1 - decay) + strifeTarget * gain,
+    0,
+    1,
+  );
+}
+
+// Normalize one governor value into -1..1 from global AI range.
+function normalizeSocialSignedIntent(value, config) {
+  const aiConfig = (config && config.ai) || {};
+  const minWeight = Number(aiConfig.minWeight ?? 0);
+  const maxWeight = Number(aiConfig.maxWeight ?? 1);
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return 0;
+  }
+  if (maxWeight > minWeight) {
+    const normalized = clamp((numeric - minWeight) / (maxWeight - minWeight), 0, 1);
+    return clamp(normalized * 2 - 1, -1, 1);
+  }
+  return clamp(numeric, -1, 1);
+}
+
+// Return true if the dwarf is currently an adult.
+function isAdultDwarf(dwarf, config) {
+  if (!dwarf || typeof dwarf !== 'object') {
+    return false;
+  }
+  const aging = (config && config.population && config.population.aging) || {};
+  const adultAge = Number(aging.adultAge || 0);
+  return Number(dwarf.ageTicks || 0) >= adultAge;
+}
+
+// Normalize ids arrays into unique string lists.
+function toIdList(raw) {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+  const ids = [];
+  const seen = new Set();
+  for (const entry of raw) {
+    if (!entry) {
+      continue;
+    }
+    const id = String(entry);
+    if (seen.has(id)) {
+      continue;
+    }
+    seen.add(id);
+    ids.push(id);
+  }
+  return ids;
 }
 
 module.exports = {
-  createInitialDwarfSocialState,
+  createDwarfSocialState,
   createSocialDramaState,
-  ensureDwarfSocialState,
-  ensureSocialDramaState,
-  noteSocialInteraction,
   updateSocialDrama,
-  clearDeadSocialLinks,
-  getSocialDramaStatus,
 };

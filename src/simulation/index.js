@@ -31,6 +31,7 @@ const { updateMyths, getMythMultiplier } = require('./myths');
 const { updateAlchemy, getAlchemyMultiplier } = require('./alchemy');
 const { updateTemple, getTempleNeedDecayMultiplier } = require('./temple');
 const { updateSchism, getSchismModifier } = require('./schism');
+const { updateSocialDrama } = require('./social_drama');
 const { updateVillages } = require('./villages');
 const { updateRoads } = require('./roads');
 const { updateUnderrealm } = require('./underrealm');
@@ -107,6 +108,7 @@ function stepState(state, config, runtime, action, options = {}) {
   updateRuins(state, config, runtime, resolvedAction);
   assignHousing(state, config);
   updateRelationships(state, config);
+  updateSocialDrama(state, config, resolvedAction);
   cohouseCouples(state, config);
   handleReproduction(state, config);
   updateVillages(state, config, runtime);
@@ -114,7 +116,7 @@ function stepState(state, config, runtime, action, options = {}) {
 
   state.lastPriorities = [];
   assignJobs(state, config, runtime, resolvedAction);
-  state.lastDecisionTrace = buildDecisionTrace(state);
+  state.lastDecisionTrace = buildDecisionTrace(state, config);
 
   for (const dwarf of state.dwarves) {
     processDwarfAction(dwarf, state, config, runtime);
@@ -177,6 +179,9 @@ function normalizeActionEnvelope(action) {
   if (action.externalCamps && typeof action.externalCamps === 'object') {
     normalized.externalCamps = { ...action.externalCamps };
   }
+  if (action.social && typeof action.social === 'object') {
+    normalized.social = { ...action.social };
+  }
   if (action.warriors && typeof action.warriors === 'object') {
     normalized.warriors = { ...action.warriors };
   }
@@ -217,6 +222,7 @@ function buildGovernorSignals(config, action) {
     ruins: buildRuinsGovernorSignals(config, action),
     underrealm: buildUnderrealmGovernorSignals(config, action),
     externalCamps: buildExternalCampsGovernorSignals(config, action),
+    social: buildSocialGovernorSignals(config, action),
     warriors: buildWarriorsGovernorSignals(config, action),
   };
 }
@@ -510,6 +516,52 @@ function buildExternalCampsGovernorSignals(config, action) {
   };
 }
 
+// Build social-governor telemetry summary.
+function buildSocialGovernorSignals(config, action) {
+  const aiConfig = (config && config.ai) || {};
+  const governors = aiConfig.governors && typeof aiConfig.governors === 'object'
+    ? aiConfig.governors
+    : {};
+  const socialConfig = governors.social && typeof governors.social === 'object'
+    ? governors.social
+    : {};
+  const enabled = socialConfig.enabled !== false;
+  const socialAction = action && action.social && typeof action.social === 'object'
+    ? action.social
+    : null;
+  const mediationBiasMax = clamp(Number(socialConfig.mediationBiasMax ?? 0), 0, 1);
+  const mentorshipBiasMax = clamp(Number(socialConfig.mentorshipBiasMax ?? 0), 0, 1);
+  const accountabilityBiasMax = clamp(Number(socialConfig.accountabilityBiasMax ?? 0), 0, 1);
+  const mediationBias = enabled && socialAction && Object.prototype.hasOwnProperty.call(socialAction, 'mediationBias')
+    ? clamp(
+      normalizeSignedIntent(socialAction.mediationBias, config) * mediationBiasMax,
+      -mediationBiasMax,
+      mediationBiasMax,
+    )
+    : 0;
+  const mentorshipBias = enabled && socialAction && Object.prototype.hasOwnProperty.call(socialAction, 'mentorshipBias')
+    ? clamp(
+      normalizeSignedIntent(socialAction.mentorshipBias, config) * mentorshipBiasMax,
+      -mentorshipBiasMax,
+      mentorshipBiasMax,
+    )
+    : 0;
+  const accountabilityBias = enabled && socialAction && Object.prototype.hasOwnProperty.call(socialAction, 'accountabilityBias')
+    ? clamp(
+      normalizeSignedIntent(socialAction.accountabilityBias, config) * accountabilityBiasMax,
+      -accountabilityBiasMax,
+      accountabilityBiasMax,
+    )
+    : 0;
+  return {
+    enabled,
+    source: socialAction ? 'action' : 'default',
+    mediationBias,
+    mentorshipBias,
+    accountabilityBias,
+  };
+}
+
 // Build warriors-governor telemetry summary.
 function buildWarriorsGovernorSignals(config, action) {
   const aiConfig = (config && config.ai) || {};
@@ -621,7 +673,7 @@ function clampGovernorWeight(value, minWeight, maxWeight, fallback) {
 }
 
 // Build a compact decision trace used by telemetry explainability rows.
-function buildDecisionTrace(state) {
+function buildDecisionTrace(state, config) {
   const shortagesRaw = Array.isArray(state && state.lastPriorities) ? state.lastPriorities : [];
   const shortages = shortagesRaw.slice(0, 3).map((entry) => ({
     resource: String(entry && entry.resource || ''),
@@ -661,6 +713,9 @@ function buildDecisionTrace(state) {
   const externalCampsGovernor = governorSignals.externalCamps && typeof governorSignals.externalCamps === 'object'
     ? governorSignals.externalCamps
     : {};
+  const socialGovernor = governorSignals.social && typeof governorSignals.social === 'object'
+    ? governorSignals.social
+    : {};
   const warriorsGovernor = governorSignals.warriors && typeof governorSignals.warriors === 'object'
     ? governorSignals.warriors
     : {};
@@ -682,6 +737,31 @@ function buildDecisionTrace(state) {
         : Number(worldEvent.ticksRemaining || 0),
     )
     : 0;
+  const socialConfig = config && config.population && config.population.socialDrama
+    ? config.population.socialDrama
+    : {};
+  const social = state && state.social && typeof state.social === 'object'
+    ? state.social
+    : null;
+  const socialEnabled = Boolean(
+    social
+    && social.enabled === true
+    && socialConfig.enabled !== false,
+  );
+  const incidentsConfig = socialConfig && socialConfig.incidents && typeof socialConfig.incidents === 'object'
+    ? socialConfig.incidents
+    : {};
+  const socialIntervalTicks = Math.max(
+    1,
+    Number(incidentsConfig.intervalTicks || socialConfig.tickInterval || 12),
+  );
+  const socialRecencyWindow = Math.max(1, socialIntervalTicks * 4);
+  const socialLastIncidentTick = socialEnabled
+    ? Math.max(0, Number(social.lastIncidentTick || 0))
+    : 0;
+  const socialIncidentRecency = socialEnabled && socialLastIncidentTick > 0
+    ? clamp(1 - Math.max(0, tick - socialLastIncidentTick) / socialRecencyWindow, 0, 1)
+    : 0;
   const context = {
     weather: state && state.weather && state.weather.type ? String(state.weather.type) : 'clear',
     raidActive: Boolean(state && state.raid && state.raid.active === true),
@@ -692,6 +772,11 @@ function buildDecisionTrace(state) {
     worldEventTicksLeft,
     festivalActive: Boolean(state && state.festival && state.festival.active === true),
     contractActive: Boolean(state && state.contracts && state.contracts.active === true),
+    socialCohesion: socialEnabled ? clamp(Number(social.cohesion || 0), 0, 1) : 0,
+    socialConflictPressure: socialEnabled ? clamp(Number(social.conflictPressure || 0), 0, 1) : 0,
+    socialMentorshipCoverage: socialEnabled ? clamp(Number(social.mentorshipCoverage || 0), 0, 1) : 0,
+    socialGrudgeLoad: socialEnabled ? clamp(Number(social.grudgeLoad || 0), 0, 1) : 0,
+    socialIncidentRecency,
   };
 
   return {
@@ -704,6 +789,7 @@ function buildDecisionTrace(state) {
       ruinsSource: ruinsGovernor.source === 'action' ? 'action' : 'default',
       underrealmSource: underrealmGovernor.source === 'action' ? 'action' : 'default',
       externalCampsSource: externalCampsGovernor.source === 'action' ? 'action' : 'default',
+      socialSource: socialGovernor.source === 'action' ? 'action' : 'default',
       warriorsSource: warriorsGovernor.source === 'action' ? 'action' : 'default',
       jobsTop: Array.isArray(jobsGovernor.top)
         ? jobsGovernor.top.slice(0, 2).map((entry) => ({
@@ -729,6 +815,9 @@ function buildDecisionTrace(state) {
       buildUpgradeBias: Number(buildingGovernor.upgradeBias || 0),
       militiaSupportIntent: clamp(Number(externalCampsGovernor.militiaSupportIntent || 0), 0, 1),
       raiderTributeIntent: clamp(Number(externalCampsGovernor.raiderTributeIntent || 0), 0, 1),
+      socialMediationBias: clamp(Number(socialGovernor.mediationBias || 0), -1, 1),
+      socialMentorshipBias: clamp(Number(socialGovernor.mentorshipBias || 0), -1, 1),
+      socialAccountabilityBias: clamp(Number(socialGovernor.accountabilityBias || 0), -1, 1),
       warriorTrainingIntent: clamp(Number(warriorsGovernor.trainingIntent || 0), 0, 1),
       warriorRotationIntent: clamp(Number(warriorsGovernor.rotationIntent || 0), 0, 1),
       warriorTournamentRiskIntent: clamp(Number(warriorsGovernor.tournamentRiskIntent || 0), 0, 1),
@@ -818,6 +907,20 @@ function buildDecisionDrivers(shortages, context, governorSignals) {
     });
   }
 
+  const socialPressureScore = scoreSocialPressure(context);
+  if (socialPressureScore > 0) {
+    const cohesion = Math.round(clamp(Number(context.socialCohesion || 0), 0, 1) * 100);
+    const conflict = Math.round(clamp(Number(context.socialConflictPressure || 0), 0, 1) * 100);
+    const grudge = Math.round(clamp(Number(context.socialGrudgeLoad || 0), 0, 1) * 100);
+    const incident = Math.round(clamp(Number(context.socialIncidentRecency || 0), 0, 1) * 100);
+    drivers.push({
+      key: 'social:pressure',
+      label: `Social pressure (coh ${cohesion}% / conf ${conflict}% / grd ${grudge}% / rec ${incident}%)`,
+      kind: 'social',
+      score: socialPressureScore,
+    });
+  }
+
   const signals = governorSignals && typeof governorSignals === 'object' ? governorSignals : {};
   const jobsSource = signals.jobs && signals.jobs.source === 'action';
   const tradeSource = signals.trade && signals.trade.source === 'action';
@@ -826,6 +929,7 @@ function buildDecisionDrivers(shortages, context, governorSignals) {
   const ruinsSource = signals.ruins && signals.ruins.source === 'action';
   const underrealmSource = signals.underrealm && signals.underrealm.source === 'action';
   const externalCampsSource = signals.externalCamps && signals.externalCamps.source === 'action';
+  const socialSource = signals.social && signals.social.source === 'action';
   const warriorsSource = signals.warriors && signals.warriors.source === 'action';
   const actionDrivenCount = Number(jobsSource)
     + Number(tradeSource)
@@ -834,11 +938,12 @@ function buildDecisionDrivers(shortages, context, governorSignals) {
     + Number(ruinsSource)
     + Number(underrealmSource)
     + Number(externalCampsSource)
+    + Number(socialSource)
     + Number(warriorsSource);
   if (actionDrivenCount > 0) {
     drivers.push({
       key: 'governor:action',
-      label: `Policy action envelope (${actionDrivenCount}/8)`,
+      label: `Policy action envelope (${actionDrivenCount}/9)`,
       kind: 'policy',
       score: 0.45 + actionDrivenCount * 0.1,
     });
@@ -847,6 +952,29 @@ function buildDecisionDrivers(shortages, context, governorSignals) {
   return drivers
     .sort((left, right) => Number(right.score || 0) - Number(left.score || 0))
     .slice(0, 4);
+}
+
+// Score social pressure for explainability ranking.
+function scoreSocialPressure(context) {
+  const safe = context && typeof context === 'object' ? context : {};
+  const cohesion = clamp(Number(safe.socialCohesion || 0), 0, 1);
+  const conflict = clamp(Number(safe.socialConflictPressure || 0), 0, 1);
+  const mentorship = clamp(Number(safe.socialMentorshipCoverage || 0), 0, 1);
+  const grudge = clamp(Number(safe.socialGrudgeLoad || 0), 0, 1);
+  const incidentRecency = clamp(Number(safe.socialIncidentRecency || 0), 0, 1);
+  const pressure = clamp(
+    conflict * 0.5
+      + grudge * 0.3
+      + incidentRecency * 0.2
+      + (1 - cohesion) * 0.14
+      - mentorship * 0.08,
+    0,
+    1.2,
+  );
+  if (pressure < 0.2) {
+    return 0;
+  }
+  return pressure;
 }
 
 // Score weather pressure for explainability ranking.

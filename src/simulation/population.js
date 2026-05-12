@@ -7,12 +7,7 @@ const { hasInputs, consumeInputs, getStockpileRatio } = require('./resources');
 const { getMythMultiplier } = require('./myths');
 const { getClanConfig, pickClanId } = require('../clans');
 const { createDwarfWarriorState } = require('./warriors');
-const {
-  clearDeadSocialLinks,
-  createInitialDwarfSocialState,
-  noteSocialInteraction,
-  updateSocialDrama,
-} = require('./social_drama');
+const { createDwarfSocialState } = require('./social_drama');
 
 // Resolve the clan id for a newborn based on config and parents.
 function resolveNewbornClanId(parentA, parentB, config) {
@@ -470,7 +465,17 @@ function handleDeaths(state, config) {
   state.lastDeathTick = Number(state.tick || 0);
   state.dwarves = state.dwarves.filter((dwarf) => !deadIds.has(dwarf.id));
   state.jobs = state.jobs.filter((job) => !deadIds.has(job.dwarfId));
-  clearDeadSocialLinks(state, deadIds);
+
+  for (const dwarf of state.dwarves) {
+    if (dwarf.partnerId && deadIds.has(dwarf.partnerId)) {
+      dwarf.partnerId = null;
+      dwarf.bondTargetId = null;
+      dwarf.bondScore = 0;
+    }
+    if (dwarf.pregnancy && deadIds.has(dwarf.pregnancy.partnerId)) {
+      dwarf.pregnancy = null;
+    }
+  }
 
   for (const message of deathMessages) {
     pushEvent(state, config, message);
@@ -497,7 +502,6 @@ function updateRelationships(state, config) {
 
   const adults = state.dwarves.filter((dwarf) => isAdult(dwarf, config));
   if (adults.length < 2 || (baseInteractions === 0 && minInteractions === 0)) {
-    updateSocialDrama(state, config);
     return;
   }
 
@@ -515,13 +519,11 @@ function updateRelationships(state, config) {
   );
   const adjustedBondGain = bondGain * bondingMultiplier * moraleBonus;
   if (interactions <= 0) {
-    updateSocialDrama(state, config);
     return;
   }
 
   if (housing.enabled) {
     if (housing.houses === 0) {
-      updateSocialDrama(state, config);
       return;
     }
 
@@ -553,7 +555,6 @@ function updateRelationships(state, config) {
       if (a === b) {
         continue;
       }
-      noteSocialInteraction(state, config, a, b);
       if (a.partnerId && a.partnerId !== b.id) {
         continue;
       }
@@ -575,7 +576,6 @@ function updateRelationships(state, config) {
       if (dist > maxDistance) {
         continue;
       }
-      noteSocialInteraction(state, config, a, b);
       if (a.partnerId && a.partnerId !== b.id) {
         continue;
       }
@@ -587,7 +587,6 @@ function updateRelationships(state, config) {
       progressBond(b, a, gain, bondDecay, bondThreshold);
     }
 
-    updateSocialDrama(state, config);
     return;
   }
 
@@ -601,7 +600,6 @@ function updateRelationships(state, config) {
     if (dist > maxDistance) {
       continue;
     }
-    noteSocialInteraction(state, config, a, b);
     if (a.partnerId && a.partnerId !== b.id) {
       continue;
     }
@@ -612,7 +610,6 @@ function updateRelationships(state, config) {
     progressBond(a, b, gain, bondDecay, bondThreshold);
     progressBond(b, a, gain, bondDecay, bondThreshold);
   }
-  updateSocialDrama(state, config);
 }
 
 // Update the bond score between two dwarves.
@@ -937,11 +934,11 @@ function spawnNewborn(state, config, parentA, parentB) {
     partnerId: null,
     bondTargetId: null,
     bondScore: 0,
-    social: createInitialDwarfSocialState(),
     fertilityCooldown: 0,
     pregnancy: null,
     starvationTicks: 0,
     underrealmChampionSurvivals: 0,
+    social: createDwarfSocialState(),
   };
   newborn.warrior = createDwarfWarriorState(
     newbornId,

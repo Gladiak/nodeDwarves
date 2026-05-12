@@ -366,7 +366,7 @@ The tick order in code lives in `src/simulation/index.js` and is the execution c
 - Needs decay (season/weather/myth/alchemy/world-event/festival/schism/temple modifiers).
 - Consume resources from stockpile when thresholds hit.
 
-13. Handle deaths, roles, ruins, housing, relationships, reproduction (`population.js`, `roles.js`, `ruins.js`).
+13. Handle deaths, roles, ruins, housing, relationships, social drama, reproduction (`population.js`, `roles.js`, `ruins.js`, `social_drama.js`).
 14. Village and road updates (`villages.js`, `roads.js`).
 15. Assign jobs (`jobs.js`).
 16. Move and perform actions (`dwarf_actions.js`).
@@ -393,7 +393,7 @@ flowchart TD
   J --> K[Temple update + passive prestige]
   K --> L[Wildlife season start]
   L --> M[Per-dwarf: age + needs + consume]
-  M --> N[Population + ruins + relationships]
+  M --> N[Population + ruins + relationships + social drama]
   N --> O[Village and road updates]
   O --> P[Assign jobs]
   P --> Q[Process dwarf actions]
@@ -446,17 +446,17 @@ Notes:
 
 ### Core state builder 🧱
 
-  - `src/state/index.js`
-  - `createInitialState(config, runtime)` builds the authoritative world state:
-    - `dwarves`, `nodes`, `structures`, `merchant`, `worldEvents`, `externalCamps`, `weather`, `raid`, `tools`, etc.
-    - `temple` and `prestige` meta-state for Temple of Ancestors progression.
-    - `underrealm` depth metadata (active depth, unlocked depths, full-size layer terrains), plus deep economy/faction runtime.
-    - `stockpile` initialized from `config.resources.stockpile`.
-    - Initial stockpiles (and optional node counts) can scale with map size via `resources.mapScale`
-      using effective playable map area as a baseline (grid area minus carved inset when enabled).
-    - Counters and stats used by AI, raids, ruins, myths, alchemy, and endgame cycles.
-    - Decision observability snapshots: `lastGovernorSignals`, `lastPriorities`, `lastDecisionTrace` (used by telemetry explainability rows).
-  - `fitStateToGrid(...)` repositions entities after resize and keeps everything in-bounds (used when `display.resize.reflow_world=true`).
+- `src/state/index.js`
+- `createInitialState(config, runtime)` builds the authoritative world state:
+  - `dwarves`, `nodes`, `structures`, `merchant`, `worldEvents`, `externalCamps`, `weather`, `raid`, `tools`, etc.
+  - `temple` and `prestige` meta-state for Temple of Ancestors progression.
+  - `underrealm` depth metadata (active depth, unlocked depths, full-size layer terrains), plus deep economy/faction runtime.
+  - `stockpile` initialized from `config.resources.stockpile`.
+  - Initial stockpiles (and optional node counts) can scale with map size via `resources.mapScale`
+    using effective playable map area as a baseline (grid area minus carved inset when enabled).
+  - Counters and stats used by AI, raids, ruins, myths, alchemy, and endgame cycles.
+  - Decision observability snapshots: `lastGovernorSignals`, `lastPriorities`, `lastDecisionTrace` (used by telemetry explainability rows).
+- `fitStateToGrid(...)` repositions entities after resize and keeps everything in-bounds (used when `display.resize.reflow_world=true`).
 
 ### Terrain generation 🗺️
 
@@ -511,18 +511,11 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - Housing assignment, couple co-housing, and winter penalties are driven by `population.housing.*`.
   - Relationships/bonding use `population.relationships.*`, with morale and housing multipliers,
     plus optional same-clan bond gain bonuses.
-  - `social_drama.js` extends those interactions with bounded per-dwarf link memory:
-    - each dwarf keeps only a capped set of remembered ties (`affinity`, `friction`, `grudge`, `mentor`, `protege`),
-    - strongest links become inspect/telemetry-facing states (`friend`, `rival`, `grudge`, `mentor`, `protege`),
-    - link memory decays every tick and weak ties are pruned to keep hot-path cost bounded.
-  - Passive social effects are small but systemic:
-    - friendship/mentorship lift morale and relieve stress,
-    - rivalry/grudge add stress, morale drag, and mild fatigue pressure,
-    - because these write into dwarf mood directly, they indirectly influence gathering speed, reproduction climate, schism pressure, warrior readiness, and other morale-aware systems.
-  - Social incidents are explicit, rare, and cooldown-guarded:
-    - at most the configured number per tick,
-    - drawn from active strong ties (friendship celebration, rivalry quarrel, hardening grudge, mentorship breakthrough),
-    - emitted into the event log and cached in bounded history for telemetry.
+  - Social-drama phase-1 (`social_drama.js`) derives explicit per-dwarf relationship statuses (`friendship`, `rivalry`, `mentorship`, `grudge`) from sampled adult interactions, pair bond intensity, mood stressors, and bounded decay/pruning.
+  - Social-drama phase-1.5 adds bounded incident resolution (`mentorship_breakthrough`, `rivalry_clash`, `grudge_escalation`, `reconciliation`) with global/per-pair cooldowns, capped mood/warrior/link deltas, and rolling incident history.
+  - Social-drama phase-2 closes observability loops: telemetry includes a dedicated `Social` section and AI explainability now prints compact social context (`cohesion/conflict/mentorship/grudge/incident recency`) from decision traces.
+  - Social-drama phase-3 adds explicit AI-facing social governor channels (`action.social.mediationBias|mentorshipBias|accountabilityBias`) plus long-horizon social memory (`support/burden` per dwarf + settlement `harmony/strife`) implemented in runtime; `population.socialDrama.longArc.enabled` is currently `false` by default for conservative regression stability.
+  - Runtime aggregates are exported in `state.social` (`cohesion`, `conflictPressure`, `mentorshipCoverage`, `grudgeLoad`, `longArc.*`, `governor.*` + counters) for deterministic monitoring and AI reward/observation integration (`social*` channels).
   - Reproduction uses `population.reproduction.*` (base chance, soft cap, gestation, cooldown, stockpile gates, birth cost).
 
 ### Clan culture 🛡️
@@ -1581,7 +1574,7 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
 - `telemetry/telemetry.js`
   - Provides telemetry section builders and formatting helpers used by the telemetry panel.
   - Internal build flow is split into explicit phases (`collectTelemetrySnapshot` -> section models -> render), so adding telemetry metrics no longer requires touching all formatting paths.
-  - Section set: `World`, `Population`, `Pressure`, `Stockpile`, `Structures`, `Diplomacy`, `Operations`, `AI Explainability`, `Endgame`, `Underrealm`, `Lore`, `Deep Signals`.
+  - Section set: `World`, `Population`, `Social`, `Pressure`, `Stockpile`, `Structures`, `Diplomacy`, `Operations`, `AI Explainability`, `Endgame`, `Underrealm`, `Lore`, `Deep Signals`.
   - Housing details are intentionally compressed: only `House ratio` is shown in `World`.
   - World timeline shows `Tick`, `Year`, and season name only (capitalized label, no season tick progress fraction).
   - Section rows are adaptive (no fixed per-section filler quotas), which removes repeated placeholder noise while preserving deterministic ordering.
@@ -1594,8 +1587,8 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
   - `Diplomacy` is the trade/diplomacy block (merchant status/flows, external camp mix/effects, convoy activity/interception risk, contracts, world-event cadence/counters, plus trade + contracts + external-camps governor intents).
   - `Deep Signals` consolidates world-event cadence/totals plus contract reliability for late-game monitoring.
     - Its `World log` mirror also wraps to multiple rows (up to 3).
-  - `Operations` reports adult workforce split, job mix, build pipeline, 200-tick stockpile deltas, building/ruins/underrealm/warriors governor advisory signals, and production-vs-infrastructure load split.
-  - `AI Explainability` reads `state.lastDecisionTrace` to expose top pressure drivers, shortage score decomposition (including boost context), world pressure context, and governor intent source (`action` vs `default`).
+  - `Operations` reports adult workforce split, job mix, build pipeline, 200-tick stockpile deltas, building/ruins/underrealm/social/warriors governor advisory signals, and production-vs-infrastructure load split.
+  - `AI Explainability` reads `state.lastDecisionTrace` to expose top pressure drivers, shortage score decomposition (including boost context), world pressure context, social pressure context, governor intent source (`action` vs `default`), and compact social-governor bias traces.
   - `Endgame` reports a checklist path for cycle reset pacing (ruins rooms, artifacts, post-artifact window, trigger arm), plus ETA reason when blocked/pending.
   - `Lore` summarizes myths/traditions and ruins progress without bottom overlays.
 
@@ -1621,7 +1614,7 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
 ### JS inference 🧠
 
 - `src/ai/observation.js`
-  - Converts state to observation features (stockpile ratios, node ratios, needs, weather, raids, housing, ruins, myths, festivals, underrealm combat/progression signals, and warrior aggregates).
+  - Converts state to observation features (stockpile ratios, node ratios, needs, weather, raids, housing, ruins, myths, festivals, underrealm combat/progression signals, governance/social channels, and warrior aggregates).
   - Adds normalized ratios and flags used by the policy feature list.
   - Underrealm V2 features include:
     - `underrealmDepthProgress`, `underrealmChampionProgress`, `underrealmFrontierContested`
@@ -1631,12 +1624,15 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
     - `warriorEnabled`, `warriorRosterCoverage`, `warriorEliteScore`
     - `warriorLegacyAura`, `warriorChampionMomentum`, `warriorTournamentRecency`
     - `warriorInjuryShare`, `warriorRetiredShare`, `warriorSurvivability`, `warriorHeroTurnoverPressure`
+  - Social-drama phase-2 observation features include:
+    - `socialCohesion`, `socialConflictPressure`, `socialMentorshipCoverage`
+    - `socialGrudgeLoad`, `socialIncidentRecency`
 - `src/ai/policy.js`
   - Loads JSON policies (linear or MLP) and maps outputs to the governor action envelope.
   - Feature order is defined by `featureNames`; defaults live in the file.
   - Applies policy-side observation normalization when `normalization.observation` metadata is present in the checkpoint.
   - Emits fail-fast warnings if normalization metadata version/shape is incompatible with runtime feature shape.
-  - Normalizes actions to a governor-ready envelope (`jobs.weights`, `festivalIntent`, optional `trade`/`contracts`/`ruins`/`underrealm`/`building`/`externalCamps`/`warriors`) and mirrors legacy `weights` for compatibility.
+  - Normalizes actions to a governor-ready envelope (`jobs.weights`, `festivalIntent`, optional `trade`/`contracts`/`ruins`/`underrealm`/`building`/`externalCamps`/`social`/`warriors`) and mirrors legacy `weights` for compatibility.
   - Supports explicit governor pseudo action-ids in policy `resources`:
     - trade: `gov_trade_reserve_ratio_bias`, `gov_trade_contest_intent`, `gov_trade_opportunity_intent`
     - contracts: `gov_contract_commit_intent`
@@ -1644,6 +1640,7 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
     - underrealm: `gov_underrealm_surface_reserve_bias`, `gov_underrealm_depth_allocation_bias`, `gov_underrealm_miner_mix_bias`, `gov_underrealm_hauler_mix_bias`, `gov_underrealm_guard_mix_bias`
     - building: `gov_building_housing_weight`, `gov_building_economy_weight`, `gov_building_defense_weight`, `gov_building_special_weight`, `gov_building_mine_bias`, `gov_building_upgrade_bias`
     - external camps: `gov_external_militia_support_intent`, `gov_external_raider_tribute_intent`
+    - social: `gov_social_mediation_bias`, `gov_social_mentorship_bias`, `gov_social_accountability_bias`
     - warriors: `gov_warriors_training_intent`, `gov_warriors_rotation_intent`, `gov_warriors_tournament_risk_intent`, `gov_warriors_champion_challenge_intent`, `gov_warriors_recovery_priority_intent`
   - Trade intents currently consumed at runtime: `reserveRatioBias`, `contestIntent`, `opportunityIntent`.
   - Contract intents currently consumed at runtime: `commitIntent`.
@@ -1651,6 +1648,7 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
   - Underrealm intents currently consumed at runtime: `surfaceReserveBias`, `depthAllocationBias`, `minerMixBias`, `haulerMixBias`, `guardMixBias`.
   - Building intents currently consumed at runtime: class weights (`housing/economy/defense/special`) plus advisory `mineBias` and `upgradeBias`.
   - External-camps intents currently consumed at runtime: `militiaSupportIntent`, `raiderTributeIntent`.
+  - Social intents currently consumed at runtime: `mediationBias`, `mentorshipBias`, `accountabilityBias`.
   - Warriors intents currently consumed at runtime: `trainingIntent`, `rotationIntent`, `tournamentRiskIntent`, `championChallengeIntent`, `recoveryPriorityIntent`.
   - Warrior thresholds are behavior-gating (not telemetry-only): below-threshold intents now hold the corresponding subsystem in neutral mode (training off, rotation off, risk multipliers off, recovery boost off), while `championChallenge` continues to gate hero succession checks.
 - `src/ai_policy.js`
@@ -1671,6 +1669,7 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
   - `ai.training.trainer.algorithm` is startup-validated; currently only `ppo` is accepted (fail-fast on unsupported values).
   - Exports JSON weights for JS inference.
   - Builds action heads from resource ids plus optional festival and governor pseudo action-ids (when `ai.governors.*.enabled`).
+  - Social action-head ids are additionally gated by `ai.governors.social.actionHeadEnabled`; default is `false` for backward compatibility with legacy checkpoints, and should be enabled with `--fresh` training when activating policy-driven social biases.
   - Warriors action-head ids are additionally gated by `ai.governors.warriors.actionHeadEnabled`; default is `true`, and legacy checkpoints that do not include warrior action IDs require `--fresh` (or a temporary flag rollback to `false`).
   - Resume guard validates both `featureNames` and action-head ids (`resources` list); mismatch requires `--fresh`.
 - `python/agent.py`
@@ -1690,14 +1689,15 @@ Clan dynamics add heterogeneity and longer-horizon trade-offs. To keep PPO stabl
 - Use slightly higher entropy early to explore clan/role/job combinations.
 - Observations include clan shares, ruins status, diplomacy/governance channels (world events, contracts, external camps, schism), and Warrior League aggregate channels; retrain with `--fresh` if you change feature shape.
 - Reward shaping can emphasize ruins outcomes via `ai.reward.ruinsSuccess`, `ai.reward.ruinsArtifact`, `ai.reward.ruinsFailure`, and `ai.reward.ruinsRoomClear`, plus festivals via `ai.reward.festival_active`, `ai.reward.festival_start`, and `ai.reward.festival_intent`.
-- Reward stack now supports bounded delta channels (`ai.reward.*Delta`), deep progression signals (Underrealm/Myths), and diplomacy outcome/pressure channels (`ai.reward.diplomacy*`) with optional clipping guardrails (`deltaClip`, `eventClip`, `totalClip`) to reduce reward spikes.
+- Reward stack now supports bounded delta channels (`ai.reward.*Delta`), deep progression signals (Underrealm/Myths), diplomacy outcome/pressure channels (`ai.reward.diplomacy*`), and social-cohesion pressure channels (`ai.reward.social*`) with optional clipping guardrails (`deltaClip`, `eventClip`, `totalClip`) to reduce reward spikes.
 - Training curriculum now includes dedicated stress slices:
   - `underrealm_push`: earlier/faster deep unlock-readiness exposure.
   - `compound_crisis`: stacked scarcity + housing + weather + raid pressure.
   - `governance_pressure`: faster world-event/external-camp churn and higher schism pressure.
+  - `social_tension_pressure`: denser rivalry/grudge incident cadence with elevated schism baseline pressure to stress social stability control paths.
   - `warrior_realism_pressure`: denser expedition/tournament cadence with harsher warrior consequence pressure.
 - Canonical eval checkpoints now target this compact stress set by default:
-  - `baseline`, `full_sim`, `wildlife_raid`, `water_scarce`, `food_scarce`, `ruins_focus`, `underrealm_push`, `compound_crisis`, `governance_pressure`, `warrior_realism_pressure`.
+  - `baseline`, `full_sim`, `wildlife_raid`, `water_scarce`, `food_scarce`, `ruins_focus`, `underrealm_push`, `compound_crisis`, `governance_pressure`, `social_tension_pressure`, `warrior_realism_pressure`.
 
 ## 9) Configuration (single source of truth) ⚙️
 
@@ -1870,6 +1870,7 @@ Training presets:
   - `standard`: `baseline`, `full_sim`
   - `underrealm`: `baseline`, `underrealm_push`, `compound_crisis`
   - `governance`: `baseline`, `governance_pressure`, `compound_crisis`
+  - `social`: `baseline`, `social_tension_pressure`, `governance_pressure`
 - Adaptive sampler observability in trainer summaries:
   - `scenario_updates=<window>/<total>` is emitted in each summary line.
   - `window` counts updates in the current summary window; `total` is cumulative for the current phase/run.
@@ -1886,6 +1887,9 @@ Training presets:
   - Curriculum pressure was increased for `warrior_realism_pressure` and `governance_pressure`, with earlier activation multipliers at sub-max difficulty.
   - Adaptive scenario reweighting was widened (`minWeightRatio=0.6`, `maxWeightRatio=1.8`) and made more reactive (higher `boost`/`emaAlpha`, tighter late-phase `updateEvery`).
   - Trainer periodic eval now defaults to `evalEpisodes=20`, ensuring all configured eval scenarios are covered in each in-training eval pass.
+- 2026-04 social curriculum closure:
+  - Added `social_tension_pressure` scenario to the default training catalog + canonical eval list.
+  - Scenario profile pushes social-drama incident cadence (`interval/baseChance/maxPerUpdate`) and rivalry/grudge weighting while slightly elevating schism baseline pressure.
 - Regression temp artifacts are isolated per seed via `mkdtemp` workspaces (config + transient policy files), removing static `/tmp` filename collisions and cross-run side effects.
 - Regression randomized pass is rollout-only: `scripts/regression.js` calls `python/regression_rollout.py`, avoiding PPO optimizer/update overhead and checkpoint side effects.
 - Regression baseline profiles are persisted in `regression/baselines/regression_baseline.json` (stable/versionable), while per-run logs/reports stay in `debug/`.
@@ -2043,6 +2047,7 @@ Quick checklist:
     - `simulation/social_drama.js` → bounded dwarf social ties, passive mood effects, emergent incidents, and social cleanup/status helpers
   - `simulation/external_camps.js` → long-lived external faction camps and map-level diplomacy pressure
   - `simulation/schism.js` → run-scale social schism arc, doctrine shifts, ritual windows, and climax events
+  - `simulation/social_drama.js` → social-drama runtime for friendship/rivalry/mentorship/grudge inference and aggregate cohesion/conflict metrics
   - `simulation/warriors.js` → Warrior League runtime (combat profile bootstrap, risk-aware dispatch ranking, expedition progression, seasonal tournaments, bounded injury/recovery + succession/training loops, persistent marks/vows/legacy bonuses, and company identity/cycle carry-over hooks)
   - `simulation/roads.js` → road planning/build queue/pathing
     - `simulation/underrealm.js` → crew assignment, deep economy/exploration, and hostile deep raids

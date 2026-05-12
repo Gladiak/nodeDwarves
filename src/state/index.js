@@ -5,6 +5,7 @@ const { pickClanId } = require('../clans');
 const { createTempleState, createPrestigeState } = require('../simulation/temple');
 const { createSchismState } = require('../simulation/schism');
 const { createDwarfWarriorState, createWarriorsState } = require('../simulation/warriors');
+const { createDwarfSocialState, createSocialDramaState } = require('../simulation/social_drama');
 const {
   createInitialDwarfSocialState,
   createSocialDramaState,
@@ -1795,6 +1796,7 @@ function createInitialState(config, runtime) {
   const socialDrama = createSocialDramaState(config);
   const underrealm = createUnderrealmState(config, runtime, terrain, null);
   const warriors = createWarriorsState(config);
+  const social = createSocialDramaState(config);
 
   return {
     tick: 0,
@@ -1821,6 +1823,7 @@ function createInitialState(config, runtime) {
     terrain,
     underrealm,
     warriors,
+    social,
     roads,
     temple,
     prestige,
@@ -2518,6 +2521,7 @@ function createDwarves(config, runtime, occupied, terrain) {
       pregnancy: null,
       starvationTicks: 0,
       underrealmChampionSurvivals: 0,
+      social: createDwarfSocialState(),
     };
     dwarf.warrior = createDwarfWarriorState(
       dwarfId,

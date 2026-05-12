@@ -403,6 +403,11 @@ Merchant:
 - `ai.governors.ruins.enabled`: enable action-driven ruins dispatch/mithril posture hooks.
 - `ai.governors.ruins.warningDispatchIntentThreshold`: minimum normalized `action.ruins.warningDispatchIntent` required to allow warning-zone dispatches.
 - `ai.governors.ruins.mithrilReinforcementIntentThreshold`: minimum normalized `action.ruins.mithrilReinforcementIntent` required to spend mithril reinforcement when eligible.
+- `ai.governors.social.enabled`: enable action-driven social-governor advisory biases.
+- `ai.governors.social.actionHeadEnabled`: include/exclude social-governor pseudo action-ids from policy/training action heads (set `true` with fresh training when activating social control channels in policy outputs).
+- `ai.governors.social.mediationBiasMax`: max absolute signed de-escalation bias from `action.social.mediationBias`.
+- `ai.governors.social.mentorshipBiasMax`: max absolute signed mentorship-growth bias from `action.social.mentorshipBias`.
+- `ai.governors.social.accountabilityBiasMax`: max absolute signed discipline bias from `action.social.accountabilityBias`.
 - `ai.governors.warriors.enabled`: enable action-driven Warrior League advisory intents.
 - `ai.governors.warriors.actionHeadEnabled`: include/exclude warriors governor pseudo action-ids from policy/training action heads.
 - `ai.governors.warriors.trainingIntentThreshold`: minimum normalized `action.warriors.trainingIntent` required to run Warrior League training sessions.
@@ -1127,59 +1132,86 @@ Population relationships:
 - `population.relationships.moraleMax`: morale where bonding bonus caps (0..1).
 - `population.relationships.moraleBonusMax`: max bonding bonus added at peak morale (0..1).
 - `population.relationships.moraleExponent`: curve exponent for morale-based bonding bonus.
-- `population.relationships.socialDrama.enabled`: enable bounded social ties and incidents on top of bonding.
-- `population.relationships.socialDrama.maxLinksPerDwarf`: max remembered social links per dwarf.
-- `population.relationships.socialDrama.scoreCap`: clamp cap shared by affinity/friction/grudge/mentor/protege scores.
-- `population.relationships.socialDrama.minScoreToKeep`: prune links that decay below this aggregate strength.
-- `population.relationships.socialDrama.friendshipGain`: base affinity gain per social interaction.
-- `population.relationships.socialDrama.rivalryGain`: base friction gain per stressed/competitive interaction.
-- `population.relationships.socialDrama.grudgeGain`: base resentment gain when rivalry remains high.
-- `population.relationships.socialDrama.mentorshipGain`: base mentor/protege gain for strong age-gap interactions.
-- `population.relationships.socialDrama.sameClanAffinityBonus`: extra affinity multiplier when both dwarves share the same clan.
-- `population.relationships.socialDrama.sameHomeAffinityBonus`: extra affinity multiplier when both dwarves share the same house.
-- `population.relationships.socialDrama.sameRoleRivalryBonus`: extra rivalry pressure for same-role competition.
-- `population.relationships.socialDrama.stressRivalryScale`: how strongly average stress pushes rivalry gain.
-- `population.relationships.socialDrama.lowMoraleRivalryScale`: how strongly low morale pushes rivalry gain.
-- `population.relationships.socialDrama.mentorAgeGapTicks`: minimum age gap required before mentor/protege ties can grow.
-- `population.relationships.socialDrama.menteeMaxAgeTicks`: max age for the younger dwarf to still qualify as a protege.
-- `population.relationships.socialDrama.thresholds.friendship`: minimum affinity score required to surface a `friend`.
-- `population.relationships.socialDrama.thresholds.rivalry`: minimum friction score required to surface a `rival`.
-- `population.relationships.socialDrama.thresholds.grudge`: minimum resentment score required to surface a `grudge`.
-- `population.relationships.socialDrama.thresholds.mentor`: minimum mentor score required to surface a `mentor`.
-- `population.relationships.socialDrama.thresholds.protege`: minimum protege score required to surface a `protege`.
-- `population.relationships.socialDrama.decayPerTick.affinity`: per-tick decay applied to positive affinity memory.
-- `population.relationships.socialDrama.decayPerTick.friction`: per-tick decay applied to rivalry memory.
-- `population.relationships.socialDrama.decayPerTick.grudge`: per-tick decay applied to long-lived grudge memory.
-- `population.relationships.socialDrama.decayPerTick.mentor`: per-tick decay applied to mentor memory.
-- `population.relationships.socialDrama.decayPerTick.protege`: per-tick decay applied to protege memory.
-- `population.relationships.socialDrama.effects.friendMoralePerTick`: per-tick morale gain from an active friendship.
-- `population.relationships.socialDrama.effects.friendStressReliefPerTick`: per-tick stress relief from an active friendship.
-- `population.relationships.socialDrama.effects.rivalStressPerTick`: per-tick stress gain from an active rivalry.
-- `population.relationships.socialDrama.effects.rivalMoralePenaltyPerTick`: per-tick morale penalty from an active rivalry.
-- `population.relationships.socialDrama.effects.grudgeStressPerTick`: per-tick stress gain from an active grudge.
-- `population.relationships.socialDrama.effects.grudgeMoralePenaltyPerTick`: per-tick morale penalty from an active grudge.
-- `population.relationships.socialDrama.effects.grudgeFatiguePerTick`: per-tick fatigue gain from an active grudge.
-- `population.relationships.socialDrama.effects.mentorMoralePerTick`: per-tick morale gain when a dwarf benefits from a mentor.
-- `population.relationships.socialDrama.effects.mentorStressReliefPerTick`: per-tick stress relief when a dwarf benefits from a mentor.
-- `population.relationships.socialDrama.effects.protegeMoralePerTick`: per-tick morale gain when a dwarf is actively mentoring someone else.
-- `population.relationships.socialDrama.effects.protegeStressReliefPerTick`: per-tick stress relief from active protege guidance.
-- `population.relationships.socialDrama.incidents.enabled`: enable rare social incidents on top of passive ties.
-- `population.relationships.socialDrama.incidents.historyLimit`: max recent incidents kept in runtime history.
-- `population.relationships.socialDrama.incidents.maxPerTick`: max incidents allowed to resolve in one tick.
-- `population.relationships.socialDrama.incidents.globalCooldownTicks`: minimum ticks between any two incidents.
-- `population.relationships.socialDrama.incidents.pairCooldownTicks`: minimum ticks before the same pair can generate another incident.
-- `population.relationships.socialDrama.incidents.friendshipChance`: base chance to resolve a friendship incident when a strong tie is picked.
-- `population.relationships.socialDrama.incidents.rivalryChance`: base chance to resolve a rivalry incident when a strong tie is picked.
-- `population.relationships.socialDrama.incidents.grudgeChance`: base chance to resolve a grudge incident when a strong tie is picked.
-- `population.relationships.socialDrama.incidents.mentorshipChance`: base chance to resolve a mentorship incident when a strong tie is picked.
-- `population.relationships.socialDrama.incidents.friendshipMoraleDelta`: immediate morale boost applied by a friendship incident.
-- `population.relationships.socialDrama.incidents.friendshipStressReliefDelta`: immediate stress relief applied by a friendship incident.
-- `population.relationships.socialDrama.incidents.rivalryStressDelta`: immediate stress spike applied by a rivalry incident.
-- `population.relationships.socialDrama.incidents.rivalryMoraleDelta`: immediate morale delta applied by a rivalry incident.
-- `population.relationships.socialDrama.incidents.grudgeStressDelta`: immediate stress spike applied by a grudge incident.
-- `population.relationships.socialDrama.incidents.grudgeMoraleDelta`: immediate morale delta applied by a grudge incident.
-- `population.relationships.socialDrama.incidents.mentorshipMoraleDelta`: immediate morale gain applied by a mentorship incident.
-- `population.relationships.socialDrama.incidents.mentorshipFatigueReliefDelta`: immediate fatigue/stress relief applied by a mentorship incident.
+
+Population social drama:
+
+- `population.socialDrama.enabled`: enable the social-drama runtime (`state.social`) and per-dwarf social payload updates.
+- `population.socialDrama.tickInterval`: ticks between social-drama updates.
+- `population.socialDrama.pairSamplesPerUpdate`: random adult-pair samples evaluated per social update (bounded, non O(n^2)).
+- `population.socialDrama.includeBondedPairs`: when true, always includes currently bonded partner pairs in sampled interactions.
+- `population.socialDrama.carryoverPairsPerDwarf`: number of top existing links per dwarf carried into each social update to preserve relationship continuity.
+- `population.socialDrama.maxTrackedLinksPerDwarf`: max retained social links per dwarf after pruning.
+- `population.socialDrama.linkEpsilon`: minimum link strength required to keep a link alive after decay/pruning.
+- `population.socialDrama.staleDecayPerTick`: passive decay applied per tick to stale links that were not refreshed.
+- `population.socialDrama.friendshipThreshold`: minimum affinity required to classify a link as friendship.
+- `population.socialDrama.rivalryThreshold`: minimum rivalry intensity required to classify a link as rivalry.
+- `population.socialDrama.mentorshipThreshold`: minimum mentorship intensity required to classify a link as mentorship candidate.
+- `population.socialDrama.grudgeThreshold`: minimum grudge intensity required to classify a link as grudge.
+- `population.socialDrama.mentorshipAgeGapMin`: minimum age gap (ticks) required for mentorship inference.
+- `population.socialDrama.mentorshipSkillGapMin`: minimum mentor-vs-mentee skill gap scalar required for mentorship inference (0..1).
+- `population.socialDrama.affinityGainBase`: baseline affinity gain per evaluated pair update.
+- `population.socialDrama.affinityBondScale`: additional affinity gain scaled by existing partner-bond ratio.
+- `population.socialDrama.affinitySameClanBonus`: extra affinity gain for same-clan pairs.
+- `population.socialDrama.affinityDecayPerTick`: per-tick decay for affinity channel.
+- `population.socialDrama.rivalryBaseGain`: baseline rivalry gain per evaluated pair.
+- `population.socialDrama.rivalryStressScale`: rivalry gain scale from average pair stress.
+- `population.socialDrama.rivalryLowMoraleScale`: rivalry gain scale from average pair low morale.
+- `population.socialDrama.rivalryBondShieldScale`: rivalry reduction scale from existing partner-bond ratio.
+- `population.socialDrama.rivalryDecayPerTick`: per-tick decay for rivalry channel.
+- `population.socialDrama.mentorshipBaseGain`: baseline mentorship gain when mentorship gates pass.
+- `population.socialDrama.mentorshipBondScale`: mentorship gain scale from partner-bond ratio when age/skill gates pass.
+- `population.socialDrama.mentorshipSkillScale`: mentorship gain scale from skill-gap intensity when age/skill gates pass.
+- `population.socialDrama.mentorshipDecayPerTick`: per-tick decay for mentorship channel.
+- `population.socialDrama.grudgeStressThreshold`: average pair stress threshold that enables grudge gain (0..1).
+- `population.socialDrama.grudgeStressScale`: grudge gain scale once stress threshold and rivalry gate are satisfied.
+- `population.socialDrama.grudgeRivalryScale`: passive grudge gain scale from existing rivalry intensity.
+- `population.socialDrama.grudgeDecayPerTick`: per-tick decay for grudge channel.
+- `population.socialDrama.longArc.enabled`: enable long-horizon social memory consequences (per-dwarf support/burden memory + settlement harmony/strife drift); default is currently `false` for conservative regression stability.
+- `population.socialDrama.longArc.memoryDecayPerTick`: per-tick decay for per-dwarf support/burden memory.
+- `population.socialDrama.longArc.memoryGainPerUpdate`: blend gain applied from current status targets into per-dwarf support/burden memory.
+- `population.socialDrama.longArc.friendSupportWeight`: support-memory contribution per active friend link.
+- `population.socialDrama.longArc.mentorshipSupportWeight`: support-memory contribution per mentorship tie (`mentor` + `mentee`).
+- `population.socialDrama.longArc.rivalBurdenWeight`: burden-memory contribution per rivalry tie.
+- `population.socialDrama.longArc.grudgeBurdenWeight`: burden-memory contribution per grudge tie.
+- `population.socialDrama.longArc.supportShockOnPositiveIncident`: one-step support-memory boost from positive incidents (`mentorship_breakthrough`, `reconciliation`).
+- `population.socialDrama.longArc.burdenShockOnNegativeIncident`: one-step burden-memory boost from negative incidents (`rivalry_clash`, `grudge_escalation`).
+- `population.socialDrama.longArc.moraleSupportScale`: morale gain scale from support memory.
+- `population.socialDrama.longArc.moraleBurdenScale`: morale penalty scale from burden memory.
+- `population.socialDrama.longArc.stressSupportReliefScale`: stress relief scale from support memory.
+- `population.socialDrama.longArc.stressBurdenScale`: stress pressure scale from burden memory.
+- `population.socialDrama.longArc.fatigueSupportReliefScale`: fatigue relief scale from support memory.
+- `population.socialDrama.longArc.fatigueBurdenScale`: fatigue pressure scale from burden memory.
+- `population.socialDrama.longArc.settlementMemoryDecayPerTick`: per-tick decay for settlement-level social climate memory.
+- `population.socialDrama.longArc.settlementMemoryGainPerUpdate`: blend gain from current social aggregates into settlement `harmony/strife`.
+- `population.socialDrama.longArc.affinityHarmonyScale`: affinity-gain multiplier contribution from settlement harmony.
+- `population.socialDrama.longArc.affinityStrifePenaltyScale`: affinity-gain penalty contribution from settlement strife.
+- `population.socialDrama.longArc.rivalryStrifeScale`: rivalry-gain multiplier contribution from settlement strife.
+- `population.socialDrama.longArc.rivalryHarmonyReliefScale`: rivalry-gain relief contribution from settlement harmony.
+- `population.socialDrama.longArc.mentorshipHarmonyScale`: mentorship-gain multiplier contribution from settlement harmony.
+- `population.socialDrama.longArc.grudgeStrifeScale`: grudge-gain multiplier contribution from settlement strife.
+- `population.socialDrama.longArc.grudgeHarmonyReliefScale`: grudge-gain relief contribution from settlement harmony.
+- `population.socialDrama.longArc.cohesionBonusScale`: post-aggregation cohesion bonus from settlement harmony.
+- `population.socialDrama.longArc.cohesionStrifePenaltyScale`: post-aggregation cohesion penalty from settlement strife.
+- `population.socialDrama.longArc.conflictStrifeScale`: post-aggregation conflict-pressure bonus from settlement strife.
+- `population.socialDrama.longArc.conflictHarmonyReliefScale`: post-aggregation conflict-pressure relief from settlement harmony.
+- `population.socialDrama.incidents.enabled`: enable social incident generation (mentorship breakthrough, rivalry clash, grudge escalation, reconciliation).
+- `population.socialDrama.incidents.intervalTicks`: minimum ticks between incident rolls.
+- `population.socialDrama.incidents.baseChancePerRoll`: probability of attempting one incident when a roll window opens (0..1).
+- `population.socialDrama.incidents.maxPerUpdate`: max incidents resolved per social update tick.
+- `population.socialDrama.incidents.globalCooldownTicks`: global cooldown after any incident resolves.
+- `population.socialDrama.incidents.perPairCooldownTicks`: per-pair cooldown after a pair triggers any incident.
+- `population.socialDrama.incidents.pairCooldownRetentionTicks`: retention horizon for stale per-pair cooldown entries before cleanup.
+- `population.socialDrama.incidents.historyLimit`: max history entries retained in `state.social.history`.
+- `population.socialDrama.incidents.reconciliationAffinityMin`: minimum pair affinity required for reconciliation candidacy (0..1).
+- `population.socialDrama.incidents.weights.mentorship_breakthrough`: weighted selection bias for mentorship-breakthrough incidents.
+- `population.socialDrama.incidents.weights.rivalry_clash`: weighted selection bias for rivalry-clash incidents.
+- `population.socialDrama.incidents.weights.grudge_escalation`: weighted selection bias for grudge-escalation incidents.
+- `population.socialDrama.incidents.weights.reconciliation`: weighted selection bias for reconciliation incidents.
+- `population.socialDrama.incidents.effects.mentorship_breakthrough.*`: bounded mentor/mentee mood deltas, mentee warrior-growth deltas, and link tension-relief deltas for mentorship breakthroughs.
+- `population.socialDrama.incidents.effects.rivalry_clash.*`: bounded mood penalties and rivalry/grudge tension gains for rivalry clashes.
+- `population.socialDrama.incidents.effects.grudge_escalation.*`: bounded mood penalties and hostility gains for grudge escalations.
+- `population.socialDrama.incidents.effects.reconciliation.*`: bounded mood relief and hostility-reduction deltas for reconciliation incidents.
+
 - `population.idleWanderChance`: legacy per-tick wander chance (0..1), used as fallback for `population.idleWander.chance`.
 - `population.idleWander.enabled`: enable waypoint-style idle wandering.
 - `population.idleWander.chance`: chance per tick to start an idle stroll (0..1).
@@ -1248,11 +1280,11 @@ Roads:
 - `roads.avoidTerrain`: terrain types treated as blocked for road pathfinding.
 - `roads.softAvoidTerrain`: terrain types avoided when possible; if no other route exists the path can traverse them.
 - `roads.waterTerrain`: terrain types rendered as bridges when a path must traverse them.
-- `roads.pathStyle.enabled`: enable weighted road pathfinding (A* with style costs).
+- `roads.pathStyle.enabled`: enable weighted road pathfinding (A\* with style costs).
 - `roads.pathStyle.profile`: road style profile (`pragmatic`, `scenic`) controlling baseline deviation behavior.
 - `roads.pathStyle.profile=pragmatic`: favors direct routes, lower detour tolerance, stricter long-link waypoint guardrails.
 - `roads.pathStyle.profile=scenic`: allows broader meanders, stronger noise/curvature, and more permissive long-link waypoints.
-- `roads.pathStyle.heuristicWeight`: A* heuristic multiplier (higher = more direct, lower = more exploratory).
+- `roads.pathStyle.heuristicWeight`: A\* heuristic multiplier (higher = more direct, lower = more exploratory).
 - `roads.pathStyle.turnPenalty`: additive cost for changing direction between adjacent road steps.
 - `roads.pathStyle.straightStepThreshold`: straight-run length before extra straightness penalty starts.
 - `roads.pathStyle.straightStepPenalty`: additive per-step penalty for long straight runs beyond the threshold.
@@ -2041,6 +2073,21 @@ AI and training:
 - `ai.governors.externalCamps.forceComplianceOnCritical`: force tribute compliance when affordable under critical stockpile collapse.
 - `ai.governors.externalCamps.criticalStockpileFloor`: stockpile-ratio floor used for critical-collapse compliance.
 - `ai.governors.externalCamps.criticalResources[]`: stockpile resources used for critical-collapse checks.
+- `ai.governors.social.enabled`: enable/disable social-governor advisory bias hooks.
+- `ai.governors.social.actionHeadEnabled`: include/exclude social-governor pseudo action-ids in policy/training action-head generation.
+- `ai.governors.social.mediationBiasMax`: max absolute signed bias from `action.social.mediationBias` (de-escalation/reconciliation posture).
+- `ai.governors.social.mentorshipBiasMax`: max absolute signed bias from `action.social.mentorshipBias` (mentorship-growth posture).
+- `ai.governors.social.accountabilityBiasMax`: max absolute signed bias from `action.social.accountabilityBias` (incident-discipline posture).
+- `ai.governors.social.mediationRivalryReductionScale`: rivalry-gain reduction scale from positive mediation bias.
+- `ai.governors.social.mediationGrudgeReductionScale`: grudge-gain reduction scale from positive mediation bias.
+- `ai.governors.social.mentorshipGainScale`: mentorship-gain increase scale from positive mentorship bias.
+- `ai.governors.social.accountabilityRivalryReductionScale`: rivalry-gain reduction scale from positive accountability bias.
+- `ai.governors.social.accountabilityGrudgeReductionScale`: grudge-gain reduction scale from positive accountability bias.
+- `ai.governors.social.mediationReconciliationWeightScale`: reconciliation incident-weight boost scale from positive mediation bias.
+- `ai.governors.social.mentorshipIncidentWeightScale`: mentorship-breakthrough incident-weight boost scale from positive mentorship bias.
+- `ai.governors.social.accountabilityIncidentChanceScale`: incident-roll chance reduction scale from positive accountability bias.
+- `ai.governors.social.mediationIncidentChanceScale`: incident-roll chance reduction scale from positive mediation bias.
+- `ai.governors.social.accountabilityEscalationWeightReductionScale`: grudge-escalation incident-weight reduction scale from positive accountability bias.
 - `ai.reward.stockpileAvg`: reward contribution for average stockpile ratio.
 - `ai.reward.stockpileMin`: reward contribution for minimum stockpile ratio.
 - `ai.reward.waterStockpile`: extra reward contribution for the water stockpile ratio.
@@ -2086,6 +2133,15 @@ AI and training:
 - `ai.reward.diplomacyPressure`: penalty for current aggregate diplomacy pressure score.
 - `ai.reward.diplomacyPressureDelta`: reward for reducing aggregate diplomacy pressure.
 - `ai.reward.diplomacyLegitimacyDelta`: reward for schism-legitimacy improvements.
+- `ai.reward.socialCohesion`: reward contribution for current social cohesion ratio.
+- `ai.reward.socialCohesionDelta`: reward for improving social cohesion ratio.
+- `ai.reward.socialConflictPressure`: penalty for current social conflict pressure.
+- `ai.reward.socialConflictPressureDelta`: reward for reducing social conflict pressure.
+- `ai.reward.socialMentorshipCoverage`: reward contribution for current mentorship coverage ratio.
+- `ai.reward.socialMentorshipCoverageDelta`: reward for improving mentorship coverage ratio.
+- `ai.reward.socialGrudgeLoad`: penalty for current social grudge load ratio.
+- `ai.reward.socialGrudgeLoadDelta`: reward for reducing social grudge load ratio.
+- `ai.reward.socialIncidentRecency`: penalty for recent social incident volatility.
 - `ai.reward.warriorEliteScore`: reward contribution for current Warrior League elite-score aggregate.
 - `ai.reward.warriorEliteScoreDelta`: reward for improving elite-score aggregate.
 - `ai.reward.warriorChampionMomentum`: reward contribution for current champion-momentum aggregate.
@@ -2159,13 +2215,13 @@ AI and training:
 - Current default scenario catalog:
   - `baseline`, `full_sim`, `mid_sim`
   - `wildlife_raid`, `ruins_focus`
-  - `underrealm_push`, `underrealm_late_gauntlet`, `compound_crisis`, `governance_pressure`, `warrior_realism_pressure`
+  - `underrealm_push`, `underrealm_late_gauntlet`, `compound_crisis`, `governance_pressure`, `social_tension_pressure`, `warrior_realism_pressure`
   - `clan_abyssborn`, `clan_embers`, `clan_wardens`, `clan_lantern`
   - `water_scarce`, `food_scarce`, `low_stockpile`, `housing_pressure`
 - `ai.training.evalScenarios`: list of scenario names evaluated at eval checkpoints.
 - Default eval scenario list:
   - `baseline`, `full_sim`, `wildlife_raid`, `water_scarce`
-  - `food_scarce`, `ruins_focus`, `underrealm_push`, `compound_crisis`, `governance_pressure`, `warrior_realism_pressure`
+  - `food_scarce`, `ruins_focus`, `underrealm_push`, `compound_crisis`, `governance_pressure`, `social_tension_pressure`, `warrior_realism_pressure`
 - `ai.training.scenarioSampling.mode`: `static` or `adaptive` scenario reweighting.
 - `ai.training.scenarioSampling.updateEvery`: episodes between adaptive weight updates.
 - `ai.training.scenarioSampling.emaAlpha`: EMA smoothing for per-scenario reward.
@@ -2222,7 +2278,7 @@ AI and training:
 - `ai.training.trainer.miniBatchSize`: minibatch size for PPO updates.
 - `ai.training.trainer.batchEpisodes`: episodes per update batch.
 - `ai.training.trainer.hiddenSizes`: MLP hidden layer sizes (e.g. `[128, 128]`).
-- `ai.training.trainer.featureNames`: ordered list of observation features per resource (e.g. `shortage`, `nodeScarcity`, `criticalNeeds`, `idleAdults`, `populationBalance`, `seasonIndex`, `seasonProgress`, `weatherSeverity`, `weatherTimeLeft`, `raidActive`, `raidTimeLeft`, `raidExposed`, `raidDefense`, `housingShortage`, `seasonEligible`, `ruinsActive`, `ruinsCooldown`, `ruinsProgress`, `ruinsArtifacts`, `underrealmDepthProgress`, `underrealmChampionProgress`, `underrealmFrontierContested`, `underrealmChampionCooldown`, `underrealmReadinessScore`, `underrealmReadinessGap`, `underrealmReadinessBlocked`, `underrealmReadinessWarning`, `underrealmCombatPressure`, `worldEventActive`, `worldEventOfferPhase`, `worldEventOfferReady`, `worldEventTimeLeft`, `worldEventSpawnImminence`, `worldEventPressure`, `contractActive`, `contractReady`, `contractTimeLeft`, `contractFailurePressure`, `contractReputation`, `contractPressure`, `externalCampActiveRatio`, `externalCampRaiderPressure`, `externalCampCaravanRisk`, `externalCampMilitiaSupport`, `externalCampTradeInfluence`, `externalCampPressure`, `schismPressure`, `schismLegitimacy`, `schismPhase`, `schismRitualOpen`, `schismClimaxActive`, `schismInstability`, `warriorEliteScore`, `warriorLegacyAura`, `warriorChampionMomentum`, `warriorTournamentRecency`, `warriorInjuryShare`, `warriorRetiredShare`, `warriorSurvivability`, `warriorHeroTurnoverPressure`, `clanShare_abyssborn`).
+- `ai.training.trainer.featureNames`: ordered list of observation features per resource (e.g. `shortage`, `nodeScarcity`, `criticalNeeds`, `idleAdults`, `populationBalance`, `seasonIndex`, `seasonProgress`, `weatherSeverity`, `weatherTimeLeft`, `raidActive`, `raidTimeLeft`, `raidExposed`, `raidDefense`, `housingShortage`, `seasonEligible`, `ruinsActive`, `ruinsCooldown`, `ruinsProgress`, `ruinsArtifacts`, `underrealmDepthProgress`, `underrealmChampionProgress`, `underrealmFrontierContested`, `underrealmChampionCooldown`, `underrealmReadinessScore`, `underrealmReadinessGap`, `underrealmReadinessBlocked`, `underrealmReadinessWarning`, `underrealmCombatPressure`, `worldEventActive`, `worldEventOfferPhase`, `worldEventOfferReady`, `worldEventTimeLeft`, `worldEventSpawnImminence`, `worldEventPressure`, `contractActive`, `contractReady`, `contractTimeLeft`, `contractFailurePressure`, `contractReputation`, `contractPressure`, `externalCampActiveRatio`, `externalCampRaiderPressure`, `externalCampCaravanRisk`, `externalCampMilitiaSupport`, `externalCampTradeInfluence`, `externalCampPressure`, `schismPressure`, `schismLegitimacy`, `schismPhase`, `schismRitualOpen`, `schismClimaxActive`, `schismInstability`, `socialCohesion`, `socialConflictPressure`, `socialMentorshipCoverage`, `socialGrudgeLoad`, `socialIncidentRecency`, `warriorEliteScore`, `warriorLegacyAura`, `warriorChampionMomentum`, `warriorTournamentRecency`, `warriorInjuryShare`, `warriorRetiredShare`, `warriorSurvivability`, `warriorHeroTurnoverPressure`, `clanShare_abyssborn`).
 - Dynamic feature names are accepted for `mythFlag_<mythId>` and `clanShare_<clanId>`.
 - `ai.training.trainer.activation`: hidden-layer activation (`tanh` or `relu`).
 - `ai.training.trainer.logStdInit`: initial log-std for action sampling.

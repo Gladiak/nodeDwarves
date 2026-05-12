@@ -24,8 +24,7 @@ Think of it as a living systems sandbox: you tune config, press run, and watch t
 - ⛺ Long-lived external faction camps: trade hubs, militia outposts, and raider pressure points with moving trade caravans, interception risk, and role-based influence zones on the map.
 - 🎭 World events now live: traveling bards, rival caravans, and short-deadline opportunities.
 - 🔥 Schism arc per run: doctrine shifts with hysteresis, seasonal council decrees (`pick 1 of 3` edicts), branching anti-repeat festival rituals, social pressure/legitimacy swings, and climax moments that can reshape the economy.
-- 💔 Social drama engine: dwarves now build bounded friendships, rivalries, grudges, and mentorships that nudge morale/stress and occasionally erupt into visible incidents.
-- ⚖️ Council decree defaults are now long-run tuned for steadier governance outcomes.
+- 💞 Social drama engine phase-3: explicit friendship/rivalry/mentorship/grudge states are live with bounded incidents, long-horizon social memory consequences are implemented (toggle via `population.socialDrama.longArc.enabled`, default `false` for stability), and AI-facing social governor channels are available end-to-end.
 - 🗝️ Endgame ruins expeditions with artifacts, set bonuses, and cycle resets.
 - 🏛️ Dwarf Temple of Ancestors: biome-aware multi-stage final work with doctrine-path lock-in and prestige growth.
 - 🧭 Economy telemetry now includes an Endgame checklist with live step completion and reset ETA.
@@ -43,6 +42,7 @@ Think of it as a living systems sandbox: you tune config, press run, and watch t
 - 📦 Telemetry stockpile compaction: weapon/armor tier inventories are grouped into compact aggregate bars so the panel stays readable in long runs.
 - 📊 Underrealm-aware AI loop: PPO observation now includes deep combat/progression signals, with benchmark/regression reports exposing compact underrealm KPIs plus death-cause diagnostics (`death_*`) seed-by-seed.
 - 🤝 Diplomacy-aware AI loop: PPO observation/reward now include world-event state, contract timing pressure, external-camp pressure, and schism legitimacy/pressure channels.
+- 🧬 Social-aware AI loop: PPO observation/reward now include social-drama cohesion/conflict/mentorship/grudge/incident channels so training can optimize long-horizon colony stability, not just stockpile spikes.
 - 🧠 Warrior-aware AI loop (phase 6): PPO observation now includes aggregate Warrior League channels (`warriorEnabled`, roster coverage, elite score, legacy aura, champion momentum, tournament recency, injury/retired share, survivability, turnover pressure) with compact/legacy transport parity contracts.
 - 🧪 Warrior realism curriculum: training now includes a dedicated `warrior_realism_pressure` scenario and extended warrior control channels (`injury`, `retired`, `survivability`, `hero turnover pressure`) to make warrior governance decisions materially affect learning outcomes.
 - 🗺️ Map Focus default: no side telemetry column; `h` opens a full-screen paged telemetry Data Center while the map keeps full width.
@@ -170,10 +170,10 @@ Canonical promotion now owns best-checkpoint writes: wrapper training disables i
 - ♻️ `ai:train:continuous` orchestrates long-running incremental learning with the historical default cadence (`daily` baseline, periodic `full`, periodic `high`, optional gate cadence, auto-stop guardrails), now forwarding low-write wrapper mode plus automatic debug cleanup, and writes run reports to `debug/continuous_train_*.json/.md`.
 - ⚖️ `ai:train:continuous:balanced` provides an anti-stagnation cadence preset (`--cycles 36 --full-every 6 --high-every 12 --gate-every 6 --max-no-improve 14 --max-gate-fail 3`) with the same low-write + cleanup defaults to reduce premature no-improve stops while keeping regular quality pressure.
 - ✅ Continuous stop logic is now strict promotion-aligned: a cycle resets no-improve streaks only when canonical promotion succeeds (positive-not-promoted deltas are reported but do not count as improvement).
-- 🧪 Training scenario curriculum now includes dedicated deep/governance stress slices (`underrealm_push`, `compound_crisis`, `governance_pressure`), and canonical eval covers high-risk survival/deep/governance cases (`wildlife_raid`, `compound_crisis`, `underrealm_push`, `governance_pressure`).
+- 🧪 Training scenario curriculum now includes dedicated deep/governance/social stress slices (`underrealm_push`, `compound_crisis`, `governance_pressure`, `social_tension_pressure`), and canonical eval covers high-risk survival/deep/governance/social cases (`wildlife_raid`, `compound_crisis`, `underrealm_push`, `governance_pressure`, `social_tension_pressure`).
 - 🎯 Warrior/governance determinative tuning now raises pressure in the dedicated curriculum slices (`warrior_realism_pressure`, `governance_pressure`), widens adaptive scenario reweighting (`0.6..1.8`), and uses `evalEpisodes=20` during in-training eval so all configured eval scenarios are exercised in checkpoint selection.
 - 🧪 OQ-5 add-ons: added `underrealm_late_gauntlet` for late deep stress, phase-adaptive scenario-sampling schedule (`early/mid/late`), and a diagnostic-only eval ensemble (`rpt` + deep auxiliary channels) for richer promotion reports without changing promotion gates.
-- 🧪 Regression deterministic eval is profile-specific (`standard`, `underrealm`, `governance`) so deep/governance regressions surface earlier in dedicated stress slices.
+- 🧪 Regression deterministic eval is profile-specific (`standard`, `underrealm`, `governance`, `social`) so deep/governance/social regressions surface earlier in dedicated stress slices.
 - 🛠️ Latest config-only safety retune keeps those stress slices meaningful while reducing deterministic over-kill risk (`underrealm_push` tighter readiness rails + moderated `compound_crisis` pressure), so full benchmark+regression gate stays green.
 - 📈 Trainer summary logs now expose adaptive-sampler update counters as `scenario_updates=<window>/<total>`, so cadence retunes are measurable phase-by-phase.
 - 🧭 Validation flow is now explicit in npm scripts: `ai:validate:benchmark`, `ai:validate:regression`, and `ai:validate:gate` (sequential benchmark + regression).
@@ -210,10 +210,12 @@ Ruins governor hooks now support advisory `ruins` stances for warning-zone dispa
 Underrealm crew governor hooks now support advisory `underrealm` biases for surface reserve, depth allocation, and role mix (miner/hauler/guard), with smoothing and major-reallocation cooldown guardrails; defaults now lean conservative to keep deep-survival outcomes stable in regression gates.
 Building governor hooks now support advisory `building` ranking signals for housing/economy/defense/special queues, with guardrails still enforced by the existing structure checks.
 External camps governor hooks now support advisory `externalCamps` stances for militia support renewal and raider tribute handling, with critical-collapse force-compliance guardrails.
+Social governor hooks now support advisory `social` biases (`mediationBias`, `mentorshipBias`, `accountabilityBias`) that steer incident weighting, hostility de-escalation, and long-horizon social climate pressure.
 Warrior League governor hooks now support `warriors` intents (training, rotation, tournament risk, champion challenge, recovery priority) with real threshold-gated runtime effects plus telemetry instrumentation.
 Telemetry now exposes compact governor signals directly in `Pressure`, `Diplomacy`, `Operations`, and `AI Explainability` so policy intent can be inspected live.
-Training action heads now include governor pseudo-action IDs when enabled (`gov_trade_*`, `gov_contract_*`, `gov_ruins_*`, `gov_underrealm_*`, `gov_building_*`, `gov_external_*`, `gov_warriors_*`); Warrior phase-6 AI features expand the observation shape, so restart training with `--fresh` when upgrading from pre-phase-6 checkpoints.
+Training action heads now include governor pseudo-action IDs when enabled (`gov_trade_*`, `gov_contract_*`, `gov_ruins_*`, `gov_underrealm_*`, `gov_building_*`, `gov_external_*`, `gov_social_*`, `gov_warriors_*`); Warrior phase-6 AI features expand the observation shape, so restart training with `--fresh` when upgrading from pre-phase-6 checkpoints.
 By default, the warriors governor is active with `ai.governors.warriors.actionHeadEnabled=true`; when upgrading from legacy checkpoints without warrior action IDs, run training with `--fresh` (or temporarily set this flag to `false`).
+Social governor action-head IDs are available behind `ai.governors.social.actionHeadEnabled` (default `false` for backward compatibility with existing checkpoints); set it to `true` together with `--fresh` training when you want policy-controlled social biases in production.
 
 - 🛡️ Warrior League phase-4 now adds persistent hero progression: deterministic scars/titles/vows, event-earned legacy points with strict caps+diminishing returns, and legacy bonuses that influence risky dispatches and tournaments without uncontrolled snowballing.
 
@@ -245,11 +247,12 @@ npm run balance:gate:standard -- --set jobs.gatherTriggerRatio.food=1.1 --set jo
 
 ## Roadmap ideas 🧭
 
-_Roadmap remainder snapshot (updated 2026-04-07): focus on what is still missing._
+_Roadmap remainder snapshot (updated 2026-05-12): focus on what is still missing._
 
 - 🧬 (high, in progress) Personal dwarf arcs: deterministic lore is live; remaining: explicit `origin + vice + ambition`, arc progression triggers, and mini-outcome event beats.
 - 📜 (high, in progress) Multi-act faction questlines: contracts/camps/events are live; remaining: chapter-based faction quest chains with branching resolution paths and follow-up consequences.
-- 💔 (high, in progress) Social drama engine: core friendships/rivalries/grudges/mentorships and emergent incidents are live; remaining: larger cascading feuds and cross-cycle social memory.
+- ✅ (completed 2026-04-07) Persistent hero company: scars/titles/vows/legacy are live, with company identity + cross-cycle carry-over hooks now in production.
+- ✅ (completed 2026-05-12) Social drama engine: long-horizon social memory consequences + explicit AI-facing social governor channels are now implemented end-to-end (runtime, telemetry, explainability, and training action-head plumbing), with long-arc defaults currently conservative (`population.socialDrama.longArc.enabled=false`).
 - 👑 (medium, in progress) Titles and succession: warrior succession exists; remaining: governance offices (`Steward`, `Marshal`, `High Priest`) that shape settlement policy identity.
 - 🔮 (medium, in progress) Ancestor omens and prophecies: myth/tradition systems exist; remaining: omen-style player/AI dilemma choices with high-risk/high-reward outcomes.
 - ⚔️ (medium, in progress) Nemesis houses: recurring factions and diplomacy pressure exist; remaining: persistent nemesis-house memory and escalating rivalry arcs across cycles.
@@ -258,6 +261,13 @@ _Roadmap remainder snapshot (updated 2026-04-07): focus on what is still missing
 
 ### Roadmap scoring rubric
 
+| Section               | Weight | What it measures                                            |
+| --------------------- | -----: | ----------------------------------------------------------- |
+| Systemic breadth      |   0.25 | How many core systems are affected                          |
+| Persistence           |   0.20 | How long effects stay relevant in a run                     |
+| Frequency             |   0.15 | How often it appears during normal play                     |
+| Decision weight       |   0.25 | How strongly it changes strategic trade-offs                |
+| Emergence / AI impact |   0.15 | How much it changes emergent behavior and policy priorities |
 | Section               | Weight | What it measures                                            |
 | --------------------- | -----: | ----------------------------------------------------------- |
 | Systemic breadth      |   0.25 | How many core systems are affected                          |
@@ -282,9 +292,27 @@ Impact thresholds: `High >= 4.0`, `Medium >= 2.8 and < 4.0`, `Low < 2.8`
 | Nemesis houses                |       4 |           4 |         3 |               3 |            4 |  3.60 | Medium |
 | Tavern rumors and side quests |       2 |           2 |         3 |               2 |            2 |  2.15 | Low    |
 | Chronicle and saga system     |       3 |           4 |         3 |               3 |            3 |  3.20 | Medium |
+| Idea                          | Breadth | Persistence | Frequency | Decision weight | Emergence/AI | Total | Impact |
+| ----------------------------- | ------: | ----------: | --------: | --------------: | -----------: | ----: | ------ |
+| Personal dwarf arcs           |       4 |           5 |         4 |               4 |            4 |  4.20 | High   |
+| Multi-act faction questlines  |       5 |           4 |         4 |               4 |            4 |  4.25 | High   |
+| Persistent hero company       |       4 |           5 |         3 |               4 |            4 |  4.05 | High   |
+| Social drama engine           |       5 |           4 |         5 |               4 |            5 |  4.55 | High   |
+| Titles and succession         |       4 |           4 |         3 |               4 |            3 |  3.70 | Medium |
+| Ancestor omens and prophecies |       3 |           3 |         2 |               4 |            3 |  3.10 | Medium |
+| Nemesis houses                |       4 |           4 |         3 |               3 |            4 |  3.60 | Medium |
+| Tavern rumors and side quests |       2 |           2 |         3 |               2 |            2 |  2.15 | Low    |
+| Chronicle and saga system     |       3 |           4 |         3 |               3 |            3 |  3.20 | Medium |
 
 ### Section summary
 
+| Section               |  Avg | Min-Max | Strong ideas (>=4) | Weak ideas (<=2) |
+| --------------------- | ---: | ------- | -----------------: | ---------------: |
+| Systemic breadth      | 3.78 | 2-5     |                  6 |                1 |
+| Persistence           | 3.89 | 2-5     |                  7 |                1 |
+| Frequency             | 3.33 | 2-5     |                  2 |                1 |
+| Decision weight       | 3.56 | 2-4     |                  6 |                1 |
+| Emergence / AI impact | 3.56 | 2-5     |                  5 |                1 |
 | Section               |  Avg | Min-Max | Strong ideas (>=4) | Weak ideas (<=2) |
 | --------------------- | ---: | ------- | -----------------: | ---------------: |
 | Systemic breadth      | 3.78 | 2-5     |                  6 |                1 |
@@ -303,7 +331,7 @@ Impact thresholds: `High >= 4.0`, `Medium >= 2.8 and < 4.0`, `Low < 2.8`
 - `src/simulation/world_events.js`: world event lifecycle for bards, rival caravans, and time-limited opportunities.
 - `src/simulation/external_camps.js`: long-lived external faction camps with trade, militia support, raider pressure, moving caravans, and influence-zone modifiers.
 - `src/simulation/schism.js`: run-scale social schism arc (pressure/legitimacy, doctrine shifts, seasonal council decrees, ritual festivals, and climax events).
-- `src/simulation/social_drama.js`: bounded dwarf social ties, passive mood effects, emergent incidents, and social cleanup/status helpers.
+- `src/simulation/social_drama.js`: social-drama runtime (friendship/rivalry/mentorship/grudge inference + aggregate cohesion/conflict signals).
 - `src/simulation/alchemy.js`: alchemy rites, pact lifecycle, and backlash logic.
 - `src/simulation/temple.js`: Temple of Ancestors stages, map footprint, and prestige system.
 - `src/simulation/warriors.js`: Warrior League runtime helpers for deterministic combat profiles, risk-aware expedition dispatch, seasonal tournament progression, tournament consequences/succession/training, persistent scars/titles/vows/legacy bonuses, and company identity/cycle carry-over hooks.

@@ -1113,11 +1113,28 @@
           "food",
           "water"
         ]
+      },
+      "social": {
+        "enabled": true,
+        "actionHeadEnabled": false,
+        "mediationBiasMax": 0.45,
+        "mentorshipBiasMax": 0.45,
+        "accountabilityBiasMax": 0.45,
+        "mediationRivalryReductionScale": 0.55,
+        "mediationGrudgeReductionScale": 0.65,
+        "mentorshipGainScale": 0.5,
+        "accountabilityRivalryReductionScale": 0.3,
+        "accountabilityGrudgeReductionScale": 0.48,
+        "mediationReconciliationWeightScale": 0.75,
+        "mentorshipIncidentWeightScale": 0.65,
+        "accountabilityIncidentChanceScale": 0.32,
+        "mediationIncidentChanceScale": 0.12,
+        "accountabilityEscalationWeightReductionScale": 0.6
       }
     },
     "reward": {
       "stockpileAvg": 0.3,
-      "stockpileMin": 1.65,
+      "stockpileMin": 1.78,
       "waterStockpile": 2,
       "waterLowThreshold": 0.8,
       "waterLowPenalty": 1.5,
@@ -1129,7 +1146,7 @@
       "criticalNeeds": 3.3,
       "idleAdults": 0.6,
       "stockpileAvgDelta": 2.2,
-      "stockpileMinDelta": 3.2,
+      "stockpileMinDelta": 3.5,
       "populationBalanceDelta": 1.4,
       "criticalNeedsDelta": 1.6,
       "idleAdultsDelta": 0.5,
@@ -1146,7 +1163,7 @@
       "underrealmDepthDelta": 4.5,
       "underrealmChampionDelta": 5,
       "underrealmReadinessDelta": 1.6,
-      "underrealmCombatPressure": 0.35,
+      "underrealmCombatPressure": 0.42,
       "underrealmPressureDelta": 1.3,
       "mythsSeverity": 0.15,
       "mythsSeverityDelta": 0.9,
@@ -1161,6 +1178,15 @@
       "diplomacyPressure": 0.4,
       "diplomacyPressureDelta": 1,
       "diplomacyLegitimacyDelta": 0.65,
+      "socialCohesion": 0.3,
+      "socialCohesionDelta": 1.05,
+      "socialConflictPressure": 0.62,
+      "socialConflictPressureDelta": 1.2,
+      "socialMentorshipCoverage": 0.24,
+      "socialMentorshipCoverageDelta": 0.9,
+      "socialGrudgeLoad": 0.56,
+      "socialGrudgeLoadDelta": 1.1,
+      "socialIncidentRecency": 0.16,
       "warriorEliteScore": 0.35,
       "warriorEliteScoreDelta": 1.35,
       "warriorChampionMomentum": 0.3,
@@ -1176,7 +1202,7 @@
       "deltaClip": 0.08,
       "eventClip": 8.5,
       "totalClip": 22,
-      "death": 5.8,
+      "death": 6.5,
       "extinction": 320
     },
     "priorityBoosts": {
@@ -2188,6 +2214,59 @@
           }
         },
         {
+          "name": "social_tension_pressure",
+          "weight": 0.14,
+          "difficultyMin": 0.35,
+          "difficultyMax": 1,
+          "difficultyMinMultiplier": 0.5,
+          "difficultyMaxMultiplier": 1,
+          "overrides": {
+            "dwarves": {
+              "count": 24
+            },
+            "population": {
+              "housing": {
+                "buildTargetRatio": 1.72
+              },
+              "socialDrama": {
+                "tickInterval": 10,
+                "pairSamplesPerUpdate": 34,
+                "friendshipThreshold": 0.62,
+                "rivalryThreshold": 0.46,
+                "grudgeThreshold": 0.34,
+                "rivalryStressScale": 0.08,
+                "grudgeStressThreshold": 0.56,
+                "grudgeStressScale": 0.07,
+                "longArc": {
+                  "enabled": false
+                },
+                "incidents": {
+                  "intervalTicks": 18,
+                  "baseChancePerRoll": 0.58,
+                  "maxPerUpdate": 2,
+                  "globalCooldownTicks": 14,
+                  "perPairCooldownTicks": 90,
+                  "weights": {
+                    "mentorship_breakthrough": 0.82,
+                    "rivalry_clash": 1.25,
+                    "grudge_escalation": 1.35,
+                    "reconciliation": 0.68
+                  }
+                }
+              }
+            },
+            "schism": {
+              "start_pressure": 0.32,
+              "start_legitimacy": 0.38,
+              "pressure": {
+                "drift_per_tick": 0.00105,
+                "world_failure_shock": 0.068,
+                "contract_failure_shock": 0.058
+              }
+            }
+          }
+        },
+        {
           "name": "warrior_realism_pressure",
           "weight": 0.18,
           "difficultyMin": 0.35,
@@ -2391,6 +2470,7 @@
         "underrealm_late_gauntlet",
         "compound_crisis",
         "governance_pressure",
+        "social_tension_pressure",
         "warrior_realism_pressure"
       ],
       "promotion": {
@@ -2497,6 +2577,11 @@
           "schismRitualOpen",
           "schismClimaxActive",
           "schismInstability",
+          "socialCohesion",
+          "socialConflictPressure",
+          "socialMentorshipCoverage",
+          "socialGrudgeLoad",
+          "socialIncidentRecency",
           "warriorEliteScore",
           "warriorLegacyAura",
           "warriorChampionMomentum",
@@ -5248,6 +5333,123 @@
           "grudgeMoraleDelta": -0.07,
           "mentorshipMoraleDelta": 0.07,
           "mentorshipFatigueReliefDelta": 0.05
+        }
+      }
+    },
+    "socialDrama": {
+      "enabled": true,
+      "tickInterval": 12,
+      "pairSamplesPerUpdate": 28,
+      "includeBondedPairs": true,
+      "carryoverPairsPerDwarf": 1,
+      "maxTrackedLinksPerDwarf": 6,
+      "linkEpsilon": 0.01,
+      "staleDecayPerTick": 0.00025,
+      "friendshipThreshold": 0.5,
+      "rivalryThreshold": 0.3,
+      "mentorshipThreshold": 0.32,
+      "grudgeThreshold": 0.3,
+      "mentorshipAgeGapMin": 120,
+      "mentorshipSkillGapMin": 0.08,
+      "affinityGainBase": 0.02,
+      "affinityBondScale": 0.08,
+      "affinitySameClanBonus": 0.02,
+      "affinityDecayPerTick": 0.0015,
+      "rivalryBaseGain": 0.002,
+      "rivalryStressScale": 0.06,
+      "rivalryLowMoraleScale": 0.05,
+      "rivalryBondShieldScale": 0.07,
+      "rivalryDecayPerTick": 0.0025,
+      "mentorshipBaseGain": 0.002,
+      "mentorshipBondScale": 0.05,
+      "mentorshipSkillScale": 0.04,
+      "mentorshipDecayPerTick": 0.0018,
+      "grudgeStressThreshold": 0.72,
+      "grudgeStressScale": 0.045,
+      "grudgeRivalryScale": 0.02,
+      "grudgeDecayPerTick": 0.0012,
+      "longArc": {
+        "enabled": false,
+        "memoryDecayPerTick": 0.0022,
+        "memoryGainPerUpdate": 0.12,
+        "friendSupportWeight": 0.035,
+        "mentorshipSupportWeight": 0.07,
+        "rivalBurdenWeight": 0.028,
+        "grudgeBurdenWeight": 0.05,
+        "supportShockOnPositiveIncident": 0.03,
+        "burdenShockOnNegativeIncident": 0.04,
+        "moraleSupportScale": 0.005,
+        "moraleBurdenScale": 0.0035,
+        "stressSupportReliefScale": 0.0032,
+        "stressBurdenScale": 0.0038,
+        "fatigueSupportReliefScale": 0.0015,
+        "fatigueBurdenScale": 0.002,
+        "settlementMemoryDecayPerTick": 0.0032,
+        "settlementMemoryGainPerUpdate": 0.11,
+        "affinityHarmonyScale": 0.1,
+        "affinityStrifePenaltyScale": 0.05,
+        "rivalryStrifeScale": 0.03,
+        "rivalryHarmonyReliefScale": 0.08,
+        "mentorshipHarmonyScale": 0.1,
+        "grudgeStrifeScale": 0.04,
+        "grudgeHarmonyReliefScale": 0.09,
+        "cohesionBonusScale": 0.03,
+        "cohesionStrifePenaltyScale": 0.015,
+        "conflictStrifeScale": 0.02,
+        "conflictHarmonyReliefScale": 0.03
+      },
+      "incidents": {
+        "enabled": true,
+        "intervalTicks": 24,
+        "baseChancePerRoll": 0.45,
+        "maxPerUpdate": 1,
+        "globalCooldownTicks": 18,
+        "perPairCooldownTicks": 120,
+        "pairCooldownRetentionTicks": 480,
+        "historyLimit": 48,
+        "reconciliationAffinityMin": 0.34,
+        "weights": {
+          "mentorship_breakthrough": 1.1,
+          "rivalry_clash": 1,
+          "grudge_escalation": 0.85,
+          "reconciliation": 0.75
+        },
+        "effects": {
+          "mentorship_breakthrough": {
+            "mentorMoraleDelta": 0.007,
+            "menteeMoraleDelta": 0.012,
+            "stressDelta": -0.018,
+            "fatigueDelta": -0.01,
+            "ratingGain": 0.0025,
+            "valorGain": 0.002,
+            "heroPotentialGain": 0.0015,
+            "affinityGain": 0.06,
+            "mentorshipGain": 0.05,
+            "rivalryRelief": 0.03,
+            "grudgeRelief": 0.02
+          },
+          "rivalry_clash": {
+            "moraleDelta": -0.015,
+            "stressDelta": 0.02,
+            "fatigueDelta": 0.014,
+            "rivalryGain": 0.07,
+            "grudgeGain": 0.05,
+            "affinityLoss": 0.04
+          },
+          "grudge_escalation": {
+            "moraleDelta": -0.02,
+            "stressDelta": 0.026,
+            "grudgeGain": 0.08,
+            "rivalryGain": 0.05,
+            "affinityLoss": 0.03
+          },
+          "reconciliation": {
+            "moraleDelta": 0.014,
+            "stressDelta": -0.02,
+            "rivalryRelief": 0.09,
+            "grudgeRelief": 0.1,
+            "affinityGain": 0.05
+          }
         }
       }
     },
