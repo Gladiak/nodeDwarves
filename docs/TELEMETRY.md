@@ -406,6 +406,7 @@ Notes:
 
 - World log is fixed-height (3 rows) to avoid visual jumping
 - Year is derived from seasons config and tick
+- Full event backlog lives in the Event Log modal (`e`) so Data Center rows stay layout-stable
 
 ## 7.3 Underrealm section
 

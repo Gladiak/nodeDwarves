@@ -21,7 +21,7 @@ Think of it as a living systems sandbox: you tune config, press run, and watch t
 - 🏘️ Village growth with structures, roads, and organic placement.
 - 🌦️ Seasons, weather, festivals, and wildlife that shift priorities (raids optional).
 - 📜 Merchant trading, caravan contracts, and faction reputation.
-- ⛺ Long-lived external faction camps: trade hubs, militia outposts, and raider pressure points with moving trade caravans, interception risk, and role-based influence zones on the map.
+- ⛺ Long-lived external faction camps: trade hubs, militia outposts, and raider pressure points with moving trade caravans, interception risk, and role-based influence modifiers.
 - 🎭 World events now live: traveling bards, rival caravans, and short-deadline opportunities.
 - 🔥 Schism arc per run: doctrine shifts with hysteresis, seasonal council decrees (`pick 1 of 3` edicts), branching anti-repeat festival rituals, social pressure/legitimacy swings, and climax moments that can reshape the economy.
 - 💞 Social drama engine phase-3: explicit friendship/rivalry/mentorship/grudge states are live with bounded incidents, long-horizon social memory consequences are implemented (toggle via `population.socialDrama.longArc.enabled`, default `false` for stability), and AI-facing social governor channels are available end-to-end.
@@ -31,6 +31,7 @@ Think of it as a living systems sandbox: you tune config, press run, and watch t
 - 🔍 AI Explainability in telemetry: top decision drivers, shortage score breakdown, and governor intent sources.
 - 🧼 Telemetry clarity pass: adaptive section rows reduce filler noise, key population/world lines are split for faster scanning, and status words (`critical`, `blocked`, `warning`, `ready`) are highlighted in the Data Center.
 - 📈 Analyst dashboard page in telemetry Data Center: KPI strip, ASCII trend charts (sparklines with slower snapshot sampling by default for cleaner pacing), forecast+bottleneck lens (runway, net flow, volatility, momentum), risk gauge, operations mix bars, event timeline, and deterministic action hints.
+- 📚 Event Log modal (`e`): real-time text stream with scrollable history, compact tick markers, and fast `All events`/`Dwarf drama` filtering.
 - 🧭 Deep-dive context on `Overview + Deep` and `Economy`: each page now opens with a compact context lens (risk/trend/timeline/shortage posture) before detailed section rows.
 - ⚗️ Alchemy Lab rites: burn rare minerals for powerful global buffs, then survive the backlash.
 - 🛡️ Clan culture traits that create trade-offs without micromanagement.
@@ -87,8 +88,10 @@ npm run ai:play
 - `i`: dwarf inspect panel
 - `w`: Warrior League modal (company identity + carry-over hooks, champion lineage, top 5 fighters, marks/legacy summary)
 - `h`: telemetry Data Center overlay (`Dashboard`, `Overview + Deep`, `Economy`, `Warrior League`) with expanded plain-language metric labels, adaptive section sizing, status-token highlights, ASCII mini-charts, `AI Explainability` drivers, and an `Endgame` progress checklist
-- `←` / `→`: change telemetry pages when telemetry is open, or browse dwarves when inspect is open
-- `↑` / `↓`: switch map view between surface and unlocked underrealm depths
+- `e`: Event Log modal (`All events` or `Dwarf drama`, with tick-tagged rolling history)
+- `f`: cycle Event Log filter while Event Log is open
+- `←` / `→`: change telemetry pages when telemetry is open, browse dwarves when inspect is open, or change Event Log filter when Event Log is open
+- `↑` / `↓`: switch map view between surface and unlocked underrealm depths, or scroll Event Log entries when Event Log is open
 - `m`: export all currently unlocked layers (surface + underrealm) as PNG + SVG
 - `Shift+M`: export all currently unlocked layers with structures/roads
 
@@ -335,6 +338,7 @@ Impact thresholds: `High >= 4.0`, `Medium >= 2.8 and < 4.0`, `Low < 2.8`
 - `src/simulation/warriors.js`: Warrior League runtime helpers for deterministic combat profiles, risk-aware expedition dispatch, seasonal tournament progression, tournament consequences/succession/training, persistent scars/titles/vows/legacy bonuses, and company identity/cycle carry-over hooks.
 - `src/render/map_inset_panel.js`: carved in-map Ops Snapshot component with compact, width-aware runtime lines.
 - `src/render/warrior_panel.js`: dedicated Warrior League modal overlay with company identity/carry-over context, champion/top-5/marks analytics, and lineage memory cues.
+- `src/render/event_log_panel.js`: dedicated Event Log modal overlay with scrollable real-time history and drama-focused filtering.
 - `src/telemetry/`: telemetry engine and Data Center panel modules.
 - `src/telemetry/telemetry.js`: telemetry section builders and formatting helpers.
 - `src/telemetry/telemetry_panel.js`: in-game paged telemetry Data Center with section pages and full-height telemetry content area.

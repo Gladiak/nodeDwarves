@@ -54,6 +54,7 @@ This file defines how to implement new features in a consistent, stable way.
 - `src/render/index.js`: render orchestrator.
 - `src/render/map_inset_panel.js`: carved top-right in-map operations snapshot panel (tick/year/cycle, population age split, underrealm unlock info, keyboard hints).
 - `src/render/warrior_panel.js`: Warrior League analytics modal overlay (champion lineage, top-5 fighters, marks/legacy summary).
+- `src/render/event_log_panel.js`: Event Log modal overlay with scrollable real-time events and drama-focused filter.
 - `src/telemetry/`: telemetry section and Data Center panel builders.
 - `src/telemetry/telemetry.js`: telemetry section builders and formatting helpers.
 - `src/telemetry/telemetry_panel.js`: in-game telemetry reference overlay panel (section and metric explanations).

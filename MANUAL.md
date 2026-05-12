@@ -25,9 +25,10 @@ npm start
 ```
 
 Runtime controls: `Space` pause/resume, `l` legend panel, `i` dwarf inspect panel,
-`w` Warrior League modal panel, `h` telemetry Data Center panel,
-`←`/`→` change telemetry pages (or browse inspect entries when inspect is open),
-`↑`/`↓` switch between surface and unlocked underrealm depths,
+`w` Warrior League modal panel, `h` telemetry Data Center panel, `e` Event Log panel,
+`f` cycles Event Log filter while Event Log is open,
+`←`/`→` change telemetry pages (or browse inspect entries when inspect is open, or switch Event Log filter),
+`↑`/`↓` switch between surface and unlocked underrealm depths (or scroll Event Log),
 `m` export all currently unlocked layers (PNG + SVG), `Shift+M` export all
 unlocked layers with structures/roads.
 
@@ -427,9 +428,12 @@ Notes:
   - Space toggles pause/resume during the live simulation.
   - Press `i` to open/close the dwarf inspect panel (works during pause or live); use `←`/`→` to browse spawn order.
   - Press `w` to open/close the Warrior League modal panel (company identity/carry-over hooks + champion/top-5/marks analytics).
+  - Press `e` to open/close the Event Log modal panel (scrollable real-time event history with `All events` / `Dwarf drama` filter).
+  - Press `f` while Event Log is open to cycle log filter mode quickly.
   - Press `h` to open/close the telemetry Data Center panel (`Dashboard`, `Overview + Deep`, `Economy`, `Warrior League`).
   - While telemetry is open, use `←`/`→` to switch pages.
-  - Press `↑` / `↓` to switch map view between surface and unlocked underrealm depths.
+  - While Event Log is open, use `←`/`→` to change filter and `↑`/`↓` to scroll through history.
+  - Press `↑` / `↓` to switch map view between surface and unlocked underrealm depths when Event Log is closed.
   - Press `l` to toggle the legend overlay panel (works during pause or live).
   - Press `m` to export all currently unlocked layers (PNG + SVG) using current season styling.
 - `src/config.js`
@@ -1454,7 +1458,7 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - Current default tuning targets higher map presence with stability guardrails: faster spawn cadence, up to 3 active camps, faster militia support checks, lighter militia beer upkeep, and reduced raider hostility gain on tribute rejection.
 - Placement model:
   - camps are spawned near map edges and moved inward by a fixed offset.
-  - footprint size is controlled by `externalCamps.footprintRadius` (rendered as a square).
+  - footprint size is controlled by `externalCamps.footprintRadius` (simulation spacing/guardrail; not rendered as a map-area overlay).
   - guardrails enforce minimum spacing from village center and from other active camps.
   - spawn cells must be spawnable/buildable, so camps avoid structures/nodes/temple footprint tiles.
 - Role behavior:
@@ -1472,7 +1476,7 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
 - Influence zones:
   - each role projects a Manhattan-radius zone (`externalCamps.influence.*Radius`).
   - influence can scale village-facing external-camp modifiers (`useForModifiers`), so map position matters in addition to role mix.
-  - optional role-colored influence rings are rendered on the surface map.
+  - surface-map influence area overlays are intentionally hidden to keep the map cleaner.
 - Runtime modifiers exposed to other systems:
   - `merchantTradeRate` and `contractReward` (economic multipliers).
   - `raidDefenseBonus`, `raidDeathRate`, `raidResourceLoss`, `raiderPressure` (combat pressure).
@@ -1496,6 +1500,7 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
 
 - `events.js` tracks event log lines for telemetry (`events.maxEntries`).
   - Systems push concise strings for weather, raids, ruins, builds, and myth changes.
+  - Keeps a separate scroll-friendly history buffer for the Event Log modal (`events.logMaxEntries`) with per-entry `tick`, inferred `category`, and normalized source metadata.
 - `random.js` provides random helpers (ranges, shuffling) used across systems.
   - Training/eval can override randomness through scenario config and seed control.
 
@@ -1510,11 +1515,12 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
   - With `display.autoSize=true`, the map follows terminal size; `display.maxWidth` / `display.maxHeight`
     are optional caps, and values `<= 0` mean uncapped.
   - `display.width` / `display.height` stay as fallback dimensions (and as fixed dimensions when `autoSize=false`).
-  - Places nodes, structures, temple footprint overlay, external camp footprints + influence rings + caravans, dwarves, merchant, and raid beasts on the grid.
+  - Places nodes, structures, temple footprint overlay, external camp role markers + caravans, dwarves, merchant, and raid beasts on the grid.
   - When underrealm depth view is active, it renders the selected depth terrain layer and hides surface entities.
   - Selects a stable subset of dwarves to keep the map readable (`display.dwarves.maxVisible`; set `< 0` to skip dwarf rendering).
   - Applies the dwarf inspect overlay when `display.inspect_panel.enabled` is true.
   - Applies the Warrior League modal overlay when `display.warrior_panel.enabled` is true.
+  - Applies the Event Log modal overlay when `display.event_log_panel.enabled` is true.
   - Applies the telemetry overlay when `display.telemetry_panel.enabled` is true.
   - Applies the map-save confirmation overlay when `display.save_panel.enabled` is true.
 
@@ -1532,6 +1538,12 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
   - Builds the ASCII inspect panel overlay (box, content, controls) and draws it onto the grid.
   - Panel size is controlled by `display.inspect_panel.width`/`height`.
   - Lore content is deterministic and pulled from `src/dwarf_lore.js` (epithet, title, heraldry, saga).
+
+- `render/event_log_panel.js`
+  - Builds the ASCII Event Log modal overlay and draws it onto the grid.
+  - Reads the dedicated rolling history buffer (`state.eventLog`) and falls back to the mini HUD event list if needed.
+  - Supports `All events` / `Dwarf drama` filtering, tick-tagged entries, and arrow-key scrolling through wrapped rows.
+  - Panel size is controlled by `display.event_log_panel.width`/`height`.
 
 - `render/legend_panel.js`
   - Builds the legend overlay panel (legend and map key sections) and draws it onto the grid.
@@ -1583,6 +1595,7 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
   - Equipment stockpiles (`weapon_tier_*`, `armor_tier_*`) are compacted into two aggregate rows (`Weapons T*`, `Armor T*`) with total stock and highest stocked tier token.
   - `World` keeps contract/alchemy windows and one `World log` line for the latest event signal.
     - Long `World log` entries wrap up to 3 telemetry rows (instead of hard truncation) for readability.
+    - Full historical stream is intentionally offloaded to the Event Log modal (`e`) so telemetry rows stay stable.
   - `Pressure` reports shortage priorities (`state.lastPriorities`), key stockpile target ratios, raid pressure, and compact jobs-governor priorities.
   - `Diplomacy` is the trade/diplomacy block (merchant status/flows, external camp mix/effects, convoy activity/interception risk, contracts, world-event cadence/counters, plus trade + contracts + external-camps governor intents).
   - `Deep Signals` consolidates world-event cadence/totals plus contract reliability for late-game monitoring.
@@ -1593,7 +1606,7 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
   - `Lore` summarizes myths/traditions and ruins progress without bottom overlays.
 
 - `render/legend.js`
-  - Footer controls are built for `Space`, `l`, `i`, `w`, `h`, `←/→` (telemetry pages or inspect), `↑/↓`, and `m`.
+  - Footer controls are built for `Space`, `l`, `i`, `w`, `h`, `e`, `←/→` (telemetry/inspect/Event Log filter), `↑/↓` (depth/Event Log scroll), and `m`.
   - Legend/map entries are built from `config.json` symbols and resource nodes for the overlay panel.
   - Uses `symbols.*` and `resources.labels.*` for readable names.
 
@@ -2057,6 +2070,7 @@ Quick checklist:
   - `render/` → ASCII output (grid, legend, inspect overlays, frame orchestration)
     - `render/map_inset_panel.js` → carved in-map Ops Snapshot component (stable counters + keyboard hints)
     - `render/warrior_panel.js` → Warrior League modal overlay (company identity/carry-over context, champion lineage, top-5 fighters, marks/legacy summary)
+    - `render/event_log_panel.js` → Event Log modal overlay (scrollable real-time event history with drama-focused filter)
   - `telemetry/` → telemetry extraction and Data Center composition
     - `telemetry/telemetry.js` → telemetry section builders and formatting helpers
     - `telemetry/telemetry_panel.js` → paged in-game telemetry Data Center with section pages and full-height telemetry body

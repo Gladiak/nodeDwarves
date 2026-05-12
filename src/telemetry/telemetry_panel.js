@@ -402,7 +402,7 @@ function buildTelemetryPanel(state, config, runtime) {
 
 // Build content lines for the telemetry panel.
 function buildTelemetryPanelLines(state, config, width, height, pageState, alertConfig) {
-  const controlsLine = '[<-]/[->] Page  [h] Close telemetry  [i] Dwarf info  [w] Warrior league  [l] Legend';
+  const controlsLine = '[<-]/[->] Page  [h] Close telemetry  [i] Dwarf info  [w] Warrior league  [e] Event log  [l] Legend';
   const maxContent = Math.max(0, height - 1);
   const topEntries = [];
   const bodyEntries = [];

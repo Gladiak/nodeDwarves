@@ -29,6 +29,7 @@ const tickMs = Number(config.display.tickMs || 200);
 const maxTicks = Number(config.simulation.maxTicks || 0);
 
 let running = true;
+const EVENT_LOG_FILTERS = ['all', 'drama'];
 
 const DEFAULT_ENDGAME_MESSAGES = [
   'With relics secured, the halls grow quiet. A new caravan departs to found a distant hold.',
@@ -223,6 +224,32 @@ function ensureWarriorPanelState(state) {
   }
 }
 
+// Function: ensureEventLogState.
+function ensureEventLogState(state) {
+  if (!state.ui) {
+    state.ui = {};
+  }
+  if (!state.ui.eventLog) {
+    state.ui.eventLog = {
+      open: false,
+      offset: 0,
+      filter: 'all',
+    };
+  }
+  if (!Number.isFinite(Number(state.ui.eventLog.offset))) {
+    state.ui.eventLog.offset = 0;
+  }
+  const maxOffset = Math.max(
+    0,
+    (Array.isArray(state.eventLog) ? state.eventLog.length : 0) - 1,
+  );
+  state.ui.eventLog.offset = Math.min(
+    maxOffset,
+    Math.max(0, Math.floor(Number(state.ui.eventLog.offset || 0))),
+  );
+  state.ui.eventLog.filter = normalizeEventLogFilter(state.ui.eventLog.filter);
+}
+
 // Function: ensureSaveMapState.
 function ensureSaveMapState(state) {
   if (!state.ui) {
@@ -244,10 +271,12 @@ function openInspect(state) {
   ensureLegendState(state);
   ensureTelemetryPanelState(state);
   ensureWarriorPanelState(state);
+  ensureEventLogState(state);
   ensureSaveMapState(state);
   state.ui.legend.open = false;
   state.ui.telemetryPanel.open = false;
   state.ui.warriorPanel.open = false;
+  state.ui.eventLog.open = false;
   closeSaveMap(state);
   state.ui.inspect.ids = getSpawnOrderedIds(state.dwarves || []);
   state.ui.inspect.index = 0;
@@ -266,6 +295,7 @@ function toggleLegend(state) {
   ensureInspectState(state);
   ensureTelemetryPanelState(state);
   ensureWarriorPanelState(state);
+  ensureEventLogState(state);
   ensureSaveMapState(state);
   const next = !state.ui.legend.open;
   state.ui.legend.open = next;
@@ -273,6 +303,7 @@ function toggleLegend(state) {
     state.ui.inspect.open = false;
     state.ui.telemetryPanel.open = false;
     state.ui.warriorPanel.open = false;
+    state.ui.eventLog.open = false;
     closeSaveMap(state);
   }
 }
@@ -294,6 +325,7 @@ function toggleTelemetryPanel(state) {
   ensureInspectState(state);
   ensureLegendState(state);
   ensureWarriorPanelState(state);
+  ensureEventLogState(state);
   ensureSaveMapState(state);
   const next = !state.ui.telemetryPanel.open;
   state.ui.telemetryPanel.open = next;
@@ -302,6 +334,7 @@ function toggleTelemetryPanel(state) {
     state.ui.inspect.open = false;
     state.ui.legend.open = false;
     state.ui.warriorPanel.open = false;
+    state.ui.eventLog.open = false;
     closeSaveMap(state);
   }
 }
@@ -312,6 +345,7 @@ function toggleWarriorPanel(state) {
   ensureTelemetryPanelState(state);
   ensureInspectState(state);
   ensureLegendState(state);
+  ensureEventLogState(state);
   ensureSaveMapState(state);
   const next = !state.ui.warriorPanel.open;
   state.ui.warriorPanel.open = next;
@@ -319,8 +353,68 @@ function toggleWarriorPanel(state) {
     state.ui.inspect.open = false;
     state.ui.legend.open = false;
     state.ui.telemetryPanel.open = false;
+    state.ui.eventLog.open = false;
     closeSaveMap(state);
   }
+}
+
+// Function: toggleEventLogPanel.
+function toggleEventLogPanel(state) {
+  ensureEventLogState(state);
+  ensureTelemetryPanelState(state);
+  ensureInspectState(state);
+  ensureLegendState(state);
+  ensureWarriorPanelState(state);
+  ensureSaveMapState(state);
+  const next = !state.ui.eventLog.open;
+  state.ui.eventLog.open = next;
+  if (next) {
+    state.ui.eventLog.offset = 0;
+    state.ui.eventLog.filter = normalizeEventLogFilter(state.ui.eventLog.filter);
+    state.ui.inspect.open = false;
+    state.ui.legend.open = false;
+    state.ui.telemetryPanel.open = false;
+    state.ui.warriorPanel.open = false;
+    closeSaveMap(state);
+  }
+}
+
+// Function: moveEventLogOffset.
+function moveEventLogOffset(state, delta) {
+  ensureEventLogState(state);
+  if (!state.ui.eventLog.open) {
+    return;
+  }
+  const maxOffset = Math.max(
+    0,
+    (Array.isArray(state.eventLog) ? state.eventLog.length : 0) - 1,
+  );
+  const current = Math.max(0, Math.floor(Number(state.ui.eventLog.offset || 0)));
+  const next = Math.min(
+    maxOffset,
+    Math.max(0, current + Math.floor(Number(delta || 0))),
+  );
+  state.ui.eventLog.offset = next;
+}
+
+// Function: cycleEventLogFilter.
+function cycleEventLogFilter(state, delta) {
+  ensureEventLogState(state);
+  if (!state.ui.eventLog.open) {
+    return;
+  }
+  const currentFilter = normalizeEventLogFilter(state.ui.eventLog.filter);
+  const size = EVENT_LOG_FILTERS.length;
+  const currentIndex = EVENT_LOG_FILTERS.indexOf(currentFilter);
+  const nextIndex = ((currentIndex + Math.floor(Number(delta || 0))) % size + size) % size;
+  state.ui.eventLog.filter = EVENT_LOG_FILTERS[nextIndex];
+  state.ui.eventLog.offset = 0;
+}
+
+// Function: normalizeEventLogFilter.
+function normalizeEventLogFilter(value) {
+  const raw = String(value || '').trim().toLowerCase();
+  return EVENT_LOG_FILTERS.includes(raw) ? raw : 'all';
 }
 
 // Function: moveTelemetryPanelPage.
@@ -374,6 +468,7 @@ function openSaveMap(state, config, message, options = {}) {
   ensureLegendState(state);
   ensureTelemetryPanelState(state);
   ensureWarriorPanelState(state);
+  ensureEventLogState(state);
   const uiConfig = (config.display && config.display.save_panel) || {};
   const autoCloseMs = Math.max(0, Number(uiConfig.autoCloseMs || 3000));
   const holdOpen = options.holdOpen === true;
@@ -384,6 +479,7 @@ function openSaveMap(state, config, message, options = {}) {
   state.ui.legend.open = false;
   state.ui.telemetryPanel.open = false;
   state.ui.warriorPanel.open = false;
+  state.ui.eventLog.open = false;
 }
 
 // Function: triggerMapExport.
@@ -392,6 +488,7 @@ function triggerMapExport(state, config, runtime, options = {}) {
   ensureInspectState(state);
   ensureLegendState(state);
   ensureWarriorPanelState(state);
+  ensureEventLogState(state);
   if (state.ui.saveMap.busy) {
     return;
   }
@@ -406,6 +503,7 @@ function triggerMapExport(state, config, runtime, options = {}) {
   state.ui.inspect.open = false;
   state.ui.legend.open = false;
   state.ui.warriorPanel.open = false;
+  state.ui.eventLog.open = false;
   openSaveMap(
     state,
     config,
@@ -722,6 +820,7 @@ function startEndgameTransition(state, config, runtime) {
   ensureLegendState(state);
   ensureTelemetryPanelState(state);
   ensureWarriorPanelState(state);
+  ensureEventLogState(state);
   ensureSaveMapState(state);
   transition.active = true;
   transition.phase = 'fadeOut';
@@ -736,6 +835,7 @@ function startEndgameTransition(state, config, runtime) {
   state.ui.legend.open = false;
   state.ui.telemetryPanel.open = false;
   state.ui.warriorPanel.open = false;
+  state.ui.eventLog.open = false;
   closeSaveMap(state);
   currentAction = null;
   nextActionTick = 0;
@@ -887,6 +987,19 @@ function handleInput(text) {
       i += 1;
       continue;
     }
+    if (char === 'e' || char === 'E') {
+      toggleEventLogPanel(state);
+      i += 1;
+      continue;
+    }
+    if (char === 'f' || char === 'F') {
+      ensureEventLogState(state);
+      if (state.ui.eventLog.open) {
+        cycleEventLogFilter(state, 1);
+      }
+      i += 1;
+      continue;
+    }
     if (char === 'm') {
       triggerMapExport(state, config, runtime);
       i += 1;
@@ -900,16 +1013,34 @@ function handleInput(text) {
     if (char === '\u001b') {
       const seq = text.slice(i, i + 3);
       if (seq === '\u001b[A') {
+        ensureEventLogState(state);
+        if (state.ui.eventLog.open) {
+          moveEventLogOffset(state, 1);
+          i += 3;
+          continue;
+        }
         shiftUnderrealmDepth(state, -1);
         i += 3;
         continue;
       }
       if (seq === '\u001b[B') {
+        ensureEventLogState(state);
+        if (state.ui.eventLog.open) {
+          moveEventLogOffset(state, -1);
+          i += 3;
+          continue;
+        }
         shiftUnderrealmDepth(state, 1);
         i += 3;
         continue;
       }
       if (seq === '\u001b[C') {
+        ensureEventLogState(state);
+        if (state.ui.eventLog.open) {
+          cycleEventLogFilter(state, 1);
+          i += 3;
+          continue;
+        }
         ensureTelemetryPanelState(state);
         if (state.ui.telemetryPanel.open) {
           moveTelemetryPanelPage(state, 1);
@@ -924,6 +1055,12 @@ function handleInput(text) {
         continue;
       }
       if (seq === '\u001b[D') {
+        ensureEventLogState(state);
+        if (state.ui.eventLog.open) {
+          cycleEventLogFilter(state, -1);
+          i += 3;
+          continue;
+        }
         ensureTelemetryPanelState(state);
         if (state.ui.telemetryPanel.open) {
           moveTelemetryPanelPage(state, -1);

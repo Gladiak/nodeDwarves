@@ -1838,6 +1838,7 @@ function createInitialState(config, runtime) {
     lastDecisionTrace: null,
     dwarfCounter: dwarves.length,
     events: [],
+    eventLog: [],
     ui: {
       inspect: {
         open: false,
@@ -1853,6 +1854,11 @@ function createInitialState(config, runtime) {
       },
       warriorPanel: {
         open: false,
+      },
+      eventLog: {
+        open: false,
+        offset: 0,
+        filter: 'all',
       },
       saveMap: {
         open: false,

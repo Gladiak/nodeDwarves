@@ -45,6 +45,9 @@ Display and layout:
 - `display.warrior_panel.enabled`: enable the Warrior League modal overlay (toggle with `w`).
 - `display.warrior_panel.width`: Warrior League modal width in characters.
 - `display.warrior_panel.height`: Warrior League modal height in lines.
+- `display.event_log_panel.enabled`: enable the Event Log modal overlay (toggle with `e`).
+- `display.event_log_panel.width`: Event Log modal width in characters.
+- `display.event_log_panel.height`: Event Log modal height in lines.
 - `display.save_panel.enabled`: enable the map-export confirmation panel.
 - `display.save_panel.width`: save panel width in characters.
 - `display.save_panel.height`: save panel height in lines.
@@ -306,9 +309,9 @@ Display and layout:
 - `display.colors.enabled`: enable ANSI colors in the render.
 - `display.colors.reset`: ANSI reset sequence (defaults to `\u001b[0m`).
 - `display.colors.map.<key>`: ANSI color for an entity key (e.g. `dwarf`, `merchant`, `house`, `alchemy_lab`, `food`, `hud_header`).
-- `display.colors.map.external_camp_trade|external_camp_militia|external_camp_raider|external_camp_outline`: colors for external camp role markers and footprint outline.
+- `display.colors.map.external_camp_trade|external_camp_militia|external_camp_raider`: colors for external camp role markers.
 - `display.colors.map.external_camp_caravan`: color for active trade caravans.
-- `display.colors.map.external_camp_influence_trade|external_camp_influence_militia|external_camp_influence_raider`: role-colored influence ring colors around active camps.
+- `display.colors.map.external_camp_outline|external_camp_influence_trade|external_camp_influence_militia|external_camp_influence_raider`: legacy visual keys retained for compatibility (no current map overlay usage).
 - `display.colors.map.weather_<type>`: ANSI color for telemetry weather labels (e.g. `weather_rain`).
 - `display.colors.map.terrain_<type>`: ANSI color for terrain tiles (`terrain_river`, `terrain_lake`, `terrain_road`, `terrain_bridge`, `terrain_ford`, `terrain_mountain`, `terrain_hill`, `terrain_plain`, `terrain_fertile`, `terrain_food`, `terrain_forest`, `terrain_stone`).
 - `display.colors.map.terrain_wall|terrain_cave|terrain_corridor|terrain_chasm|terrain_crystal|terrain_magma|terrain_shrine`: dedicated underrealm terrain colors (used when depth view is active; unaffected by seasonal palettes).
@@ -353,6 +356,7 @@ Display and layout:
 Events:
 
 - `events.maxEntries`: number of recent events kept for telemetry panels/snapshots.
+- `events.logMaxEntries`: number of rolling event entries kept for the Event Log modal history (`tick`, category, message).
 
 Wildlife and pastures:
 
@@ -508,9 +512,7 @@ External Camps:
 - `externalCamps.influence.useForModifiers`: scale camp modifiers by village-facing influence strength.
 - `externalCamps.influence.tradeRadius|militiaRadius|raiderRadius`: Manhattan-radius influence range by camp role.
 - `externalCamps.influence.minStrength`: minimum strength applied at the edge of an influence zone.
-- `externalCamps.influence.renderEnabled`: render influence rings on the surface map.
-- `externalCamps.influence.renderRingOnly`: render only influence ring edge (`true`) or fill interior sparsely (`false`).
-- `externalCamps.influence.renderStep`: sparse render stride for influence glyph placement.
+- `externalCamps.influence.renderEnabled|renderRingOnly|renderStep`: legacy render toggles retained for config compatibility (surface influence overlays are currently hidden).
 - `externalCamps.caravans.enabled`: enable trade caravans dispatched by active trade camps.
 - `externalCamps.caravans.dispatchIntervalTicks`: minimum ticks between caravan dispatches per camp.
 - `externalCamps.caravans.maxConcurrent`: max active caravans globally.
@@ -1939,9 +1941,9 @@ Symbols:
 
 - `symbols.<entity>`: map and legend symbol for entities/resources/structures.
 - `symbols.external_camp_trade|external_camp_militia|external_camp_raider`: role-specific symbols for external camp centers.
-- `symbols.external_camp_outline`: footprint/outline symbol for external camps.
+- `symbols.external_camp_outline`: legacy footprint/outline symbol retained for config compatibility (not rendered on map).
 - `symbols.external_camp_caravan`: symbol for moving trade caravans.
-- `symbols.external_camp_influence`: symbol used for camp influence rings.
+- `symbols.external_camp_influence`: legacy influence symbol retained for config compatibility (not rendered on map).
 - `symbols.alchemy_lab`: symbol used for the alchemy lab structure.
 - `symbols.temple_of_ancestors`: core symbol for temple center tile.
 - `symbols.temple_of_ancestors_outline`: symbol for non-center temple footprint tiles.

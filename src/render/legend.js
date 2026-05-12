@@ -188,16 +188,6 @@ function buildLegendSections(config, options = {}) {
         ),
       );
     }
-    const influenceConfig = externalCampsConfig.influence || {};
-    if (influenceConfig.enabled !== false && influenceConfig.renderEnabled !== false) {
-      legendParts.push(
-        formatEntry(
-          symbols.external_camp_influence || ".",
-          "camp influence",
-          "external_camp_influence_trade",
-        ),
-      );
-    }
   }
 
   const raidConfig = config.raids || {};
@@ -362,9 +352,9 @@ function buildFooterLines(config, runtime) {
   );
   const controlsText = pickFitting(
     [
-      "ᚠ [SPACE] PAUSE ᚱ [l] LEGEND ᚨ [i] DWARF INFO ᚹ [w] WARRIOR LEAGUE ᚺ [h] TELEMETRY ᚲ [←/→] PAGE/INSPECT ᛞ [↑/↓] DEPTH ᛗ [m] MAP SAVE ᛗ [M] MAP+STRUCT ᚾ",
-      "[SPACE] PAUSE  ::  [l] LEGEND  ::  [i] DWARF INFO  ::  [w] WARRIOR LEAGUE  ::  [h] TELEMETRY  ::  [←/→] PAGE/INSPECT  ::  [↑/↓] DEPTH  ::  [m] MAP SAVE  ::  [M] MAP+STRUCT",
-      "[SPACE] PAUSE  [l] LEGEND  [i] DWARF INFO  [w] WARRIOR LEAGUE  [h] TELEMETRY  [←/→] PAGE/INSPECT  [↑/↓] DEPTH  [m] MAP SAVE  [M] MAP+STRUCT",
+      "ᚠ [SPACE] PAUSE ᚱ [l] LEGEND ᚨ [i] DWARF INFO ᚹ [w] WARRIOR LEAGUE ᚺ [h] TELEMETRY ᛖ [e] EVENT LOG ᚲ [←/→] PAGE/INSPECT/FILTER ᛞ [↑/↓] DEPTH/LOG ᛗ [m] MAP SAVE ᛗ [M] MAP+STRUCT ᚾ",
+      "[SPACE] PAUSE  ::  [l] LEGEND  ::  [i] DWARF INFO  ::  [w] WARRIOR LEAGUE  ::  [h] TELEMETRY  ::  [e] EVENT LOG  ::  [←/→] PAGE/INSPECT/FILTER  ::  [↑/↓] DEPTH/LOG  ::  [m] MAP SAVE  ::  [M] MAP+STRUCT",
+      "[SPACE] PAUSE  [l] LEGEND  [i] DWARF INFO  [w] WARRIOR LEAGUE  [h] TELEMETRY  [e] EVENT LOG  [←/→] PAGE/INSPECT/FILTER  [↑/↓] DEPTH/LOG  [m] MAP SAVE  [M] MAP+STRUCT",
     ],
     innerWidth,
   );
