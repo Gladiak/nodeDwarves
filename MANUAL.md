@@ -1526,7 +1526,7 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
 
 - `render/map_inset_panel.js`
   - Renders the carved top-right in-map Ops Snapshot (`display.mapInset.*`) as a dedicated component.
-  - Uses a status-stack digest focused on core progression signals: tick/year/cycle, population + age split + morale, underrealm unlock status, and current view depth.
+  - Uses a status-stack digest focused on core progression signals: tick/year/cycle, live weather token (`Wx:*`, e.g. `Clear`, `Rain`, `Storm`), population + age split + morale, underrealm unlock status, and current view depth.
   - Computes a static risk level (`Stable`/`Warning`/`Critical`) from stockpile-ratio pressure, morale, shortage urgency, and active raid flags.
   - Adds a compact alert cause tag in the inset status line (`raid`, `deepRaid`, `shortage`, `stockpile`, `morale`, `mixed`) when level is not stable.
   - Applies semantic alert accents (`alert_warning` / `alert_critical`) to risk tokens and command strip; morale is emphasized only when morale thresholds are actually breached.

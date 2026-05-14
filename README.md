@@ -19,6 +19,7 @@ Chaos, strategy, and tiny bearded logistics experts included. 🧔🧱
 - 🎭 Social drama + schism systems for long-horizon political and morale instability.
 - 🕳️ Underrealm exploration with depth progression, combat pressure, and endgame cadence.
 - 🏅 Warrior League with hero progression, tournaments, injuries, and lineage memory.
+- 🌤️ In-map Ops Snapshot shows a live weather token (`Wx:*`, e.g. `Clear`, `Rain`, `Storm`) for at-a-glance climate context.
 - 📊 In-game Data Center (`h`) with dashboard, deep economy views, and AI explainability.
 - 🤖 PPO training pipeline in Python with JS runtime inference (`models/*.json`).
 - 🧪 Deterministic benchmark/regression tooling with cached baseline comparison.

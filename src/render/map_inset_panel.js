@@ -231,6 +231,99 @@ function getAlertColorKey(level) {
   return 'weather_clear';
 }
 
+// Resolve the currently active weather id for inset display.
+function resolveInsetWeatherType(state, config) {
+  const weatherConfig = config && config.weather ? config.weather : {};
+  if (weatherConfig.enabled === false) {
+    return 'off';
+  }
+  const type = state && state.weather && state.weather.type
+    ? String(state.weather.type)
+    : String(weatherConfig.default || 'clear');
+  return type.trim().toLowerCase() || 'clear';
+}
+
+// Resolve a compact ASCII weather token for the inset runtime line.
+function resolveInsetWeatherToken(weatherType) {
+  const type = String(weatherType || 'clear').toLowerCase();
+  if (type === 'off') {
+    return 'Off';
+  }
+  if (type.includes('storm') || type.includes('thunder')) {
+    return 'Storm';
+  }
+  if (type.includes('rain') || type.includes('shower') || type.includes('drizzle')) {
+    return 'Rain';
+  }
+  if (type.includes('drought') || type.includes('heat') || type.includes('hot')) {
+    return 'Drought';
+  }
+  if (type.includes('cold') || type.includes('snow') || type.includes('frost') || type.includes('blizzard')) {
+    return 'Cold';
+  }
+  if (type.includes('fog') || type.includes('mist') || type.includes('haze')) {
+    return 'Fog';
+  }
+  if (type.includes('wind') || type.includes('gust')) {
+    return 'Wind';
+  }
+  if (type.includes('clear') || type.includes('sun')) {
+    return 'Clear';
+  }
+  return 'Mild';
+}
+
+// Resolve weather color key used by the inset weather token.
+function resolveInsetWeatherColorKey(weatherType) {
+  const type = String(weatherType || 'clear').toLowerCase();
+  if (type.includes('rain') || type.includes('shower') || type.includes('drizzle')) {
+    return 'weather_rain';
+  }
+  if (type.includes('storm') || type.includes('thunder')) {
+    return 'weather_storm';
+  }
+  if (type.includes('drought') || type.includes('heat') || type.includes('hot')) {
+    return 'weather_drought';
+  }
+  if (type.includes('cold') || type.includes('snow') || type.includes('frost') || type.includes('blizzard')) {
+    return 'weather_cold';
+  }
+  return 'weather_clear';
+}
+
+// Build runtime line with tick/year/cycle and weather token.
+function buildInsetRuntimeMetricLine(meta, width, compact = false) {
+  const weatherToken = `Wx:${meta.weatherToken}`;
+  const options = compact
+    ? [
+      `T:${meta.tick} Y:${meta.year} C:${meta.cycleCount} ${weatherToken}`,
+      `T${meta.tick} Y${meta.year} C${meta.cycleCount} ${weatherToken}`,
+      `T:${meta.tick} Y:${meta.year} ${weatherToken}`,
+      `T${meta.tick} ${weatherToken}`,
+      weatherToken,
+    ]
+    : [
+      `T:${meta.tick}  Y:${meta.year}  Cy:${meta.cycleCount}  ${weatherToken}`,
+      `Tick:${meta.tick} Year:${meta.year} C:${meta.cycleCount} ${weatherToken}`,
+      `T${meta.tick} Y${meta.year} C${meta.cycleCount} ${weatherToken}`,
+      `T:${meta.tick} Y:${meta.year} ${weatherToken}`,
+      `T${meta.tick} ${weatherToken}`,
+      weatherToken,
+    ];
+  const text = pickFittingInsetText(options, width);
+  const start = text.indexOf(weatherToken);
+  if (start < 0) {
+    return buildInsetTextLine(text, width);
+  }
+  return buildInsetTextLine(text, width, [
+    {
+      start,
+      end: start + weatherToken.length,
+      colorKey: meta.weatherColorKey || 'weather_clear',
+    },
+  ]);
+}
+
 // Compute alert severity for inset emphasis using stockpile/morale/pressure signals.
 function resolveInsetAlertState(state, config, moraleRatio, themeState) {
   const alerts = themeState && themeState.alerts ? themeState.alerts : DEFAULT_ALERTS;
@@ -552,14 +645,7 @@ function buildAlertMetricLine(alertState, width) {
 // Build regular inset metrics for day-to-day map operation.
 function buildInsetDefaultMetricLines(meta, alertState, width) {
   const metrics = [];
-  metrics.push(buildInsetTextLine(pickFittingInsetText(
-    [
-      `T:${meta.tick}  Y:${meta.year}  Cy:${meta.cycleCount}`,
-      `Tick:${meta.tick} Year:${meta.year} C:${meta.cycleCount}`,
-      `T${meta.tick} Y${meta.year} C${meta.cycleCount}`,
-    ],
-    width,
-  ), width));
+  metrics.push(buildInsetRuntimeMetricLine(meta, width, false));
   metrics.push(buildPopulationMetricLine(meta.population, meta.moralePct, alertState, width));
   metrics.push(buildInsetSegmentLine(
     [
@@ -602,13 +688,7 @@ function buildInsetDefaultMetricLines(meta, alertState, width) {
 // Build compact critical-focus metrics for cinematic high-pressure moments.
 function buildInsetFocusMetricLines(meta, alertState, width) {
   const metrics = [];
-  metrics.push(buildInsetTextLine(pickFittingInsetText(
-    [
-      `T:${meta.tick}  Y:${meta.year}  Cy:${meta.cycleCount}`,
-      `T${meta.tick} Y${meta.year} C${meta.cycleCount}`,
-    ],
-    width,
-  ), width));
+  metrics.push(buildInsetRuntimeMetricLine(meta, width, true));
   metrics.push(buildAlertMetricLine(alertState, width));
   metrics.push(buildPopulationMetricLine(meta.population, meta.moralePct, alertState, width));
   metrics.push(buildInsetTextLine(pickFittingInsetText(
@@ -640,6 +720,9 @@ function buildMapInsetLines(state, config, width, height, themeState) {
   const year = Math.floor(seasonGlobal / Math.max(1, seasonOrder.length)) + 1;
   const cycleStats = state && state.cycleStats ? state.cycleStats : {};
   const cycleCount = Math.max(0, Number(cycleStats.count || 0));
+  const weatherType = resolveInsetWeatherType(state, config);
+  const weatherToken = resolveInsetWeatherToken(weatherType);
+  const weatherColorKey = resolveInsetWeatherColorKey(weatherType);
 
   const dwarves = Array.isArray(state && state.dwarves) ? state.dwarves : [];
   let adults = 0;
@@ -672,6 +755,8 @@ function buildMapInsetLines(state, config, width, height, themeState) {
     tick,
     year,
     cycleCount,
+    weatherToken,
+    weatherColorKey,
     population: {
       total: Math.max(0, dwarves.length),
       adults,
