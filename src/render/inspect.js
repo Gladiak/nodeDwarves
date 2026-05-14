@@ -165,7 +165,7 @@ function buildInspectLines(dwarf, index, total, state, config, width, height) {
 
 // Build inspect rows for the current dwarf's strongest social ties.
 function buildSocialSectionLines(dwarf, state, config) {
-  const social = ensureDwarfSocialState(dwarf);
+  const social = ensureDwarfSocialState(dwarf, state);
   const summary = social.summary || {};
   return [
     formatSocialLinkLine('Friend', summary.friendId, summary.friendScore, state, config),

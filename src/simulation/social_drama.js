@@ -310,6 +310,116 @@ function normalizeDwarfSocialState(raw) {
   return next;
 }
 
+// Ensure one dwarf social payload exists and expose inspect-friendly summary fields.
+function ensureDwarfSocialState(dwarf, state) {
+  const safeDwarf = dwarf && typeof dwarf === 'object' ? dwarf : null;
+  const normalized = normalizeDwarfSocialState(safeDwarf ? safeDwarf.social : null);
+  if (safeDwarf) {
+    safeDwarf.social = normalized;
+  }
+  const summary = resolveDwarfSocialSummary(normalized);
+  const incidentCount = resolveDwarfIncidentCount(safeDwarf, state, normalized);
+  return {
+    ...normalized,
+    summary,
+    incidentCount,
+  };
+}
+
+// Resolve one compact tie summary for inspect/UX surfaces.
+function resolveDwarfSocialSummary(socialState) {
+  const normalized = normalizeDwarfSocialState(socialState);
+  const status = normalized.status && typeof normalized.status === 'object'
+    ? normalized.status
+    : {};
+  const links = normalized.links && typeof normalized.links === 'object'
+    ? normalized.links
+    : {};
+  const friend = resolveTopSocialLink(status.friendIds, links, 'affinity');
+  const rival = resolveTopSocialLink(status.rivalIds, links, 'rivalry');
+  const grudge = resolveTopSocialLink(status.grudgeIds, links, 'grudge');
+  const mentor = resolvePrimarySocialLink(status.mentorId, links, 'mentorship');
+  const protege = resolveTopSocialLink(status.menteeIds, links, 'mentorship');
+  return {
+    friendId: friend.id,
+    friendScore: friend.score,
+    rivalId: rival.id,
+    rivalScore: rival.score,
+    grudgeId: grudge.id,
+    grudgeScore: grudge.score,
+    mentorId: mentor.id,
+    mentorScore: mentor.score,
+    protegeId: protege.id,
+    protegeScore: protege.score,
+  };
+}
+
+// Resolve one top-scoring social target for a metric from a candidate id list.
+function resolveTopSocialLink(idsRaw, links, metric) {
+  const ids = toIdList(idsRaw);
+  let bestId = null;
+  let bestScore = 0;
+  for (const id of ids) {
+    const resolved = resolvePrimarySocialLink(id, links, metric);
+    if (!resolved.id) {
+      continue;
+    }
+    const score = clamp(Number(resolved.score || 0), 0, 1);
+    if (score > bestScore || (score === bestScore && bestId && String(resolved.id) < String(bestId))) {
+      bestId = resolved.id;
+      bestScore = score;
+    }
+  }
+  return {
+    id: bestId,
+    score: bestScore,
+  };
+}
+
+// Resolve one specific social target id and metric score.
+function resolvePrimarySocialLink(idRaw, links, metric) {
+  const id = idRaw ? String(idRaw) : '';
+  if (!id) {
+    return { id: null, score: 0 };
+  }
+  const sourceLinks = links && typeof links === 'object' ? links : {};
+  const link = sourceLinks[id];
+  if (!link || typeof link !== 'object') {
+    return { id, score: 0 };
+  }
+  return {
+    id,
+    score: clamp(Number(link[metric] || 0), 0, 1),
+  };
+}
+
+// Resolve incident count for one dwarf from social history when available.
+function resolveDwarfIncidentCount(dwarf, state, normalizedSocial) {
+  const id = dwarf && dwarf.id ? String(dwarf.id) : '';
+  if (!id) {
+    return 0;
+  }
+  const history = state && state.social && Array.isArray(state.social.history)
+    ? state.social.history
+    : null;
+  if (history && history.length > 0) {
+    let count = 0;
+    for (const entry of history) {
+      if (!entry || typeof entry !== 'object') {
+        continue;
+      }
+      if (String(entry.leftId || '') === id || String(entry.rightId || '') === id) {
+        count += 1;
+      }
+    }
+    return count;
+  }
+  const cooldowns = normalizedSocial && normalizedSocial.cooldowns && typeof normalizedSocial.cooldowns === 'object'
+    ? normalizedSocial.cooldowns
+    : {};
+  return Number(cooldowns.lastIncidentTick || 0) > 0 ? 1 : 0;
+}
+
 // Build deterministic-sized pair samples without O(n^2) scans.
 function buildInteractionPairs(adults, socialConfig) {
   const pairs = [];
@@ -1564,8 +1674,159 @@ function toIdList(raw) {
   return ids;
 }
 
+// Normalize unknown id collections to a unique id set.
+function toIdSet(raw) {
+  const set = new Set();
+  if (raw instanceof Set) {
+    for (const entry of raw.values()) {
+      if (!entry) {
+        continue;
+      }
+      set.add(String(entry));
+    }
+    return set;
+  }
+  if (!Array.isArray(raw)) {
+    return set;
+  }
+  for (const entry of raw) {
+    if (!entry) {
+      continue;
+    }
+    set.add(String(entry));
+  }
+  return set;
+}
+
+// Remove dead dwarf references from social links, status arrays, and incident history.
+function clearDeadSocialLinks(state, deadIdsRaw) {
+  if (!state || typeof state !== 'object') {
+    return 0;
+  }
+  const deadIds = toIdSet(deadIdsRaw);
+  if (deadIds.size <= 0) {
+    return 0;
+  }
+
+  let updatedDwarves = 0;
+  const dwarves = Array.isArray(state.dwarves) ? state.dwarves : [];
+  for (const dwarf of dwarves) {
+    if (!dwarf || typeof dwarf !== 'object') {
+      continue;
+    }
+    const socialState = normalizeDwarfSocialState(dwarf.social);
+    let changed = false;
+
+    for (const peerId of Object.keys(socialState.links)) {
+      if (!deadIds.has(String(peerId || ''))) {
+        continue;
+      }
+      delete socialState.links[peerId];
+      changed = true;
+    }
+
+    const status = socialState.status;
+    const nextFriends = toIdList(status.friendIds).filter((id) => !deadIds.has(id));
+    if (nextFriends.length !== status.friendIds.length) {
+      status.friendIds = nextFriends;
+      changed = true;
+    }
+    const nextRivals = toIdList(status.rivalIds).filter((id) => !deadIds.has(id));
+    if (nextRivals.length !== status.rivalIds.length) {
+      status.rivalIds = nextRivals;
+      changed = true;
+    }
+    const nextGrudges = toIdList(status.grudgeIds).filter((id) => !deadIds.has(id));
+    if (nextGrudges.length !== status.grudgeIds.length) {
+      status.grudgeIds = nextGrudges;
+      changed = true;
+    }
+    const nextMentees = toIdList(status.menteeIds).filter((id) => !deadIds.has(id));
+    if (nextMentees.length !== status.menteeIds.length) {
+      status.menteeIds = nextMentees;
+      changed = true;
+    }
+    const mentorId = status.mentorId ? String(status.mentorId) : null;
+    if (mentorId && deadIds.has(mentorId)) {
+      status.mentorId = null;
+      changed = true;
+    }
+
+    if (changed) {
+      updatedDwarves += 1;
+    }
+    dwarf.social = socialState;
+  }
+
+  const social = state.social && typeof state.social === 'object'
+    ? state.social
+    : null;
+  if (social) {
+    if (social.pairCooldownByKey && typeof social.pairCooldownByKey === 'object') {
+      for (const pairKey of Object.keys(social.pairCooldownByKey)) {
+        const [leftId, rightId] = String(pairKey || '').split('|');
+        if (deadIds.has(String(leftId || '')) || deadIds.has(String(rightId || ''))) {
+          delete social.pairCooldownByKey[pairKey];
+        }
+      }
+    }
+    if (Array.isArray(social.history)) {
+      social.history = social.history.filter((entry) => {
+        if (!entry || typeof entry !== 'object') {
+          return false;
+        }
+        const leftId = String(entry.leftId || '');
+        const rightId = String(entry.rightId || '');
+        return !deadIds.has(leftId) && !deadIds.has(rightId);
+      });
+    }
+  }
+
+  return updatedDwarves;
+}
+
+// Return one stable social-drama status payload for render/telemetry callers.
+function getSocialDramaStatus(state, config) {
+  const socialConfig = getSocialDramaConfig(config);
+  const social = state && state.social && typeof state.social === 'object'
+    ? state.social
+    : null;
+  const enabled = Boolean(
+    social
+      && social.enabled === true
+      && socialConfig.enabled !== false,
+  );
+  const stats = normalizeSocialStats(social && social.stats ? social.stats : null);
+  const longArc = social && social.longArc && typeof social.longArc === 'object'
+    ? social.longArc
+    : {};
+  const governor = normalizeSocialGovernorSnapshot(social && social.governor ? social.governor : null);
+  return {
+    enabled,
+    cohesion: enabled ? clamp(Number(social.cohesion || 0), 0, 1) : 0,
+    conflictPressure: enabled ? clamp(Number(social.conflictPressure || 0), 0, 1) : 0,
+    mentorshipCoverage: enabled ? clamp(Number(social.mentorshipCoverage || 0), 0, 1) : 0,
+    grudgeLoad: enabled ? clamp(Number(social.grudgeLoad || 0), 0, 1) : 0,
+    longArc: {
+      harmony: enabled ? clamp(Number(longArc.harmony || 0), 0, 1) : 0,
+      strife: enabled ? clamp(Number(longArc.strife || 0), 0, 1) : 0,
+      avgSupport: enabled ? clamp(Number(longArc.avgSupport || 0), 0, 1) : 0,
+      avgBurden: enabled ? clamp(Number(longArc.avgBurden || 0), 0, 1) : 0,
+    },
+    governor,
+    stats,
+    history: social && Array.isArray(social.history) ? social.history.slice() : [],
+    lastUpdateTick: Math.max(0, Number(social && social.lastUpdateTick || 0)),
+    lastIncidentTick: Math.max(0, Number(social && social.lastIncidentTick || 0)),
+  };
+}
+
 module.exports = {
   createDwarfSocialState,
   createSocialDramaState,
+  ensureSocialDramaState,
+  ensureDwarfSocialState,
   updateSocialDrama,
+  clearDeadSocialLinks,
+  getSocialDramaStatus,
 };
