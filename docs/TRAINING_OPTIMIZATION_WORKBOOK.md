@@ -7,9 +7,10 @@
 
 Operational addendum (2026-07-14): the unified wrapper now exposes the
 `m4-balanced` profile for the 10-core/16 GB Apple M4 development machine. The
-accepted compromise uses quality-mixed phases, `5→4` workers, sparse training
-evaluation, low-write cleanup, skipped phase promotes, and one final guarded
-canonical `12x1800` comparison. Contract coverage lives in
+accepted compromise uses quality-mixed foundation/finetune plus an eight-episode
+endgame specialization horizon (`10000x2 = 20000` ticks per episode), `5→4→3`
+workers, sparse training evaluation, low-write cleanup, skipped phase promotes,
+and one final guarded canonical `12x1800` comparison. Contract coverage lives in
 `scripts/test_training_contracts.js`.
 
 Last updated: 2026-02-27

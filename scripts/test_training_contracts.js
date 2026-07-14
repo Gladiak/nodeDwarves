@@ -164,10 +164,28 @@ function validateM4BalancedWrapperContract() {
   const phases = buildTrainingPhases(PROFILE_M4_BALANCED, '/tmp/m4-wrapper-contract', {
     fast: '/tmp/m4-wrapper-contract/config_fast.json',
     finetune: '/tmp/m4-wrapper-contract/config_finetune.json',
+    endgame: '/tmp/m4-wrapper-contract/config_endgame.json',
   });
-  assert(phases.length === 2, 'M4 wrapper contract: expected two quality-mixed phases.');
+  assert(phases.length === 3, 'M4 wrapper contract: expected foundation, finetune, and endgame phases.');
   assert(phases[0].name === 'm4-balanced-foundation', 'M4 wrapper contract: foundation phase mismatch.');
   assert(phases[1].name === 'm4-balanced-finetune', 'M4 wrapper contract: finetune phase mismatch.');
+  assert(phases[2].name === 'm4-balanced-endgame', 'M4 wrapper contract: endgame phase mismatch.');
+  assert(
+    phases[2].resultWaitTimeoutSeconds === 1200,
+    'M4 wrapper contract: endgame worker-result timeout mismatch.',
+  );
+  const endgameArgs = phases[2].trainArgs;
+  assert(
+    endgameArgs[endgameArgs.indexOf('--config') + 1] === '/tmp/m4-wrapper-contract/config_endgame.json',
+    'M4 wrapper contract: endgame config mismatch.',
+  );
+  assert(
+    endgameArgs[endgameArgs.indexOf('--max-steps') + 1] === '10000'
+      && endgameArgs[endgameArgs.indexOf('--step-ticks') + 1] === '2',
+    'M4 wrapper contract: endgame horizon should be 20000 ticks.',
+  );
+  assert(endgameArgs.includes('--full-sim'), 'M4 wrapper contract: endgame should use full simulation.');
+  assert(endgameArgs.includes('--resume-from-latest'), 'M4 wrapper contract: endgame should resume finetune output.');
 
   const workerPlan = resolveWorkerPlan(preset.trainExtraArgs, {
     cpuCount: 10,
@@ -183,6 +201,10 @@ function validateM4BalancedWrapperContract() {
   assert(
     resolvePhaseWorkers(workerPlan, phases[1], true).workers === 4,
     'M4 wrapper contract: finetune worker count mismatch.',
+  );
+  assert(
+    resolvePhaseWorkers(workerPlan, phases[2], true).workers === 3,
+    'M4 wrapper contract: endgame worker count mismatch.',
   );
 }
 

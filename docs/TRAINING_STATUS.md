@@ -13,6 +13,8 @@ Historical archive: `docs/TRAINING_OPTIMIZATION_WORKBOOK.md`
 
 0. Local Apple M4 training:
    - `npm run ai:train:m4`
+   - phase sequence: foundation (`5` workers), finetune (`4` workers), endgame specialization (`3` workers)
+   - endgame coverage: `8` full-sim episodes at `20000` simulated ticks each, followed by the guarded final canonical comparison
 1. Per-change feedback:
    - direct focused benchmark/regression command for the changed subsystem
    - `node scripts/test_training_contracts.js --policy-only` after policy-contract changes

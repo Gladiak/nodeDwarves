@@ -74,9 +74,10 @@ npm test
 `ai:train` command accepts the wrapper profile after `--`: `fast` (default), `quality`,
 `quality-mixed`, `m4-balanced`, `full`, `endgame`, or `benchmark`. The
 `m4-balanced` profile is the sustainable speed/quality preset for a 10-core,
-16 GB Apple M4: quality-mixed curriculum, `5→4` workers, sparse intermediate
-evaluation, and one guarded final canonical check. Add `--fresh` after the
-profile when observation or action contracts change.
+16 GB Apple M4: quality-mixed foundation/finetune, a dedicated 20,000-tick
+endgame specialization phase, `5→4→3` workers, sparse intermediate evaluation,
+and one guarded final canonical check. Add `--fresh` after the profile when
+observation or action contracts change.
 
 For full profiles, continuous training cadence, and override strategy, use:
 - 📘 `MANUAL.md`

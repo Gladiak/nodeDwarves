@@ -62,6 +62,7 @@ const M4_BALANCED_WORKERS_RESERVE = 5;
 const M4_BALANCED_CANONICAL_EVAL_EPISODES = 12;
 const M4_BALANCED_CANONICAL_EVAL_MAX_STEPS = 1800;
 const M4_BALANCED_PROMOTE_PROGRESS_EVERY = 2;
+const M4_BALANCED_ENDGAME_RESULT_WAIT_TIMEOUT_SECONDS = 1200;
 const M4_BALANCED_TRAIN_EXTRAS = [
   "--eval-every", "40",
   "--eval-episodes", "2",
@@ -1301,7 +1302,11 @@ function prepareRunFiles(rootDir, profile, runOptions = {}, dryRun = false) {
     const configFinetune = buildProfileConfig(baseConfig, 3600, false);
     writeConfig(files.finetune, configFinetune);
   }
-  if (profile === PROFILE_ENDGAME || profile === PROFILE_FULL) {
+  if (
+    profile === PROFILE_M4_BALANCED
+    || profile === PROFILE_ENDGAME
+    || profile === PROFILE_FULL
+  ) {
     files.endgame = path.join(runDir, "config_endgame.json");
     const configEndgame = buildProfileConfig(baseConfig, ENDGAME_PROFILE_MAX_TICKS, true);
     writeConfig(files.endgame, configEndgame);
@@ -1328,10 +1333,60 @@ function prepareRunFiles(rootDir, profile, runOptions = {}, dryRun = false) {
 // Build the training/promote phase list for the selected profile.
 function buildPhases(profile, runDir, files) {
   if (profile === PROFILE_M4_BALANCED) {
-    return buildPhases(PROFILE_QUALITY_MIXED, runDir, files).map((phase) => ({
+    const mixedPhases = buildPhases(PROFILE_QUALITY_MIXED, runDir, files).map((phase) => ({
       ...phase,
       name: String(phase.name || "quality-mixed").replace("quality-mixed", "m4-balanced"),
     }));
+    return [
+      ...mixedPhases,
+      {
+        name: "m4-balanced-endgame",
+        summaryLogEvery: "4",
+        resultWaitTimeoutSeconds: M4_BALANCED_ENDGAME_RESULT_WAIT_TIMEOUT_SECONDS,
+        trainArgs: [
+          "--config", files.endgame,
+          "--workers", "8",
+          "--full-sim",
+          "--episodes", "8",
+          "--max-steps", String(ENDGAME_MAX_STEPS),
+          "--step-ticks", String(ENDGAME_STEP_TICKS),
+          "--epochs", "3",
+          "--batch-episodes", "4",
+          "--mini-batch-size", "1024",
+          "--log-every", "4",
+          "--save-every", "8",
+          "--eval-every", "4",
+          "--eval-episodes", "1",
+          "--eval-max-steps", String(ENDGAME_MAX_STEPS),
+          "--eval-difficulty", "1.0",
+          "--difficulty-start", "1.0",
+          "--difficulty-end", "1.0",
+          "--difficulty-ramp", "1",
+          "--lr", "0.00009",
+          "--lr-final", "0.00004",
+          "--entropy-coef", "0.0015",
+          "--entropy-coef-final", "0.0005",
+          "--entropy-ramp", "8",
+          "--model-path", "models/policy.json",
+          "--best-model-path", "models/policy_best.json",
+          "--best-model-meta-path", "models/policy_best.meta.json",
+          "--resume-from-latest",
+          "--debug-run-dir", runDir,
+          "--debug-summary-name", "summary_m4_balanced_endgame.log",
+          "--debug-prefix", "m4_balanced_endgame",
+        ],
+        promoteArgs: [
+          "--config", files.endgame,
+          "--eval-episodes", "4",
+          "--eval-max-steps", String(ENDGAME_MAX_STEPS),
+          "--eval-difficulty", "1.0",
+          "--eval-score", "rpt",
+          "--min-improve", "0.000",
+          "--max-steps", String(ENDGAME_MAX_STEPS),
+          "--step-ticks", String(ENDGAME_STEP_TICKS),
+        ],
+      },
+    ];
   }
   if (profile === PROFILE_FAST) {
     return [
@@ -1926,7 +1981,7 @@ function runProfile(rootDir, profile, trainExtraArgs, dryRun, workerOptions = {}
   if (workerOptions.m4Balanced === true) {
     printStatus(
       "profile",
-      "M4-balanced preset enabled (quality-mixed, sustainable workers, final canonical)",
+      "M4-balanced preset enabled (quality-mixed + long-horizon endgame, sustainable workers, final canonical)",
       ANSI_CYAN,
     );
   }
@@ -2046,6 +2101,21 @@ function runProfile(rootDir, profile, trainExtraArgs, dryRun, workerOptions = {}
         workerOptions.lowWrite === true,
       ),
     };
+    const inheritedResultWaitTimeoutSeconds = parsePositiveInt(
+      process.env.TRAIN_RESULT_WAIT_TIMEOUT_SECONDS,
+    );
+    const phaseResultWaitTimeoutSeconds = parsePositiveInt(phase.resultWaitTimeoutSeconds);
+    const resultWaitTimeoutSeconds = inheritedResultWaitTimeoutSeconds
+      ?? phaseResultWaitTimeoutSeconds;
+    if (resultWaitTimeoutSeconds !== null) {
+      trainEnv.TRAIN_RESULT_WAIT_TIMEOUT_SECONDS = String(resultWaitTimeoutSeconds);
+      printStatus(
+        "watchdog",
+        `phase=${phaseName} result-timeout=${resultWaitTimeoutSeconds}s `
+          + `source=${inheritedResultWaitTimeoutSeconds !== null ? "environment" : "phase"}`,
+        ANSI_CYAN,
+      );
+    }
     printStatus("train", `Launching optimizer loop (${phaseName})`, ANSI_YELLOW);
     runCommand(
       pythonCommand,

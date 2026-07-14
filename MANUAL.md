@@ -59,11 +59,21 @@ npm run ai:train -- quality --transport legacy
 ```
 
 `ai:train:m4` launches the `m4-balanced` profile directly. The profile targets
-the 10-core/16 GB Apple M4 laptop envelope and reuses the
-quality-mixed curriculum, caps the automatic plan at `5` foundation workers and
-`4` finetune workers, reserves five logical cores for the OS/learner, reduces
-checkpoint writes, evaluates training every 40 episodes, skips phase promotes,
-and runs one final `12x1800` canonical comparison with positive paired-LCB.
+the 10-core/16 GB Apple M4 laptop envelope and starts with the quality-mixed
+curriculum. It then adds an endgame-enabled specialization phase: `8` full-sim
+episodes, `10000` policy steps per episode, and `2` simulation ticks per step
+(`20000` simulated ticks per episode). The automatic plan uses `5` foundation,
+`4` finetune, and `3` endgame workers, reserving capacity for the OS/learner.
+The phase resumes from the finetune checkpoint with lower learning-rate and
+entropy schedules so long-horizon learning remains incremental. Its worker-result
+watchdog is raised from the normal `180` seconds to `1200` seconds because one
+20,000-tick rollout can legitimately remain in flight for several minutes on an
+M4; foundation and finetune retain the normal timeout. Low-write mode,
+the shared 40-episode sparse evaluation cadence, and skipped phase promotes keep
+the extra horizon sustainable; the endgame phase is shorter than that cadence
+and therefore relies on the guarded final comparison rather than an in-phase
+evaluation. The wrapper finishes with one `12x1800` canonical comparison with
+positive paired-LCB before replacing the best checkpoint.
 Explicit flags after the profile override preset defaults; for example,
 `--workers-auto-max 6` raises the cap and `--phase-promotes` restores the
 intermediate promotion checks.
@@ -1687,7 +1697,7 @@ Training presets:
 - `ai:train` runs the `fast` profile by default. Pass an explicit profile after `--`: `quality`, `quality-mixed`, `m4-balanced`, `full`, `endgame`, or `benchmark`.
 - `fast` is the sub-5-minute baseline loop (200 episodes, `max_steps=1600`, `step_ticks=2`) followed by promotion comparison.
 - `quality` adds a short full-sim finetune; `quality-mixed` uses the lighter ~`76/24` foundation/full-sim split.
-- `m4-balanced` applies the quality-mixed phases with M4-aware automatic workers (`5` foundation, `4` finetune on a 10-core M4), low-write/auto-clean, sparse `2x1400` training evaluations every `40` episodes, skipped phase promotes, and one final canonical `12x1800` comparison with positive paired-LCB. This keeps checkpoint promotion conservative while removing the most expensive repeated evaluation work.
+- `m4-balanced` applies quality-mixed foundation/finetune plus an endgame-enabled specialization phase (`8` episodes at `10000x2 = 20000` ticks each). M4-aware automatic workers scale `5→4→3` across foundation, finetune, and endgame on a 10-core M4. The endgame phase raises only its worker-result watchdog to `1200s` (normal phases remain at `180s`) because workers report a completed rollout only after the full long horizon. Low-write/auto-clean, sparse `2x1400` training evaluations every `40` episodes, skipped phase promotes, and one final canonical `12x1800` comparison with positive paired-LCB keep checkpoint promotion conservative. Because the endgame phase has only eight episodes, it does not trigger the 40-episode in-training eval and is guarded by the final canonical non-regression comparison instead.
 - `full` runs the four-phase quality curriculum: foundation, full-sim finetune, endgame specialization, and consolidation.
 - `endgame` runs the compact long-horizon specialization pass; `benchmark` exposes the wrapper benchmark profile.
 - Wrapper modes are flags, not package aliases: use `--low-load`, `--fresh`, `--low-write` / `--no-low-write`, `--auto-clean-debug`, worker controls, canonical promotion controls, and `--skip-phase-promotes` / `--phase-promotes` after the profile.
@@ -1770,6 +1780,7 @@ Training presets:
 - Trainer runtime reliability quick wins (2026-02-19):
   - IPC read watchdog: `train.py` now enforces a read timeout on JS bridge responses (env: `TRAIN_IPC_READ_TIMEOUT_SECONDS`, default `120s`) to avoid indefinite `readline()` hangs.
   - Worker-result watchdog: learner now polls worker results with timeout + alive-worker checks (env: `TRAIN_RESULT_WAIT_TIMEOUT_SECONDS`, `TRAIN_RESULT_WAIT_POLL_SECONDS`) and fails fast if workers stall/exit.
+  - M4 long-horizon override: the `m4-balanced` endgame phase defaults the worker-result timeout to `1200s`; an explicitly exported `TRAIN_RESULT_WAIT_TIMEOUT_SECONDS` remains authoritative when profiling a slower machine.
   - Worker error propagation: rollout workers now report structured error payloads back to the learner (worker id, episode id, reason, traceback) instead of silently exiting.
   - Deterministic sampling: each worker reseeds Python/Torch RNG per episode from the episode seed so rollout stochasticity is reproducible independently of worker scheduling.
   - End-of-run PPO integrity: residual partial rollout batches are now flushed at the end of training, and the latest checkpoint is re-saved after that flush so tail updates are never dropped.

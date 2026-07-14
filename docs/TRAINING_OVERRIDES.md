@@ -74,12 +74,13 @@ Scenario curriculum defaults:
 
 Wrapper low-load tuning (no config edit needed):
 
-- `npm run ai:train:m4`: direct command for the recommended Apple M4 speed/quality preset (`m4-balanced`). It uses quality-mixed phases, a `5→4` phase-aware worker plan on a 10-core M4, `--low-write`, automatic debug cleanup, training eval every `40` episodes (`2x1400`), no intermediate phase promotion, and one final canonical `12x1800` comparison with positive paired-LCB.
+- `npm run ai:train:m4`: direct command for the recommended Apple M4 speed/quality preset (`m4-balanced`). It uses quality-mixed foundation/finetune followed by `8` endgame-enabled full-sim episodes at `10000` steps x `2` ticks (`20000` ticks per episode). Its phase-aware worker plan is `5→4→3` on a 10-core M4. The endgame invocation sets `TRAIN_RESULT_WAIT_TIMEOUT_SECONDS=1200`, while shorter phases retain the default `180s`, so valid long rollouts are not mistaken for stalled workers. It also enables `--low-write`, automatic debug cleanup, training eval every `40` episodes (`2x1400`), no intermediate phase promotion, and one final canonical `12x1800` comparison with positive paired-LCB. The eight-episode endgame phase intentionally performs no in-training eval at that sparse cadence; the final canonical comparison remains the promotion/non-regression guard.
   - Override preset defaults by appending normal wrapper/trainer flags.
   - `--workers-auto-max 6` trades more heat/load for throughput.
   - `--phase-promotes` restores intermediate promote checks.
   - `--no-low-write` and `--no-auto-clean-debug` restore normal checkpoint/debug retention behavior.
 - `npm run ai:train -- quality --low-load`: quality profile with wrapper low-load mode.
+- Export `TRAIN_RESULT_WAIT_TIMEOUT_SECONDS=<seconds>` before the wrapper command to override the M4 endgame watchdog default for unusually slow long-horizon rollouts.
 - `npm run ai:train -- quality-mixed`: mixed curriculum profile with ~`76/24` foundation/full-sim split.
 - `npm run ai:train:continuous`: cumulative `daily/full/high` schedule with periodic benchmark + regression gates.
 - Configure continuous cadence explicitly, for example `npm run ai:train:continuous -- --cycles 36 --full-every 6 --high-every 12 --gate-every 6 --max-no-improve 14 --max-gate-fail 3`:
