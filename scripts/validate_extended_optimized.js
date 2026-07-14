@@ -6,44 +6,81 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 
 const ROOT = path.resolve(__dirname, '..');
+const NODE = process.execPath;
+const PYTHON_BOOTSTRAP = process.env.PYTHON || 'python3';
+const VENV_PYTHON = process.platform === 'win32'
+  ? path.join(ROOT, '.venv', 'Scripts', 'python.exe')
+  : path.join(ROOT, '.venv', 'bin', 'python');
 const DEFAULT_REPORT_JSON_PATH = path.join(ROOT, 'debug', 'extended_gate_runtime_optimized_latest.json');
 const DEFAULT_REPORT_MD_PATH = path.join(ROOT, 'debug', 'extended_gate_runtime_optimized_latest.md');
 const DEFAULT_BASELINE_SECONDS = 2728.58;
 
 const STEPS = [
   {
+    id: 'bootstrap',
+    label: 'Python environment',
+    command: PYTHON_BOOTSTRAP,
+    args: ['python/bootstrap.py'],
+    note: 'Ensures the project virtualenv and Python dependencies are ready.',
+  },
+  {
     id: 'canonical',
     label: 'Canonical master',
-    command: 'npm',
-    args: ['run', 'ai:validate:canonical'],
+    command: VENV_PYTHON,
+    args: [
+      'python/promote_best.py',
+      '--eval-only',
+      '--model-path', 'models/policy_best.json',
+      '--best-model-path', 'models/policy_best.json',
+      '--eval-episodes', '20',
+      '--eval-max-steps', '2200',
+      '--eval-score', 'rpt',
+      '--transport', 'compact',
+      '--report-tag', 'canonical-master',
+      '--report-json', 'debug/canonical_master_latest.json',
+      '--report-md', 'debug/canonical_master_latest.md',
+      '--eval-progress',
+      '--eval-progress-every', '10',
+    ],
     note: 'Fixed canonical contract (20x2200, rpt, compact).',
   },
   {
     id: 'benchmark',
     label: 'Deterministic benchmark',
-    command: 'npm',
-    args: ['run', 'ai:validate:benchmark'],
-    note: 'Shared by gate and risk:r001; executed once in optimized flow.',
+    command: NODE,
+    args: [
+      'scripts/headless_benchmark.js',
+      '--ticks', '8000',
+      '--seeds', '101,202,303,404',
+      '--progress',
+      '--progress-every', '2000',
+    ],
+    note: 'Shared deterministic collapse and balance signal; executed once.',
   },
   {
     id: 'regression',
     label: 'Deterministic regression profiles',
-    command: 'npm',
-    args: ['run', 'ai:validate:regression'],
+    command: NODE,
+    args: ['scripts/regression.js', '--all'],
     note: 'All stored deterministic regression profiles.',
   },
   {
-    id: 'risk_r002',
-    label: 'Risk shape guardrail (r002)',
-    command: 'npm',
-    args: ['run', 'ai:validate:risk:r002'],
+    id: 'policy_shape',
+    label: 'Policy shape guardrail',
+    command: NODE,
+    args: ['scripts/test_training_contracts.js', '--policy-only'],
     note: 'Observation-normalization policy shape contract.',
   },
   {
     id: 'horizon',
     label: 'Horizon profile',
-    command: 'npm',
-    args: ['run', 'ai:validate:horizon'],
+    command: NODE,
+    args: [
+      'scripts/regression.js',
+      '--profile', 'horizon',
+      '--report-json', 'debug/regression_horizon_latest.json',
+      '--report-md', 'debug/regression_horizon_latest.md',
+    ],
     note: 'Multi-horizon deep/governance guardrails.',
   },
 ];
@@ -146,8 +183,8 @@ function buildMarkdownReport(report) {
   lines.push('');
   lines.push('## Notes');
   lines.push('');
-  lines.push('- Optimized flow keeps quality checks equivalent to `ai:validate:extended`, while removing duplicate benchmark execution (`risk:r001` == `ai:validate:benchmark`).');
-  lines.push('- Recommended for full acceptance/nightly cadence when runtime pressure is relevant.');
+  lines.push('- `npm run ai:validate` is the single full acceptance gate and executes the benchmark only once.');
+  lines.push('- Use direct script CLIs for isolated diagnostics; package scripts intentionally expose only operational entrypoints.');
   return `${lines.join('\n')}\n`;
 }
 

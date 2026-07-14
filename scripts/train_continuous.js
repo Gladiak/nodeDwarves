@@ -259,8 +259,8 @@ function printHelp() {
     "",
     "Training schedule policy:",
     "  - `high` takes priority over `full` when both match the same cycle.",
-    "  - `full` cycle uses `ai:train:full -- --canonical-final-only --phase-promote-no-positive-lcb`.",
-    "  - other cycles use `ai:train:quality:daily`.",
+    "  - every cycle uses the unified `ai:train` entrypoint with an explicit profile.",
+    "  - `daily`, `full`, and `high` keep their established promotion guardrails.",
     "",
     "Examples:",
     "  node scripts/train_continuous.js --cycles 24 --full-every 4 --high-every 8 --gate-every 8",
@@ -301,26 +301,49 @@ function runCommand(command, args, options = {}) {
 function buildTrainCommand(kind, includeFresh, options = {}) {
   const safeKind = String(kind || "");
   const forwardedArgs = [];
-  let scriptName = "ai:train:quality:daily";
+  let profile = "quality";
   let label = "quality-daily";
 
+  forwardedArgs.push(
+    "--canonical-final-only",
+    "--canonical-eval-episodes", "12",
+    "--canonical-eval-max-steps", "1600",
+    "--canonical-no-positive-lcb",
+    "--phase-promote-no-positive-lcb",
+    "--promote-eval-progress",
+    "--promote-eval-progress-every", "1",
+  );
+
   if (safeKind === TRAIN_KIND_FULL) {
-    scriptName = "ai:train:full";
+    profile = "full";
     label = "full-consolidation";
+    forwardedArgs.length = 0;
     forwardedArgs.push("--canonical-final-only", "--phase-promote-no-positive-lcb");
   } else if (safeKind === TRAIN_KIND_HIGH) {
-    scriptName = "ai:train:quality:high";
+    profile = "full";
     label = "quality-high";
+    forwardedArgs.length = 0;
+    forwardedArgs.push(
+      "--canonical-final-only",
+      "--canonical-eval-episodes", "32",
+      "--canonical-eval-max-steps", "2400",
+      "--canonical-require-positive-lcb",
+      "--phase-promote-require-positive-lcb",
+      "--promote-eval-progress",
+      "--promote-eval-progress-every", "2",
+    );
   }
 
   if (includeFresh) {
     forwardedArgs.push("--fresh");
   }
-  if (options.lowWrite === true) {
+  if (options.lowWrite === true && !forwardedArgs.includes("--low-write")) {
     forwardedArgs.push("--low-write");
   }
   if (options.autoCleanDebug === true) {
-    forwardedArgs.push("--auto-clean-debug");
+    if (!forwardedArgs.includes("--auto-clean-debug")) {
+      forwardedArgs.push("--auto-clean-debug");
+    }
     if (Number.isInteger(options.debugKeepRuns)) {
       forwardedArgs.push("--debug-keep-runs", String(options.debugKeepRuns));
     }
@@ -338,15 +361,14 @@ function buildTrainCommand(kind, includeFresh, options = {}) {
     }
   }
 
-  const args = ["run", scriptName];
-  if (forwardedArgs.length > 0) {
-    args.push("--", ...forwardedArgs);
-  }
+  const scriptName = "ai:train";
+  const args = ["run", scriptName, "--", profile, ...forwardedArgs];
 
   return {
     kind: safeKind || TRAIN_KIND_DAILY,
     label,
     scriptName,
+    profile,
     forwardedArgs,
     args,
   };
@@ -621,6 +643,7 @@ function runContinuous(rootDir, options) {
       train: {
         kind: trainCommand.kind,
         script: trainCommand.scriptName,
+        profile: trainCommand.profile,
         forwardedArgs: [...trainCommand.forwardedArgs],
         status: trainStatus,
       },
@@ -713,13 +736,26 @@ function runContinuous(rootDir, options) {
     }
 
     if (gateEnabled) {
-      const gateArgs = ["run", "ai:validate:gate"];
-      const gateStatus = runCommand(npmCommand, gateArgs, {
+      const benchmarkStatus = runCommand(process.execPath, [
+        "scripts/headless_benchmark.js",
+        "--ticks", "8000",
+        "--seeds", "101,202,303,404",
+        "--progress",
+        "--progress-every", "2000",
+      ], {
         cwd: rootDir,
         dryRun: options.dryRun,
-        tag: "gate",
+        tag: "gate:benchmark",
         tagColor: ANSI_GREEN,
       });
+      const gateStatus = benchmarkStatus === 0
+        ? runCommand(process.execPath, ["scripts/regression.js", "--all"], {
+          cwd: rootDir,
+          dryRun: options.dryRun,
+          tag: "gate:regression",
+          tagColor: ANSI_GREEN,
+        })
+        : benchmarkStatus;
       cycleRecord.gate.status = gateStatus;
       if (options.dryRun) {
         printStatus("gate", "dry-run mode: gate command not executed", ANSI_CYAN);

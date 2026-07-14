@@ -1,6 +1,6 @@
 # Training Quality Status
 
-Last updated: 2026-03-01
+Last updated: 2026-07-14
 Scope: current operational status for training quality validation.
 Historical archive: `docs/TRAINING_OPTIMIZATION_WORKBOOK.md`
 
@@ -11,14 +11,15 @@ Historical archive: `docs/TRAINING_OPTIMIZATION_WORKBOOK.md`
 
 ## Active validation cadence
 
+0. Local Apple M4 training:
+   - `npm run ai:train:m4`
 1. Per-change feedback:
-   - `npm run ai:validate:canonical`
-   - `npm run ai:validate:gate`
-   - `npm run ai:validate:risk:r002`
+   - direct focused benchmark/regression command for the changed subsystem
+   - `node scripts/test_training_contracts.js --policy-only` after policy-contract changes
 2. Acceptance/nightly full signal:
-   - `npm run ai:validate:extended:optimized`
+   - `npm run ai:validate`
 3. Weekly deep sentinel:
-   - `npm run ai:validate:horizon:weekly`
+   - `npm run ai:validate:weekly`
 4. Contract preflight:
    - `npm test`
 
@@ -32,7 +33,7 @@ Historical archive: `docs/TRAINING_OPTIMIZATION_WORKBOOK.md`
   - `paired_lcb=+0.0068`
   - summary: `debug/run_1772371871207_32183_47482/report_training_promotion_summary.json`
 - Underrealm remediation stream completed and validated end-to-end.
-- Final full optimized gate (`npm run ai:validate:extended:optimized`):
+- Final full optimized gate (`npm run ai:validate`):
   - Canonical: `PASS`
     - `score=4.303012225735329`
     - `avg_reward=18933.253793235446`

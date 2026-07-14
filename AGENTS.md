@@ -145,7 +145,7 @@ This file defines how to implement new features in a consistent, stable way.
 - Recommended cleanup commands (adjust to current cycle before running):
   - `npm run debug:clean` (default: keep latest 3 `run_*` folders)
   - `npm run debug:clean -- --keep-runs 2` (stricter retention)
-  - `npm run debug:clean:dry` (preview without deleting)
+  - `npm run debug:clean -- --dry-run` (preview without deleting)
   - `rm -rf debug/regression_eval_* debug/regression_random_*`
   - `rm -f debug/*smoke*.log debug/*canonical*_smoke*.json debug/*canonical*_smoke*.md`
   - `du -sh debug && find debug -maxdepth 1 -type f | sort`

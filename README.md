@@ -37,12 +37,6 @@ Run with the best trained policy (if available):
 npm run ai:play
 ```
 
-Export map layers:
-
-```bash
-npm run map:export -- --width=120 --height=40 --layers=surface,d1,d2
-```
-
 ## Controls 🎮
 
 - ⏯️ `Space`: pause/resume
@@ -67,15 +61,22 @@ npm run ai:train
 npm run ai:play
 ```
 
-Quality-oriented loop:
+Quality-oriented loop and acceptance gate:
 
 ```bash
-npm run ai:train:quality
-npm run ai:validate:canonical
-npm run ai:validate:gate
-npm run ai:validate:risk
+npm run ai:train:m4
+npm run ai:train -- quality
+npm run ai:validate
 npm test
 ```
+
+`ai:train:m4` is the direct shortcut for the `m4-balanced` profile. The generic
+`ai:train` command accepts the wrapper profile after `--`: `fast` (default), `quality`,
+`quality-mixed`, `m4-balanced`, `full`, `endgame`, or `benchmark`. The
+`m4-balanced` profile is the sustainable speed/quality preset for a 10-core,
+16 GB Apple M4: quality-mixed curriculum, `5→4` workers, sparse intermediate
+evaluation, and one guarded final canonical check. Add `--fresh` after the
+profile when observation or action contracts change.
 
 For full profiles, continuous training cadence, and override strategy, use:
 - 📘 `MANUAL.md`
@@ -92,12 +93,12 @@ npm run bench:candidate -- --set path=value
 npm run bench:diff
 ```
 
-Useful presets:
+Long-running and weekly checks:
 
 ```bash
-npm run ai:validate:benchmark
-npm run ai:validate:regression
-npm run ai:validate:extended:optimized
+npm run ai:train:continuous
+npm run ai:validate
+npm run ai:validate:weekly
 npm run debug:clean
 ```
 

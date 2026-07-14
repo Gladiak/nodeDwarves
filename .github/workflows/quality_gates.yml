@@ -35,7 +35,6 @@ jobs:
         run: |
           set -euo pipefail
           npm ci
-          npm run ai:bootstrap --silent
 
       - name: Snapshot debug files
         run: |
@@ -48,7 +47,7 @@ jobs:
         continue-on-error: true
         run: |
           set -euo pipefail
-          npm run ai:validate:extended 2>&1 | tee debug/ci_validate_extended.log
+          npm run ai:validate 2>&1 | tee debug/ci_validate_extended.log
 
       - name: Run weekly horizon quality gate
         id: validate_weekly
@@ -56,7 +55,7 @@ jobs:
         continue-on-error: true
         run: |
           set -euo pipefail
-          npm run ai:validate:horizon:weekly 2>&1 | tee debug/ci_validate_horizon_weekly.log
+          npm run ai:validate:weekly 2>&1 | tee debug/ci_validate_horizon_weekly.log
 
       - name: Assemble CI artifacts
         if: always()
@@ -88,8 +87,8 @@ jobs:
           if [ -f debug/ci_validate_extended.log ]; then
             awk '
               BEGIN {capture=0}
-              /ai:validate:risk/ {capture=1}
-              /ai:validate:horizon/ && capture==1 {capture=0}
+              /\[oq64\] step=benchmark start/ {capture=1}
+              /\[oq64\] step=horizon start/ && capture==1 {capture=0}
               capture==1 {print}
             ' debug/ci_validate_extended.log > debug/ci_artifacts/risk/risk_latest.log || true
           fi

@@ -10,6 +10,7 @@ const { runCleanup } = require("./clean_debug");
 const PROFILE_FAST = "fast";
 const PROFILE_QUALITY = "quality";
 const PROFILE_QUALITY_MIXED = "quality-mixed";
+const PROFILE_M4_BALANCED = "m4-balanced";
 const PROFILE_FULL = "full";
 const PROFILE_ENDGAME = "endgame";
 const PROFILE_BENCHMARK = "benchmark";
@@ -55,11 +56,23 @@ const LOW_LOAD_WORKERS_RESERVE_MIN = 3;
 const LOW_LOAD_CANONICAL_EVAL_EPISODES = 8;
 const LOW_LOAD_CANONICAL_EVAL_MAX_STEPS = 1600;
 const LOW_LOAD_PROMOTE_PROGRESS_EVERY = 2;
+const M4_BALANCED_WORKERS_AUTO_MIN = 4;
+const M4_BALANCED_WORKERS_AUTO_MAX = 5;
+const M4_BALANCED_WORKERS_RESERVE = 5;
+const M4_BALANCED_CANONICAL_EVAL_EPISODES = 12;
+const M4_BALANCED_CANONICAL_EVAL_MAX_STEPS = 1800;
+const M4_BALANCED_PROMOTE_PROGRESS_EVERY = 2;
+const M4_BALANCED_TRAIN_EXTRAS = [
+  "--eval-every", "40",
+  "--eval-episodes", "2",
+  "--eval-max-steps", "1400",
+];
 
 const VALID_PROFILES = new Set([
   PROFILE_FAST,
   PROFILE_QUALITY,
   PROFILE_QUALITY_MIXED,
+  PROFILE_M4_BALANCED,
   PROFILE_FULL,
   PROFILE_ENDGAME,
   PROFILE_BENCHMARK,
@@ -220,6 +233,28 @@ function applyLowLoadPreset(args) {
   if (!Number.isInteger(args.promoteEvalProgressEvery)) {
     args.promoteEvalProgressEvery = LOW_LOAD_PROMOTE_PROGRESS_EVERY;
   }
+}
+
+// Apply sustainable Apple M4 defaults while keeping final CLI overrides authoritative.
+function applyM4BalancedPreset(args) {
+  if (!args || typeof args !== "object") {
+    return;
+  }
+  args.m4Balanced = true;
+  args.lowWrite = true;
+  args.autoCleanDebug = true;
+  args.workersAutoMin = M4_BALANCED_WORKERS_AUTO_MIN;
+  args.workersAutoMax = M4_BALANCED_WORKERS_AUTO_MAX;
+  args.workersReserve = M4_BALANCED_WORKERS_RESERVE;
+  args.canonicalMode = CANONICAL_MODE_FINAL_ONLY;
+  args.canonicalEvalEpisodes = M4_BALANCED_CANONICAL_EVAL_EPISODES;
+  args.canonicalEvalMaxSteps = M4_BALANCED_CANONICAL_EVAL_MAX_STEPS;
+  args.canonicalRequirePositiveLcb = true;
+  args.phasePromoteRequirePositiveLcb = false;
+  args.skipPhasePromotes = true;
+  args.promoteEvalProgress = true;
+  args.promoteEvalProgressEvery = M4_BALANCED_PROMOTE_PROGRESS_EVERY;
+  args.trainExtraArgs.push(...M4_BALANCED_TRAIN_EXTRAS);
 }
 
 // Apply run-time canonical promotion overrides on top of config defaults.
@@ -583,7 +618,9 @@ function resolvePhaseWorkers(workerPlan, phase, workersProfileAware) {
 
 // Resolve the final worker count (manual override wins over CPU auto-tuning).
 function resolveWorkerPlan(trainExtraArgs, workerOptions = {}) {
-  const cpuCount = detectCpuCount();
+  const cpuCount = Number.isInteger(workerOptions.cpuCount) && workerOptions.cpuCount > 0
+    ? workerOptions.cpuCount
+    : detectCpuCount();
   const workersAutoMin = Math.max(
     1,
     Number.isInteger(workerOptions.workersAutoMin)
@@ -650,11 +687,16 @@ function parseArgs(argv) {
     phasePromoteRequirePositiveLcb: null,
     promoteEvalProgress: false,
     promoteEvalProgressEvery: null,
+    skipPhasePromotes: false,
     lowLoad: false,
+    m4Balanced: false,
   };
   const args = Array.isArray(argv) ? [...argv] : [];
   if (args.length > 0 && !String(args[0]).startsWith("-")) {
     result.profile = String(args.shift()).trim().toLowerCase();
+  }
+  if (result.profile === PROFILE_M4_BALANCED) {
+    applyM4BalancedPreset(result);
   }
   for (let index = 0; index < args.length; index += 1) {
     const arg = String(args[index] || "").trim();
@@ -671,6 +713,10 @@ function parseArgs(argv) {
     }
     if (arg === "--low-write") {
       result.lowWrite = true;
+      continue;
+    }
+    if (arg === "--no-low-write") {
+      result.lowWrite = false;
       continue;
     }
     if (arg === "--auto-clean-debug") {
@@ -805,6 +851,7 @@ function parseArgs(argv) {
     }
     if (arg === "--canonical-per-phase") {
       result.canonicalMode = CANONICAL_MODE_PER_PHASE;
+      result.skipPhasePromotes = false;
       continue;
     }
     if (arg === "--no-canonical-promote") {
@@ -861,6 +908,14 @@ function parseArgs(argv) {
       result.phasePromoteRequirePositiveLcb = false;
       continue;
     }
+    if (arg === "--skip-phase-promotes") {
+      result.skipPhasePromotes = true;
+      continue;
+    }
+    if (arg === "--phase-promotes") {
+      result.skipPhasePromotes = false;
+      continue;
+    }
     if (arg === "--promote-eval-progress") {
       result.promoteEvalProgress = true;
       continue;
@@ -906,12 +961,14 @@ function printHelp() {
     "  fast (default)",
     "  quality",
     "  quality-mixed",
+    "  m4-balanced",
     "  full",
     "  endgame",
     "  benchmark",
     "",
     "Wrapper options:",
     "  --low-write            Reduce latest-checkpoint writes to one end-of-phase save",
+    "  --no-low-write         Restore the phase checkpoint cadence",
     "  --auto-clean-debug     Run debug cleanup after the wrapper finishes",
     "  --no-auto-clean-debug  Skip post-run debug cleanup",
     "  --debug-keep-runs <n>  Keep latest run_* folders during auto-clean",
@@ -933,6 +990,8 @@ function printHelp() {
     "  --canonical-require-positive-lcb Enable paired-LCB guardrail for this run",
     "  --phase-promote-no-positive-lcb Disable paired-LCB guard on non-canonical phase promotes",
     "  --phase-promote-require-positive-lcb Enable paired-LCB guard on non-canonical phase promotes",
+    "  --skip-phase-promotes   Skip lightweight phase promote checks",
+    "  --phase-promotes        Re-enable lightweight phase promotes",
     "  --promote-eval-progress         Enable partial eval progress logs on promote",
     "  --promote-no-eval-progress      Disable partial eval progress logs on promote",
     "  --promote-eval-progress-every <n> Promote progress cadence in episodes",
@@ -947,6 +1006,7 @@ function printHelp() {
     "  - Wrapper enforces --no-save-best-during-training and uses a canonical promote profile from ai.training.promotion.canonical.",
     "  - --low-write keeps one latest checkpoint write per phase; promotion checks still run unchanged.",
     "  - Low-load preset defaults: canonical-final-only, 8x1600 canonical eval, no paired-LCB, progress every 2 episodes.",
+    "  - M4-balanced preset defaults: quality-mixed phases, 5->4 workers, sparse train eval, no phase promotes, final 12x1800 canonical eval with paired-LCB.",
     "  - Promotion reports are written per phase plus one run summary in the run directory.",
   ];
   process.stdout.write(`${lines.join("\n")}\n`);
@@ -1200,10 +1260,12 @@ function buildProfileConfig(baseConfig, maxTicks, endgameEnabled) {
 }
 
 // Create the run directory and all config files required by the selected profile.
-function prepareRunFiles(rootDir, profile, runOptions = {}) {
+function prepareRunFiles(rootDir, profile, runOptions = {}, dryRun = false) {
   const runId = `run_${Date.now()}_${process.pid}_${Math.floor(Math.random() * 1000000)}`;
   const runDir = path.join(rootDir, "debug", runId);
-  fs.mkdirSync(runDir, { recursive: true });
+  if (!dryRun) {
+    fs.mkdirSync(runDir, { recursive: true });
+  }
 
   const configPath = path.join(rootDir, "config.json");
   const baseConfig = JSON.parse(fs.readFileSync(configPath, "utf8"));
@@ -1212,31 +1274,42 @@ function prepareRunFiles(rootDir, profile, runOptions = {}) {
     resolveCanonicalPromotion(baseConfig),
     runOptions,
   );
+  const writeConfig = (filePath, payload) => {
+    if (!dryRun) {
+      fs.writeFileSync(filePath, `${JSON.stringify(payload, null, 2)}\n`);
+    }
+  };
 
   if (
     profile === PROFILE_FAST
     || profile === PROFILE_QUALITY
     || profile === PROFILE_QUALITY_MIXED
+    || profile === PROFILE_M4_BALANCED
     || profile === PROFILE_FULL
   ) {
     files.fast = path.join(runDir, "config_fast.json");
     const configFast = buildProfileConfig(baseConfig, 3200, false);
-    fs.writeFileSync(files.fast, `${JSON.stringify(configFast, null, 2)}\n`);
+    writeConfig(files.fast, configFast);
   }
-  if (profile === PROFILE_QUALITY || profile === PROFILE_QUALITY_MIXED || profile === PROFILE_FULL) {
+  if (
+    profile === PROFILE_QUALITY
+    || profile === PROFILE_QUALITY_MIXED
+    || profile === PROFILE_M4_BALANCED
+    || profile === PROFILE_FULL
+  ) {
     files.finetune = path.join(runDir, "config_finetune.json");
     const configFinetune = buildProfileConfig(baseConfig, 3600, false);
-    fs.writeFileSync(files.finetune, `${JSON.stringify(configFinetune, null, 2)}\n`);
+    writeConfig(files.finetune, configFinetune);
   }
   if (profile === PROFILE_ENDGAME || profile === PROFILE_FULL) {
     files.endgame = path.join(runDir, "config_endgame.json");
     const configEndgame = buildProfileConfig(baseConfig, ENDGAME_PROFILE_MAX_TICKS, true);
-    fs.writeFileSync(files.endgame, `${JSON.stringify(configEndgame, null, 2)}\n`);
+    writeConfig(files.endgame, configEndgame);
   }
   if (profile === PROFILE_BENCHMARK) {
     files.benchmark = path.join(runDir, "config_benchmark.json");
     const configBenchmark = buildProfileConfig(baseConfig, 2400, false);
-    fs.writeFileSync(files.benchmark, `${JSON.stringify(configBenchmark, null, 2)}\n`);
+    writeConfig(files.benchmark, configBenchmark);
   }
 
   if (canonicalPromote.enabled) {
@@ -1246,7 +1319,7 @@ function prepareRunFiles(rootDir, profile, runOptions = {}) {
       canonicalPromote.maxTicks,
       canonicalPromote.endgameEnabled,
     );
-    fs.writeFileSync(files.canonical, `${JSON.stringify(configCanonical, null, 2)}\n`);
+    writeConfig(files.canonical, configCanonical);
   }
 
   return { runDir, files, canonicalPromote };
@@ -1254,6 +1327,12 @@ function prepareRunFiles(rootDir, profile, runOptions = {}) {
 
 // Build the training/promote phase list for the selected profile.
 function buildPhases(profile, runDir, files) {
+  if (profile === PROFILE_M4_BALANCED) {
+    return buildPhases(PROFILE_QUALITY_MIXED, runDir, files).map((phase) => ({
+      ...phase,
+      name: String(phase.name || "quality-mixed").replace("quality-mixed", "m4-balanced"),
+    }));
+  }
   if (profile === PROFILE_FAST) {
     return [
       {
@@ -1800,7 +1879,12 @@ function runProfile(rootDir, profile, trainExtraArgs, dryRun, workerOptions = {}
     tagColor: ANSI_CYAN,
   });
 
-  const { runDir, files, canonicalPromote } = prepareRunFiles(rootDir, profile, workerOptions);
+  const { runDir, files, canonicalPromote } = prepareRunFiles(
+    rootDir,
+    profile,
+    workerOptions,
+    dryRun,
+  );
   printStatus("run-dir", runDir, ANSI_CYAN);
   const phases = buildPhases(profile, runDir, files);
   const canonicalPromoteArgs = buildCanonicalPromoteArgs(canonicalPromote, files);
@@ -1838,6 +1922,13 @@ function runProfile(rootDir, profile, trainExtraArgs, dryRun, workerOptions = {}
   }
   if (workerOptions.lowLoad === true) {
     printStatus("profile", "low-load preset enabled", ANSI_CYAN);
+  }
+  if (workerOptions.m4Balanced === true) {
+    printStatus(
+      "profile",
+      "M4-balanced preset enabled (quality-mixed, sustainable workers, final canonical)",
+      ANSI_CYAN,
+    );
   }
   if (workerOptions.lowWrite === true) {
     printStatus("profile", "low-write checkpoint cadence enabled", ANSI_CYAN);
@@ -1961,10 +2052,19 @@ function runProfile(rootDir, profile, trainExtraArgs, dryRun, workerOptions = {}
       ["python/train.py", ...trainArgs],
       { cwd: rootDir, env: trainEnv, dryRun, tag: "train", tagColor: ANSI_YELLOW },
     );
-    const promoteArgs = canonicalPerPhaseEnabled ? canonicalPromoteArgs : phase.promoteArgs;
-    executePromoteCheck(phaseName, promoteArgs, index + 1, {
-      isCanonical: canonicalPerPhaseEnabled === true,
-    });
+    const skipPhasePromote = workerOptions.skipPhasePromotes === true;
+    if (skipPhasePromote) {
+      printStatus(
+        "promote",
+        `Skipping phase promote (${phaseName}); canonical final check remains enabled`,
+        ANSI_CYAN,
+      );
+    } else {
+      const promoteArgs = canonicalPerPhaseEnabled ? canonicalPromoteArgs : phase.promoteArgs;
+      executePromoteCheck(phaseName, promoteArgs, index + 1, {
+        isCanonical: canonicalPerPhaseEnabled === true,
+      });
+    }
     printStatus("phase", `Completed ${phaseName}`, ANSI_GREEN);
   });
   if (canonicalFinalEnabled) {
@@ -2014,6 +2114,7 @@ function main() {
     canonicalEvalMaxSteps: args.canonicalEvalMaxSteps,
     canonicalRequirePositiveLcb: args.canonicalRequirePositiveLcb,
     phasePromoteRequirePositiveLcb: args.phasePromoteRequirePositiveLcb,
+    skipPhasePromotes: args.skipPhasePromotes,
     promoteEvalProgress: args.promoteEvalProgress,
     promoteEvalProgressEvery: args.promoteEvalProgressEvery,
     lowWrite: args.lowWrite,
@@ -2022,7 +2123,19 @@ function main() {
     debugKeepContinuousReports: args.debugKeepContinuousReports,
     debugKeepRegressionReports: args.debugKeepRegressionReports,
     lowLoad: args.lowLoad,
+    m4Balanced: args.m4Balanced,
   });
 }
 
-main();
+if (require.main === module) {
+  main();
+}
+
+module.exports = {
+  PROFILE_M4_BALANCED,
+  applyM4BalancedPreset,
+  buildPhases,
+  parseArgs,
+  resolvePhaseWorkers,
+  resolveWorkerPlan,
+};

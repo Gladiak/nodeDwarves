@@ -35,74 +35,69 @@ unlocked layers with structures/roads.
 ### Run training 🏋️
 
 ```bash
-npm run ai:train:quality
+npm run ai:train -- quality
 ```
 
-Fastest loop (same as `fast` profile):
+`ai:train` is the only one-shot training entrypoint. The first argument after
+`--` selects `fast` (default), `quality`, `quality-mixed`, `m4-balanced`,
+`full`, `endgame`, or `benchmark`:
 
 ```bash
 npm run ai:train
+npm run ai:train:m4
+npm run ai:train -- full
+npm run ai:train -- quality-mixed
 ```
 
-Recommended quality shortcuts:
+Use normal wrapper flags after the profile. For example:
 
 ```bash
-npm run ai:train:quality:daily
-npm run ai:train:quality:high
-npm run ai:train:quality:acceptance
+npm run ai:train -- quality --low-load
+npm run ai:train -- quality --fresh
+npm run ai:train -- full --workers 6
+npm run ai:train -- quality --transport legacy
+```
+
+`ai:train:m4` launches the `m4-balanced` profile directly. The profile targets
+the 10-core/16 GB Apple M4 laptop envelope and reuses the
+quality-mixed curriculum, caps the automatic plan at `5` foundation workers and
+`4` finetune workers, reserves five logical cores for the OS/learner, reduces
+checkpoint writes, evaluates training every 40 episodes, skips phase promotes,
+and runs one final `12x1800` canonical comparison with positive paired-LCB.
+Explicit flags after the profile override preset defaults; for example,
+`--workers-auto-max 6` raises the cap and `--phase-promotes` restores the
+intermediate promotion checks.
+
+For cumulative long-horizon learning, use the continuous orchestrator. Its
+schedule is configured with flags instead of extra package aliases:
+
+```bash
 npm run ai:train:continuous
-npm run ai:train:continuous:balanced
-```
-
-For laptop / SSD-conscious workflows, prefer `ai:train:quality:daily`, `ai:train:quality:lite`, or `ai:train:continuous`: these npm entrypoints now forward low-write checkpoint cadence and automatic debug cleanup.
-
-Pass extra trainer flags safely through any profile command (for example):
-
-```bash
-npm run ai:train:fast:fresh
-```
-
-Force legacy transport fallback for troubleshooting/comparison:
-
-```bash
-npm run ai:train:quality -- --transport legacy
-```
-
-Force a manual worker count for all phases:
-
-```bash
-npm run ai:train:full -- --workers 6
-```
-
-Disable profile-aware worker scaling (keep one flat worker count in all phases):
-
-```bash
-npm run ai:train:full -- --workers-flat
+npm run ai:train:continuous -- --cycles 36 --full-every 6 --high-every 12 --gate-every 6
 ```
 
 ### Run post-training validation gate ✅
 
 ```bash
-npm run ai:validate:gate
+npm run ai:validate
 ```
 
-Run canonical master check (fixed contract) and risk mini-gate:
+This single acceptance command bootstraps Python, runs the canonical policy
+check, deterministic headless benchmark, all regression profiles, policy-shape
+guardrail, and horizon profile. Run the rotating deep sentinel separately:
 
 ```bash
-npm run ai:validate:canonical
-npm run ai:validate:risk
+npm run ai:validate:weekly
 ```
 
-Run benchmark/regression/risk slices independently when needed:
+For isolated diagnostics, call the underlying CLI directly rather than adding
+package aliases:
 
 ```bash
-npm run ai:validate:benchmark
-npm run ai:validate:regression
-npm run ai:validate:regression:standard
-npm run ai:validate:regression:underrealm
-npm run ai:validate:risk:r001
-npm run ai:validate:risk:r002
-npm run ai:validate:extended:optimized
+node scripts/headless_benchmark.js --ticks 8000 --seeds 101,202,303,404 --progress --progress-every 2000
+node scripts/regression.js --all
+node scripts/regression.js --profile underrealm
+node scripts/test_training_contracts.js --policy-only
 npm test
 ```
 
@@ -112,27 +107,14 @@ Clean debug artifacts after a completed cycle:
 npm run debug:clean                # keep latest 3 run_* folders
 npm run debug:clean -- --keep-runs 2
 npm run debug:clean -- --keep-continuous-reports 2 --keep-regression-reports 2
-npm run debug:clean:dry            # preview only
+npm run debug:clean -- --dry-run   # preview only
 ```
 
-Recommended operational tuning cycles (A/B/C):
+Recommended operational tuning cycle:
 
 ```bash
-# Cycle A: one isolated change (reward OR curriculum OR trainer knob)
-npm run ai:train:quality:daily
-npm run ai:validate:canonical
-npm run ai:validate:gate
-
-# Cycle B: one additional isolated change
-npm run ai:train:quality:daily
-npm run ai:validate:canonical
-npm run ai:validate:gate
-
-# Cycle C: candidate closeout
-npm run ai:train:quality:high
-npm run ai:validate:canonical
-npm run ai:validate:gate
-npm run ai:validate:risk
+npm run ai:train -- quality --low-write --auto-clean-debug --canonical-final-only
+npm run ai:validate
 ```
 
 ### Run trained policy 🧠
@@ -151,13 +133,13 @@ built structures and roads (dwarves are excluded). While export is running, the
 save panel shows an in-progress summary with layers and output formats.
 
 ```bash
-npm run map:export -- --width=120 --height=40 --season=spring
+node scripts/export_map.js --width=120 --height=40 --season=spring
 ```
 
 All seasons with the same seed:
 
 ```bash
-npm run map:export:seasons -- --width=120 --height=40 --seed=12345
+node scripts/export_map.js --season=all --width=120 --height=40 --seed=12345
 ```
 
 Notes:
@@ -214,20 +196,6 @@ Write machine reports for CI/artifacts:
 node scripts/headless_benchmark.js --ticks 8000 --variant baseline --variant candidate --gate --report-json debug/balance_report.json --report-md debug/balance_report.md
 ```
 
-Preset gate profiles via npm scripts:
-
-```bash
-npm run balance:gate:strict
-npm run balance:gate:standard
-npm run balance:gate:relaxed
-```
-
-Inject candidate overrides into the active preset:
-
-```bash
-npm run balance:gate:standard -- --set jobs.gatherTriggerRatio.food=1.1 --set jobs.gatherTriggerRatio.water=1.1
-```
-
 How it works (under the hood):
 
 - Runs each variant on the same deterministic seed set and tick horizon.
@@ -242,76 +210,23 @@ How it works (under the hood):
   - optional gate verdicts (`PASS/FAIL`) when `--gate` is enabled.
 - Exits with code `1` if any gate check fails (useful for CI).
 
-Preset utility in practice:
-
-- `strict`: pre-merge hard guardrail; blocks risky economy drawdowns and hidden instability.
-- `standard`: day-to-day tuning default; catches meaningful regressions without over-blocking.
-- `relaxed`: exploratory balancing and ideation; allows wider variance while still surfacing metrics.
-
-Preset thresholds:
-
-| Preset     | minScore | maxPopDrop | maxMoraleDrop | maxHungerRise | maxThirstRise | maxResourceDrop |
-| ---------- | -------: | ---------: | ------------: | ------------: | ------------: | --------------: |
-| `strict`   |      `0` |     `0.03` |        `0.01` |        `0.05` |        `0.05` |          `0.08` |
-| `standard` |     `-2` |     `0.08` |        `0.03` |        `0.08` |        `0.10` |          `0.12` |
-| `relaxed`  |     `-4` |     `0.12` |        `0.05` |        `0.12` |        `0.18` |          `0.20` |
-
-Important variant-routing rule:
-
-- In preset scripts, `baseline` is fixed as the first variant and `candidate` as the second.
-- Extra `--set ...` flags passed with `npm run ... -- ...` are applied to `candidate`.
-- Avoid adding extra `--variant` flags on top of presets unless you explicitly want a different comparison structure.
-
-Practical playbook:
-
-1. Start with `standard` for fast feedback while tuning one or two knobs.
-2. If `standard` passes and change is significant, re-run with `strict`.
-3. If `strict` fails, inspect seed deltas in the generated report to identify unstable seeds/resources.
-4. Use `relaxed` only while exploring broad design space, then return to `standard`/`strict`.
-
-Concrete examples:
-
-- Small economy tweak (local smoke):
-
-```bash
-npm run balance:gate:standard -- --ticks 2000 --seeds 101,202 --set jobs.gatherTriggerRatio.food=1.1
-```
-
-- Candidate with two changes + artifact reports for review:
-
-```bash
-npm run balance:gate:standard -- --set jobs.gatherTriggerRatio.food=1.1 --set jobs.gatherTriggerRatio.water=1.1 --report-json debug/my_candidate.json --report-md debug/my_candidate.md
-```
-
-- CI hard gate (fail pipeline on regressions):
-
-```bash
-npm run balance:gate:strict
-```
-
-Report outputs:
-
-- Presets write reports in `debug/` by default (`balance_strict.*`, `balance_standard.*`, `balance_relaxed.*`).
-- You can override paths via `--report-json` / `--report-md`.
+Gate tolerances remain available as explicit CLI flags (`--gate-min-score`,
+`--gate-max-pop-drop`, `--gate-max-morale-drop`, and the need/resource limits).
+Keeping thresholds visible in the command avoids hidden package-level presets.
 
 Cached baseline workflow (faster iteration):
 
 ```bash
-npm run bench:baseline
+npm run bench:ensure-baseline
 npm run bench:candidate -- --set path=value
 npm run bench:diff
 ```
 
-- `bench:baseline` writes `benchmark_cache/headless_benchmark_baseline.json|.md` (versioned cache in project root).
+- `bench:ensure-baseline` refreshes `benchmark_cache/headless_benchmark_baseline.json|.md` when profile metadata changes.
 - `bench:candidate` writes `debug/headless_benchmark_candidate.json|.md`.
 - `bench:diff` first runs baseline cache guard (`scripts/ensure_benchmark_baseline.js`) and refreshes the cached baseline automatically when profile metadata mismatches (config hash/ticks/seeds/resources/layout), then compares cached baseline vs candidate and writes `debug/headless_benchmark_diff.json|.md`.
-- `bench:ensure-baseline` is available for explicit baseline cache refresh checks before long tuning sessions.
-- `bench:underrealm:hot` writes `debug/underrealm_stress_hot.json|.md` using fixed hot seeds (`303,404 @ 12000`).
-- `bench:underrealm:full` writes `debug/underrealm_stress_full.json|.md` using fixed full set (`101,202,303,404 @ 8000`).
-- Underrealm stress scripts use symmetric scenario overrides on both variants (`schism=false`, `festivals=true`, doctrine path disabled) and pin legacy underrealm guard/cooldown knobs only on `baseline` so `candidate` reflects active tuned defaults.
-- `bench:run`, `bench:baseline`, and `bench:candidate` stream benchmark progress lines by default (`[progress] variant=... seed=... tick=...`).
-- You can pass horizon/seeds/resources overrides to baseline/candidate scripts:
-  - `npm run bench:baseline -- --ticks 20000 --seeds 101,202 --variant baseline`
+- `bench:candidate` streams benchmark progress lines by default (`[progress] variant=... seed=... tick=...`).
+- You can pass horizon/seeds/resources overrides to the candidate script:
   - `npm run bench:candidate -- --ticks 20000 --seeds 101,202 --set underrealm.combat.dwarf_champion.requires_party_presence=false`
 
 General benchmark notes:
@@ -1765,40 +1680,30 @@ If you work on the policy or training loop:
 - Training loop and scenario sampling live in `python/train.py`.
 - The JS ↔ Python bridge is `ai_server.js`.
 
-Important rule: if you change **resource/action lists** or **observation features**, you must retrain from scratch with `--fresh` (for example `npm run ai:train -- --fresh`).
+Important rule: if you change **resource/action lists** or **observation features**, you must retrain from scratch with `--fresh` (for example `npm run ai:train -- quality --fresh`).
 
 Training presets:
 
-- `ai:train` (alias of `ai:train:fast`) runs a fast baseline loop tuned for sub-5-minute runs (auto-tuned workers by CPU, 200 episodes, max_steps=1600, step_ticks=2). The difficulty ramp reaches 1.0 by episode 120 and eval runs every 20 episodes at difficulty 1.0, followed by a post-run promotion check comparing the latest policy to the best snapshot.
-- `ai:train:fast:fresh` (or `ai:train -- --fresh`) runs the same fast preset but clears existing policy and best-eval snapshots first.
-- `ai:train:quality` runs the fast phase plus a short full-sim finetune at max difficulty (40 episodes, max_steps=1800). Eval cadence is 20 episodes in the fast phase and 10 episodes in finetune, with phase promote checks now using `10` (foundation) and `12` (finetune) eval episodes for better promotion stability (`min_improve=0.007` foundation, `0.009` finetune).
-- `ai:train:quality:mixed` runs a mixed curriculum profile with ~`76/24` episode split between a lighter foundation phase (`160` episodes, non-full-sim) and a full-sim finetune phase (`50` episodes, max difficulty); phase promote checks use `10` (foundation) and `12` (finetune) eval episodes.
-- `ai:train:quality:lite` runs the quality profile with a low-load wrapper preset (worker cap, lighter canonical benchmark defaults, canonical check at run end, low-write checkpoint cadence, post-run debug cleanup, and partial promote progress logs) for laptops/interactive sessions.
-- `ai:train:quality:daily` runs the recommended daily loop shortcut: quality profile with final-only canonical promote and lighter canonical eval (`12x1600`), disables paired-LCB on both canonical and non-canonical phase promotes, enables promote progress every episode for easier diagnosis, and now forwards low-write checkpoint cadence plus post-run debug cleanup.
-- `ai:train:quality:high` runs a high-quality shortcut on top of the full 4-phase curriculum, keeps canonical promote final-only, enables paired-LCB on canonical and non-canonical phase promotes, uses heavier canonical eval (`32` episodes, `2400` max steps), and now forwards low-write checkpoint cadence plus post-run debug cleanup.
-- `ai:train:quality:acceptance` runs the strict acceptance shortcut: quality profile with final-only canonical promote (default strict canonical settings), then full benchmark+regression gate via `ai:validate:gate`.
-- `ai:train:continuous` runs a cycle orchestrator over existing presets for long-horizon cumulative learning with the historical default schedule (defaults from `scripts/train_continuous.js`: `cycles=24`, `fullEvery=4`, `highEvery=8`, `gateEvery=8`). In general, each cycle picks `daily` by default, upgrades to `full` every `--full-every N` cycles (with `--canonical-final-only --phase-promote-no-positive-lcb`), upgrades to `high` every `--high-every N` cycles (high takes precedence when both match), can run `ai:validate:gate` every `--gate-every N` cycles, and now forwards low-write + auto-clean debug flags to underlying wrapper runs.
-- `ai:train:continuous:balanced` is an explicit anti-stagnation alias that runs `--cycles 36 --full-every 6 --high-every 12 --gate-every 6 --max-no-improve 14 --max-gate-fail 3` with the same low-write + auto-clean defaults.
+- `ai:train` runs the `fast` profile by default. Pass an explicit profile after `--`: `quality`, `quality-mixed`, `m4-balanced`, `full`, `endgame`, or `benchmark`.
+- `fast` is the sub-5-minute baseline loop (200 episodes, `max_steps=1600`, `step_ticks=2`) followed by promotion comparison.
+- `quality` adds a short full-sim finetune; `quality-mixed` uses the lighter ~`76/24` foundation/full-sim split.
+- `m4-balanced` applies the quality-mixed phases with M4-aware automatic workers (`5` foundation, `4` finetune on a 10-core M4), low-write/auto-clean, sparse `2x1400` training evaluations every `40` episodes, skipped phase promotes, and one final canonical `12x1800` comparison with positive paired-LCB. This keeps checkpoint promotion conservative while removing the most expensive repeated evaluation work.
+- `full` runs the four-phase quality curriculum: foundation, full-sim finetune, endgame specialization, and consolidation.
+- `endgame` runs the compact long-horizon specialization pass; `benchmark` exposes the wrapper benchmark profile.
+- Wrapper modes are flags, not package aliases: use `--low-load`, `--fresh`, `--low-write` / `--no-low-write`, `--auto-clean-debug`, worker controls, canonical promotion controls, and `--skip-phase-promotes` / `--phase-promotes` after the profile.
+- `ai:train:continuous` runs the long-horizon `daily/full/high` schedule (defaults: `cycles=24`, `fullEvery=4`, `highEvery=8`, `gateEvery=8`) through the unified `ai:train` entrypoint. The periodic gate directly runs the deterministic benchmark and all regression profiles.
 - Continuous stop rules are CLI-driven: `--max-no-improve` halts after N consecutive cycles without canonical promotion (strict promotion-aligned semantics), and `--max-gate-fail` halts after N consecutive validation-gate failures.
 - `--improve-threshold` remains diagnostic in continuous mode: it tags `delta_positive_not_promoted` cycles in reports, but does not reset no-improve streaks.
 - Continuous reports are emitted to `debug/continuous_train_<timestamp>.json/.md` with per-cycle command selection, canonical delta/promote outcome, improvement reason (`promoted` / `not_promoted` / `delta_positive_not_promoted` / missing-summary guards), promotion-alignment flag, gate status, final stop reason, and the active low-write / auto-clean flags.
 - `scripts/train_wrapper.js` now exposes `--low-write`, `--auto-clean-debug`, `--debug-keep-runs`, `--debug-keep-continuous-reports`, and `--debug-keep-regression-reports` for SSD-conscious npm workflows.
 - `scripts/train_continuous.js` accepts the same low-write / cleanup flags and forwards them to the underlying wrapper runs.
-- `ai:train:full` runs the quality-first full curriculum in four phases: foundation (280 episodes), full-sim finetune (90), endgame specialization (24), and final consolidation (40). It is optimized for model quality over runtime and keeps promote checks after every phase.
-- `ai:train:full:fresh` runs the same full curriculum but starts from a clean checkpoint set (`--fresh` is applied to phase 1 only, then latest-resume carries forward across later phases).
-- `ai:train:endgame` runs an endgame-enabled long-horizon pass (8 episodes, max_steps=10000, step_ticks=2, target horizon 20k ticks per episode) with eval every 4 episodes. It is tuned to specialize on late-game pressure while keeping the profile compact.
-- `ai:promote:best` runs just the promotion check manually.
-- `ai:validate:canonical` runs the canonical master eval-only check on `policy_best` with a fixed contract (`evalEpisodes=20`, `evalMaxSteps=2200`, `evalScore=rpt`, `transport=compact`) and writes reports to `debug/canonical_master_latest.json/.md`.
-- `ai:validate:risk` runs the risk mini-gate:
-  - `ai:validate:risk:r001`: deterministic benchmark (`8000` ticks, seeds `101,202,303,404`) for collapse/regression pressure.
-  - `ai:validate:risk:r002`: policy observation-normalization shape check (`resources * featureNames` vs `normalization.observation.mean/var`) with fail-fast exit on mismatch.
-- `ai:validate:horizon` runs the multi-horizon deep/governance profile (`baseline`, `underrealm_push`, `governance_pressure`, `compound_crisis`) and writes `debug/regression_horizon_latest.json/.md`; current horizon deaths guardrail is `avg_deaths <= baseline * 1.16`.
-- `ai:validate:horizon:weekly` runs the same horizon profile with deterministic weekly seed-pack rotation (`--seed-pack weekly`) and writes `debug/regression_horizon_weekly_latest.json/.md`.
-- `ai:validate:extended:optimized` runs a full-quality acceptance flow with equivalent checks to `ai:validate:extended` while removing duplicated benchmark execution (`risk:r001` overlap), and emits runtime reports in `debug/extended_gate_runtime_optimized_latest.{json,md}`.
+- `ai:validate` is the single acceptance gate: bootstrap, canonical `20x2200` evaluation, deterministic `8000`-tick/four-seed benchmark, all regression profiles, observation-normalization shape check, and horizon guardrail. It writes per-system reports plus `debug/extended_gate_runtime_optimized_latest.{json,md}`.
+- `ai:validate:weekly` runs the horizon profile with deterministic weekly seed-pack rotation and writes `debug/regression_horizon_weekly_latest.json/.md`.
+- Individual validation slices remain available through their direct Node/Python CLIs for diagnostics and baseline recording.
 - Presets generate run-specific configs in `debug/run_<timestamp>/`: per-phase training configs plus a dedicated canonical promotion config (`config_canonical_promote.json`) driven by `ai.training.promotion.canonical`.
 - All presets save the best model to `models/policy_best.json` (with meta in `models/policy_best.meta.json`); resume source depends on profile policy and CLI override (`--resume-from-best` / `--resume-from-latest`).
 - Trainer CLI resume source can be forced per run: `--resume-from-best` or `--resume-from-latest` (the latter is useful to keep incremental momentum when best-gate promotion is temporarily blocked).
-- Wrapper resume policy now favors cumulative learning on multi-phase profiles: `ai:train:fast` stays anchored to best-resume, while `ai:train:quality` and `ai:train:full` use latest-resume for every phase so non-promoted progress can still carry forward within and across runs.
+- Wrapper resume policy favors cumulative learning on multi-phase profiles: `fast` stays anchored to best-resume, while `quality` and `full` use latest-resume so non-promoted progress can carry forward.
 - Trainer resume continuity now includes optimizer state snapshots: latest (`modelStatePath`) and best (`bestModelStatePath`) are saved/restored alongside policy weights to avoid restart-from-scratch optimizer behavior across runs.
 - Promotion continuity now mirrors optimizer state too: when `promote_best.py` promotes `policy.json` to `policy_best.json`, it also copies `modelStatePath` to `bestModelStatePath` when available.
 - Wrapper enforces promote-only best updates (`--no-save-best-during-training`), so `train.py` keeps eval diagnostics while `promote_best.py` remains the single checkpoint promotion gate.
@@ -1823,7 +1728,7 @@ Training presets:
 - Promote robustness guardrail: wrapper can run `promote_best.py` with one canonical benchmark (same eval episodes/steps/score/difficulty/seed), and promotion can require a positive paired lower-confidence bound (`requirePositiveLcb` + `lcbZ`) in addition to `minImprove`.
 - When paired-LCB is active, `promote_best.py` now prints per-episode paired score deltas (`latest`, `best`, `delta`) so retain/promote outcomes are easier to interpret.
 - Canonical mode defaults to per-phase checks, but wrapper CLI can switch to final-only (`--canonical-final-only`) or disable canonical checks for the run (`--no-canonical-promote`).
-- Canonical promotion knobs are config-driven under `ai.training.promotion.canonical` and are used both by wrapper phase promotion and standalone `ai:promote:best` defaults.
+- Canonical promotion knobs are config-driven under `ai.training.promotion.canonical` and are used by wrapper phase promotion and the validation orchestrator.
 - Wrapper canonical knobs can be overridden per run without editing `config.json` (`--canonical-eval-episodes`, `--canonical-eval-max-steps`, `--canonical-no-positive-lcb`), and promote progress logs can be forced with `--promote-eval-progress`.
 - Wrapper can override paired-LCB behavior for non-canonical phase promotes too (`--phase-promote-no-positive-lcb` / `--phase-promote-require-positive-lcb`) without changing canonical settings.
 - Canonical master contract for long-horizon comparability (2026-02-19 baseline):
@@ -1919,19 +1824,14 @@ Training presets:
 - Regression now writes `.txt`, `.json`, and `.md` reports for each run (defaults next to the txt report; override with `--report-json` / `--report-md`).
 - Randomized regression summary parsing captures `under_*` metrics from trainer `under=` diagnostics and `death_*` metrics from `deaths_by_cause=` diagnostics when present.
 - Headless benchmark summaries/comparisons now include Underrealm KPIs (`underDepth`, `underChamp`, `underFail`, `underBlocked`, `underContested`, `underReady`) for seed-by-seed balancing review.
-- Validation npm commands are rationalized for post-training gates:
-  - `ai:validate:canonical` runs the fixed canonical master eval-only contract (`20x2200`, `rpt`, `compact`) on `policy_best`.
-  - `ai:validate:benchmark` runs the 8k/4-seed deterministic benchmark snapshot.
-  - `ai:validate:regression` runs all stored regression profiles (`--all`).
-  - `ai:validate:gate` runs benchmark then regression sequentially (`&&`) and fails fast on the first non-zero exit.
-  - `ai:validate:risk` runs `r001` (deterministic collapse pressure benchmark) + `r002` (normalization shape guardrail).
-  - `ai:validate:extended:optimized` runs canonical + benchmark + regression + `risk:r002` + horizon with per-phase runtime timing reports.
-  - `ai:validate:horizon:weekly` runs the horizon profile using deterministic weekly seed-pack rotation.
+- Validation npm commands are intentionally narrow:
+  - `ai:validate` runs the complete acceptance gate with per-phase runtime reports.
+  - `ai:validate:weekly` runs the horizon profile using deterministic weekly seed-pack rotation.
   - `debug:clean` removes transient debug artifacts, keeps only the latest run-history folders (default `3`, configurable), and can also prune older timestamped `continuous_train_*` / `regression_report_*` bundles.
 - Recommended cadence split (OQ-6.4):
-  - per-change feedback: `ai:validate:canonical` + `ai:validate:gate` + `ai:validate:risk:r002`
-  - acceptance/nightly full check: `ai:validate:extended:optimized`
-  - weekly deep sentinel: `ai:validate:horizon:weekly`
+  - per-change diagnostics: direct benchmark/regression/policy-shape CLIs
+  - acceptance/nightly full check: `ai:validate`
+  - weekly deep sentinel: `ai:validate:weekly`
 
 ### Rendering 🖼️
 
@@ -2022,7 +1922,7 @@ Training reads resources from:
 
 So adding a new resource **changes observation/action sizes**. This means:
 
-- retrain with `npm run ai:train -- --fresh`
+- retrain with `npm run ai:train -- quality --fresh`
 - update any saved policy files in `models/`
 - keep `ai.training.trainer.featureNames` stable unless you intentionally add new features
 
@@ -2048,7 +1948,7 @@ Quick checklist:
 
 - `app.js` → main terminal simulation
 - `config.json` → single source of truth for gameplay and training tunables
-- `.github/workflows/quality_gates.yml` → CI pipeline for `ai:validate:extended` + `ai:validate:horizon:weekly` with uploaded quality artifacts
+- `.github/workflows/quality_gates.yml` → CI pipeline for `ai:validate` + `ai:validate:weekly` with uploaded quality artifacts
 - `ai_server.js` → JSON bridge for Python training
 - `src/config.js` → runtime config loader
 - `src/`
@@ -2076,7 +1976,7 @@ Quick checklist:
     - `telemetry/telemetry_panel.js` → paged in-game telemetry Data Center with section pages and full-height telemetry body
   - `ai/` → observation + policy
   - `runtime.js`, `terminal.js`, `utils.js` → support
-- `scripts/train_wrapper.js` → unified safe wrapper for `ai:train:*` profiles
+- `scripts/train_wrapper.js` → unified safe wrapper behind the parameterized `ai:train` command
 - `scripts/train_continuous.js` → cycle orchestrator for long-running `daily/full/high` training cadence, periodic validation gates, and stop-rule automation
 - `scripts/regression.js` → AI regression harness and profile recording with txt/json/markdown reports
 - `scripts/validate_extended_optimized.js` → optimized full-quality validation orchestrator with per-phase runtime reports

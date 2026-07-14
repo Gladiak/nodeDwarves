@@ -74,12 +74,15 @@ Scenario curriculum defaults:
 
 Wrapper low-load tuning (no config edit needed):
 
-- `npm run ai:train:quality:lite`: quality preset with wrapper low-load mode.
-- `npm run ai:train:quality:mixed`: mixed curriculum preset (`quality-mixed`) with ~`76/24` episode split between light foundation (`160` episodes, non-full-sim) and full-sim finetune (`50` episodes).
-- `npm run ai:train:quality:daily`: daily shortcut with canonical final-only promote, canonical eval `12x1600`, and paired-LCB disabled for canonical/non-canonical phase promotes.
-- `npm run ai:train:continuous`: cycle orchestrator for cumulative learning using existing presets with historical defaults from `scripts/train_continuous.js` (`daily` by default, periodic `full`, periodic `high`, optional `ai:validate:gate` cadence).
-- `npm run ai:train:continuous:balanced`: explicit anti-stagnation balanced alias:
-  - `--cycles 36 --full-every 6 --high-every 12 --gate-every 6 --max-no-improve 14 --max-gate-fail 3`
+- `npm run ai:train:m4`: direct command for the recommended Apple M4 speed/quality preset (`m4-balanced`). It uses quality-mixed phases, a `5→4` phase-aware worker plan on a 10-core M4, `--low-write`, automatic debug cleanup, training eval every `40` episodes (`2x1400`), no intermediate phase promotion, and one final canonical `12x1800` comparison with positive paired-LCB.
+  - Override preset defaults by appending normal wrapper/trainer flags.
+  - `--workers-auto-max 6` trades more heat/load for throughput.
+  - `--phase-promotes` restores intermediate promote checks.
+  - `--no-low-write` and `--no-auto-clean-debug` restore normal checkpoint/debug retention behavior.
+- `npm run ai:train -- quality --low-load`: quality profile with wrapper low-load mode.
+- `npm run ai:train -- quality-mixed`: mixed curriculum profile with ~`76/24` foundation/full-sim split.
+- `npm run ai:train:continuous`: cumulative `daily/full/high` schedule with periodic benchmark + regression gates.
+- Configure continuous cadence explicitly, for example `npm run ai:train:continuous -- --cycles 36 --full-every 6 --high-every 12 --gate-every 6 --max-no-improve 14 --max-gate-fail 3`:
   - Key options:
     - `--cycles <n>`
     - `--full-every <n>` / `--high-every <n>` (high takes precedence when both match)
@@ -112,7 +115,7 @@ Wrapper low-load tuning (no config edit needed):
   - keep wrapper progress always on: `--promote-eval-progress --promote-eval-progress-every 1`
   - increase trainer console cadence through forwarded args: `--log-every 10 --eval-every 5`
   - example:
-    - `npm run ai:train:quality:lite -- --promote-eval-progress --promote-eval-progress-every 1 --log-every 10 --eval-every 5`
+    - `npm run ai:train -- quality --low-load --promote-eval-progress --promote-eval-progress-every 1 --log-every 10 --eval-every 5`
 
 Operational cycle runbook (2026-02-19 baseline contract):
 
@@ -122,21 +125,10 @@ Operational cycle runbook (2026-02-19 baseline contract):
   - `stepTicks=2`
   - `evalScore=rpt`
   - `transport=compact`
-- Command aliases:
-  - `npm run ai:validate:canonical`
-    - runs eval-only canonical check on `models/policy_best.json`
-    - writes `debug/canonical_master_latest.json` + `.md`
-  - `npm run ai:validate:risk`
-    - `r001`: deterministic collapse pressure check (`ai:validate:benchmark`)
-    - `r002`: observation-normalization shape guardrail on `models/policy_best.json`
-  - `npm run ai:validate:horizon`
-    - horizon profile with deterministic seed-pack default mode (`ai.training.deepChecks.seedPackRotation.defaultMode`) when CLI does not override seeds.
-  - `npm run ai:validate:horizon:weekly`
-    - horizon profile with deterministic weekly seed-pack rotation (`--seed-pack weekly`, default packs now `4` seeds each).
-    - optional override: append `-- --seed-week YYYY-MM-DD` (or `YYYY-Www`) to replay a specific week.
-  - `npm run ai:validate:extended:optimized`
-    - full acceptance-quality flow with equivalent checks to `ai:validate:extended` but without duplicate benchmark execution.
-    - writes runtime profiling reports: `debug/extended_gate_runtime_optimized_latest.json` + `.md`.
+- Operational commands:
+  - `npm run ai:validate` runs the full acceptance flow without duplicate benchmark execution and writes `debug/extended_gate_runtime_optimized_latest.json` + `.md`.
+  - `npm run ai:validate:weekly` runs the horizon profile with deterministic weekly seed-pack rotation (default packs: `4` seeds each). Append `-- --seed-week YYYY-MM-DD` or `YYYY-Www` to replay a week.
+  - `node scripts/test_training_contracts.js --policy-only` runs only the observation-normalization shape guardrail.
   - Deterministic regression profile slices:
     - `standard`: `baseline`, `full_sim`
     - `underrealm`: `baseline`, `underrealm_push`, `compound_crisis`
@@ -144,31 +136,21 @@ Operational cycle runbook (2026-02-19 baseline contract):
     - `social`: `baseline`, `social_tension_pressure`, `governance_pressure`
 - Controlled A/B/C cycle template (single-change discipline):
   - Cycle A:
-    - `npm run ai:train:quality:daily`
-    - `npm run ai:validate:canonical`
-    - `npm run ai:validate:gate`
+    - `npm run ai:train -- quality --low-write --auto-clean-debug --canonical-final-only`
+    - run the relevant direct benchmark/regression diagnostic
   - Cycle B:
-    - apply exactly one additional change
-    - rerun the same 3 commands
+    - apply exactly one additional change and rerun the same focused diagnostic
   - Cycle C:
-    - `npm run ai:train:quality:high`
-    - `npm run ai:validate:canonical`
-    - `npm run ai:validate:gate`
-    - `npm run ai:validate:risk`
+    - `npm run ai:train -- full --canonical-final-only --canonical-require-positive-lcb`
+    - `npm run ai:validate`
 - Acceptance criteria for a candidate tweak:
   - positive canonical score delta under the fixed master contract
-  - benchmark + regression gate pass (`ai:validate:gate`)
-  - risk mini-gate pass (`ai:validate:risk`)
+  - full `ai:validate` acceptance gate pass
   - if any criterion fails, revert the last tweak and start a new single-change cycle
 - Recommended cadence split (OQ-6.4):
-  - per-change loop (fast signal):
-    - `npm run ai:validate:canonical`
-    - `npm run ai:validate:gate`
-    - `npm run ai:validate:risk:r002`
-  - acceptance/nightly full run (no quality-signal loss, runtime-optimized):
-    - `npm run ai:validate:extended:optimized`
-  - weekly deep sentinel:
-    - `npm run ai:validate:horizon:weekly`
+  - per-change loop: direct focused benchmark/regression/policy-shape diagnostics
+  - acceptance/nightly full run: `npm run ai:validate`
+  - weekly deep sentinel: `npm run ai:validate:weekly`
 
 Display:
 

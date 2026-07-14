@@ -1,5 +1,17 @@
 # Training Optimization Workbook
 
+> Historical note: command aliases recorded in completed timeline entries reflect
+> the package surface available when each experiment ran. Current operations use
+> the rationalized commands documented in `README.md`, `MANUAL.md`, and
+> `docs/TRAINING_OVERRIDES.md`.
+
+Operational addendum (2026-07-14): the unified wrapper now exposes the
+`m4-balanced` profile for the 10-core/16 GB Apple M4 development machine. The
+accepted compromise uses quality-mixed phases, `5→4` workers, sparse training
+evaluation, low-write cleanup, skipped phase promotes, and one final guarded
+canonical `12x1800` comparison. Contract coverage lives in
+`scripts/test_training_contracts.js`.
+
 Last updated: 2026-02-27
 Project: NodeDwarves AI training pipeline
 Scope: End-to-end implementation tracking for the 3 approved optimization solutions

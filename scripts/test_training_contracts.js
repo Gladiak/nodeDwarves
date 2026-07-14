@@ -19,6 +19,13 @@ const { updateWarriors, applyWarriorExpeditionOutcome } = require('../src/simula
 const { handleReproduction } = require('../src/simulation/population');
 const { buildTelemetrySections } = require('../src/telemetry/telemetry');
 const { getTelemetryPanelPageCount } = require('../src/telemetry/telemetry_panel');
+const {
+  PROFILE_M4_BALANCED,
+  buildPhases: buildTrainingPhases,
+  parseArgs: parseTrainingWrapperArgs,
+  resolvePhaseWorkers,
+  resolveWorkerPlan,
+} = require('./train_wrapper');
 
 const ROOT = path.resolve(__dirname, '..');
 const PYTHON = path.join(ROOT, '.venv', 'bin', 'python');
@@ -79,6 +86,103 @@ function validateObservationContract(policy) {
   assert(
     mean.length === expected && variance.length === expected,
     `Policy contract: normalization shape mismatch (expected=${expected}, mean=${mean.length}, var=${variance.length}).`,
+  );
+}
+
+// Validate the saved policy shape, including one deliberate malformed fixture.
+function validateSavedPolicyContract() {
+  assert(fs.existsSync(POLICY_BEST), `Policy contract: missing ${POLICY_BEST}`);
+  const policy = readJson(POLICY_BEST);
+  validateObservationContract(policy);
+
+  const malformed = JSON.parse(JSON.stringify(policy));
+  if (
+    malformed
+    && malformed.normalization
+    && malformed.normalization.observation
+    && Array.isArray(malformed.normalization.observation.mean)
+    && malformed.normalization.observation.mean.length > 0
+  ) {
+    malformed.normalization.observation.mean = malformed.normalization.observation.mean.slice(0, -1);
+  } else {
+    throw new Error('Policy contract: cannot build malformed observation test case.');
+  }
+  let malformedFailed = false;
+  try {
+    validateObservationContract(malformed);
+  } catch (error) {
+    malformedFailed = true;
+  }
+  assert(malformedFailed, 'Policy contract: malformed observation shape did not fail as expected.');
+}
+
+// Validate the M4-balanced wrapper preset and last-argument override semantics.
+function validateM4BalancedWrapperContract() {
+  const preset = parseTrainingWrapperArgs([PROFILE_M4_BALANCED]);
+  assert(preset.profile === PROFILE_M4_BALANCED, 'M4 wrapper contract: profile mismatch.');
+  assert(preset.workersAutoMin === 4, 'M4 wrapper contract: workersAutoMin mismatch.');
+  assert(preset.workersAutoMax === 5, 'M4 wrapper contract: workersAutoMax mismatch.');
+  assert(preset.workersReserve === 5, 'M4 wrapper contract: workersReserve mismatch.');
+  assert(preset.lowWrite === true, 'M4 wrapper contract: low-write should be enabled.');
+  assert(preset.autoCleanDebug === true, 'M4 wrapper contract: auto-clean should be enabled.');
+  assert(preset.canonicalMode === 'final-only', 'M4 wrapper contract: canonical mode mismatch.');
+  assert(preset.canonicalEvalEpisodes === 12, 'M4 wrapper contract: canonical episodes mismatch.');
+  assert(preset.canonicalEvalMaxSteps === 1800, 'M4 wrapper contract: canonical steps mismatch.');
+  assert(preset.canonicalRequirePositiveLcb === true, 'M4 wrapper contract: canonical LCB should be enabled.');
+  assert(preset.skipPhasePromotes === true, 'M4 wrapper contract: phase promotes should be skipped.');
+
+  const evalEveryIndex = preset.trainExtraArgs.lastIndexOf('--eval-every');
+  assert(
+    evalEveryIndex >= 0 && preset.trainExtraArgs[evalEveryIndex + 1] === '40',
+    'M4 wrapper contract: sparse eval cadence mismatch.',
+  );
+
+  const overridden = parseTrainingWrapperArgs([
+    PROFILE_M4_BALANCED,
+    '--workers-auto-max', '6',
+    '--workers-reserve', '4',
+    '--canonical-per-phase',
+    '--canonical-eval-episodes', '14',
+    '--no-low-write',
+    '--no-auto-clean-debug',
+    '--phase-promotes',
+    '--eval-every', '20',
+  ]);
+  assert(overridden.workersAutoMax === 6, 'M4 wrapper contract: worker max override failed.');
+  assert(overridden.workersReserve === 4, 'M4 wrapper contract: worker reserve override failed.');
+  assert(overridden.canonicalMode === 'per-phase', 'M4 wrapper contract: canonical mode override failed.');
+  assert(overridden.canonicalEvalEpisodes === 14, 'M4 wrapper contract: canonical episode override failed.');
+  assert(overridden.lowWrite === false, 'M4 wrapper contract: low-write override failed.');
+  assert(overridden.autoCleanDebug === false, 'M4 wrapper contract: auto-clean override failed.');
+  assert(overridden.skipPhasePromotes === false, 'M4 wrapper contract: phase-promote override failed.');
+  const overrideEvalIndex = overridden.trainExtraArgs.lastIndexOf('--eval-every');
+  assert(
+    overrideEvalIndex >= 0 && overridden.trainExtraArgs[overrideEvalIndex + 1] === '20',
+    'M4 wrapper contract: trainer eval override failed.',
+  );
+
+  const phases = buildTrainingPhases(PROFILE_M4_BALANCED, '/tmp/m4-wrapper-contract', {
+    fast: '/tmp/m4-wrapper-contract/config_fast.json',
+    finetune: '/tmp/m4-wrapper-contract/config_finetune.json',
+  });
+  assert(phases.length === 2, 'M4 wrapper contract: expected two quality-mixed phases.');
+  assert(phases[0].name === 'm4-balanced-foundation', 'M4 wrapper contract: foundation phase mismatch.');
+  assert(phases[1].name === 'm4-balanced-finetune', 'M4 wrapper contract: finetune phase mismatch.');
+
+  const workerPlan = resolveWorkerPlan(preset.trainExtraArgs, {
+    cpuCount: 10,
+    workersAutoMin: preset.workersAutoMin,
+    workersAutoMax: preset.workersAutoMax,
+    workersReserve: preset.workersReserve,
+  });
+  assert(workerPlan.workers === 5, 'M4 wrapper contract: base worker plan mismatch.');
+  assert(
+    resolvePhaseWorkers(workerPlan, phases[0], true).workers === 5,
+    'M4 wrapper contract: foundation worker count mismatch.',
+  );
+  assert(
+    resolvePhaseWorkers(workerPlan, phases[1], true).workers === 4,
+    'M4 wrapper contract: finetune worker count mismatch.',
   );
 }
 
@@ -2683,33 +2787,19 @@ function validateSocialDramaSlice5Contract() {
 
 // Execute the full contract suite in one deterministic temporary workspace.
 function main() {
+  const args = process.argv.slice(2);
+  if (args.length > 1 || (args.length === 1 && args[0] !== '--policy-only')) {
+    throw new Error('Usage: node scripts/test_training_contracts.js [--policy-only]');
+  }
+  validateSavedPolicyContract();
+  if (args[0] === '--policy-only') {
+    console.log('[test:contracts] PASS policy_shape');
+    return;
+  }
+
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nodedwarves_test_contracts_'));
   try {
-    assert(fs.existsSync(POLICY_BEST), `Policy contract: missing ${POLICY_BEST}`);
-    const policy = readJson(POLICY_BEST);
-    validateObservationContract(policy);
-
-    // Deliberate mismatch must fail in test mode.
-    const malformed = JSON.parse(JSON.stringify(policy));
-    if (
-      malformed
-      && malformed.normalization
-      && malformed.normalization.observation
-      && Array.isArray(malformed.normalization.observation.mean)
-      && malformed.normalization.observation.mean.length > 0
-    ) {
-      malformed.normalization.observation.mean = malformed.normalization.observation.mean.slice(0, -1);
-    } else {
-      throw new Error('Policy contract: cannot build malformed observation test case.');
-    }
-    let malformedFailed = false;
-    try {
-      validateObservationContract(malformed);
-    } catch (error) {
-      malformedFailed = true;
-    }
-    assert(malformedFailed, 'Policy contract: malformed observation shape did not fail as expected.');
-
+    validateM4BalancedWrapperContract();
     validateExternalCampsGovernorContract();
     validateContractGovernorContract();
     validateRuinsGovernorContract();
@@ -2729,7 +2819,7 @@ function main() {
     validateRegressionReportSchema(tmpDir);
     validateRegressionSeedPackDefaultModeContract(tmpDir);
     validatePromoteReportSchema(tmpDir);
-    console.log('[test:contracts] PASS policy_shape external_camps_governor contracts_governor ruins_governor underrealm_governor warriors_disabled warriors_bootstrap warriors_phase1 warriors_thresholds warriors_phase2 warriors_phase3 warriors_phase4 warriors_phase5 warriors_phase6 social_governor social_slice4 social_slice5 regression_schema regression_seedpack_default promote_schema');
+    console.log('[test:contracts] PASS policy_shape m4_balanced_wrapper external_camps_governor contracts_governor ruins_governor underrealm_governor warriors_disabled warriors_bootstrap warriors_phase1 warriors_thresholds warriors_phase2 warriors_phase3 warriors_phase4 warriors_phase5 warriors_phase6 social_governor social_slice4 social_slice5 regression_schema regression_seedpack_default promote_schema');
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
