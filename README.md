@@ -67,8 +67,12 @@ Quality-oriented loop and acceptance gate:
 npm run ai:train:m4
 npm run ai:train -- quality
 npm run ai:validate
+npm run test:narrative
 npm test
 ```
+
+`test:narrative` runs the fast structured-event contract gate in isolation. `npm test` runs both the
+narrative and training/validation contract suites.
 
 `ai:train:m4` is the direct shortcut for the `m4-balanced` profile. The generic
 `ai:train` command accepts the wrapper profile after `--`: `fast` (default), `quality`,
@@ -111,6 +115,7 @@ npm run debug:clean
 - ✅ `docs/TRAINING_STATUS.md`: current quality status and validation cadence.
 - 🧪 `docs/TRAINING_OPTIMIZATION_WORKBOOK.md`: optimization timeline and decisions.
 - 📜 `docs/EPIC_EVOLUTION_WORKBOOK.md`: step-by-step roadmap and progress tracker for the living-chronicle evolution.
+- 🧬 `docs/NARRATIVE_EVENT_CONTRACT.md`: versioned facts, deterministic event identity, and bounded-history rules for the living chronicle.
 - 📡 `docs/TELEMETRY.md`: telemetry operator guide.
 - 🤖 `AGENTS.md`: contributor implementation guidelines.
 
@@ -121,15 +126,17 @@ npm run debug:clean
 - 🌉 `ai_server.js`: JS inference bridge used by training/eval tooling.
 - 🧭 `src/config.js`: config loader.
 - ⚙️ `src/simulation/`: core simulation systems (economy, events, underrealm, schism, social drama, warriors, temple).
+- 🧬 `src/simulation/narrative_contract.js`: strict narrative-event validation and deterministic identity helpers.
 - 🌍 `src/state/`: world/terrain and initial state generation.
 - 🎨 `src/render/`: map, overlays, panels, and layout helpers.
 - 📊 `src/telemetry/`: Data Center sections and metric builders.
 - 🧠 `src/ai/`: observation and policy helpers.
-- 🛠️ `scripts/`: benchmarking, regression, validation orchestration, export, cleanup.
+- 🛠️ `scripts/`: benchmarking, regression, validation orchestration, narrative contracts, export, cleanup.
+- 🧪 `scripts/test_narrative_contracts.js`: fast executable gate for the living-chronicle event contract.
 - 🐍 `python/`: PPO training and rollout tooling.
 - 🗂️ `benchmark_cache/`: cached deterministic benchmark baseline.
 - 📦 `regression/baselines/`: durable regression reference profiles.
-- 📚 `docs/`: manuals, tuning references, and the Epic Evolution implementation workbook.
+- 📚 `docs/`: manuals, tuning references, the Epic Evolution workbook, and the narrative event contract.
 
 ## Contributing 🤝
 

@@ -122,8 +122,8 @@ Dashboard:
 
 | Milestone | Workstreams | Outcome | Status | Entry gate | Exit gate |
 | --- | --- | --- | --- | --- | --- |
-| M0 - Measurement | E0 | Frozen narrative/watchability baseline and executable contracts | `Ready` | Workbook initialized | E0 gate passes |
-| M1 - Structured stories | E1, E2 | Events know who/where/why; messages use stable identities | `Not started` | M0 done | Structured-event + identity gates pass |
+| M0 - Measurement | E0 | Frozen narrative/watchability baseline and executable contracts | `Done` | Workbook initialized | E0 gate passes |
+| M1 - Structured stories | E1, E2 | Events know who/where/why; messages use stable identities | `Ready` | M0 done | Structured-event + identity gates pass |
 | M2 - Watchable simulation | E3, E4 | The terminal guides attention and protects important moments | `Not started` | M1 done | Director + presentation gates pass |
 | M3 - Lived history | E5 | Biographies and chronicles contain actual deeds | `Not started` | M2 done | Chronicle integrity + cycle export gate passes |
 | M4 - Persistent civilization | E6 | Cycles inherit bounded, visible history | `Not started` | M3 done | Deterministic multi-cycle gate passes |
@@ -142,21 +142,21 @@ Rules for ordering:
 
 ## 4) Workstream E0 - Baseline, metrics, and contracts
 
-Status: `Ready`
+Status: `Done`
 
 Objective: measure the current experience and define executable contracts before changing runtime
 behavior.
 
 ### E0.1 Freeze the implementation baseline
 
-Status: `Not started`
+Status: `Done`
 
-- [ ] Record branch, commit, config hash, cached benchmark metadata, terminal size, and active policy.
-- [ ] Confirm the cached headless baseline matches the active benchmark profile.
-- [ ] Capture one surface screenshot, one Underrealm screenshot, one Data Center screenshot, and one
+- [x] Record branch, commit, config hash, cached benchmark metadata, terminal size, and active policy.
+- [x] Confirm the cached headless baseline matches the active benchmark profile.
+- [x] Capture one surface screenshot, one Underrealm screenshot, one Data Center screenshot, and one
       character inspect screenshot from the same deterministic run where practical.
-- [ ] Record current event-log category distribution over short and long deterministic runs.
-- [ ] Record current frame-build time separately from terminal write time.
+- [x] Record current event-log category distribution over short and long deterministic runs.
+- [x] Record current frame-build time separately from terminal write time.
 
 Artifacts:
 
@@ -164,9 +164,31 @@ Artifacts:
 - `debug/epic_baseline_summary.md`
 - existing cached benchmark files in `benchmark_cache/`
 
+E0.1 closure snapshot (2026-07-16):
+
+- Repository freeze: branch `epicEvolution`, commit `c9cda62f495f83cf825f28b63db1f79c1abb1540`,
+  config SHA-256 `16cab5b529e99eed7f65ce3f4a08fe994f7828a8cb2e7be690926a0b253bffb3`.
+- Cached baseline refreshed because its prior config hash was stale; a second cache-guard run confirmed
+  alignment at `8000` ticks, seeds `101,202,303,404`, resources `beer,food,water`, layout `120x40`.
+- Refreshed balance reference: population `698.25`, morale `0.8851`, Underrealm depth `2.25`; no
+  benchmark seed collapsed.
+- Visual references frozen from the existing sequential `2904x2048` product screenshots: surface,
+  Data Center, character Inspect, and Underrealm. Their seed is not embedded, so hashes/ticks are
+  visual evidence rather than deterministic metric evidence.
+- Short event-log snapshot (`t1000`): `631` retained entries, raw dwarf IDs in `37.72%`.
+- Long event-log snapshot (`t8000`): `1200/1200` retained entries, every seed at the `300` cap,
+  only the latest `859-1166` ticks retained, raw dwarf IDs in `38.50%`.
+- Current event schema fields are only `tick`, `message`, `category`, and `source`.
+- Frozen render-build means: surface `1.146 ms`, Underrealm `0.817 ms`, telemetry `1.449 ms`, Inspect
+  `1.914 ms`; the highest observed seed p95 was Inspect at `7.832 ms`.
+- Output-write timings are isolated synchronous `/dev/null` byte-write costs; terminal-emulator paint
+  is explicitly outside this headless baseline.
+- Evidence: `debug/epic_baseline_summary.json`, `debug/epic_baseline_summary.md`, and refreshed
+  `benchmark_cache/headless_benchmark_baseline.json|.md`.
+
 ### E0.2 Define the structured narrative contract
 
-Status: `Not started`
+Status: `Done`
 
 Minimum event envelope:
 
@@ -187,37 +209,69 @@ Minimum event envelope:
 }
 ```
 
-- [ ] Document normalization and fallback behavior for legacy string-only callers.
-- [ ] Define deterministic ID construction and collision behavior.
-- [ ] Define bounded actor/location/reference schemas.
-- [ ] Define event retention limits separately from chronicle retention.
-- [ ] Define serialization constraints for training and report tooling.
+- [x] Document normalization and fallback behavior for legacy string-only callers.
+- [x] Define deterministic ID construction and collision behavior.
+- [x] Define bounded actor/location/reference schemas.
+- [x] Define event retention limits separately from chronicle retention.
+- [x] Define serialization constraints for training and report tooling.
+
+E0.2 closure snapshot (2026-07-16):
+
+- Approved schema v1 with generated `cycle/tick/sequence` identity, closed enums, bounded typed
+  references, and a 16 KiB serialized-event ceiling.
+- Preserved the string, transitional string-plus-details, and structured-object producer paths for
+  incremental migration; legacy v0 records remain read-only display inputs and do not receive
+  invented persistent IDs.
+- Kept `state.events` as the compact HUD list and `state.eventLog` as a capped UI buffer. Future
+  Story Director, Chronicle, and cycle-legacy stores own separate caps and retain compact facts plus
+  provenance IDs instead of full event history.
+- Confirmed that E1.1 must not change RNG consumption, AI observation/action shapes, benchmark report
+  payloads, or the current map-export snapshot.
+- Normative specification and E0.3 fixture matrix: `docs/NARRATIVE_EVENT_CONTRACT.md`.
 
 ### E0.3 Add narrative contract tests
 
-Status: `Not started`
+Status: `Done`
 
-- [ ] Validate required fields and normalized enums.
-- [ ] Validate stable IDs for equal seed/state/event order.
-- [ ] Validate backward compatibility for existing `pushEvent` callers.
-- [ ] Validate bounded retention and no unbounded nested state references.
-- [ ] Validate event-log filtering after schema introduction.
+- [x] Validate required fields and normalized enums.
+- [x] Validate stable IDs for equal seed/state/event order.
+- [x] Validate backward compatibility for existing `pushEvent` callers.
+- [x] Validate bounded retention and no unbounded nested state references.
+- [x] Validate event-log filtering after schema introduction.
 
-Expected files:
+Implemented files:
 
-- `scripts/test_narrative_contracts.js` or an explicitly documented extension of the current contract suite
-- `package.json` only if a stable operator command is justified
+- `src/simulation/narrative_contract.js`
+- `scripts/test_narrative_contracts.js`
+- `package.json` (`test:narrative` plus aggregate `test` wiring)
+
+E0.3 closure snapshot (2026-07-16):
+
+- Added a strict reusable schema-v1 validator and transactional deterministic identity helpers in
+  `src/simulation/narrative_contract.js`; the module is not wired into event emission yet, so runtime
+  behavior remains unchanged until E1.1.
+- Added `scripts/test_narrative_contracts.js` with valid and deliberately malformed fixtures covering
+  envelope fields/enums, plain-JSON bounds, UTF-8 limits, ID coherence, same-tick ordering, rejected
+  candidate semantics, cycle separation, and serialization round trips.
+- Exercised current string-only and string-plus-details `pushEvent` compatibility, category inference,
+  `maxEntries`/`logMaxEntries` including zero, and explicit RNG neutrality.
+- Rendered a mixed v0/v1 Event Log fixture through both all/drama filters and asserted that rendering
+  does not mutate retained records.
+- Guarded AI observation and map-export isolation from narrative buffers.
+- Added `npm run test:narrative` for the focused fast gate and made it the first lane in `npm test`.
+- Focused result: `[test:narrative] PASS envelope malformed identity legacy retention bounds
+  serialization renderer ai_isolation export_isolation`.
 
 E0 exit criteria:
 
-- [ ] Baseline artifacts recorded.
-- [ ] Event schema decision approved and logged.
-- [ ] Narrative contract tests fail on malformed fixtures and pass on valid fixtures.
-- [ ] Current `npm test` remains green.
+- [x] Baseline artifacts recorded.
+- [x] Event schema decision approved and logged.
+- [x] Narrative contract tests fail on malformed fixtures and pass on valid fixtures.
+- [x] Current `npm test` remains green.
 
 ## 5) Workstream E1 - Structured events and causal history
 
-Status: `Not started`
+Status: `Ready`
 
 Objective: turn the existing rolling log into a deterministic, machine-readable story substrate
 without breaking current message consumers.
@@ -632,6 +686,10 @@ Record every non-trivial scope or architecture decision.
 | 2026-07-16 | ED-004 | Keep M0-M3 observation/action shapes unchanged by default | Feed story/legacy state into AI immediately | Isolates player-facing value and protects trained-policy compatibility | AI stability | Approved |
 | 2026-07-16 | ED-005 | Store Chronicle facts as references to structured events | Generate free-form summaries without sources | Enables deterministic factual verification and bounded storage | Narrative integrity | Approved |
 | 2026-07-16 | ED-006 | Carry bounded summaries/echoes across cycles, not entire prior states | Serialize full old worlds; reset all history | Preserves history without invalid coordinates or uncontrolled state growth | Persistent legacy | Approved |
+| 2026-07-16 | ED-007 | Generate v1 event IDs from schema version, cycle, tick, and accepted-event sequence | Random UUIDs; wall-clock IDs; message/content hashes | Preserves seeded determinism without consuming RNG or coupling identity to mutable display text | Event identity and replay comparison | Approved |
+| 2026-07-16 | ED-008 | Keep legacy v0 records display-only while new writers emit canonical v1 events through a backward-compatible `pushEvent` API | Eagerly rewrite retained records; require an all-at-once producer migration | Lets current string-only producers and Event Log rendering survive incremental migration | E1 migration scope and compatibility | Approved |
+| 2026-07-16 | ED-009 | Treat `state.eventLog` as a capped UI buffer and give future Story/Chronicle/legacy stores separate bounded ownership | Grow the Event Log into permanent history; retain full prior events across cycles | Prevents tick-proportional state growth while preserving compact facts and provenance IDs | Retention architecture | Approved |
+| 2026-07-16 | ED-010 | Implement the E0.3 schema validator and identity transaction helpers as a pure reusable module, without wiring it into `pushEvent` until E1.1 | Keep a test-only duplicate contract oracle; implement the full event core during E0.3 | Gives tests production-reusable rules while preserving the planned runtime migration boundary | Contract enforcement and E1.1 risk | Approved |
 
 ## 17) Implementation log
 
@@ -641,6 +699,9 @@ within the repository retention policy.
 | Date | ID | Scope | Files | Validation | Result | Artifacts / notes |
 | --- | --- | --- | --- | --- | --- | --- |
 | 2026-07-16 | EW-000 | Initialize Epic Evolution workbook, baseline inventory, dependency plan, gates, risks, and documentation indexes | `docs/EPIC_EVOLUTION_WORKBOOK.md`, `AGENTS.md`, `README.md`, `MANUAL.md` | Markdown/link review, `git diff --check`, `npm test` | Done | Planning-only change; no simulation/config/policy behavior changed |
+| 2026-07-16 | EW-001 | E0.1 freeze: align cached benchmark, fingerprint repo/config/policy/layout/screenshots, measure retained event-log distribution at `1000/8000` ticks, and isolate frame-build/output-write timings | `benchmark_cache/headless_benchmark_baseline.json`, `benchmark_cache/headless_benchmark_baseline.md`, `debug/epic_baseline_summary.json`, `debug/epic_baseline_summary.md`, `docs/EPIC_EVOLUTION_WORKBOOK.md` | `npm run bench:ensure-baseline` (refresh + aligned recheck), deterministic 4-seed probe, JSON parse, `git diff --check`, `npm test` | Done | No seed collapse; long log saturated `1200/1200`, raw-ID share `38.50%`; surface build mean `1.146 ms`, Inspect max seed p95 `7.832 ms` |
+| 2026-07-16 | EW-002 | E0.2 contract: specify the v1 narrative envelope, deterministic IDs/order, legacy normalization, typed reference bounds, independent retention, serialization ceiling, and E0.3 acceptance matrix | `docs/NARRATIVE_EVENT_CONTRACT.md`, `docs/EPIC_EVOLUTION_WORKBOOK.md`, `AGENTS.md`, `README.md`, `MANUAL.md` | Contract consistency audit, documentation index review, `git diff --check`, `npm test` | Done | Specification-only change; no config, runtime, simulation, rendering, export, or AI behavior changed |
+| 2026-07-16 | EW-003 | E0.3 executable contracts: add strict v1 validation/identity helpers, malformed fixtures, legacy/retention checks, mixed v0/v1 renderer checks, and AI/export isolation gates | `src/simulation/narrative_contract.js`, `scripts/test_narrative_contracts.js`, `package.json`, `docs/NARRATIVE_EVENT_CONTRACT.md`, `docs/EPIC_EVOLUTION_WORKBOOK.md`, `AGENTS.md`, `README.md`, `MANUAL.md` | `node --check src/simulation/narrative_contract.js`, `node --check scripts/test_narrative_contracts.js`, `npm run test:narrative`, `npm test`, `git diff --check` | Done | Focused and aggregate suites pass; malformed fixtures fail with deterministic diagnostics; no event-runtime/config/AI/export behavior changed |
 
 ## 18) Checkpoint template
 
@@ -706,10 +767,10 @@ and no open High-impact risk is unmitigated.
 
 Execute one bounded step at a time:
 
-1. `E0.1` - Freeze repository, benchmark, event-distribution, screenshot, and render-time baseline.
-2. `E0.2` - Finalize the structured event envelope and deterministic ID rules.
-3. `E0.3` - Add executable narrative contract tests.
-4. `E1.1` - Implement the backward-compatible structured event core.
+1. [x] `E0.1` - Freeze repository, benchmark, event-distribution, screenshot, and render-time baseline.
+2. [x] `E0.2` - Finalize the structured event envelope and deterministic ID rules.
+3. [x] `E0.3` - Add executable narrative contract tests.
+4. `E1.1` - Implement the backward-compatible structured event core. **Next.**
 5. `E1.2` - Migrate lifecycle events and validate end-state parity.
 6. Continue priority producer migration only after the lifecycle slice is closed.
 

@@ -13,6 +13,7 @@ flow, and implementation references, with a deterministic-chaos engineering mind
 - For policy inference and PPO training details, see "AI and training".
 - For config control-plane reference, see "Configuration".
 - For the staged narrative, cinematic, Chronicle, and persistent-world implementation plan, see `docs/EPIC_EVOLUTION_WORKBOOK.md`.
+- For the normative structured-event envelope, deterministic IDs, retention ownership, and compatibility rules, see `docs/NARRATIVE_EVENT_CONTRACT.md`.
 - For deep dives and checklists, see "Adding a new resource" and "Project layout cheatsheet".
 
 ## 1) Operations and workflows 🛠️
@@ -109,8 +110,14 @@ node scripts/headless_benchmark.js --ticks 8000 --seeds 101,202,303,404 --progre
 node scripts/regression.js --all
 node scripts/regression.js --profile underrealm
 node scripts/test_training_contracts.js --policy-only
+npm run test:narrative
 npm test
 ```
+
+`npm run test:narrative` runs the focused schema-v1 event gate: canonical and malformed envelopes,
+deterministic cycle/tick/sequence IDs, legacy `pushEvent` compatibility, bounded retention/references,
+JSON serialization, mixed v0/v1 Event Log filtering, and AI/map-export isolation. `npm test` runs this
+suite first and then the complete training/validation contract suite.
 
 Clean debug artifacts after a completed cycle:
 
@@ -1966,6 +1973,7 @@ Quick checklist:
 - `src/`
   - `simulation.js` / `state.js` / `render.js` / `ai_policy.js` → stable wrappers
   - `simulation/` → game logic
+    - `simulation/narrative_contract.js` → strict narrative-event v1 validator plus deterministic identity peek/commit helpers
     - `simulation/alchemy.js` → alchemy rite lifecycle and modifiers
     - `simulation/contracts.js` → contract offers, reputations, and boons
     - `simulation/world_events.js` → global event lifecycle and temporary world modifiers
@@ -1993,7 +2001,8 @@ Quick checklist:
 - `scripts/regression.js` → AI regression harness and profile recording with txt/json/markdown reports
 - `scripts/validate_extended_optimized.js` → optimized full-quality validation orchestrator with per-phase runtime reports
 - `scripts/clean_debug.js` → deterministic debug cleanup (transient artifacts + keep latest `run_*` history)
-- `scripts/test_training_contracts.js` → deterministic technical test suite for policy shape and report-schema contracts (`npm test`)
+- `scripts/test_narrative_contracts.js` → fast structured-event/identity/compatibility/isolation gate (`npm run test:narrative`; included in `npm test`)
+- `scripts/test_training_contracts.js` → deterministic technical test suite for policy shape and report-schema contracts (included in `npm test`)
 - `regression/baselines/regression_baseline.json` → durable profile baselines used by regression checks
 - `benchmark_cache/headless_benchmark_baseline.json` → versioned cached headless benchmark baseline for report-to-report diffs
 - `benchmark_cache/headless_benchmark_baseline.md` → markdown companion of cached headless benchmark baseline
@@ -2005,5 +2014,5 @@ Quick checklist:
 - `python/promote_best.py` → post-train promotion check (latest vs best)
 - `python/regression_rollout.py` → randomized regression rollouts without PPO updates/checkpoint writes
 - `python/bootstrap.py` / `python/agent.py` → venv bootstrap + sample agent
-- `docs/PARAMETERS.md` / `docs/TRAINING_OVERRIDES.md` / `docs/TRAINING_STATUS.md` / `docs/TRAINING_OPTIMIZATION_WORKBOOK.md` / `docs/EPIC_EVOLUTION_WORKBOOK.md` / `docs/TELEMETRY.md` → config reference, training overrides, current training status, training optimization archive, Epic Evolution execution tracker, and telemetry operator manual
+- `docs/PARAMETERS.md` / `docs/TRAINING_OVERRIDES.md` / `docs/TRAINING_STATUS.md` / `docs/TRAINING_OPTIMIZATION_WORKBOOK.md` / `docs/EPIC_EVOLUTION_WORKBOOK.md` / `docs/NARRATIVE_EVENT_CONTRACT.md` / `docs/TELEMETRY.md` → config reference, training overrides, current training status, training optimization archive, Epic Evolution execution tracker, normative narrative-event contract, and telemetry operator manual
 - `models/` → `policy.json`, `policy_best.json`, `policy_best.meta.json`

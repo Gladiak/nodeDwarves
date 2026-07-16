@@ -35,11 +35,13 @@ This file defines how to implement new features in a consistent, stable way.
 - `docs/TRAINING_STATUS.md`: current training quality status, active validation cadence, and pending closure items.
 - `docs/TRAINING_OPTIMIZATION_WORKBOOK.md`: step-by-step implementation workbook, decision log, and timeline for training optimization workstreams.
 - `docs/EPIC_EVOLUTION_WORKBOOK.md`: staged implementation workbook, progress dashboard, decision log, validation gates, and evidence tracker for narrative, cinematic, legacy, and epic-world workstreams.
+- `docs/NARRATIVE_EVENT_CONTRACT.md`: normative versioned event envelope, deterministic identity, compatibility, retention, and serialization contract for narrative systems.
 - `docs/TELEMETRY.md`: telemetry operator manual (from zero to hero).
 - `.github/workflows/quality_gates.yml`: CI automation for extended/weekly training quality gates and artifact upload.
 - `src/config.js`: config loader.
 - `src/simulation/`: simulation systems split by theme.
 - `src/simulation/index.js`: simulation orchestrator.
+- `src/simulation/narrative_contract.js`: strict schema-v1 validator and deterministic event identity helpers used by narrative contract gates and the future event core.
 - `src/simulation/underrealm.js`: underrealm crew assignment, deep economy, exploration unlocks, and hostile deep raids.
 - `src/simulation/world_events.js`: world event lifecycle, timed opportunities, and temporary world modifiers.
 - `src/simulation/external_camps.js`: long-lived external faction camps with trade, militia support, and raider pressure.
@@ -76,7 +78,8 @@ This file defines how to implement new features in a consistent, stable way.
 - `scripts/ensure_benchmark_baseline.js`: baseline cache guard that auto-refreshes cached baseline reports when benchmark profile metadata mismatches.
 - `scripts/compare_benchmark_reports.js`: report-to-report benchmark diff CLI for cached baseline/candidate comparisons.
 - `scripts/clean_debug.js`: debug artifact housekeeping utility (transient cleanup + run retention).
-- `scripts/test_training_contracts.js`: deterministic technical contract suite for training/validation schemas (`npm test`).
+- `scripts/test_narrative_contracts.js`: deterministic structured-event, identity, legacy, retention, serialization, renderer, and isolation contract suite (`npm run test:narrative`; included in `npm test`).
+- `scripts/test_training_contracts.js`: deterministic technical contract suite for training/validation schemas (included in `npm test`).
 - `benchmark_cache/headless_benchmark_baseline.json`: versioned cached headless benchmark baseline used for report diffs.
 - `benchmark_cache/headless_benchmark_baseline.md`: markdown companion of the cached headless benchmark baseline.
 - `regression/baselines/regression_baseline.json`: durable regression baseline profiles used by checks.
