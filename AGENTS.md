@@ -34,6 +34,7 @@ This file defines how to implement new features in a consistent, stable way.
 - `docs/TRAINING_OVERRIDES.md`: training overrides guide.
 - `docs/TRAINING_STATUS.md`: current training quality status, active validation cadence, and pending closure items.
 - `docs/TRAINING_OPTIMIZATION_WORKBOOK.md`: step-by-step implementation workbook, decision log, and timeline for training optimization workstreams.
+- `docs/EPIC_EVOLUTION_WORKBOOK.md`: staged implementation workbook, progress dashboard, decision log, validation gates, and evidence tracker for narrative, cinematic, legacy, and epic-world workstreams.
 - `docs/TELEMETRY.md`: telemetry operator manual (from zero to hero).
 - `.github/workflows/quality_gates.yml`: CI automation for extended/weekly training quality gates and artifact upload.
 - `src/config.js`: config loader.

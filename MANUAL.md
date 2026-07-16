@@ -12,6 +12,7 @@ flow, and implementation references, with a deterministic-chaos engineering mind
 - For rendering internals and view-layer constraints, see "Rendering system".
 - For policy inference and PPO training details, see "AI and training".
 - For config control-plane reference, see "Configuration".
+- For the staged narrative, cinematic, Chronicle, and persistent-world implementation plan, see `docs/EPIC_EVOLUTION_WORKBOOK.md`.
 - For deep dives and checklists, see "Adding a new resource" and "Project layout cheatsheet".
 
 ## 1) Operations and workflows 🛠️
@@ -2004,5 +2005,5 @@ Quick checklist:
 - `python/promote_best.py` → post-train promotion check (latest vs best)
 - `python/regression_rollout.py` → randomized regression rollouts without PPO updates/checkpoint writes
 - `python/bootstrap.py` / `python/agent.py` → venv bootstrap + sample agent
-- `docs/PARAMETERS.md` / `docs/TRAINING_OVERRIDES.md` / `docs/TRAINING_STATUS.md` / `docs/TRAINING_OPTIMIZATION_WORKBOOK.md` / `docs/TELEMETRY.md` → config reference, training overrides, current training status, training optimization workbook archive, and telemetry operator manual
+- `docs/PARAMETERS.md` / `docs/TRAINING_OVERRIDES.md` / `docs/TRAINING_STATUS.md` / `docs/TRAINING_OPTIMIZATION_WORKBOOK.md` / `docs/EPIC_EVOLUTION_WORKBOOK.md` / `docs/TELEMETRY.md` → config reference, training overrides, current training status, training optimization archive, Epic Evolution execution tracker, and telemetry operator manual
 - `models/` → `policy.json`, `policy_best.json`, `policy_best.meta.json`

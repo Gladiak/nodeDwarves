@@ -110,6 +110,7 @@ npm run debug:clean
 - 🧩 `docs/TRAINING_OVERRIDES.md`: training override guide.
 - ✅ `docs/TRAINING_STATUS.md`: current quality status and validation cadence.
 - 🧪 `docs/TRAINING_OPTIMIZATION_WORKBOOK.md`: optimization timeline and decisions.
+- 📜 `docs/EPIC_EVOLUTION_WORKBOOK.md`: step-by-step roadmap and progress tracker for the living-chronicle evolution.
 - 📡 `docs/TELEMETRY.md`: telemetry operator guide.
 - 🤖 `AGENTS.md`: contributor implementation guidelines.
 
@@ -128,7 +129,7 @@ npm run debug:clean
 - 🐍 `python/`: PPO training and rollout tooling.
 - 🗂️ `benchmark_cache/`: cached deterministic benchmark baseline.
 - 📦 `regression/baselines/`: durable regression reference profiles.
-- 📚 `docs/`: manuals and tuning references.
+- 📚 `docs/`: manuals, tuning references, and the Epic Evolution implementation workbook.
 
 ## Contributing 🤝
 
