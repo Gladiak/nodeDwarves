@@ -4,6 +4,13 @@ const { clamp } = require('../utils');
 const { getClanEffects, getClanList, getClanShareByIds } = require('../clans');
 const { getStockpileRatio, hasInputs, consumeInputs } = require('./resources');
 const { pushEvent } = require('./events');
+const { emitEndgameArtifactRecovered } = require('./endgame_events');
+const {
+  emitRuinsExpeditionStarted,
+  emitRuinsExpeditionResolved,
+  emitUnderrealmChampionEncounter,
+  emitDwarfChampionChanged,
+} = require('./combat_events');
 const { getMythMultiplier } = require('./myths');
 const { getAlchemyMultiplier } = require('./alchemy');
 const { getContractRuinsCombatBonus } = require('./contracts');
@@ -1137,7 +1144,12 @@ function startExpedition(state, config, ruinsConfig, rooms, startContext = null,
       `Ruins: warning-zone dispatch D${depth} (score ${score}/${target}, risk x${riskMultiplier.toFixed(2)})`,
     );
   }
-  pushEvent(state, config, `Ruins: expedition started (Room ${roomIndex + 1})`);
+  emitRuinsExpeditionStarted(
+    state,
+    config,
+    expedition,
+    `Ruins: expedition started (Room ${roomIndex + 1})`,
+  );
 }
 
 function tickExpeditions(state, config, ruinsConfig, rooms) {
@@ -1427,13 +1439,17 @@ function resolveChampionEncounter(state, config, ruinsConfig, expedition) {
     if (combatStats) {
       combatStats.championsDefeated = Number(combatStats.championsDefeated || 0) + 1;
     }
-    pushEvent(
-      state,
-      config,
-      unlockedDepth
-        ? `Underrealm D${depth}: ${championLabel} defeated, depth ${unlockedDepth} unlocked`
-        : `Underrealm D${depth}: ${championLabel} defeated`,
-    );
+    const message = unlockedDepth
+      ? `Underrealm D${depth}: ${championLabel} defeated, depth ${unlockedDepth} unlocked`
+      : `Underrealm D${depth}: ${championLabel} defeated`;
+    emitUnderrealmChampionEncounter(state, config, {
+      message,
+      outcome,
+      depth,
+      championLabel,
+      unlockedDepth,
+      dwarfIds: expedition && expedition.dwarfIds,
+    });
     return {
       required: true,
       outcome,
@@ -1468,11 +1484,14 @@ function resolveChampionEncounter(state, config, ruinsConfig, expedition) {
   encounter.cooldownTicksRemaining = retryCooldown;
   const suggestedLosses = resolveChampionLossCount(outcome, partySize, partyHp, partyHpMax);
   const cooldownTag = retryCooldown < retryCooldownBase ? ' (champion command)' : '';
-  pushEvent(
-    state,
-    config,
-    `Underrealm D${depth}: ${championLabel} ${outcome}, cooldown ${retryCooldown} ticks${cooldownTag}`,
-  );
+  const message = `Underrealm D${depth}: ${championLabel} ${outcome}, cooldown ${retryCooldown} ticks${cooldownTag}`;
+  emitUnderrealmChampionEncounter(state, config, {
+    message,
+    outcome,
+    depth,
+    championLabel,
+    dwarfIds: expedition && expedition.dwarfIds,
+  });
   return {
     required: true,
     outcome,
@@ -1590,17 +1609,19 @@ function promoteDwarfChampionFromCandidates(
   const attackBonusPct = Math.round(clamp(Number(runtime.attackBonusRatio || 0), 0, 1) * 100);
   const defenseBonusPct = Math.round(clamp(Number(runtime.defenseBonusRatio || 0), 0, 1) * 100);
   if (eventMode === 'appointed') {
-    pushEvent(
-      state,
-      config,
-      `Underrealm: ${champion.id} appointed Dwarf Champion command (+${attackBonusPct}% atk, +${defenseBonusPct}% def)`,
-    );
+    emitDwarfChampionChanged(state, config, {
+      mode: 'appointed',
+      dwarf: champion,
+      message: `Underrealm: ${champion.id} appointed Dwarf Champion command (+${attackBonusPct}% atk, +${defenseBonusPct}% def)`,
+      source: 'ruins',
+    });
   } else {
-    pushEvent(
-      state,
-      config,
-      `Underrealm: ${champion.id} crowned Dwarf Champion (+${attackBonusPct}% atk, +${defenseBonusPct}% def)`,
-    );
+    emitDwarfChampionChanged(state, config, {
+      mode: 'crowned',
+      dwarf: champion,
+      message: `Underrealm: ${champion.id} crowned Dwarf Champion (+${attackBonusPct}% atk, +${defenseBonusPct}% def)`,
+      source: 'ruins',
+    });
   }
   return champion;
 }
@@ -1617,7 +1638,12 @@ function updateDwarfChampionAfterExpedition(state, config, expedition, resultMet
     runtime.activeDwarfId = null;
     runtime.activeSinceTick = 0;
     runtime.losses = Math.max(0, Math.floor(Number(runtime.losses || 0))) + 1;
-    pushEvent(state, config, `Underrealm: Dwarf Champion ${activeDwarfId} has fallen`);
+    emitDwarfChampionChanged(state, config, {
+      mode: 'fallen',
+      dwarfId: activeDwarfId,
+      message: `Underrealm: Dwarf Champion ${activeDwarfId} has fallen`,
+      source: 'ruins',
+    });
   }
   const championResult = resultMeta && resultMeta.championResult
     && typeof resultMeta.championResult === 'object'
@@ -1788,6 +1814,11 @@ function finishExpedition(state, config, ruinsConfig, expedition, success, reaso
   const room = Array.isArray(ruinsConfig.rooms) ? ruinsConfig.rooms[roomIndex] : null;
   const tick = Math.max(0, Math.floor(Number(state.tick || 0)));
   const readinessDepth = resolveExpeditionReadinessDepth(expedition);
+  const expeditionIdSet = new Set(
+    Array.isArray(expedition && expedition.dwarfIds) ? expedition.dwarfIds.map(String) : [],
+  );
+  const partyBeforeResolution = (Array.isArray(state.dwarves) ? state.dwarves : [])
+    .filter((dwarf) => expeditionIdSet.has(String(dwarf && dwarf.id || '')));
   let artifactsFound = 0;
   let cooldownEscalation = {
     escalated: false,
@@ -1798,7 +1829,14 @@ function finishExpedition(state, config, ruinsConfig, expedition, success, reaso
   if (success) {
     state.ruins.roomsCleared = Math.max(state.ruins.roomsCleared, roomIndex + 1);
     state.ruins.stats.successes = Number(state.ruins.stats.successes || 0) + 1;
-    pushEvent(state, config, `Ruins: room ${roomIndex + 1} cleared`);
+    emitRuinsExpeditionResolved(state, config, {
+      message: `Ruins: room ${roomIndex + 1} cleared`,
+      expedition,
+      party: partyBeforeResolution,
+      victims: [],
+      success: true,
+      reason,
+    });
 
     if (room) {
       const baseChance = clamp(Number(room.artifactChance || 0), 0, 1);
@@ -1824,7 +1862,14 @@ function finishExpedition(state, config, ruinsConfig, expedition, success, reaso
         foundAny = true;
         artifactsFound += 1;
         const artifactName = getArtifactName(ruinsConfig, artifactId);
-        pushEvent(state, config, `Ruins: artifact found - ${artifactName}`);
+        emitEndgameArtifactRecovered(state, config, {
+          artifactId,
+          artifactName,
+          depth: expedition && expedition.readiness ? expedition.readiness.depth : 1,
+          foundCount: Object.values(state.ruins.artifactsFound).filter(Boolean).length,
+          totalCount: Object.keys((ruinsConfig.artifacts && ruinsConfig.artifacts.pool) || {}).length,
+          message: `Ruins: artifact found - ${artifactName}`,
+        });
       }
       if (foundAny) {
         recomputeBonuses(state, ruinsConfig);
@@ -1842,25 +1887,34 @@ function finishExpedition(state, config, ruinsConfig, expedition, success, reaso
       ? Math.max(0, Math.floor(Number(resultMeta.forcedLosses)))
       : null;
     const losses = resolveExpeditionLosses(state, ruinsConfig, expedition, forcedLosses);
+    let message = 'Ruins: expedition failed';
     if (reason === 'champion_defeat') {
-      if (losses > 0) {
-        pushEvent(state, config, `Ruins: champion overran expedition (${losses} fallen)`);
-      } else {
-        pushEvent(state, config, 'Ruins: champion overran expedition');
-      }
+      message = losses > 0
+        ? `Ruins: champion overran expedition (${losses} fallen)`
+        : 'Ruins: champion overran expedition';
     } else if (reason === 'champion_retreat') {
-      if (losses > 0) {
-        pushEvent(state, config, `Ruins: expedition retreated from champion (${losses} fallen)`);
-      } else {
-        pushEvent(state, config, 'Ruins: expedition retreated from champion');
-      }
+      message = losses > 0
+        ? `Ruins: expedition retreated from champion (${losses} fallen)`
+        : 'Ruins: expedition retreated from champion';
     } else if (reason === 'champion_cooldown') {
-      pushEvent(state, config, 'Ruins: champion hall sealed, expedition returned');
+      message = 'Ruins: champion hall sealed, expedition returned';
     } else if (losses > 0) {
-      pushEvent(state, config, `Ruins: expedition failed (${losses} fallen)`);
-    } else {
-      pushEvent(state, config, 'Ruins: expedition failed');
+      message = `Ruins: expedition failed (${losses} fallen)`;
     }
+    const aliveAfterResolution = new Set(
+      (Array.isArray(state.dwarves) ? state.dwarves : [])
+        .map((dwarf) => String(dwarf && dwarf.id || '')),
+    );
+    const victims = partyBeforeResolution
+      .filter((dwarf) => !aliveAfterResolution.has(String(dwarf && dwarf.id || '')));
+    emitRuinsExpeditionResolved(state, config, {
+      message,
+      expedition,
+      party: partyBeforeResolution.filter((dwarf) => !victims.includes(dwarf)),
+      victims,
+      success: false,
+      reason,
+    });
     cooldownEscalation = registerFailureDepthCooldownEscalation(
       state.ruins,
       ruinsConfig,

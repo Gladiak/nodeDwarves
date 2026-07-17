@@ -1,5 +1,28 @@
 'use strict';
 
+const {
+  NARRATIVE_SCHEMA_VERSION,
+  MAX_SERIALIZED_EVENT_BYTES,
+  peekNarrativeEventIdentity,
+  commitNarrativeEventIdentity,
+  validateNarrativeEvent,
+} = require('./narrative_contract');
+const {
+  normalizeNarrativeEventDraft,
+  normalizeHumanText,
+  normalizeToken,
+  reduceNarrativeEventToLimit,
+  resolveEventImportance,
+} = require('./narrative_normalizer');
+
+const EVENT_STATS_FIELDS = [
+  'accepted',
+  'rejected',
+  'legacyNormalized',
+  'truncated',
+  'collisions',
+];
+
 const DRAMA_EVENT_CATEGORIES = new Set([
   'social',
   'lifecycle',
@@ -10,53 +33,189 @@ const DRAMA_EVENT_CATEGORIES = new Set([
   'underrealm',
 ]);
 
-// Add a message to the rolling event list with a max length.
-function pushEvent(state, config, message, details = null) {
+// Add a legacy or structured event to both bounded runtime logs.
+function pushEvent(state, config, messageOrDraft, details = null) {
+  if (!state || typeof state !== 'object') {
+    return null;
+  }
+  ensureEventRuntimeState(state);
+  const input = resolveEventDraft(messageOrDraft, details);
+  if (!input) {
+    incrementEventStat(state, 'rejected');
+    return null;
+  }
+
   const eventsConfig = (config && config.events) || {};
-  const maxEvents = Number(eventsConfig.maxEntries ?? 5);
-  const text = String(message || '').trim();
-  if (!text) {
-    return;
+  const message = normalizeHumanText(input.draft.message, 512);
+  if (!message) {
+    incrementEventStat(state, 'rejected');
+    return null;
   }
+
+  let identity = null;
+  try {
+    identity = peekNarrativeEventIdentity(state, state.eventClock);
+  } catch (error) {
+    incrementEventStat(state, 'rejected');
+    return null;
+  }
+
+  const candidate = normalizeNarrativeEventDraft(
+    input.draft,
+    identity,
+    eventsConfig,
+    message,
+    inferEventCategory,
+  );
+  const reduced = reduceNarrativeEventToLimit(candidate, MAX_SERIALIZED_EVENT_BYTES);
+  if (!reduced.event) {
+    incrementEventStat(state, 'rejected');
+    return null;
+  }
+  const validation = validateNarrativeEvent(reduced.event);
+  if (!validation.valid) {
+    incrementEventStat(state, 'rejected');
+    return null;
+  }
+  if (hasRetainedEventId(state, reduced.event.id)) {
+    incrementEventStat(state, 'collisions');
+    incrementEventStat(state, 'rejected');
+    return null;
+  }
+
+  try {
+    commitNarrativeEventIdentity(state.eventClock, identity);
+  } catch (error) {
+    incrementEventStat(state, 'rejected');
+    return null;
+  }
+
+  appendHudEvent(state, eventsConfig, reduced.event.message);
+  appendEventLogEntry(state, eventsConfig, reduced.event);
+  incrementEventStat(state, 'accepted');
+  if (input.legacy) {
+    incrementEventStat(state, 'legacyNormalized');
+  }
+  if (reduced.truncated) {
+    incrementEventStat(state, 'truncated');
+  }
+  return reduced.event;
+}
+
+// Initialize bounded scalar narrative runtime state for old or partial states.
+function ensureEventRuntimeState(state) {
   state.events = Array.isArray(state.events) ? state.events : [];
-  state.events.unshift(text);
-  if (state.events.length > maxEvents) {
-    state.events = state.events.slice(0, maxEvents);
-  }
-  const maxLogEntries = resolveEventLogLimit(eventsConfig, maxEvents);
-  if (maxLogEntries <= 0) {
-    return;
-  }
-  const tick = Math.max(0, Math.floor(Number(state && state.tick || 0)));
-  const entry = normalizeEventLogEntry({
-    tick,
-    message: text,
-    source: details && details.source ? details.source : null,
-    category: details && details.category ? details.category : null,
-  });
   state.eventLog = Array.isArray(state.eventLog) ? state.eventLog : [];
-  state.eventLog.unshift(entry);
-  if (state.eventLog.length > maxLogEntries) {
-    state.eventLog = state.eventLog.slice(0, maxLogEntries);
+  state.eventClock = state.eventClock && typeof state.eventClock === 'object'
+    ? state.eventClock
+    : { tick: -1, nextSequence: 0 };
+  state.eventStats = state.eventStats && typeof state.eventStats === 'object'
+    ? state.eventStats
+    : {};
+  for (const field of EVENT_STATS_FIELDS) {
+    const value = Number(state.eventStats[field]);
+    state.eventStats[field] = Number.isSafeInteger(value) && value >= 0 ? value : 0;
   }
 }
 
-// Build one normalized event-log entry payload.
-function normalizeEventLogEntry(raw) {
-  const source = raw && raw.source ? String(raw.source).trim() : '';
-  const message = raw && raw.message ? String(raw.message).trim() : '';
-  const inferredCategory = inferEventCategory(message);
-  const categoryRaw = raw && raw.category ? String(raw.category).trim() : '';
-  const category = normalizeEventCategory(categoryRaw || inferredCategory || 'other');
+// Increment one known event diagnostic without creating unbounded samples.
+function incrementEventStat(state, field) {
+  if (!EVENT_STATS_FIELDS.includes(field)) {
+    return;
+  }
+  const current = Number(state.eventStats && state.eventStats[field] || 0);
+  state.eventStats[field] = Number.isSafeInteger(current) && current >= 0
+    ? Math.min(Number.MAX_SAFE_INTEGER, current + 1)
+    : 1;
+}
+
+// Resolve supported string, string-plus-details, or structured-object input.
+function resolveEventDraft(messageOrDraft, details) {
+  if (messageOrDraft && typeof messageOrDraft === 'object' && !Array.isArray(messageOrDraft)) {
+    if (details !== null && details !== undefined) {
+      return null;
+    }
+    return { draft: messageOrDraft, legacy: false };
+  }
+  const detailDraft = details && typeof details === 'object' && !Array.isArray(details)
+    ? details
+    : {};
   return {
-    tick: Math.max(0, Math.floor(Number(raw && raw.tick || 0))),
-    message,
-    category,
-    source: source || category,
+    draft: {
+      ...detailDraft,
+      message: messageOrDraft,
+    },
+    legacy: true,
   };
 }
 
-// Resolve bounded event-log limit with fallback larger than the HUD mini-log.
+// Return true when the retained structured UI buffer already owns an ID.
+function hasRetainedEventId(state, id) {
+  return state.eventLog.some((entry) => entry && typeof entry === 'object' && entry.id === id);
+}
+
+// Append a compact message under the configured HUD retention cap.
+function appendHudEvent(state, eventsConfig, message) {
+  const limit = resolveEventLimit(eventsConfig.maxEntries, 5);
+  state.events.unshift(message);
+  if (state.events.length > limit) {
+    state.events = state.events.slice(0, limit);
+  }
+}
+
+// Append one canonical event under the configured Event Log retention cap.
+function appendEventLogEntry(state, eventsConfig, event) {
+  const maxEvents = resolveEventLimit(eventsConfig.maxEntries, 5);
+  const limit = resolveEventLogLimit(eventsConfig, maxEvents);
+  if (limit <= 0) {
+    return;
+  }
+  state.eventLog.unshift(event);
+  if (state.eventLog.length > limit) {
+    state.eventLog = state.eventLog.slice(0, limit);
+  }
+}
+
+// Build a display-safe Event Log record without allocating identity or mutating state.
+function normalizeEventLogEntry(raw) {
+  const message = normalizeHumanText(raw && raw.message, 512);
+  const inferredCategory = inferEventCategory(message);
+  const categoryRaw = raw && raw.category ? String(raw.category).trim() : '';
+  const category = normalizeEventCategory(categoryRaw || inferredCategory || 'other');
+  const source = normalizeToken(raw && raw.source, 64) || category;
+  const rawTick = Number(raw && raw.tick || 0);
+  const tick = Number.isFinite(rawTick) ? Math.max(0, Math.floor(rawTick)) : 0;
+  if (raw && raw.schemaVersion === NARRATIVE_SCHEMA_VERSION) {
+    return {
+      ...raw,
+      tick,
+      message,
+      category,
+      source,
+    };
+  }
+  return {
+    schemaVersion: 0,
+    id: null,
+    tick,
+    type: `legacy.${category}`,
+    category,
+    importance: 'ambient',
+    message,
+    source,
+  };
+}
+
+// Resolve a bounded numeric retention limit with a safe fallback.
+function resolveEventLimit(value, fallback) {
+  const numeric = Number(value);
+  if (Number.isFinite(numeric)) {
+    return Math.max(0, Math.floor(numeric));
+  }
+  return Math.max(0, Math.floor(Number(fallback || 0)));
+}
+
+// Resolve bounded Event Log retention separately from the HUD mini-log.
 function resolveEventLogLimit(eventsConfig, maxEvents) {
   const raw = Number(eventsConfig.logMaxEntries);
   if (Number.isFinite(raw)) {
@@ -65,7 +224,7 @@ function resolveEventLogLimit(eventsConfig, maxEvents) {
   return Math.max(120, Math.max(1, Math.floor(Number(maxEvents || 5))) * 24);
 }
 
-// Normalize category ids to known-safe lowercase tokens.
+// Normalize legacy category ids to safe lowercase tokens.
 function normalizeEventCategory(value) {
   const raw = String(value || '').trim().toLowerCase();
   if (!raw) {
@@ -147,8 +306,11 @@ function inferEventCategory(message) {
 
 module.exports = {
   pushEvent,
+  normalizeNarrativeEventDraft,
+  reduceNarrativeEventToLimit,
   normalizeEventLogEntry,
   inferEventCategory,
   normalizeEventCategory,
   isDramaEventCategory,
+  resolveEventImportance,
 };

@@ -1,6 +1,6 @@
 # NodeDwarves Epic Evolution Workbook
 
-Last updated: 2026-07-16  
+Last updated: 2026-07-17
 Status: Active planning baseline  
 Scope: Step-by-step delivery and evidence tracking for the project-wide epic simulation evolution
 
@@ -123,7 +123,7 @@ Dashboard:
 | Milestone | Workstreams | Outcome | Status | Entry gate | Exit gate |
 | --- | --- | --- | --- | --- | --- |
 | M0 - Measurement | E0 | Frozen narrative/watchability baseline and executable contracts | `Done` | Workbook initialized | E0 gate passes |
-| M1 - Structured stories | E1, E2 | Events know who/where/why; messages use stable identities | `Ready` | M0 done | Structured-event + identity gates pass |
+| M1 - Structured stories | E1, E2 | Events know who/where/why; messages use stable identities | `In progress` | M0 done | Structured-event + identity gates pass |
 | M2 - Watchable simulation | E3, E4 | The terminal guides attention and protects important moments | `Not started` | M1 done | Director + presentation gates pass |
 | M3 - Lived history | E5 | Biographies and chronicles contain actual deeds | `Not started` | M2 done | Chronicle integrity + cycle export gate passes |
 | M4 - Persistent civilization | E6 | Cycles inherit bounded, visible history | `Not started` | M3 done | Deterministic multi-cycle gate passes |
@@ -271,31 +271,209 @@ E0 exit criteria:
 
 ## 5) Workstream E1 - Structured events and causal history
 
-Status: `Ready`
+Status: `In progress`
 
 Objective: turn the existing rolling log into a deterministic, machine-readable story substrate
 without breaking current message consumers.
 
 ### E1.1 Backward-compatible event core
 
-- [ ] Extend `src/simulation/events.js` with normalized structured payload support.
-- [ ] Preserve `state.events` as the compact HUD message list during migration.
-- [ ] Preserve `state.eventLog` compatibility for the current Event Log panel.
-- [ ] Add importance defaults by category/type through config, not hidden constants.
-- [ ] Keep explicit event data free of render-only ANSI/color concerns.
+- [x] Extend `src/simulation/events.js` with normalized structured payload support.
+- [x] Preserve `state.events` as the compact HUD message list during migration.
+- [x] Preserve `state.eventLog` compatibility for the current Event Log panel.
+- [x] Add importance defaults by category/type through config, not hidden constants.
+- [x] Keep explicit event data free of render-only ANSI/color concerns.
+
+E1.1 closure snapshot (2026-07-17):
+
+- `pushEvent` accepts legacy strings, transitional string-plus-details calls, and structured objects;
+  every accepted input returns a canonical v1 event while existing callers may ignore the return.
+- Draft normalization and optional-payload reduction live in the dedicated
+  `src/simulation/narrative_normalizer.js` module, keeping the event gateway focused on state flow.
+- Generated identity is transactional: rejected/malformed/colliding drafts do not consume sequence,
+  log messages, or invoke RNG. Equal state/order produces equal cycle/tick/sequence IDs.
+- `state.events` remains a capped string mini-log; `state.eventLog` now retains capped full v1 objects
+  and the Event Log renderer continues to accept both v0 and v1 records.
+- Added initial `eventClock` and bounded scalar `eventStats` state, including accepted, rejected,
+  legacy-normalized, truncated, and collision counts.
+- Importance uses config precedence: explicit → `by_type` → `by_category` → default → `ambient`.
+- Structured text/references are ANSI-free, plain JSON, UTF-8 bounded, and deterministically reduced
+  under the 16 KiB ceiling.
+- No producer-specific migration is included; existing emitters currently surface as
+  `legacy.<category>` until E1.2/E1.3 supplies actor/location/causal facts.
+- Full cached profile remained numerically identical to E0.1: seed populations `683/678/732/700`,
+  average population `698.25`, morale `0.8851`, hunger `0.1575`, thirst `0.1083`, and Underrealm
+  depth `2.25`; the cache guard then confirmed the new config hash is aligned.
 
 ### E1.2 Priority producer migration
 
+Status: `Done`
+
 Migrate in this order:
 
-- [ ] Lifecycle: births, deaths, partnerships, and founding events.
-- [ ] Social drama: mentorship, rivalry, grudges, and reconciliation.
-- [ ] Combat: surface raids, ruins expeditions, Underrealm fights, and champion changes.
-- [ ] Warrior League: tournaments, scars, vows, retirements, and Hall of Fame changes.
-- [ ] Political: schism phases, rituals, decrees, and climax resolution.
-- [ ] Endgame: artifact completion, cycle closure, transition, and carry-over.
+- [x] Lifecycle: births, deaths, partnerships, and founding events.
+- [x] Social drama: mentorship, rivalry, grudges, and reconciliation.
+- [x] Combat: surface raids, ruins expeditions, Underrealm fights, and champion changes.
+- [x] Warrior League: tournaments, scars, vows, retirements, and Hall of Fame changes.
+- [x] Political: schism phases, rituals, decrees, and climax resolution.
+- [x] Endgame: artifact completion, cycle closure, transition, and carry-over.
 
 Each migrated event must declare actors and location when those facts exist in state.
+
+E1.2 lifecycle slice closure snapshot (2026-07-17):
+
+- Added `src/simulation/lifecycle_events.js` as the single structured payload boundary for cycle
+  founding, births, natural deaths, and first-mutual-bond partnerships.
+- Every migrated event keeps the existing compact message while adding stable dwarf/settlement IDs,
+  deterministic lore-name snapshots, last-known surface locations, causal facts, and typed
+  consequences. No retained event contains a live simulation object.
+- `stepState` records settlement founding at tick `0` before advancing a newly initialized cycle;
+  `state.lifecycle.foundingEmitted` prevents duplicates and is committed only after event acceptance.
+- Natural-death cleanup preserves the deceased snapshot for emission after authoritative population,
+  job, relationship, and pregnancy cleanup. Partnership emission observes the existing relationship
+  transition and does not alter its mechanics or random-call order.
+- Config assigns `notable` to birth/partnership and `major` to death/founding through
+  `events.importance.by_type`.
+- Focused lifecycle integration fixtures cover once-per-cycle founding, a due-pregnancy birth,
+  starvation death, first partnership without duplicate emission, strict v1 validity, and RNG
+  neutrality. The two-seed `1000`-tick smoke retained exact pre-migration endpoints.
+- The refreshed `4 x 8000` cached profile retained exact frozen populations `683/678/732/700`,
+  average population `698.25`, morale `0.8851`, hunger `0.1575`, thirst `0.1083`, and Underrealm
+  depth `2.25`. Cache hash `752fdfc76240b106447411200689f6ca636f825334f4583bd0bb7baf47923620`
+  passed the immediate aligned recheck.
+- The endgame row remains open; E1.2 is not
+  complete until those priority producer slices close.
+
+E1.2 social-drama slice closure snapshot (2026-07-17):
+
+- Added `src/simulation/social_events.js` as the structured payload boundary for mentorship
+  breakthroughs, rivalry clashes, grudge escalations, and reconciliations.
+- `social_drama.js` emits only after the existing effects, cooldown, history, and counter updates
+  commit. Selection weights, random-call order, messages, gameplay deltas, and ledger behavior remain
+  unchanged.
+- Events retain deterministic actor-name snapshots and pre-incident pair metrics. Mentorship records
+  mentor/beneficiary roles; symmetric conflicts do not invent an instigator. Location uses a shared
+  coordinate/home fact when defensible and otherwise falls back to world scope.
+- Type importance is config-driven: grudge escalation is `major`; mentorship breakthrough, rivalry
+  clash, and reconciliation are `notable`.
+- Focused fixtures cover all four event families, strict v1 validity, no pair mutation, no emission
+  RNG, and one real rivalry incident through `updateSocialDrama`.
+- The pre/post deterministic `2 x 1000` profile is numerically identical: seed populations `18/30`,
+  average population `24.0`, morale `0.8905`, hunger `0.1493`, thirst `0.1003`, and matching
+  stockpile/Underrealm/decree endpoints. Aggregate contracts and terminal render smoke also pass.
+- Per ED-013, the active config hash
+  `ef9bf430516893b04e96cbca3703d30a527c395d5d138430f1e05dc6571eee08` is temporarily different
+  from cached baseline hash `752fdfc76240b106447411200689f6ca636f825334f4583bd0bb7baf47923620`.
+  No report-to-report claim may use that stale cache; refresh remains deferred until E1.2 closure
+  unless a full-profile risk trigger appears.
+
+E1.2 combat slice closure snapshot (2026-07-17):
+
+- Added `src/simulation/combat_events.js` as the structured boundary for surface raid start/end,
+  ruins expedition dispatch/outcome, deterministic depth-champion encounters, hostile deep-raid
+  start/casualties/end, and Dwarf Champion appointment/fall.
+- Existing compact messages and authoritative gameplay order remain unchanged. Event builders run
+  only after results commit; victim and party objects are snapshotted before removal when needed.
+- Structured facts retain settlement/faction/threat/dwarf actors, surface or depth location, combat
+  difficulty/readiness/strength evidence, casualties, stolen resources, contested state, and unlocks.
+- Readiness blocks, artifacts, lift progression, shrine/oath events, and failure-cooldown operations
+  remain legacy because they are not combat outcomes. Tournament champion changes are owned by the
+  completed Warrior League slice below.
+- Focused fixtures validate all twelve combat event types, strict v1 shape, actor/cause/consequence
+  coverage, victim name retention, unlock facts, config importance, and zero emission RNG. A real
+  no-loss raid conclusion also passes through `updateRaidTick`.
+- The pre/post deterministic `2 x 1000` profile remains numerically identical: seed populations
+  `18/30`, average population `24.0`, morale `0.8905`, hunger `0.1493`, thirst `0.1003`, with matching
+  stockpile, Underrealm, and decree endpoints.
+- Per ED-013, active config hash
+  `3ffacb47062db4b9bc00c6f6f76edd6c48639397fcd87af2a280163d836fd263` remains intentionally
+  different from cached hash `752fdfc76240b106447411200689f6ca636f825334f4583bd0bb7baf47923620`.
+  The stale cache remains excluded from report comparisons until final E1.2 refresh.
+
+E1.2 Warrior League slice closure snapshot (2026-07-17):
+
+- Added `src/simulation/warrior_events.js` as the structured boundary for scar/title progression,
+  vows, retirement, tournament injury/death, hero succession, season crowns, Hall of Fame induction,
+  and Underrealm command synchronization/relinquishment.
+- Existing compact messages, tournament seeding, duel resolution, progression deltas, governor
+  decisions, and RNG order remain unchanged. Builders observe committed runtime state and never
+  participate in fighter selection or consequence rolls.
+- Tournament deaths retain the fatal fighter object when the outcome is selected, then emit only
+  after population, jobs, social references, league champion, company roster, and Underrealm command
+  cleanup. Retirement facts emit after eligibility and applicable command state are cleared.
+- The season-crown fact emits after ranking, champion, tournament statistics, company roster and
+  identity, and Hall of Fame state commit. Its typed consequences retain both champion status and the
+  Hall of Fame induction.
+- Eleven focused type fixtures validate actor/cause/consequence coverage, strict v1 shape, config
+  importance, Hall of Fame evidence, and zero emission RNG. A real two-fighter deterministic
+  tournament validates fatal cleanup/name retention, the crown, and committed Hall of Fame
+  integration through `updateWarriors`.
+- The two remaining `pushEvent` calls in `warriors.js` are deliberately legacy: the company doctrine
+  operational summary and cross-cycle carry-over seed summary. The latter belongs to endgame; neither
+  is a tournament, mark, vow, retirement, or Hall of Fame change.
+- The pre/post deterministic `2 x 1000` profile is numerically identical: seed populations `18/30`,
+  average population `24.0`, morale `0.8905`, hunger `0.1493`, thirst `0.1003`, with matching
+  stockpile, Underrealm, and decree endpoints.
+- Per ED-013, active config hash
+  `8dc1cfe0e471a1222c5e380e79cd0c9332b77fb73485db140c3d8725f6e428c6` remains intentionally
+  different from cached hash `752fdfc76240b106447411200689f6ca636f825334f4583bd0bb7baf47923620`.
+  The stale cache remains excluded from report comparisons until final E1.2 refresh.
+
+E1.2 political slice closure snapshot (2026-07-17):
+
+- Added `src/simulation/political_events.js` as the structured boundary for doctrine and phase
+  shifts, ritual-window opening, council ignition, ritual invocation/expiry, decree
+  proposal/enactment/expiry, and schism climax start/resolution.
+- All eleven former `pushEvent` sites in `schism.js` now emit canonical facts. Existing compact
+  messages, doctrine and candidate selection, costs, pressure/legitimacy math, modifier resolution,
+  and RNG order remain unchanged.
+- Doctrine, phase, council, ritual/decree activation, and climax events emit after their counters,
+  active state, and immediate deltas commit. Ritual/decree expiration retains a detached snapshot,
+  archives bounded history, resets active state, and only then emits.
+- Political actors use the Council of the Nine Braziers plus bounded ritual/decree institutions.
+  Facts carry current pressure/legitimacy, previous doctrine/phase, season or expiry thresholds,
+  option slates, immediate deltas, and typed active/resolved outcomes.
+- Eleven focused type fixtures validate strict v1 shape, actor/cause/consequence coverage, bounded
+  decree options, config importance, and zero emission RNG. Real runtime fixtures cover phase and
+  climax start/resolution plus council ritual invocation, ritual expiry, decree expiry, history
+  archival, and inactive-state commit.
+- The pre/post deterministic `2 x 1000` profile is numerically identical: seed populations `18/30`,
+  average population `24.0`, morale `0.8905`, hunger `0.1493`, thirst `0.1003`, with matching
+  stockpile, Underrealm, and decree endpoints.
+- Per ED-013, active config hash
+  `4a33da3606928847cdc13b3904bd6f4aac2493c91c72cc3d46ae4d159a747b00` remains intentionally
+  different from cached hash `752fdfc76240b106447411200689f6ca636f825334f4583bd0bb7baf47923620`.
+  The stale cache remains excluded from report comparisons until final E1.2 refresh.
+
+E1.2 endgame slice and priority-migration closure snapshot (2026-07-17):
+
+- Added `src/simulation/endgame_events.js` as the structured boundary for individual artifact
+  recovery, one-shot collection completion, fade start/completion, cycle closure, and Warrior
+  Company carry-over.
+- Artifact recovery emits after the ruins collection and counters commit, retaining the artifact,
+  configured collection progress, and expedition depth. Collection completion emits only when
+  `endgameArtifactsTick` first latches, including when the configured wait is zero.
+- `app.js` emits presentation transition facts after fade state commits. Simulation reset remains in
+  `endgame.js`; transition builders do not control phase timing, seed selection, or state replacement.
+- Cycle closure and Warrior Company carry-over emit after the replacement state installs
+  `cycleStats`, fixing the former legacy carry-over event's pre-install cycle identity. The existing
+  bonus math, roster seeding, lineage archive, Hall of Fame carry, prestige, myths, messages, and RNG
+  order remain unchanged.
+- Six focused payload fixtures validate strict v1 shape, actors, locations, causes, consequences,
+  source-cycle saga links, config importance, and zero emission RNG. A real two-reset fixture covers
+  latch uniqueness, wait maturity, post-swap `cycle/tick/sequence` IDs, prestige/myth continuity,
+  Warrior Company seeding, and absence of the former legacy carry-over event; a source guard keeps
+  both private `app.js` fade hooks wired after their phase commits.
+- The deterministic pre/post `2 x 1000` profile is exactly identical: seed populations `18/30`,
+  average population `24.0`, morale `0.8905`, hunger `0.1493`, thirst `0.1003`, with matching
+  stockpile, Underrealm, and decree endpoints.
+- Per ED-013, final priority-producer closure refreshed the full `4 x 8000` cache. Frozen
+  populations remain exactly `683/678/732/700` (average `698.25`), with morale `0.8851`, hunger
+  `0.1575`, thirst `0.1083`, and Underrealm depth `2.25`; hash
+  `e1519c0df9bd6c76c2d06de0f1f02f7cd2cddba47f426565c7ad5da3a4872656` passed the immediate
+  aligned recheck. Aggregate contracts and terminal render smoke also pass.
+- All six E1.2 priority families are now migrated. E1 remains open for secondary producers and Event
+  Log presentation work in E1.3/E1.4.
 
 ### E1.3 Secondary producer migration
 
@@ -634,6 +812,19 @@ Validation tiers:
 | V4 - Release | Milestone closure | `npm run ai:validate`, runtime/resize/panel checks, docs review, debug cleanup |
 | V5 - Deep | Persistent legacy, sieges, or AI changes | Long-horizon and multi-cycle profiles, weekly sentinel where applicable |
 
+E1.2 narrative benchmark cadence:
+
+- Do not repeat the full `4 x 8000` profile after every presentation-only producer migration.
+- During each purely narrative E1.2 slice, use focused producer/contract tests, `npm test`, a
+  deterministic `2 x 1000` parity smoke, and the relevant runtime render smoke.
+- Promote the slice immediately to `4 x 8000` when it changes gameplay decisions, RNG call
+  count/order, policy contracts, benchmark-relevant configuration, or a material simulation hot path.
+- Otherwise run one full `4 x 8000` cached-baseline refresh and aligned recheck when all E1.2
+  priority producers close, before marking E1.2 Done.
+- If a presentation-only config addition changes the config hash during an intermediate slice, record
+  the temporary cache mismatch and do not use the stale cache for report-to-report claims; refresh it
+  at E1.2 closure or sooner if another full-profile trigger applies.
+
 Required narrative metrics in reports as they become available:
 
 - events by type/category/importance;
@@ -690,6 +881,14 @@ Record every non-trivial scope or architecture decision.
 | 2026-07-16 | ED-008 | Keep legacy v0 records display-only while new writers emit canonical v1 events through a backward-compatible `pushEvent` API | Eagerly rewrite retained records; require an all-at-once producer migration | Lets current string-only producers and Event Log rendering survive incremental migration | E1 migration scope and compatibility | Approved |
 | 2026-07-16 | ED-009 | Treat `state.eventLog` as a capped UI buffer and give future Story/Chronicle/legacy stores separate bounded ownership | Grow the Event Log into permanent history; retain full prior events across cycles | Prevents tick-proportional state growth while preserving compact facts and provenance IDs | Retention architecture | Approved |
 | 2026-07-16 | ED-010 | Implement the E0.3 schema validator and identity transaction helpers as a pure reusable module, without wiring it into `pushEvent` until E1.1 | Keep a test-only duplicate contract oracle; implement the full event core during E0.3 | Gives tests production-reusable rules while preserving the planned runtime migration boundary | Contract enforcement and E1.1 risk | Approved |
+| 2026-07-17 | ED-011 | Canonicalize every accepted legacy call centrally while retaining strings only in the HUD mini-log and full v1 objects in the bounded Event Log | Keep four-field Event Log records until each producer migrates; duplicate legacy and structured pipelines | Creates one deterministic substrate immediately without forcing a risky 116-call-site migration | Runtime event architecture | Approved |
+| 2026-07-17 | ED-012 | Centralize lifecycle payload construction and emit settlement founding at cycle tick 0 before the first simulation advance | Build narrative payloads inline in population logic; emit founding during state construction or at tick 1 | Keeps producer mechanics readable, preserves correct installed cycle identity after resets, and adds no RNG or decision changes | E1.2 lifecycle architecture and determinism | Approved |
+| 2026-07-17 | ED-013 | Use focused tests plus `2 x 1000` parity smokes for presentation-only E1.2 slices and reserve `4 x 8000` for risk triggers or final E1.2 closure | Run `4 x 8000` after every producer slice; use only contract fixtures until final closure | Keeps iteration proportional while retaining a full long-horizon parity gate where it adds decision value | E1.2 validation cadence and benchmark cost | Approved |
+| 2026-07-17 | ED-014 | Emit social narrative facts only after the existing incident transaction commits and keep selection mechanics unaware of the event builder | Build events before effects; combine narrative generation with weighted incident selection | Preserves gameplay/RNG behavior and lets retained facts describe authoritative outcomes | E1.2 social-drama boundary and determinism | Approved |
+| 2026-07-17 | ED-015 | Snapshot combat participants before authoritative removal and emit structured facts only after the existing outcome commits | Emit before combat resolution; reconstruct victims from surviving state; mix event construction into combat selection | Preserves historical names and causal outcomes without changing RNG, combat decisions, or compact messages | E1.2 combat boundary and determinism | Approved |
+| 2026-07-17 | ED-016 | Treat the completed tournament transaction as the Warrior League narrative boundary; retain fatal fighters before removal and emit death/crown facts after cleanup and Hall of Fame commit | Emit fatal outcomes inside the duel roll; emit the crown before rankings/company history settle; make event builders participate in tournament resolution | Preserves historical identities and authoritative league outcomes without changing RNG, tournament mechanics, or compact messages | E1.2 Warrior League boundary and determinism | Approved |
+| 2026-07-17 | ED-017 | Keep political selection/mutation in `schism.js`, emit transitions after commit, and archive/reset expiring ritual or decree state before emitting from detached snapshots | Let event builders select doctrine/decrees; emit expiration before history/reset; reconstruct expired labels from cleared state | Preserves exact governance mechanics and RNG while making retained political facts authoritative and replayable | E1.2 political boundary and determinism | Approved |
+| 2026-07-17 | ED-018 | Treat artifact latching and UI fades as pre-reset facts, but emit cycle closure and carry-over only after the replacement state installs its completed-cycle counter | Emit every fact before reset; let carry-over emit during helper mutation; preserve the legacy pre-install identity | Keeps the fade readable in the departing hold while ensuring durable closure/carry-over IDs belong to the authoritative new cycle at tick 0 | E1.2 endgame boundary and cross-cycle identity | Approved |
 
 ## 17) Implementation log
 
@@ -702,6 +901,13 @@ within the repository retention policy.
 | 2026-07-16 | EW-001 | E0.1 freeze: align cached benchmark, fingerprint repo/config/policy/layout/screenshots, measure retained event-log distribution at `1000/8000` ticks, and isolate frame-build/output-write timings | `benchmark_cache/headless_benchmark_baseline.json`, `benchmark_cache/headless_benchmark_baseline.md`, `debug/epic_baseline_summary.json`, `debug/epic_baseline_summary.md`, `docs/EPIC_EVOLUTION_WORKBOOK.md` | `npm run bench:ensure-baseline` (refresh + aligned recheck), deterministic 4-seed probe, JSON parse, `git diff --check`, `npm test` | Done | No seed collapse; long log saturated `1200/1200`, raw-ID share `38.50%`; surface build mean `1.146 ms`, Inspect max seed p95 `7.832 ms` |
 | 2026-07-16 | EW-002 | E0.2 contract: specify the v1 narrative envelope, deterministic IDs/order, legacy normalization, typed reference bounds, independent retention, serialization ceiling, and E0.3 acceptance matrix | `docs/NARRATIVE_EVENT_CONTRACT.md`, `docs/EPIC_EVOLUTION_WORKBOOK.md`, `AGENTS.md`, `README.md`, `MANUAL.md` | Contract consistency audit, documentation index review, `git diff --check`, `npm test` | Done | Specification-only change; no config, runtime, simulation, rendering, export, or AI behavior changed |
 | 2026-07-16 | EW-003 | E0.3 executable contracts: add strict v1 validation/identity helpers, malformed fixtures, legacy/retention checks, mixed v0/v1 renderer checks, and AI/export isolation gates | `src/simulation/narrative_contract.js`, `scripts/test_narrative_contracts.js`, `package.json`, `docs/NARRATIVE_EVENT_CONTRACT.md`, `docs/EPIC_EVOLUTION_WORKBOOK.md`, `AGENTS.md`, `README.md`, `MANUAL.md` | `node --check src/simulation/narrative_contract.js`, `node --check scripts/test_narrative_contracts.js`, `npm run test:narrative`, `npm test`, `git diff --check` | Done | Focused and aggregate suites pass; malformed fixtures fail with deterministic diagnostics; no event-runtime/config/AI/export behavior changed |
+| 2026-07-17 | EW-004 | E1.1 structured event core: wire canonical normalization/validation into `pushEvent`, add config importance precedence, initialize event clock/diagnostics, preserve legacy UI paths, and extend integration gates | `src/simulation/events.js`, `src/simulation/narrative_contract.js`, `src/simulation/narrative_normalizer.js`, `src/state/index.js`, `config.json`, `scripts/test_narrative_contracts.js`, `docs/PARAMETERS.md`, `docs/NARRATIVE_EVENT_CONTRACT.md`, `docs/EPIC_EVOLUTION_WORKBOOK.md`, `AGENTS.md`, `README.md`, `MANUAL.md` | `node --check`, `npm run test:narrative`, `npm test`, short two-seed benchmark, cached-baseline refresh + aligned recheck, E0.1 frozen-metric comparison, terminal render smoke, `git diff --check` | Done | Canonical v1 runtime active; deterministic IDs/retention/collisions/AI isolation pass; full profile exactly matches frozen balance endpoints because emission consumes no RNG and changes no simulation decisions |
+| 2026-07-17 | EW-005 | E1.2 lifecycle slice: migrate settlement founding, births, natural deaths, and first-mutual-bond partnerships to canonical facts without changing simulation decisions | `src/simulation/lifecycle_events.js`, `src/simulation/population.js`, `src/simulation/index.js`, `src/state/index.js`, `config.json`, `scripts/test_narrative_contracts.js`, `docs/PARAMETERS.md`, `docs/NARRATIVE_EVENT_CONTRACT.md`, `docs/EPIC_EVOLUTION_WORKBOOK.md`, `AGENTS.md`, `README.md`, `MANUAL.md` | Lifecycle integration fixtures, `npm run test:narrative`, aggregate contracts, short two-seed benchmark, cached-baseline refresh + aligned recheck, terminal render smoke, `git diff --check` | Done | Lifecycle facts are canonical and RNG-neutral; full `4 x 8000` endpoints exactly match E0.1/E1.1, cache hash `752fdfc76240b106447411200689f6ca636f825334f4583bd0bb7baf47923620` is aligned, and AI/export shapes remain unchanged |
+| 2026-07-17 | EW-006 | E1.2 social-drama slice: migrate mentorship breakthroughs, rivalry clashes, grudge escalations, and reconciliations to canonical facts after incident commit | `src/simulation/social_events.js`, `src/simulation/social_drama.js`, `config.json`, `scripts/test_narrative_contracts.js`, `docs/PARAMETERS.md`, `docs/NARRATIVE_EVENT_CONTRACT.md`, `docs/EPIC_EVOLUTION_WORKBOOK.md`, `AGENTS.md`, `README.md`, `MANUAL.md` | Four-type emitter fixtures, real social-runtime integration fixture, `npm run test:narrative`, `npm test`, deterministic `2 x 1000` parity smoke, terminal render smoke, `git diff --check` | Done | All four social facts are canonical and emission is RNG-neutral; pre/post `2 x 1000` endpoints match exactly, AI/export contracts pass, and the intentional cache-hash mismatch is recorded under ED-013 without a long refresh |
+| 2026-07-17 | EW-007 | E1.2 combat slice: migrate surface raids, ruins expeditions, depth-champion encounters, hostile deep raids, and Dwarf Champion transitions after authoritative outcomes | `src/simulation/combat_events.js`, `src/simulation/raids.js`, `src/simulation/ruins.js`, `src/simulation/underrealm.js`, `config.json`, `scripts/test_narrative_contracts.js`, `docs/PARAMETERS.md`, `docs/NARRATIVE_EVENT_CONTRACT.md`, `docs/EPIC_EVOLUTION_WORKBOOK.md`, `AGENTS.md`, `README.md`, `MANUAL.md` | Twelve-type combat fixtures, real raid-resolution integration fixture, `npm run test:narrative`, `npm test`, deterministic pre/post `2 x 1000`, terminal render smoke, `git diff --check` | Done | All twelve combat facts are canonical and emission is RNG-neutral; pre/post `2 x 1000` endpoints match exactly, AI/export contracts pass, terminal smoke passes, and the intentional cache mismatch is recorded under ED-013 without a long refresh |
+| 2026-07-17 | EW-008 | E1.2 Warrior League slice: migrate marks, vows, tournament consequences, retirements, hero succession, season crowns, Hall of Fame induction, and command transitions after authoritative updates | `src/simulation/warrior_events.js`, `src/simulation/warriors.js`, `config.json`, `scripts/test_narrative_contracts.js`, `docs/PARAMETERS.md`, `docs/NARRATIVE_EVENT_CONTRACT.md`, `docs/EPIC_EVOLUTION_WORKBOOK.md`, `AGENTS.md`, `README.md`, `MANUAL.md` | Eleven-type emitter fixtures, real deterministic fatal-duel/tournament/Hall of Fame integration fixture, `npm run test:narrative`, `npm test`, deterministic pre/post `2 x 1000`, terminal render smoke, `git diff --check` | Done | All eleven Warrior League facts are canonical and RNG-neutral; pre/post `2 x 1000` endpoints match exactly, existing Warrior contracts and AI/export isolation pass, terminal smoke passes, and the intentional cache mismatch is recorded under ED-013 without a long refresh |
+| 2026-07-17 | EW-009 | E1.2 political slice: migrate schism doctrine/phase, ritual windows and lifecycle, council decree lifecycle, and climax start/resolution after authoritative updates | `src/simulation/political_events.js`, `src/simulation/schism.js`, `config.json`, `scripts/test_narrative_contracts.js`, `docs/PARAMETERS.md`, `docs/NARRATIVE_EVENT_CONTRACT.md`, `docs/EPIC_EVOLUTION_WORKBOOK.md`, `AGENTS.md`, `README.md`, `MANUAL.md` | Eleven-type emitter fixtures, real deterministic phase/climax and ritual/decree archival fixtures, `npm run test:narrative`, `npm test`, deterministic pre/post `2 x 1000`, terminal render smoke, `git diff --check` | Done | All eleven political facts are canonical and RNG-neutral; every former `schism.js` producer is migrated, pre/post `2 x 1000` endpoints match exactly, AI/export contracts and terminal smoke pass, and the intentional cache mismatch is recorded under ED-013 without a long refresh |
+| 2026-07-17 | EW-010 | E1.2 endgame slice and priority-family closure: migrate artifact recovery/collection, presentation transitions, cycle closure, and Warrior Company carry-over with authoritative cross-cycle identity | `src/simulation/endgame_events.js`, `src/simulation/endgame.js`, `src/simulation/ruins.js`, `src/simulation/warriors.js`, `app.js`, `config.json`, `scripts/test_narrative_contracts.js`, `benchmark_cache/`, `docs/PARAMETERS.md`, `docs/NARRATIVE_EVENT_CONTRACT.md`, `docs/EPIC_EVOLUTION_WORKBOOK.md`, `AGENTS.md`, `README.md`, `MANUAL.md` | Six-type RNG-neutral fixtures, real two-reset/latch/carry-over integration, `npm run test:narrative`, `npm test`, deterministic pre/post `2 x 1000`, final cached `4 x 8000` refresh + aligned recheck, terminal render smoke, `git diff --check` | Done | All endgame priority facts are canonical; post-swap IDs use cycles 3/4 at tick 0 in the multi-cycle fixture; short and full profiles retain exact frozen endpoints; cache hash `e1519c0df9bd6c76c2d06de0f1f02f7cd2cddba47f426565c7ad5da3a4872656` is aligned; E1.2 is closed |
 
 ## 18) Checkpoint template
 
@@ -770,9 +976,20 @@ Execute one bounded step at a time:
 1. [x] `E0.1` - Freeze repository, benchmark, event-distribution, screenshot, and render-time baseline.
 2. [x] `E0.2` - Finalize the structured event envelope and deterministic ID rules.
 3. [x] `E0.3` - Add executable narrative contract tests.
-4. `E1.1` - Implement the backward-compatible structured event core. **Next.**
-5. `E1.2` - Migrate lifecycle events and validate end-state parity.
-6. Continue priority producer migration only after the lifecycle slice is closed.
+4. [x] `E1.1` - Implement the backward-compatible structured event core.
+5. [x] `E1.2 / lifecycle` - Migrate founding, birth, natural-death, and partnership events and
+   validate short-run end-state parity.
+6. [x] `E1.2 / social drama` - Migrate mentorship, rivalry, grudge, and reconciliation events after
+   the lifecycle full-profile gate is closed.
+7. [x] `E1.2 / combat` - Migrate surface raids, ruins expeditions, Underrealm fights, and champion
+   changes.
+8. [x] `E1.2 / Warrior League` - Migrate tournaments, scars, vows, retirements, and Hall of Fame
+   changes.
+9. [x] `E1.2 / political` - Migrate schism phases, rituals, decrees, and climax resolution.
+10. [x] `E1.2 / endgame` - Migrate artifact completion, cycle closure, transition, and carry-over.
+11. `E1.3 / secondary producers` - Migrate world events, camps, caravans, merchants, contracts,
+    myths, alchemy, festivals, weather, wildlife, construction, villages, roads, temple stages, and
+    resource milestones; add the remaining-legacy producer audit. **Next.**
 
 The first implementation slice should remain deliberately narrow: event schema, birth/death
 producers, identity resolution, Event Log compatibility, deterministic tests, and documentation.

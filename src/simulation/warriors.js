@@ -6,6 +6,15 @@ const { buildDwarfLore } = require('../dwarf_lore');
 const { hasInputs, consumeInputs } = require('./resources');
 const { pushEvent } = require('./events');
 const { clearDeadSocialLinks } = require('./social_drama');
+const {
+  emitWarriorMarkChanged,
+  emitWarriorRetired,
+  emitWarriorUnderrealmCommandChanged,
+  emitWarriorHeroCommandTaken,
+  emitWarriorTournamentInjury,
+  emitWarriorTournamentDeath,
+  emitWarriorTournamentCrowned,
+} = require('./warrior_events');
 
 const WARRIOR_LEAGUE_EPITHETS = [
   'Gauntlet',
@@ -2182,20 +2191,37 @@ function applyWarriorProgressionMarks(state, config, dwarf, warrior, context = {
   if (state && config) {
     const fighterLabel = formatWarriorDisplayName(dwarf, state, config);
     for (const scarId of gainedScars) {
-      pushEvent(state, config, `Warrior League: ${fighterLabel} gained scar ${scarId}`);
+      emitWarriorMarkChanged(state, config, dwarf, {
+        kind: 'scar',
+        id: scarId,
+        source: context.source,
+        message: `Warrior League: ${fighterLabel} gained scar ${scarId}`,
+      });
     }
     for (const titleId of gainedTitles) {
-      pushEvent(state, config, `Warrior League: ${fighterLabel} gained title ${titleId}`);
+      emitWarriorMarkChanged(state, config, dwarf, {
+        kind: 'title',
+        id: titleId,
+        source: context.source,
+        message: `Warrior League: ${fighterLabel} gained title ${titleId}`,
+      });
     }
     if (vowResult.changed) {
       if (vowResult.previousVow) {
-        pushEvent(
-          state,
-          config,
-          `Warrior League: ${fighterLabel} replaced vow ${vowResult.previousVow} -> ${warrior.vow}`,
-        );
+        emitWarriorMarkChanged(state, config, dwarf, {
+          kind: 'vow_replaced',
+          id: warrior.vow,
+          previousId: vowResult.previousVow,
+          source: context.source,
+          message: `Warrior League: ${fighterLabel} replaced vow ${vowResult.previousVow} -> ${warrior.vow}`,
+        });
       } else if (warrior.vow) {
-        pushEvent(state, config, `Warrior League: ${fighterLabel} swore vow ${warrior.vow}`);
+        emitWarriorMarkChanged(state, config, dwarf, {
+          kind: 'vow_sworn',
+          id: warrior.vow,
+          source: context.source,
+          message: `Warrior League: ${fighterLabel} swore vow ${warrior.vow}`,
+        });
       }
     }
   }
@@ -2843,7 +2869,6 @@ function applyWarriorLeagueRetirement(state, config, runtime, dwarf, warrior, ti
     runtime.stats.retirements = Math.max(0, Number(runtime.stats.retirements || 0)) + 1;
   }
   const label = formatWarriorDisplayName(dwarf, state, config);
-  pushEvent(state, config, `Warrior League: ${label} retired after ${reason}`);
 
   const league = runtime && runtime.league && typeof runtime.league === 'object'
     ? runtime.league
@@ -2867,8 +2892,20 @@ function applyWarriorLeagueRetirement(state, config, runtime, dwarf, warrior, ti
     underChampion.activeDwarfId = null;
     underChampion.activeSinceTick = 0;
     underChampion.losses = Math.max(0, Math.floor(Number(underChampion.losses || 0))) + 1;
-    pushEvent(state, config, `Underrealm: champion ${label} stood down (retired)`);
+    emitWarriorRetired(state, config, dwarf, {
+      reason,
+      message: `Warrior League: ${label} retired after ${reason}`,
+    });
+    emitWarriorUnderrealmCommandChanged(state, config, dwarf, {
+      mode: 'relinquished',
+      message: `Underrealm: champion ${label} stood down (retired)`,
+    });
+    return true;
   }
+  emitWarriorRetired(state, config, dwarf, {
+    reason,
+    message: `Warrior League: ${label} retired after ${reason}`,
+  });
   return true;
 }
 
@@ -3002,9 +3039,11 @@ function tryWarriorHeroSuccessionAfterDefeat(state, config, runtime, warriors, w
   }
   const winnerLabel = formatWarriorDisplayName(winner.dwarf, state, config);
   const loserLabel = formatWarriorDisplayName(loser.dwarf, state, config);
-  pushEvent(
+  emitWarriorHeroCommandTaken(
     state,
     config,
+    winner.dwarf,
+    loser.dwarf,
     `Warrior League: ${winnerLabel} defeated ${loserLabel} and took hero command`,
   );
   return true;
@@ -3021,6 +3060,7 @@ function applyTournamentDuelConsequences(
   duel,
   tick,
   deadIds,
+  deathEvents,
 ) {
   if (!winner || !loser || !winner.warrior || !loser.warrior || !winner.dwarf || !loser.dwarf) {
     return;
@@ -3166,11 +3206,11 @@ function applyTournamentDuelConsequences(
   }
 
   const loserLabel = formatWarriorDisplayName(loser.dwarf, state, config);
-  pushEvent(
-    state,
-    config,
-    `Warrior League: ${loserLabel} suffered ${severity} injury (${recoveryTicks} recovery ticks)`,
-  );
+  emitWarriorTournamentInjury(state, config, loser.dwarf, {
+    severity,
+    recoveryTicks,
+    message: `Warrior League: ${loserLabel} suffered ${severity} injury (${recoveryTicks} recovery ticks)`,
+  });
 
   const lifeStage = String(loser.dwarf.lifeStage || '');
   const ageMultiplier = lifeStage === 'elder' ? 1.4 : 1;
@@ -3197,7 +3237,12 @@ function applyTournamentDuelConsequences(
     if (deadIds && typeof deadIds.add === 'function') {
       deadIds.add(String(loser.dwarfId || ''));
     }
-    pushEvent(state, config, `Warrior League: ${loserLabel} fell in tournament combat`);
+    if (Array.isArray(deathEvents)) {
+      deathEvents.push({
+        dwarf: loser.dwarf,
+        message: `Warrior League: ${loserLabel} fell in tournament combat`,
+      });
+    }
     return;
   }
   if (retirementChance > 0 && Math.random() < retirementChance) {
@@ -3562,6 +3607,7 @@ function runSeasonWarriorTournament(state, config, runtime, warriors, seasonId) 
     tick,
   );
   const deadIds = new Set();
+  const deathEvents = [];
   runtime.league.lastTournamentSeasonId = Math.max(0, Math.floor(Number(seasonId || 0)));
   runtime.league.lastTournamentSeasonName = state && state.season && state.season.name
     ? String(state.season.name)
@@ -3658,6 +3704,7 @@ function runSeasonWarriorTournament(state, config, runtime, warriors, seasonId) 
         duel,
         tick,
         deadIds,
+        deathEvents,
       );
       const winnerStanding = standingById.get(winner.dwarfId);
       const loserStanding = standingById.get(loser.dwarfId);
@@ -3752,6 +3799,9 @@ function runSeasonWarriorTournament(state, config, runtime, warriors, seasonId) 
 
   if (deadIds.size > 0) {
     applyWarriorLeagueDeaths(state, deadIds);
+    for (const deathEvent of deathEvents) {
+      emitWarriorTournamentDeath(state, config, deathEvent.dwarf, deathEvent.message);
+    }
   }
 
   const rosterSize = Math.max(1, Math.floor(Number(legacy.companyRosterSize || 12)));
@@ -3787,11 +3837,13 @@ function runSeasonWarriorTournament(state, config, runtime, warriors, seasonId) 
     );
     const fighterLabel = formatWarriorDisplayName(champion.dwarf, state, config);
     const championLabel = champion.clanId ? `${fighterLabel} (${champion.clanId})` : fighterLabel;
-    pushEvent(
-      state,
-      config,
-      `Warrior League ${leagueName} S${runtime.league.lastTournamentSeasonId}: champion ${championLabel}`,
-    );
+    emitWarriorTournamentCrowned(state, config, {
+      champion: champion.dwarf,
+      previousChampionId,
+      seasonId: runtime.league.lastTournamentSeasonId,
+      participantCount: participants.length,
+      message: `Warrior League ${leagueName} S${runtime.league.lastTournamentSeasonId}: champion ${championLabel}`,
+    });
     const identity = runtime.company && runtime.company.identity && typeof runtime.company.identity === 'object'
       ? runtime.company.identity
       : null;
@@ -3805,11 +3857,10 @@ function runSeasonWarriorTournament(state, config, runtime, warriors, seasonId) 
     if (tournaments.syncUnderrealmChampion) {
       const synced = syncWarriorLeagueChampionToUnderrealm(state, champion.dwarfId, tick);
       if (synced) {
-        pushEvent(
-          state,
-          config,
-          `Warrior League: ${fighterLabel} synced to Underrealm Dwarf Champion command`,
-        );
+        emitWarriorUnderrealmCommandChanged(state, config, champion.dwarf, {
+          mode: 'synced',
+          message: `Warrior League: ${fighterLabel} synced to Underrealm Dwarf Champion command`,
+        });
       }
     }
   }
@@ -4275,11 +4326,6 @@ function carryWarriorCompanyAcrossCycle(previousState, nextState, config) {
         Number(warrior.heroPotential || 0) + seedBonus * heroScale,
       );
     }
-    pushEvent(
-      nextState,
-      config,
-      `Warrior Company carry-over: retained ${(retainedRenown * 100).toFixed(1)}% renown (${(seedBonus * 100).toFixed(1)}% startup seed)`,
-    );
   }
 
   const rosterSize = Math.max(1, Math.floor(Number(legacy.companyRosterSize || 1)));
@@ -4315,6 +4361,18 @@ function carryWarriorCompanyAcrossCycle(previousState, nextState, config) {
   nextCompany.rosterIds = seededRoster;
   refreshWarriorCompanyLegacyAura(nextState, config, warriors, nextRuntime);
   refreshWarriorCompanyIdentity(nextState, config, warriors, nextRuntime);
+  return {
+    applied: true,
+    sourceCycle: previousCycleCount,
+    targetCycle: nextCycleIndex,
+    companyName: String(previousIdentity.name || ''),
+    retainedRenown,
+    seedBonus,
+    sourceChampionId: previousChampionId,
+    historyEntries: nextCompany.cycleHistory.length,
+    hallOfFameEntries: nextCompany.hallOfFame.length,
+    seededRosterSize: nextCompany.rosterIds.length,
+  };
 }
 
 module.exports = {

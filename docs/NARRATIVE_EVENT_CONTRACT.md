@@ -1,6 +1,6 @@
 # Narrative Event Contract v1
 
-Status: `Approved for implementation`
+Status: `Implemented by E1.1`
 
 This document is the normative contract for NodeDwarves narrative events. It closes Epic Evolution
 step E0.2 and defines the target behavior for E0.3 tests and the E1.1 event-core implementation.
@@ -249,14 +249,14 @@ The E1.1 config shape is:
   "events": {
     "importance": {
       "default": "ambient",
-      "byCategory": {},
-      "byType": {}
+      "by_category": {},
+      "by_type": {}
     }
   }
 }
 ```
 
-Resolution order is `byType[type]`, `byCategory[category]`, `default`, then the contract fallback
+Resolution order is `by_type[type]`, `by_category[category]`, `default`, then the contract fallback
 `ambient`. E1.1 must provide explicit sensible defaults and document them in `docs/PARAMETERS.md`.
 
 ## 4) Producer API and normalization
@@ -485,21 +485,53 @@ E0.3 turns the canonical contract and existing compatibility boundaries into exe
 | non-regression | no RNG consumption, unchanged AI shapes, unchanged map-export schema |
 
 The focused gate is `npm run test:narrative`, and `npm test` runs it before the existing
-training/validation contracts. E1.1 must extend the suite to assert actual structured `pushEvent`
-outputs, configured importance fallback, deterministic oversize draft reduction, collision
-diagnostics, and returned-event behavior. E1.1 is not complete until those integration assertions and
-the existing E0.3 lanes pass together.
+training/validation contracts. E1.1 extends the suite with actual structured `pushEvent` outputs,
+configured importance fallback, deterministic oversize draft reduction, collision diagnostics, and
+returned-event behavior. The E1.2 lifecycle slice adds integration fixtures for settlement founding,
+birth, natural death, and first-mutual-bond partnership producers. The E1.2 social slice adds all
+four social incident payload families plus a real `updateSocialDrama` integration fixture. The E1.2
+combat slice adds surface raids, ruins expeditions, depth-champion encounters, hostile deep raids,
+and Dwarf Champion transitions plus a real raid-resolution integration fixture. The Warrior League
+slice adds all eleven mark/vow/consequence/crown/command payload types plus a real deterministic
+fatal-duel, tournament, and Hall of Fame integration fixture; other producer families remain an
+incremental E1.2/E1.3 migration task. The political slice adds all eleven doctrine, phase, ritual,
+decree, and climax payload types plus real climax and ritual/decree lifecycle fixtures. The endgame
+slice adds artifact recovery/collection, transition, cycle closure, and Warrior Company carry-over
+payloads plus a real two-reset fixture that verifies latch uniqueness and post-swap cycle identity.
 
 ## 11) Current-system audit
 
 E0.2 reviewed the existing event path before choosing this contract:
 
-- `src/simulation/events.js` currently writes strings to `state.events` and four-field records
-  (`tick`, `message`, `category`, `source`) to `state.eventLog`.
-- `src/simulation/narrative_contract.js` now provides strict v1 validation and transactional identity
-  helpers, but E0.3 deliberately does not connect them to runtime emission.
+- `src/simulation/events.js` now keeps strings in `state.events` while writing canonical v1 objects to
+  `state.eventLog`; v0 records remain supported by the display normalizer.
+- `src/simulation/narrative_contract.js` provides strict v1 validation and transactional identity
+  helpers used by runtime emission and the focused contract gate.
+- `src/simulation/narrative_normalizer.js` owns bounded draft normalization, importance resolution,
+  and deterministic optional-payload reduction so the event gateway stays small.
+- `src/simulation/lifecycle_events.js` now emits structured founding, birth, natural-death, and
+  partnership facts with stable actor references, deterministic name snapshots, locations when
+  coordinates exist, causes, and consequences.
+- `src/simulation/social_events.js` now emits structured mentorship breakthroughs, rivalry clashes,
+  grudge escalations, and reconciliations after their existing effects commit. It retains pair
+  evidence and typed outcomes without participating in selection or consuming RNG.
+- `src/simulation/combat_events.js` now emits structured surface-raid, ruins-expedition,
+  depth-champion, hostile deep-raid, and Dwarf Champion facts after authoritative combat updates.
+  Victims are snapshotted before removal; event builders do not participate in selection or RNG.
+- `src/simulation/warrior_events.js` now emits structured scar/title/vow progression, injury,
+  retirement, tournament death, hero succession, tournament crown/Hall of Fame, and Underrealm
+  command facts after their authoritative updates. Fatal-duel fighters are snapshotted before
+  removal and emitted after cleanup; builders do not participate in tournament seeding, duels, or RNG.
+- `src/simulation/political_events.js` now emits structured doctrine/phase transitions,
+  ritual-window and ritual lifecycle, decree proposal/lifecycle, and climax facts. Ritual/decree
+  expiry emits after bounded-history archival and active-state reset; builders do not participate in
+  political selection, resource consumption, modifier resolution, or RNG.
+- `src/simulation/endgame_events.js` now emits structured artifact recovery and collection latching,
+  presentation transition, cycle closure, and Warrior Company carry-over facts. Closure/carry-over
+  emission happens only after the replacement state owns its new cycle counter; builders do not
+  alter reset seed selection, carry-over calculations, or RNG order.
 - Existing simulation producers are overwhelmingly string-only, so an all-at-once migration would be
-  unnecessary risk.
+  unnecessary risk; the compatibility gateway gives them deterministic `legacy.<category>` events.
 - `src/render/event_log_panel.js` reads only tick/message/category and preserves all/drama filters.
 - Telemetry consumes compact message strings, not structured events.
 - AI observation and action code does not consume either event buffer.

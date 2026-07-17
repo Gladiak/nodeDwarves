@@ -2,7 +2,10 @@
 
 const { clamp } = require('../utils');
 const { getClanEffects, getClanList, getClanShare } = require('../clans');
-const { pushEvent } = require('./events');
+const {
+  emitSurfaceRaidStarted,
+  emitSurfaceRaidResolved,
+} = require('./combat_events');
 const { getMythMultiplier } = require('./myths');
 const { getAlchemyMultiplier } = require('./alchemy');
 const { getContractRaidDeathRateReduction } = require('./contracts');
@@ -137,7 +140,7 @@ function startRaid(state, config, runtime, raidConfig, seasonIndex) {
   raidState.seasonName = state.season ? state.season.name : null;
   state.raid = raidState;
   raidStats.count = Number(raidStats.count || 0) + 1;
-  pushEvent(state, config, 'Raid: beasts enter the valley');
+  emitSurfaceRaidStarted(state, config, raidState, 'Raid: beasts enter the valley');
 }
 
 // Advance raid state and conclude when the timer ends.
@@ -219,10 +222,12 @@ function finishRaid(state, config, raidState) {
   deaths = clamp(deaths, 0, exposedCount);
 
   let raidDeaths = 0;
+  let deadDwarves = [];
   if (deaths > 0) {
     const victims = exposed.slice();
     shuffleInPlace(victims);
     const dead = victims.slice(0, deaths);
+    deadDwarves = dead.slice();
     const deadIds = new Set(dead.map((dwarf) => dwarf.id));
     raidDeaths = applyRaidDeaths(state, deadIds);
   }
@@ -261,7 +266,15 @@ function finishRaid(state, config, raidState) {
     parts.push(`loot ${stolenLabel}`);
   }
 
-  pushEvent(state, config, parts.length > 0 ? `Raid ended: ${parts.join(', ')}` : 'Raid ended: no losses');
+  const message = parts.length > 0 ? `Raid ended: ${parts.join(', ')}` : 'Raid ended: no losses';
+  emitSurfaceRaidResolved(state, config, {
+    message,
+    victims: deadDwarves,
+    raidDeaths,
+    stolen,
+    difficulty,
+    defense: totalDefense,
+  });
 
   raidState.active = false;
   raidState.ticksRemaining = 0;

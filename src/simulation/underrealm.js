@@ -2,6 +2,10 @@
 
 const { clamp } = require('../utils');
 const { pushEvent } = require('./events');
+const {
+  emitDwarfChampionChanged,
+  emitDeepRaidEvent,
+} = require('./combat_events');
 const { isAdult } = require('./population');
 const { getAlchemyMultiplier } = require('./alchemy');
 const { getSchismModifier } = require('./schism');
@@ -1052,7 +1056,12 @@ function ensureUnderrealmRuntimeState(state, config) {
       Math.floor(Number(underrealm.combat.dwarfChampion.losses || 0)),
     ) + 1;
     if (fallenChampionId) {
-      pushEvent(state, config, `Underrealm: Dwarf Champion ${fallenChampionId} has fallen`);
+      emitDwarfChampionChanged(state, config, {
+        mode: 'fallen',
+        dwarfId: fallenChampionId,
+        message: `Underrealm: Dwarf Champion ${fallenChampionId} has fallen`,
+        source: 'underrealm',
+      });
     }
   }
   for (const dwarf of Array.isArray(state.dwarves) ? state.dwarves : []) {
@@ -1158,11 +1167,12 @@ function updateUnderrealmChampionAutoPromotion(state, config) {
   runtime.promotions = Math.max(0, Math.floor(Number(runtime.promotions || 0))) + 1;
   const attackBonusPct = Math.round(clamp(Number(runtime.attackBonusRatio || 0), 0, 1) * 100);
   const defenseBonusPct = Math.round(clamp(Number(runtime.defenseBonusRatio || 0), 0, 1) * 100);
-  pushEvent(
-    state,
-    config,
-    `Underrealm: ${champion.id} appointed Dwarf Champion command (+${attackBonusPct}% atk, +${defenseBonusPct}% def)`,
-  );
+  emitDwarfChampionChanged(state, config, {
+    mode: 'appointed',
+    dwarf: champion,
+    message: `Underrealm: ${champion.id} appointed Dwarf Champion command (+${attackBonusPct}% atk, +${defenseBonusPct}% def)`,
+    source: 'underrealm',
+  });
 }
 
 // Discover the first underrealm gate and unlock depth 1 when discovery time is reached.
@@ -2819,11 +2829,9 @@ function updateUnderrealmHostiles(state, config) {
     const wardText = wardResult.usedCharges > 0
       ? `, ward charges ${wardResult.usedCharges} spent`
       : '';
-    pushEvent(
-      state,
-      config,
-      `Underrealm D${depth}: ${active[depthKey].factionLabel} emerge from the dark${wardText}`,
-    );
+    emitDeepRaidEvent(state, config, 'started', active[depthKey], {
+      message: `Underrealm D${depth}: ${active[depthKey].factionLabel} emerge from the dark${wardText}`,
+    });
   }
   deepFaction.activeRaidsByDepth = active;
   deepFaction.cooldownByDepth = cooldowns;
@@ -2927,16 +2935,18 @@ function tickDeepRaid(state, config, hostiles, raid) {
       const lossRatio = clamp(hostiles.casualtySeverity * raid.strength * (1 - mitigation), 0, 1);
       const deaths = Math.max(1, Math.floor(members.length * lossRatio));
       const deadIds = sampleIds(members, deaths);
+      const deadIdSet = new Set(deadIds.map(String));
+      const victims = (Array.isArray(state.dwarves) ? state.dwarves : [])
+        .filter((dwarf) => deadIdSet.has(String(dwarf && dwarf.id || '')));
       const removed = applyDwarfDeaths(state, deadIds, 'deepRaid');
       if (removed > 0) {
         raid.casualties += removed;
         const stats = underrealm.deepFaction.stats;
         stats.deaths = Number(stats.deaths || 0) + removed;
-        pushEvent(
-          state,
-          config,
-          `Underrealm D${raid.depth}: ${removed} delvers lost against ${raid.factionLabel}`,
-        );
+        emitDeepRaidEvent(state, config, 'casualties', raid, {
+          message: `Underrealm D${raid.depth}: ${removed} delvers lost against ${raid.factionLabel}`,
+          victims,
+        });
       }
     }
   }
@@ -2968,13 +2978,13 @@ function tickDeepRaid(state, config, hostiles, raid) {
   }
   const lossSummary = formatLossSummary(raid.losses);
   if (raid.casualties > 0 || lossSummary) {
-    pushEvent(
-      state,
-      config,
-      `Underrealm D${raid.depth}: raid broken (${raid.casualties} lost${lossSummary ? `, ${lossSummary}` : ''})`,
-    );
+    emitDeepRaidEvent(state, config, 'resolved', raid, {
+      message: `Underrealm D${raid.depth}: raid broken (${raid.casualties} lost${lossSummary ? `, ${lossSummary}` : ''})`,
+    });
   } else {
-    pushEvent(state, config, `Underrealm D${raid.depth}: ${raid.factionLabel} repelled`);
+    emitDeepRaidEvent(state, config, 'resolved', raid, {
+      message: `Underrealm D${raid.depth}: ${raid.factionLabel} repelled`,
+    });
   }
 }
 

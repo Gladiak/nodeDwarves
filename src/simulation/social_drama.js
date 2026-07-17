@@ -1,7 +1,7 @@
 'use strict';
 
 const { clamp } = require('../utils');
-const { pushEvent } = require('./events');
+const { emitSocialIncidentEvent } = require('./social_events');
 
 const SOCIAL_INCIDENT_TYPES = [
   'mentorship_breakthrough',
@@ -1087,7 +1087,10 @@ function applyIncidentSelection(selection, state, config, social, socialConfig, 
   }
 
   let eventMessage = '';
+  let mentorId = null;
   if (type === 'mentorship_breakthrough') {
+    const mentor = resolveMentorForPair(pair);
+    mentorId = String(mentor && mentor.id || '');
     eventMessage = applyMentorshipBreakthrough(pair, effects, socialConfig);
   } else if (type === 'rivalry_clash') {
     eventMessage = applyRivalryClash(pair, effects);
@@ -1132,7 +1135,12 @@ function applyIncidentSelection(selection, state, config, social, socialConfig, 
     right.social = rightSocial;
   }
   if (state && Array.isArray(state.events)) {
-    pushEvent(state, config, eventMessage);
+    emitSocialIncidentEvent(state, config, {
+      type,
+      pair,
+      message: eventMessage,
+      mentorId,
+    });
   }
   return true;
 }

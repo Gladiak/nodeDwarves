@@ -1839,6 +1839,20 @@ function createInitialState(config, runtime) {
     dwarfCounter: dwarves.length,
     events: [],
     eventLog: [],
+    eventClock: {
+      tick: -1,
+      nextSequence: 0,
+    },
+    eventStats: {
+      accepted: 0,
+      rejected: 0,
+      legacyNormalized: 0,
+      truncated: 0,
+      collisions: 0,
+    },
+    lifecycle: {
+      foundingEmitted: false,
+    },
     ui: {
       inspect: {
         open: false,

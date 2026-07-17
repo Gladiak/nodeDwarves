@@ -19,6 +19,9 @@ Chaos, strategy, and tiny bearded logistics experts included. 🧔🧱
 - 🎭 Social drama + schism systems for long-horizon political and morale instability.
 - 🕳️ Underrealm exploration with depth progression, combat pressure, and endgame cadence.
 - 🏅 Warrior League with hero progression, tournaments, injuries, and lineage memory.
+- 📜 Deterministic structured events preserve who/where/why facts behind the compact terminal log,
+  including lifecycle milestones, social incidents, battles, tournament legacies, council decrees,
+  ritual transitions, colony-defining political climaxes, relic recovery, and cycle passages.
 - 🌤️ In-map Ops Snapshot shows a live weather token (`Wx:*`, e.g. `Clear`, `Rain`, `Storm`) for at-a-glance climate context.
 - 📊 In-game Data Center (`h`) with dashboard, deep economy views, and AI explainability.
 - 🤖 PPO training pipeline in Python with JS runtime inference (`models/*.json`).
@@ -127,6 +130,13 @@ npm run debug:clean
 - 🧭 `src/config.js`: config loader.
 - ⚙️ `src/simulation/`: core simulation systems (economy, events, underrealm, schism, social drama, warriors, temple).
 - 🧬 `src/simulation/narrative_contract.js`: strict narrative-event validation and deterministic identity helpers.
+- 🧹 `src/simulation/narrative_normalizer.js`: bounded event normalization and deterministic payload compaction.
+- 👥 `src/simulation/lifecycle_events.js`: structured founding, birth, death, and partnership story facts.
+- 🎭 `src/simulation/social_events.js`: structured mentorship, rivalry, grudge, and reconciliation facts.
+- ⚔️ `src/simulation/combat_events.js`: structured raid, expedition, Underrealm battle, and champion facts.
+- 🏅 `src/simulation/warrior_events.js`: structured Warrior League progression, tournament, Hall of Fame, and command facts.
+- 🔥 `src/simulation/political_events.js`: structured doctrine, phase, ritual, decree, and schism-climax facts.
+- 🔁 `src/simulation/endgame_events.js`: structured relic, cycle passage, and legacy carry-over facts.
 - 🌍 `src/state/`: world/terrain and initial state generation.
 - 🎨 `src/render/`: map, overlays, panels, and layout helpers.
 - 📊 `src/telemetry/`: Data Center sections and metric builders.

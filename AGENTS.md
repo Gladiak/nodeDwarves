@@ -41,14 +41,21 @@ This file defines how to implement new features in a consistent, stable way.
 - `src/config.js`: config loader.
 - `src/simulation/`: simulation systems split by theme.
 - `src/simulation/index.js`: simulation orchestrator.
-- `src/simulation/narrative_contract.js`: strict schema-v1 validator and deterministic event identity helpers used by narrative contract gates and the future event core.
+- `src/simulation/narrative_contract.js`: strict schema-v1 validator and deterministic event identity helpers used by narrative contract gates and the runtime event core.
+- `src/simulation/narrative_normalizer.js`: bounded structured-event draft normalization, config-driven importance resolution, and deterministic optional-payload reduction.
+- `src/simulation/lifecycle_events.js`: structured founding, birth, natural-death, and partnership event builders with deterministic actor snapshots and causal facts.
+- `src/simulation/social_events.js`: structured mentorship, rivalry, grudge, and reconciliation incident builders with pair evidence and typed outcomes.
+- `src/simulation/combat_events.js`: structured surface-raid, ruins-expedition, Underrealm battle, deep-raid, and Dwarf Champion event builders.
+- `src/simulation/warrior_events.js`: structured Warrior League marks, vows, injuries, retirements, deaths, tournament crowns, Hall of Fame, and command-transition event builders.
+- `src/simulation/political_events.js`: structured schism doctrine, phase, ritual, decree, and climax event builders with committed state evidence.
+- `src/simulation/endgame_events.js`: structured artifact, cycle-transition, cycle-closure, and Warrior Company carry-over event builders.
 - `src/simulation/underrealm.js`: underrealm crew assignment, deep economy, exploration unlocks, and hostile deep raids.
 - `src/simulation/world_events.js`: world event lifecycle, timed opportunities, and temporary world modifiers.
 - `src/simulation/external_camps.js`: long-lived external faction camps with trade, militia support, and raider pressure.
-- `src/simulation/schism.js`: run-scale social schism arc (pressure/legitimacy, doctrine shifts, ritual windows, and climax events).
+- `src/simulation/schism.js`: run-scale social schism arc (pressure/legitimacy, doctrine shifts, ritual windows, decrees, climax lifecycle, and committed structured-event integration).
 - `src/simulation/social_drama.js`: social-drama runtime for friendship/rivalry/mentorship/grudge inference and aggregate social pressure/cohesion metrics.
 - `src/simulation/temple.js`: Temple of Ancestors stages, site selection, bonuses, and prestige.
-- `src/simulation/warriors.js`: Warrior League helpers for deterministic per-dwarf combat profiles, risk-aware expedition dispatch, and seasonal tournament runtime/champion sync.
+- `src/simulation/warriors.js`: Warrior League helpers for deterministic per-dwarf combat profiles, risk-aware expedition dispatch, seasonal tournament runtime/champion sync, and committed structured-event integration.
 - `src/simulation.js`: thin wrapper for `src/simulation/index.js`.
 - `src/state/`: state creation and terrain generation.
 - `src/state/index.js`: state orchestrator.

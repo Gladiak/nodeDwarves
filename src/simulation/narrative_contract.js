@@ -490,6 +490,8 @@ module.exports = {
   LOCATION_SCOPES,
   CAUSE_KINDS,
   CONSEQUENCE_KINDS,
+  CONSEQUENCE_TARGET_KINDS,
+  EVENT_ID_PATTERN,
   buildNarrativeEventId,
   peekNarrativeEventIdentity,
   commitNarrativeEventIdentity,

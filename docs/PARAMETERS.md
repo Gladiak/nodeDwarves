@@ -356,7 +356,28 @@ Display and layout:
 Events:
 
 - `events.maxEntries`: number of recent events kept for telemetry panels/snapshots.
-- `events.logMaxEntries`: number of rolling event entries kept for the Event Log modal history (`tick`, category, message).
+- `events.logMaxEntries`: number of rolling canonical v1 events kept for the Event Log modal history; `0` disables UI-history retention without suppressing event return values.
+- `events.importance.default`: final importance fallback (`ambient`, `notable`, `major`, `critical`, or `legendary`).
+- `events.importance.by_category.<category>`: importance fallback for one normalized event category; overrides `default`.
+- `events.importance.by_type.<type>`: importance fallback for one normalized event type; overrides category and default mappings.
+- Lifecycle type defaults: `lifecycle.birth=notable`, `lifecycle.death=major`,
+  `lifecycle.partnership_formed=notable`, and `lifecycle.settlement_founded=major`.
+- Social incident type defaults: `social.mentorship_breakthrough=notable`,
+  `social.rivalry_clash=notable`, `social.grudge_escalation=major`, and
+  `social.reconciliation=notable`.
+- Combat type defaults: surface raid start/resolution, ruins success/failure, Underrealm champion
+  outcomes, Dwarf Champion appointment, and deep-raid start/resolution are `major`;
+  `combat.ruins_expedition_started=notable`; `combat.dwarf_champion_fallen` and
+  `combat.deep_raid_casualties` are `critical`.
+- Warrior League type defaults: scars, titles, vows, and tournament injuries are `notable`;
+  retirement, hero-command succession, tournament crowns, and Underrealm command sync/relinquishment
+  are `major`; `warrior.tournament_death` is `critical`.
+- Political type defaults: ritual-window opening, ritual expiry, decree proposal, and decree expiry
+  are `notable`; doctrine/phase shifts, council ignition, ritual invocation, and decree enactment are
+  `major`; `schism.climax_started=critical` and `schism.climax_resolved=legendary`.
+- Endgame type defaults: artifact recovery, Warrior Company carry-over, and transition completion
+  are `major`; transition start is `critical`; artifact-collection completion and cycle closure are
+  `legendary`.
 
 Wildlife and pastures:
 

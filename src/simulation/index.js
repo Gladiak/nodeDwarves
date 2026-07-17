@@ -38,12 +38,14 @@ const { updateUnderrealm } = require('./underrealm');
 const { updateWarriors } = require('./warriors');
 const { updateWorldEvents, getWorldEventModifier } = require('./world_events');
 const { updateExternalCamps } = require('./external_camps');
+const { ensureSettlementFoundingEvent } = require('./lifecycle_events');
 const { clamp } = require('../utils');
 
 const BUILD_CLASS_ORDER = ['housing', 'economy', 'defense', 'special'];
 
 // Advance the simulation by one tick.
 function stepState(state, config, runtime, action, options = {}) {
+  ensureSettlementFoundingEvent(state, config);
   const resolvedAction = normalizeActionEnvelope(action);
   state.lastGovernorSignals = buildGovernorSignals(config, resolvedAction);
   state.lastConfig = config;

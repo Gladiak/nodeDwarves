@@ -445,15 +445,40 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - Current beer-morale defaults are slightly persistence-biased for endgame support (`beerMoraleGain=0.095`, `beerMoraleDecayPerTick=0.0032`, `beerMoraleMax=0.30`).
   - Derived mood metrics (morale/stress/fatigue) come from average needs and beer morale boost.
   - Deaths: starvation threshold/ticks and old-age chance from `population.death` and `population.aging`.
+  - Natural deaths emit `lifecycle.death` only after population/job cleanup, while retaining the
+    victim's final actor-name snapshot, last known location, exact cause, and death consequence.
   - Housing assignment, couple co-housing, and winter penalties are driven by `population.housing.*`.
   - Relationships/bonding use `population.relationships.*`, with morale and housing multipliers,
     plus optional same-clan bond gain bonuses.
+  - The first mutual partnership emits one `lifecycle.partnership_formed` fact with both actors and
+    reciprocal partner consequences; later interactions do not duplicate that event.
   - Social-drama phase-1 (`social_drama.js`) derives explicit per-dwarf relationship statuses (`friendship`, `rivalry`, `mentorship`, `grudge`) from sampled adult interactions, pair bond intensity, mood stressors, and bounded decay/pruning.
   - Social-drama phase-1.5 adds bounded incident resolution (`mentorship_breakthrough`, `rivalry_clash`, `grudge_escalation`, `reconciliation`) with global/per-pair cooldowns, capped mood/warrior/link deltas, and rolling incident history.
+  - Each committed incident now emits a canonical `social.*` fact after the existing effects, ledger,
+    counters, and cooldowns update. The event records both dwarf identities, deterministic name
+    snapshots, pre-incident relationship evidence, and bounded post-incident relationship outcomes.
+  - Social incident emission does not participate in candidate selection and consumes no RNG. A
+    shared location is retained only when the pair has matching coordinates or the same home;
+    otherwise the event correctly falls back to world scope.
   - Social-drama phase-2 closes observability loops: telemetry includes a dedicated `Social` section and AI explainability now prints compact social context (`cohesion/conflict/mentorship/grudge/incident recency`) from decision traces.
   - Social-drama phase-3 adds explicit AI-facing social governor channels (`action.social.mediationBias|mentorshipBias|accountabilityBias`) plus long-horizon social memory (`support/burden` per dwarf + settlement `harmony/strife`) implemented in runtime; `population.socialDrama.longArc.enabled` is currently `false` by default for conservative regression stability.
   - Runtime aggregates are exported in `state.social` (`cohesion`, `conflictPressure`, `mentorshipCoverage`, `grudgeLoad`, `longArc.*`, `governor.*` + counters) for deterministic monitoring and AI reward/observation integration (`social*` channels).
   - Reproduction uses `population.reproduction.*` (base chance, soft cap, gestation, cooldown, stockpile gates, birth cost).
+  - A completed pregnancy emits `lifecycle.birth` with the newborn, available parents, spawn
+    location, reproduction cause, and dwarf-creation consequence without changing the compact HUD message.
+- `lifecycle_events.js`
+  - Centralizes structured founding, birth, natural-death, and partnership payloads so population
+    logic does not duplicate narrative-contract details.
+  - Dwarf actors retain deterministic lore-name snapshots alongside stable dwarf IDs; events never
+    retain live dwarf objects.
+  - `stepState` emits one `lifecycle.settlement_founded` fact at tick `0` before advancing each newly
+    initialized cycle. A cycle-local flag prevents duplicates, and the first seven founders plus the
+    settlement actor respect the eight-actor contract cap.
+- `social_events.js`
+  - Centralizes structured `social.mentorship_breakthrough`, `social.rivalry_clash`,
+    `social.grudge_escalation`, and `social.reconciliation` payloads.
+  - Mentorship distinguishes mentor and beneficiary; symmetric incidents avoid inventing an
+    instigator. Typed outcomes retain the resulting mentorship, rivalry, or grudge state.
 
 ### Clan culture 🛡️
 
@@ -529,6 +554,14 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - identity bonuses are bounded and applied explicitly to dispatch ranking, tournament seed/duel scoring, and training intensity (`warriors.bonuses.legacy.company_identity.*`),
   - cross-cycle carry-over hooks archive company lineage (`state.warriors.company.cycleHistory`), preserve bounded hall-of-fame depth, and inject capped startup seed bonuses in the next cycle (`warriors.bonuses.legacy.carryover.*`),
   - Warrior League telemetry/panel now exposes identity, doctrine, carry-over signals, and lineage memory for deterministic operator debugging.
+- The E1.2 narrative migration adds canonical Warrior League facts without changing tournament logic:
+  - scars, titles, and vows emit only after deterministic progression marks commit;
+  - injuries and retirements describe the finalized warrior payload, while tournament deaths retain
+    the fighter snapshot and emit only after population/job/social cleanup;
+  - tournament crowns carry participant evidence and a typed Hall of Fame induction after ranking,
+    champion, company, and hall state commit;
+  - hero succession and Underrealm command synchronization/relinquishment emit after the command
+    owner changes. Event construction consumes no RNG and does not participate in seeding or duels.
 - Default profile now ships with `warriors.enabled=true`, so Warrior League runtime is active from run start.
 
 ### Jobs and economy 📦
@@ -777,6 +810,15 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
 - Climax lifecycle:
   - High pressure + low legitimacy can trigger a timed crisis (`schism.climax.*`).
   - On resolution, pressure/legitimacy are shifted and explicit narrative events are emitted.
+- E1.2 political narrative boundary:
+  - `political_events.js` owns canonical doctrine, phase, ritual-window, council-ritual, ritual,
+    decree, and climax facts while `schism.js` retains all selection and state mutation;
+  - doctrine/phase changes and ritual/decree activation emit after counters, active state, and
+    immediate pressure/legitimacy deltas commit;
+  - expired rituals/decrees are copied for historical labels, archived into bounded history, reset
+    to inactive state, and only then emitted;
+  - climax start/resolution facts carry current pressure/legitimacy evidence and typed crisis/delta
+    outcomes. Builders consume no RNG and never participate in doctrine, ritual, or decree selection.
 - Integration points:
   - Tick order: runs before festivals in `simulation/index.js`.
   - Needs pipeline consumes schism `needDecay` modifier.
@@ -900,6 +942,9 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
 ### Raids 🐺
 
 - `raids.js` has two phases: `updateRaidStart` (season-edge trigger) and `updateRaidTick` (active raid loop + resolution).
+- Raid start and resolution emit `combat.surface_raid_started|resolved` through
+  `combat_events.js`. Resolution retains victim name snapshots before authoritative population
+  removal, plus defense, difficulty, casualty, and stolen-resource facts.
 - Start trigger is intentionally narrow:
   - raids only roll on `season.tickInSeason === 1` for allowed `raids.seasonNames`.
   - requires `minTick`, `minPopulation`, and `minSeasonsBetween` since previous raid.
@@ -1092,6 +1137,9 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - Map inset Ops Snapshot adds a concise deep-combat token line (`P:* C:* R:*`) for at-a-glance progression/champion/readiness context.
 - Underrealm V2 AI/training/regression integration (M6):
   - AI observation exports normalized Underrealm combat/progression signals for PPO (`depth/champion/readiness/pressure` bundle).
+  - Hostile deep-raid start, casualty, and resolution events are canonical `combat.deep_raid_*`
+    facts. They retain faction identity, depth, strength, victims, and bounded resource losses after
+    the corresponding gameplay transaction commits.
   - Trainer summary line now includes `under=...` and `deaths_by_cause=...` diagnostics, so randomized regression can ingest `under_*` rollout metrics plus cause-split death metrics (`death_*`).
   - `scripts/regression.js` randomized suite reports now include both `under_*` and `death_*` rows when summary diagnostics are available.
   - `scripts/headless_benchmark.js` now includes compact Underrealm KPIs (`underDepth`, `underChamp`, `underFail`, `underBlocked`, `underContested`, `underReady`) in summaries, comparisons, and seed deltas, plus schism decree usage telemetry (`issued`, per-decree share, active-tick share) in table/JSON/Markdown reports.
@@ -1192,6 +1240,13 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
 - Transition/UI note:
   - fade/story presentation is configured under `endgame.transition.*` in runtime/render flow.
   - simulation reset logic itself remains isolated in `endgame.js`.
+  - `endgame_events.js` records artifact recovery and collection completion, fade start/completion,
+    cycle closure, and Warrior Company carry-over as canonical `endgame.*` facts.
+  - The collection-complete fact is emitted only when `endgameArtifactsTick` first latches. Cycle
+    closure and carry-over emit after state replacement and `cycleStats` installation, so their IDs
+    belong to the new cycle at tick `0`; fade completion remains a presentation-layer commit.
+  - Endgame builders observe committed state only and consume no RNG. The reset seed policy and all
+    carry-over calculations remain owned by their existing simulation systems.
 
 ### Temple of Ancestors and prestige 🏛️
 
@@ -1225,6 +1280,13 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
 ### Ruins and expeditions 🗝️
 
 - `ruins.js`
+  - Expedition dispatch and terminal outcomes emit `combat.ruins_expedition_started`,
+    `combat.ruins_expedition_succeeded`, or `combat.ruins_expedition_failed` with party, readiness,
+    depth, reason, and retained casualty snapshots.
+  - Deterministic depth-champion battles emit defeated/setback facts with the opposing champion,
+    expedition members, contested/cleared state, and any newly unlocked depth.
+  - Dwarf Champion appointment/coronation/fall emits a stable combat fact from both ruins and
+    Underrealm maintenance paths; tournament champions remain owned by the Warrior League slice.
   - Drives the ruins expedition loop (rooms, hazards, guardians, rewards).
   - Manages expedition cooldowns, casualties, and artifact bonuses.
 - Armory kits are crafted in the `armory` structure and consumed per expedition.
@@ -1431,9 +1493,58 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
 
 ### Events + randomness 🎲
 
-- `events.js` tracks event log lines for telemetry (`events.maxEntries`).
-  - Systems push concise strings for weather, raids, ruins, builds, and myth changes.
-  - Keeps a separate scroll-friendly history buffer for the Event Log modal (`events.logMaxEntries`) with per-entry `tick`, inferred `category`, and normalized source metadata.
+- `events.js` is the backward-compatible structured narrative gateway.
+  - Existing systems may keep pushing concise strings for weather, raids, ruins, builds, and myth
+    changes. Each accepted string is normalized into a canonical v1 event with generated
+    `cycle/tick/sequence` identity and `legacy.<category>` type.
+  - Migrated producers may pass a structured object with message, type/category, importance, actors,
+    location, causes, consequences, saga ID, source, and tags. Producer-supplied identity fields are
+    ignored.
+  - The transitional string-plus-details form remains supported. Combining structured-object input
+    with a separate details argument is rejected deterministically.
+  - `state.events` remains the compact newest-first message list capped by `events.maxEntries` for HUD
+    and telemetry compatibility.
+  - `state.eventLog` stores newest-first canonical v1 objects capped independently by
+    `events.logMaxEntries`. A zero history cap still returns the accepted event to the caller.
+  - `state.eventClock` owns same-tick ordering independently of retained-log length. IDs use
+    `evt:v1:cCCCC:tTTTTTTTTTT:sSSSS`; rejected or colliding candidates do not consume a sequence.
+  - `state.eventStats` keeps bounded scalar diagnostics: accepted, rejected, legacy-normalized,
+    truncated, and collision counts.
+  - Importance resolution is explicit value → `events.importance.by_type` →
+    `events.importance.by_category` → `events.importance.default` → `ambient`.
+  - Human text is stripped of ANSI/control data and bounded on UTF-8 code-point boundaries. Actors,
+    locations, causes, consequences, and tags are normalized into compact JSON references; live state
+    objects never enter retained events.
+  - Optional payload is reduced in a fixed order if a canonical event approaches the 16 KiB ceiling;
+    reduced events carry `contract_truncated` when space permits.
+- `narrative_contract.js` validates canonical v1 envelopes and provides transactional deterministic
+  identity helpers shared by runtime and `npm run test:narrative`.
+- `lifecycle_events.js` supplies the first migrated producer family: settlement founding, births,
+  natural deaths, and first-mutual-bond partnerships. These events carry deterministic actor label
+  snapshots, locations when coordinates exist, causal evidence, and typed consequences. Their
+  configured type importance is birth/partnership `notable` and death/founding `major`.
+- `social_events.js` supplies the migrated social-incident family after gameplay effects commit.
+  Mentorship, rivalry, grudge, and reconciliation events preserve their existing compact messages
+  while adding pair actors, defensible shared locations, pre-incident relationship metrics, and
+  post-incident typed outcomes. Grudge escalation is `major`; the other three types are `notable`.
+- `combat_events.js` supplies structured surface raids, ruins expeditions, depth-champion encounters,
+  hostile deep raids, and Dwarf Champion changes. Builders run after authoritative outcomes, retain
+  bounded participant/victim snapshots, and never participate in combat selection or RNG. Ordinary
+  combat outcomes are `major`, expedition dispatch is `notable`, and champion/deep-raid deaths are
+  `critical`.
+- `warrior_events.js` supplies structured Warrior League marks, vows, retirements, injuries,
+  tournament deaths, hero succession, tournament crowns, Hall of Fame inductions, and Underrealm
+  command transitions. Ordinary progression/injury facts are `notable`; retirements, crowns, hero
+  succession, and command changes are `major`; tournament deaths are `critical`.
+- `warriors.js` retains one legacy operational message in this area: the active company doctrine
+  summary. Endgame now owns the migrated cycle carry-over seed fact.
+- `political_events.js` supplies all eleven schism priority facts: doctrine/phase shifts,
+  ritual-window/council/invocation/expiry transitions, decree proposal/enactment/expiry, and climax
+  start/resolution. Windows and expirations are `notable`; shifts, invocations, enactments, and the
+  council ignition are `major`; climax start is `critical` and resolution is `legendary`.
+- `endgame_events.js` supplies structured artifact recovery/collection, transition, cycle-closure,
+  and Warrior Company carry-over facts. Builders preserve compact runtime messages, attach a stable
+  cycle saga, and emit closure/carry-over only after the replacement state owns its cycle identity.
 - `random.js` provides random helpers (ranges, shuffling) used across systems.
   - Training/eval can override randomness through scenario config and seed control.
 
@@ -1974,14 +2085,21 @@ Quick checklist:
   - `simulation.js` / `state.js` / `render.js` / `ai_policy.js` → stable wrappers
   - `simulation/` → game logic
     - `simulation/narrative_contract.js` → strict narrative-event v1 validator plus deterministic identity peek/commit helpers
+    - `simulation/narrative_normalizer.js` → bounded draft normalization, importance fallback, and deterministic optional-payload reduction
+    - `simulation/lifecycle_events.js` → structured founding, birth, natural-death, and partnership event builders
+    - `simulation/social_events.js` → structured mentorship, rivalry, grudge, and reconciliation incident builders
+    - `simulation/combat_events.js` → structured surface-raid, ruins-expedition, Underrealm battle, deep-raid, and champion event builders
+    - `simulation/warrior_events.js` → structured Warrior League marks, vows, consequences, tournament crown/Hall of Fame, and command-transition event builders
+    - `simulation/political_events.js` → structured schism doctrine, phase, ritual, decree, and climax event builders
+    - `simulation/endgame_events.js` → structured artifact, transition, cycle-closure, and legacy carry-over event builders
     - `simulation/alchemy.js` → alchemy rite lifecycle and modifiers
     - `simulation/contracts.js` → contract offers, reputations, and boons
     - `simulation/world_events.js` → global event lifecycle and temporary world modifiers
     - `simulation/social_drama.js` → bounded dwarf social ties, passive mood effects, emergent incidents, and social cleanup/status helpers
   - `simulation/external_camps.js` → long-lived external faction camps and map-level diplomacy pressure
-  - `simulation/schism.js` → run-scale social schism arc, doctrine shifts, ritual windows, and climax events
+  - `simulation/schism.js` → run-scale social schism arc, doctrine shifts, ritual/decree lifecycles, climax state, and structured political emission
   - `simulation/social_drama.js` → social-drama runtime for friendship/rivalry/mentorship/grudge inference and aggregate cohesion/conflict metrics
-  - `simulation/warriors.js` → Warrior League runtime (combat profile bootstrap, risk-aware dispatch ranking, expedition progression, seasonal tournaments, bounded injury/recovery + succession/training loops, persistent marks/vows/legacy bonuses, and company identity/cycle carry-over hooks)
+  - `simulation/warriors.js` → Warrior League runtime (combat profile bootstrap, risk-aware dispatch ranking, expedition progression, seasonal tournaments, bounded injury/recovery + succession/training loops, persistent marks/vows/legacy bonuses, structured facts, and company identity/cycle carry-over hooks)
   - `simulation/roads.js` → road planning/build queue/pathing
     - `simulation/underrealm.js` → crew assignment, deep economy/exploration, and hostile deep raids
     - `simulation/temple.js` → Temple of Ancestors progression, effects, and prestige

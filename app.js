@@ -15,6 +15,10 @@ const { clearScreen, moveCursorHome, hideCursor, showCursor } = require('./src/t
 const { loadPolicy, selectAction, normalizeActionEnvelope } = require('./src/ai_policy');
 const { getSpawnOrderedIds } = require('./src/dwarf_lore');
 const { shouldTriggerEndgameReset, runEndgameReset } = require('./src/simulation/endgame');
+const {
+  emitEndgameTransitionStarted,
+  emitEndgameTransitionCompleted,
+} = require('./src/simulation/endgame_events');
 
 const config = loadConfig();
 let runtime = buildRuntime(config.display, getTerminalSize(config.display));
@@ -831,6 +835,7 @@ function startEndgameTransition(state, config, runtime) {
   transition.holdTicks = transitionConfig.holdTicks;
   transition.fadeInTicks = transitionConfig.fadeInTicks;
   transition.message = pickTransitionMessage(transitionConfig.messages, state);
+  transition.sourceCycle = Math.max(0, Number(state.cycleStats && state.cycleStats.count || 0));
   state.ui.inspect.open = false;
   state.ui.legend.open = false;
   state.ui.telemetryPanel.open = false;
@@ -840,6 +845,9 @@ function startEndgameTransition(state, config, runtime) {
   currentAction = null;
   nextActionTick = 0;
   paused = false;
+  emitEndgameTransitionStarted(state, config, {
+    sourceCycle: transition.sourceCycle,
+  });
 }
 
 // Function: advanceEndgameTransition.
@@ -893,6 +901,9 @@ function advanceEndgameTransition(state, config, runtime) {
       transition.showPanel = false;
       transition.phase = 'done';
       transition.progress = 1;
+      emitEndgameTransitionCompleted(state, config, {
+        sourceCycle: transition.sourceCycle,
+      });
     }
   }
 }

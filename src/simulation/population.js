@@ -1,13 +1,17 @@
 'use strict';
 
 const { clamp } = require('../utils');
-const { pushEvent } = require('./events');
 const { getSeasonModifier } = require('./season');
 const { hasInputs, consumeInputs, getStockpileRatio } = require('./resources');
 const { getMythMultiplier } = require('./myths');
 const { getClanConfig, pickClanId } = require('../clans');
 const { createDwarfWarriorState } = require('./warriors');
 const { createDwarfSocialState } = require('./social_drama');
+const {
+  emitBirthEvent,
+  emitDeathEvent,
+  emitPartnershipEvent,
+} = require('./lifecycle_events');
 
 // Resolve the clan id for a newborn based on config and parents.
 function resolveNewbornClanId(parentA, parentB, config) {
@@ -417,7 +421,7 @@ function handleDeaths(state, config) {
   const housingPenalty = getWinterHousingPenalty(state, config);
 
   const deadIds = new Set();
-  const deathMessages = [];
+  const deathRecords = [];
 
   for (const dwarf of state.dwarves) {
     const hunger = Number(dwarf.needs.hunger || 0);
@@ -432,7 +436,7 @@ function handleDeaths(state, config) {
     if (dwarf.starvationTicks >= starvationTicks) {
       deadIds.add(dwarf.id);
       state.deathsByCause.starvation = Number(state.deathsByCause.starvation || 0) + 1;
-      deathMessages.push(`Death: ${dwarf.id} (starvation)`);
+      deathRecords.push({ dwarf, cause: 'starvation' });
       continue;
     }
 
@@ -440,7 +444,7 @@ function handleDeaths(state, config) {
     if (Number.isFinite(maxAge) && ageTicks >= maxAge) {
       deadIds.add(dwarf.id);
       state.deathsByCause.oldAge = Number(state.deathsByCause.oldAge || 0) + 1;
-      deathMessages.push(`Death: ${dwarf.id} (old age)`);
+      deathRecords.push({ dwarf, cause: 'old_age' });
       continue;
     }
 
@@ -452,7 +456,7 @@ function handleDeaths(state, config) {
       if (Math.random() < chance) {
         deadIds.add(dwarf.id);
         state.deathsByCause.oldAge = Number(state.deathsByCause.oldAge || 0) + 1;
-        deathMessages.push(`Death: ${dwarf.id} (old age)`);
+        deathRecords.push({ dwarf, cause: 'old_age' });
       }
     }
   }
@@ -477,8 +481,8 @@ function handleDeaths(state, config) {
     }
   }
 
-  for (const message of deathMessages) {
-    pushEvent(state, config, message);
+  for (const record of deathRecords) {
+    emitDeathEvent(state, config, record.dwarf, record.cause);
   }
 }
 
@@ -562,8 +566,7 @@ function updateRelationships(state, config) {
         continue;
       }
       const gain = getClanBondGain(a, b, adjustedBondGain, relationships);
-      progressBond(a, b, gain, bondDecay, bondThreshold);
-      progressBond(b, a, gain, bondDecay, bondThreshold);
+      progressMutualBond(state, config, a, b, gain, bondDecay, bondThreshold);
     }
 
     for (let i = 0; i < proximityInteractions; i += 1) {
@@ -583,8 +586,7 @@ function updateRelationships(state, config) {
         continue;
       }
       const gain = getClanBondGain(a, b, adjustedBondGain, relationships);
-      progressBond(a, b, gain, bondDecay, bondThreshold);
-      progressBond(b, a, gain, bondDecay, bondThreshold);
+      progressMutualBond(state, config, a, b, gain, bondDecay, bondThreshold);
     }
 
     return;
@@ -607,8 +609,18 @@ function updateRelationships(state, config) {
       continue;
     }
     const gain = getClanBondGain(a, b, bondGain, relationships);
-    progressBond(a, b, gain, bondDecay, bondThreshold);
-    progressBond(b, a, gain, bondDecay, bondThreshold);
+    progressMutualBond(state, config, a, b, gain, bondDecay, bondThreshold);
+  }
+}
+
+// Progress both bond directions and emit one event on first mutual partnership.
+function progressMutualBond(state, config, dwarf, partner, bondGain, bondDecay, bondThreshold) {
+  const wasMutual = dwarf.partnerId === partner.id && partner.partnerId === dwarf.id;
+  progressBond(dwarf, partner, bondGain, bondDecay, bondThreshold);
+  progressBond(partner, dwarf, bondGain, bondDecay, bondThreshold);
+  const isMutual = dwarf.partnerId === partner.id && partner.partnerId === dwarf.id;
+  if (!wasMutual && isMutual) {
+    emitPartnershipEvent(state, config, dwarf, partner);
   }
 }
 
@@ -960,7 +972,7 @@ function spawnNewborn(state, config, parentA, parentB) {
   newborn.lifeStage = newborn.ageTicks < Number(aging.adultAge || 0) ? 'child' : 'adult';
   state.dwarves.push(newborn);
   state.birthsCount = Number(state.birthsCount || 0) + 1;
-  pushEvent(state, config, `Birth: ${newborn.id}`);
+  emitBirthEvent(state, config, newborn, parentA, parentB);
 }
 
 // Compute the average of a numeric selector for a group.

@@ -5,6 +5,11 @@ const { createInitialState } = require('../state');
 const { carryMythsAcrossCycle } = require('./myths');
 const { carryTemplePrestigeAcrossCycle } = require('./temple');
 const { carryWarriorCompanyAcrossCycle } = require('./warriors');
+const {
+  emitEndgameArtifactCollectionCompleted,
+  emitEndgameCycleClosed,
+  emitEndgameWarriorCompanyCarriedOver,
+} = require('./endgame_events');
 
 function getEndgameConfig(config) {
   return (config && config.endgame) || {};
@@ -58,7 +63,7 @@ function areAllArtifactsFound(config, state) {
   return true;
 }
 
-function ensureArtifactsCompletionTick(state) {
+function ensureArtifactsCompletionTick(state, config) {
   if (!state) {
     return 0;
   }
@@ -68,6 +73,10 @@ function ensureArtifactsCompletionTick(state) {
   }
   const now = Math.max(0, Number(state.tick || 0));
   state.endgameArtifactsTick = now;
+  const pool = (config && config.ruins && config.ruins.artifacts && config.ruins.artifacts.pool) || {};
+  emitEndgameArtifactCollectionCompleted(state, config, {
+    artifactCount: Object.keys(pool).length,
+  });
   return now;
 }
 
@@ -140,11 +149,11 @@ function shouldTriggerEndgameReset(state, config) {
     clearArtifactsCompletionTick(state);
     return false;
   }
+  const completionTick = ensureArtifactsCompletionTick(state, config);
   const minTicks = getEndgameMinTicks(endgame);
   if (minTicks <= 0) {
     return true;
   }
-  const completionTick = ensureArtifactsCompletionTick(state);
   return Number(state.tick || 0) - completionTick >= minTicks;
 }
 
@@ -156,15 +165,19 @@ function resetStateInPlace(state, nextState) {
 }
 
 function runEndgameReset(state, config, runtime, options = {}) {
+  const stats = getCycleStats(state);
+  const completedTicks = Math.max(0, Number(state && state.tick || 0));
+  const foundArtifacts = state && state.ruins && state.ruins.artifactsFound
+    ? Object.values(state.ruins.artifactsFound).filter(Boolean).length
+    : 0;
   const configOverride = buildResetConfig(config);
   const nextState = createInitialState(configOverride, runtime);
-  const stats = getCycleStats(state);
   carryMythsAcrossCycle(state, nextState, config);
   carryTemplePrestigeAcrossCycle(state, nextState, config);
-  carryWarriorCompanyAcrossCycle(state, nextState, config);
+  const warriorCarryover = carryWarriorCompanyAcrossCycle(state, nextState, config);
   nextState.cycleStats = {
     count: stats.count + 1,
-    lastTicks: Math.max(0, Number(state.tick || 0)),
+    lastTicks: completedTicks,
   };
   nextState.lastDeathTick = 0;
   nextState.endgameArtifactsTick = null;
@@ -176,6 +189,18 @@ function runEndgameReset(state, config, runtime, options = {}) {
       state.ui[key] = value;
     }
   }
+  const cycleEvent = emitEndgameCycleClosed(state, config, {
+    sourceCycle: stats.count,
+    completedCycles: stats.count + 1,
+    completedTicks,
+    artifactCount: foundArtifacts,
+  });
+  const carryoverEvent = emitEndgameWarriorCompanyCarriedOver(
+    state,
+    config,
+    warriorCarryover,
+  );
+  return { cycleEvent, carryoverEvent, warriorCarryover };
 }
 
 function maybeHandleEndgameReset(state, config, runtime) {
@@ -189,6 +214,8 @@ function maybeHandleEndgameReset(state, config, runtime) {
 module.exports = {
   computeEndgameDifficultyMultiplier,
   updateEndgameDifficulty,
+  areAllArtifactsFound,
+  ensureArtifactsCompletionTick,
   shouldTriggerEndgameReset,
   runEndgameReset,
   maybeHandleEndgameReset,
