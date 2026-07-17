@@ -8,6 +8,12 @@ const crypto = require('crypto');
 const { buildRuntime } = require('../src/runtime');
 const { createInitialState } = require('../src/state');
 const { stepState } = require('../src/simulation');
+const {
+  createStoryDirectorCounterTracker,
+  getStoryDirectorCounterReport,
+  summarizeStoryDirectorReports,
+  trackStoryDirectorCounters,
+} = require('../src/telemetry/story_director');
 
 const ROOT = path.resolve(__dirname, '..');
 const DEFAULT_CONFIG_PATH = path.join(ROOT, 'config.json');
@@ -16,6 +22,7 @@ const DEFAULT_SEEDS = [101, 202, 303, 404];
 const DEFAULT_RESOURCES = ['beer', 'food', 'water'];
 const DEFAULT_VARIANT_LABEL = 'current';
 const DEFAULT_PROGRESS_STEPS = 8;
+const BENCHMARK_REPORT_SCHEMA_VERSION = 2;
 const DEFAULT_GATE_THRESHOLDS = {
   minScore: -2,
   maxPopulationDrop: 0.08,
@@ -643,7 +650,7 @@ function trackSchismDecreeTick(state, tracker) {
 }
 
 // Capture end-of-run metrics from simulation state.
-function collectRow(state, resources, seed, decreeTracker) {
+function collectRow(state, resources, seed, decreeTracker, storyTracker) {
   const dwarves = Array.isArray(state.dwarves) ? state.dwarves : [];
   const stockpile = state.stockpile || {};
   const underrealm = collectUnderrealmMetrics(state);
@@ -676,6 +683,7 @@ function collectRow(state, resources, seed, decreeTracker) {
     schismDecreeActiveTicks: Math.max(0, Number(decree.activeTicks || 0)),
     schismDecreeById: sortCounterMap(decree.byId),
     schismDecreeActiveTicksById: sortCounterMap(decree.activeTicksById),
+    storyDirector: getStoryDirectorCounterReport(storyTracker),
     resources: resourceValues,
   };
 }
@@ -699,6 +707,9 @@ function summarizeRows(rows, resources) {
 
   const decreeById = sortCounterMap(decreeByIdTotals);
   const decreeActiveTicksById = sortCounterMap(decreeActiveTicksByIdTotals);
+  const storyDirector = summarizeStoryDirectorReports(
+    rows.map((row) => row && row.storyDirector),
+  );
   return {
     population: average(rows, (row) => row.population),
     morale: average(rows, (row) => row.morale),
@@ -725,6 +736,7 @@ function summarizeRows(rows, resources) {
       activeTicksById: decreeActiveTicksById,
       activeTicksByIdShare: buildCounterShareMap(decreeActiveTicksById, decreeActiveTicksTotal),
     },
+    storyDirector,
     resources: resourceAverages,
   };
 }
@@ -745,12 +757,14 @@ function runVariant(baseConfig, options, variant) {
       const runtime = buildFixedRuntime(variantConfig, options.width, options.height);
       const state = createInitialState(variantConfig, runtime);
       const decreeTracker = createSchismDecreeTracker();
+      const storyTracker = createStoryDirectorCounterTracker();
       const progressEvery = resolveProgressEvery(options.ticks, options.progressEvery);
       let nextProgressTick = progressEvery;
 
       for (let index = 0; index < options.ticks; index += 1) {
         stepState(state, variantConfig, runtime, null);
         trackSchismDecreeTick(state, decreeTracker);
+        trackStoryDirectorCounters(state, storyTracker);
         const tick = index + 1;
         if (options.progress === true && (tick >= nextProgressTick || tick === options.ticks)) {
           const elapsedMs = Date.now() - seedStartMs;
@@ -768,7 +782,13 @@ function runVariant(baseConfig, options, variant) {
         }
       }
 
-      const collected = collectRow(state, options.resources, seed, decreeTracker);
+      const collected = collectRow(
+        state,
+        options.resources,
+        seed,
+        decreeTracker,
+        storyTracker,
+      );
       writeProgress(
         options,
         `variant=${variant.label} seed=${seed} done tick=${collected.tick} pop=${collected.population} elapsed=${formatElapsedMs(Date.now() - seedStartMs)}`,
@@ -1198,6 +1218,17 @@ function buildMarkdownReport(report) {
       `| ${variant.label} | ${formatNumber(variant.summary.underrealmDepth, 2)} | ${formatNumber(variant.summary.underrealmChampions, 2)} | ${formatNumber(variant.summary.underrealmFailedExpeditions, 2)} | ${formatNumber(variant.summary.underrealmBlockedDispatches, 2)} | ${formatNumber(variant.summary.underrealmFrontierContested, 2)} | ${formatNumber(variant.summary.underrealmReadinessScore, 3)} | ${formatNumber(variant.summary.underrealmHeroPromotions, 2)} | ${formatNumber(variant.summary.underrealmHeroLosses, 2)} | ${formatNumber(variant.summary.underrealmHeroActive, 2)} | ${formatNumber(variant.summary.underrealmHeroSurvivals, 2)} |`,
     );
   }
+  lines.push('');
+  lines.push('## Story Director Summary');
+  lines.push('');
+  lines.push('| Variant | Considered | Selected | Suppressed | Preempted | Focus coverage | Critical focus | Legendary focus | Priority context | Sagas opened | Resolved | Failed | Archived | Resolution rate |');
+  lines.push('| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |');
+  for (const variant of report.variants) {
+    const story = variant && variant.summary && variant.summary.storyDirector || {};
+    lines.push(
+      `| ${variant.label} | ${formatNumber(story.considered, 0)} | ${formatNumber(story.selected, 0)} | ${formatNumber(story.suppressed, 0)} | ${formatNumber(story.preempted, 0)} | ${formatPercent(story.focusCoverage, 1)} | ${formatPercent(story.criticalFocusCoverage, 1)} | ${formatPercent(story.legendaryFocusCoverage, 1)} | ${formatPercent(story.priorityContextCoverage, 1)} | ${formatNumber(story.sagasOpened, 0)} | ${formatNumber(story.sagasResolved, 0)} | ${formatNumber(story.sagasFailed, 0)} | ${formatNumber(story.sagasArchived, 0)} | ${formatPercent(story.sagaResolutionRate, 1)} |`,
+    );
+  }
   const hasSchismDecreeTelemetry = report.variants.some((variant) => {
     const decrees = variant
       && variant.summary
@@ -1341,6 +1372,14 @@ function printTable(report) {
       `underHeroSurv ${formatNumber(variant.summary.underrealmHeroSurvivals, 2)}, ` +
       formatResources(variant.summary.resources, report.meta.resources);
     process.stdout.write(`${summaryLine}\n`);
+
+    const story = variant && variant.summary && variant.summary.storyDirector || {};
+    process.stdout.write(
+      `story: selected ${formatNumber(story.selected, 0)}/${formatNumber(story.considered, 0)} (${formatPercent(story.focusCoverage, 1)}), suppressed ${formatNumber(story.suppressed, 0)}, preempted ${formatNumber(story.preempted, 0)}, critical ${formatNumber(story.criticalSelected, 0)}/${formatNumber(story.criticalConsidered, 0)} (${formatPercent(story.criticalFocusCoverage, 1)}), legendary ${formatNumber(story.legendarySelected, 0)}/${formatNumber(story.legendaryConsidered, 0)} (${formatPercent(story.legendaryFocusCoverage, 1)}), priority context ${formatNumber(story.priorityContextCovered, 0)}/${formatNumber(story.priorityConsidered, 0)} (${formatPercent(story.priorityContextCoverage, 1)})\n`,
+    );
+    process.stdout.write(
+      `sagas: opened ${formatNumber(story.sagasOpened, 0)}, resolved ${formatNumber(story.sagasResolved, 0)}, failed ${formatNumber(story.sagasFailed, 0)}, archived ${formatNumber(story.sagasArchived, 0)}, evicted ${formatNumber(story.sagasEvicted, 0)}, terminal/opened ${formatPercent(story.sagaResolutionRate, 1)}\n`,
+    );
 
     const decrees = variant
       && variant.summary
@@ -1491,6 +1530,7 @@ function runBenchmark(options) {
     };
   return {
     meta: {
+      reportSchemaVersion: BENCHMARK_REPORT_SCHEMA_VERSION,
       ticks: options.ticks,
       seeds: options.seeds,
       configPath: options.configPath,

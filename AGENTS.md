@@ -43,6 +43,8 @@ This file defines how to implement new features in a consistent, stable way.
 - `src/simulation/index.js`: simulation orchestrator.
 - `src/simulation/narrative_contract.js`: strict schema-v1 validator and deterministic event identity helpers used by narrative contract gates and the runtime event core.
 - `src/simulation/narrative_normalizer.js`: bounded structured-event draft normalization, config-driven importance resolution, and deterministic optional-payload reduction.
+- `src/simulation/story_director.js`: bounded per-cycle Story Director state, deterministic event scoring/focus selection, cooldown/escalation budgets, reason traces, serialization repair, and hard-cap enforcement.
+- `src/simulation/story_sagas.js`: deterministic saga grouping, lifecycle transitions, bounded evidence indexes, fact-backed chapter summaries, and capacity eviction.
 - `src/simulation/secondary_events.js`: shared structured boundary and actor/location/resource-fact helpers for secondary world, culture, environment, economy, and development producers.
 - `src/simulation/lifecycle_events.js`: structured founding, birth, natural-death, and partnership event builders with deterministic actor snapshots and causal facts.
 - `src/simulation/social_events.js`: structured mentorship, rivalry, grudge, and reconciliation incident builders with pair evidence and typed outcomes.
@@ -71,6 +73,7 @@ This file defines how to implement new features in a consistent, stable way.
   all/drama filters, importance badges, and compact actor/place/saga context.
 - `src/telemetry/`: telemetry section and Data Center panel builders.
 - `src/telemetry/telemetry.js`: telemetry section builders and formatting helpers.
+- `src/telemetry/story_director.js`: read-only Story Director telemetry rows plus deterministic headless counter tracking and report summaries.
 - `src/telemetry/telemetry_panel.js`: in-game telemetry reference overlay panel (section and metric explanations).
 - `src/render.js`: thin wrapper for `src/render/index.js`.
 - `src/runtime.js`: terminal sizing and layout.

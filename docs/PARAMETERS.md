@@ -387,6 +387,87 @@ Events:
   `notable`; failed/intercepted diplomacy, myths/backlashes, village founding, Underrealm unlocks,
   temple stages, and hunt deaths are `major`; `temple.completed` is `legendary`.
 
+Story Director:
+
+- `story_director.enabled`: enables bounded per-cycle event scoring and focus selection.
+- `story_director.focus.minimum_importance`: lowest event importance eligible for ordinary focus
+  (`ambient`, `notable`, `major`, `critical`, or `legendary`).
+- `story_director.focus.cooldown_ticks`: minimum tick cooldown reserved between ordinary focus changes.
+- `story_director.focus.duration_ticks`: number of simulation ticks a selected focus remains active
+  unless a stronger escalation preempts it.
+- `story_director.focus.interruption_budget.window_ticks`: rolling interruption-budget window length.
+- `story_director.focus.interruption_budget.max_interruptions`: maximum interruptions allowed inside one
+  budget window.
+- `story_director.focus.escalation.enabled`: allows sufficiently important events to bypass ordinary
+  focus protection when they outrank the current focus.
+- `story_director.focus.escalation.minimum_importance`: minimum importance eligible for escalation.
+- `story_director.focus.escalation.cooldown_ticks`: minimum ticks between escalation attempts that
+  successfully replace or bypass focus.
+- `story_director.scoring.importance.<importance>`: severity points for `ambient`, `notable`, `major`,
+  `critical`, and `legendary` events.
+- `story_director.scoring.rarity.first_occurrence_bonus`: rarity points for the first observed event
+  of a type; later occurrences receive `floor(bonus / (prior_count + 1))`.
+- `story_director.scoring.rarity.max_tracked_types`: per-cycle event-frequency registry cap;
+  additionally hard-capped at `256`.
+- `story_director.scoring.named_actors.per_actor|max_actors`: points per actor carrying a retained
+  display label and the number of actors allowed to contribute.
+- `story_director.scoring.consequences.per_entry|max_entries`: points per typed consequence and the
+  number of consequences allowed to contribute.
+- `story_director.scoring.current_saga_bonus`: continuity points when an event shares the active
+  focus's explicit `sagaId`.
+- `story_director.scoring.visibility.visible_bonus`: points when the event location scope/depth
+  matches the currently rendered surface or Underrealm layer.
+- `story_director.scoring.visibility.world_bonus`: points for world-scoped events.
+- `story_director.scoring.visibility.hidden_penalty`: points subtracted when a located event is on a
+  different layer from the current view.
+- `story_director.sagas.minimum_importance`: lowest importance allowed to infer, match, or open a
+  saga without an explicit `sagaId` or parent-event cause.
+- `story_director.sagas.inactivity_timeout_ticks`: ticks without a matching fact before an open or
+  active saga becomes dormant and its current chapter closes.
+- `story_director.sagas.archive_timeout_ticks`: ticks without a matching fact before a dormant,
+  resolved, or failed saga becomes archived.
+- `story_director.sagas.max_entries`: configured saga-registry cap; additionally hard-capped at `64`.
+- `story_director.sagas.max_event_refs`: source-event references retained per saga; additionally
+  hard-capped at `32`.
+- `story_director.sagas.max_actor_refs`: typed actor IDs/keys retained per saga; additionally
+  hard-capped at `16`.
+- `story_director.sagas.max_place_refs`: stable place IDs retained per saga; additionally hard-capped
+  at `8`.
+- `story_director.sagas.max_faction_refs`: faction actor IDs retained per saga; additionally
+  hard-capped at `8`.
+- `story_director.sagas.max_threat_refs`: threat actor IDs retained per saga; additionally
+  hard-capped at `8`.
+- `story_director.sagas.max_location_refs`: exact place/coordinate/depth keys retained per saga;
+  additionally hard-capped at `8`.
+- `story_director.sagas.matching.minimum_score`: minimum weighted evidence score required to join an
+  inferred saga.
+- `story_director.sagas.matching.actor_weight`: score per shared typed actor.
+- `story_director.sagas.matching.location_weight`: score per shared exact location key.
+- `story_director.sagas.matching.place_weight`: score per shared stable place ID.
+- `story_director.sagas.matching.faction_weight`: score per shared faction actor.
+- `story_director.sagas.matching.threat_weight`: score per shared threat actor.
+- `story_director.sagas.lifecycle.activation_event_count`: event count that moves an open saga to
+  active.
+- `story_director.sagas.lifecycle.activation_minimum_importance`: single-event importance that can
+  activate a saga before the event-count threshold.
+- `story_director.sagas.lifecycle.resolved_type_suffixes`: terminal type tokens recognized after a
+  dot or underscore, or as the full type, as authoritative resolution facts.
+- `story_director.sagas.lifecycle.failed_type_suffixes`: terminal type tokens recognized after a dot
+  or underscore, or as the full type, as authoritative failure facts.
+- `story_director.sagas.chapters.max_entries`: chapters retained per saga; additionally hard-capped
+  at `16`.
+- `story_director.sagas.chapters.max_event_refs`: event references retained per chapter before a new
+  chapter opens; additionally hard-capped at `8`.
+- `story_director.sagas.chapters.summary_max_chars`: maximum fact-summary characters per chapter and
+  saga; clamped to `32..512`.
+- `story_director.history.max_entries`: completed-focus history cap; additionally hard-capped at `512`.
+- `story_director.history.reason_trace_max_entries`: focus decision/suppression trace cap, clamped to
+  `1..512` so critical suppression can never disable its explanation entirely.
+
+The Data Center and headless benchmark expose Story Director counters derived from the fields above
+(focus coverage, suppressed events, priority actor/location coverage, and saga outcomes). Those report
+fields are observability outputs, not separate tunables.
+
 Wildlife and pastures:
 
 - `wildlife.enabled`: enable seasonal wildlife herds and hunting.

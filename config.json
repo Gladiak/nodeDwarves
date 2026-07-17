@@ -736,6 +736,95 @@
       }
     }
   },
+  "story_director": {
+    "enabled": true,
+    "focus": {
+      "minimum_importance": "major",
+      "cooldown_ticks": 180,
+      "duration_ticks": 240,
+      "interruption_budget": {
+        "window_ticks": 1200,
+        "max_interruptions": 3
+      },
+      "escalation": {
+        "enabled": true,
+        "minimum_importance": "critical",
+        "cooldown_ticks": 60
+      }
+    },
+    "scoring": {
+      "importance": {
+        "ambient": 0,
+        "notable": 25,
+        "major": 50,
+        "critical": 80,
+        "legendary": 120
+      },
+      "rarity": {
+        "first_occurrence_bonus": 18,
+        "max_tracked_types": 128
+      },
+      "named_actors": {
+        "per_actor": 8,
+        "max_actors": 3
+      },
+      "consequences": {
+        "per_entry": 5,
+        "max_entries": 4
+      },
+      "current_saga_bonus": 24,
+      "visibility": {
+        "visible_bonus": 12,
+        "world_bonus": 4,
+        "hidden_penalty": 6
+      }
+    },
+    "sagas": {
+      "minimum_importance": "major",
+      "inactivity_timeout_ticks": 2400,
+      "archive_timeout_ticks": 7200,
+      "max_entries": 24,
+      "max_event_refs": 16,
+      "max_actor_refs": 12,
+      "max_place_refs": 8,
+      "max_faction_refs": 8,
+      "max_threat_refs": 8,
+      "max_location_refs": 8,
+      "matching": {
+        "minimum_score": 30,
+        "actor_weight": 30,
+        "location_weight": 20,
+        "place_weight": 40,
+        "faction_weight": 80,
+        "threat_weight": 100
+      },
+      "lifecycle": {
+        "activation_event_count": 2,
+        "activation_minimum_importance": "critical",
+        "resolved_type_suffixes": [
+          "resolved",
+          "completed",
+          "succeeded",
+          "defeated",
+          "reconciliation",
+          "closed"
+        ],
+        "failed_type_suffixes": [
+          "failed",
+          "expired"
+        ]
+      },
+      "chapters": {
+        "max_entries": 8,
+        "max_event_refs": 4,
+        "summary_max_chars": 240
+      }
+    },
+    "history": {
+      "max_entries": 160,
+      "reason_trace_max_entries": 160
+    }
+  },
   "wildlife": {
     "enabled": true,
     "seasons": [

@@ -1,9 +1,9 @@
 # NodeDwarves Epic Evolution Workbook
 
 Last updated: 2026-07-17
-Status: Active implementation - M1 complete; M2 ready
-Completed checkpoint: `E2.4` done
-Next executable step: `E3.1` ready
+Status: Active implementation - M1 complete; M2 in progress
+Completed checkpoint: `E3.4` done
+Next executable step: `E4.1` ready
 Scope: Step-by-step delivery and evidence tracking for the project-wide epic simulation evolution
 
 This workbook turns the "living dwarven chronicle" direction into an executable plan. It is the
@@ -126,13 +126,15 @@ Dashboard:
 | --- | --- | --- | --- | --- | --- |
 | M0 - Measurement | E0 | Frozen narrative/watchability baseline and executable contracts | `Done` | Workbook initialized | E0 gate passes |
 | M1 - Structured stories | E1, E2 | Events know who/where/why; messages use stable identities | `Done` | M0 done | Structured-event + identity gates pass |
-| M2 - Watchable simulation | E3, E4 | The terminal guides attention and protects important moments | `Ready` | M1 done | Director + presentation gates pass |
+| M2 - Watchable simulation | E3, E4 | The terminal guides attention and protects important moments | `In progress` | M1 done | Director + presentation gates pass |
 | M3 - Lived history | E5 | Biographies and chronicles contain actual deeds | `Not started` | M2 done | Chronicle integrity + cycle export gate passes |
 | M4 - Persistent civilization | E6 | Cycles inherit bounded, visible history | `Not started` | M3 done | Deterministic multi-cycle gate passes |
 | M5 - Epic world | E7, E8 | Named nemeses, staged sieges, and evolving landmarks | `Not started` | M4 done | Full quality gate + experience review passes |
 
-Current checkpoint: `E2.4` is `Done`; `E3.1` is the next executable step. All E1/E2 exit gates pass,
-so M1 is `Done` and M2 is ready to begin with bounded Story Director state.
+Current checkpoint: `E3.4` is `Done`; `E4.1` is the next executable step. Canonical events now drive
+bounded deterministic scoring, focus, preemption, saga aggregation/lifecycle, fact-backed chapters,
+player-facing Story Director telemetry, and headless focus/saga counters without gameplay RNG,
+timing sources, PPO observation changes, or balance drift.
 
 Rules for ordering:
 
@@ -702,46 +704,125 @@ All E2 exit evidence is complete. E2 and M1 are `Done`.
 
 ## 7) Workstream E3 - Epic Story Director
 
-Status: `Ready`
+Status: `Done`
 
 Objective: aggregate events into readable arcs and choose what deserves observer attention.
 
 ### E3.1 Director state and configuration
 
-Status: `Ready`
+Status: `Done`
 
-- [ ] Add bounded `state.story` runtime state with current focus, saga registry, cooldowns, and history.
-- [ ] Add config for importance thresholds, interruption budget, escalation, saga inactivity timeout,
+- [x] Add bounded `state.story` runtime state with current focus, saga registry, cooldowns, and history.
+- [x] Add config for importance thresholds, interruption budget, escalation, saga inactivity timeout,
       and history limits.
-- [ ] Keep story selection deterministic and isolated from gameplay RNG.
-- [ ] Exclude render timing and wall-clock time from story decisions.
+- [x] Keep story selection deterministic and isolated from gameplay RNG.
+- [x] Exclude render timing and wall-clock time from story decisions.
+
+E3.1 closure snapshot (2026-07-17):
+
+- `src/simulation/story_director.js` owns a plain-JSON per-cycle schema with nullable focus, ordered
+  saga registry, cooldowns, interruption budget, history, reason trace, cursor, and scalar counters.
+- Configured storage limits are protected by absolute runtime ceilings (`64` sagas, `32` event refs
+  per saga, `512` focus records, and `512` reason records), including malformed-state repair.
+- Equal config creates byte-equal state without RNG; JSON round trips are stable; cycle reset drops
+  all prior focus/saga/history state until E6 defines explicit bounded carry-over.
+- Focus selection and saga aggregation remain intentionally empty here and belong to E3.2/E3.3.
+- The refreshed `4 x 8000` cache retained the exact frozen endpoints (`683/678/732/700`, mean
+  `698.3`); only config hash/timestamp changed. Active hash:
+  `281d36086cbc4eb1c3383fc6a0c67d9009ee03ab044d10568d6b4236c85e398a`.
 
 ### E3.2 Event scoring and focus selection
 
-- [ ] Score events by severity, rarity, named actors, consequences, current saga, and player visibility.
-- [ ] Implement cooldown and escalation rules to prevent focus spam.
-- [ ] Allow critical events to preempt notable events deterministically.
-- [ ] Record the reason trace for every focus selection or suppression.
+Status: `Done`
+
+- [x] Score events by severity, rarity, named actors, consequences, current saga, and player visibility.
+- [x] Implement cooldown and escalation rules to prevent focus spam.
+- [x] Allow critical events to preempt notable events deterministically.
+- [x] Record the reason trace for every focus selection or suppression.
+
+E3.2 closure snapshot (2026-07-17):
+
+- Every committed canonical event reaches the Director directly, independently of Event Log
+  retention, and advances one cycle/tick/sequence cursor that rejects duplicate replay.
+- Additive config-driven scoring retains severity, inverse type frequency, named-actor,
+  consequence, explicit current-saga, and active-layer visibility components in every bounded reason
+  record. The per-cycle type-frequency registry is hard-capped at `256`.
+- Ordinary focus protection, escalation cooldown, and rolling interruption budget prevent spam;
+  deterministic fixtures prove `critical > notable` preemption, same-tier score ordering, budget
+  exhaustion/reset, focus expiry, and explicit reasons for all selection/suppression paths.
+- A deterministic 2000-tick producer probe considered all `462/462` accepted events with zero
+  rejection, retained `6` completed focuses, capped trace at `160`, tracked `62` types, and serialized
+  story state at `45,632` bytes.
+- Repeated `2 x 1000` reports are byte-equal excluding timestamps. The refreshed `4 x 8000` profile
+  retains exact endpoints (`683/678/732/700`, mean `698.3`); cache hash
+  `2dca7eb6c6fe80e280fb701a963b89ebe38c6c349db225f3e155de46129d3118` is aligned.
 
 ### E3.3 Saga aggregation
 
-- [ ] Group causal events by actor, location, faction, threat, and explicit parent references.
-- [ ] Define deterministic saga lifecycle: opened, active, dormant, resolved, failed, archived.
-- [ ] Generate chapter summaries from facts, not unconstrained flavor text.
-- [ ] Keep chapter and saga lengths bounded by config.
+Status: `Done`
+
+- [x] Group causal events by actor, location, faction, threat, and explicit parent references.
+- [x] Define deterministic saga lifecycle: opened, active, dormant, resolved, failed, archived.
+- [x] Generate chapter summaries from facts, not unconstrained flavor text.
+- [x] Keep chapter and saga lengths bounded by config.
+
+E3.3 closure snapshot (2026-07-17):
+
+- Every committed canonical fact is assigned after identity commit and before Event Log retention.
+  Producer `sagaId` is authoritative, followed by parent-event causes, then weighted threat, faction,
+  stable place, exact location, and typed actor evidence. Deterministic score/recency/ID tie-breaks
+  generate monotonic per-cycle IDs without RNG or time sources.
+- The lifecycle covers open, active, dormant, resolved, failed, and archived records. Inactivity,
+  terminal type suffixes/tags, threat-destruction consequences, reactivation, and capacity eviction
+  are config-driven and protected by hard runtime ceilings.
+- Chapters retain only bounded source-event IDs plus sanitized opening/latest messages; summaries
+  concatenate those facts and cannot invent narrative claims. Saga/evidence/chapter normalization,
+  compaction, serialization, and malformed-state repair remain deterministic.
+- A deterministic 2000-tick producer probe considered `418/418` accepted facts, retained the
+  configured `24` sagas (`2` active, `16` open, `6` resolved), opened `28` chapters, reached maxima
+  of `16` event refs and `5` chapters per saga, and serialized story state at `71,367` bytes.
+- Repeated `2 x 1000` reports are byte-equal excluding timestamps. The refreshed `4 x 8000` profile
+  retains exact endpoints (`683/678/732/700`, mean `698.3`); cache hash
+  `aafb12c5a2522c1d7418ae3117ef1fb59b4cda15900440ba42c8a77c610b4bbf` is aligned.
 
 ### E3.4 Explainability and telemetry
 
-- [ ] Expose current saga, current focus, interruption cooldown, and selection reason.
-- [ ] Add a Story Director section to the telemetry reference when metrics become player-facing.
-- [ ] Add headless report counters for focus coverage, suppressed events, and saga resolution.
+Status: `Done`
+
+- [x] Expose current saga, current focus, interruption cooldown, and selection reason.
+- [x] Add a Story Director section to the telemetry reference when metrics become player-facing.
+- [x] Add headless report counters for focus coverage, suppressed events, and saga resolution.
+
+E3.4 closure snapshot (2026-07-17):
+
+- `src/telemetry/story_director.js` owns read-only Story Director rows plus benchmark counter
+  aggregation. The Data Center page exposes current focus, focus score/source/reason, current saga,
+  saga lifecycle/summary, focus and escalation cooldowns, interruption budget, latest decision trace,
+  selection/suppression totals, priority context coverage, and saga outcome counts.
+- Headless benchmark report schema is now `2`. JSON, Markdown, and table outputs include Story
+  Director focus coverage, critical/legendary selection coverage, priority context coverage,
+  suppressed/preempted totals, opened/resolved/failed/archived/evicted saga totals, and terminal/opened
+  saga rate. The balance gate score remains unchanged.
+- Priority context coverage is counted when a critical/legendary event has actor plus spatial/place
+  context or an explicit world scope. This matches the global major-event focus target while leaving
+  ordinary events out of the gate.
+- Focused telemetry contracts validate current focus/saga/reason rows, Data Center page wiring,
+  bounded panel width, priority context counters, cycle-reset-safe headless aggregation, and no
+  double-counting across sampled ticks.
+- Repeated `2 x 1000` reports are deterministic excluding timestamps. The refreshed `4 x 8000`
+  cached profile retains exact endpoints (`683/678/732/700`, mean `698.3`, morale `0.8851`, hunger
+  `0.1575`, thirst `0.1083`) with schema `2` and cache hash
+  `aafb12c5a2522c1d7418ae3117ef1fb59b4cda15900440ba42c8a77c610b4bbf`.
+- Full Story Director report totals: `120/12637` selected, `12517` suppressed, `7` preempted,
+  critical `4/4`, legendary `4/4`, priority context `8/8`, sagas opened `2850`, resolved `134`,
+  failed `6`, archived `2754`, evicted `2754`, terminal/opened `4.9%`.
 
 E3 exit criteria:
 
-- [ ] Critical/legendary focus coverage reaches target.
-- [ ] Same-seed focus decisions and saga IDs are reproducible.
-- [ ] Interruption budget and escalation rules pass deterministic tests.
-- [ ] Story state remains bounded over a multi-cycle long run.
+- [x] Critical/legendary focus coverage reaches target.
+- [x] Same-seed focus decisions and saga-ID generation pass deterministic tests.
+- [x] Interruption budget and escalation rules pass deterministic tests.
+- [x] Story state remains bounded over a multi-cycle long run.
 
 ## 8) Workstream E4 - Cinematic terminal presentation
 
@@ -1018,8 +1099,8 @@ Stop rules:
 
 | ID | Risk | Probability | Impact | Mitigation | Status |
 | --- | --- | --- | --- | --- | --- |
-| ER-001 | Narrative state becomes another unbounded log | Medium | High | Hard caps, compaction, source references, long-run size assertions | Open |
-| ER-002 | Story Director creates constant interruptions | High | High | Importance threshold, cooldown budget, escalation, suppression trace | Open |
+| ER-001 | Narrative state becomes another unbounded log | Medium | High | Hard caps, compaction, source references, long-run size assertions | Mitigated through E3.3; monitor Chronicle/legacy consumers |
+| ER-002 | Story Director creates constant interruptions | High | High | Importance threshold, cooldown budget, escalation, suppression trace, telemetry/report visibility | Mitigated through E3.4; monitor E4 presentation |
 | ER-003 | Structured-event migration changes simulation behavior | Low | High | Backward-compatible wrapper, presentation-only tests, end-state parity | Mitigated; E1 closed |
 | ER-004 | Display-name resolution becomes a render hotspot | Low | Medium | Stable cached identity resolver, bounded event scan, and allocation/performance probes | Mitigated through E2.4; monitor Story Director consumers |
 | ER-005 | Chronicle flavor invents unsupported facts | Medium | High | Fact templates bound to structured source events; integrity tests | Open |
@@ -1061,6 +1142,10 @@ Record every non-trivial scope or architecture decision.
 | 2026-07-17 | ED-022 | Rewrite raw dwarf references at the event-builder presentation boundary and add house/ID context only for real ambiguity | Rewrite mechanics-layer strings everywhere; include full name/house/title/ID in every message; drop stable structured IDs | Isolates display changes from simulation logic, keeps compact messages readable, and preserves machine identity | E2.2 named-message presentation | Approved |
 | 2026-07-17 | ED-023 | Store deterministic place identity in one bounded authoritative state registry and make render/telemetry/Chronicle consumers resolve stable place IDs | Generate names independently in each renderer; store names only in event strings; add an unbounded spatial history | Keeps place names coherent and serializable without gameplay RNG, protects narrow layouts with stored compact labels, and gives future Chronicle claims stable references | E2.3 place identity architecture | Approved |
 | 2026-07-17 | ED-024 | Rank capped surface and Underrealm dwarf candidates through one RNG-free story-priority selector with bounded event windows and prior-set tie stability | Keep adult-first random fill; pin only champions; let each layer invent independent priority rules; exceed the cap for urgent events | Guarantees the most important live actors when capacity permits, makes saturation deterministic, prevents flicker, and removes presentation-dependent gameplay RNG drift without changing AI or headless simulation | E2.4 priority visibility architecture | Approved |
+| 2026-07-17 | ED-025 | Install a per-cycle plain-JSON Story Director schema with configured limits plus absolute hard caps, and defer all cross-cycle carry-over to E6 | Retain live event objects; allow config-only unbounded storage; copy active story state through reset | Gives E3.2/E3.3 one deterministic repairable substrate while preventing malformed config/state growth and premature legacy semantics | E3.1 state ownership, serialization, reset, and AI isolation | Approved |
+| 2026-07-17 | ED-026 | Feed committed canonical events directly into a deterministic additive scorer, and allow only threshold-qualified stronger events to preempt under cooldown and rolling budget | Poll the Event Log; use random tie-breaks; let score alone replace any active focus; bypass budgets for all critical events | Direct commit sees events even with zero UI retention, canonical order is reproducible, and severity gates plus explicit component traces keep interruption behavior bounded and explainable | E3.2 scoring, focus lifecycle, and event-runtime boundary | Approved |
+| 2026-07-17 | ED-027 | Assign sagas by explicit ID, parent cause, then weighted retained evidence; derive bounded chapters only from canonical messages and use deterministic lifecycle/eviction | Generate arcs from flavor text; group every shared system actor; retain whole events; use random similarity ties; carry sagas across cycles now | Makes causal ownership explicit, prevents invented history and broad false merges, bounds memory, preserves reproducibility, and leaves cross-cycle legacy to E6 | E3.3 saga aggregation, lifecycle, and factual integrity | Approved |
+| 2026-07-17 | ED-028 | Expose Story Director state through a read-only telemetry/report helper and version the headless report schema for new story counters | Build display rows inside the scorer; infer metrics from Event Log retention; change balance-gate scoring; wait for E4 ribbon before any visibility | Keeps observability deterministic and reusable, avoids coupling presentation to selection logic, gives benchmark evidence without affecting tuning gates, and lets cache refresh on report-shape drift | E3.4 explainability, Data Center, and headless reporting | Approved |
 
 ## 17) Implementation log
 
@@ -1086,6 +1171,10 @@ within the repository retention policy.
 | 2026-07-17 | EW-014 | E2.2 named messages: replace raw dwarf references across priority lifecycle/social/combat/Warrior presentation while retaining canonical actor IDs and compact ambiguity rules | `src/dwarf_identity.js`, priority event builders, `scripts/test_narrative_contracts.js`, narrative/product/operations docs | Syntax checks, newborn/deceased/retired/unknown/collision fixtures, deterministic 2000-tick coverage probe, `npm run test:narrative`, `npm test`, deterministic `2 x 1000`, cached-baseline guard, terminal render smoke, `git diff --check` | Done | Coverage is `165/165` named and `0` raw (`100%`); exact short endpoints and AI/export contracts pass; E2.2 is closed and E2.3 is ready |
 | 2026-07-17 | EW-015 | E2.3 stable place identity: persist deterministic full/compact names for villages, roads, Deep Gate/lifts, ruins, and Temple sites; share them across events and UI | `src/place_identity.js`, state/simulation producers, Event Log/Inspect/telemetry consumers, `scripts/test_narrative_contracts.js`, narrative/product/operations/layout docs | Syntax checks, deterministic/RNG/cap/serialization/renderer fixtures, deterministic 2000-tick place probe, repeated exact 1000-tick run, `npm run test:narrative`, `npm test`, cached-baseline guard, terminal render smoke, `git diff --check` | Done | Probe retained 15 places with 0 duplicate names/rejections/stale named-event locations; repeated run hash is exact; config, simulation decisions, v1/AI/export shapes remain unchanged; E2.3 closed here and E2.4 was subsequently completed in EW-016 |
 | 2026-07-17 | EW-016 | E2.4 priority visibility and M1 closure: share deterministic story tiers across capped surface/deep dwarf rendering and remove render-time gameplay RNG | `src/render/dwarf_visibility.js`, `src/render/index.js`, `scripts/test_narrative_contracts.js`, product/parameter/narrative/operations/layout docs | Syntax checks, 80-dwarf above-cap/preemption/stability/layer/RNG fixtures, 240-dwarf selector and 300-frame performance probe, `npm run test:narrative`, `npm test`, deterministic `2 x 1000`, cached-baseline guard, terminal render smoke, `git diff --check` | Done | Cap-6 fixture retains all six required tier representatives; selector mean 0.134 ms, frame mean/p95 0.865/1.010 ms, RNG calls 0; AI/export/config contracts remain stable; E2 and M1 are closed, with E3.1 next |
+| 2026-07-17 | EW-017 | E3.1 Director substrate: add bounded per-cycle story state, config normalization, malformed-state repair, clean reset, and explicit RNG/time/AI isolation | `src/simulation/story_director.js`, `src/state/index.js`, `config.json`, `scripts/test_narrative_contracts.js`, `benchmark_cache/`, parameter/narrative/product/operations/layout docs | Syntax checks, bounded/serialization/reset/RNG/time/AI fixtures, `npm run test:narrative`, `npm test`, deterministic `2 x 1000`, cached-baseline refresh + aligned recheck, terminal render smoke, `git diff --check` | Done | No focus is selected before E3.2; hard caps protect saga/history/reason storage; story state resets per cycle and remains outside PPO/map export; exact `4 x 8000` endpoints retained; cache hash `281d36086cbc4eb1c3383fc6a0c67d9009ee03ab044d10568d6b4236c85e398a` aligned |
+| 2026-07-17 | EW-018 | E3.2 deterministic scoring/focus: consume committed facts, score six explicit components, enforce focus/escalation cooldowns and rolling interruption budget, and trace every decision | `src/simulation/story_director.js`, `src/simulation/events.js`, `src/simulation/index.js`, `config.json`, `scripts/test_narrative_contracts.js`, `benchmark_cache/`, parameter/narrative/product/operations/layout docs | Formula/preemption/cooldown/budget/expiry/cursor/retention/RNG fixtures, 2000-tick boundedness probe, `npm test`, repeated `2 x 1000`, cached `4 x 8000` refresh + aligned recheck, terminal render smoke, `git diff --check` | Done | Probe considered `462/462` facts with trace capped at `160` and story state `45,632` bytes; repeated short reports exact; full endpoints exact; cache hash `2dca7eb6c6fe80e280fb701a963b89ebe38c6c349db225f3e155de46129d3118` aligned; E3.3 ready |
+| 2026-07-17 | EW-019 | E3.3 deterministic saga aggregation: group committed facts by explicit/causal/weighted evidence, advance bounded lifecycles, and retain fact-backed chapters | `src/simulation/story_sagas.js`, `src/simulation/story_director.js`, `src/simulation/events.js`, `config.json`, `scripts/test_narrative_contracts.js`, `benchmark_cache/`, parameter/narrative/product/operations/layout docs | Grouping/ID/lifecycle/chapter/cap/serialization/RNG fixtures, 2000-tick boundedness probe, `npm test`, repeated `2 x 1000`, cached `4 x 8000` refresh + aligned recheck, terminal render smoke, `git diff --check` | Done | Probe retained 24 bounded sagas and 28 chapters in 71,367 bytes; repeated short reports exact; full endpoints exact; cache hash `aafb12c5a2522c1d7418ae3117ef1fb59b4cda15900440ba42c8a77c610b4bbf` aligned; E3.4 ready |
+| 2026-07-17 | EW-020 | E3.4 Story Director explainability: expose current focus/saga/cooldowns/reasons in Data Center and add deterministic headless focus/context/saga counters | `src/telemetry/story_director.js`, `src/telemetry/telemetry.js`, `src/telemetry/telemetry_panel.js`, `src/simulation/story_director.js`, `scripts/headless_benchmark.js`, `scripts/ensure_benchmark_baseline.js`, `scripts/test_narrative_contracts.js`, `benchmark_cache/`, telemetry/narrative/product/operations/layout docs | Story telemetry/report fixtures, syntax checks, `npm test`, repeated deterministic `2 x 1000`, cached `4 x 8000` schema-2 refresh + aligned recheck, terminal render smoke, `git diff --check` | Done | Full report: critical `4/4`, legendary `4/4`, priority context `8/8`, selected `120/12637`, suppressed `12517`, preempted `7`, sagas `2850` opened / `140` terminal; endpoints and cache hash unchanged; E3 is closed and E4.1 is ready |
 
 ## 18) Checkpoint template
 
@@ -1178,9 +1267,17 @@ Execute one bounded step at a time:
     roads, gates, lifts, ruins, and Temple sites, with compact render fallbacks.
 16. [x] `E2.4 / priority visibility` - Guarantee current critical/legendary actors remain visible under
     the bounded render population cap, with stable priority selection.
-17. [ ] `E3.1 / Director state and configuration` - Add bounded deterministic Story Director runtime
-    state and config without exposing it to PPO observations. **Next.**
+17. [x] `E3.1 / Director state and configuration` - Add bounded deterministic Story Director runtime
+    state and config without exposing it to PPO observations.
+18. [x] `E3.2 / event scoring and focus selection` - Score canonical facts, enforce cooldown and
+    escalation rules, and retain an explicit deterministic selection/suppression reason trace.
+19. [x] `E3.3 / saga aggregation` - Group causal facts into bounded deterministic saga lifecycles and
+    generate fact-backed chapter summaries.
+20. [x] `E3.4 / explainability and telemetry` - Expose current saga/focus, cooldown state, selection
+    reason, and bounded headless counters.
+21. [ ] `E4.1 / Story ribbon` - Add compact in-map current-story presentation for the active major
+    event or saga beat. **Next.**
 
-The first implementation slice should remain deliberately narrow: event schema, birth/death
-producers, identity resolution, Event Log compatibility, deterministic tests, and documentation.
-It should not include camera work, persistent legacy, new combat systems, or AI shape changes.
+The next implementation slice should remain deliberately narrow: present the already selected
+Director focus/saga in the terminal view through a compact story ribbon. It should not include camera
+work, persistent legacy, new combat systems, or AI shape changes.

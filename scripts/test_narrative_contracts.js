@@ -80,10 +80,41 @@ const {
 } = require('../src/simulation/secondary_events');
 const { auditNarrativeProducers } = require('./audit_narrative_producers');
 const { buildEventLogPanel } = require('../src/render/event_log_panel');
+const { buildTelemetrySections } = require('../src/telemetry/telemetry');
+const {
+  buildTelemetryPanel,
+  getTelemetryPanelPageCount,
+} = require('../src/telemetry/telemetry_panel');
+const {
+  collectStoryDirectorTelemetry,
+  createStoryDirectorCounterTracker,
+  getStoryDirectorCounterReport,
+  trackStoryDirectorCounters,
+} = require('../src/telemetry/story_director');
 const {
   selectPriorityVisibleDwarves,
   sortDwarvesByRenderPriority,
 } = require('../src/render/dwarf_visibility');
+const {
+  HARD_MAX_FREQUENCY_TYPES,
+  HARD_MAX_HISTORY,
+  HARD_MAX_REASON_TRACE,
+  HARD_MAX_SAGAS,
+  HARD_MAX_SAGA_EVENT_REFS,
+  STORY_SCHEMA_VERSION,
+  advanceStoryDirector,
+  createStoryDirectorState,
+  ensureStoryDirectorState,
+  getStoryDirectorConfig,
+  processStoryDirectorEvent,
+  scoreStoryEvent,
+} = require('../src/simulation/story_director');
+const {
+  HARD_MAX_CHAPTER_EVENT_REFS,
+  HARD_MAX_CHAPTER_SUMMARY_CHARS,
+  HARD_MAX_SAGA_ACTOR_REFS,
+  HARD_MAX_SAGA_CHAPTERS,
+} = require('../src/simulation/story_sagas');
 const {
   createDwarfIdentityCache,
   formatNamedEventMessage,
@@ -1807,6 +1838,13 @@ function validateEndgameMultiCycleIntegrationContract() {
   state.warriors.company.identity.name = 'Ember Wardens';
   state.warriors.company.identity.renown = 0.8;
   state.warriors.league.championId = state.dwarves[0].id;
+  state.story.currentFocus = {
+    eventId: 'evt:v1:c0002:t0000000200:s0000',
+    importance: 'legendary',
+  };
+  state.story.history.push({ eventId: 'evt:v1:c0002:t0000000200:s0000' });
+  state.story.sagas.order.push('saga_old_cycle');
+  state.story.sagas.byId.saga_old_cycle = { id: 'saga_old_cycle' };
   const previousRandom = Math.random;
   let randomState = 73013;
   Math.random = () => {
@@ -1817,6 +1855,28 @@ function validateEndgameMultiCycleIntegrationContract() {
   let secondReset = null;
   try {
     firstReset = runEndgameReset(state, config, runtime);
+    assert(
+      state.story.currentFocus
+        && state.story.currentFocus.eventId === firstReset.cycleEvent.id,
+      'New-cycle closure did not replace the old Story focus after reset.',
+    );
+    assert(
+      !state.story.history.some((focus) => focus.eventId === 'evt:v1:c0002:t0000000200:s0000'),
+      'Old Story history leaked across the cycle reset.',
+    );
+    assert(
+      !state.story.sagas.order.includes('saga_old_cycle'),
+      'Old Story saga registry entry leaked across the cycle reset.',
+    );
+    assert(
+      firstReset.cycleEvent.sagaId
+        && state.story.sagas.order.includes(firstReset.cycleEvent.sagaId),
+      'New-cycle closure did not establish its authoritative saga after reset.',
+    );
+    assert(
+      state.story.schemaVersion === STORY_SCHEMA_VERSION,
+      'Cycle reset did not reinstall the active Story Director schema.',
+    );
     state.tick = 321;
     secondReset = runEndgameReset(state, config, runtime);
   } finally {
@@ -1958,6 +2018,21 @@ function validateAiObservationIsolationContract() {
   assert(
     JSON.stringify(after) === JSON.stringify(before),
     'Event buffers changed the AI observation payload.',
+  );
+  state.story.currentFocus = {
+    eventId: 'evt:v1:c0000:t0000000000:s0000',
+    type: 'lifecycle.settlement_founded',
+    importance: 'legendary',
+    selectedTick: 0,
+    expiresTick: 100,
+    actorIds: ['settlement'],
+    placeId: null,
+  };
+  state.story.history.push({ ...state.story.currentFocus, outcome: 'shown' });
+  const afterStoryMutation = buildObservation(state, config);
+  assert(
+    JSON.stringify(afterStoryMutation) === JSON.stringify(before),
+    'Story Director state changed the AI observation payload.',
   );
 }
 
@@ -2332,6 +2407,862 @@ function validateDwarfPriorityVisibilityContract() {
   assert(unlimited.length === dwarves.length, 'Priority visibility changed the zero unlimited-cap contract.');
 }
 
+// Validate the empty E3.1 Director substrate, hard bounds, and RNG/time isolation.
+function validateStoryDirectorStateContract() {
+  const config = loadConfig();
+  const settings = getStoryDirectorConfig(config);
+  assert(settings.enabled === true, 'Story Director default should be enabled.');
+  assert(settings.focus.minimumImportance === 'major', 'Story focus importance default drifted.');
+  assert(settings.focus.cooldownTicks === 180, 'Story focus cooldown default drifted.');
+  assert(settings.focus.durationTicks === 240, 'Story focus duration default drifted.');
+  assert(
+    settings.focus.interruptionBudget.windowTicks === 1200
+      && settings.focus.interruptionBudget.maxInterruptions === 3,
+    'Story interruption-budget defaults drifted.',
+  );
+  assert(
+    settings.focus.escalation.enabled === true
+      && settings.focus.escalation.minimumImportance === 'critical'
+      && settings.focus.escalation.cooldownTicks === 60,
+    'Story escalation defaults drifted.',
+  );
+  assert(
+    settings.sagas.inactivityTimeoutTicks === 2400
+      && settings.sagas.archiveTimeoutTicks === 7200
+      && settings.sagas.maxEntries === 24
+      && settings.sagas.maxEventRefs === 16
+      && settings.sagas.maxChapters === 8
+      && settings.sagas.maxEventsPerChapter === 4,
+    'Story saga defaults drifted.',
+  );
+  assert(
+    settings.history.maxEntries === 160 && settings.history.reasonTraceMaxEntries === 160,
+    'Story history defaults drifted.',
+  );
+  assert(
+    settings.scoring.rarity.maxTrackedTypes === 128
+      && settings.scoring.importance.legendary === 120,
+    'Story scoring defaults drifted.',
+  );
+
+  const originalRandom = Math.random;
+  Math.random = () => {
+    throw new Error('E3.1 Story Director state consumed gameplay RNG.');
+  };
+  let left;
+  let right;
+  try {
+    left = createStoryDirectorState(config);
+    right = createStoryDirectorState(config);
+  } finally {
+    Math.random = originalRandom;
+  }
+  assert(JSON.stringify(left) === JSON.stringify(right), 'Equal config created different Story Director state.');
+  assert(left.schemaVersion === STORY_SCHEMA_VERSION, 'Story schema version mismatch.');
+  assert(left.currentFocus === null, 'E3.1 invented a current focus before E3.2.');
+  assert(left.sagas.order.length === 0 && left.history.length === 0, 'E3.1 invented story history.');
+
+  const extremeConfig = {
+    story_director: {
+      enabled: true,
+      focus: {
+        minimum_importance: 'invalid',
+        cooldown_ticks: -10,
+        duration_ticks: 0,
+        interruption_budget: { window_ticks: 0, max_interruptions: 999999 },
+        escalation: { enabled: true, minimum_importance: 'invalid', cooldown_ticks: -5 },
+      },
+      scoring: { rarity: { max_tracked_types: 999999 } },
+      sagas: {
+        inactivity_timeout_ticks: 0,
+        archive_timeout_ticks: 0,
+        max_entries: 999999,
+        max_event_refs: 999999,
+        max_actor_refs: 999999,
+        chapters: {
+          max_entries: 999999,
+          max_event_refs: 999999,
+          summary_max_chars: 999999,
+        },
+      },
+      history: { max_entries: 999999, reason_trace_max_entries: 999999 },
+    },
+  };
+  const extreme = getStoryDirectorConfig(extremeConfig);
+  assert(extreme.focus.minimumImportance === 'major', 'Invalid focus importance did not fall back.');
+  assert(extreme.focus.cooldownTicks === 0, 'Focus cooldown lower bound failed.');
+  assert(extreme.focus.durationTicks === 1, 'Focus duration lower bound failed.');
+  assert(extreme.focus.interruptionBudget.windowTicks === 1, 'Budget window lower bound failed.');
+  assert(extreme.focus.interruptionBudget.maxInterruptions === 1000, 'Budget count hard bound failed.');
+  assert(extreme.focus.escalation.minimumImportance === 'critical', 'Escalation importance fallback failed.');
+  assert(extreme.focus.escalation.cooldownTicks === 0, 'Escalation cooldown lower bound failed.');
+  assert(
+    extreme.scoring.rarity.maxTrackedTypes === HARD_MAX_FREQUENCY_TYPES,
+    'Frequency registry hard cap failed.',
+  );
+  assert(extreme.sagas.maxEntries === HARD_MAX_SAGAS, 'Saga registry hard cap failed.');
+  assert(extreme.sagas.maxEventRefs === HARD_MAX_SAGA_EVENT_REFS, 'Saga event-ref hard cap failed.');
+  assert(extreme.sagas.maxActorRefs === HARD_MAX_SAGA_ACTOR_REFS, 'Saga actor-ref hard cap failed.');
+  assert(extreme.sagas.maxChapters === HARD_MAX_SAGA_CHAPTERS, 'Saga chapter hard cap failed.');
+  assert(
+    extreme.sagas.maxEventsPerChapter === HARD_MAX_CHAPTER_EVENT_REFS,
+    'Saga chapter event-ref hard cap failed.',
+  );
+  assert(
+    extreme.sagas.chapterSummaryMaxChars === HARD_MAX_CHAPTER_SUMMARY_CHARS,
+    'Saga chapter summary hard cap failed.',
+  );
+  assert(extreme.history.maxEntries === HARD_MAX_HISTORY, 'Story history hard cap failed.');
+  assert(
+    extreme.history.reasonTraceMaxEntries === HARD_MAX_REASON_TRACE,
+    'Reason-trace hard cap failed.',
+  );
+  assert(
+    getStoryDirectorConfig({ story_director: { history: { reason_trace_max_entries: 0 } } })
+      .history.reasonTraceMaxEntries === 1,
+    'Reason trace could be disabled despite mandatory suppression explainability.',
+  );
+
+  const sagaEntries = Array.from({ length: HARD_MAX_SAGAS + 10 }, (_, index) => [`saga_${index}`, {
+    status: 'ACTIVE',
+    openedTick: index,
+    lastEventTick: 999,
+    eventIds: Array.from(
+      { length: HARD_MAX_SAGA_EVENT_REFS + 10 },
+      (__, ref) => `evt_${index}_${ref}`,
+    ),
+    actorIds: Array.from({ length: 20 }, (__, ref) => `dwarf_${ref}`),
+    placeIds: Array.from({ length: 20 }, (__, ref) => `place_${ref}`),
+  }]);
+  const dirtyState = {
+    tick: 999,
+    story: {
+      schemaVersion: 99,
+      enabled: true,
+      currentFocus: {
+        eventId: 'EVT:V1:C0000:T0000000999:S0000',
+        type: 'Combat.Deep_Raid',
+        importance: 'CRITICAL',
+        selectedTick: 999,
+        expiresTick: 1200,
+        actorIds: Array.from({ length: 20 }, (_, index) => `DWARF_${index}`),
+      },
+      sagas: {
+        order: sagaEntries.map(([id]) => id),
+        byId: Object.fromEntries(sagaEntries),
+      },
+      cooldowns: { focusUntilTick: -4, escalationUntilTick: Infinity },
+      interruptionBudget: { windowStartedTick: -1, used: 999999 },
+      frequencies: {
+        order: Array.from({ length: HARD_MAX_FREQUENCY_TYPES + 10 }, (_, index) => `type_${index}`),
+        byType: Object.fromEntries(
+          Array.from(
+            { length: HARD_MAX_FREQUENCY_TYPES + 10 },
+            (_, index) => [`type_${index}`, index + 1],
+          ),
+        ),
+      },
+      history: Array.from({ length: HARD_MAX_HISTORY + 10 }, (_, index) => ({
+        eventId: `evt_history_${index}`,
+        importance: 'major',
+        selectedTick: index,
+        expiresTick: index + 1,
+        actorIds: ['dwarf_1'],
+        reasonCode: 'selected',
+        outcome: 'shown',
+      })),
+      reasonTrace: Array.from({ length: HARD_MAX_REASON_TRACE + 10 }, (_, index) => ({
+        tick: index,
+        eventId: `evt_trace_${index}`,
+        decision: 'suppressed',
+        reasonCode: 'cooldown',
+        score: index,
+      })),
+      cursor: { lastEventId: 'EVENT_LAST', lastTick: 999 },
+      stats: { considered: -1, selected: Infinity, suppressed: 3 },
+    },
+  };
+  const repaired = ensureStoryDirectorState(dirtyState, extremeConfig);
+  assert(repaired.schemaVersion === STORY_SCHEMA_VERSION, 'Story repair did not restore schema version.');
+  assert(repaired.currentFocus.actorIds.length === 8, 'Current-focus actor refs exceeded their cap.');
+  assert(repaired.sagas.order.length === HARD_MAX_SAGAS, 'Repaired saga registry exceeded hard cap.');
+  assert(
+    repaired.sagas.byId.saga_0.eventIds.length === HARD_MAX_SAGA_EVENT_REFS,
+    'Repaired saga event references exceeded hard cap.',
+  );
+  assert(repaired.history.length === HARD_MAX_HISTORY, 'Repaired story history exceeded hard cap.');
+  assert(
+    repaired.reasonTrace.length === HARD_MAX_REASON_TRACE,
+    'Repaired reason trace exceeded hard cap.',
+  );
+  assert(repaired.interruptionBudget.used === 1000, 'Repaired budget usage exceeded configured cap.');
+  assert(
+    repaired.frequencies.order.length === HARD_MAX_FREQUENCY_TYPES,
+    'Repaired frequency registry exceeded its hard cap.',
+  );
+  assert(repaired.cooldowns.focusUntilTick === 0, 'Negative focus cooldown survived repair.');
+  assert(repaired.stats.considered === 0 && repaired.stats.selected === 0, 'Invalid stats survived repair.');
+  const unsafeRegistry = ensureStoryDirectorState({
+    story: {
+      sagas: {
+        order: ['__proto__'],
+        byId: JSON.parse('{"__proto__":{"status":"active"}}'),
+      },
+    },
+  }, config);
+  assert(unsafeRegistry.sagas.order.length === 0, 'Unsafe saga registry key survived repair.');
+  const serialized = JSON.parse(JSON.stringify(repaired));
+  const roundTrip = ensureStoryDirectorState({ story: serialized }, extremeConfig);
+  assert(JSON.stringify(roundTrip) === JSON.stringify(repaired), 'Story state JSON round-trip drifted.');
+
+  const source = fs.readFileSync(path.join(ROOT, 'src/simulation/story_director.js'), 'utf8');
+  assert(!source.includes('Math.random'), 'Story Director source references gameplay RNG.');
+  assert(!source.includes('Date.now'), 'Story Director source references wall-clock time.');
+  assert(!source.includes('performance.now'), 'Story Director source references render timing.');
+  assert(!source.includes('process.hrtime'), 'Story Director source references process timing.');
+}
+
+// Validate E3.2 score components, cooldowns, escalation, preemption, and reason traces.
+function validateStoryDirectorSelectionContract() {
+  const config = clone(loadConfig());
+  config.story_director.focus.minimum_importance = 'notable';
+  config.story_director.focus.cooldown_ticks = 80;
+  config.story_director.focus.duration_ticks = 500;
+  config.story_director.focus.escalation.cooldown_ticks = 10;
+  config.story_director.focus.interruption_budget.window_ticks = 200;
+  config.story_director.focus.interruption_budget.max_interruptions = 2;
+  const state = {
+    tick: 10,
+    underrealm: { activeDepth: 0 },
+    story: createStoryDirectorState(config),
+  };
+  const eventAt = (tick, sequence, overrides = {}) => buildValidEvent({
+    tick,
+    sequence,
+    id: buildNarrativeEventId(0, tick, sequence),
+    ...overrides,
+  });
+
+  const notable = eventAt(10, 0, { sagaId: 'saga_alpha' });
+  const initialScore = scoreStoryEvent(state, config, notable);
+  assert(
+    initialScore.severityScore === 25
+      && initialScore.rarityScore === 18
+      && initialScore.namedActorScore === 8
+      && initialScore.consequenceScore === 5
+      && initialScore.visibilityScore === 12
+      && initialScore.total === 68,
+    'Story score component formula drifted.',
+  );
+  assert(
+    processStoryDirectorEvent(state, config, notable).reasonCode === 'selected_focus',
+    'First eligible Story event was not selected.',
+  );
+  assert(state.story.currentFocus.eventId === notable.id, 'Selected focus identity mismatch.');
+  const repeated = eventAt(11, 0, { importance: 'major', sagaId: 'saga_alpha' });
+  const repeatedScore = scoreStoryEvent(state, config, repeated);
+  assert(repeatedScore.rarityScore === 9, 'Repeated event type did not lose rarity score.');
+  assert(repeatedScore.currentSagaScore === 24, 'Current-saga continuity bonus was not applied.');
+  assert(
+    processStoryDirectorEvent(state, config, repeated).reasonCode === 'focus_active',
+    'Non-escalating event interrupted an active focus.',
+  );
+
+  const critical = eventAt(12, 0, {
+    type: 'combat.deep_raid_casualties',
+    category: 'combat',
+    importance: 'critical',
+    sagaId: null,
+  });
+  assert(
+    processStoryDirectorEvent(state, config, critical).reasonCode === 'selected_preemption',
+    'Critical event did not preempt notable focus.',
+  );
+  assert(state.story.history[0].eventId === notable.id, 'Preempted focus was not retained in history.');
+  assert(state.story.interruptionBudget.used === 1, 'First preemption did not consume its budget.');
+
+  const cooldownCritical = eventAt(13, 0, {
+    type: 'schism.climax_started',
+    category: 'schism',
+    importance: 'critical',
+    actors: [
+      ...notable.actors,
+      { kind: 'faction', id: 'council', role: 'secondary', label: 'Ember Council' },
+    ],
+    consequences: [...notable.consequences, ...notable.consequences],
+  });
+  assert(
+    processStoryDirectorEvent(state, config, cooldownCritical).reasonCode === 'escalation_cooldown',
+    'Escalation cooldown did not suppress a stronger same-tier event.',
+  );
+
+  const legendary = eventAt(22, 0, {
+    type: 'world.legendary_crisis',
+    category: 'world',
+    importance: 'legendary',
+    actors: [],
+    consequences: [],
+    location: { scope: 'underrealm', depth: 2, x: 4, y: 5, placeId: null, label: null },
+  });
+  assert(
+    processStoryDirectorEvent(state, config, legendary).reasonCode === 'selected_preemption',
+    'Legendary escalation did not preempt after cooldown.',
+  );
+  assert(state.story.interruptionBudget.used === 2, 'Second preemption did not consume its budget.');
+
+  const actors = Array.from({ length: 3 }, (_, index) => ({
+    kind: 'dwarf',
+    id: `dwarf_budget_${index}`,
+    role: index === 0 ? 'primary' : 'secondary',
+    label: `Budget Dwarf ${index}`,
+  }));
+  const consequences = Array.from({ length: 4 }, (_, index) => ({
+    kind: 'status',
+    targetKind: 'world',
+    targetId: `budget_${index}`,
+    metric: null,
+    value: null,
+    unit: null,
+  }));
+  const budgetBlocked = eventAt(32, 0, {
+    type: 'endgame.artifact_collection_completed',
+    category: 'other',
+    importance: 'legendary',
+    actors,
+    consequences,
+  });
+  assert(
+    processStoryDirectorEvent(state, config, budgetBlocked).reasonCode
+      === 'interruption_budget_exhausted',
+    'Interruption budget did not suppress a third escalation.',
+  );
+  const ambient = eventAt(33, 0, { type: 'weather.changed', importance: 'ambient' });
+  assert(
+    processStoryDirectorEvent(state, config, ambient).reasonCode === 'below_minimum_importance',
+    'Minimum importance threshold did not suppress ambient focus.',
+  );
+  const refreshedBudget = eventAt(212, 0, {
+    type: budgetBlocked.type,
+    category: budgetBlocked.category,
+    importance: 'legendary',
+    actors,
+    consequences,
+  });
+  assert(
+    processStoryDirectorEvent(state, config, refreshedBudget).reasonCode === 'selected_preemption'
+      && state.story.interruptionBudget.used === 1
+      && state.story.interruptionBudget.windowStartedTick === 212,
+    'Interruption budget window did not reset deterministically.',
+  );
+  assert(
+    state.story.reasonTrace.length === state.story.stats.considered
+      && state.story.stats.selected === 4
+      && state.story.stats.suppressed === 4
+      && state.story.stats.preempted === 3,
+    'Story selection counters and reason trace diverged.',
+  );
+  assert(
+    state.story.reasonTrace.every((trace) => Number.isFinite(trace.score)
+      && Number.isFinite(trace.severityScore)
+      && Number.isFinite(trace.visibilityScore)),
+    'Story reason trace omitted score components.',
+  );
+  assert(
+    processStoryDirectorEvent(state, config, ambient).decision === 'ignored',
+    'Story cursor reprocessed a duplicate canonical event.',
+  );
+
+  state.tick = state.story.currentFocus.expiresTick;
+  advanceStoryDirector(state, config);
+  assert(state.story.currentFocus === null, 'Story focus did not expire on simulation ticks.');
+  assert(
+    state.story.history[state.story.history.length - 1].outcome === 'expired',
+    'Expired focus did not enter bounded history.',
+  );
+
+  const directConfig = clone(config);
+  directConfig.events.logMaxEntries = 0;
+  const directState = {
+    tick: 44,
+    cycleStats: { count: 0 },
+    events: [],
+    eventLog: [],
+    underrealm: { activeDepth: 0 },
+  };
+  const directEvent = pushEvent(directState, directConfig, {
+    ...eventAt(44, 0, { importance: 'major' }),
+    id: undefined,
+    cycle: undefined,
+    tick: undefined,
+    sequence: undefined,
+  });
+  assert(directEvent && directState.eventLog.length === 0, 'Zero Event Log retention contract drifted.');
+  assert(
+    directState.story.currentFocus && directState.story.currentFocus.eventId === directEvent.id,
+    'Story Director depended on Event Log retention to receive an event.',
+  );
+
+  const deterministicLeft = { tick: 10, underrealm: { activeDepth: 0 }, story: createStoryDirectorState(config) };
+  const deterministicRight = clone(deterministicLeft);
+  const sequence = [
+    notable,
+    repeated,
+    critical,
+    cooldownCritical,
+    legendary,
+    budgetBlocked,
+    ambient,
+    refreshedBudget,
+  ];
+  const originalRandom = Math.random;
+  Math.random = () => {
+    throw new Error('E3.2 Story selection consumed gameplay RNG.');
+  };
+  try {
+    for (const event of sequence) {
+      processStoryDirectorEvent(deterministicLeft, config, event);
+      processStoryDirectorEvent(deterministicRight, config, event);
+    }
+  } finally {
+    Math.random = originalRandom;
+  }
+  assert(
+    JSON.stringify(deterministicLeft.story) === JSON.stringify(deterministicRight.story),
+    'Equal event streams produced different Story Director decisions.',
+  );
+}
+
+// Validate E3.3 causal grouping, deterministic IDs, saga lifecycle, and fact-backed chapters.
+function validateStorySagaAggregationContract() {
+  const config = clone(loadConfig());
+  config.story_director.focus.minimum_importance = 'legendary';
+  config.story_director.sagas.inactivity_timeout_ticks = 10;
+  config.story_director.sagas.archive_timeout_ticks = 30;
+  config.story_director.sagas.chapters.max_entries = 2;
+  config.story_director.sagas.chapters.max_event_refs = 2;
+  config.story_director.sagas.chapters.summary_max_chars = 64;
+  const eventAt = (tick, sequence, overrides = {}) => buildValidEvent({
+    tick,
+    sequence,
+    id: buildNarrativeEventId(0, tick, sequence),
+    importance: 'major',
+    ...overrides,
+  });
+  const actor = (kind, id, label = id) => ({ kind, id, role: 'primary', label });
+  const location = (placeId, x, y) => ({
+    scope: 'surface',
+    depth: 0,
+    x,
+    y,
+    placeId,
+    label: placeId,
+  });
+  const state = {
+    tick: 0,
+    underrealm: { activeDepth: 0 },
+    story: createStoryDirectorState(config),
+  };
+
+  const opening = eventAt(1, 0, {
+    type: 'social.grudge_escalation',
+    actors: [actor('dwarf', 'dwarf_arc', 'Dori Arc')],
+    location: location('ember_forge', 4, 5),
+    message: 'Dori Arc challenges the old oath',
+  });
+  processStoryDirectorEvent(state, config, opening);
+  assert(opening.sagaId === 'saga_c0000_0000', 'Generated saga identity mismatch.');
+  const actorLinked = eventAt(2, 0, {
+    type: 'social.rivalry_clash',
+    actors: [actor('dwarf', 'dwarf_arc', 'Dori Arc')],
+    location: location('far_gate', 18, 7),
+    message: 'Dori Arc confronts a rival at Far Gate',
+  });
+  processStoryDirectorEvent(state, config, actorLinked);
+  assert(actorLinked.sagaId === opening.sagaId, 'Shared actor did not join its existing saga.');
+  const placeLinked = eventAt(3, 0, {
+    type: 'construction.structure_milestone',
+    actors: [actor('structure', 'forge_hall', 'Forge Hall')],
+    location: location('ember_forge', 4, 5),
+    message: 'Forge Hall is completed at Ember Forge',
+  });
+  processStoryDirectorEvent(state, config, placeLinked);
+  assert(placeLinked.sagaId === opening.sagaId, 'Shared place did not join its existing saga.');
+  const firstSaga = state.story.sagas.byId[opening.sagaId];
+  assert(firstSaga.status === 'active' && firstSaga.eventCount === 3, 'Saga did not activate by event count.');
+
+  const factionOpening = eventAt(4, 0, {
+    type: 'diplomacy.faction_pressure',
+    category: 'diplomacy',
+    actors: [actor('faction', 'ashen_compact', 'Ashen Compact')],
+    location: { scope: 'world', depth: null, x: null, y: null, placeId: null, label: null },
+  });
+  processStoryDirectorEvent(state, config, factionOpening);
+  const factionLinked = eventAt(5, 0, {
+    type: 'diplomacy.faction_demand',
+    category: 'diplomacy',
+    actors: [actor('faction', 'ashen_compact', 'Ashen Compact')],
+  });
+  processStoryDirectorEvent(state, config, factionLinked);
+  assert(factionLinked.sagaId === factionOpening.sagaId, 'Shared faction did not group deterministically.');
+
+  const threatOpening = eventAt(6, 0, {
+    type: 'combat.threat_sighted',
+    category: 'combat',
+    actors: [actor('threat', 'wyrm_01', 'The Cinder Wyrm')],
+  });
+  processStoryDirectorEvent(state, config, threatOpening);
+  const threatLinked = eventAt(7, 0, {
+    type: 'combat.threat_advanced',
+    category: 'combat',
+    actors: [actor('threat', 'wyrm_01', 'The Cinder Wyrm')],
+  });
+  processStoryDirectorEvent(state, config, threatLinked);
+  assert(threatLinked.sagaId === threatOpening.sagaId, 'Shared threat did not group deterministically.');
+
+  const parent = eventAt(8, 0, {
+    type: 'world.parent_fact',
+    category: 'world',
+    actors: [actor('artifact', 'parent_relic', 'Parent Relic')],
+  });
+  processStoryDirectorEvent(state, config, parent);
+  const child = eventAt(9, 0, {
+    type: 'world.child_fact',
+    category: 'world',
+    actors: [],
+    causes: [{ kind: 'event', ref: parent.id, metric: null, value: null }],
+  });
+  processStoryDirectorEvent(state, config, child);
+  assert(child.sagaId === parent.sagaId, 'Explicit parent event did not preserve causal saga membership.');
+
+  const explicit = eventAt(10, 0, {
+    type: 'endgame.transition_started',
+    category: 'other',
+    importance: 'critical',
+    sagaId: 'explicit_cycle_arc',
+    actors: [],
+  });
+  processStoryDirectorEvent(state, config, explicit);
+  assert(
+    explicit.sagaId === 'explicit_cycle_arc' && state.story.sagas.byId.explicit_cycle_arc,
+    'Producer-owned explicit saga ID was not authoritative.',
+  );
+  const explicitContinuation = eventAt(11, 0, {
+    type: 'endgame.transition_advanced',
+    category: 'other',
+    sagaId: 'explicit_cycle_arc',
+    actors: [],
+  });
+  processStoryDirectorEvent(state, config, explicitContinuation);
+  assert(explicitContinuation.sagaId === explicit.sagaId, 'Explicit saga continuation drifted.');
+
+  const resolved = eventAt(12, 0, {
+    type: 'combat.deep_raid_resolved',
+    category: 'combat',
+    actors: [actor('dwarf', 'dwarf_arc', 'Dori Arc')],
+  });
+  processStoryDirectorEvent(state, config, resolved);
+  const resolvedSaga = state.story.sagas.byId[opening.sagaId];
+  assert(
+    resolvedSaga.status === 'resolved'
+      && resolvedSaga.resolutionEventId === resolved.id
+      && resolvedSaga.chapters[resolvedSaga.chapters.length - 1].status === 'closed',
+    'Resolved saga lifecycle did not close on an authoritative fact.',
+  );
+  const failed = eventAt(13, 0, {
+    type: 'contract.failed',
+    category: 'diplomacy',
+    actors: [actor('caravan', 'failed_caravan', 'Failed Caravan')],
+  });
+  processStoryDirectorEvent(state, config, failed);
+  assert(state.story.sagas.byId[failed.sagaId].status === 'failed', 'Failure fact did not fail its saga.');
+  assert(validateNarrativeEvent(opening).valid, 'Director-generated saga ID broke the v1 event contract.');
+
+  const runtimeFixture = buildLifecycleFixture();
+  const runtimeEvent = pushEvent(runtimeFixture.state, runtimeFixture.config, {
+    type: 'world.saga_runtime_fact',
+    category: 'world',
+    importance: 'major',
+    message: 'A runtime fact opens a retained saga',
+    source: 'story_saga_contract',
+    actors: [actor('artifact', 'runtime_relic', 'Runtime Relic')],
+  });
+  assert(
+    runtimeEvent
+      && runtimeEvent.sagaId === 'saga_c0000_0000'
+      && runtimeFixture.state.eventLog[0].sagaId === runtimeEvent.sagaId,
+    'Committed runtime event did not expose its assigned saga through Event Log retention.',
+  );
+  assert(
+    Buffer.byteLength(JSON.stringify(runtimeEvent), 'utf8') <= MAX_SERIALIZED_EVENT_BYTES
+      && validateNarrativeEvent(runtimeEvent).valid,
+    'Post-saga runtime event violated the canonical serialization contract.',
+  );
+
+  const chapterState = {
+    tick: 0,
+    underrealm: { activeDepth: 0 },
+    story: createStoryDirectorState(config),
+  };
+  const chapterEvents = Array.from({ length: 6 }, (_, index) => eventAt(index + 1, 0, {
+    type: `world.chapter_beat_${index}`,
+    actors: [actor('dwarf', 'chapter_dwarf', 'Chapter Dwarf')],
+    message: `Beat ${index}`,
+  }));
+  for (const event of chapterEvents) processStoryDirectorEvent(chapterState, config, event);
+  let chapterSaga = chapterState.story.sagas.byId[chapterEvents[0].sagaId];
+  assert(
+    chapterSaga.chapters.length === 2
+      && chapterSaga.chaptersCompacted === 1
+      && chapterSaga.chapters.every((chapter) => chapter.eventIds.length <= 2),
+    'Saga chapter or source-reference bounds failed.',
+  );
+  assert(
+    chapterSaga.chapters[0].summary === 'Beat 2 Then: Beat 3'
+      && chapterSaga.chapters[1].summary === 'Beat 4 Then: Beat 5',
+    'Chapter summaries were not derived exactly from canonical facts.',
+  );
+  assert(
+    chapterSaga.chapters.every((chapter) => chapter.eventIds.every((id) => (
+      chapterEvents.some((event) => event.id === id)
+    ))),
+    'Chapter retained a source ID outside its canonical input facts.',
+  );
+  chapterSaga.chapters.forEach((chapter) => { chapter.status = 'active'; });
+  chapterSaga.nextChapterSequence = 0;
+  ensureStoryDirectorState(chapterState, config);
+  chapterSaga = chapterState.story.sagas.byId[chapterEvents[0].sagaId];
+  assert(
+    chapterSaga.chapters[0].status === 'closed'
+      && chapterSaga.nextChapterSequence >= 3,
+    'Serialized saga repair did not close stale chapters or preserve monotonic chapter identity.',
+  );
+  chapterState.tick = 16;
+  advanceStoryDirector(chapterState, config);
+  chapterSaga = chapterState.story.sagas.byId[chapterEvents[0].sagaId];
+  assert(chapterSaga.status === 'dormant', 'Inactive saga did not become dormant.');
+  const reactivated = eventAt(17, 0, {
+    type: 'world.chapter_return',
+    actors: [actor('dwarf', 'chapter_dwarf', 'Chapter Dwarf')],
+    message: 'Chapter Dwarf returns',
+  });
+  processStoryDirectorEvent(chapterState, config, reactivated);
+  chapterSaga = chapterState.story.sagas.byId[chapterEvents[0].sagaId];
+  assert(reactivated.sagaId === chapterSaga.id && chapterSaga.status === 'active', 'Dormant saga did not reactivate.');
+  chapterState.tick = 47;
+  advanceStoryDirector(chapterState, config);
+  chapterSaga = chapterState.story.sagas.byId[chapterEvents[0].sagaId];
+  assert(chapterSaga.status === 'archived' && chapterSaga.archivedTick === 47, 'Saga did not archive on timeout.');
+
+  const capacityConfig = clone(config);
+  capacityConfig.story_director.sagas.max_entries = 2;
+  const capacityState = {
+    tick: 0,
+    underrealm: { activeDepth: 0 },
+    story: createStoryDirectorState(capacityConfig),
+  };
+  const capacityEvents = Array.from({ length: 3 }, (_, index) => eventAt(index + 1, 0, {
+    type: `world.capacity_${index}`,
+    actors: [actor('artifact', `capacity_${index}`, `Capacity ${index}`)],
+  }));
+  for (const event of capacityEvents) processStoryDirectorEvent(capacityState, capacityConfig, event);
+  assert(
+    capacityState.story.sagas.order.length === 2
+      && !capacityState.story.sagas.byId.saga_c0000_0000
+      && capacityState.story.stats.sagasEvicted === 1,
+    'Full saga registry did not evict the deterministic oldest candidate.',
+  );
+
+  const deterministicTemplates = Array.from({ length: 5 }, (_, index) => eventAt(index + 1, 0, {
+    type: `world.deterministic_${index}`,
+    actors: [actor('dwarf', 'deterministic_dwarf', 'Deterministic Dwarf')],
+    message: `Deterministic beat ${index}`,
+  }));
+  const deterministicLeft = {
+    tick: 0,
+    underrealm: { activeDepth: 0 },
+    story: createStoryDirectorState(config),
+  };
+  const deterministicRight = clone(deterministicLeft);
+  const leftEvents = clone(deterministicTemplates);
+  const rightEvents = clone(deterministicTemplates);
+  const originalRandom = Math.random;
+  Math.random = () => {
+    throw new Error('E3.3 saga aggregation consumed gameplay RNG.');
+  };
+  try {
+    for (const event of leftEvents) processStoryDirectorEvent(deterministicLeft, config, event);
+    for (const event of rightEvents) processStoryDirectorEvent(deterministicRight, config, event);
+  } finally {
+    Math.random = originalRandom;
+  }
+  assert(
+    JSON.stringify(deterministicLeft.story) === JSON.stringify(deterministicRight.story)
+      && JSON.stringify(leftEvents.map((event) => event.sagaId))
+        === JSON.stringify(rightEvents.map((event) => event.sagaId)),
+    'Equal causal streams produced different saga IDs or state.',
+  );
+  const sagaSource = fs.readFileSync(path.join(ROOT, 'src/simulation/story_sagas.js'), 'utf8');
+  assert(!sagaSource.includes('Math.random'), 'Saga aggregation source references gameplay RNG.');
+  assert(!sagaSource.includes('Date.now'), 'Saga aggregation source references wall-clock time.');
+  assert(!sagaSource.includes('performance.now'), 'Saga aggregation source references render timing.');
+}
+
+// Validate E3.4 telemetry, priority coverage, and reset-safe headless counters.
+function validateStoryDirectorTelemetryContract() {
+  const config = clone(loadConfig());
+  config.story_director.focus.escalation.enabled = false;
+  const eventAt = (tick, sequence, overrides = {}) => buildValidEvent({
+    tick,
+    sequence,
+    id: buildNarrativeEventId(0, tick, sequence),
+    ...overrides,
+  });
+  const actor = (kind, id, label = id) => ({ kind, id, role: 'primary', label });
+  const location = (placeId, x, y) => ({
+    scope: 'surface',
+    depth: 0,
+    x,
+    y,
+    placeId,
+    label: placeId,
+  });
+  const state = {
+    tick: 0,
+    underrealm: { activeDepth: 0 },
+    story: createStoryDirectorState(config),
+  };
+  const criticalSelected = eventAt(1, 0, {
+    type: 'world.telemetry_critical_selected',
+    category: 'world',
+    importance: 'critical',
+    actors: [actor('dwarf', 'telemetry_dwarf', 'Telemetry Dwarf')],
+    location: location('telemetry_forge', 7, 9),
+    message: 'Telemetry Dwarf holds the forge',
+  });
+  const criticalSuppressed = eventAt(2, 0, {
+    type: 'world.telemetry_critical_suppressed',
+    category: 'world',
+    importance: 'critical',
+    actors: [],
+    location: {
+      scope: 'surface',
+      depth: null,
+      x: null,
+      y: null,
+      placeId: null,
+      label: null,
+    },
+    message: 'An unlocated critical signal is suppressed',
+  });
+  processStoryDirectorEvent(state, config, criticalSelected);
+  processStoryDirectorEvent(state, config, criticalSuppressed);
+  state.tick = 500;
+  advanceStoryDirector(state, config);
+  const legendarySelected = eventAt(500, 0, {
+    type: 'world.telemetry_legendary_selected',
+    category: 'world',
+    importance: 'legendary',
+    actors: [],
+    location: {
+      scope: 'world',
+      depth: null,
+      x: null,
+      y: null,
+      placeId: null,
+      label: 'The known world',
+    },
+    message: 'The world remembers a legendary turning point',
+  });
+  processStoryDirectorEvent(state, config, legendarySelected);
+
+  assert(
+    state.story.stats.criticalConsidered === 2
+      && state.story.stats.criticalSelected === 1
+      && state.story.stats.criticalSuppressed === 1
+      && state.story.stats.criticalContextCovered === 1,
+    'Critical Story Director coverage counters drifted.',
+  );
+  assert(
+    state.story.stats.legendaryConsidered === 1
+      && state.story.stats.legendarySelected === 1
+      && state.story.stats.legendarySuppressed === 0
+      && state.story.stats.legendaryContextCovered === 1,
+    'Legendary Story Director coverage counters drifted.',
+  );
+
+  const beforeTelemetry = JSON.stringify(state.story);
+  const snapshot = collectStoryDirectorTelemetry(state, config);
+  assert(snapshot.focus && snapshot.focus.importance === 'legendary', 'Telemetry lost current focus.');
+  assert(snapshot.saga && snapshot.saga.id === legendarySelected.sagaId, 'Telemetry lost current saga.');
+  assert(snapshot.latestDecision.reasonCode === 'selected_focus', 'Telemetry lost selection reason.');
+  assert(snapshot.criticalCoverage === 0.5, 'Critical focus coverage ratio mismatch.');
+  assert(snapshot.criticalContextCoverage === 0.5, 'Critical context coverage ratio mismatch.');
+  assert(snapshot.legendaryContextCoverage === 1, 'Legendary context coverage ratio mismatch.');
+
+  const sections = buildTelemetrySections(state, config, 100);
+  const storySection = sections.storyDirector;
+  assert(storySection && storySection.label === 'Story Director', 'Story Director telemetry section missing.');
+  const storyText = storySection.rows.join('\n');
+  assert(storyText.includes('Current focus: legendary'), 'Telemetry section omitted current focus.');
+  assert(storyText.includes('Current saga:'), 'Telemetry section omitted current saga.');
+  assert(storyText.includes('Cooldowns:'), 'Telemetry section omitted cooldown state.');
+  assert(storyText.includes('Focus reason: selected_focus'), 'Telemetry section omitted selection reason.');
+  assert(storyText.includes('Priority context:'), 'Telemetry section omitted priority context coverage.');
+  assert(JSON.stringify(state.story) === beforeTelemetry, 'Story telemetry mutated Director state.');
+
+  state.ui = { telemetryPanel: { open: true, page: 4 } };
+  const panel = buildTelemetryPanel(state, config, { gridWidth: 120, gridHeight: 40 });
+  const panelText = panel.lines.map((line) => String(line.text || '')).join('\n');
+  assert(getTelemetryPanelPageCount() >= 5, 'Story Director Data Center page was not registered.');
+  assert(panelText.includes('STORY DIRECTOR'), 'Story Director Data Center page did not render.');
+  assert(panel.lines.every((line) => String(line.text || '').length <= 120), 'Story telemetry panel overflowed.');
+
+  const tracker = createStoryDirectorCounterTracker();
+  trackStoryDirectorCounters(state, tracker);
+  trackStoryDirectorCounters(state, tracker);
+  let report = getStoryDirectorCounterReport(tracker);
+  assert(
+    report.considered === 3
+      && report.selected === 2
+      && report.suppressed === 1
+      && report.priorityFocusCoverage === 2 / 3
+      && report.priorityContextCoverage === 2 / 3,
+    'Headless Story Director tracker double-counted or derived incorrect coverage.',
+  );
+  state.story = createStoryDirectorState(config);
+  state.story.cursor.lastCycle = 1;
+  state.story.stats.considered = 2;
+  state.story.stats.selected = 1;
+  state.story.stats.suppressed = 1;
+  state.story.stats.sagasOpened = 2;
+  state.story.stats.sagasResolved = 1;
+  trackStoryDirectorCounters(state, tracker);
+  report = getStoryDirectorCounterReport(tracker);
+  assert(
+    report.considered === 5
+      && report.selected === 3
+      && report.suppressed === 2
+      && report.sagasOpened >= 2
+      && report.sagasResolved >= 1,
+    'Headless Story Director tracker did not survive a cycle reset.',
+  );
+
+  const benchmarkSource = fs.readFileSync(path.join(ROOT, 'scripts/headless_benchmark.js'), 'utf8');
+  const baselineGuardSource = fs.readFileSync(
+    path.join(ROOT, 'scripts/ensure_benchmark_baseline.js'),
+    'utf8',
+  );
+  assert(
+    benchmarkSource.includes('trackStoryDirectorCounters(state, storyTracker)')
+      && benchmarkSource.includes('reportSchemaVersion: BENCHMARK_REPORT_SCHEMA_VERSION'),
+    'Headless benchmark is not wired to Story Director counters/schema.',
+  );
+  assert(
+    baselineGuardSource.includes('report schema mismatch'),
+    'Baseline cache guard does not refresh on benchmark report-schema drift.',
+  );
+}
+
 // Validate v0/v1 Event Log rendering and drama filtering without mutating stored records.
 function validateEventLogRenderingContract() {
   const v1Drama = buildValidEvent({
@@ -2456,6 +3387,7 @@ function validateMapExportIsolationContract() {
   );
   assert(!snapshotSource.includes('eventLog'), 'Map-export snapshot unexpectedly includes eventLog.');
   assert(!snapshotSource.includes('state.events'), 'Map-export snapshot unexpectedly includes HUD events.');
+  assert(!snapshotSource.includes('state.story'), 'Map-export snapshot unexpectedly includes Story Director state.');
 }
 
 // Execute every narrative-contract lane in deterministic order.
@@ -2490,11 +3422,15 @@ function main() {
   validateDwarfIdentityResolverContract();
   validatePlaceIdentityRegistryContract();
   validateDwarfPriorityVisibilityContract();
+  validateStoryDirectorStateContract();
+  validateStoryDirectorSelectionContract();
+  validateStorySagaAggregationContract();
+  validateStoryDirectorTelemetryContract();
   validateLegacyCompatibilityContract();
   validateAiObservationIsolationContract();
   validateEventLogRenderingContract();
   validateMapExportIsolationContract();
-  console.log('[test:narrative] PASS envelope malformed identity emitter importance collision lifecycle social combat warrior political endgame multi_cycle app_transition secondary_audit dwarf_identity named_messages place_identity priority_visibility legacy retention bounds serialization renderer ai_isolation export_isolation');
+  console.log('[test:narrative] PASS envelope malformed identity emitter importance collision lifecycle social combat warrior political endgame multi_cycle app_transition secondary_audit dwarf_identity named_messages place_identity priority_visibility story_state story_bounds story_serialization story_scoring story_focus story_preemption story_trace saga_grouping saga_ids saga_lifecycle saga_chapters story_telemetry story_reports legacy retention bounds serialization renderer ai_isolation export_isolation');
 }
 
 main();

@@ -6,6 +6,7 @@ const { createTempleState, createPrestigeState } = require('../simulation/temple
 const { createSchismState } = require('../simulation/schism');
 const { createDwarfWarriorState, createWarriorsState } = require('../simulation/warriors');
 const { createDwarfSocialState, createSocialDramaState } = require('../simulation/social_drama');
+const { createStoryDirectorState } = require('../simulation/story_director');
 const { bootstrapPlaceRegistry, createPlaceRegistry } = require('../place_identity');
 const {
   createTerrain,
@@ -1793,6 +1794,7 @@ function createInitialState(config, runtime) {
   const underrealm = createUnderrealmState(config, runtime, terrain, null);
   const warriors = createWarriorsState(config);
   const social = createSocialDramaState(config);
+  const story = createStoryDirectorState(config);
 
   const state = {
     tick: 0,
@@ -1820,6 +1822,7 @@ function createInitialState(config, runtime) {
     underrealm,
     warriors,
     social,
+    story,
     places: createPlaceRegistry(),
     roads,
     temple,

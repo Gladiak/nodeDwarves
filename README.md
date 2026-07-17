@@ -33,8 +33,15 @@ Chaos, strategy, and tiny bearded logistics experts included. 🧔🧱
 - 👁️ When population exceeds the map cap, urgent story actors, endangered dwarves, champions, saga
   protagonists, and recent incident actors keep their place on-screen through a stable RNG-free
   priority selector.
+- 🎬 A bounded, deterministic Story Director scores canonical facts by severity, rarity, named cast,
+  consequences, saga continuity, and visible map layer. Cooldowns and interruption budgets keep the
+  spotlight readable while critical events can preempt weaker focus—with every decision explained.
+  Related facts become stable sagas with explicit lifecycles and compact chapters derived only from
+  events that actually happened. The Data Center and headless reports expose the current focus,
+  current saga, cooldowns, selection reasons, priority coverage, suppression counts, and saga
+  outcomes.
 - 🌤️ In-map Ops Snapshot shows a live weather token (`Wx:*`, e.g. `Clear`, `Rain`, `Storm`) for at-a-glance climate context.
-- 📊 In-game Data Center (`h`) with dashboard, deep economy views, and AI explainability.
+- 📊 In-game Data Center (`h`) with dashboard, deep economy views, Story Director visibility, and AI explainability.
 - 🤖 PPO training pipeline in Python with JS runtime inference (`models/*.json`).
 - 🧪 Deterministic benchmark/regression tooling with cached baseline comparison.
 
@@ -151,10 +158,13 @@ npm run debug:clean
 - 🏅 `src/simulation/warrior_events.js`: structured Warrior League progression, tournament, Hall of Fame, and command facts.
 - 🔥 `src/simulation/political_events.js`: structured doctrine, phase, ritual, decree, and schism-climax facts.
 - 🔁 `src/simulation/endgame_events.js`: structured relic, cycle passage, and legacy carry-over facts.
+- 🎬 `src/simulation/story_director.js`: bounded deterministic story scoring, focus selection, and explainability state.
+- 📚 `src/simulation/story_sagas.js`: deterministic saga grouping, lifecycle, evidence, and fact-backed chapters.
 - 🌍 `src/state/`: world/terrain and initial state generation.
 - 🎨 `src/render/`: map, overlays, panels, and layout helpers.
 - 👁️ `src/render/dwarf_visibility.js`: stable story-priority selection for capped dwarf rendering.
 - 📊 `src/telemetry/`: Data Center sections and metric builders.
+  - `src/telemetry/story_director.js`: Story Director telemetry rows and headless report counters.
 - 🧠 `src/ai/`: observation and policy helpers.
 - 🪪 `src/dwarf_identity.js`: shared cached identity and historical-fallback resolver.
 - 🗿 `src/place_identity.js`: bounded authoritative registry for deterministic world-place names.

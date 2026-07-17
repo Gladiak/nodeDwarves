@@ -119,7 +119,8 @@ npm test
 writer exists outside the approved structured boundaries. `npm run test:narrative` runs the focused schema-v1 event gate: canonical and malformed envelopes,
 deterministic cycle/tick/sequence IDs, legacy `pushEvent` compatibility, bounded retention/references,
 JSON serialization, migrated-secondary audit integration, mixed v0/v1 Event Log filtering, and
-responsive Event Log context rendering, plus AI/map-export isolation. `npm test` runs the source
+responsive Event Log context rendering, bounded Story Director state/reset/serialization, plus
+AI/map-export isolation. `npm test` runs the source
 audit, this suite, and then the complete training/validation contract suite.
 
 Clean debug artifacts after a completed cycle:
@@ -1523,6 +1524,58 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
     reduced events carry `contract_truncated` when space permits.
 - `narrative_contract.js` validates canonical v1 envelopes and provides transactional deterministic
   identity helpers shared by runtime and `npm run test:narrative`.
+- `story_director.js` owns the E3 Story Director read/write model.
+  - E3.1 installed one plain-JSON `state.story` object per cycle with a nullable current focus, ordered
+    saga registry, focus/escalation cooldowns, interruption budget, bounded focus history, bounded
+    reason trace, event cursor, and scalar counters.
+  - `getStoryDirectorConfig(...)` normalizes importance thresholds and integer limits. Configured
+    storage caps cannot exceed the absolute runtime ceilings: `64` sagas, `32` event references per
+    saga, `512` focus-history records, and `512` reason-trace records.
+  - `ensureStoryDirectorState(...)` repairs loaded or malformed state into the active schema and
+    enforces both configured and absolute caps. It retains compact IDs and scalar facts, never live
+    event, dwarf, place, or render objects.
+  - New-cycle initialization deliberately starts empty. Cross-cycle story summaries remain owned by
+    E6, so E3.1 does not leak focus, saga, cooldown, or history records through endgame reset.
+  - E3.2 receives each accepted canonical event directly after its event transaction commits, so
+    selection remains independent of Event Log retention (including `events.logMaxEntries=0`). The
+    canonical cycle/tick/sequence cursor rejects duplicate or out-of-order replay.
+  - Score is the sum of configured severity, inverse prior type frequency, named-actor count, typed
+    consequence count, matching active `sagaId`, and current surface/Underrealm visibility. Each
+    component is retained in the bounded reason trace; no opaque random tie-break exists.
+  - Ordinary events must meet `minimum_importance` and wait for focus protection to end. Events at
+    or above the escalation threshold may replace only a weaker focus (or a same-tier focus with a
+    strictly higher score), and must pass both escalation cooldown and rolling interruption budget.
+    Critical-over-notable preemption is therefore deterministic and bounded.
+  - Focus expiration and preemption move compact references into bounded history. A per-cycle,
+    hard-capped type-frequency registry (`256`) supplies rarity without retaining event payloads.
+    Reason-trace capacity cannot be configured below one entry.
+  - Creation, scoring, selection, and repair use no gameplay RNG, render timing, process timing, or
+    wall-clock time. `state.story` remains excluded from PPO observations and map-export snapshots.
+- `story_sagas.js` owns E3.3 aggregation after a canonical event identity commits.
+  - An explicit producer `sagaId` is authoritative. Otherwise an event-cause reference reuses its
+    parent's retained saga, then a deterministic weighted match considers threat, faction, stable
+    place, exact location, and typed actor evidence in that order of configured strength. Equal
+    candidates prefer the highest score, most recent event tick, then lexical saga ID. Only events
+    at or above `sagas.minimum_importance` may open or match an inferred saga; explicit and causal
+    continuations remain valid below that threshold.
+  - Generated IDs are monotonic per cycle (`saga_cCCCC_SSSS`) and use no random or timing source.
+    Generic system, settlement, and institution actors are excluded from similarity evidence so
+    broad producers cannot collapse unrelated facts into one arc.
+  - Lifecycle is `open -> active -> dormant -> archived`, with `resolved` and `failed` terminal
+    branches that also age into `archived`. Event count or configured importance activates an arc;
+    inactivity closes its active chapter; new matching evidence reactivates a dormant arc. Terminal
+    type suffixes/tags and authoritative threat-destruction consequences close an arc explicitly.
+  - Chapters retain bounded event IDs plus sanitized opening/latest event messages. Their summary is
+    a compact concatenation of those source facts, never generated flavor. Chapter rollover,
+    compaction, evidence lists, summaries, and the saga registry all enforce configured limits below
+    absolute runtime ceilings.
+  - When the registry is full, deterministic eviction prefers archived, terminal, dormant, open,
+    then active records; oldest activity wins within a tier. Runtime counters record opened,
+    resolved, failed, archived, evicted, opened-chapter, and compacted-chapter totals.
+  - Saga assignment happens before the event enters Event Log retention, and the canonical payload
+    is reduced again after adding `sagaId` to preserve the 16 KiB envelope. `state.story` remains
+    plain JSON, resets at cycle replacement, and stays outside PPO observations and map exports.
+    E3.4 owns player-facing telemetry and explainability presentation.
 - `../dwarf_identity.js` is the single public dwarf identity read model.
   - `resolveDwarfIdentity(...)` returns stable ID, display name, house, role title, formatted label,
     status, and provenance without mutating state or consuming RNG.
@@ -1674,12 +1727,13 @@ but it does not mutate gameplay systems, resources, actors, or AI inputs.
   - Panel size is controlled by `display.legend_panel.width`/`height`.
 
 - `telemetry/telemetry_panel.js`
-  - Builds a paged telemetry Data Center with four pages: `Dashboard`, `Overview + Deep`, `Economy`, and `Warrior League`.
+  - Builds a paged telemetry Data Center with five pages: `Dashboard`, `Overview + Deep`, `Economy`, `Warrior League`, and `Story Director`.
   - `Dashboard` is an analyst-style summary layer: KPI snapshot, ASCII trend charts (sparkline rows), forecast/bottleneck context (runway, net flow, volatility, momentum), risk gauge + pressure decomposition, workforce/job distribution bars, event timeline windows, and deterministic action hints.
   - Dashboard trend charts are sampled as snapshots (not every tick): cadence and history window are tunable via `display.telemetry_panel.dashboard.snapshot_interval_ticks` and `display.telemetry_panel.dashboard.history_points` (default profile: `120t` cadence, `32` points).
   - Trend deltas are computed on a tick-based lookback window (not fixed sample count), so interpretation stays stable when sampling cadence changes.
   - `Overview + Deep` and `Economy` prepend a compact context-lens block (`Deep Context` / `Economy Context`) to frame risk posture, trend direction, timeline clocks, shortage drivers, and workload before raw section details.
   - Economy page includes dedicated `AI Explainability` rows (driver ranking, shortage scoring context, governor sources/intents) plus the `Endgame` checklist block.
+  - Story Director page exposes the current focus, current saga, focus/escalation cooldowns, interruption budget, latest decision reason, focus coverage, priority context coverage, and saga outcome counters. It is read-only and does not drive presentation timing or simulation decisions.
   - Adds a top static risk row (`Colony risk`) with warning/critical color accents plus a compact cause tag, aligned to the same alert thresholds used by the map inset.
   - Reuses live section builders from `telemetry/telemetry.js`, so values stay consistent across overlays.
   - Uses the full body area for live telemetry rows (no guide footer); labels are expanded directly in the telemetry rows for readability.
@@ -1710,7 +1764,8 @@ but it does not mutate gameplay systems, resources, actors, or AI inputs.
 - `telemetry/telemetry.js`
   - Provides telemetry section builders and formatting helpers used by the telemetry panel.
   - Internal build flow is split into explicit phases (`collectTelemetrySnapshot` -> section models -> render), so adding telemetry metrics no longer requires touching all formatting paths.
-  - Section set: `World`, `Population`, `Social`, `Pressure`, `Stockpile`, `Structures`, `Diplomacy`, `Operations`, `AI Explainability`, `Endgame`, `Underrealm`, `Lore`, `Deep Signals`.
+  - Section set: `World`, `Population`, `Social`, `Pressure`, `Stockpile`, `Structures`, `Diplomacy`, `Operations`, `AI Explainability`, `Endgame`, `Underrealm`, `Lore`, `Deep Signals`, `Warrior League`, `Story Director`.
+  - Story Director rows are built by `telemetry/story_director.js` from `state.story`; they summarize nullable focus/saga state, cooldowns, reason traces, selection/suppression counters, priority context coverage, and saga resolution without retaining full events.
   - Housing details are intentionally compressed: only `House ratio` is shown in `World`.
   - World timeline shows `Tick`, `Year`, and season name only (capitalized label, no season tick progress fraction).
   - Section rows are adaptive (no fixed per-section filler quotas), which removes repeated placeholder noise while preserving deterministic ordering.
@@ -2166,6 +2221,7 @@ Quick checklist:
   - `simulation/` → game logic
     - `simulation/narrative_contract.js` → strict narrative-event v1 validator plus deterministic identity peek/commit helpers
     - `simulation/narrative_normalizer.js` → bounded draft normalization, importance fallback, and deterministic optional-payload reduction
+    - `simulation/story_director.js` → bounded per-cycle story scoring, focus/preemption rules, reason traces, serialization repair, and hard-cap enforcement
     - `simulation/secondary_events.js` → shared structured boundary/helpers for secondary producer families
     - `simulation/lifecycle_events.js` → structured founding, birth, natural-death, and partnership event builders
     - `simulation/social_events.js` → structured mentorship, rivalry, grudge, and reconciliation incident builders
@@ -2196,6 +2252,7 @@ Quick checklist:
     - `render/event_log_panel.js` → Event Log modal overlay (scrollable real-time event history with drama-focused filter)
   - `telemetry/` → telemetry extraction and Data Center composition
     - `telemetry/telemetry.js` → telemetry section builders and formatting helpers
+    - `telemetry/story_director.js` → Story Director Data Center rows plus deterministic headless counter aggregation
     - `telemetry/telemetry_panel.js` → paged in-game telemetry Data Center with section pages and full-height telemetry body
   - `ai/` → observation + policy
   - `runtime.js`, `terminal.js`, `utils.js` → support
@@ -2211,7 +2268,7 @@ Quick checklist:
 - `benchmark_cache/headless_benchmark_baseline.json` → versioned cached headless benchmark baseline for report-to-report diffs
 - `benchmark_cache/headless_benchmark_baseline.md` → markdown companion of cached headless benchmark baseline
 - `scripts/export_map.js` → map export pipeline (PNG + SVG)
-- `scripts/headless_benchmark.js` → deterministic long-run headless benchmark with comparative score, seed deltas, schism decree telemetry, and optional gate checks
+- `scripts/headless_benchmark.js` → deterministic long-run headless benchmark with comparative score, seed deltas, schism decree telemetry, Story Director coverage/outcome counters, and optional gate checks
 - `scripts/ensure_benchmark_baseline.js` → auto-refresh guard for cached headless benchmark baseline metadata coherence
 - `scripts/compare_benchmark_reports.js` → report-to-report benchmark diff utility for cached baseline/candidate comparisons, including schism decree usage deltas
 - `python/train.py` → PPO trainer and best-checkpoint updates

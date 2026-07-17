@@ -14,6 +14,7 @@ const {
   reduceNarrativeEventToLimit,
   resolveEventImportance,
 } = require('./narrative_normalizer');
+const { processStoryDirectorEvent } = require('./story_director');
 
 const EVENT_STATS_FIELDS = [
   'accepted',
@@ -90,16 +91,26 @@ function pushEvent(state, config, messageOrDraft, details = null) {
     return null;
   }
 
+  processStoryDirectorEvent(state, config, reduced.event);
+  let acceptedEvent = reduced.event;
+  let storyTruncated = false;
+  const postStoryReduction = reduceNarrativeEventToLimit(acceptedEvent, MAX_SERIALIZED_EVENT_BYTES);
+  if (postStoryReduction.event) {
+    acceptedEvent = postStoryReduction.event;
+    storyTruncated = postStoryReduction.truncated;
+  } else {
+    acceptedEvent.sagaId = null;
+  }
   appendHudEvent(state, eventsConfig, reduced.event.message);
-  appendEventLogEntry(state, eventsConfig, reduced.event);
+  appendEventLogEntry(state, eventsConfig, acceptedEvent);
   incrementEventStat(state, 'accepted');
   if (input.legacy) {
     incrementEventStat(state, 'legacyNormalized');
   }
-  if (reduced.truncated) {
+  if (reduced.truncated || storyTruncated) {
     incrementEventStat(state, 'truncated');
   }
-  return reduced.event;
+  return acceptedEvent;
 }
 
 // Initialize bounded scalar narrative runtime state for old or partial states.

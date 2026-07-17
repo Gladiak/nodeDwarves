@@ -55,6 +55,7 @@ const SECTION_TOKEN_COLOR_KEYS = {
   lore: 'alchemy_lab',
   'deep signals': 'underrealm_hostile',
   'warrior league': 'armory',
+  'story director': 'hud_header',
   workforce: 'dwarf',
   'resource pressure': 'alert_warning',
   'diplomacy signals': 'merchant',
@@ -73,6 +74,11 @@ const STATUS_TOKEN_COLOR_KEYS = {
   complete: 'weather_clear',
   cleared: 'weather_clear',
   online: 'weather_clear',
+  selected: 'weather_clear',
+  resolved: 'weather_clear',
+  suppressed: 'alert_warning',
+  dormant: 'alert_warning',
+  archived: 'hud_muted',
 };
 const STATUS_TOKEN_REGEX = buildStatusTokenRegex(STATUS_TOKEN_COLOR_KEYS);
 
@@ -106,6 +112,14 @@ const TELEMETRY_PANEL_PAGES = [
     title: 'Warrior League',
     subtitle: 'Competitive lens: epic league naming, company identity/carry-over hooks, champion lineage, top 5 fighters, marks progression, and clan standings.',
     sections: ['warriorLeague', 'underrealm', 'deepSignals'],
+    preferredColumns: 2,
+    minColumnWidth: 38,
+  },
+  {
+    id: 'story_director',
+    title: 'Story Director',
+    subtitle: 'Narrative lens: current focus and saga, cooldowns, interruption budget, decision reasons, coverage, and saga outcomes.',
+    sections: ['storyDirector', 'social', 'lore'],
     preferredColumns: 2,
     minColumnWidth: 38,
   },

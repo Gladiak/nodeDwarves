@@ -381,7 +381,7 @@ The stores have separate purposes and limits:
 | --- | --- | --- | --- |
 | `state.events` | message strings | `events.maxEntries`, currently `5` | compact HUD mini-log |
 | `state.eventLog` | full v1 events plus aging v0 records | `events.logMaxEntries`, currently `300` | scrollable Event Log UI |
-| future active story state | event IDs and bounded active-saga facts | Story Director config | current narrative focus |
+| `state.story` | compact event IDs, current focus, saga facts, cooldown/budget state, bounded history and reason trace | `story_director.*` plus absolute hard caps | current per-cycle narrative focus substrate |
 | future Chronicle/deeds | compact facts plus source event IDs | Chronicle config | durable in-cycle history |
 | future cycle legacy | bounded summaries and provenance IDs | legacy config | cross-cycle memory |
 
@@ -559,7 +559,28 @@ E0.2 reviewed the existing event path before choosing this contract:
   and Underrealm rendering. Critical/legendary facts, saga membership, and recent incidents affect
   presentation only; the selector retains no event copies, consumes no RNG, and does not enter AI
   observations or map-export schemas.
-- Telemetry consumes compact message strings, not structured events.
+- `src/simulation/story_director.js` owns the schema-v3 per-cycle story state. After `pushEvent`
+  commits a canonical fact, the Director scores it directly rather than scanning UI retention.
+  Severity, inverse type frequency, labeled actors, typed consequences, matching explicit saga, and
+  active map layer produce an additive config-driven score. Importance gates, focus/escalation
+  cooldowns, and a rolling interruption budget determine selection or suppression; every considered
+  event appends its decision, reason code, total, and component scores to a bounded trace.
+- `src/simulation/story_sagas.js` assigns committed facts through explicit `sagaId`, parent-event
+  cause, or deterministic weighted threat/faction/place/location/typed-actor evidence. Generated
+  saga IDs are monotonic within the cycle. The lifecycle covers open, active, dormant, resolved,
+  failed, and archived states; terminal status comes only from configured event-type suffixes/tags
+  or an authoritative threat-destruction consequence.
+- Saga and chapter records retain compact source IDs, bounded evidence, scalar ticks, and sanitized
+  opening/latest event messages. Chapter summaries concatenate those canonical facts and cannot
+  invent names, causes, outcomes, or flavor. Registry, evidence, chapter, summary, frequency,
+  focus-history, and reason-trace storage all have configured and absolute caps with deterministic
+  repair/eviction.
+- Scoring and saga aggregation consume no RNG or timing source, reset at cycle replacement, and
+  remain outside PPO observations and map-export snapshots. The post-assignment event is reduced
+  again against the 16 KiB envelope before Event Log retention.
+- General telemetry consumes compact message strings, while Story Director telemetry reads only the
+  bounded `state.story` focus, saga, reason-trace, and scalar-counter model. It does not scan retained
+  Event Log records or reconstruct full structured events.
 - AI observation and action code does not consume either event buffer.
 - The map-export snapshot excludes both event buffers.
 - The long E0.1 probe reached the `300`-entry per-seed Event Log cap, confirming that UI retention

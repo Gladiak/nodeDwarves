@@ -39,6 +39,7 @@ const { updateWarriors } = require('./warriors');
 const { updateWorldEvents, getWorldEventModifier } = require('./world_events');
 const { updateExternalCamps } = require('./external_camps');
 const { ensureSettlementFoundingEvent } = require('./lifecycle_events');
+const { advanceStoryDirector } = require('./story_director');
 const { clamp } = require('../utils');
 
 const BUILD_CLASS_ORDER = ['housing', 'economy', 'defense', 'special'];
@@ -50,6 +51,7 @@ function stepState(state, config, runtime, action, options = {}) {
   state.lastGovernorSignals = buildGovernorSignals(config, resolvedAction);
   state.lastConfig = config;
   state.tick += 1;
+  advanceStoryDirector(state, config);
   const endgameDifficulty = updateEndgameDifficulty(state, config);
   updateSeason(state, config);
   updateWarriors(state, config, resolvedAction);

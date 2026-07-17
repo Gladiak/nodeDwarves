@@ -14,6 +14,7 @@ const {
 } = require("../simulation/warriors");
 const { createDwarfIdentityCache } = require("../dwarf_identity");
 const { resolvePlaceLabel } = require('../place_identity');
+const { buildStoryDirectorSectionRows } = require('./story_director');
 const { getColorConfig, applyColor } = require("../render/colors");
 const { fitLine, wrapLine } = require("../render/format");
 
@@ -37,7 +38,7 @@ const TELEMETRY_LAYOUT = [
   {
     id: "deep_meta",
     title: "Deep & Meta",
-    sections: ["underrealm", "lore", "deepSignals", "warriorLeague"],
+    sections: ["underrealm", "lore", "deepSignals", "warriorLeague", "storyDirector"],
   },
 ];
 
@@ -529,6 +530,12 @@ function buildTelemetrySectionModels(snapshot) {
       key: "warriorLeague",
       label: "Warrior League",
       rows: buildWarriorLeagueSectionRows(snapshot.state, snapshot.config),
+    },
+    {
+      column: "right",
+      key: "storyDirector",
+      label: "Story Director",
+      rows: buildStoryDirectorSectionRows(snapshot.state, snapshot.config),
     },
   ];
 }
