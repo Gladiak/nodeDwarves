@@ -824,6 +824,29 @@ E3 exit criteria:
 - [x] Interruption budget and escalation rules pass deterministic tests.
 - [x] Story state remains bounded over a multi-cycle long run.
 
+Post-E3 implementation watchlist:
+
+- **Narrative test-suite growth:** `scripts/test_narrative_contracts.js` is `3436` lines after E3.4.
+  Before adding another substantial narrative domain, review whether its fixtures belong in a focused
+  suite with a thin aggregate runner. Preserve the current single-command `npm test` gate and avoid
+  duplicating shared deterministic fixtures during any split.
+- **Story module cohesion:** `src/simulation/story_director.js` is `779` lines and
+  `src/simulation/story_sagas.js` is `574` lines. E4 must consume their read-only outputs without
+  adding presentation logic to either module. Reassess module boundaries before E5 adds Chronicle
+  consumers or any new scoring, lifecycle, or retention responsibility.
+- **Saga churn and narrative usefulness:** the E3.4 full profile opened `2850` sagas, reached only
+  `140` terminal outcomes (`4.9%`), and archived/evicted `2754`. Boundedness passes, but E4/E5 must
+  sample whether these results represent useful arcs rather than false fragmentation or premature
+  eviction. Do not use saga-derived Chronicle claims as a quality signal until this review passes.
+- **Focus selectivity and watchability:** the same profile selected `120/12637` considered events and
+  suppressed `12517`, while retaining `100%` critical/legendary coverage. E4 must validate through
+  runtime observation and supported-width captures that the selected moments are understandable,
+  well paced, and materially useful; counter coverage alone is not an experience gate.
+- **Change-set reviewability:** today's checkpoints were retained in four broad commits. Future work
+  should prefer checkpoint-scoped commits and implementation-log entries when practical, especially
+  when code, tuning, telemetry, and presentation can be reviewed independently. This is a delivery
+  hygiene requirement and must not force unsafe partial commits.
+
 ## 8) Workstream E4 - Cinematic terminal presentation
 
 Status: `Not started`
@@ -836,6 +859,10 @@ Objective: make important events immediately visible while preserving the termin
 - [ ] Show actor, action, place, and consequence in that order when width permits.
 - [ ] Define narrow-terminal fallbacks and collision rules with existing overlays.
 - [ ] Do not duplicate the Data Center inside the ribbon.
+- [ ] Sample selected and suppressed moments in real seeded runs; record whether focus pacing and
+  narrative relevance support the E3.4 counters rather than relying on coverage alone.
+- [ ] Keep ribbon formatting and layout outside Story Director scoring/saga modules; consume only
+  read-only focus and saga state.
 
 ### E4.2 Map focus overlays
 
@@ -878,6 +905,8 @@ Objective: replace disconnected flavor with a factual history of dwarves, places
 - [ ] Store source event IDs plus compact normalized facts, not copied full event objects.
 - [ ] Define importance-based retention and merge rules.
 - [ ] Preserve records required by active sagas and Hall of Fame entries.
+- [ ] Review saga samples, terminal/opened rate, archive/eviction causes, and false-fragmentation risk
+  before treating saga membership as a Chronicle retention or quality signal.
 
 ### E5.2 Inspect-panel biography
 
@@ -1111,6 +1140,10 @@ Stop rules:
 | ER-010 | AI observes a world contract that changed silently | Low | High | Shape contracts, compatibility classification, explicit fresh-training gate | Open |
 | ER-011 | Place identity grows without bounds or diverges between UI consumers | Low | Medium | Hard-capped authoritative registry, RNG-neutral deterministic names, stable IDs, serialization and UI lookup contracts | Mitigated through E2.3; monitor Chronicle integration |
 | ER-012 | Capped rendering hides urgent actors or flickers as population grows | Low | High | Shared deterministic priority tiers, layer eligibility, prior-set stability, urgent preemption, and above-cap contracts | Mitigated through E2.4; monitor Story Director focus integration |
+| ER-013 | Narrative contract tests become a monolithic maintenance bottleneck | Medium | Medium | Review thematic suite boundaries before the next substantial narrative domain; retain shared fixtures and one aggregate gate | Monitoring from E4 |
+| ER-014 | Story Director and saga modules accumulate presentation or Chronicle responsibilities | Medium | Medium | Keep E4 read-only, preserve module ownership, and reassess boundaries before E5 expansion | Monitoring from E4 |
+| ER-015 | High saga churn produces fragmented or prematurely evicted history | Medium | High | Sample seeded arcs, report terminal/opened and eviction causes, and gate Chronicle reliance on a quality review | Monitoring through E4; gate E5 |
+| ER-016 | Excellent priority coverage masks poor focus pacing or low-value selected moments | Medium | High | Pair counters with runtime observation, supported-width captures, and selected/suppressed event sampling | Monitoring through E4 |
 
 ## 16) Decision log
 
@@ -1231,6 +1264,8 @@ A step is Done only when:
 - [ ] Explicit AI non-regression checks pass.
 - [ ] Determinism and bounded-state assertions pass.
 - [ ] Implementation log contains commands, results, and retained evidence.
+- [ ] The change set is checkpoint-scoped and reviewable, or the implementation log records why a
+  broader atomic commit was safer.
 - [ ] Debug artifacts are cleaned according to repository retention rules.
 
 A milestone is Done only when every included workstream is Done, its release validation tier passes,
