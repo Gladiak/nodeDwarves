@@ -72,6 +72,13 @@ const {
   shouldTriggerEndgameReset,
   runEndgameReset,
 } = require('../src/simulation/endgame');
+const {
+  buildResourceConsequences,
+  buildSecondaryActor,
+  buildSecondaryLocation,
+  emitSecondaryEvent,
+} = require('../src/simulation/secondary_events');
+const { auditNarrativeProducers } = require('./audit_narrative_producers');
 const { buildEventLogPanel } = require('../src/render/event_log_panel');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -1897,9 +1904,101 @@ function validateAiObservationIsolationContract() {
   );
 }
 
+// Validate the shared E1.3 boundary and enforce zero direct legacy producer sites.
+function validateSecondaryProducerMigrationContract() {
+  const config = loadConfig();
+  const state = {
+    tick: 77,
+    cycleStats: { count: 2 },
+    events: [],
+    eventLog: [],
+  };
+  let randomCalls = 0;
+  const originalRandom = Math.random;
+  Math.random = () => {
+    randomCalls += 1;
+    return 0.5;
+  };
+  let event;
+  try {
+    event = emitSecondaryEvent(state, config, {
+      type: 'construction.structure_completed',
+      category: 'economy',
+      message: 'Build: workshop_7',
+      actors: [buildSecondaryActor('structure', 'workshop_7', 'primary', 'Workshop')],
+      location: { scope: 'surface', depth: 0, x: 12, y: 8 },
+      causes: [{
+        kind: 'action',
+        ref: 'dwarf_actions.job_completion',
+        metric: 'worker_id',
+        value: 'dwarf_4',
+      }],
+      consequences: buildResourceConsequences({ stone: 12 }, -1),
+      source: 'dwarf_actions',
+      tags: ['construction', 'completed'],
+    });
+  } finally {
+    Math.random = originalRandom;
+  }
+  assert(event && validateNarrativeEvent(event).valid, 'E1.3 shared boundary emitted an invalid v1 event.');
+  assert(event.type === 'construction.structure_completed', 'E1.3 event type was not retained.');
+  assert(event.location.scope === 'surface' && event.location.x === 12, 'E1.3 location fact was lost.');
+  assert(event.actors[0].id === 'workshop_7', 'E1.3 actor snapshot was lost.');
+  assert(event.consequences[0].value === -12, 'E1.3 resource consequence sign changed.');
+  assert(buildSecondaryLocation(null).scope === 'world', 'E1.3 missing location invented surface coordinates.');
+  assert(randomCalls === 0, 'E1.3 structured emission consumed gameplay RNG.');
+
+  const audit = auditNarrativeProducers();
+  assert(
+    audit.remainingLegacyProducerCount === 0,
+    `E1.3 legacy producer audit found ${audit.remainingLegacyProducerCount} direct call site(s).`,
+  );
+  assert(audit.structuredCallSites > 0, 'E1.3 audit did not identify structured boundary call sites.');
+}
+
 // Validate v0/v1 Event Log rendering and drama filtering without mutating stored records.
 function validateEventLogRenderingContract() {
-  const v1Drama = buildValidEvent({ tick: 51, sequence: 0, id: buildNarrativeEventId(0, 51, 0) });
+  const v1Drama = buildValidEvent({
+    tick: 51,
+    sequence: 0,
+    id: buildNarrativeEventId(0, 51, 0),
+    importance: 'legendary',
+    actors: [
+      {
+        kind: 'dwarf',
+        id: 'dwarf_1042',
+        role: 'primary',
+        label: 'Dori Ironhand',
+      },
+      {
+        kind: 'dwarf',
+        id: 'dwarf_1043',
+        role: 'parent',
+        label: 'Bori Ironhand',
+      },
+      {
+        kind: 'dwarf',
+        id: 'dwarf_1044',
+        role: 'witness',
+        label: 'Kori Embervein',
+      },
+      {
+        kind: 'dwarf',
+        id: 'dwarf_1045',
+        role: 'witness',
+        label: 'Ori Copperbraid',
+      },
+    ],
+    location: {
+      scope: 'surface',
+      depth: 0,
+      x: 42,
+      y: 17,
+      placeId: 'forge_hall',
+      label: 'Forge Hall',
+    },
+    sagaId: 'saga.iron_oath',
+  });
   const v0World = {
     tick: 50,
     message: 'Weather: basalt rain crosses the valley',
@@ -1927,7 +2026,18 @@ function validateEventLogRenderingContract() {
   });
   assert(panel && Array.isArray(panel.lines), 'Event Log panel did not render mixed v0/v1 entries.');
   const text = panel.lines.map((line) => String(line.text || '')).join('\n');
+  const flatText = panel.lines.map((line) => String(line.text || '').trim()).join(' ');
   assert(text.includes('Birth: Dori Ironhand'), 'Drama filter did not render the v1 lifecycle event.');
+  assert(text.includes('[LEGENDARY]'), 'Event Log did not render structured importance.');
+  assert(
+    flatText.includes('Actors: Dori Ironhand, Bori Ironhand, Kori Embervein +1'),
+    'Event Log did not render the bounded named-actor summary.',
+  );
+  assert(flatText.includes('At: Forge Hall (42,17)'), 'Event Log did not render structured location.');
+  assert(
+    flatText.includes('Saga=saga.iron_oath'),
+    'Event Log did not render saga membership.',
+  );
   assert(!text.includes('basalt rain'), 'Drama filter leaked the v0 world event.');
   assert(JSON.stringify(state.eventLog) === before, 'Event Log renderer mutated retained records.');
 
@@ -1940,6 +2050,21 @@ function validateEventLogRenderingContract() {
   });
   const allText = allPanel.lines.map((line) => String(line.text || '')).join('\n');
   assert(allText.includes('basalt rain'), 'All-events filter did not render the v0 record.');
+  assert(allText.includes('[AMBIENT]'), 'Legacy Event Log record lost its safe importance fallback.');
+
+  const narrowPanel = buildEventLogPanel(state, {
+    display: { event_log_panel: { enabled: true, width: 72, height: 18 } },
+  }, {
+    gridWidth: 72,
+    gridHeight: 18,
+  });
+  assert(narrowPanel && narrowPanel.width === 72, 'Narrow Event Log panel did not retain its supported width.');
+  assert(narrowPanel.lines.length === 18, 'Narrow Event Log panel did not retain its supported height.');
+  assert(
+    narrowPanel.lines.every((line) => String(line.text || '').length <= 72),
+    'Narrow Event Log panel overflowed its configured width.',
+  );
+  assert(JSON.stringify(state.eventLog) === before, 'Narrow Event Log rendering mutated retained records.');
 }
 
 // Guard the intentionally event-free map-export snapshot schema until an explicit decision changes it.
@@ -1985,11 +2110,12 @@ function main() {
   validateEndgameEmitterContract();
   validateEndgameMultiCycleIntegrationContract();
   validateEndgameAppTransitionWiringContract();
+  validateSecondaryProducerMigrationContract();
   validateLegacyCompatibilityContract();
   validateAiObservationIsolationContract();
   validateEventLogRenderingContract();
   validateMapExportIsolationContract();
-  console.log('[test:narrative] PASS envelope malformed identity emitter importance collision lifecycle social combat warrior political endgame multi_cycle app_transition legacy retention bounds serialization renderer ai_isolation export_isolation');
+  console.log('[test:narrative] PASS envelope malformed identity emitter importance collision lifecycle social combat warrior political endgame multi_cycle app_transition secondary_audit legacy retention bounds serialization renderer ai_isolation export_isolation');
 }
 
 main();

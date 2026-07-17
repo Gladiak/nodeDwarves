@@ -1,7 +1,11 @@
 'use strict';
 
 const { clamp } = require('../utils');
-const { pushEvent } = require('./events');
+const {
+  buildSecondaryActor,
+  buildSettlementActor,
+  emitSecondaryEvent,
+} = require('./secondary_events');
 const { randomBetween, shuffleInPlace } = require('./random');
 const { getWorldEventModifier } = require('./world_events');
 const { getExternalCampModifier } = require('./external_camps');
@@ -49,7 +53,7 @@ function updateContracts(state, config, action) {
   }
 
   contracts.active = contract;
-  pushEvent(state, config, buildContractOfferEvent(contract));
+  emitContractEvent(state, config, contract, 'offered', buildContractOfferEvent(contract));
 }
 
 // Return the active contract target boost multiplier for a resource.
@@ -429,7 +433,7 @@ function completeContract(state, config, contracts, contract, contractsConfig, t
   applyContractBuff(contracts, contract, contractsConfig, tick);
   const buffEvent = buildContractBuffEvent(contracts.activeBuff, tick);
   if (buffEvent) {
-    pushEvent(state, config, buffEvent);
+    emitContractEvent(state, config, contract, 'buff_granted', buffEvent);
   }
 
   contracts.stats.successes = Number(contracts.stats.successes || 0) + 1;
@@ -437,7 +441,13 @@ function completeContract(state, config, contracts, contract, contractsConfig, t
   contracts.counter = Number(contracts.counter || 1) + 1;
   contracts.nextSpawnTick = scheduleNextContractTick(tick, contractsConfig);
 
-  pushEvent(state, config, `Contract completed: ${contract.factionLabel || contract.factionId}`);
+  emitContractEvent(
+    state,
+    config,
+    contract,
+    'completed',
+    `Contract completed: ${contract.factionLabel || contract.factionId}`,
+  );
 }
 
 // Apply contract failure effects.
@@ -449,7 +459,13 @@ function failContract(state, config, contracts, contract, contractsConfig, tick)
   contracts.counter = Number(contracts.counter || 1) + 1;
   contracts.nextSpawnTick = scheduleNextContractTick(tick, contractsConfig);
 
-  pushEvent(state, config, `Contract failed: ${contract.factionLabel || contract.factionId}`);
+  emitContractEvent(
+    state,
+    config,
+    contract,
+    'failed',
+    `Contract failed: ${contract.factionLabel || contract.factionId}`,
+  );
 }
 
 // Apply base and mineral rewards for a contract.
@@ -493,8 +509,57 @@ function applyContractRewards(state, config, contract, contracts, contractsConfi
     state.stockpile[mineral] = Number(state.stockpile[mineral] || 0) + mineralAmount;
     const labels = (config && config.resources && config.resources.labels) || {};
     const label = labels[mineral] || mineral;
-    pushEvent(state, config, `Contract reward: ${label} x${mineralAmount}`);
+    emitContractEvent(
+      state,
+      config,
+      contract,
+      'mineral_rewarded',
+      `Contract reward: ${label} x${mineralAmount}`,
+      [{
+        kind: 'delta',
+        targetKind: 'resource',
+        targetId: mineral,
+        metric: 'stockpile',
+        value: mineralAmount,
+        unit: 'units',
+      }],
+    );
   }
+}
+
+// Emit a contract lifecycle fact with the faction and hold as stable actors.
+function emitContractEvent(state, config, contract, phase, message, consequences = null) {
+  const contractId = String(contract && contract.id || 'contract_unknown');
+  const factionId = String(contract && contract.factionId || 'external_faction');
+  const defaultConsequence = phase === 'completed' || phase === 'failed'
+    ? [{
+      kind: 'status',
+      targetKind: 'institution',
+      targetId: contractId,
+      metric: 'result',
+      value: phase,
+      unit: null,
+    }]
+    : null;
+  return emitSecondaryEvent(state, config, {
+    type: `contract.${phase}`,
+    category: 'diplomacy',
+    message,
+    actors: [
+      buildSecondaryActor('institution', contractId, 'primary', 'Trade Contract'),
+      buildSecondaryActor('faction', factionId, 'secondary', contract && contract.factionLabel),
+      buildSettlementActor('beneficiary'),
+    ],
+    causes: [{
+      kind: phase === 'offered' ? 'state' : 'action',
+      ref: `contracts.${phase}`,
+      metric: 'requested_resources',
+      value: Object.keys(contract && contract.requested || {}).length,
+    }],
+    consequences: consequences || defaultConsequence,
+    source: 'contracts',
+    tags: ['contract', phase],
+  });
 }
 
 // Apply the active contract buff for the faction role.

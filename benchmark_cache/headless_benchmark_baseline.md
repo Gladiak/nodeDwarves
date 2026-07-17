@@ -1,6 +1,6 @@
 # NodeDwarves Balance Report
 
-Generated: 2026-07-17T09:49:12.983Z
+Generated: 2026-07-17T11:15:36.710Z
 Ticks: 8000
 Seeds: 101, 202, 303, 404
 Resources: beer, food, water

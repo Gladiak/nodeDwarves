@@ -2,7 +2,12 @@
 
 const { clamp } = require("../utils");
 const { getStockpileRatio } = require("./resources");
-const { pushEvent } = require("./events");
+const {
+  buildSecondaryActor,
+  buildSecondaryLocation,
+  buildSettlementActor,
+  emitSecondaryEvent,
+} = require("./secondary_events");
 const { getVillageCenter, selectVillageCenter } = require("./structures");
 
 function getVillagesConfig(config) {
@@ -156,11 +161,32 @@ function updateVillages(state, config, runtime) {
   stats.lastFoundedTick = foundedTick;
   state.villageStats = stats;
 
-  pushEvent(
-    state,
-    config,
-    `${villagesConfig.founderCount} dwarves founded village V${nextId}.`,
-  );
+  emitSecondaryEvent(state, config, {
+    type: "village.founded",
+    category: "lifecycle",
+    message: `${villagesConfig.founderCount} dwarves founded village V${nextId}.`,
+    actors: [
+      buildSecondaryActor("settlement", `village_${nextId}`, "primary", `Village V${nextId}`),
+      buildSettlementActor("founder"),
+    ],
+    location: buildSecondaryLocation({ id: `village_${nextId}`, ...village.center }, `Village V${nextId}`),
+    causes: [{
+      kind: "threshold",
+      ref: "villages.founding",
+      metric: "founder_count",
+      value: villagesConfig.founderCount,
+    }],
+    consequences: [{
+      kind: "create",
+      targetKind: "settlement",
+      targetId: `village_${nextId}`,
+      metric: null,
+      value: null,
+      unit: null,
+    }],
+    source: "villages",
+    tags: ["village", "founded"],
+  });
 }
 
 module.exports = { updateVillages, getVillagesConfig, ensureVillageState };

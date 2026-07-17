@@ -3,7 +3,11 @@
 const { clamp } = require('../utils');
 const { getClanEffects, getClanList, getClanShareByIds } = require('../clans');
 const { getStockpileRatio, hasInputs, consumeInputs } = require('./resources');
-const { pushEvent } = require('./events');
+const {
+  buildSecondaryActor,
+  buildSettlementActor,
+  emitSecondaryEvent,
+} = require('./secondary_events');
 const { emitEndgameArtifactRecovered } = require('./endgame_events');
 const {
   emitRuinsExpeditionStarted,
@@ -655,36 +659,48 @@ function updateReadinessGateState(state, config, gate) {
       0,
       Number(readinessGate.warningDeepGuardThreshold || 0),
     ).toFixed(1);
-    pushEvent(
+    emitRuinsOperationalEvent(
       state,
       config,
+      depth,
+      'readiness_blocked_deep_guard',
       `Ruins: readiness gate blocked D${depth} (deep guard ${score}/${threshold})`,
+      score,
     );
     return;
   }
   if (readinessGate.reason === 'armory_level') {
-    pushEvent(
+    emitRuinsOperationalEvent(
       state,
       config,
+      depth,
+      'readiness_blocked_armory',
       `Ruins: readiness gate blocked D${depth} (armory ${readinessGate.armoryLevel}/${readinessGate.minArmoryLevel})`,
+      readinessGate.armoryLevel,
     );
     return;
   }
   if (readinessGate.reason === 'champion_cooldown') {
     const cooldown = Math.max(0, Math.floor(Number(readinessGate.championCooldownTicks || 0)));
-    pushEvent(
+    emitRuinsOperationalEvent(
       state,
       config,
+      depth,
+      'readiness_blocked_champion_cooldown',
       `Ruins: readiness gate blocked D${depth} (champion cooldown ${cooldown} ticks)`,
+      cooldown,
     );
     return;
   }
   const score = Math.max(0, Number(readinessGate.score || 0)).toFixed(1);
   const minScore = Math.max(0, Number(readinessGate.minScore || 0)).toFixed(1);
-  pushEvent(
+  emitRuinsOperationalEvent(
     state,
     config,
+    depth,
+    'readiness_blocked_score',
     `Ruins: readiness gate blocked D${depth} (score ${score}/${minScore})`,
+    score,
   );
 }
 
@@ -1138,10 +1154,13 @@ function startExpedition(state, config, ruinsConfig, rooms, startContext = null,
     incrementUnderrealmDepthStatCounter(state, 'warningDispatches', depth);
     const score = Math.max(0, Number(readinessGate.score || 0)).toFixed(1);
     const target = Math.max(0, Number(readinessGate.recommendedScore || 0)).toFixed(1);
-    pushEvent(
+    emitRuinsOperationalEvent(
       state,
       config,
+      depth,
+      'warning_dispatch',
       `Ruins: warning-zone dispatch D${depth} (score ${score}/${target}, risk x${riskMultiplier.toFixed(2)})`,
+      riskMultiplier,
     );
   }
   emitRuinsExpeditionStarted(
@@ -1984,10 +2003,13 @@ function finishExpedition(state, config, ruinsConfig, expedition, success, reaso
     state.ruins.cooldown = Math.max(baseCooldownTicks, adaptiveCooldownTicks, escalatedCooldownTicks);
     if (cooldownEscalation.escalated) {
       incrementUnderrealmDepthStatCounter(state, 'cooldownEscalations', readinessDepth);
-      pushEvent(
+      emitRuinsOperationalEvent(
         state,
         config,
+        readinessDepth,
+        'failure_cooldown_escalated',
         `Ruins: depth D${readinessDepth} failure streak cooldown x${escalationMultiplier.toFixed(2)} (${cooldownEscalation.recentFailures} recent)`,
+        escalationMultiplier,
       );
     }
   }
@@ -2367,6 +2389,37 @@ function shuffleInPlace(values) {
     values[i] = values[j];
     values[j] = temp;
   }
+}
+
+// Emit a structured readiness/cooldown fact for non-combat ruins operations.
+function emitRuinsOperationalEvent(state, config, depthRaw, phase, message, value) {
+  const depth = Math.max(1, Math.floor(Number(depthRaw || 1)));
+  return emitSecondaryEvent(state, config, {
+    type: `ruins.${phase}`,
+    category: 'underrealm',
+    message,
+    actors: [
+      buildSecondaryActor('location', `ruins_d${depth}`, 'primary', `Ruins Depth ${depth}`),
+      buildSettlementActor(phase === 'warning_dispatch' ? 'instigator' : 'beneficiary'),
+    ],
+    location: { scope: 'underrealm', depth },
+    causes: [{
+      kind: phase === 'warning_dispatch' ? 'action' : 'threshold',
+      ref: `ruins.${phase}`,
+      metric: 'readiness_value',
+      value: Number(value),
+    }],
+    consequences: [{
+      kind: 'status',
+      targetKind: 'location',
+      targetId: `ruins_d${depth}`,
+      metric: 'dispatch_status',
+      value: phase,
+      unit: null,
+    }],
+    source: 'ruins',
+    tags: ['ruins', phase, `depth_${depth}`],
+  });
 }
 
 module.exports = { updateRuins, recomputeBonuses };

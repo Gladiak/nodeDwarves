@@ -1,7 +1,12 @@
 'use strict';
 
 const { clamp } = require('../utils');
-const { pushEvent } = require('./events');
+const {
+  buildResourceConsequences,
+  buildSecondaryActor,
+  buildSettlementActor,
+  emitSecondaryEvent,
+} = require('./secondary_events');
 
 // Build a new alchemy state container.
 function createAlchemyState() {
@@ -105,7 +110,13 @@ function expireBacklash(state, config, alchemy, tick) {
   }
   const endsTick = Number(backlash.endsTick || 0);
   if (endsTick > 0 && tick >= endsTick) {
-    pushEvent(state, config, `Alchemy backlash faded: ${backlash.label || 'Arcane Debt'}`);
+    emitAlchemyEvent(
+      state,
+      config,
+      backlash,
+      'backlash_faded',
+      `Alchemy backlash faded: ${backlash.label || 'Arcane Debt'}`,
+    );
     alchemy.backlash = null;
   }
 }
@@ -131,7 +142,13 @@ function expireActivePact(state, config, alchemy, tick, alchemyConfig) {
     applyBacklash(state, config, alchemy, tick, active.backlash || {});
   } else {
     alchemy.stats.stableCompletions = Number(alchemy.stats.stableCompletions || 0) + 1;
-    pushEvent(state, config, `Alchemy rite ended: ${active.label || active.id || 'Rite'}`);
+    emitAlchemyEvent(
+      state,
+      config,
+      active,
+      'rite_ended',
+      `Alchemy rite ended: ${active.label || active.id || 'Rite'}`,
+    );
   }
 
   addHistory(alchemy, {
@@ -151,6 +168,7 @@ function applyBacklash(state, config, alchemy, tick, backlashConfig) {
     ? backlashConfig.lossResources.filter((resource) => typeof resource === 'string' && resource.length > 0)
     : [];
   const losses = [];
+  const lossAmounts = {};
 
   if (ratio > 0 && resources.length > 0 && state && state.stockpile) {
     for (const resource of resources) {
@@ -164,6 +182,7 @@ function applyBacklash(state, config, alchemy, tick, backlashConfig) {
       }
       state.stockpile[resource] = current - lost;
       losses.push(`${resource} -${lost}`);
+      lossAmounts[resource] = lost;
     }
   }
 
@@ -180,9 +199,16 @@ function applyBacklash(state, config, alchemy, tick, backlashConfig) {
   };
   alchemy.stats.backlashes = Number(alchemy.stats.backlashes || 0) + 1;
 
-  pushEvent(state, config, `Alchemy backlash: ${label}`);
+  emitAlchemyEvent(state, config, alchemy.backlash, 'backlash_started', `Alchemy backlash: ${label}`);
   if (losses.length > 0) {
-    pushEvent(state, config, `Backlash losses: ${losses.join(', ')}`);
+    emitAlchemyEvent(
+      state,
+      config,
+      alchemy.backlash,
+      'backlash_losses',
+      `Backlash losses: ${losses.join(', ')}`,
+      buildResourceConsequences(lossAmounts, -1),
+    );
   }
 }
 
@@ -216,7 +242,45 @@ function activateFormula(state, config, alchemy, tick, selection) {
   const failureLabel = active.failureThreshold > 0
     ? ` (backlash at ${active.failureThreshold} failures)`
     : '';
-  pushEvent(state, config, `Alchemy rite started: ${label}${failureLabel}`);
+  emitAlchemyEvent(
+    state,
+    config,
+    active,
+    'rite_started',
+    `Alchemy rite started: ${label}${failureLabel}`,
+    buildResourceConsequences(inputs, -1),
+  );
+}
+
+// Emit an alchemy rite/backlash fact with the formula snapshot retained as an institution actor.
+function emitAlchemyEvent(state, config, subject, phase, message, consequences = null) {
+  const subjectId = String(subject && subject.id || 'alchemy_rite');
+  const label = String(subject && subject.label || subjectId);
+  return emitSecondaryEvent(state, config, {
+    type: `alchemy.${phase}`,
+    category: 'myth',
+    message,
+    actors: [
+      buildSecondaryActor('institution', subjectId, 'primary', label),
+      buildSettlementActor(phase.includes('backlash') ? 'victim' : 'beneficiary'),
+    ],
+    causes: [{
+      kind: phase.includes('started') ? 'action' : 'threshold',
+      ref: `alchemy.${phase}`,
+      metric: 'duration_ticks',
+      value: Math.max(0, Number(subject && subject.durationTicks || 0)),
+    }],
+    consequences: consequences || [{
+      kind: 'status',
+      targetKind: 'institution',
+      targetId: subjectId,
+      metric: 'phase',
+      value: phase,
+      unit: null,
+    }],
+    source: 'alchemy',
+    tags: ['alchemy', phase, subjectId],
+  });
 }
 
 function selectFormula(state, config, alchemyConfig) {

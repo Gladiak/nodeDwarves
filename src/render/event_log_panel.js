@@ -11,6 +11,20 @@ const FILTER_LABELS = {
   drama: 'Dwarf drama',
 };
 
+const EVENT_IMPORTANCE_LABELS = {
+  ambient: 'AMBIENT',
+  notable: 'NOTABLE',
+  major: 'MAJOR',
+  critical: 'CRITICAL',
+  legendary: 'LEGENDARY',
+};
+
+const IMPORTANCE_COLOR_KEYS = {
+  major: 'alert_warning',
+  critical: 'alert_critical',
+  legendary: 'alert_critical',
+};
+
 const CATEGORY_COLOR_KEYS = {
   social: 'dwarf',
   lifecycle: 'dwarf',
@@ -160,13 +174,16 @@ function pushLine(lines, value, width, colorKey = null) {
   });
 }
 
-// Push one wrapped event message with compact tick prefix and category color.
+// Push one wrapped event message plus compact structured-fact context.
 function pushWrappedEventRows(lines, entry, width, maxRows) {
   if (!entry || maxRows <= 0) {
     return;
   }
-  const colorKey = CATEGORY_COLOR_KEYS[entry.category] || null;
-  const prefix = `[t${Math.max(0, Number(entry.tick || 0))}] `;
+  const importance = normalizeImportance(entry.importance);
+  const colorKey = IMPORTANCE_COLOR_KEYS[importance]
+    || CATEGORY_COLOR_KEYS[entry.category]
+    || null;
+  const prefix = `[t${Math.max(0, Number(entry.tick || 0))}][${EVENT_IMPORTANCE_LABELS[importance]}] `;
   const safeWidth = Math.max(1, Math.floor(Number(width || 1)));
   const availableMessageWidth = Math.max(1, safeWidth - prefix.length);
   const wrapped = wrapLine(String(entry.message || ''), availableMessageWidth);
@@ -185,6 +202,97 @@ function pushWrappedEventRows(lines, entry, width, maxRows) {
     });
     count += 1;
   }
+
+  const metadata = buildEventMetadata(entry);
+  if (!metadata || count >= maxRows) {
+    return;
+  }
+  const detailPrefix = '  > ';
+  const detailWidth = Math.max(1, safeWidth - detailPrefix.length);
+  const detailRows = wrapLine(metadata, detailWidth);
+  for (let i = 0; i < detailRows.length && count < maxRows; i += 1) {
+    const lineText = i === 0
+      ? `${detailPrefix}${detailRows[i]}`
+      : `${' '.repeat(detailPrefix.length)}${detailRows[i]}`;
+    lines.push({
+      text: fitLine(lineText, safeWidth),
+      colorKey,
+      separator: false,
+    });
+    count += 1;
+  }
+}
+
+// Normalize renderer-facing importance without trusting retained or future-version records.
+function normalizeImportance(value) {
+  const importance = String(value || '').trim().toLowerCase();
+  return Object.prototype.hasOwnProperty.call(EVENT_IMPORTANCE_LABELS, importance)
+    ? importance
+    : 'ambient';
+}
+
+// Build one bounded facts line from actor, location, and saga references.
+function buildEventMetadata(entry) {
+  const facts = [];
+  const actors = formatEventActors(entry && entry.actors);
+  if (actors) {
+    facts.push(`Actors: ${actors}`);
+  }
+  const location = formatEventLocation(entry && entry.location);
+  if (location) {
+    facts.push(`At: ${location}`);
+  }
+  const sagaId = String(entry && entry.sagaId || '').trim();
+  if (sagaId) {
+    facts.push(`Saga=${sagaId}`);
+  }
+  return facts.join(' | ');
+}
+
+// Prefer retained display labels while keeping deterministic ID fallbacks.
+function formatEventActors(actors) {
+  if (!Array.isArray(actors) || actors.length === 0) {
+    return '';
+  }
+  const labels = [];
+  for (const actor of actors) {
+    if (!actor || typeof actor !== 'object') {
+      continue;
+    }
+    const label = String(actor.label || actor.id || '').trim();
+    if (label && !labels.includes(label)) {
+      labels.push(label);
+    }
+  }
+  const visible = labels.slice(0, 3);
+  const remaining = labels.length - visible.length;
+  return remaining > 0 ? `${visible.join(', ')} +${remaining}` : visible.join(', ');
+}
+
+// Format a canonical location as a compact human-readable scope and coordinate.
+function formatEventLocation(location) {
+  if (!location || typeof location !== 'object') {
+    return '';
+  }
+  const label = String(location.label || '').trim();
+  const scope = String(location.scope || '').trim().toLowerCase();
+  let fallback = '';
+  if (scope === 'underrealm') {
+    const depth = Number(location.depth);
+    fallback = Number.isSafeInteger(depth) && depth >= 1 ? `Underrealm depth ${depth}` : 'Underrealm';
+  } else if (scope === 'surface') {
+    fallback = 'Surface';
+  } else if (scope === 'world') {
+    fallback = 'World';
+  }
+  const coordinates = Number.isSafeInteger(location.x)
+    && location.x >= 0
+    && Number.isSafeInteger(location.y)
+    && location.y >= 0
+    ? ` (${location.x},${location.y})`
+    : '';
+  const place = label || fallback;
+  return place ? `${place}${coordinates}` : '';
 }
 
 // Build bordered panel box from inner lines.

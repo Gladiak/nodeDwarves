@@ -46,8 +46,9 @@ Display and layout:
 - `display.warrior_panel.width`: Warrior League modal width in characters.
 - `display.warrior_panel.height`: Warrior League modal height in lines.
 - `display.event_log_panel.enabled`: enable the Event Log modal overlay (toggle with `e`).
-- `display.event_log_panel.width`: Event Log modal width in characters.
-- `display.event_log_panel.height`: Event Log modal height in lines.
+- `display.event_log_panel.width`: Event Log modal width in characters; structured importance and
+  actor/place/saga context wrap within the effective panel width (minimum supported width: `72`).
+- `display.event_log_panel.height`: Event Log modal height in lines (minimum supported height: `18`).
 - `display.save_panel.enabled`: enable the map-export confirmation panel.
 - `display.save_panel.width`: save panel width in characters.
 - `display.save_panel.height`: save panel height in lines.
@@ -378,6 +379,10 @@ Events:
 - Endgame type defaults: artifact recovery, Warrior Company carry-over, and transition completion
   are `major`; transition start is `critical`; artifact-collection completion and cycle closure are
   `legendary`.
+- Secondary-producer defaults keep routine weather, wildlife, and house upgrades `ambient`; roads,
+  construction, tools, trade/contract success, festivals, rare finds, and company doctrine are
+  `notable`; failed/intercepted diplomacy, myths/backlashes, village founding, Underrealm unlocks,
+  temple stages, and hunt deaths are `major`; `temple.completed` is `legendary`.
 
 Wildlife and pastures:
 

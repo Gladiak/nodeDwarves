@@ -1,7 +1,12 @@
 'use strict';
 
 const { clamp } = require('../utils');
-const { pushEvent } = require('./events');
+const {
+  buildResourceConsequences,
+  buildSecondaryActor,
+  buildSettlementActor,
+  emitSecondaryEvent,
+} = require('./secondary_events');
 const {
   emitDwarfChampionChanged,
   emitDeepRaidEvent,
@@ -1217,10 +1222,14 @@ function updateUnderrealmDiscovery(state, config) {
     }
     discovery.timerStartedTick = Math.max(0, Math.floor(Number(state.tick || 0)));
     discovery.targetTick = discovery.timerStartedTick + delayTicks;
-    pushEvent(
+    emitUnderrealmMilestone(
       state,
       config,
+      1,
+      'gate_rumors_awakened',
       `Underrealm: gate rumors awaken as population reaches ${populationThreshold}`,
+      'population',
+      populationThreshold,
     );
   }
   const targetTick = Math.max(0, Math.floor(Number(discovery.targetTick || 0)));
@@ -1238,7 +1247,15 @@ function updateUnderrealmDiscovery(state, config) {
     }
   }
   underrealm.discovery = discovery;
-  pushEvent(state, config, 'Underrealm: a hidden gate has been discovered');
+  emitUnderrealmMilestone(
+    state,
+    config,
+    1,
+    'gate_discovered',
+    'Underrealm: a hidden gate has been discovered',
+    'unlocked_depth',
+    Number(underrealm.maxUnlockedDepth || 1),
+  );
 }
 
 // Manage depth unlock progression via Deep Lift projects.
@@ -1356,10 +1373,14 @@ function updateUnderrealmProgression(state, config) {
           ? frontierFloor.champion.label
           : `Depth Champion D${frontierDepth}`,
       );
-      pushEvent(
+      emitUnderrealmMilestone(
         state,
         config,
+        frontierDepth,
+        'lift_blocked_by_champion',
         `Underrealm D${frontierDepth}: Deep Lift complete, ${championLabel} blocks depth ${nextDepth}`,
+        'target_depth',
+        nextDepth,
       );
       return;
     }
@@ -1370,7 +1391,15 @@ function updateUnderrealmProgression(state, config) {
       ensureLayerEconomyState(unlockedLayer, getUnderrealmEconomyConfig(config));
     }
     underrealm.lift = buildIdleLiftState();
-    pushEvent(state, config, `Underrealm: Deep Lift completed, depth ${nextDepth} opened`);
+    emitUnderrealmMilestone(
+      state,
+      config,
+      nextDepth,
+      'lift_completed',
+      `Underrealm: Deep Lift completed, depth ${nextDepth} opened`,
+      'unlocked_depth',
+      nextDepth,
+    );
     return;
   }
   const readyBySurvey = surveyRatio >= progressionConfig.requiredSurveyRatio;
@@ -1407,10 +1436,15 @@ function updateUnderrealmProgression(state, config) {
     requiredStockpile,
     requiredMined,
   };
-  pushEvent(
+  emitUnderrealmMilestone(
     state,
     config,
+    frontierDepth,
+    'lift_started',
     `Underrealm D${frontierDepth}: Deep Lift construction started for depth ${frontierDepth + 1}`,
+    'target_depth',
+    frontierDepth + 1,
+    buildResourceConsequences(requiredStockpile, -1),
   );
 }
 
@@ -1686,7 +1720,16 @@ function tickShrineOath(state, config, shrineConfig, depth, assigned, shrineCoun
     underrealm.shrines.stats.oathSuccesses = Number(
       underrealm.shrines.stats.oathSuccesses || 0,
     ) + 1;
-    pushEvent(state, config, `Underrealm D${depth}: Delver oath sealed at the shrine`);
+    emitUnderrealmMilestone(
+      state,
+      config,
+      depth,
+      'delver_oath_sealed',
+      `Underrealm D${depth}: Delver oath sealed at the shrine`,
+      'duration_ticks',
+      oathConfig.durationTicks,
+      buildResourceConsequences(oathConfig.ritualCost, -1),
+    );
     return;
   }
   if (oathConfig.failurePenaltyTicks <= 0) {
@@ -1697,7 +1740,15 @@ function tickShrineOath(state, config, shrineConfig, depth, assigned, shrineCoun
   underrealm.shrines.stats.oathFailures = Number(
     underrealm.shrines.stats.oathFailures || 0,
   ) + 1;
-  pushEvent(state, config, `Underrealm D${depth}: oath failed, the halls grow restless`);
+  emitUnderrealmMilestone(
+    state,
+    config,
+    depth,
+    'delver_oath_failed',
+    `Underrealm D${depth}: oath failed, the halls grow restless`,
+    'penalty_ticks',
+    oathConfig.failurePenaltyTicks,
+  );
 }
 
 // Apply active/failing oath effects directly to assigned delver morale/stress.
@@ -2694,7 +2745,16 @@ function applyLayerRareDrops(state, config, layer, guards, economyConfig) {
     addStockpileResource(state.stockpile, resourceId, amount);
     addNestedValue(layer.economy.totalRareDrops, resourceId, amount);
     addNestedValue(state.underrealm.economy.totalRareDrops, resourceId, amount);
-    pushEvent(state, config, `Underrealm D${depth}: rare find ${resourceId}+${amount}`);
+    emitUnderrealmMilestone(
+      state,
+      config,
+      depth,
+      'rare_resource_found',
+      `Underrealm D${depth}: rare find ${resourceId}+${amount}`,
+      'resource_amount',
+      amount,
+      buildResourceConsequences({ [resourceId]: amount }),
+    );
   }
 }
 
@@ -2749,7 +2809,16 @@ function applyLayerProspectionDrops(state, config, layer, miners, guards) {
     addNestedValue(layer.economy.totalRareDrops, dropConfig.resource, amount);
     addNestedValue(underrealm.economy.totalRareDrops, dropConfig.resource, amount);
     addNestedValue(underrealm.shrines.stats.prospectionFinds, dropConfig.resource, amount);
-    pushEvent(state, config, `Underrealm D${depth}: ${label} ${dropConfig.resource}+${amount}`);
+    emitUnderrealmMilestone(
+      state,
+      config,
+      depth,
+      'prospection_resource_found',
+      `Underrealm D${depth}: ${label} ${dropConfig.resource}+${amount}`,
+      'resource_amount',
+      amount,
+      buildResourceConsequences({ [dropConfig.resource]: amount }),
+    );
   };
   runDropRoll(shrineConfig.prospection.riftDrop, 'chasm', 'rift fragment recovered');
   runDropRoll(shrineConfig.prospection.magmaDrop, 'magma', 'ember resin tapped');
@@ -3356,6 +3425,49 @@ function randomInt(minRaw, maxRaw, rng) {
   }
   const roll = typeof rng === 'function' ? rng() : Math.random();
   return Math.floor(roll * (max - min + 1)) + min;
+}
+
+// Emit one Underrealm discovery, construction, shrine, or resource milestone.
+function emitUnderrealmMilestone(
+  state,
+  config,
+  depthRaw,
+  phase,
+  message,
+  metric,
+  value,
+  consequences = null,
+) {
+  const depth = Math.max(1, Math.floor(Number(depthRaw || 1)));
+  const isLift = phase.startsWith('lift_');
+  const subjectId = isLift ? `deep_lift_d${depth}` : `underrealm_d${depth}`;
+  const subjectKind = isLift ? 'structure' : 'location';
+  return emitSecondaryEvent(state, config, {
+    type: `underrealm.${phase}`,
+    category: 'underrealm',
+    message,
+    actors: [
+      buildSecondaryActor(subjectKind, subjectId, 'primary', `Underrealm Depth ${depth}`),
+      buildSettlementActor('beneficiary'),
+    ],
+    location: { scope: 'underrealm', depth },
+    causes: [{
+      kind: phase.includes('found') || phase.includes('discovered') ? 'action' : 'threshold',
+      ref: `underrealm.${phase}`,
+      metric,
+      value,
+    }],
+    consequences: consequences || [{
+      kind: phase.includes('completed') || phase.includes('discovered') ? 'unlock' : 'status',
+      targetKind: subjectKind,
+      targetId: subjectId,
+      metric,
+      value,
+      unit: null,
+    }],
+    source: 'underrealm',
+    tags: ['underrealm', phase, `depth_${depth}`],
+  });
 }
 
 module.exports = { updateUnderrealm };

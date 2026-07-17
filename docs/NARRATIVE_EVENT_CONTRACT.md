@@ -493,11 +493,13 @@ four social incident payload families plus a real `updateSocialDrama` integratio
 combat slice adds surface raids, ruins expeditions, depth-champion encounters, hostile deep raids,
 and Dwarf Champion transitions plus a real raid-resolution integration fixture. The Warrior League
 slice adds all eleven mark/vow/consequence/crown/command payload types plus a real deterministic
-fatal-duel, tournament, and Hall of Fame integration fixture; other producer families remain an
-incremental E1.2/E1.3 migration task. The political slice adds all eleven doctrine, phase, ritual,
+fatal-duel, tournament, and Hall of Fame integration fixture. The political slice adds all eleven doctrine, phase, ritual,
 decree, and climax payload types plus real climax and ritual/decree lifecycle fixtures. The endgame
 slice adds artifact recovery/collection, transition, cycle closure, and Warrior Company carry-over
 payloads plus a real two-reset fixture that verifies latch uniqueness and post-swap cycle identity.
+E1.3 adds the shared secondary boundary, an RNG-neutral representative payload fixture, and the
+`audit:narrative-producers` source gate; all repository simulation producers now emit structured v1
+facts while legacy string compatibility remains available to external/test callers.
 
 ## 11) Current-system audit
 
@@ -530,9 +532,13 @@ E0.2 reviewed the existing event path before choosing this contract:
   presentation transition, cycle closure, and Warrior Company carry-over facts. Closure/carry-over
   emission happens only after the replacement state owns its new cycle counter; builders do not
   alter reset seed selection, carry-over calculations, or RNG order.
-- Existing simulation producers are overwhelmingly string-only, so an all-at-once migration would be
-  unnecessary risk; the compatibility gateway gives them deterministic `legacy.<category>` events.
-- `src/render/event_log_panel.js` reads only tick/message/category and preserves all/drama filters.
+- `src/simulation/secondary_events.js` now serves world/diplomacy, culture/environment, and
+  development/resource producers with stable actor/location helpers and signed resource facts.
+- `scripts/audit_narrative_producers.js` reports direct `pushEvent` call sites outside the approved
+  structured boundaries and fails `npm test` when any legacy-only simulation producer remains.
+- `src/render/event_log_panel.js` reads tick/message/category plus optional importance, actor,
+  location, and saga facts. It preserves all/drama filters, wraps compact context at `72x18`, and
+  never mutates retained records.
 - Telemetry consumes compact message strings, not structured events.
 - AI observation and action code does not consume either event buffer.
 - The map-export snapshot excludes both event buffers.

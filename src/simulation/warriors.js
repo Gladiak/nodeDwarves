@@ -4,7 +4,6 @@ const { clamp } = require('../utils');
 const { getClanEffects } = require('../clans');
 const { buildDwarfLore } = require('../dwarf_lore');
 const { hasInputs, consumeInputs } = require('./resources');
-const { pushEvent } = require('./events');
 const { clearDeadSocialLinks } = require('./social_drama');
 const {
   emitWarriorMarkChanged,
@@ -14,6 +13,7 @@ const {
   emitWarriorTournamentInjury,
   emitWarriorTournamentDeath,
   emitWarriorTournamentCrowned,
+  emitWarriorCompanyDoctrine,
 } = require('./warrior_events');
 
 const WARRIOR_LEAGUE_EPITHETS = [
@@ -3848,9 +3848,11 @@ function runSeasonWarriorTournament(state, config, runtime, warriors, seasonId) 
       ? runtime.company.identity
       : null;
     if (identity && identity.name) {
-      pushEvent(
+      emitWarriorCompanyDoctrine(
         state,
         config,
+        champion.dwarf,
+        identity,
         `Warrior Company ${identity.name}: ${identity.focus} doctrine active (${(clampUnit(Number(identity.renown || 0)) * 100).toFixed(1)}% renown)`,
       );
     }

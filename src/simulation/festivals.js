@@ -1,7 +1,12 @@
 'use strict';
 
 const { clamp } = require('../utils');
-const { pushEvent } = require('./events');
+const {
+  buildResourceConsequences,
+  buildSecondaryActor,
+  buildSettlementActor,
+  emitSecondaryEvent,
+} = require('./secondary_events');
 const {
   getSchismFestivalIntent,
   resolveSchismFestivalRitualPlan,
@@ -364,6 +369,7 @@ function updateFestivals(state, config, runtime, action) {
     const elapsed = Math.max(0, Number(state.tick || 0) - startedTick);
     if (duration > 0 && elapsed >= duration) {
       const label = festival.label || festivalsConfig.label || 'Festival';
+      const completedFestival = { ...festival };
       festival.active = false;
       festival.id = null;
       festival.startedTick = null;
@@ -372,7 +378,15 @@ function updateFestivals(state, config, runtime, action) {
       festival.source = null;
       festival.ritualId = null;
       festival.ritualLabel = null;
-      pushEvent(state, config, `Festival ended: ${label}`);
+      emitFestivalEvent(
+        state,
+        config,
+        label,
+        'ended',
+        `Festival ended: ${label}`,
+        null,
+        completedFestival,
+      );
     }
   }
 
@@ -425,13 +439,48 @@ function updateFestivals(state, config, runtime, action) {
   festival.lastSeasonIndex = getSeasonIndex(state);
   festival.lastSeasonName = state.season ? state.season.name : null;
   notifySchismFestivalStarted(state, config, source, ritualPlan);
-  pushEvent(
+  emitFestivalEvent(
     state,
     config,
+    label,
+    'started',
     source === 'council'
       ? `Festival started: ${label} (council decree${festival.ritualLabel ? `, ${festival.ritualLabel}` : ''})`
       : `Festival started: ${label}${festival.ritualLabel ? ` (${festival.ritualLabel})` : ''}`,
+    buildResourceConsequences(costs, -1),
   );
+}
+
+// Emit one festival lifecycle fact with committed costs and source retained.
+function emitFestivalEvent(state, config, label, phase, message, consequences = null, snapshot = null) {
+  const festival = snapshot || (state && state.festival ? state.festival : {});
+  return emitSecondaryEvent(state, config, {
+    type: `festival.${phase}`,
+    category: 'festival',
+    message,
+    actors: [
+      buildSecondaryActor('institution', 'festival', 'primary', label),
+      buildSettlementActor('beneficiary'),
+    ],
+    causes: [{
+      kind: phase === 'started' ? 'action' : 'threshold',
+      ref: 'festivals.lifecycle',
+      metric: phase === 'started' ? 'source' : 'duration_ticks',
+      value: phase === 'started'
+        ? String(festival.source || 'settlement')
+        : Math.max(0, Number(festival.durationTicks || 0)),
+    }],
+    consequences: consequences || [{
+      kind: 'status',
+      targetKind: 'institution',
+      targetId: 'festival',
+      metric: 'phase',
+      value: phase,
+      unit: null,
+    }],
+    source: 'festivals',
+    tags: ['festival', phase],
+  });
 }
 
 // Read a festival modifier value with a safe fallback.

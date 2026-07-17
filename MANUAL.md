@@ -111,13 +111,16 @@ node scripts/regression.js --all
 node scripts/regression.js --profile underrealm
 node scripts/test_training_contracts.js --policy-only
 npm run test:narrative
+npm run audit:narrative-producers
 npm test
 ```
 
-`npm run test:narrative` runs the focused schema-v1 event gate: canonical and malformed envelopes,
+`npm run audit:narrative-producers` scans simulation sources and fails when a direct `pushEvent`
+writer exists outside the approved structured boundaries. `npm run test:narrative` runs the focused schema-v1 event gate: canonical and malformed envelopes,
 deterministic cycle/tick/sequence IDs, legacy `pushEvent` compatibility, bounded retention/references,
-JSON serialization, mixed v0/v1 Event Log filtering, and AI/map-export isolation. `npm test` runs this
-suite first and then the complete training/validation contract suite.
+JSON serialization, migrated-secondary audit integration, mixed v0/v1 Event Log filtering, and
+responsive Event Log context rendering, plus AI/map-export isolation. `npm test` runs the source
+audit, this suite, and then the complete training/validation contract suite.
 
 Clean debug artifacts after a completed cycle:
 
@@ -361,7 +364,8 @@ Notes:
   - Space toggles pause/resume during the live simulation.
   - Press `i` to open/close the dwarf inspect panel (works during pause or live); use `←`/`→` to browse spawn order.
   - Press `w` to open/close the Warrior League modal panel (company identity/carry-over hooks + champion/top-5/marks analytics).
-  - Press `e` to open/close the Event Log modal panel (scrollable real-time event history with `All events` / `Dwarf drama` filter).
+  - Press `e` to open/close the Event Log modal panel. Each structured entry shows a textual
+    importance badge and, when available, a compact context row for named actors, place, and saga.
   - Press `f` while Event Log is open to cycle log filter mode quickly.
   - Press `h` to open/close the telemetry Data Center panel (`Dashboard`, `Overview + Deep`, `Economy`, `Warrior League`).
   - While telemetry is open, use `←`/`→` to switch pages.
@@ -1494,9 +1498,9 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
 ### Events + randomness 🎲
 
 - `events.js` is the backward-compatible structured narrative gateway.
-  - Existing systems may keep pushing concise strings for weather, raids, ruins, builds, and myth
-    changes. Each accepted string is normalized into a canonical v1 event with generated
-    `cycle/tick/sequence` identity and `legacy.<category>` type.
+  - Legacy external/test callers may keep pushing concise strings. Each accepted string is normalized
+    into a canonical v1 event with generated `cycle/tick/sequence` identity and
+    `legacy.<category>` type; repository simulation producers are guarded to use structured facts.
   - Migrated producers may pass a structured object with message, type/category, importance, actors,
     location, causes, consequences, saga ID, source, and tags. Producer-supplied identity fields are
     ignored.
@@ -1519,6 +1523,18 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
     reduced events carry `contract_truncated` when space permits.
 - `narrative_contract.js` validates canonical v1 envelopes and provides transactional deterministic
   identity helpers shared by runtime and `npm run test:narrative`.
+- `secondary_events.js` is the shared E1.3 boundary for lower-frequency producers. It supplies stable
+  actor/location helpers, signed resource consequences, and a single RNG-neutral emission path while
+  each producer retains its existing compact message and authoritative state-transition order.
+  - World events, camps, caravans, merchants, and contracts now retain faction/institution actors,
+    available surface coordinates, lifecycle causes, trades, losses, rewards, and outcomes.
+  - Myths, alchemy, festivals, weather, and wildlife retain cultural/system actors, trigger state,
+    committed costs/losses, duration transitions, season context, and herd locations.
+  - Construction, upgrades, villages, roads, Temple stages, ruins readiness, Deep Lift progression,
+    shrine oaths, and deep resource finds retain builders/places, thresholds, unlocks, and signed
+    resource deltas.
+  - `npm run audit:narrative-producers` owns the executable zero-legacy report; `npm test` runs it
+    before contract suites so a new direct string-only writer cannot silently bypass E1.3.
 - `lifecycle_events.js` supplies the first migrated producer family: settlement founding, births,
   natural deaths, and first-mutual-bond partnerships. These events carry deterministic actor label
   snapshots, locations when coordinates exist, causal evidence, and typed consequences. Their
@@ -1536,8 +1552,8 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   tournament deaths, hero succession, tournament crowns, Hall of Fame inductions, and Underrealm
   command transitions. Ordinary progression/injury facts are `notable`; retirements, crowns, hero
   succession, and command changes are `major`; tournament deaths are `critical`.
-- `warriors.js` retains one legacy operational message in this area: the active company doctrine
-  summary. Endgame now owns the migrated cycle carry-over seed fact.
+- `warrior_events.js` also owns the active Warrior Company doctrine summary; endgame owns the migrated
+  cycle carry-over seed fact. No simulation producer retains a direct legacy-only event writer.
 - `political_events.js` supplies all eleven schism priority facts: doctrine/phase shifts,
   ritual-window/council/invocation/expiry transitions, decree proposal/enactment/expiry, and climax
   start/resolution. Windows and expirations are `notable`; shifts, invocations, enactments, and the
@@ -1586,7 +1602,15 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
 - `render/event_log_panel.js`
   - Builds the ASCII Event Log modal overlay and draws it onto the grid.
   - Reads the dedicated rolling history buffer (`state.eventLog`) and falls back to the mini HUD event list if needed.
-  - Supports `All events` / `Dwarf drama` filtering, tick-tagged entries, and arrow-key scrolling through wrapped rows.
+  - Supports `All events` / `Dwarf drama` filtering, importance-tagged entries, and arrow-key
+    scrolling through wrapped rows. No new filter was added without usage evidence.
+  - Renders at most three unique actor labels per context row (then `+N`), preferring retained labels
+    over stable-ID fallbacks. Location uses its label when available, otherwise world/surface/depth
+    scope plus valid coordinates; saga membership is shown by its stable saga ID.
+  - Structured context wraps inside the panel and is covered at the minimum supported `72x18`
+    layout. Legacy v0/future-safe records retain their message/category path and ambient fallback.
+  - Rendering is read-only: it does not mutate event records, UI storage, simulation state, or AI
+    observation/action shapes.
   - Panel size is controlled by `display.event_log_panel.width`/`height`.
 
 - `render/legend_panel.js`
@@ -2086,6 +2110,7 @@ Quick checklist:
   - `simulation/` → game logic
     - `simulation/narrative_contract.js` → strict narrative-event v1 validator plus deterministic identity peek/commit helpers
     - `simulation/narrative_normalizer.js` → bounded draft normalization, importance fallback, and deterministic optional-payload reduction
+    - `simulation/secondary_events.js` → shared structured boundary/helpers for secondary producer families
     - `simulation/lifecycle_events.js` → structured founding, birth, natural-death, and partnership event builders
     - `simulation/social_events.js` → structured mentorship, rivalry, grudge, and reconciliation incident builders
     - `simulation/combat_events.js` → structured surface-raid, ruins-expedition, Underrealm battle, deep-raid, and champion event builders
@@ -2119,6 +2144,7 @@ Quick checklist:
 - `scripts/regression.js` → AI regression harness and profile recording with txt/json/markdown reports
 - `scripts/validate_extended_optimized.js` → optimized full-quality validation orchestrator with per-phase runtime reports
 - `scripts/clean_debug.js` → deterministic debug cleanup (transient artifacts + keep latest `run_*` history)
+- `scripts/audit_narrative_producers.js` → reports/fails on direct legacy-only event producers outside approved boundaries
 - `scripts/test_narrative_contracts.js` → fast structured-event/identity/compatibility/isolation gate (`npm run test:narrative`; included in `npm test`)
 - `scripts/test_training_contracts.js` → deterministic technical test suite for policy shape and report-schema contracts (included in `npm test`)
 - `regression/baselines/regression_baseline.json` → durable profile baselines used by regression checks

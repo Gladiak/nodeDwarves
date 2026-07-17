@@ -21,7 +21,9 @@ Chaos, strategy, and tiny bearded logistics experts included. 🧔🧱
 - 🏅 Warrior League with hero progression, tournaments, injuries, and lineage memory.
 - 📜 Deterministic structured events preserve who/where/why facts behind the compact terminal log,
   including lifecycle milestones, social incidents, battles, tournament legacies, council decrees,
-  ritual transitions, colony-defining political climaxes, relic recovery, and cycle passages.
+  ritual transitions, diplomacy, world/culture shifts, construction milestones, relic recovery, and
+  cycle passages. The Event Log exposes importance, named actors, place, and saga context without
+  abandoning its compact all/drama views; a source audit guards against legacy-only producers.
 - 🌤️ In-map Ops Snapshot shows a live weather token (`Wx:*`, e.g. `Clear`, `Rain`, `Storm`) for at-a-glance climate context.
 - 📊 In-game Data Center (`h`) with dashboard, deep economy views, and AI explainability.
 - 🤖 PPO training pipeline in Python with JS runtime inference (`models/*.json`).
@@ -70,12 +72,14 @@ Quality-oriented loop and acceptance gate:
 npm run ai:train:m4
 npm run ai:train -- quality
 npm run ai:validate
+npm run audit:narrative-producers
 npm run test:narrative
 npm test
 ```
 
-`test:narrative` runs the fast structured-event contract gate in isolation. `npm test` runs both the
-narrative and training/validation contract suites.
+`audit:narrative-producers` reports direct legacy-only event writers. `test:narrative` runs the fast
+structured-event contract gate in isolation. `npm test` runs the audit plus narrative and
+training/validation contract suites.
 
 `ai:train:m4` is the direct shortcut for the `m4-balanced` profile. The generic
 `ai:train` command accepts the wrapper profile after `--`: `fast` (default), `quality`,
@@ -131,6 +135,7 @@ npm run debug:clean
 - ⚙️ `src/simulation/`: core simulation systems (economy, events, underrealm, schism, social drama, warriors, temple).
 - 🧬 `src/simulation/narrative_contract.js`: strict narrative-event validation and deterministic identity helpers.
 - 🧹 `src/simulation/narrative_normalizer.js`: bounded event normalization and deterministic payload compaction.
+- 🧭 `src/simulation/secondary_events.js`: shared structured facts for world, culture, environment, economy, and development events.
 - 👥 `src/simulation/lifecycle_events.js`: structured founding, birth, death, and partnership story facts.
 - 🎭 `src/simulation/social_events.js`: structured mentorship, rivalry, grudge, and reconciliation facts.
 - ⚔️ `src/simulation/combat_events.js`: structured raid, expedition, Underrealm battle, and champion facts.
@@ -143,6 +148,7 @@ npm run debug:clean
 - 🧠 `src/ai/`: observation and policy helpers.
 - 🛠️ `scripts/`: benchmarking, regression, validation orchestration, narrative contracts, export, cleanup.
 - 🧪 `scripts/test_narrative_contracts.js`: fast executable gate for the living-chronicle event contract.
+- 🔎 `scripts/audit_narrative_producers.js`: zero-legacy producer audit used by `npm test`.
 - 🐍 `python/`: PPO training and rollout tooling.
 - 🗂️ `benchmark_cache/`: cached deterministic benchmark baseline.
 - 📦 `regression/baselines/`: durable regression reference profiles.

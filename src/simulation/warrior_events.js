@@ -288,6 +288,44 @@ function emitWarriorTournamentCrowned(state, config, result) {
   });
 }
 
+// Emit the committed Warrior Company identity/doctrine summary after a tournament crown.
+function emitWarriorCompanyDoctrine(state, config, champion, identity, message) {
+  if (!identity || !identity.name) {
+    return null;
+  }
+  return pushEvent(state, config, {
+    type: 'warrior.company_doctrine_active',
+    category: 'warrior',
+    message,
+    actors: [
+      {
+        kind: 'institution',
+        id: 'warrior_company',
+        role: 'primary',
+        label: String(identity.name),
+      },
+      buildWarriorDwarfActor(state, config, champion, 'leader'),
+    ].filter(Boolean),
+    location: { scope: 'world' },
+    causes: [{
+      kind: 'state',
+      ref: 'warriors.company_identity',
+      metric: 'renown',
+      value: Math.max(0, Math.min(1, Number(identity.renown || 0))),
+    }],
+    consequences: [{
+      kind: 'status',
+      targetKind: 'institution',
+      targetId: 'warrior_company',
+      metric: 'doctrine',
+      value: String(identity.focus || 'balanced'),
+      unit: null,
+    }],
+    source: 'warriors',
+    tags: ['warrior_company', 'doctrine', 'active'],
+  });
+}
+
 module.exports = {
   emitWarriorMarkChanged,
   emitWarriorRetired,
@@ -296,4 +334,5 @@ module.exports = {
   emitWarriorTournamentInjury,
   emitWarriorTournamentDeath,
   emitWarriorTournamentCrowned,
+  emitWarriorCompanyDoctrine,
 };
