@@ -294,7 +294,10 @@ Display and layout:
 - `display.terrain.roadSpecialSymbols.bridge`: symbol for bridge road tiles.
 - `display.terrain.roadSpecialSymbols.ford`: symbol for ford road tiles.
 - `display.terrain.riverConnectsTo`: list of terrain types treated as connected to rivers (defaults to `["river"]`).
-- `display.dwarves.maxVisible`: max dwarves to render on the map (`0` = show all, `< 0` = hide all).
+- `display.dwarves.maxVisible`: max dwarves to render on the active map layer (`0` = show all,
+  `< 0` = hide all). Above the cap, deterministic story tiers prefer current critical/legendary
+  actors, endangered dwarves, champions, saga protagonists, recent incident actors, and the prior
+  visible set before stable population-order fallback.
 - `display.theme`: active visual theme id (uses `display.themes.<id>` when present).
 - `display.themes.<id>.colors.*`: theme-level color overrides merged on top of `display.colors` (supports nested `map` and `seasonal` keys).
 - `display.themes.<id>.alerts.tracked_resources`: stockpile ids used to evaluate global warning/critical pressure in inset and telemetry panel.

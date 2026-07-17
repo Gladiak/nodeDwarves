@@ -584,4 +584,5 @@ module.exports = {
   getLoreSeed,
   getSpawnOrderedIds,
   resolveRoleLabel,
+  resolveRoleTitle,
 };

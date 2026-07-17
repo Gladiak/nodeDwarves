@@ -8,6 +8,7 @@ const {
   buildSettlementActor,
   emitSecondaryEvent,
 } = require('./secondary_events');
+const { buildPlaceLocation, registerPlace } = require('../place_identity');
 
 const NEIGHBOR_STEPS = [
   { dx: 1, dy: 0 },
@@ -1722,14 +1723,22 @@ function finalizeRoadLink(state, roads, config, linkKey) {
   }
   link.completed = true;
   const roadId = `road_${String(linkKey).toLowerCase().replace(/[^a-z0-9._-]+/g, '_')}`;
+  const road = registerPlace(state, config, {
+    id: roadId,
+    kind: 'road',
+    x: link.from && link.from.x,
+    y: link.from && link.from.y,
+  });
+  const roadName = road ? road.name : buildRoadCompleteLabel(linkKey, link.kind);
   emitSecondaryEvent(state, config, {
     type: 'road.completed',
     category: 'economy',
-    message: buildRoadCompleteMessage(linkKey, link.kind),
+    message: `${roadName} completed`,
     actors: [
-      buildSecondaryActor('location', roadId, 'primary', 'Completed Road'),
+      buildSecondaryActor('location', roadId, 'primary', roadName),
       buildSettlementActor('beneficiary'),
     ],
+    location: buildPlaceLocation(state, roadId),
     causes: [{
       kind: 'threshold',
       ref: 'roads.build_progress',
@@ -1749,7 +1758,7 @@ function finalizeRoadLink(state, roads, config, linkKey) {
   });
 }
 
-function buildRoadCompleteMessage(linkKey, kind) {
+function buildRoadCompleteLabel(linkKey, kind) {
   if (kind === 'village') {
     const parts = String(linkKey).split('-');
     if (parts.length === 2) {

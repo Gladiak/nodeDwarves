@@ -3,6 +3,10 @@
 const { clamp } = require('../utils');
 const { getClanEffects } = require('../clans');
 const { buildDwarfLore } = require('../dwarf_lore');
+const {
+  formatDwarfIdentity,
+  snapshotDwarfIdentity,
+} = require('../dwarf_identity');
 const { hasInputs, consumeInputs } = require('./resources');
 const { clearDeadSocialLinks } = require('./social_drama');
 const {
@@ -115,13 +119,7 @@ function mixSeed(seed) {
 
 // Resolve one dwarf display label as `Name Surname <id>`.
 function formatWarriorDisplayName(dwarf, state, config) {
-  const id = String(dwarf && dwarf.id || '').trim();
-  if (!id) {
-    return 'Unknown <n/a>';
-  }
-  const lore = buildDwarfLore(dwarf, state, config);
-  const name = lore && lore.name ? String(lore.name) : 'Unknown';
-  return `${name} <${id}>`;
+  return formatDwarfIdentity(dwarf, state, config);
 }
 
 // Resolve one dwarf display label by id with deterministic fallback.
@@ -130,18 +128,11 @@ function formatWarriorDisplayNameById(dwarfId, state, config, nameCache = null) 
   if (!id) {
     return 'Unknown <n/a>';
   }
-  if (nameCache && nameCache.has(id)) {
+  if (nameCache instanceof Map && nameCache.has(id)) {
     return nameCache.get(id);
   }
-  const dwarves = Array.isArray(state && state.dwarves) ? state.dwarves : [];
-  const dwarf = dwarves.find((entry) => String(entry && entry.id || '') === id);
-  let label = '';
-  if (dwarf) {
-    label = formatWarriorDisplayName(dwarf, state, config);
-  } else {
-    label = `Unknown <${id}>`;
-  }
-  if (nameCache) {
+  const label = formatDwarfIdentity(id, state, config, { cache: nameCache });
+  if (nameCache instanceof Map) {
     nameCache.set(id, label);
   }
   return label;
@@ -3824,6 +3815,7 @@ function runSeasonWarriorTournament(state, config, runtime, warriors, seasonId) 
       scarIds: Array.isArray(championWarrior.scars) ? championWarrior.scars.slice(0, 4) : [],
       vowId: championWarrior.vow || null,
       legacyPoints: Math.max(0, Number(championWarrior.legacyPoints || 0)),
+      identity: snapshotDwarfIdentity(champion.dwarf, state, config),
     });
     runtime.company.hallOfFame = runtime.company.hallOfFame.slice(0, 40);
     refreshWarriorCompanyIdentity(state, config, warriors, runtime);
@@ -4160,6 +4152,7 @@ function createWarriorsState(config) {
         retainedRenown: 0,
         seedBonus: 0,
         sourceChampionId: null,
+        sourceChampionIdentity: null,
       },
       cycleHistory: [],
     },
@@ -4264,7 +4257,15 @@ function carryWarriorCompanyAcrossCycle(previousState, nextState, config) {
     : [];
   nextCompany.hallOfFame = previousHall
     .slice(0, maxHallCarry)
-    .map((entry) => ({ ...(entry && typeof entry === 'object' ? entry : {}) }));
+    .map((entry) => {
+      const record = entry && typeof entry === 'object' ? entry : {};
+      return {
+        ...record,
+        identity: record.identity && typeof record.identity === 'object'
+          ? { ...record.identity }
+          : null,
+      };
+    });
 
   const previousHistory = Array.isArray(previousCompany.cycleHistory)
     ? previousCompany.cycleHistory
@@ -4272,12 +4273,20 @@ function carryWarriorCompanyAcrossCycle(previousState, nextState, config) {
   const previousChampionId = previousRuntime && previousRuntime.league && previousRuntime.league.championId
     ? String(previousRuntime.league.championId)
     : null;
+  const previousChampion = previousChampionId
+    ? (Array.isArray(previousState && previousState.dwarves) ? previousState.dwarves : [])
+      .find((dwarf) => String(dwarf && dwarf.id || '') === previousChampionId)
+    : null;
+  const previousChampionIdentity = previousChampionId
+    ? snapshotDwarfIdentity(previousChampion || previousChampionId, previousState, config)
+    : null;
   const cycleSummary = {
     cycle: previousCycleCount,
     name: previousIdentity.name ? String(previousIdentity.name) : '',
     focus: previousIdentity.focus ? String(previousIdentity.focus) : 'balanced',
     renown: clampUnit(Number(previousIdentity.renown || 0)),
     championId: previousChampionId,
+    championIdentity: previousChampionIdentity,
     tournaments: Math.max(
       0,
       Math.floor(Number(previousRuntime && previousRuntime.stats && previousRuntime.stats.tournaments || 0)),
@@ -4287,7 +4296,15 @@ function carryWarriorCompanyAcrossCycle(previousState, nextState, config) {
   nextCompany.cycleHistory = previousHistory
     .concat([cycleSummary])
     .slice(-historyLimit)
-    .map((entry) => ({ ...(entry && typeof entry === 'object' ? entry : {}) }));
+    .map((entry) => {
+      const record = entry && typeof entry === 'object' ? entry : {};
+      return {
+        ...record,
+        championIdentity: record.championIdentity && typeof record.championIdentity === 'object'
+          ? { ...record.championIdentity }
+          : null,
+      };
+    });
 
   const minCyclesForSeed = Math.max(0, Math.floor(Number(carryoverConfig.minCyclesForSeed || 0)));
   const cyclesBeyondFloor = Math.max(0, nextCycleIndex - minCyclesForSeed);
@@ -4310,6 +4327,7 @@ function carryWarriorCompanyAcrossCycle(previousState, nextState, config) {
     retainedRenown,
     seedBonus,
     sourceChampionId: previousChampionId,
+    sourceChampionIdentity: previousChampionIdentity,
   };
 
   if (seedBonus > 0) {

@@ -156,6 +156,12 @@ must not mutate the stored event.
 - `placeId` is nullable and limited to 96 bytes; `label` is nullable and limited to 120 bytes.
 - Invalid or incomplete locations normalize to the world-scoped default.
 
+When a committed place has an entry in `state.places`, producers use its stable `id` as `placeId`
+and snapshot the stored full name into `label`. The runtime registry, not render code, owns name
+generation. Event Log may resolve the current authoritative name by `placeId`; retained `label`
+remains the historical/legacy fallback. Compact place labels are presentation metadata on producer
+drafts and are deliberately outside the canonical v1 envelope, whose bounded schema is unchanged.
+
 Coordinates are historical facts only. Consumers must not assume that a referenced tile or entity
 still exists in the current cycle.
 
@@ -539,6 +545,20 @@ E0.2 reviewed the existing event path before choosing this contract:
 - `src/render/event_log_panel.js` reads tick/message/category plus optional importance, actor,
   location, and saga facts. It preserves all/drama filters, wraps compact context at `72x18`, and
   never mutates retained records.
+- `src/dwarf_identity.js` is the shared read-only resolver for dwarf actor presentation. It prefers
+  live deterministic lore, then retained actor/Hall of Fame/carry-over snapshots, and finally an
+  explicit `Unknown <id>` fallback. Its operation cache is hard-capped and consumes no RNG.
+- Priority lifecycle/social/combat/Warrior messages pass through its named-message formatter before
+  normalization. This changes display text only: canonical `actors[].id`, causes, consequences,
+  event identity/order, and compact retention limits remain authoritative and unchanged.
+- `src/place_identity.js` stores deterministic full/compact names for villages, roads, gates, lifts,
+  ruins, and Temple sites in bounded authoritative state. Place-aware producers snapshot its stable
+  IDs and full labels; Event Log, Inspect, and telemetry resolve the same registry without consuming
+  RNG. Future Chronicle consumers must retain source event IDs and place IDs.
+- `src/render/dwarf_visibility.js` reads bounded retained event actors to prioritize capped surface
+  and Underrealm rendering. Critical/legendary facts, saga membership, and recent incidents affect
+  presentation only; the selector retains no event copies, consumes no RNG, and does not enter AI
+  observations or map-export schemas.
 - Telemetry consumes compact message strings, not structured events.
 - AI observation and action code does not consume either event buffer.
 - The map-export snapshot excludes both event buffers.

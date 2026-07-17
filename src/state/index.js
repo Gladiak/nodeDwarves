@@ -6,6 +6,7 @@ const { createTempleState, createPrestigeState } = require('../simulation/temple
 const { createSchismState } = require('../simulation/schism');
 const { createDwarfWarriorState, createWarriorsState } = require('../simulation/warriors');
 const { createDwarfSocialState, createSocialDramaState } = require('../simulation/social_drama');
+const { bootstrapPlaceRegistry, createPlaceRegistry } = require('../place_identity');
 const {
   createTerrain,
   getTerrainSpawnPredicate,
@@ -1793,7 +1794,7 @@ function createInitialState(config, runtime) {
   const warriors = createWarriorsState(config);
   const social = createSocialDramaState(config);
 
-  return {
+  const state = {
     tick: 0,
     lastConfig: config,
     dwarves,
@@ -1819,6 +1820,7 @@ function createInitialState(config, runtime) {
     underrealm,
     warriors,
     social,
+    places: createPlaceRegistry(),
     roads,
     temple,
     prestige,
@@ -1931,6 +1933,8 @@ function createInitialState(config, runtime) {
       blockedChance: 0,
     },
   };
+  bootstrapPlaceRegistry(state, config);
+  return state;
 }
 
 // Create the initial world events state.

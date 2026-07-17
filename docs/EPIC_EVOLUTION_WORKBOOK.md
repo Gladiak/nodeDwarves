@@ -1,7 +1,9 @@
 # NodeDwarves Epic Evolution Workbook
 
 Last updated: 2026-07-17
-Status: Active implementation - M1 in progress (`E1` done; `E2.1` ready)
+Status: Active implementation - M1 complete; M2 ready
+Completed checkpoint: `E2.4` done
+Next executable step: `E3.1` ready
 Scope: Step-by-step delivery and evidence tracking for the project-wide epic simulation evolution
 
 This workbook turns the "living dwarven chronicle" direction into an executable plan. It is the
@@ -123,14 +125,14 @@ Dashboard:
 | Milestone | Workstreams | Outcome | Status | Entry gate | Exit gate |
 | --- | --- | --- | --- | --- | --- |
 | M0 - Measurement | E0 | Frozen narrative/watchability baseline and executable contracts | `Done` | Workbook initialized | E0 gate passes |
-| M1 - Structured stories | E1, E2 | Events know who/where/why; messages use stable identities | `In progress` | M0 done | Structured-event + identity gates pass |
-| M2 - Watchable simulation | E3, E4 | The terminal guides attention and protects important moments | `Not started` | M1 done | Director + presentation gates pass |
+| M1 - Structured stories | E1, E2 | Events know who/where/why; messages use stable identities | `Done` | M0 done | Structured-event + identity gates pass |
+| M2 - Watchable simulation | E3, E4 | The terminal guides attention and protects important moments | `Ready` | M1 done | Director + presentation gates pass |
 | M3 - Lived history | E5 | Biographies and chronicles contain actual deeds | `Not started` | M2 done | Chronicle integrity + cycle export gate passes |
 | M4 - Persistent civilization | E6 | Cycles inherit bounded, visible history | `Not started` | M3 done | Deterministic multi-cycle gate passes |
 | M5 - Epic world | E7, E8 | Named nemeses, staged sieges, and evolving landmarks | `Not started` | M4 done | Full quality gate + experience review passes |
 
-Current checkpoint: E1 is `Done`; `E2.1` is the next executable step. M1 remains `In progress`
-until the E2 identity/place workstream closes.
+Current checkpoint: `E2.4` is `Done`; `E3.1` is the next executable step. All E1/E2 exit gates pass,
+so M1 is `Done` and M2 is ready to begin with bounded Story Director state.
 
 Rules for ordering:
 
@@ -558,54 +560,155 @@ The contract, presentation, and non-regression exit evidence is complete. E1 is 
 
 ## 6) Workstream E2 - Identity, places, and readable actors
 
-Status: `Not started`
+Status: `Done`
 
 Objective: make events human-readable and give geography stable identity.
 
 ### E2.1 Shared identity resolver
 
-Status: `Ready`
+Status: `Done`
 
-- [ ] Add one public helper for resolving dwarf display name, house, role title, and fallback ID.
-- [ ] Reuse the deterministic lore seed; do not create competing name generators.
-- [ ] Cache display identities safely for high-frequency render paths.
-- [ ] Define behavior for dead, retired, carried-over, or missing actors.
+- [x] Add one public helper for resolving dwarf display name, house, role title, and fallback ID.
+- [x] Reuse the deterministic lore seed; do not create competing name generators.
+- [x] Cache display identities safely for high-frequency render paths.
+- [x] Define behavior for dead, retired, carried-over, or missing actors.
+
+E2.1 closure snapshot (2026-07-17):
+
+- Added `src/dwarf_identity.js` as the single public read model for stable ID, name, house, role
+  title, formatted label, lifecycle status, and resolution provenance. It reuses `dwarf_lore.js` for
+  live actors and never consumes RNG or mutates simulation state.
+- Resolution order is explicit: live dwarf; supplied/retained event snapshot; bounded Hall of Fame
+  or carry-over snapshot; `Unknown <id>`. Retired live dwarves remain readable, death facts retain
+  their event label, carried champions retain name/house/title across cycle seeds, and truly missing
+  actors never receive invented lore from the current cycle.
+- Added a hard-capped operation cache with FIFO identity eviction plus bounded requested-ID live and
+  historical indexes, and a `2048`-entry process cache limited to seed/ID-stable name/house fields.
+  It does not copy the full population per render; dynamic status stays operation-local and cache
+  entries are frozen.
+- Integrated the resolver into Event Log actor context, Inspect and social links, lifecycle actor
+  snapshots, Warrior League display wrappers, and Warrior telemetry. New Hall of Fame/carry-over
+  records persist only three bounded identity strings; old records degrade safely.
+- Focused contracts cover equal-seed identity, cache hits/hard caps, stable ID labels, living,
+  retired, dead, carried-over, and missing actors, plus Hall of Fame snapshot commit.
+- `npm run test:narrative` and `npm test` pass. The deterministic `2 x 1000` profile retains exact
+  populations `18/30` (average `24.0`), morale `0.8905`, hunger `0.1493`, and thirst `0.1003`.
+  No config, RNG order, simulation decision, event schema/cap, export, or AI shape changed.
 
 ### E2.2 Named event messages
 
-- [ ] Replace raw dwarf IDs in priority lifecycle/social/combat messages with display names.
-- [ ] Keep stable IDs available in structured actor references and detailed inspection.
-- [ ] Include house/clan/title only when it materially distinguishes the actor.
-- [ ] Add tests for newborn, deceased, retired, and unknown actor formatting.
+Status: `Done`
+
+- [x] Replace raw dwarf IDs in priority lifecycle/social/combat messages with display names.
+- [x] Keep stable IDs available in structured actor references and detailed inspection.
+- [x] Include house/clan/title only when it materially distinguishes the actor.
+- [x] Add tests for newborn, deceased, retired, and unknown actor formatting.
+
+E2.2 closure snapshot (2026-07-17):
+
+- Added shared named-message formatting to the E2.1 identity boundary. Lifecycle, social, Dwarf
+  Champion combat, and Warrior League emitters now replace raw dwarf IDs and full inspect labels
+  immediately before `pushEvent`; producer mechanics and compact message intent remain unchanged.
+- Canonical dwarf actor IDs, causes, consequences, event identity/order, and detailed Inspect labels
+  remain intact. Only player-facing message text changes.
+- Duplicate references to one actor are deduplicated. True equal-name collisions add `of House
+  <house>` only when it distinguishes the actors, then fall back to stable ID only if still
+  ambiguous. Tournament clan context remains because clan standings materially affect that story.
+- Unknown historical actors use the explicit `Unknown <id>` fallback without nested replacements.
+  Focused fixtures cover newborns, deceased actors, retired warriors, unknown actors, pair messages,
+  champion appointment/fall, collision disambiguation, and duplicate-reference handling.
+- A deterministic seed-`101`, `2000`-tick probe measured `165/165` retained priority messages with
+  named dwarf references and `0` raw-ID references (`100%`, above the frozen `95%` target).
+- `npm run test:narrative` and `npm test` pass. The deterministic `2 x 1000` benchmark retains exact
+  balance endpoints; no config, RNG order, simulation decision, event schema/cap, export, telemetry
+  metric, or AI observation/action shape changed.
 
 ### E2.3 Stable place identity
 
-- [ ] Generate deterministic names for villages, roads, major gates, lifts, ruins, and temple sites.
-- [ ] Store names in authoritative state instead of regenerating them in render code.
-- [ ] Reference place names in events, inspect views, telemetry, and chronicles.
-- [ ] Preserve compact fallback labels for narrow terminals.
+Status: `Done`
+
+- [x] Generate deterministic names for villages, roads, major gates, lifts, ruins, and temple sites.
+- [x] Store names in authoritative state instead of regenerating them in render code.
+- [x] Reference place names in events, inspect views, telemetry, and chronicles.
+- [x] Preserve compact fallback labels for narrow terminals.
+
+E2.3 closure snapshot (2026-07-17):
+
+- Added `state.places`, a schema-versioned plain-JSON registry with stable insertion order, ID lookup,
+  scalar rejection diagnostics, and a hard `256`-record cap. Established records are never evicted
+  or renamed; coordinate/depth refreshes preserve identity.
+- Full names derive from the authoritative terrain seed, kind, stable ID, and committed spatial facts
+  through a local hash and fixed vocabulary. The generator consumes no gameplay RNG. Every record
+  also retains a compact label for narrow presentation.
+- Initial state registers the Deep Gate and bounded depth ruins. Village founding, road completion,
+  Temple site selection, and lift milestones register after authoritative state commits. Events
+  snapshot stable `placeId` and names; Event Log prefers registry state, Inspect shows the nearest
+  named village, and Underrealm/Temple telemetry share the same lookup.
+- Chronicle runtime remains scheduled for E5; its contract is now explicit: consume retained event
+  source IDs plus authoritative place IDs/names and never synthesize a second place identity.
+- Focused contracts cover equal-seed generation, RNG isolation, stable re-registration, compact/full
+  labels, serialization, hard-cap rejection, initial gate/ruins bootstrap, and authoritative Event
+  Log lookup. A deterministic `2000`-tick probe produced `15` places across gate/ruins/Temple/
+  village/road kinds, with `0` duplicate names, `0` rejected records, and `0` stale named-event
+  locations. Deep Lifts are covered by their milestone registration contract because this probe did
+  not reach a lift transition.
+- `npm run test:narrative` and `npm test` pass. A deterministic repeated `1000`-tick run is byte-exact
+  (SHA-256 `bafc98fd533ebe9e3b411d3ead950853893c5c9b8e9e3b4b56f8071cf71f7408`). No config,
+  gameplay decision, RNG order, event-v1 schema/cap, map-export schema, or AI observation/action shape
+  changed.
 
 ### E2.4 Priority visibility
 
-- [ ] Define story actor priority tiers for the bounded visible-dwarf selection.
-- [ ] Guarantee current critical/legendary actors are rendered when their layer is visible.
-- [ ] Prefer champions, endangered dwarves, saga protagonists, and current incident actors.
-- [ ] Keep selection stable enough to avoid visual flicker.
+Status: `Done`
+
+- [x] Define story actor priority tiers for the bounded visible-dwarf selection.
+- [x] Guarantee current critical/legendary actors are rendered when their layer is visible.
+- [x] Prefer champions, endangered dwarves, saga protagonists, and current incident actors.
+- [x] Keep selection stable enough to avoid visual flicker.
+
+E2.4 closure snapshot (2026-07-17):
+
+- Added one shared renderer selector with explicit tiers: recent critical/legendary event actors;
+  endangered dwarves; active League/Deep champions; recent saga protagonists; current incident
+  actors; the prior visible set; adults; other life stages. Surface and layer-local Underrealm
+  candidate sets use the same ordering.
+- The selector scans at most `160` newest retained events. Urgent and incident windows are `240`
+  ticks; saga continuity is `1200` ticks. Only live, layer-eligible dwarf actors are retained. If a
+  tier alone exceeds `maxVisible`, newest event/actor order wins without exceeding the configured
+  cap.
+- Previous visible order breaks equal-tier ties, so unchanged input returns the exact same ordered
+  IDs. A new urgent actor preempts only the lowest selected tier. Stable population order is the
+  final fallback; no render-time shuffle or gameplay RNG remains in `src/render/`.
+- Focused above-cap contracts use `80` live dwarves with `maxVisible=6` and prove urgent child,
+  endangered, champion, saga, incident, and retained actors fill the expected slots; a new legendary
+  actor deterministically preempts the retained fallback. Hidden/unlimited caps and Underrealm-local
+  ranking retain their contracts.
+- A synthetic `240`-dwarf/`160`-event render probe with cap `60` measured selector mean `0.134 ms`,
+  full-frame mean `0.865 ms`, and frame p95 `1.010 ms` over `300` frames, with `0` RNG calls. This is
+  below the frozen E0 surface-build mean of `1.146 ms` and shows no material render regression.
+- `npm run test:narrative` and `npm test` pass. Cached benchmark metadata remains aligned; config,
+  structured-event retention, map-export schema, and AI observation/action shapes are unchanged.
+  Removing the old view-layer shuffle intentionally ends presentation-dependent interactive RNG
+  drift; headless simulation and balance decisions are unchanged.
 
 E2 exit criteria:
 
-- [ ] Priority message named-actor share meets the frozen target.
-- [ ] Named locations are deterministic across equal seeds.
-- [ ] Identity resolution has no per-tick unbounded allocation hotspot.
-- [ ] Render-priority tests cover population above `display.dwarves.maxVisible`.
+- [x] Priority message named-actor share meets the frozen target.
+- [x] Named locations are deterministic across equal seeds.
+- [x] Identity resolution has no per-tick unbounded allocation hotspot.
+- [x] Render-priority tests cover population above `display.dwarves.maxVisible`.
+
+All E2 exit evidence is complete. E2 and M1 are `Done`.
 
 ## 7) Workstream E3 - Epic Story Director
 
-Status: `Not started`
+Status: `Ready`
 
 Objective: aggregate events into readable arcs and choose what deserves observer attention.
 
 ### E3.1 Director state and configuration
+
+Status: `Ready`
 
 - [ ] Add bounded `state.story` runtime state with current focus, saga registry, cooldowns, and history.
 - [ ] Add config for importance thresholds, interruption budget, escalation, saga inactivity timeout,
@@ -918,13 +1021,15 @@ Stop rules:
 | ER-001 | Narrative state becomes another unbounded log | Medium | High | Hard caps, compaction, source references, long-run size assertions | Open |
 | ER-002 | Story Director creates constant interruptions | High | High | Importance threshold, cooldown budget, escalation, suppression trace | Open |
 | ER-003 | Structured-event migration changes simulation behavior | Low | High | Backward-compatible wrapper, presentation-only tests, end-state parity | Mitigated; E1 closed |
-| ER-004 | Display-name resolution becomes a render hotspot | Medium | Medium | Stable cached identity resolver and allocation profiling | Open |
+| ER-004 | Display-name resolution becomes a render hotspot | Low | Medium | Stable cached identity resolver, bounded event scan, and allocation/performance probes | Mitigated through E2.4; monitor Story Director consumers |
 | ER-005 | Chronicle flavor invents unsupported facts | Medium | High | Fact templates bound to structured source events; integrity tests | Open |
 | ER-006 | Multi-cycle legacy creates runaway bonuses | Medium | High | Bounded modifiers, diminishing returns, 2/5-cycle gates | Open |
 | ER-007 | Camera refactor couples world size to terminal size incorrectly | Medium | High | Overlay-first milestone; explicit architecture decision checkpoint | Open |
 | ER-008 | Landmark footprints break placement/pathing/export | Medium | Medium | Reuse temple pattern, deterministic placement scenarios, export tests | Open |
 | ER-009 | New threats make stable colonies unrecoverable | Medium | High | Staged rollout, recovery windows, cached benchmark and collapse blockers | Open |
 | ER-010 | AI observes a world contract that changed silently | Low | High | Shape contracts, compatibility classification, explicit fresh-training gate | Open |
+| ER-011 | Place identity grows without bounds or diverges between UI consumers | Low | Medium | Hard-capped authoritative registry, RNG-neutral deterministic names, stable IDs, serialization and UI lookup contracts | Mitigated through E2.3; monitor Chronicle integration |
+| ER-012 | Capped rendering hides urgent actors or flickers as population grows | Low | High | Shared deterministic priority tiers, layer eligibility, prior-set stability, urgent preemption, and above-cap contracts | Mitigated through E2.4; monitor Story Director focus integration |
 
 ## 16) Decision log
 
@@ -952,6 +1057,10 @@ Record every non-trivial scope or architecture decision.
 | 2026-07-17 | ED-018 | Treat artifact latching and UI fades as pre-reset facts, but emit cycle closure and carry-over only after the replacement state installs its completed-cycle counter | Emit every fact before reset; let carry-over emit during helper mutation; preserve the legacy pre-install identity | Keeps the fade readable in the departing hold while ensuring durable closure/carry-over IDs belong to the authoritative new cycle at tick 0 | E1.2 endgame boundary and cross-cycle identity | Approved |
 | 2026-07-17 | ED-019 | Use one shared secondary-event boundary plus a zero-legacy source audit while leaving producer mechanics in their thematic modules | Add one bespoke event-builder module per secondary system; keep compatibility-normalized string producers indefinitely | Gives broad E1.3 coverage with consistent actor/location/resource facts, avoids duplicating envelope boilerplate, and makes future regression visible in `npm test` | E1.3 secondary migration and enforcement | Approved |
 | 2026-07-17 | ED-020 | Render structured context as a compact wrapped row beneath each Event Log message and retain only all/drama filters | Add another modal/detail state; add importance/actor/location filters immediately; replace compact messages with dense cards | Exposes E1 facts at the minimum layout without new mutable UI state or unevidenced filter complexity | E1.4 Event Log presentation | Approved |
+| 2026-07-17 | ED-021 | Resolve dwarf presentation through one read-only helper with operation-scoped bounded caches and historical identity snapshots | Keep per-consumer lore calls; use an unbounded state cache; regenerate missing cross-cycle actors with the current terrain seed | Keeps identity coherent, avoids stale/unbounded runtime state, and prevents invented cross-cycle names | E2.1 shared identity architecture | Approved |
+| 2026-07-17 | ED-022 | Rewrite raw dwarf references at the event-builder presentation boundary and add house/ID context only for real ambiguity | Rewrite mechanics-layer strings everywhere; include full name/house/title/ID in every message; drop stable structured IDs | Isolates display changes from simulation logic, keeps compact messages readable, and preserves machine identity | E2.2 named-message presentation | Approved |
+| 2026-07-17 | ED-023 | Store deterministic place identity in one bounded authoritative state registry and make render/telemetry/Chronicle consumers resolve stable place IDs | Generate names independently in each renderer; store names only in event strings; add an unbounded spatial history | Keeps place names coherent and serializable without gameplay RNG, protects narrow layouts with stored compact labels, and gives future Chronicle claims stable references | E2.3 place identity architecture | Approved |
+| 2026-07-17 | ED-024 | Rank capped surface and Underrealm dwarf candidates through one RNG-free story-priority selector with bounded event windows and prior-set tie stability | Keep adult-first random fill; pin only champions; let each layer invent independent priority rules; exceed the cap for urgent events | Guarantees the most important live actors when capacity permits, makes saturation deterministic, prevents flicker, and removes presentation-dependent gameplay RNG drift without changing AI or headless simulation | E2.4 priority visibility architecture | Approved |
 
 ## 17) Implementation log
 
@@ -973,6 +1082,10 @@ within the repository retention policy.
 | 2026-07-17 | EW-010 | E1.2 endgame slice and priority-family closure: migrate artifact recovery/collection, presentation transitions, cycle closure, and Warrior Company carry-over with authoritative cross-cycle identity | `src/simulation/endgame_events.js`, `src/simulation/endgame.js`, `src/simulation/ruins.js`, `src/simulation/warriors.js`, `app.js`, `config.json`, `scripts/test_narrative_contracts.js`, `benchmark_cache/`, `docs/PARAMETERS.md`, `docs/NARRATIVE_EVENT_CONTRACT.md`, `docs/EPIC_EVOLUTION_WORKBOOK.md`, `AGENTS.md`, `README.md`, `MANUAL.md` | Six-type RNG-neutral fixtures, real two-reset/latch/carry-over integration, `npm run test:narrative`, `npm test`, deterministic pre/post `2 x 1000`, final cached `4 x 8000` refresh + aligned recheck, terminal render smoke, `git diff --check` | Done | All endgame priority facts are canonical; post-swap IDs use cycles 3/4 at tick 0 in the multi-cycle fixture; short and full profiles retain exact frozen endpoints; cache hash `e1519c0df9bd6c76c2d06de0f1f02f7cd2cddba47f426565c7ad5da3a4872656` is aligned; E1.2 is closed |
 | 2026-07-17 | EW-011 | E1.3 secondary-producer closure: migrate world/diplomacy, culture/environment, and development/resource facts; enforce zero direct legacy producers | `src/simulation/secondary_events.js`, secondary producer modules, `src/simulation/warrior_events.js`, `scripts/audit_narrative_producers.js`, `scripts/test_narrative_contracts.js`, `package.json`, `config.json`, `benchmark_cache/`, narrative/docs/layout references | Zero-legacy audit, RNG-neutral boundary fixture, deterministic 2000-tick event diagnostic, `npm run test:narrative`, `npm test`, `2 x 1000`, `4 x 8000`, cache refresh + aligned recheck, terminal render smoke, `git diff --check` | Done | Audit reports `structured=35 legacy=0`; 2000-tick diagnostic accepted 357 events with zero rejection/legacy normalization; short/full endpoints exactly match frozen values; cache hash `5f7eb76f2a01df15bfc32eb814de4bb52e37efa73c16fa75160e1e33cb84e4be` is aligned; E1.3 is closed |
 | 2026-07-17 | EW-012 | E1.4 Event Log closure: expose importance, named actors, place, and saga context in responsive wrapped rows while preserving legacy display, filters, scrolling, and storage | `src/render/event_log_panel.js`, `scripts/test_narrative_contracts.js`, narrative/product/operations docs | Syntax checks, mixed v0/v1 and `72x18` renderer fixtures, `npm run test:narrative`, `npm test`, deterministic `2 x 1000`, cached-baseline aligned guard, terminal render smoke, `git diff --check` | Done | Structured facts render without retained-record mutation or new UI state; short endpoints remain exact; AI/export contracts pass; E1 is closed and E2.1 is ready |
+| 2026-07-17 | EW-013 | E2.1 shared identity resolver: unify live/historical dwarf labels, bounded render caches, and Hall of Fame/carry-over snapshots across Event Log, Inspect, lifecycle, Warrior League, and telemetry | `src/dwarf_identity.js`, identity consumers, `src/dwarf_lore.js`, `scripts/test_narrative_contracts.js`, narrative/product/operations/layout docs | Syntax checks, living/retired/dead/carried-over/missing fixtures, cache cap/determinism assertions, Hall snapshot integration, `npm run test:narrative`, `npm test`, deterministic `2 x 1000`, cached-baseline guard, terminal render smoke, `git diff --check` | Done | One RNG-neutral resolver is authoritative; exact short endpoints and AI/export contracts pass; E2.1 is closed and E2.2 is ready |
+| 2026-07-17 | EW-014 | E2.2 named messages: replace raw dwarf references across priority lifecycle/social/combat/Warrior presentation while retaining canonical actor IDs and compact ambiguity rules | `src/dwarf_identity.js`, priority event builders, `scripts/test_narrative_contracts.js`, narrative/product/operations docs | Syntax checks, newborn/deceased/retired/unknown/collision fixtures, deterministic 2000-tick coverage probe, `npm run test:narrative`, `npm test`, deterministic `2 x 1000`, cached-baseline guard, terminal render smoke, `git diff --check` | Done | Coverage is `165/165` named and `0` raw (`100%`); exact short endpoints and AI/export contracts pass; E2.2 is closed and E2.3 is ready |
+| 2026-07-17 | EW-015 | E2.3 stable place identity: persist deterministic full/compact names for villages, roads, Deep Gate/lifts, ruins, and Temple sites; share them across events and UI | `src/place_identity.js`, state/simulation producers, Event Log/Inspect/telemetry consumers, `scripts/test_narrative_contracts.js`, narrative/product/operations/layout docs | Syntax checks, deterministic/RNG/cap/serialization/renderer fixtures, deterministic 2000-tick place probe, repeated exact 1000-tick run, `npm run test:narrative`, `npm test`, cached-baseline guard, terminal render smoke, `git diff --check` | Done | Probe retained 15 places with 0 duplicate names/rejections/stale named-event locations; repeated run hash is exact; config, simulation decisions, v1/AI/export shapes remain unchanged; E2.3 closed here and E2.4 was subsequently completed in EW-016 |
+| 2026-07-17 | EW-016 | E2.4 priority visibility and M1 closure: share deterministic story tiers across capped surface/deep dwarf rendering and remove render-time gameplay RNG | `src/render/dwarf_visibility.js`, `src/render/index.js`, `scripts/test_narrative_contracts.js`, product/parameter/narrative/operations/layout docs | Syntax checks, 80-dwarf above-cap/preemption/stability/layer/RNG fixtures, 240-dwarf selector and 300-frame performance probe, `npm run test:narrative`, `npm test`, deterministic `2 x 1000`, cached-baseline guard, terminal render smoke, `git diff --check` | Done | Cap-6 fixture retains all six required tier representatives; selector mean 0.134 ms, frame mean/p95 0.865/1.010 ms, RNG calls 0; AI/export/config contracts remain stable; E2 and M1 are closed, with E3.1 next |
 
 ## 18) Checkpoint template
 
@@ -1057,8 +1170,16 @@ Execute one bounded step at a time:
     resource milestones; add the remaining-legacy producer audit.
 12. [x] `E1.4 / Event Log integration` - Render importance, actors, location, and saga membership while
     preserving filters, scrolling, bounded storage, and narrow-terminal readability.
-13. [ ] `E2.1 / shared identity resolver` - Resolve stable dwarf names, houses, role titles, and
-    fallbacks for living, dead, retired, carried-over, and missing actors. **Next.**
+13. [x] `E2.1 / shared identity resolver` - Resolve stable dwarf names, houses, role titles, and
+    fallbacks for living, dead, retired, carried-over, and missing actors.
+14. [x] `E2.2 / named event messages` - Replace raw dwarf IDs in priority lifecycle, social, and
+    combat messages while retaining stable IDs in structured actor references.
+15. [x] `E2.3 / stable place identity` - Generate authoritative deterministic names for villages,
+    roads, gates, lifts, ruins, and Temple sites, with compact render fallbacks.
+16. [x] `E2.4 / priority visibility` - Guarantee current critical/legendary actors remain visible under
+    the bounded render population cap, with stable priority selection.
+17. [ ] `E3.1 / Director state and configuration` - Add bounded deterministic Story Director runtime
+    state and config without exposing it to PPO observations. **Next.**
 
 The first implementation slice should remain deliberately narrow: event schema, birth/death
 producers, identity resolution, Event Log compatibility, deterministic tests, and documentation.

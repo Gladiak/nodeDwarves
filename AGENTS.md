@@ -63,6 +63,8 @@ This file defines how to implement new features in a consistent, stable way.
 - `src/state.js`: thin wrapper for `src/state/index.js`.
 - `src/render/`: render helpers (grid, header, legend, colors, format, overlays).
 - `src/render/index.js`: render orchestrator.
+- `src/render/dwarf_visibility.js`: deterministic bounded story-priority selection shared by surface
+  and Underrealm dwarf rendering.
 - `src/render/map_inset_panel.js`: carved top-right in-map operations snapshot panel (tick/year/cycle, population age split, underrealm unlock info, keyboard hints).
 - `src/render/warrior_panel.js`: Warrior League analytics modal overlay (champion lineage, top-5 fighters, marks/legacy summary).
 - `src/render/event_log_panel.js`: Event Log modal overlay with scrollable real-time events,
@@ -73,10 +75,14 @@ This file defines how to implement new features in a consistent, stable way.
 - `src/render.js`: thin wrapper for `src/render/index.js`.
 - `src/runtime.js`: terminal sizing and layout.
 - `src/terminal.js`: terminal helpers.
+- `src/dwarf_identity.js`: shared deterministic dwarf identity resolver and named-event formatter with
+  bounded caches, historical snapshot lookup, collision disambiguation, and explicit fallbacks.
+- `src/place_identity.js`: bounded authoritative registry for deterministic place names, compact
+  labels, coordinates, and event/UI location lookup.
 - `src/ai/`: AI modules (policy and observation).
 - `src/ai_policy.js`: thin wrapper for `src/ai/policy.js`.
 - `src/clans.js`: clan helpers and weighted clan distribution.
-- `src/dwarf_lore.js`: deterministic lore generation for inspect panel.
+- `src/dwarf_lore.js`: deterministic lore seed and generation for identity, inspect, and narrative consumers.
 - `src/utils.js`: shared helpers.
 - `ai_server.js`: JS inference bridge for training.
 - `scripts/export_map.js`: CLI map export pipeline (PNG + SVG).

@@ -1,6 +1,9 @@
 'use strict';
 
-const { buildDwarfLore } = require('../dwarf_lore');
+const {
+  formatNamedEventMessage,
+  resolveDwarfIdentity,
+} = require('../dwarf_identity');
 const { pushEvent } = require('./events');
 
 const SETTLEMENT_ID = 'settlement_main';
@@ -11,13 +14,12 @@ function buildDwarfActor(state, config, dwarf, role) {
   if (!dwarf || !dwarf.id) {
     return null;
   }
-  const lore = buildDwarfLore(dwarf, state, config);
-  const label = lore && lore.name ? String(lore.name) : String(dwarf.id);
+  const identity = resolveDwarfIdentity(dwarf, state, config);
   return {
     kind: 'dwarf',
     id: String(dwarf.id),
     role,
-    label,
+    label: identity.displayName,
   };
 }
 
@@ -48,7 +50,7 @@ function emitBirthEvent(state, config, newborn, parentA, parentB) {
   return pushEvent(state, config, {
     type: 'lifecycle.birth',
     category: 'lifecycle',
-    message: `Birth: ${newborn.id}`,
+    message: formatNamedEventMessage(`Birth: ${newborn.id}`, [newborn], state, config),
     actors,
     location: buildDwarfLocation(newborn),
     causes: [{
@@ -93,7 +95,7 @@ function emitDeathEvent(state, config, dwarf, cause) {
   return pushEvent(state, config, {
     type: 'lifecycle.death',
     category: 'lifecycle',
-    message: `Death: ${dwarf.id} (${messageCause})`,
+    message: formatNamedEventMessage(`Death: ${dwarf.id} (${messageCause})`, [dwarf], state, config),
     actors: [buildDwarfActor(state, config, dwarf, 'victim')].filter(Boolean),
     location: buildDwarfLocation(dwarf),
     causes: [causeFact],
@@ -118,7 +120,12 @@ function emitPartnershipEvent(state, config, dwarfA, dwarfB) {
   return pushEvent(state, config, {
     type: 'lifecycle.partnership_formed',
     category: 'lifecycle',
-    message: `Partnership: ${dwarfA.id} and ${dwarfB.id} formed a bond`,
+    message: formatNamedEventMessage(
+      `Partnership: ${dwarfA.id} and ${dwarfB.id} formed a bond`,
+      [dwarfA, dwarfB],
+      state,
+      config,
+    ),
     actors: [
       buildDwarfActor(state, config, dwarfA, 'primary'),
       buildDwarfActor(state, config, dwarfB, 'secondary'),

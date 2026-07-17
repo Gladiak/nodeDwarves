@@ -80,6 +80,24 @@ const {
 } = require('../src/simulation/secondary_events');
 const { auditNarrativeProducers } = require('./audit_narrative_producers');
 const { buildEventLogPanel } = require('../src/render/event_log_panel');
+const {
+  selectPriorityVisibleDwarves,
+  sortDwarvesByRenderPriority,
+} = require('../src/render/dwarf_visibility');
+const {
+  createDwarfIdentityCache,
+  formatNamedEventMessage,
+  resolveDwarfIdentity,
+  resolveDwarfMessageNames,
+  snapshotDwarfIdentity,
+} = require('../src/dwarf_identity');
+const {
+  PLACE_REGISTRY_MAX_ENTRIES,
+  buildPlaceLocation,
+  createPlaceRegistry,
+  registerPlace,
+  resolvePlaceLabel,
+} = require('../src/place_identity');
 
 const ROOT = path.resolve(__dirname, '..');
 
@@ -606,7 +624,8 @@ function validateLifecycleBirthContract() {
   const event = state.eventLog.find((entry) => entry.type === 'lifecycle.birth');
   const newborn = state.dwarves[state.dwarves.length - 1];
   assert(state.dwarves.length === beforePopulation + 1, 'Due pregnancy did not create one newborn.');
-  assert(event && event.message === `Birth: ${newborn.id}`, 'Birth producer changed compact message compatibility.');
+  assert(event && event.message === `Birth: ${event.actors[0].label}`, 'Birth producer did not use the newborn name.');
+  assert(!event.message.includes(newborn.id), 'Birth message leaked the newborn raw ID.');
   assert(event.importance === 'notable', 'Birth importance config mismatch.');
   assert(event.actors[0].id === newborn.id && event.actors[0].role === 'primary', 'Birth event lacks newborn actor.');
   assert(event.actors.filter((actor) => actor.role === 'parent').length === 2, 'Birth event lacks both parents.');
@@ -646,7 +665,11 @@ function validateLifecycleDeathContract() {
   handleDeaths(state, config);
   const event = state.eventLog.find((entry) => entry.type === 'lifecycle.death');
   assert(!state.dwarves.some((dwarf) => dwarf.id === victimId), 'Starvation victim remained in population.');
-  assert(event && event.message === `Death: ${victimId} (starvation)`, 'Death compact message compatibility changed.');
+  assert(
+    event && event.message === `Death: ${event.actors[0].label} (starvation)`,
+    'Death producer did not retain the deceased name.',
+  );
+  assert(!event.message.includes(victimId), 'Death message leaked the deceased raw ID.');
   assert(event.importance === 'major', 'Death importance config mismatch.');
   assert(event.actors[0].id === victimId && event.actors[0].role === 'victim', 'Death event lacks victim actor.');
   assert(event.causes[0].ref === 'needs.starvation', 'Death event lacks starvation cause evidence.');
@@ -698,6 +721,10 @@ function validateLifecyclePartnershipContract() {
   const event = events[0];
   assert(event.importance === 'notable', 'Partnership importance config mismatch.');
   assert(event.actors.length === 2, 'Partnership event lacks both dwarf actors.');
+  assert(
+    event.actors.every((actor) => event.message.includes(actor.label) && !event.message.includes(actor.id)),
+    'Partnership message did not replace both raw IDs with names.',
+  );
   assert(event.consequences.length === 2, 'Partnership event lacks reciprocal status consequences.');
   assert(event.location.scope === 'surface', 'Partnership event lacks surface location.');
   assert(validateNarrativeEvent(event).valid, 'Partnership producer emitted a malformed event.');
@@ -807,7 +834,10 @@ function validateSocialIncidentEmitterContract() {
       assert(event && event.type === fixture.eventType, `${fixture.type} event type mismatch.`);
       assert(event.category === 'social', `${fixture.type} event category mismatch.`);
       assert(event.importance === fixture.importance, `${fixture.type} importance mismatch.`);
-      assert(event.message === fixture.message, `${fixture.type} compact message changed.`);
+      assert(
+        event.actors.every((actor) => event.message.includes(actor.label) && !event.message.includes(actor.id)),
+        `${fixture.type} message did not replace raw pair IDs with names.`,
+      );
       assert(
         JSON.stringify(event.actors.map((actor) => actor.role)) === JSON.stringify(fixture.actorRoles),
         `${fixture.type} actor roles mismatch.`,
@@ -1064,6 +1094,15 @@ function validateCombatEmitterContract() {
     'Champion victory did not retain depth unlock outcome.',
   );
   assert(emitted[8].importance === 'critical', 'Dwarf Champion fall importance mismatch.');
+  assert(
+    emitted[7].message.includes(emitted[7].actors[0].label)
+      && !emitted[7].message.includes(left.id),
+    'Dwarf Champion appointment did not use the resolved display name.',
+  );
+  assert(
+    emitted[8].message.includes('Unknown <dwarf_fallen_champion>'),
+    'Missing fallen champion did not use the explicit unknown-ID fallback.',
+  );
   assert(emitted[10].importance === 'critical', 'Deep raid casualty importance mismatch.');
 }
 
@@ -1200,8 +1239,21 @@ function validateWarriorEmitterContract() {
     assert(event.causes.length > 0, `${event.type} lacks causal evidence.`);
     assert(event.consequences.length > 0, `${event.type} lacks typed consequences.`);
     assert(validateNarrativeEvent(event).valid, `${event.type} producer emitted a malformed event.`);
+    const knownActors = event.actors.filter((actor) => actor.kind === 'dwarf' && actor.label);
+    assert(
+      knownActors.some((actor) => event.message.includes(actor.label)),
+      `${event.type} message lacks a named dwarf actor.`,
+    );
+    assert(
+      knownActors.every((actor) => !event.message.includes(actor.id)),
+      `${event.type} message leaked a raw dwarf ID.`,
+    );
   }
   assert(emitted[4].importance === 'major', 'Warrior retirement importance mismatch.');
+  assert(
+    emitted[4].message.includes(emitted[4].actors[0].label),
+    'Warrior retirement message did not retain the retired dwarf name.',
+  );
   assert(emitted[8].importance === 'critical', 'Tournament death importance mismatch.');
   assert(
     emitted[9].consequences.some((entry) => entry.targetId === 'warrior_hall_of_fame'),
@@ -1306,6 +1358,11 @@ function validateWarriorTournamentIntegrationContract() {
   assert(
     state.warriors.company.hallOfFame[0].dwarfId === adults[0].id,
     'Actual tournament did not commit the Hall of Fame entry before emission.',
+  );
+  assert(
+    state.warriors.company.hallOfFame[0].identity
+      && state.warriors.company.hallOfFame[0].identity.name,
+    'Hall of Fame entry did not retain its bounded identity snapshot.',
   );
   assert(
     crownEvents[0].consequences.some((entry) => entry.targetId === 'warrior_hall_of_fame'),
@@ -1956,6 +2013,325 @@ function validateSecondaryProducerMigrationContract() {
   assert(audit.structuredCallSites > 0, 'E1.3 audit did not identify structured boundary call sites.');
 }
 
+// Validate shared live/historical identity resolution and bounded cache behavior.
+function validateDwarfIdentityResolverContract() {
+  const config = loadConfig();
+  const living = {
+    id: 'dwarf_identity_1',
+    role: 'builder',
+    state: { morale: 0.8 },
+    warrior: { retired: false },
+  };
+  const retired = {
+    id: 'dwarf_identity_2',
+    role: 'gatherer',
+    state: { morale: 0.6 },
+    warrior: { retired: true },
+  };
+  const state = {
+    tick: 91,
+    terrain: { seed: 4242 },
+    dwarves: [living, retired],
+    eventLog: [{
+      id: 'evt:v1:c0000:t0000000090:s0000',
+      type: 'lifecycle.death',
+      actors: [{ kind: 'dwarf', id: 'dwarf_identity_dead', role: 'victim', label: 'Dorin Ashguard' }],
+      consequences: [{ kind: 'death', targetId: 'dwarf_identity_dead' }],
+    }],
+    warriors: {
+      company: {
+        hallOfFame: [{
+          dwarfId: 'dwarf_identity_legacy',
+          identity: {
+            name: 'Borin Stoneward',
+            house: 'Stone-Ward',
+            roleTitle: 'Stone Captain',
+          },
+        }],
+        carryover: {
+          sourceChampionId: 'dwarf_identity_legacy',
+          sourceChampionIdentity: {
+            name: 'Borin Stoneward',
+            house: 'Stone-Ward',
+            roleTitle: 'Stone Captain',
+          },
+        },
+      },
+    },
+  };
+  const cache = createDwarfIdentityCache(2);
+  const liveIdentity = resolveDwarfIdentity(living.id, state, config, { cache });
+  assert(liveIdentity.status === 'living' && liveIdentity.source === 'live', 'Live identity status/source mismatch.');
+  assert(liveIdentity.name !== 'Unknown' && liveIdentity.house, 'Live identity did not reuse deterministic lore.');
+  assert(liveIdentity.roleTitle === 'Oathwright', 'Live identity role title mismatch.');
+  assert(liveIdentity.label.endsWith(`<${living.id}>`), 'Live identity label lost its stable ID.');
+  assert(Object.isFrozen(liveIdentity), 'Cached identity read model is mutable.');
+  assert(
+    resolveDwarfIdentity(living.id, state, config, { cache }) === liveIdentity,
+    'Repeated live identity resolution missed the operation cache.',
+  );
+  living.role = 'manager';
+  const reassignedIdentity = resolveDwarfIdentity(living.id, state, config, { cache });
+  assert(
+    reassignedIdentity.roleTitle === 'Hallmaster' && reassignedIdentity.name === liveIdentity.name,
+    'Dynamic role invalidation changed stable lore or retained a stale title.',
+  );
+
+  const retiredIdentity = resolveDwarfIdentity(retired.id, state, config, { cache });
+  assert(retiredIdentity.status === 'retired', 'Living retired dwarf was not classified as retired.');
+  const deadIdentity = resolveDwarfIdentity('dwarf_identity_dead', state, config, { cache });
+  assert(
+    deadIdentity.status === 'dead' && deadIdentity.name === 'Dorin Ashguard',
+    'Dead identity did not retain the authoritative event snapshot.',
+  );
+  assert(deadIdentity.roleTitle === 'Fallen Dwarf', 'Dead identity fallback role title mismatch.');
+
+  const carriedIdentity = resolveDwarfIdentity('dwarf_identity_legacy', state, config, { cache });
+  assert(carriedIdentity.status === 'carried_over', 'Carried-over champion status mismatch.');
+  assert(
+    carriedIdentity.name === 'Borin Stoneward'
+      && carriedIdentity.house === 'Stone-Ward'
+      && carriedIdentity.roleTitle === 'Stone Captain',
+    'Carried-over champion lost its bounded identity snapshot.',
+  );
+  const missingIdentity = resolveDwarfIdentity('dwarf_identity_missing', state, config, { cache });
+  assert(missingIdentity.status === 'missing', 'Unknown identity did not use missing status.');
+  assert(
+    missingIdentity.label === 'Unknown <dwarf_identity_missing>',
+    'Unknown identity did not preserve the explicit fallback ID.',
+  );
+  assert(cache.identities.size <= 2, 'Dwarf identity cache exceeded its configured hard cap.');
+
+  const unknownMessage = formatNamedEventMessage(
+    'Death: dwarf_identity_unknown',
+    ['dwarf_identity_unknown'],
+    { tick: 1, terrain: { seed: 4242 }, dwarves: [], eventLog: [] },
+    config,
+  );
+  assert(
+    unknownMessage === 'Death: Unknown <dwarf_identity_unknown>',
+    'Unknown message fallback nested or dropped its stable ID.',
+  );
+  const collisionState = {
+    tick: 1,
+    terrain: { seed: 4242 },
+    dwarves: [],
+    eventLog: [],
+    warriors: {
+      company: {
+        hallOfFame: [
+          {
+            dwarfId: 'dwarf_twin_a',
+            identity: { name: 'Dori Ironhand', house: 'Ash-Forge', roleTitle: 'Oathwright' },
+          },
+          {
+            dwarfId: 'dwarf_twin_b',
+            identity: { name: 'Dori Ironhand', house: 'Rune-Hall', roleTitle: 'Hallmaster' },
+          },
+        ],
+        carryover: {},
+      },
+    },
+  };
+  const collisionNames = resolveDwarfMessageNames(
+    ['dwarf_twin_a', 'dwarf_twin_b'],
+    collisionState,
+    config,
+  ).map((entry) => entry.messageName);
+  assert(
+    collisionNames[0] === 'Dori Ironhand of House Ash-Forge'
+      && collisionNames[1] === 'Dori Ironhand of House Rune-Hall',
+    'House context was not limited to a material name collision.',
+  );
+  const duplicateActorMessage = formatNamedEventMessage(
+    `Champion: ${living.id}`,
+    [living, living.id],
+    state,
+    config,
+  );
+  assert(
+    duplicateActorMessage === `Champion: ${reassignedIdentity.name}`,
+    'Duplicate references to one actor triggered false identity disambiguation.',
+  );
+
+  const twinState = { ...state, dwarves: [clone(living), clone(retired)] };
+  const twinIdentity = resolveDwarfIdentity(living.id, twinState, config);
+  assert(
+    JSON.stringify(snapshotDwarfIdentity(living.id, state, config))
+      === JSON.stringify(snapshotDwarfIdentity(living.id, twinState, config)),
+    'Equal seed/id identity snapshots diverged.',
+  );
+  assert(twinIdentity.label === liveIdentity.label, 'Equal seed/id display labels diverged.');
+}
+
+// Validate deterministic, bounded, serialized place identity and authoritative UI lookup.
+function validatePlaceIdentityRegistryContract() {
+  const config = loadConfig();
+  const left = { tick: 12, places: createPlaceRegistry() };
+  const right = { tick: 12, places: createPlaceRegistry() };
+  const draft = { id: 'village_7', kind: 'village', shortName: 'V7', x: 19, y: 8 };
+  const originalRandom = Math.random;
+  Math.random = () => {
+    throw new Error('Place identity consumed gameplay RNG.');
+  };
+  let leftPlace;
+  try {
+    leftPlace = registerPlace(left, config, draft);
+    registerPlace(right, config, draft);
+  } finally {
+    Math.random = originalRandom;
+  }
+  assert(leftPlace && leftPlace.name, 'Place identity did not generate a stored name.');
+  assert(
+    leftPlace.name === right.places.byId.village_7.name,
+    'Equal seed/id/coordinates generated different place names.',
+  );
+  const stableName = leftPlace.name;
+  registerPlace(left, config, { ...draft, x: 20, y: 9 });
+  assert(left.places.byId.village_7.name === stableName, 'Coordinate refresh renamed an existing place.');
+  assert(left.places.byId.village_7.x === 20, 'Existing place coordinates did not refresh.');
+  assert(resolvePlaceLabel(left, 'village_7', 'fallback') === stableName, 'Full place label missed state.');
+  assert(resolvePlaceLabel(left, 'village_7', 'fallback', true) === 'V7', 'Compact place label missed state.');
+  const requiredKinds = [
+    { id: 'road_hold_mine', kind: 'road', x: 20, y: 9 },
+    { id: 'underrealm_gate', kind: 'gate', x: 5, y: 4 },
+    { id: 'deep_lift_d2', kind: 'lift', scope: 'underrealm', depth: 2 },
+    { id: 'ruins_d2', kind: 'ruins', scope: 'underrealm', depth: 2 },
+    { id: 'temple_of_ancestors', kind: 'temple', x: 22, y: 10 },
+  ];
+  for (const required of requiredKinds) {
+    const registered = registerPlace(left, config, required);
+    assert(registered && registered.kind === required.kind && registered.name, `Missing ${required.kind} identity.`);
+  }
+  const location = buildPlaceLocation(left, 'village_7');
+  assert(
+    location.placeId === 'village_7' && location.label === stableName && location.shortLabel === 'V7',
+    'Canonical place location lost full or compact authoritative labels.',
+  );
+
+  const serialized = JSON.parse(JSON.stringify(left));
+  assert(
+    resolvePlaceLabel(serialized, 'village_7') === stableName,
+    'Place identity did not survive JSON serialization.',
+  );
+  const bounded = { tick: 0, places: createPlaceRegistry() };
+  for (let index = 0; index < PLACE_REGISTRY_MAX_ENTRIES + 3; index += 1) {
+    registerPlace(bounded, config, { id: `road_${index}`, kind: 'road', x: index, y: 0 });
+  }
+  assert(
+    bounded.places.order.length === PLACE_REGISTRY_MAX_ENTRIES && bounded.places.rejected === 3,
+    'Place registry hard cap or rejection counter drifted.',
+  );
+
+  const runtime = buildRuntime(config.display, { columns: 100, rows: 32 });
+  const initial = createInitialState(config, runtime);
+  assert(initial.places.byId.underrealm_gate, 'Initial state did not register the Underrealm gate.');
+  assert(initial.places.byId.ruins_d1, 'Initial state did not register depth ruins.');
+
+  const renderState = {
+    tick: 12,
+    places: left.places,
+    eventLog: [{
+      ...buildValidEvent({ tick: 12, sequence: 0 }),
+      message: 'Village founded',
+      location: { ...location, label: 'Stale renderer label' },
+    }],
+    events: [],
+    ui: { eventLog: { open: true, offset: 0, filter: 'all' } },
+  };
+  const panel = buildEventLogPanel(renderState, {
+    display: { event_log_panel: { enabled: true, width: 100, height: 18 } },
+  }, { gridWidth: 100, gridHeight: 24 });
+  const rendered = panel.lines.map((line) => String(line.text || '').trim()).join(' ');
+  assert(rendered.includes(`At: ${stableName}`), 'Event Log did not prefer authoritative place state.');
+  assert(!rendered.includes('Stale renderer label'), 'Event Log trusted a stale retained place label.');
+}
+
+// Validate bounded story-priority visibility above the configured surface/deep render cap.
+function validateDwarfPriorityVisibilityContract() {
+  const dwarves = Array.from({ length: 80 }, (_, index) => ({
+    id: `dwarf_${index + 1}`,
+    lifeStage: 'adult',
+    needs: { hunger: 0.1, thirst: 0.1 },
+    state: { health: 1, morale: 0.8 },
+    starvationTicks: 0,
+  }));
+  dwarves[78].lifeStage = 'child';
+  dwarves[77].state.health = 0.2;
+  const state = {
+    tick: 1000,
+    dwarves,
+    renderState: { visibleDwarfIds: ['dwarf_1', 'dwarf_2', 'dwarf_3', 'dwarf_4', 'dwarf_5', 'dwarf_6'] },
+    warriors: { league: { championId: 'dwarf_77' } },
+    underrealm: { combat: { dwarfChampion: { activeDwarfId: null } } },
+    eventLog: [
+      {
+        tick: 1000,
+        importance: 'critical',
+        sagaId: null,
+        actors: [{ kind: 'dwarf', id: 'dwarf_79', role: 'victim' }],
+      },
+      {
+        tick: 990,
+        importance: 'notable',
+        sagaId: null,
+        actors: [{ kind: 'dwarf', id: 'dwarf_75', role: 'primary' }],
+      },
+      {
+        tick: 500,
+        importance: 'major',
+        sagaId: 'saga.deep_oath',
+        actors: [{ kind: 'dwarf', id: 'dwarf_76', role: 'primary' }],
+      },
+    ],
+  };
+  const config = { display: { dwarves: { maxVisible: 6 } } };
+  const originalRandom = Math.random;
+  Math.random = () => {
+    throw new Error('Priority visibility consumed gameplay RNG.');
+  };
+  let first;
+  let second;
+  try {
+    first = selectPriorityVisibleDwarves(state, config).map((dwarf) => dwarf.id);
+    second = selectPriorityVisibleDwarves(state, config).map((dwarf) => dwarf.id);
+  } finally {
+    Math.random = originalRandom;
+  }
+  for (const required of ['dwarf_79', 'dwarf_78', 'dwarf_77', 'dwarf_76', 'dwarf_75', 'dwarf_1']) {
+    assert(first.includes(required), `Priority visibility omitted ${required} above maxVisible.`);
+  }
+  assert(first.length === 6, 'Priority visibility exceeded maxVisible.');
+  assert(JSON.stringify(first) === JSON.stringify(second), 'Priority visibility flickered without state changes.');
+
+  state.eventLog.unshift({
+    tick: 1000,
+    importance: 'legendary',
+    sagaId: null,
+    actors: [{ kind: 'dwarf', id: 'dwarf_74', role: 'primary' }],
+  });
+  const preempted = selectPriorityVisibleDwarves(state, config).map((dwarf) => dwarf.id);
+  assert(preempted.includes('dwarf_74') && preempted.includes('dwarf_79'), 'Legendary actor did not preempt a lower tier.');
+  assert(!preempted.includes('dwarf_1'), 'New urgent story actor failed to evict the retained fallback slot.');
+
+  const deepCandidates = dwarves.filter((dwarf) => Number(dwarf.id.split('_')[1]) >= 70);
+  const deepSorted = sortDwarvesByRenderPriority(state, deepCandidates).map((dwarf) => dwarf.id);
+  assert(
+    deepSorted.indexOf('dwarf_74') < deepSorted.indexOf('dwarf_70')
+      && deepSorted.indexOf('dwarf_79') < deepSorted.indexOf('dwarf_70'),
+    'Layer-local Underrealm ranking did not share urgent story priority.',
+  );
+
+  const hidden = selectPriorityVisibleDwarves(clone(state), {
+    display: { dwarves: { maxVisible: -1 } },
+  });
+  assert(hidden.length === 0, 'Priority visibility changed the negative hidden-cap contract.');
+  const unlimited = selectPriorityVisibleDwarves(clone(state), {
+    display: { dwarves: { maxVisible: 0 } },
+  });
+  assert(unlimited.length === dwarves.length, 'Priority visibility changed the zero unlimited-cap contract.');
+}
+
 // Validate v0/v1 Event Log rendering and drama filtering without mutating stored records.
 function validateEventLogRenderingContract() {
   const v1Drama = buildValidEvent({
@@ -2111,11 +2487,14 @@ function main() {
   validateEndgameMultiCycleIntegrationContract();
   validateEndgameAppTransitionWiringContract();
   validateSecondaryProducerMigrationContract();
+  validateDwarfIdentityResolverContract();
+  validatePlaceIdentityRegistryContract();
+  validateDwarfPriorityVisibilityContract();
   validateLegacyCompatibilityContract();
   validateAiObservationIsolationContract();
   validateEventLogRenderingContract();
   validateMapExportIsolationContract();
-  console.log('[test:narrative] PASS envelope malformed identity emitter importance collision lifecycle social combat warrior political endgame multi_cycle app_transition secondary_audit legacy retention bounds serialization renderer ai_isolation export_isolation');
+  console.log('[test:narrative] PASS envelope malformed identity emitter importance collision lifecycle social combat warrior political endgame multi_cycle app_transition secondary_audit dwarf_identity named_messages place_identity priority_visibility legacy retention bounds serialization renderer ai_isolation export_isolation');
 }
 
 main();

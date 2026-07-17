@@ -37,6 +37,7 @@ const {
 const { getAlchemyMultiplier } = require('./alchemy');
 const { findHerdById } = require('./wildlife');
 const { completeTempleStageBuild } = require('./temple');
+const { buildPlaceLocation, resolvePlace } = require('../place_identity');
 
 // Process the dwarf's per-tick action (panic, job, or idle).
 function processDwarfAction(dwarf, state, config, runtime) {
@@ -1084,16 +1085,23 @@ function emitDevelopmentEvent(state, config, dwarf, details) {
   const subjectKind = String(details && details.subjectKind || 'institution');
   const targetKind = String(details && details.consequenceTargetKind || subjectKind);
   const targetId = String(details && details.consequenceTargetId || subjectId);
+  const place = resolvePlace(state, subjectId);
+  const subjectLabel = place ? place.name : details.subjectLabel;
+  const message = place
+    ? String(details.message || '').replace(/Temple(?: of Ancestors)?/g, place.name)
+    : details.message;
   return emitSecondaryEvent(state, config, {
     type: details.type,
     category: details.category,
-    message: details.message,
+    message,
     actors: [
-      buildSecondaryActor(subjectKind, subjectId, 'primary', details.subjectLabel),
+      buildSecondaryActor(subjectKind, subjectId, 'primary', subjectLabel),
       buildSecondaryActor('dwarf', dwarf && dwarf.id || 'unknown_dwarf', 'secondary'),
       buildSettlementActor('beneficiary'),
     ],
-    location: buildSecondaryLocation(details.subject || dwarf, details.subjectLabel || null),
+    location: place
+      ? buildPlaceLocation(state, subjectId)
+      : buildSecondaryLocation(details.subject || dwarf, details.subjectLabel || null),
     causes: [{
       kind: 'action',
       ref: 'dwarf_actions.job_completion',

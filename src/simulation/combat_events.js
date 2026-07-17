@@ -2,6 +2,8 @@
 
 const { pushEvent } = require('./events');
 const { buildDwarfActor } = require('./lifecycle_events');
+const { formatNamedEventMessage } = require('../dwarf_identity');
+const { buildPlaceLocation, resolvePlaceLabel } = require('../place_identity');
 
 const SETTLEMENT_ID = 'settlement_main';
 const SETTLEMENT_LABEL = 'First Hold';
@@ -31,16 +33,16 @@ function buildCombatDwarfActors(state, config, dwarves, role, limit = 7) {
 }
 
 // Build one canonical Underrealm location for combat at a known depth.
-function buildUnderrealmCombatLocation(depthRaw) {
+function buildUnderrealmCombatLocation(depthRaw, state) {
   const depth = Math.max(1, Math.floor(Number(depthRaw || 1)));
-  return {
+  return buildPlaceLocation(state, `ruins_d${depth}`, {
     scope: 'underrealm',
     depth,
     x: null,
     y: null,
-    placeId: `underrealm_depth_${depth}`,
+    placeId: `ruins_d${depth}`,
     label: `Underrealm Depth ${depth}`,
-  };
+  });
 }
 
 // Normalize one positive resource-loss map into bounded transfer consequences.
@@ -162,20 +164,21 @@ function emitRuinsExpeditionStarted(state, config, expedition, message) {
   const depth = Math.max(1, Number(expedition && expedition.readiness && expedition.readiness.depth || 1));
   const dwarfIds = Array.isArray(expedition && expedition.dwarfIds) ? expedition.dwarfIds : [];
   const expeditionId = `ruins_expedition_d${depth}`;
+  const ruinsName = resolvePlaceLabel(state, `ruins_d${depth}`, `Ruins Depth ${depth}`);
   return pushEvent(state, config, {
     type: 'combat.ruins_expedition_started',
     category: 'combat',
-    message,
+    message: String(message || '').replace(/Ruins(?: Depth)? D?\d*/g, ruinsName),
     actors: [
       {
         kind: 'institution',
         id: expeditionId,
         role: 'primary',
-        label: `Ruins Expedition D${depth}`,
+        label: `${ruinsName} Expedition`,
       },
       ...buildCombatDwarfActors(state, config, dwarfIds, 'member', 7),
     ],
-    location: buildUnderrealmCombatLocation(depth),
+    location: buildUnderrealmCombatLocation(depth, state),
     causes: [
       {
         kind: 'action',
@@ -211,6 +214,7 @@ function emitRuinsExpeditionResolved(state, config, outcome) {
   const victims = Array.isArray(outcome && outcome.victims) ? outcome.victims : [];
   const success = outcome && outcome.success === true;
   const expeditionId = `ruins_expedition_d${depth}`;
+  const ruinsName = resolvePlaceLabel(state, `ruins_d${depth}`, `Ruins Depth ${depth}`);
   const consequences = [{
     kind: 'status',
     targetKind: 'institution',
@@ -232,18 +236,18 @@ function emitRuinsExpeditionResolved(state, config, outcome) {
   return pushEvent(state, config, {
     type: success ? 'combat.ruins_expedition_succeeded' : 'combat.ruins_expedition_failed',
     category: 'combat',
-    message: outcome.message,
+    message: String(outcome.message || '').replace(/Ruins(?: Depth)? D?\d*/g, ruinsName),
     actors: [
       {
         kind: 'institution',
         id: expeditionId,
         role: 'primary',
-        label: `Ruins Expedition D${depth}`,
+        label: `${ruinsName} Expedition`,
       },
       ...buildCombatDwarfActors(state, config, victims, 'victim', 4),
       ...buildCombatDwarfActors(state, config, party, 'member', Math.max(0, 7 - victims.length)),
     ].slice(0, 8),
-    location: buildUnderrealmCombatLocation(depth),
+    location: buildUnderrealmCombatLocation(depth, state),
     causes: [{
       kind: 'state',
       ref: 'ruins.expedition_resolution',
@@ -303,7 +307,7 @@ function emitUnderrealmChampionEncounter(state, config, encounter) {
       },
       ...buildCombatDwarfActors(state, config, dwarfIds, 'member', 7),
     ],
-    location: buildUnderrealmCombatLocation(depth),
+    location: buildUnderrealmCombatLocation(depth, state),
     causes: [{
       kind: 'state',
       ref: 'underrealm.champion_encounter',
@@ -327,11 +331,11 @@ function emitDwarfChampionChanged(state, config, change) {
   return pushEvent(state, config, {
     type: fallen ? 'combat.dwarf_champion_fallen' : 'combat.dwarf_champion_appointed',
     category: 'combat',
-    message: change.message,
+    message: formatNamedEventMessage(change.message, [dwarf || dwarfId], state, config),
     actors: [buildCombatDwarfActor(state, config, dwarf || dwarfId, fallen ? 'victim' : 'leader')]
       .filter(Boolean),
     location: Number(change.depth) > 0
-      ? buildUnderrealmCombatLocation(change.depth)
+      ? buildUnderrealmCombatLocation(change.depth, state)
       : { scope: 'world' },
     causes: [{
       kind: 'state',
@@ -407,7 +411,7 @@ function emitDeepRaidEvent(state, config, phase, raid, details = {}) {
       },
       ...buildCombatDwarfActors(state, config, victims, 'victim', 7),
     ],
-    location: buildUnderrealmCombatLocation(depth),
+    location: buildUnderrealmCombatLocation(depth, state),
     causes: [{
       kind: 'state',
       ref: 'underrealm.deep_raid',

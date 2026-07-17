@@ -1523,6 +1523,46 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
     reduced events carry `contract_truncated` when space permits.
 - `narrative_contract.js` validates canonical v1 envelopes and provides transactional deterministic
   identity helpers shared by runtime and `npm run test:narrative`.
+- `../dwarf_identity.js` is the single public dwarf identity read model.
+  - `resolveDwarfIdentity(...)` returns stable ID, display name, house, role title, formatted label,
+    status, and provenance without mutating state or consuming RNG.
+  - Live dwarves reuse `dwarf_lore.js`; retired live dwarves retain their normal identity with an
+    explicit `retired` status. Dead actors resolve from retained event labels. Hall of Fame and
+    carry-over actors resolve from bounded identity snapshots. Unknown IDs render as
+    `Unknown <stable_id>` and never receive lore generated from an unrelated cycle seed.
+  - `createDwarfIdentityCache(limit)` owns operation-scoped FIFO identity/live/history maps. All maps
+    have the same explicit hard cap; only requested live IDs are indexed, avoiding a full-population
+    allocation on every render.
+  - A separate process-local FIFO cache retains only seed/ID-stable `name` and `house` fields across
+    frames (`2048` hard cap). Dynamic role/status fields remain operation-local, preventing stale
+    retirement or lifecycle labels.
+  - Event Log, Inspect/social links, Warrior League, lifecycle actor snapshots, and Warrior telemetry
+    consume this resolver. Compatibility display helpers remain thin wrappers.
+  - `formatNamedEventMessage(...)` is the presentation boundary for priority lifecycle, social,
+    combat, and Warrior messages. It replaces full `Name <id>` labels and raw dwarf IDs with compact
+    names while leaving canonical actor IDs untouched.
+  - Repeated references to the same actor are deduplicated before formatting. Equal display names add
+    `of House <house>` only when it distinguishes two actors; an ID appears in the message only as
+    the final collision fallback or in the explicit `Unknown <id>` form. Tournament clan context is
+    retained because clan standings are part of that event's meaning.
+- `../place_identity.js` owns stable world-place identity.
+  - `state.places` is a plain-JSON registry (`schemaVersion`, insertion `order`, `byId`, and scalar
+    rejection diagnostics) with a hard cap of `256` records. Reaching the cap rejects new identities;
+    it never evicts or renames an established place.
+  - Names are deterministic hashes of the authoritative terrain seed, normalized place kind, stable
+    ID, and committed spatial facts. Generation consumes no gameplay RNG. Re-registering an ID may
+    refresh its coordinates/depth but preserves its original full and compact names.
+  - Initial state registers the surface Deep Gate and bounded per-depth ruins. Village creation,
+    road completion, Temple site selection, and Deep Lift milestones register their identities only
+    after the corresponding authoritative state exists.
+  - Each record stores a full name plus a compact fallback (`Vn`, `Road xxx`, `Deep Gate`, `Lift Dn`,
+    `Ruins Dn`, or `Ancestor Temple`). `buildPlaceLocation(...)` supplies stable `placeId`, full label,
+    scope, depth, and available coordinates to structured events. Canonical v1 retention keeps the
+    full label; narrow UI reads the compact label from authoritative registry state.
+  - Event Log resolves `placeId` against current authoritative state before trusting retained labels
+    and chooses compact labels in narrow fact rows. Dwarf Inspect shows the nearest registered
+    village; Underrealm and Temple telemetry use the same registry. Future Chronicle code must cite
+    the stored `placeId`/name rather than synthesize another place name.
 - `secondary_events.js` is the shared E1.3 boundary for lower-frequency producers. It supplies stable
   actor/location helpers, signed resource consequences, and a single RNG-neutral emission path while
   each producer retains its existing compact message and authoritative state-transition order.
@@ -1566,7 +1606,8 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
 
 ## 7) Rendering system (ASCII + Telemetry) 🎨
 
-Everything under `src/render/` is view-layer only: no simulation state mutations.
+Everything under `src/render/` is view-layer only: it may retain bounded `renderState` continuity,
+but it does not mutate gameplay systems, resources, actors, or AI inputs.
 
 - `render/index.js`
   - Composes header, grid, overlays, and optional frame/footer.
@@ -1578,6 +1619,21 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
   - Places nodes, structures, temple footprint overlay, external camp role markers + caravans, dwarves, merchant, and raid beasts on the grid.
   - When underrealm depth view is active, it renders the selected depth terrain layer and hides surface entities.
   - Selects a stable subset of dwarves to keep the map readable (`display.dwarves.maxVisible`; set `< 0` to skip dwarf rendering).
+  - `render/dwarf_visibility.js` owns capped actor selection for both surface and Underrealm layers.
+    It scans at most `160` newest retained events and assigns deterministic tiers in this order:
+    critical/legendary actors from the last `240` ticks; endangered dwarves; current League/Deep
+    champions; saga actors from the last `1200` ticks; any incident actors from the last `240` ticks;
+    previously visible IDs; adults; then other life stages.
+  - Event order breaks story-tier ties; previous visible order breaks stability ties; authoritative
+    population order is the final fallback. A new higher tier preempts the lowest selected tier,
+    while an unchanged state produces the same ordered set without flicker.
+  - Only live actors eligible for the currently rendered layer participate. Underrealm depth views
+    rank the assigned delver set with the same tiers. If urgent actors alone exceed the cap, newest
+    event/actor order wins deterministically; the renderer never exceeds `maxVisible`.
+  - Visibility selection consumes no RNG and stores only the capped surface ID list in
+    `state.renderState.visibleDwarfIds`. This removes presentation-dependent gameplay RNG drift;
+    old interactive trajectories that depended on render-time shuffling are intentionally not a
+    replay contract. Headless simulation and AI observation/action contracts are unchanged.
   - Applies the dwarf inspect overlay when `display.inspect_panel.enabled` is true.
   - Applies the Warrior League modal overlay when `display.warrior_panel.enabled` is true.
   - Applies the Event Log modal overlay when `display.event_log_panel.enabled` is true.
@@ -1604,8 +1660,8 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
   - Reads the dedicated rolling history buffer (`state.eventLog`) and falls back to the mini HUD event list if needed.
   - Supports `All events` / `Dwarf drama` filtering, importance-tagged entries, and arrow-key
     scrolling through wrapped rows. No new filter was added without usage evidence.
-  - Renders at most three unique actor labels per context row (then `+N`), preferring retained labels
-    over stable-ID fallbacks. Location uses its label when available, otherwise world/surface/depth
+  - Renders at most three unique actor labels per context row (then `+N`), preferring shared resolved
+    identities over stable-ID fallbacks. Location uses its label when available, otherwise world/surface/depth
     scope plus valid coordinates; saga membership is shown by its stable saga ID.
   - Structured context wraps inside the panel and is covered at the minimum supported `72x18`
     layout. Legacy v0/future-safe records retain their message/category path and ambient fallback.
@@ -2130,7 +2186,11 @@ Quick checklist:
     - `simulation/temple.js` → Temple of Ancestors progression, effects, and prestige
     - `simulation/ruins.js` → expeditions, artifacts, and set bonuses
   - `state/` → initial state + terrain generation
+  - `dwarf_identity.js` → shared deterministic identity resolver, bounded operation cache, and historical fallbacks
+  - `place_identity.js` → bounded authoritative deterministic place-name registry and UI/event lookup
+  - `dwarf_lore.js` → deterministic identity seed plus character lore generation
   - `render/` → ASCII output (grid, legend, inspect overlays, frame orchestration)
+    - `render/dwarf_visibility.js` → deterministic story-priority selection for capped surface/deep actors
     - `render/map_inset_panel.js` → carved in-map Ops Snapshot component (stable counters + keyboard hints)
     - `render/warrior_panel.js` → Warrior League modal overlay (company identity/carry-over context, champion lineage, top-5 fighters, marks/legacy summary)
     - `render/event_log_panel.js` → Event Log modal overlay (scrollable real-time event history with drama-focused filter)

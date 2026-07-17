@@ -9,6 +9,7 @@ const {
   emitSecondaryEvent,
 } = require("./secondary_events");
 const { getVillageCenter, selectVillageCenter } = require("./structures");
+const { buildPlaceLocation, registerPlace } = require('../place_identity');
 
 function getVillagesConfig(config) {
   const raw = (config && config.villages) || {};
@@ -71,6 +72,15 @@ function ensureVillageState(state, runtime, config) {
       },
     ];
     state.villageCounter = 1;
+  }
+  for (const village of state.villages) {
+    registerPlace(state, config, {
+      id: `village_${village.id}`,
+      kind: 'village',
+      shortName: `V${village.id}`,
+      x: village.center && village.center.x,
+      y: village.center && village.center.y,
+    });
   }
   if (!state.villageStats) {
     state.villageStats = {
@@ -161,15 +171,28 @@ function updateVillages(state, config, runtime) {
   stats.lastFoundedTick = foundedTick;
   state.villageStats = stats;
 
+  const place = registerPlace(state, config, {
+    id: `village_${nextId}`,
+    kind: 'village',
+    shortName: `V${nextId}`,
+    x: village.center.x,
+    y: village.center.y,
+  });
+  const villageName = place ? place.name : `Village V${nextId}`;
+
   emitSecondaryEvent(state, config, {
     type: "village.founded",
     category: "lifecycle",
-    message: `${villagesConfig.founderCount} dwarves founded village V${nextId}.`,
+    message: `${villagesConfig.founderCount} dwarves founded ${villageName}.`,
     actors: [
-      buildSecondaryActor("settlement", `village_${nextId}`, "primary", `Village V${nextId}`),
+      buildSecondaryActor("settlement", `village_${nextId}`, "primary", villageName),
       buildSettlementActor("founder"),
     ],
-    location: buildSecondaryLocation({ id: `village_${nextId}`, ...village.center }, `Village V${nextId}`),
+    location: buildPlaceLocation(
+      state,
+      `village_${nextId}`,
+      buildSecondaryLocation({ id: `village_${nextId}`, ...village.center }, `Village V${nextId}`),
+    ),
     causes: [{
       kind: "threshold",
       ref: "villages.founding",

@@ -15,6 +15,11 @@ const { buildSavePanel, applySavePanel } = require('./save_panel');
 const { buildEventLogPanel, applyEventLogPanel } = require('./event_log_panel');
 const { applyTransitionMask, buildTransitionPanel, applyTransitionPanel } = require('./transition');
 const { getTempleRenderTiles } = require('../simulation/temple');
+const {
+  getMaxVisibleDwarves,
+  selectPriorityVisibleDwarves,
+  sortDwarvesByRenderPriority,
+} = require('./dwarf_visibility');
 
 // Resolve the currently active underrealm depth for rendering.
 function getActiveUnderrealmDepth(state) {
@@ -368,19 +373,6 @@ function getDelverIdsForDepth(state, depth) {
   return ids;
 }
 
-// Resolve the configured dwarf render limit (`0` = unlimited, `<0` = hidden).
-function getMaxVisibleDwarves(config) {
-  const display = (config && config.display && config.display.dwarves) || {};
-  const raw = Number(display.maxVisible ?? 0);
-  if (Number.isFinite(raw) && raw < 0) {
-    return -1;
-  }
-  if (!Number.isFinite(raw)) {
-    return 0;
-  }
-  return Math.max(0, Math.floor(raw));
-}
-
 // Estimate how many hostile markers should be rendered for an active deep raid.
 function estimateDeepRaidRenderCount(raid, maxCells) {
   const strength = Math.max(0, Number(raid && raid.strength || 0));
@@ -415,7 +407,14 @@ function renderUnderrealmOccupants(grid, state, config, colors, depth) {
   if (maxVisibleDwarves < 0) {
     delverIds = [];
   } else if (maxVisibleDwarves > 0 && delverIds.length > maxVisibleDwarves) {
-    delverIds = delverIds.slice(0, maxVisibleDwarves);
+    const liveById = new Map(
+      (Array.isArray(state && state.dwarves) ? state.dwarves : [])
+        .map((dwarf) => [String(dwarf && dwarf.id || ''), dwarf]),
+    );
+    delverIds = sortDwarvesByRenderPriority(
+      state,
+      delverIds.map((id) => liveById.get(String(id))).filter(Boolean),
+    ).slice(0, maxVisibleDwarves).map((dwarf) => dwarf.id);
   }
   const delverColorKey = colors && colors.map && colors.map.underrealm_delver
     ? 'underrealm_delver'
@@ -703,7 +702,7 @@ function renderFrame(state, config, runtime) {
 
     renderExternalCamps(grid, state, config, colors, symbols);
 
-    const visibleDwarves = selectVisibleDwarves(state, config, runtime);
+    const visibleDwarves = selectPriorityVisibleDwarves(state, config);
     for (const dwarf of visibleDwarves) {
       const draw = resolveDwarfRenderPosition(
         dwarf,
@@ -848,60 +847,6 @@ function renderFrame(state, config, runtime) {
   return `${lines.join('\n')}\n`;
 }
 
-// Select a stable subset of dwarves to render for readability.
-function selectVisibleDwarves(state, config, runtime) {
-  const dwarves = state.dwarves || [];
-  const maxVisible = getMaxVisibleDwarves(config);
-  if (maxVisible < 0) {
-    return [];
-  }
-  if (!maxVisible || dwarves.length <= maxVisible) {
-    return dwarves;
-  }
-  const adults = dwarves.filter((dwarf) => dwarf.lifeStage === 'adult');
-  const nonAdults = dwarves.filter((dwarf) => dwarf.lifeStage !== 'adult');
-  const useAdultsOnly = adults.length >= maxVisible;
-  const pool = useAdultsOnly ? adults : adults.concat(nonAdults);
-  if (pool.length <= maxVisible) {
-    return pool;
-  }
-  if (!state.renderState) {
-    state.renderState = {};
-  }
-  const renderState = state.renderState;
-  const prevIds = Array.isArray(renderState.visibleDwarfIds) ? renderState.visibleDwarfIds : [];
-  const dwarfById = new Map(pool.map((dwarf) => [dwarf.id, dwarf]));
-  const visible = [];
-  const used = new Set();
-
-  for (const id of prevIds) {
-    const dwarf = dwarfById.get(id);
-    if (!dwarf) {
-      continue;
-    }
-    visible.push(dwarf);
-    used.add(id);
-    if (visible.length >= maxVisible) {
-      break;
-    }
-  }
-
-  if (visible.length < maxVisible) {
-    const remainingAdults = adults.filter((dwarf) => !used.has(dwarf.id));
-    const remainingOthers = nonAdults.filter((dwarf) => !used.has(dwarf.id));
-    shuffleInPlace(remainingAdults);
-    shuffleInPlace(remainingOthers);
-    const candidates = useAdultsOnly ? remainingAdults : remainingAdults.concat(remainingOthers);
-    const needed = maxVisible - visible.length;
-    for (let i = 0; i < needed && i < candidates.length; i += 1) {
-      visible.push(candidates[i]);
-    }
-  }
-
-  renderState.visibleDwarfIds = visible.map((dwarf) => dwarf.id);
-  return visible;
-}
-
 // Resolve a stable render center based on housing or the grid.
 function getRenderCenter(state, runtime) {
   const houses = (state.structures || []).filter((structure) => structure.type === 'house');
@@ -920,17 +865,6 @@ function getRenderCenter(state, runtime) {
     x: Math.floor(runtime.gridWidth / 2),
     y: Math.floor(runtime.gridHeight / 2),
   };
-}
-
-// Shuffle a list in place using Fisher-Yates.
-function shuffleInPlace(list) {
-  for (let i = list.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    const tmp = list[i];
-    list[i] = list[j];
-    list[j] = tmp;
-  }
-  return list;
 }
 
 // Resolve render position for a dwarf, offsetting miners next to their mine.

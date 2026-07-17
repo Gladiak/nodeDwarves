@@ -4,6 +4,8 @@ const { clamp, padRight } = require('../utils');
 const { fitLine, wrapLine } = require('./format');
 const { applyColor } = require('./colors');
 const { normalizeEventLogEntry, isDramaEventCategory } = require('../simulation/events');
+const { createDwarfIdentityCache, resolveDwarfIdentity } = require('../dwarf_identity');
+const { resolvePlaceLabel } = require('../place_identity');
 
 const FILTER_ORDER = ['all', 'drama'];
 const FILTER_LABELS = {
@@ -64,7 +66,7 @@ function buildEventLogPanel(state, config, runtime) {
   const contentWidth = Math.max(1, innerWidth - 1);
   const innerHeight = Math.max(1, height - 2);
 
-  const lines = buildEventLogLines(state, contentWidth, innerHeight, panelState);
+  const lines = buildEventLogLines(state, config, contentWidth, innerHeight, panelState);
   const panelLines = buildPanelBox(lines, innerWidth, contentWidth);
   const x = Math.max(0, Math.floor((gridWidth - width) / 2));
   const y = Math.max(0, Math.floor((gridHeight - height) / 2));
@@ -79,7 +81,7 @@ function buildEventLogPanel(state, config, runtime) {
 }
 
 // Build wrapped content rows for the Event Log panel.
-function buildEventLogLines(state, width, height, panelState) {
+function buildEventLogLines(state, config, width, height, panelState) {
   const controlsLine = '[e] Close log  [f or left/right] Filter  [up/down] Scroll';
   const maxContent = Math.max(0, height - 1);
   const lines = [];
@@ -102,6 +104,7 @@ function buildEventLogLines(state, width, height, panelState) {
   const availableRows = Math.max(0, maxContent - lines.length);
   const visibleEntries = filteredEntries.slice(offset);
   const bodyRows = [];
+  const identityCache = createDwarfIdentityCache();
   if (visibleEntries.length === 0) {
     pushLine(bodyRows, 'No events available for the selected filter.', width, null);
   } else {
@@ -109,7 +112,15 @@ function buildEventLogLines(state, width, height, panelState) {
       if (bodyRows.length >= availableRows) {
         break;
       }
-      pushWrappedEventRows(bodyRows, entry, width, availableRows - bodyRows.length);
+      pushWrappedEventRows(
+        bodyRows,
+        entry,
+        width,
+        availableRows - bodyRows.length,
+        state,
+        config,
+        identityCache,
+      );
     }
   }
 
@@ -175,7 +186,7 @@ function pushLine(lines, value, width, colorKey = null) {
 }
 
 // Push one wrapped event message plus compact structured-fact context.
-function pushWrappedEventRows(lines, entry, width, maxRows) {
+function pushWrappedEventRows(lines, entry, width, maxRows, state, config, identityCache) {
   if (!entry || maxRows <= 0) {
     return;
   }
@@ -203,12 +214,12 @@ function pushWrappedEventRows(lines, entry, width, maxRows) {
     count += 1;
   }
 
-  const metadata = buildEventMetadata(entry);
+  const detailPrefix = '  > ';
+  const detailWidth = Math.max(1, safeWidth - detailPrefix.length);
+  const metadata = buildEventMetadata(entry, state, config, identityCache, detailWidth);
   if (!metadata || count >= maxRows) {
     return;
   }
-  const detailPrefix = '  > ';
-  const detailWidth = Math.max(1, safeWidth - detailPrefix.length);
   const detailRows = wrapLine(metadata, detailWidth);
   for (let i = 0; i < detailRows.length && count < maxRows; i += 1) {
     const lineText = i === 0
@@ -232,13 +243,13 @@ function normalizeImportance(value) {
 }
 
 // Build one bounded facts line from actor, location, and saga references.
-function buildEventMetadata(entry) {
+function buildEventMetadata(entry, state, config, identityCache, width) {
   const facts = [];
-  const actors = formatEventActors(entry && entry.actors);
+  const actors = formatEventActors(entry && entry.actors, state, config, identityCache);
   if (actors) {
     facts.push(`Actors: ${actors}`);
   }
-  const location = formatEventLocation(entry && entry.location);
+  const location = formatEventLocation(entry && entry.location, state, width);
   if (location) {
     facts.push(`At: ${location}`);
   }
@@ -250,7 +261,7 @@ function buildEventMetadata(entry) {
 }
 
 // Prefer retained display labels while keeping deterministic ID fallbacks.
-function formatEventActors(actors) {
+function formatEventActors(actors, state, config, identityCache) {
   if (!Array.isArray(actors) || actors.length === 0) {
     return '';
   }
@@ -259,7 +270,12 @@ function formatEventActors(actors) {
     if (!actor || typeof actor !== 'object') {
       continue;
     }
-    const label = String(actor.label || actor.id || '').trim();
+    const label = actor.kind === 'dwarf'
+      ? resolveDwarfIdentity(actor.id, state, config, {
+        cache: identityCache,
+        snapshot: actor,
+      }).displayName
+      : String(actor.label || actor.id || '').trim();
     if (label && !labels.includes(label)) {
       labels.push(label);
     }
@@ -270,11 +286,15 @@ function formatEventActors(actors) {
 }
 
 // Format a canonical location as a compact human-readable scope and coordinate.
-function formatEventLocation(location) {
+function formatEventLocation(location, state, width) {
   if (!location || typeof location !== 'object') {
     return '';
   }
-  const label = String(location.label || '').trim();
+  const compact = Number(width || 0) > 0 && Number(width) < 42;
+  const retainedLabel = String(compact ? location.shortLabel || location.label : location.label || '').trim();
+  const label = location.placeId
+    ? resolvePlaceLabel(state, location.placeId, retainedLabel, compact)
+    : retainedLabel;
   const scope = String(location.scope || '').trim().toLowerCase();
   let fallback = '';
   if (scope === 'underrealm') {

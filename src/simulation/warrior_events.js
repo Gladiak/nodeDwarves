@@ -2,6 +2,7 @@
 
 const { pushEvent } = require('./events');
 const { buildDwarfActor, buildDwarfLocation } = require('./lifecycle_events');
+const { formatNamedEventMessage } = require('../dwarf_identity');
 
 const HALL_OF_FAME_ID = 'warrior_hall_of_fame';
 
@@ -57,7 +58,7 @@ function emitWarriorMarkChanged(state, config, dwarf, change) {
   return pushEvent(state, config, {
     type: typeByKind[kind],
     category: 'warrior',
-    message: change.message,
+    message: formatNamedEventMessage(change.message, [dwarf], state, config),
     actors: [buildWarriorDwarfActor(state, config, dwarf, 'primary')].filter(Boolean),
     location: buildWarriorLocation(dwarf),
     causes,
@@ -82,7 +83,7 @@ function emitWarriorRetired(state, config, dwarf, details) {
   return pushEvent(state, config, {
     type: 'warrior.retired',
     category: 'warrior',
-    message: details.message,
+    message: formatNamedEventMessage(details.message, [dwarf], state, config),
     actors: [buildWarriorDwarfActor(state, config, dwarf, 'primary')].filter(Boolean),
     location: buildWarriorLocation(dwarf),
     causes: [{
@@ -116,7 +117,7 @@ function emitWarriorUnderrealmCommandChanged(state, config, dwarf, details) {
       ? 'warrior.underrealm_command_relinquished'
       : 'warrior.underrealm_command_synced',
     category: 'warrior',
-    message: details.message,
+    message: formatNamedEventMessage(details.message, [dwarf || dwarfId], state, config),
     actors: [buildWarriorDwarfActor(state, config, dwarf || dwarfId, relinquished ? 'primary' : 'leader')]
       .filter(Boolean),
     location: { scope: 'world' },
@@ -147,7 +148,7 @@ function emitWarriorHeroCommandTaken(state, config, winner, loser, message) {
   return pushEvent(state, config, {
     type: 'warrior.hero_command_taken',
     category: 'warrior',
-    message,
+    message: formatNamedEventMessage(message, [winner, loser], state, config),
     actors: [
       buildWarriorDwarfActor(state, config, winner, 'leader'),
       buildWarriorDwarfActor(state, config, loser, 'opponent'),
@@ -181,7 +182,7 @@ function emitWarriorTournamentInjury(state, config, dwarf, details) {
   return pushEvent(state, config, {
     type: 'warrior.tournament_injury',
     category: 'warrior',
-    message: details.message,
+    message: formatNamedEventMessage(details.message, [dwarf], state, config),
     actors: [buildWarriorDwarfActor(state, config, dwarf, 'victim')].filter(Boolean),
     location: buildWarriorLocation(dwarf),
     causes: [{
@@ -211,7 +212,7 @@ function emitWarriorTournamentDeath(state, config, dwarf, message) {
   return pushEvent(state, config, {
     type: 'warrior.tournament_death',
     category: 'warrior',
-    message,
+    message: formatNamedEventMessage(message, [dwarf], state, config),
     actors: [buildWarriorDwarfActor(state, config, dwarf, 'victim')].filter(Boolean),
     location: buildWarriorLocation(dwarf),
     causes: [{
@@ -248,7 +249,12 @@ function emitWarriorTournamentCrowned(state, config, result) {
   return pushEvent(state, config, {
     type: 'warrior.tournament_champion_crowned',
     category: 'warrior',
-    message: result.message,
+    message: formatNamedEventMessage(
+      result.message,
+      [result.champion, result.previousChampionId].filter(Boolean),
+      state,
+      config,
+    ),
     actors: actors.filter(Boolean),
     location: { scope: 'world' },
     causes: [
@@ -296,7 +302,7 @@ function emitWarriorCompanyDoctrine(state, config, champion, identity, message) 
   return pushEvent(state, config, {
     type: 'warrior.company_doctrine_active',
     category: 'warrior',
-    message,
+    message: formatNamedEventMessage(message, [champion].filter(Boolean), state, config),
     actors: [
       {
         kind: 'institution',

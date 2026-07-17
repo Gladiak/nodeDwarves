@@ -24,6 +24,15 @@ Chaos, strategy, and tiny bearded logistics experts included. 🧔🧱
   ritual transitions, diplomacy, world/culture shifts, construction milestones, relic recovery, and
   cycle passages. The Event Log exposes importance, named actors, place, and saga context without
   abandoning its compact all/drama views; a source audit guards against legacy-only producers.
+- 🪪 One shared dwarf identity resolver keeps names, houses, role titles, stable IDs, and historical
+  champion snapshots coherent across Inspect, Event Log, Warrior League, and telemetry. Priority
+  story messages use names instead of raw dwarf IDs, adding house context only for collisions.
+- 🗿 Villages, roads, the Deep Gate, lifts, ruins, and the Ancestor Temple receive deterministic
+  names stored with the world. Events, Inspect, and telemetry share those names, with short labels
+  ready for cramped terminals.
+- 👁️ When population exceeds the map cap, urgent story actors, endangered dwarves, champions, saga
+  protagonists, and recent incident actors keep their place on-screen through a stable RNG-free
+  priority selector.
 - 🌤️ In-map Ops Snapshot shows a live weather token (`Wx:*`, e.g. `Clear`, `Rain`, `Storm`) for at-a-glance climate context.
 - 📊 In-game Data Center (`h`) with dashboard, deep economy views, and AI explainability.
 - 🤖 PPO training pipeline in Python with JS runtime inference (`models/*.json`).
@@ -144,8 +153,11 @@ npm run debug:clean
 - 🔁 `src/simulation/endgame_events.js`: structured relic, cycle passage, and legacy carry-over facts.
 - 🌍 `src/state/`: world/terrain and initial state generation.
 - 🎨 `src/render/`: map, overlays, panels, and layout helpers.
+- 👁️ `src/render/dwarf_visibility.js`: stable story-priority selection for capped dwarf rendering.
 - 📊 `src/telemetry/`: Data Center sections and metric builders.
 - 🧠 `src/ai/`: observation and policy helpers.
+- 🪪 `src/dwarf_identity.js`: shared cached identity and historical-fallback resolver.
+- 🗿 `src/place_identity.js`: bounded authoritative registry for deterministic world-place names.
 - 🛠️ `scripts/`: benchmarking, regression, validation orchestration, narrative contracts, export, cleanup.
 - 🧪 `scripts/test_narrative_contracts.js`: fast executable gate for the living-chronicle event contract.
 - 🔎 `scripts/audit_narrative_producers.js`: zero-legacy producer audit used by `npm test`.

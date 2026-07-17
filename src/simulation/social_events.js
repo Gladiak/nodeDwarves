@@ -2,6 +2,7 @@
 
 const { pushEvent } = require('./events');
 const { buildDwarfActor } = require('./lifecycle_events');
+const { formatNamedEventMessage } = require('../dwarf_identity');
 
 const SOCIAL_EVENT_TYPES = Object.freeze({
   mentorship_breakthrough: {
@@ -177,7 +178,7 @@ function emitSocialIncidentEvent(state, config, incident) {
   return pushEvent(state, config, {
     type: definition.type,
     category: 'social',
-    message,
+    message: formatNamedEventMessage(message, [pair.left, pair.right], state, config),
     actors: buildSocialActors(state, config, incidentType, pair, mentorId),
     location: buildSocialPairLocation(pair.left, pair.right),
     causes,

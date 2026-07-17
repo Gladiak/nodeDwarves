@@ -15,6 +15,7 @@ const { isAdult } = require('./population');
 const { getAlchemyMultiplier } = require('./alchemy');
 const { getSchismModifier } = require('./schism');
 const { clearDeadSocialLinks } = require('./social_drama');
+const { buildPlaceLocation, registerPlace } = require('../place_identity');
 
 const DEFAULT_NODE_TEMPLATES = {
   stone: {
@@ -3440,17 +3441,41 @@ function emitUnderrealmMilestone(
 ) {
   const depth = Math.max(1, Math.floor(Number(depthRaw || 1)));
   const isLift = phase.startsWith('lift_');
-  const subjectId = isLift ? `deep_lift_d${depth}` : `underrealm_d${depth}`;
+  const isGate = phase.startsWith('gate_');
+  const liftDepth = isLift && (metric === 'target_depth' || metric === 'unlocked_depth')
+    ? Math.max(1, Math.floor(Number(value || depth)))
+    : depth;
+  const subjectId = isGate
+    ? 'underrealm_gate'
+    : isLift ? `deep_lift_d${liftDepth}` : `ruins_d${depth}`;
   const subjectKind = isLift ? 'structure' : 'location';
+  const gate = state && state.underrealm && state.underrealm.discovery
+    ? state.underrealm.discovery.surfaceGate
+    : null;
+  const place = registerPlace(state, config, {
+    id: subjectId,
+    kind: isGate ? 'gate' : isLift ? 'lift' : 'ruins',
+    shortName: isGate ? 'Deep Gate' : isLift ? `Lift D${liftDepth}` : `Ruins D${depth}`,
+    scope: isGate ? 'surface' : 'underrealm',
+    depth: isLift ? liftDepth : depth,
+    x: isGate && gate ? gate.x : null,
+    y: isGate && gate ? gate.y : null,
+  });
+  const placeName = place ? place.name : `Underrealm Depth ${depth}`;
+  const namedMessage = String(message || '')
+    .replace(/Underrealm Depth \d+/g, placeName)
+    .replace(/Underrealm D\d+/g, placeName)
+    .replace(/^Underrealm:/, `${placeName}:`)
+    .replace(/hidden gate/gi, placeName);
   return emitSecondaryEvent(state, config, {
     type: `underrealm.${phase}`,
     category: 'underrealm',
-    message,
+    message: namedMessage,
     actors: [
-      buildSecondaryActor(subjectKind, subjectId, 'primary', `Underrealm Depth ${depth}`),
+      buildSecondaryActor(subjectKind, subjectId, 'primary', placeName),
       buildSettlementActor('beneficiary'),
     ],
-    location: { scope: 'underrealm', depth },
+    location: buildPlaceLocation(state, subjectId, { scope: 'underrealm', depth }),
     causes: [{
       kind: phase.includes('found') || phase.includes('discovered') ? 'action' : 'threshold',
       ref: `underrealm.${phase}`,

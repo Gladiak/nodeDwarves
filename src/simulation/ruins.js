@@ -8,6 +8,7 @@ const {
   buildSettlementActor,
   emitSecondaryEvent,
 } = require('./secondary_events');
+const { buildPlaceLocation, resolvePlaceLabel } = require('../place_identity');
 const { emitEndgameArtifactRecovered } = require('./endgame_events');
 const {
   emitRuinsExpeditionStarted,
@@ -2394,15 +2395,17 @@ function shuffleInPlace(values) {
 // Emit a structured readiness/cooldown fact for non-combat ruins operations.
 function emitRuinsOperationalEvent(state, config, depthRaw, phase, message, value) {
   const depth = Math.max(1, Math.floor(Number(depthRaw || 1)));
+  const ruinsId = `ruins_d${depth}`;
+  const ruinsName = resolvePlaceLabel(state, ruinsId, `Ruins Depth ${depth}`);
   return emitSecondaryEvent(state, config, {
     type: `ruins.${phase}`,
     category: 'underrealm',
-    message,
+    message: String(message || '').replace(/Ruins(?: Depth)? D?\d*/g, ruinsName),
     actors: [
-      buildSecondaryActor('location', `ruins_d${depth}`, 'primary', `Ruins Depth ${depth}`),
+      buildSecondaryActor('location', ruinsId, 'primary', ruinsName),
       buildSettlementActor(phase === 'warning_dispatch' ? 'instigator' : 'beneficiary'),
     ],
-    location: { scope: 'underrealm', depth },
+    location: buildPlaceLocation(state, ruinsId, { scope: 'underrealm', depth }),
     causes: [{
       kind: phase === 'warning_dispatch' ? 'action' : 'threshold',
       ref: `ruins.${phase}`,

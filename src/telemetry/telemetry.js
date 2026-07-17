@@ -12,6 +12,8 @@ const {
   formatWarriorDisplayNameById,
   resolveWarriorLeagueEpicName,
 } = require("../simulation/warriors");
+const { createDwarfIdentityCache } = require("../dwarf_identity");
+const { resolvePlaceLabel } = require('../place_identity');
 const { getColorConfig, applyColor } = require("../render/colors");
 const { fitLine, wrapLine } = require("../render/format");
 
@@ -416,6 +418,7 @@ function buildTelemetrySectionModels(snapshot) {
         `Defense structures: Armories ${snapshot.structureCounts.armory || 0}, Mithril forges ${snapshot.structureCounts.mithril_forge || 0}`,
         `Arcane structures: Alchemy labs ${snapshot.structureCounts.alchemy_lab || 0}, Ruins ${snapshot.structureCounts.ruins || 0}`,
         formatTempleStageStatus(
+          snapshot.state,
           snapshot.templeState,
           snapshot.templeStage,
           snapshot.templeMaxStage,
@@ -778,7 +781,7 @@ function buildWarriorLeagueSectionRows(state, config) {
     ? company.cycleHistory
     : [];
   const dwarves = Array.isArray(state && state.dwarves) ? state.dwarves : [];
-  const nameCache = new Map();
+  const nameCache = createDwarfIdentityCache();
   const topFighters = buildWarriorTopFighterEntries(
     state,
     config,
@@ -3579,13 +3582,15 @@ function getUnderrealmTelemetryLines(state) {
     maxUnlockedDepth,
   );
   const lines = [];
+  const gateName = resolvePlaceLabel(state, 'underrealm_gate', 'Hidden gate');
   if (activeDepth <= 0) {
     lines.push(
       `Realm: Surface view (unlocked depths ${maxUnlockedDepth}/${maxDepth})`,
     );
   } else {
+    const activePlaceName = resolvePlaceLabel(state, `ruins_d${activeDepth}`, `Underrealm depth ${activeDepth}`);
     lines.push(
-      `Realm: Underrealm depth ${activeDepth} (unlocked depths ${maxUnlockedDepth}/${maxDepth})`,
+      `Realm: ${activePlaceName} (unlocked depths ${maxUnlockedDepth}/${maxDepth})`,
     );
   }
   const frontierDepth = clamp(maxUnlockedDepth, 0, maxDepth);
@@ -3612,7 +3617,7 @@ function getUnderrealmTelemetryLines(state) {
       typeof timerStartedTick === "number" && Number.isFinite(timerStartedTick);
     if (!hasTimerStarted) {
       lines.push(
-        `Hidden gate: waiting for population ${nowPopulation}/${threshold}`,
+        `${gateName}: waiting for population ${nowPopulation}/${threshold}`,
       );
     } else {
       const targetTick = Math.max(
@@ -3620,14 +3625,14 @@ function getUnderrealmTelemetryLines(state) {
         Math.floor(Number(discovery.targetTick || 0)),
       );
       const eta = Math.max(0, targetTick - Math.floor(Number(state.tick || 0)));
-      lines.push(`Hidden gate search time: ${eta} ticks remaining`);
+      lines.push(`${gateName} search time: ${eta} ticks remaining`);
     }
   } else if (
     discovery &&
     discovery.enabled !== false &&
     discovery.found === true
   ) {
-    lines.push("Hidden gate: discovered");
+    lines.push(`${gateName}: discovered`);
   }
   lines.push(
     formatUnderrealmProgressionLine(
@@ -4335,7 +4340,7 @@ function getStructureLevelSummary(structures) {
 }
 
 // Format temple stage line for telemetry display.
-function formatTempleStageStatus(templeState, stage, maxStage) {
+function formatTempleStageStatus(state, templeState, stage, maxStage) {
   if (maxStage <= 0 || !templeState || templeState.enabled === false) {
     return "Temple status: disabled";
   }
@@ -4343,16 +4348,17 @@ function formatTempleStageStatus(templeState, stage, maxStage) {
     templeState && templeState.doctrinePath
       ? ` | path ${String(templeState.doctrinePath)}`
       : "";
+  const templeName = resolvePlaceLabel(state, 'temple_of_ancestors', 'Temple');
   if (!templeState.site) {
-    return `Temple status: stage ${stage}/${maxStage} (site scan in progress)${doctrinePath}`;
+    return `${templeName} status: stage ${stage}/${maxStage} (site scan in progress)${doctrinePath}`;
   }
   if (stage <= 0) {
-    return `Temple status: stage 0/${maxStage} (site ready)${doctrinePath}`;
+    return `${templeName} status: stage 0/${maxStage} (site ready)${doctrinePath}`;
   }
   if (stage >= maxStage) {
-    return `Temple status: stage ${maxStage}/${maxStage} complete${doctrinePath}`;
+    return `${templeName} status: stage ${maxStage}/${maxStage} complete${doctrinePath}`;
   }
-  return `Temple status: stage ${stage}/${maxStage}${doctrinePath}`;
+  return `${templeName} status: stage ${stage}/${maxStage}${doctrinePath}`;
 }
 
 // Format temple build progress line while a stage is under construction.

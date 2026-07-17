@@ -2,6 +2,7 @@
 
 const { clamp } = require('../utils');
 const { canTempleAdvanceByLegitimacy, getSchismDoctrine } = require('./schism');
+const { registerPlace } = require('../place_identity');
 
 const DEFAULT_PRESTIGE_TIERS = [
   { name: 'Unproven', min: 0 },
@@ -757,6 +758,10 @@ function ensureTempleSite(state, config, runtime) {
     )
   ) {
     temple.blockedReason = null;
+    registerPlace(state, config, {
+      id: 'temple_of_ancestors', kind: 'temple', shortName: 'Ancestor Temple',
+      x: current.x, y: current.y,
+    });
     return {
       x: Math.floor(current.x),
       y: Math.floor(current.y),
@@ -780,6 +785,10 @@ function ensureTempleSite(state, config, runtime) {
     waterDistance: selected.waterDistance,
   };
   temple.blockedReason = null;
+  registerPlace(state, config, {
+    id: 'temple_of_ancestors', kind: 'temple', shortName: 'Ancestor Temple',
+    x: temple.site.x, y: temple.site.y,
+  });
   return temple.site;
 }
 
