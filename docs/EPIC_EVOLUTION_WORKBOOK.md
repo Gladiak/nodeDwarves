@@ -1,9 +1,9 @@
 # NodeDwarves Epic Evolution Workbook
 
-Last updated: 2026-07-17
+Last updated: 2026-09-04
 Status: Active implementation - M1 complete; M2 in progress
-Completed checkpoint: `E3.4` done
-Next executable step: `E4.1` ready
+Completed checkpoint: `E4.2` done
+Next executable step: `E4.3` ready
 Scope: Step-by-step delivery and evidence tracking for the project-wide epic simulation evolution
 
 This workbook turns the "living dwarven chronicle" direction into an executable plan. It is the
@@ -131,10 +131,11 @@ Dashboard:
 | M4 - Persistent civilization | E6 | Cycles inherit bounded, visible history | `Not started` | M3 done | Deterministic multi-cycle gate passes |
 | M5 - Epic world | E7, E8 | Named nemeses, staged sieges, and evolving landmarks | `Not started` | M4 done | Full quality gate + experience review passes |
 
-Current checkpoint: `E3.4` is `Done`; `E4.1` is the next executable step. Canonical events now drive
-bounded deterministic scoring, focus, preemption, saga aggregation/lifecycle, fact-backed chapters,
-player-facing Story Director telemetry, and headless focus/saga counters without gameplay RNG,
-timing sources, PPO observation changes, or balance drift.
+Current checkpoint: `E4.2` is `Done`; `E4.3` is the next executable step. The terminal now presents
+the Director's active focus through a responsive Story Ribbon plus bounded actor/location emphasis.
+Major beats remain actor-only, critical/legendary location pulses preserve underlying symbols, and
+off-layer action becomes a ribbon direction cue without gameplay RNG, mutable animation state, PPO
+observation changes, or balance drift.
 
 Rules for ordering:
 
@@ -849,27 +850,83 @@ Post-E3 implementation watchlist:
 
 ## 8) Workstream E4 - Cinematic terminal presentation
 
-Status: `Not started`
+Status: `In progress`
 
 Objective: make important events immediately visible while preserving the terminal-first interface.
 
 ### E4.1 Story ribbon
 
-- [ ] Add a compact in-map story ribbon for the current major event or saga beat.
-- [ ] Show actor, action, place, and consequence in that order when width permits.
-- [ ] Define narrow-terminal fallbacks and collision rules with existing overlays.
-- [ ] Do not duplicate the Data Center inside the ribbon.
-- [ ] Sample selected and suppressed moments in real seeded runs; record whether focus pacing and
+Status: `Done`
+
+- [x] Add a compact in-map story ribbon for the current major event or saga beat.
+- [x] Show actor, action, place, and consequence in that order when width permits.
+- [x] Define narrow-terminal fallbacks and collision rules with existing overlays.
+- [x] Do not duplicate the Data Center inside the ribbon.
+- [x] Sample selected and suppressed moments in real seeded runs; record whether focus pacing and
   narrative relevance support the E3.4 counters rather than relying on coverage alone.
-- [ ] Keep ribbon formatting and layout outside Story Director scoring/saga modules; consume only
+- [x] Keep ribbon formatting and layout outside Story Director scoring/saga modules; consume only
   read-only focus and saga state.
+
+E4.1 closure snapshot (2026-09-04):
+
+- Added `src/render/story_ribbon.js` as a presentation-only consumer of `state.story.currentFocus`.
+  It resolves the focused canonical Event Log record by stable ID, prefers authoritative dwarf/place
+  identity, and falls back to the saga's fact-backed summary after UI-history eviction.
+- The four-row lower-map ribbon presents importance/saga, then actor → action → place → consequence.
+  It uses deterministic ellipsis, a single primary actor on narrower layouts, compact place labels,
+  and friendly typed-consequence wording without reproducing Director scores or cooldown telemetry.
+- Layout contracts pass at `120`, `90`, and `72` columns. The ribbon clips to the left of a vertically
+  overlapping Ops Snapshot, disappears below its configured minimum width, and yields to Inspect,
+  Legend, Data Center, Warrior League, Event Log, save, and cycle-transition overlays.
+- A seeded `202 x 2000` observation sampled `8` selected and `489` suppressed decisions. The selected
+  set covered founding, social escalation, Warrior crowns, and the critical/legendary schism climax;
+  suppression reasons were `383` below minimum importance and `106` protected by active focus. A
+  repeated later schism-phase beat remains an explicit pacing sample for ER-016 during E4.2/E4.3.
+- Repeated `2 x 1000` reports are byte-equal excluding timestamps (`18/30` population endpoints;
+  `9/319` selected, critical `1/1`, legendary `1/1`). The refreshed `4 x 8000` cache retains exact
+  endpoints (`683/678/732/700`) and E3.4 Director totals; config/cache hash
+  `5010093856457e7d91557d89407fdfdd13f4c98768f7703b344004ec9e9bdb30` is aligned.
+- Syntax checks, focused renderer contracts, `npm test`, cache aligned recheck, and interactive TTY
+  smoke pass. A `500`-frame `120x40` probe measured `1.125 ms` mean frame build versus the E0
+  `1.146 ms` reference; `20000` ribbon builds averaged `0.0034 ms`. Rendering remains read-only,
+  RNG-free, outside headless execution, and outside PPO/map export contracts.
 
 ### E4.2 Map focus overlays
 
-- [ ] Add deterministic pulse/rune/radius emphasis around the current location.
-- [ ] Add off-screen/layer direction cues when the focused event is not in the active view.
-- [ ] Highlight involved actors and relevant paths without permanently recoloring terrain.
-- [ ] Add configurable animation cadence that does not change simulation state.
+Status: `Done`
+
+- [x] Add deterministic pulse/rune/radius emphasis around the current location.
+- [x] Add off-screen/layer direction cues when the focused event is not in the active view.
+- [x] Highlight involved actors and relevant paths without permanently recoloring terrain.
+- [x] Add configurable animation cadence that does not change simulation state.
+
+E4.2 closure snapshot (2026-09-04):
+
+- Added `src/render/story_focus_overlay.js` as a read-only consumer of the Director's single active
+  focus and of actor coordinates already resolved by the surface/Underrealm renderer. It does not
+  choose focus, move actors, reserve cells, or introduce a second spatial model.
+- The default visual budget is deliberately sparse: major beats recolor at most two involved
+  visible dwarves; only critical/legendary beats add the authoritative location plus at most four
+  cardinal cells. Existing actor, structure, resource, and terrain symbols remain intact. Optional
+  paths are implemented with a hard twelve-cell bound but disabled by default.
+- Location markers alternate between visible and quiet phases using only `state.tick` and a
+  configurable `16`-tick cadence. No wall clock, timer, RNG, or retained animation state was added.
+  Modal/save/transition views still win overlay priority.
+- Cross-layer facts paint no false position: the ribbon receives `↑ Surface` or `↓/↑ Underrealm Dn`;
+  out-of-bounds coordinates receive a compact off-map arrow. Stable place IDs take precedence over
+  stale event coordinates, while actor emphasis uses only currently rendered layer-local positions.
+- Focused contracts cover the six-cell default cap, actor/location thresholds, pulse phases,
+  surface/depth cues, bounds, symbol preservation, modal priority, RNG/immutability isolation,
+  opt-in three-cell paths, and absolute configuration caps. `npm test` and the interactive
+  `80`-column TTY smoke pass; the smoke showed a major focus as one recolored dwarf with no location
+  ring.
+- Repeated `2 x 1000` reports are byte-equal excluding timestamps (`18/30` endpoints; `9/319`
+  selected; critical `1/1`, legendary `1/1`). The refreshed `4 x 8000` cache retains exact
+  `683/678/732/700` endpoints and E3 totals (`120/12637`, critical `4/4`, legendary `4/4`) under
+  aligned hash `18a9b490351c8f9d73d9ca3a893b2f32c68c8336b66c285a9d28dc6db81c0cc2`.
+- A `500`-frame `120x40` probe with a critical focus and active marker cadence averaged `0.798 ms`
+  versus the E0 `1.146 ms` reference. The overlay remains outside headless execution, map export,
+  and PPO observation/action contracts. E4.3 time controls are ready.
 
 ### E4.3 Time controls and major-event protection
 
@@ -887,10 +944,10 @@ Objective: make important events immediately visible while preserving the termin
 
 E4 exit criteria:
 
-- [ ] An observer can locate every critical/legendary visible-layer event without opening telemetry.
-- [ ] Overlay priority and panel collisions pass supported terminal-size checks.
-- [ ] Presentation timing does not alter deterministic simulation results.
-- [ ] Render performance remains within the E0 threshold.
+- [x] An observer can locate every critical/legendary visible-layer event without opening telemetry.
+- [x] Overlay priority and panel collisions pass supported terminal-size checks.
+- [x] Presentation timing does not alter deterministic simulation results.
+- [x] Render performance remains within the E0 threshold.
 - [ ] `npm start` smoke covers pause, speed, step, panels, layer switching, and resize.
 
 ## 9) Workstream E5 - Living biographies and Chronicle
@@ -1139,11 +1196,11 @@ Stop rules:
 | ER-009 | New threats make stable colonies unrecoverable | Medium | High | Staged rollout, recovery windows, cached benchmark and collapse blockers | Open |
 | ER-010 | AI observes a world contract that changed silently | Low | High | Shape contracts, compatibility classification, explicit fresh-training gate | Open |
 | ER-011 | Place identity grows without bounds or diverges between UI consumers | Low | Medium | Hard-capped authoritative registry, RNG-neutral deterministic names, stable IDs, serialization and UI lookup contracts | Mitigated through E2.3; monitor Chronicle integration |
-| ER-012 | Capped rendering hides urgent actors or flickers as population grows | Low | High | Shared deterministic priority tiers, layer eligibility, prior-set stability, urgent preemption, and above-cap contracts | Mitigated through E2.4; monitor Story Director focus integration |
+| ER-012 | Capped rendering hides urgent actors or flickers as population grows | Low | High | Shared deterministic priority tiers, layer eligibility, prior-set stability, urgent preemption, above-cap contracts, and layer-local focus emphasis | Mitigated through E4.2; monitor future camera work |
 | ER-013 | Narrative contract tests become a monolithic maintenance bottleneck | Medium | Medium | Review thematic suite boundaries before the next substantial narrative domain; retain shared fixtures and one aggregate gate | Monitoring from E4 |
-| ER-014 | Story Director and saga modules accumulate presentation or Chronicle responsibilities | Medium | Medium | Keep E4 read-only, preserve module ownership, and reassess boundaries before E5 expansion | Monitoring from E4 |
+| ER-014 | Story Director and saga modules accumulate presentation or Chronicle responsibilities | Medium | Medium | Keep E4 read-only, preserve module ownership, and reassess boundaries before E5 expansion | Mitigated through E4.1; monitor E5 |
 | ER-015 | High saga churn produces fragmented or prematurely evicted history | Medium | High | Sample seeded arcs, report terminal/opened and eviction causes, and gate Chronicle reliance on a quality review | Monitoring through E4; gate E5 |
-| ER-016 | Excellent priority coverage masks poor focus pacing or low-value selected moments | Medium | High | Pair counters with runtime observation, supported-width captures, and selected/suppressed event sampling | Monitoring through E4 |
+| ER-016 | Excellent priority coverage masks poor focus pacing or low-value selected moments | Medium | High | Pair counters with runtime observation, supported-width captures, and selected/suppressed event sampling | Partially mitigated through E4.2; monitor E4.3 time controls |
 
 ## 16) Decision log
 
@@ -1179,6 +1236,8 @@ Record every non-trivial scope or architecture decision.
 | 2026-07-17 | ED-026 | Feed committed canonical events directly into a deterministic additive scorer, and allow only threshold-qualified stronger events to preempt under cooldown and rolling budget | Poll the Event Log; use random tie-breaks; let score alone replace any active focus; bypass budgets for all critical events | Direct commit sees events even with zero UI retention, canonical order is reproducible, and severity gates plus explicit component traces keep interruption behavior bounded and explainable | E3.2 scoring, focus lifecycle, and event-runtime boundary | Approved |
 | 2026-07-17 | ED-027 | Assign sagas by explicit ID, parent cause, then weighted retained evidence; derive bounded chapters only from canonical messages and use deterministic lifecycle/eviction | Generate arcs from flavor text; group every shared system actor; retain whole events; use random similarity ties; carry sagas across cycles now | Makes causal ownership explicit, prevents invented history and broad false merges, bounds memory, preserves reproducibility, and leaves cross-cycle legacy to E6 | E3.3 saga aggregation, lifecycle, and factual integrity | Approved |
 | 2026-07-17 | ED-028 | Expose Story Director state through a read-only telemetry/report helper and version the headless report schema for new story counters | Build display rows inside the scorer; infer metrics from Event Log retention; change balance-gate scoring; wait for E4 ribbon before any visibility | Keeps observability deterministic and reusable, avoids coupling presentation to selection logic, gives benchmark evidence without affecting tuning gates, and lets cache refresh on report-shape drift | E3.4 explainability, Data Center, and headless reporting | Approved |
+| 2026-09-04 | ED-029 | Render the active focus as a lower-map, four-row read-only ribbon that resolves canonical facts by ID and yields to existing overlays | Add story text to the Ops Snapshot; copy event payloads into Director state; reserve new simulation cells; start camera work | Preserves Director/render ownership, keeps operational telemetry distinct, supports retained-event eviction safely, and delivers immediate watchability without world-layout or AI changes | E4.1 Story Ribbon presentation and collision boundary | Approved |
+| 2026-09-04 | ED-030 | Use a single sparse focus overlay: actor-only for major beats, a four-cell tick-derived location pulse for critical/legendary beats, and paths disabled by default | Persistent runes for every major event; animated paths; multiple simultaneous focus regions; immediate camera/viewport work | Makes the selected event locatable while preserving terrain identity and visual quiet, bounds render work, and lets off-layer action remain explicit without inventing an on-map position | E4.2 map focus visual budget and layer boundary | Approved |
 
 ## 17) Implementation log
 
@@ -1208,6 +1267,8 @@ within the repository retention policy.
 | 2026-07-17 | EW-018 | E3.2 deterministic scoring/focus: consume committed facts, score six explicit components, enforce focus/escalation cooldowns and rolling interruption budget, and trace every decision | `src/simulation/story_director.js`, `src/simulation/events.js`, `src/simulation/index.js`, `config.json`, `scripts/test_narrative_contracts.js`, `benchmark_cache/`, parameter/narrative/product/operations/layout docs | Formula/preemption/cooldown/budget/expiry/cursor/retention/RNG fixtures, 2000-tick boundedness probe, `npm test`, repeated `2 x 1000`, cached `4 x 8000` refresh + aligned recheck, terminal render smoke, `git diff --check` | Done | Probe considered `462/462` facts with trace capped at `160` and story state `45,632` bytes; repeated short reports exact; full endpoints exact; cache hash `2dca7eb6c6fe80e280fb701a963b89ebe38c6c349db225f3e155de46129d3118` aligned; E3.3 ready |
 | 2026-07-17 | EW-019 | E3.3 deterministic saga aggregation: group committed facts by explicit/causal/weighted evidence, advance bounded lifecycles, and retain fact-backed chapters | `src/simulation/story_sagas.js`, `src/simulation/story_director.js`, `src/simulation/events.js`, `config.json`, `scripts/test_narrative_contracts.js`, `benchmark_cache/`, parameter/narrative/product/operations/layout docs | Grouping/ID/lifecycle/chapter/cap/serialization/RNG fixtures, 2000-tick boundedness probe, `npm test`, repeated `2 x 1000`, cached `4 x 8000` refresh + aligned recheck, terminal render smoke, `git diff --check` | Done | Probe retained 24 bounded sagas and 28 chapters in 71,367 bytes; repeated short reports exact; full endpoints exact; cache hash `aafb12c5a2522c1d7418ae3117ef1fb59b4cda15900440ba42c8a77c610b4bbf` aligned; E3.4 ready |
 | 2026-07-17 | EW-020 | E3.4 Story Director explainability: expose current focus/saga/cooldowns/reasons in Data Center and add deterministic headless focus/context/saga counters | `src/telemetry/story_director.js`, `src/telemetry/telemetry.js`, `src/telemetry/telemetry_panel.js`, `src/simulation/story_director.js`, `scripts/headless_benchmark.js`, `scripts/ensure_benchmark_baseline.js`, `scripts/test_narrative_contracts.js`, `benchmark_cache/`, telemetry/narrative/product/operations/layout docs | Story telemetry/report fixtures, syntax checks, `npm test`, repeated deterministic `2 x 1000`, cached `4 x 8000` schema-2 refresh + aligned recheck, terminal render smoke, `git diff --check` | Done | Full report: critical `4/4`, legendary `4/4`, priority context `8/8`, selected `120/12637`, suppressed `12517`, preempted `7`, sagas `2850` opened / `140` terminal; endpoints and cache hash unchanged; E3 is closed and E4.1 is ready |
+| 2026-09-04 | EW-021 | E4.1 Story Ribbon: present the Director's active focus as responsive actor/action/place/consequence context with fact-backed eviction fallback and explicit overlay collision rules | `src/render/story_ribbon.js`, `src/render/index.js`, `config.json`, `scripts/test_narrative_contracts.js`, `benchmark_cache/`, product/parameter/operations/layout docs | Syntax checks, `120/90/72` layout and collision/RNG/immutability fixtures, seeded `202 x 2000` focus sample, `500`-frame performance probe, repeated `2 x 1000`, `npm test`, cached `4 x 8000` refresh + aligned recheck, interactive TTY smoke, `git diff --check` | Done | Ribbon remains presentation-only; selected sample covers varied meaningful beats with one repeated schism-phase pacing watch; frame mean `1.125 ms`; exact short/full endpoints and E3 counters retained; cache hash `5010093856457e7d91557d89407fdfdd13f4c98768f7703b344004ec9e9bdb30` aligned; E4.2 ready |
+| 2026-09-04 | EW-022 | E4.2 sparse map focus: emphasize layer-local actors and critical/legendary locations, preserve map symbols, and route depth/off-map direction through the Story Ribbon | `src/render/story_focus_overlay.js`, `src/render/story_ribbon.js`, `src/render/index.js`, `config.json`, `scripts/test_narrative_contracts.js`, `benchmark_cache/`, product/parameter/operations/layout docs | Syntax/config checks, focused six-cell/threshold/pulse/layer/path/cap/RNG/immutability fixtures, `500`-frame active-critical performance probe, repeated `2 x 1000`, `npm test`, cached `4 x 8000` refresh + aligned recheck, interactive `80`-column TTY smoke, `git diff --check` | Done | Major focus remains actor-only; critical ring is capped at five location cells and paths stay off by default; frame mean `0.798 ms`; exact short/full endpoints and Director totals retained; cache hash `18a9b490351c8f9d73d9ca3a893b2f32c68c8336b66c285a9d28dc6db81c0cc2` aligned; E4.3 ready |
 
 ## 18) Checkpoint template
 
@@ -1310,9 +1371,13 @@ Execute one bounded step at a time:
     generate fact-backed chapter summaries.
 20. [x] `E3.4 / explainability and telemetry` - Expose current saga/focus, cooldown state, selection
     reason, and bounded headless counters.
-21. [ ] `E4.1 / Story ribbon` - Add compact in-map current-story presentation for the active major
-    event or saga beat. **Next.**
+21. [x] `E4.1 / Story ribbon` - Add compact in-map current-story presentation for the active major
+    event or saga beat.
+22. [x] `E4.2 / Map focus overlays` - Add deterministic location/actor emphasis and cross-layer cues
+    for the active focus without changing terrain identity or simulation state.
+23. [ ] `E4.3 / Time controls and major-event protection` - Add manual speed/step controls and
+    presentation-only critical/legendary slow or hold behavior. **Next.**
 
 The next implementation slice should remain deliberately narrow: present the already selected
-Director focus/saga in the terminal view through a compact story ribbon. It should not include camera
-work, persistent legacy, new combat systems, or AI shape changes.
+Director focus through explicit time controls and presentation-only event protection. It should not
+include camera work, persistent legacy, new combat systems, or AI shape changes.

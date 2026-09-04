@@ -40,6 +40,11 @@ Chaos, strategy, and tiny bearded logistics experts included. 🧔🧱
   events that actually happened. The Data Center and headless reports expose the current focus,
   current saga, cooldowns, selection reasons, priority coverage, suppression counts, and saga
   outcomes.
+- 🎞️ A compact in-map Story Ribbon turns the Director's active focus into an immediate
+  actor → action → place → consequence beat, with deterministic narrow-terminal fallbacks and clean
+  modal/Operations Snapshot collision rules. A restrained focus overlay recolors at most two
+  involved dwarves and marks locations only for critical or legendary beats; off-layer action is
+  reported in the ribbon instead of cluttering the current map.
 - 🌤️ In-map Ops Snapshot shows a live weather token (`Wx:*`, e.g. `Clear`, `Rain`, `Storm`) for at-a-glance climate context.
 - 📊 In-game Data Center (`h`) with dashboard, deep economy views, Story Director visibility, and AI explainability.
 - 🤖 PPO training pipeline in Python with JS runtime inference (`models/*.json`).
@@ -163,6 +168,8 @@ npm run debug:clean
 - 🌍 `src/state/`: world/terrain and initial state generation.
 - 🎨 `src/render/`: map, overlays, panels, and layout helpers.
 - 👁️ `src/render/dwarf_visibility.js`: stable story-priority selection for capped dwarf rendering.
+- 🎞️ `src/render/story_ribbon.js`: responsive read-only presentation of the active story focus.
+- ✨ `src/render/story_focus_overlay.js`: bounded actor/location emphasis and cross-layer focus cues.
 - 📊 `src/telemetry/`: Data Center sections and metric builders.
   - `src/telemetry/story_director.js`: Story Director telemetry rows and headless report counters.
 - 🧠 `src/ai/`: observation and policy helpers.

@@ -80,6 +80,13 @@ const {
 } = require('../src/simulation/secondary_events');
 const { auditNarrativeProducers } = require('./audit_narrative_producers');
 const { buildEventLogPanel } = require('../src/render/event_log_panel');
+const { applyStoryRibbon, buildStoryRibbon } = require('../src/render/story_ribbon');
+const {
+  applyStoryFocusOverlay,
+  buildStoryFocusOverlay,
+  resolveStoryFocusOverlayConfig,
+} = require('../src/render/story_focus_overlay');
+const { stripAnsi } = require('../src/utils');
 const { buildTelemetrySections } = require('../src/telemetry/telemetry');
 const {
   buildTelemetryPanel,
@@ -3390,6 +3397,303 @@ function validateMapExportIsolationContract() {
   assert(!snapshotSource.includes('state.story'), 'Map-export snapshot unexpectedly includes Story Director state.');
 }
 
+// Validate the E4.1 ribbon layout, structured-fact fallbacks, and read-only boundary.
+function validateStoryRibbonContract() {
+  const config = loadConfig();
+  const event = buildValidEvent({
+    tick: 500,
+    sequence: 0,
+    type: 'combat.ribbon_defense_resolved',
+    category: 'combat',
+    importance: 'critical',
+    message: 'Dori Ironhand held the eastern gate against the raiders',
+    actors: [{
+      kind: 'dwarf',
+      id: 'ribbon_dwarf',
+      role: 'primary',
+      label: 'Dori Ironhand',
+    }],
+    location: {
+      scope: 'surface',
+      depth: 0,
+      x: 12,
+      y: 7,
+      placeId: 'ribbon_hold',
+      label: 'Stale Hold',
+    },
+    consequences: [{
+      kind: 'status',
+      targetKind: 'settlement',
+      targetId: 'settlement_main',
+      metric: 'raid_active',
+      value: false,
+      unit: null,
+    }],
+    sagaId: 'saga_c0001_0007',
+  });
+  const state = {
+    tick: 500,
+    dwarves: [],
+    places: {
+      order: ['ribbon_hold'],
+      byId: {
+        ribbon_hold: {
+          id: 'ribbon_hold',
+          name: 'Ironward Hold',
+          shortName: 'Ironward',
+        },
+      },
+    },
+    eventLog: [event],
+    story: {
+      currentFocus: {
+        eventId: event.id,
+        type: event.type,
+        importance: event.importance,
+        sagaId: event.sagaId,
+        actorIds: ['ribbon_dwarf'],
+        placeId: 'ribbon_hold',
+      },
+      sagas: {
+        byId: {
+          [event.sagaId]: {
+            id: event.sagaId,
+            status: 'active',
+            summary: event.message,
+          },
+        },
+      },
+    },
+    ui: {},
+  };
+  const before = JSON.stringify(state);
+  const originalRandom = Math.random;
+  Math.random = () => {
+    throw new Error('Story ribbon consumed gameplay RNG.');
+  };
+  let wide;
+  let medium;
+  let narrow;
+  try {
+    wide = buildStoryRibbon(state, config, { gridWidth: 120, gridHeight: 30, mapInset: null });
+    medium = buildStoryRibbon(state, config, { gridWidth: 90, gridHeight: 24, mapInset: null });
+    narrow = buildStoryRibbon(state, config, { gridWidth: 72, gridHeight: 18, mapInset: null });
+  } finally {
+    Math.random = originalRandom;
+  }
+  assert(wide && medium && narrow, 'Story ribbon did not render at supported widths.');
+  for (const ribbon of [wide, medium, narrow]) {
+    assert(ribbon.lines.length === 4, 'Story ribbon height drifted from its compact four-row layout.');
+    assert(
+      ribbon.lines.every((line) => String(line.text || '').length === ribbon.width),
+      'Story ribbon overflowed or underfilled its resolved width.',
+    );
+  }
+  const wideText = wide.lines.map((line) => line.text).join('\n');
+  assert(wideText.includes('Actor: Dori Ironhand'), 'Story ribbon omitted the primary actor.');
+  assert(wideText.includes('Action: held the eastern gate'), 'Story ribbon omitted the action.');
+  assert(wideText.includes('At: Ironward Hold'), 'Story ribbon ignored authoritative place identity.');
+  assert(wideText.includes('Consequence: raid ended'), 'Story ribbon omitted the consequence.');
+  assert(!wideText.includes('Stale Hold'), 'Story ribbon trusted a stale event location label.');
+  assert(JSON.stringify(state) === before, 'Story ribbon builder mutated simulation or Director state.');
+
+  const collision = buildStoryRibbon(state, config, {
+    gridWidth: 72,
+    gridHeight: 18,
+    mapInset: { x: 50, y: 10, width: 22, height: 8 },
+  });
+  assert(collision && collision.x + collision.width < 50, 'Story ribbon collided with the Ops Snapshot.');
+
+  const modalState = clone(state);
+  modalState.ui.eventLog = { open: true };
+  assert(
+    buildStoryRibbon(modalState, config, { gridWidth: 120, gridHeight: 30 }) === null,
+    'Story ribbon remained visible beneath a blocking modal.',
+  );
+
+  const fallbackState = clone(state);
+  fallbackState.eventLog = [];
+  fallbackState.story.sagas.byId[event.sagaId].summary = 'The eastern defense became legend';
+  const fallback = buildStoryRibbon(fallbackState, config, {
+    gridWidth: 72,
+    gridHeight: 18,
+    mapInset: null,
+  });
+  assert(
+    fallback && fallback.fields.action === 'The eastern defense became legend',
+    'Story ribbon did not use the fact-backed saga beat after Event Log eviction.',
+  );
+
+  const grid = Array.from({ length: 18 }, () => Array(72).fill('.'));
+  applyStoryRibbon(grid, narrow, { enabled: false, map: {} });
+  assert(grid[narrow.y][narrow.x] === '╔', 'Story ribbon overlay was not applied to the map grid.');
+  assert(JSON.stringify(state) === before, 'Story ribbon application mutated simulation state.');
+}
+
+// Validate the E4.2 overlay budget, layer cues, deterministic pulse, and symbol preservation.
+function validateStoryFocusOverlayContract() {
+  const config = loadConfig();
+  const event = buildValidEvent({
+    tick: 640,
+    sequence: 0,
+    type: 'combat.focus_defense_resolved',
+    category: 'combat',
+    importance: 'critical',
+    message: 'Dori Ironhand held the Ironward approach',
+    actors: [{
+      kind: 'dwarf',
+      id: 'focus_dwarf',
+      role: 'primary',
+      label: 'Dori Ironhand',
+    }],
+    location: {
+      scope: 'surface',
+      depth: 0,
+      x: 10,
+      y: 8,
+      placeId: 'focus_hold',
+      label: 'Stale Hold',
+    },
+    sagaId: 'saga_c0001_0009',
+  });
+  const state = {
+    tick: 32,
+    dwarves: [],
+    places: {
+      order: ['focus_hold'],
+      byId: {
+        focus_hold: {
+          id: 'focus_hold',
+          name: 'Ironward Hold',
+          shortName: 'Ironward',
+          scope: 'surface',
+          depth: 0,
+          x: 10,
+          y: 8,
+        },
+      },
+    },
+    eventLog: [event],
+    story: {
+      currentFocus: {
+        eventId: event.id,
+        type: event.type,
+        importance: event.importance,
+        sagaId: event.sagaId,
+        actorIds: ['focus_dwarf'],
+        placeId: 'focus_hold',
+      },
+      sagas: {
+        byId: {
+          [event.sagaId]: { id: event.sagaId, status: 'active', summary: event.message },
+        },
+      },
+    },
+    ui: {},
+  };
+  const runtime = { gridWidth: 30, gridHeight: 20, mapInset: null };
+  const actorPositions = new Map([['focus_dwarf', { x: 4, y: 5 }]]);
+  const before = JSON.stringify(state);
+  const originalRandom = Math.random;
+  Math.random = () => {
+    throw new Error('Story focus overlay consumed gameplay RNG.');
+  };
+  let overlay;
+  try {
+    overlay = buildStoryFocusOverlay(state, config, runtime, 0, actorPositions);
+  } finally {
+    Math.random = originalRandom;
+  }
+  assert(overlay, 'Story focus overlay did not render for a critical focus.');
+  assert(overlay.actorCount === 1, 'Story focus overlay exceeded or missed its actor budget.');
+  assert(overlay.markerCount === 4, 'Story focus overlay did not build its bounded cardinal markers.');
+  assert(overlay.pathCount === 0, 'Story focus paths were unexpectedly enabled by default.');
+  assert(overlay.cells.length === 6, 'Story focus overlay exceeded its default six-cell visual budget.');
+  assert(
+    overlay.cells.every((cell) => cell.x >= 0 && cell.x < 30 && cell.y >= 0 && cell.y < 20),
+    'Story focus overlay emitted an out-of-bounds cell.',
+  );
+  assert(JSON.stringify(state) === before, 'Story focus overlay builder mutated simulation state.');
+
+  const grid = Array.from({ length: 20 }, () => Array(30).fill('.'));
+  grid[5][4] = '@';
+  grid[8][10] = 'H';
+  applyStoryFocusOverlay(grid, overlay, {
+    enabled: true,
+    reset: '\x1b[0m',
+    map: { story_focus_critical: '\x1b[93m' },
+  });
+  assert(stripAnsi(grid[5][4]) === '@', 'Story focus actor emphasis replaced its map symbol.');
+  assert(stripAnsi(grid[8][10]) === 'H', 'Story focus location emphasis replaced its map symbol.');
+  assert(grid[5][4] !== '@', 'Story focus actor emphasis did not apply its importance color.');
+
+  const majorState = clone(state);
+  majorState.eventLog[0].importance = 'major';
+  majorState.story.currentFocus.importance = 'major';
+  const major = buildStoryFocusOverlay(majorState, config, runtime, 0, actorPositions);
+  assert(major.actorCount === 1, 'Major focus did not emphasize its visible actor.');
+  assert(major.markerCount === 0, 'Major focus added location markers below the critical threshold.');
+  assert(
+    major.cells.every((cell) => cell.role === 'actor'),
+    'Major focus added non-actor map decoration.',
+  );
+
+  const quietPulseState = clone(state);
+  quietPulseState.tick = 16;
+  const quietPulse = buildStoryFocusOverlay(quietPulseState, config, runtime, 0, actorPositions);
+  assert(quietPulse.markerCount === 0, 'Story focus pulse ignored its tick-derived quiet phase.');
+  assert(
+    quietPulse.cells.some((cell) => cell.role === 'location'),
+    'Story focus quiet phase hid the critical location anchor.',
+  );
+
+  const offLayerState = clone(state);
+  offLayerState.eventLog[0].location = {
+    scope: 'underrealm', depth: 3, x: 10, y: 8, placeId: null, label: 'Deep Vault',
+  };
+  offLayerState.story.currentFocus.placeId = null;
+  const offLayer = buildStoryFocusOverlay(offLayerState, config, runtime, 0, actorPositions);
+  assert(offLayer.cue === '↓ Underrealm D3', 'Story focus overlay omitted its off-layer depth cue.');
+  assert(
+    !offLayer.cells.some((cell) => cell.role === 'location' || cell.role === 'marker'),
+    'Off-layer focus painted a location on the active map.',
+  );
+  const cueRibbon = buildStoryRibbon(
+    offLayerState,
+    config,
+    { gridWidth: 72, gridHeight: 20, mapInset: null },
+    { focusCue: offLayer.cue },
+  );
+  assert(
+    cueRibbon.lines.some((line) => line.text.includes('↓ Underrealm D3')),
+    'Story ribbon did not surface the off-layer focus cue.',
+  );
+
+  const modalState = clone(state);
+  modalState.ui.eventLog = { open: true };
+  assert(
+    buildStoryFocusOverlay(modalState, config, runtime, 0, actorPositions) === null,
+    'Story focus overlay remained visible beneath a blocking modal.',
+  );
+
+  const pathConfig = clone(config);
+  pathConfig.display.storyFocusOverlay.showPaths = true;
+  pathConfig.display.storyFocusOverlay.maxPathCells = 3;
+  const pathOverlay = buildStoryFocusOverlay(state, pathConfig, runtime, 0, actorPositions);
+  assert(pathOverlay.pathCount === 3, 'Opt-in story focus path ignored its three-cell hard budget.');
+
+  const clamped = resolveStoryFocusOverlayConfig({
+    display: {
+      storyFocusOverlay: { maxActors: 99, radius: 99, maxMarkers: 99, maxPathCells: 99 },
+    },
+  });
+  assert(clamped.maxActors === 2, 'Story focus actor hard cap drifted above two.');
+  assert(clamped.radius === 2, 'Story focus radius hard cap drifted above two.');
+  assert(clamped.maxMarkers === 4, 'Story focus marker hard cap drifted above four.');
+  assert(clamped.maxPathCells === 12, 'Story focus path hard cap drifted above twelve.');
+  assert(JSON.stringify(state) === before, 'Story focus overlay validation mutated simulation state.');
+}
+
 // Execute every narrative-contract lane in deterministic order.
 function main() {
   if (process.argv.length > 2) {
@@ -3429,8 +3733,10 @@ function main() {
   validateLegacyCompatibilityContract();
   validateAiObservationIsolationContract();
   validateEventLogRenderingContract();
+  validateStoryRibbonContract();
+  validateStoryFocusOverlayContract();
   validateMapExportIsolationContract();
-  console.log('[test:narrative] PASS envelope malformed identity emitter importance collision lifecycle social combat warrior political endgame multi_cycle app_transition secondary_audit dwarf_identity named_messages place_identity priority_visibility story_state story_bounds story_serialization story_scoring story_focus story_preemption story_trace saga_grouping saga_ids saga_lifecycle saga_chapters story_telemetry story_reports legacy retention bounds serialization renderer ai_isolation export_isolation');
+  console.log('[test:narrative] PASS envelope malformed identity emitter importance collision lifecycle social combat warrior political endgame multi_cycle app_transition secondary_audit dwarf_identity named_messages place_identity priority_visibility story_state story_bounds story_serialization story_scoring story_focus story_preemption story_trace saga_grouping saga_ids saga_lifecycle saga_chapters story_telemetry story_reports story_ribbon story_focus_overlay legacy retention bounds serialization renderer ai_isolation export_isolation');
 }
 
 main();

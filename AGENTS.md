@@ -67,6 +67,10 @@ This file defines how to implement new features in a consistent, stable way.
 - `src/render/index.js`: render orchestrator.
 - `src/render/dwarf_visibility.js`: deterministic bounded story-priority selection shared by surface
   and Underrealm dwarf rendering.
+- `src/render/story_ribbon.js`: read-only responsive in-map presentation of the active Story Director
+  focus with actor/action/place/consequence fallbacks and overlay collision handling.
+- `src/render/story_focus_overlay.js`: deterministic bounded actor/location emphasis and off-layer
+  direction cues for the active Story Director focus.
 - `src/render/map_inset_panel.js`: carved top-right in-map operations snapshot panel (tick/year/cycle, population age split, underrealm unlock info, keyboard hints).
 - `src/render/warrior_panel.js`: Warrior League analytics modal overlay (champion lineage, top-5 fighters, marks/legacy summary).
 - `src/render/event_log_panel.js`: Event Log modal overlay with scrollable real-time events,

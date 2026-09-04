@@ -7,6 +7,8 @@ const { buildFooterLines, getBeastSymbol } = require('./legend');
 const { buildLegendPanel, applyLegendPanel } = require('./legend_panel');
 const { buildTelemetryPanel, applyTelemetryPanel } = require('../telemetry/telemetry_panel');
 const { applyMapInsetPanel } = require('./map_inset_panel');
+const { buildStoryRibbon, applyStoryRibbon } = require('./story_ribbon');
+const { buildStoryFocusOverlay, applyStoryFocusOverlay } = require('./story_focus_overlay');
 const { getColorConfig, applyColor } = require('./colors');
 const { formatMapLine } = require('./format');
 const { buildInspectPanel, applyInspectPanel } = require('./inspect');
@@ -382,16 +384,17 @@ function estimateDeepRaidRenderCount(raid, maxCells) {
 
 // Overlay delver/hostile markers when rendering a specific underrealm depth.
 function renderUnderrealmOccupants(grid, state, config, colors, depth) {
+  const actorPositions = new Map();
   const layer = getUnderrealmLayerByDepth(state, depth);
   if (!layer || !layer.terrain) {
-    return;
+    return actorPositions;
   }
   const underrealmConfig = (config && config.underrealm) || {};
   const terrainConfig = underrealmConfig.terrain || {};
   const walkableConfig = terrainConfig.walkable || {};
   const walkableCells = collectUnderrealmWalkableCells(layer.terrain, walkableConfig);
   if (walkableCells.length === 0) {
-    return;
+    return actorPositions;
   }
   const walkableSet = buildUnderrealmWalkableSet(walkableCells);
   const symbols = config.symbols || {};
@@ -455,6 +458,7 @@ function renderUnderrealmOccupants(grid, state, config, colors, depth) {
     }
     delverCells.push(cell);
     grid[cell.y][cell.x] = applyColor(delverSymbol, delverColorKey, colors);
+    actorPositions.set(String(delverId), { x: cell.x, y: cell.y });
   }
 
   const deepFaction = state && state.underrealm && state.underrealm.deepFaction;
@@ -463,7 +467,7 @@ function renderUnderrealmOccupants(grid, state, config, colors, depth) {
     && deepFaction.activeRaidsByDepth[String(depth)];
   if (!activeRaid) {
     pruneUnderrealmActorState(depthState, activeActorKeys);
-    return;
+    return actorPositions;
   }
   const hostileColorKey = colors && colors.map && colors.map.underrealm_hostile
     ? 'underrealm_hostile'
@@ -507,6 +511,7 @@ function renderUnderrealmOccupants(grid, state, config, colors, depth) {
     grid[cell.y][cell.x] = applyColor(hostileSymbol, hostileColorKey, colors);
   }
   pruneUnderrealmActorState(depthState, activeActorKeys);
+  return actorPositions;
 }
 
 // Check if one underrealm terrain coordinate is walkable.
@@ -660,6 +665,7 @@ function renderFrame(state, config, runtime) {
   const grid = buildGridBase(state, config, runtime, colors, emptySymbol);
   const structurePositions = new Set();
   const dwarfPositions = new Set();
+  let storyActorPositions = new Map();
   const activeUnderrealmDepth = getActiveUnderrealmDepth(state);
   const underrealmViewActive = activeUnderrealmDepth > 0;
   if (!underrealmViewActive) {
@@ -714,6 +720,7 @@ function renderFrame(state, config, runtime) {
       if (draw && grid[draw.y] && grid[draw.y][draw.x] !== undefined) {
         grid[draw.y][draw.x] = applyColor(symbols.dwarf || '@', 'dwarf', colors);
         dwarfPositions.add(`${draw.x},${draw.y}`);
+        storyActorPositions.set(String(dwarf.id), { x: draw.x, y: draw.y });
       }
     }
 
@@ -754,13 +761,13 @@ function renderFrame(state, config, runtime) {
       }
     }
   } else {
-    renderUnderrealmOccupants(
+    storyActorPositions = renderUnderrealmOccupants(
       grid,
       state,
       config,
       colors,
       activeUnderrealmDepth,
-    );
+    ) || new Map();
     renderUnderrealmLifts(
       grid,
       state,
@@ -770,8 +777,26 @@ function renderFrame(state, config, runtime) {
     );
   }
 
+  const storyFocusOverlay = buildStoryFocusOverlay(
+    state,
+    config,
+    runtime,
+    activeUnderrealmDepth,
+    storyActorPositions,
+  );
+  if (storyFocusOverlay) {
+    applyStoryFocusOverlay(grid, storyFocusOverlay, colors);
+  }
+
   applyTransitionMask(grid, state.ui ? state.ui.transition : null, runtime);
   applyMapInsetPanel(grid, state, config, runtime, colors, frameSymbols);
+
+  const storyRibbon = buildStoryRibbon(state, config, runtime, {
+    focusCue: storyFocusOverlay && storyFocusOverlay.cue,
+  });
+  if (storyRibbon) {
+    applyStoryRibbon(grid, storyRibbon, colors);
+  }
 
   const legendPanel = buildLegendPanel(state, config, runtime);
   if (legendPanel) {

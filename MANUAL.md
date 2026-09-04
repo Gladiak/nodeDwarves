@@ -1693,6 +1693,40 @@ but it does not mutate gameplay systems, resources, actors, or AI inputs.
   - Applies the telemetry overlay when `display.telemetry_panel.enabled` is true.
   - Applies the map-save confirmation overlay when `display.save_panel.enabled` is true.
 
+- `render/story_ribbon.js`
+  - Renders the current Story Director focus as a four-row in-map ribbon near the lower map edge.
+  - Presents actor, action, authoritative place, and first typed consequence in that reading order.
+    The action uses the retained canonical message and removes a repeated leading actor label when
+    possible; the place resolver prefers the current bounded place registry over stale event text.
+  - Resolves the focused canonical event by ID from the Event Log buffer. If that record has already
+    been evicted, it falls back to the saga's fact-backed summary and compact focus references; it
+    never copies facts into new simulation state.
+  - Uses deterministic truncation and compact labels at narrow widths. The ribbon is omitted when
+    its configured minimum width cannot fit, clipped left of an overlapping Ops Snapshot, and hidden
+    while modal, save, or cycle-transition overlays are active.
+  - Rendering is read-only and consumes no RNG. It does not choose focus, alter Director cooldowns,
+    reserve simulation cells, affect headless execution, or enter PPO observations.
+  - Layout is controlled by `display.storyRibbon.*`.
+
+- `render/story_focus_overlay.js`
+  - Adds a read-only emphasis layer for the Story Director's single active focus. It consumes the
+    actual surface or Underrealm positions already resolved by the renderer, so it neither moves
+    actors nor creates a competing spatial model.
+  - Major beats recolor only involved visible dwarves, capped at two. Critical and legendary beats
+    may additionally recolor the authoritative location cell plus at most four cardinal cells; the
+    underlying dwarf, structure, resource, and terrain symbols are preserved.
+  - The cardinal ring alternates between visible and quiet phases using `state.tick` and
+    `display.storyFocusOverlay.cadenceTicks`. This is a deterministic render phase: it adds no timer,
+    mutable animation state, RNG call, or headless/training behavior.
+  - If the event belongs to another layer, no false marker is painted on the active map. The Story
+    Ribbon receives an explicit `↑ Surface` or `↓/↑ Underrealm Dn` cue instead; out-of-bounds
+    coordinates use a compact directional off-map cue.
+  - Paths are supported as a short Manhattan hint with an absolute twelve-cell cap, but remain off
+    by default (`showPaths=false`) to protect map legibility. The overlay also yields to modal, save,
+    and cycle-transition views and is applied before those panels and the Ops Snapshot.
+  - Visual budget and thresholds are controlled by `display.storyFocusOverlay.*`; importance colors
+    use `display.colors.map.story_focus_major|story_focus_critical|story_focus_legendary`.
+
 - `render/map_inset_panel.js`
   - Renders the carved top-right in-map Ops Snapshot (`display.mapInset.*`) as a dedicated component.
   - Uses a status-stack digest focused on core progression signals: tick/year/cycle, live weather token (`Wx:*`, e.g. `Clear`, `Rain`, `Storm`), population + age split + morale, underrealm unlock status, and current view depth.
@@ -2247,6 +2281,8 @@ Quick checklist:
   - `dwarf_lore.js` → deterministic identity seed plus character lore generation
   - `render/` → ASCII output (grid, legend, inspect overlays, frame orchestration)
     - `render/dwarf_visibility.js` → deterministic story-priority selection for capped surface/deep actors
+    - `render/story_ribbon.js` → responsive read-only current-focus ribbon with structured-fact fallbacks
+    - `render/story_focus_overlay.js` → bounded actor/location emphasis and cross-layer direction cues
     - `render/map_inset_panel.js` → carved in-map Ops Snapshot component (stable counters + keyboard hints)
     - `render/warrior_panel.js` → Warrior League modal overlay (company identity/carry-over context, champion lineage, top-5 fighters, marks/legacy summary)
     - `render/event_log_panel.js` → Event Log modal overlay (scrollable real-time event history with drama-focused filter)

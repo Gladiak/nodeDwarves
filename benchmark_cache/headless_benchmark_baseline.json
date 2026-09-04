@@ -9,7 +9,7 @@
       404
     ],
     "configPath": "/Users/filippoverni/ProgettiLavoro/nodeDwarves/config.json",
-    "configHash": "aafb12c5a2522c1d7418ae3117ef1fb59b4cda15900440ba42c8a77c610b4bbf",
+    "configHash": "18a9b490351c8f9d73d9ca3a893b2f32c68c8336b66c285a9d28dc6db81c0cc2",
     "resources": [
       "beer",
       "food",
@@ -17,7 +17,7 @@
     ],
     "width": 120,
     "height": 40,
-    "generatedAt": "2026-07-17T15:49:10.136Z"
+    "generatedAt": "2026-09-04T10:40:52.979Z"
   },
   "variants": [
     {

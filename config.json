@@ -31,6 +31,28 @@
       "title": "ᚦ NodeDwarves ᛞ",
       "reserveSimulationSpace": true
     },
+    "storyRibbon": {
+      "enabled": true,
+      "maxWidth": 118,
+      "minWidth": 40,
+      "marginLeft": 1,
+      "marginRight": 1,
+      "marginBottom": 1,
+      "hideWhenModalOpen": true
+    },
+    "storyFocusOverlay": {
+      "enabled": true,
+      "minimumImportance": "major",
+      "locationMinimumImportance": "critical",
+      "maxActors": 2,
+      "radius": 1,
+      "maxMarkers": 4,
+      "cadenceTicks": 16,
+      "markerSymbol": "",
+      "showPaths": false,
+      "maxPathCells": 6,
+      "hideWhenModalOpen": true
+    },
     "frame": {
       "enabled": true,
       "horizontal": "═",
@@ -542,6 +564,9 @@
         "beast": "\u001b[91m",
         "alert_warning": "\u001b[93m",
         "alert_critical": "\u001b[91m",
+        "story_focus_major": "\u001b[96m",
+        "story_focus_critical": "\u001b[93m",
+        "story_focus_legendary": "\u001b[95m",
         "herd": "\u001b[38;2;160;134;121m",
         "food": "\u001b[32m",
         "water": "\u001b[34m",

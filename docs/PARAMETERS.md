@@ -24,6 +24,37 @@ Display and layout:
 - `display.mapInset.marginRight`: inset right margin in map cells.
 - `display.mapInset.title`: inset title text rendered in the top border (default: `ᚦ NodeDwarves ᛞ`).
 - `display.mapInset.reserveSimulationSpace`: when true, carved cells are non-walkable/non-spawnable and excluded from build/path systems.
+- `display.storyRibbon.enabled`: show the active Story Director focus as a compact in-map ribbon.
+- `display.storyRibbon.maxWidth`: maximum ribbon width in map cells; runtime clamps it to available
+  space (default: `118`).
+- `display.storyRibbon.minWidth`: minimum usable ribbon width; below it the ribbon is omitted rather
+  than producing unreadable output (default: `40`, hard minimum: `24`).
+- `display.storyRibbon.marginLeft|marginRight|marginBottom`: non-negative map-cell margins used for
+  lower-edge placement.
+- `display.storyRibbon.hideWhenModalOpen`: hide the ribbon while Inspect, Legend, Data Center,
+  Warrior League, Event Log, map-save, or cycle-transition overlays are active.
+- `display.storyFocusOverlay.enabled`: enable bounded map emphasis for the active Story Director
+  focus without changing the underlying map symbols or simulation state.
+- `display.storyFocusOverlay.minimumImportance`: lowest importance eligible for actor emphasis
+  (default: `major`).
+- `display.storyFocusOverlay.locationMinimumImportance`: lowest importance eligible for location
+  emphasis (default: `critical`; therefore ordinary major beats remain actor-only).
+- `display.storyFocusOverlay.maxActors`: maximum involved actors recolored on the active layer
+  (default and hard maximum: `2`).
+- `display.storyFocusOverlay.radius`: cardinal marker distance from the focused location (default:
+  `1`, clamped to `1..2`).
+- `display.storyFocusOverlay.maxMarkers`: maximum cardinal location markers (default and hard
+  maximum: `4`).
+- `display.storyFocusOverlay.cadenceTicks`: ticks per visible/quiet marker phase (default: `16`);
+  the phase derives from simulation tick and stores no animation state.
+- `display.storyFocusOverlay.markerSymbol`: optional single-character marker override. Empty by
+  default so the overlay preserves and only recolors existing terrain/entity symbols.
+- `display.storyFocusOverlay.showPaths`: enable an optional bounded Manhattan hint from the first
+  visible actor to the focused location (default: `false` to minimize map clutter).
+- `display.storyFocusOverlay.maxPathCells`: maximum cells in the optional path hint (default: `6`,
+  hard maximum: `12`).
+- `display.storyFocusOverlay.hideWhenModalOpen`: hide focus emphasis while Inspect, Legend, Data
+  Center, Warrior League, Event Log, map-save, or cycle-transition overlays are active.
 - `display.frame.enabled`: render a frame around the map.
 - `display.frame.horizontal`: frame horizontal character.
 - `display.frame.vertical`: frame vertical character.
@@ -337,6 +368,8 @@ Display and layout:
 - `display.colors.map.terrain_pasture_depleted`: ANSI color for depleted pasture tiles.
 - `display.colors.map.alert_warning`: ANSI color used by warning-level UI pressure markers.
 - `display.colors.map.alert_critical`: ANSI color used by high-priority telemetry markers (for example pressure/critical rows in telemetry panels).
+- `display.colors.map.story_focus_major|story_focus_critical|story_focus_legendary`: ANSI emphasis
+  colors applied by the active-story map overlay while preserving existing map symbols.
 - `display.colors.seasonal.enabled`: enable seasonal terrain color transitions.
 - `display.colors.seasonal.preset`: optional named seasonal palette preset (for example `ice_fantasy`, currently tuned to a softer winter look).
 - `display.colors.seasonal.types`: terrain types that should use seasonal palettes (e.g. `plain`, `fertile`, `forest`, `food`, `grass`, `river`, `lake`; hills/mountains/stone remain fixed across seasons).
