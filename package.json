@@ -18,7 +18,8 @@
     "audit:narrative-producers": "node scripts/audit_narrative_producers.js",
     "test:narrative": "node scripts/test_narrative_contracts.js",
     "test:time-controls": "node scripts/test_time_controls.js",
-    "test": "node scripts/audit_narrative_producers.js && node scripts/test_narrative_contracts.js && node scripts/test_time_controls.js && node scripts/test_training_contracts.js"
+    "test:chronicle": "node scripts/test_chronicle_contracts.js",
+    "test": "node scripts/audit_narrative_producers.js && node scripts/test_narrative_contracts.js && node scripts/test_time_controls.js && node scripts/test_chronicle_contracts.js && node scripts/test_training_contracts.js"
   },
   "dependencies": {
     "puppeteer": "^24.36.1"

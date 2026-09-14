@@ -33,7 +33,8 @@ Runtime controls: `Space` pause/resume, `[` / `]` decrease/increase visible spee
 `←`/`→` change telemetry pages (or browse inspect entries when inspect is open, or switch Event Log filter),
 `↑`/`↓` switch between surface and unlocked underrealm depths (or scroll Event Log),
 `m` export all currently unlocked layers (PNG + SVG), `Shift+M` export all
-unlocked layers with structures/roads.
+unlocked layers with structures/roads, `c` export the latest completed Chronicle (or the current
+cycle if none has completed) as deterministic JSON and Markdown in `chronicles/`.
 
 ### Run training 🏋️
 
@@ -365,7 +366,9 @@ Notes:
   - Loads `config.json`, builds the terminal runtime, creates initial state, and starts the tick loop.
   - Optionally loads an AI policy when `--ai <path>` or env `AI_POLICY` is provided.
   - Base tick pacing uses `display.tickMs`; `src/runtime/time_controls.js` applies only interactive
-    visible-loop delay multipliers. Hard stop uses `simulation.maxTicks`.
+    visible-loop timing. The default terminal selection is the endgame-trial `100x` level: it batches
+    `20` authoritative simulation ticks per rendered frame with a `4 ms` visible delay. The
+    `0.5x/1x/2x/4x/5x/25x` levels remain selectable. Hard stop uses `simulation.maxTicks`.
   - AI action cadence uses `ai.stepTicks` to throttle policy calls.
   - Terminal resize behavior is configured under `display.resize.*`: default profile keeps resize handling enabled but does not reflow world geometry (`reflow_world=false`) to avoid live road/village/temple resets.
   - `Space` toggles manual pause/resume. During legendary auto-hold it dismisses the hold and resumes;
@@ -397,6 +400,9 @@ Notes:
   - Owns ephemeral interactive speed, pause, pending-step, and automatic focus-protection state.
   - Consumes only the Director's read-only focus identity/importance and returns a bounded renderer
     snapshot. It is not imported by headless benchmarks, training, AI inference, or simulation code.
+  - High-speed levels may batch up to `64` authoritative ticks per rendered frame. AI action cadence
+    and endgame checks still execute on every tick; a newly protected critical/legendary focus ends
+    the current batch immediately, while pause and single-step always remain exactly one-tick safe.
   - Endgame transitions clear pause/protection/step state but retain the operator-selected speed;
     transition animation itself keeps the base `display.tickMs` cadence.
 - `src/terminal.js`
@@ -1131,6 +1137,9 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - Recipe gating uses both armory level (`min_level`) and per-level mineral allow-lists (`allowed_minerals`), with deterministic stock-cap scheduling (`max_stock`).
 - Underrealm V2 readiness dispatch policy (M3):
   - Ruins expedition dispatch evaluates readiness on depth `max(roomIndex + 1, currentFrontierDepth)` (clamped by `underrealm.maxDepth`).
+  - Once every ruins room is clear, artifact-hunt repeats cap that mapped readiness depth at
+    `ruins.expedition.repeatReadinessDepthCap` (default `D9`). This preserves an apex-level military
+    check without making the final artifact depend on the stricter D10 frontier gate.
   - When the current frontier floor is `contested`, champion cooldown gating and champion combat target the contested frontier depth first (instead of following room depth growth).
   - Readiness score uses weighted offense/defense/support components plus optional Dwarf Champion command bonus:
     - offense from average best-available weapon tier for party slots,
@@ -1145,6 +1154,8 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
     - `underrealm.combat.readiness.warning_zone_hard_guard.enabled=true`,
     - mapped depth >= `warning_zone_hard_guard.min_depth`,
     - `score < recommended_score * min_recommended_score_ratio`.
+  - The default hard-guard ratio is `0.92`: the lower 92% of the recommended target remains blocked,
+    while the upper warning band is dispatchable with the configured `1.10x` risk multiplier.
   - Warning zone dispatch (`score < recommended_score`) remains allowed, but applies explicit risk via `warning_zone_risk_multiplier`.
   - Runtime emits gate snapshots to telemetry (`state.ruins.readinessGate`) and increments:
     - `underrealm.combat.stats.blockedDispatches` for any blocked transition,
@@ -1595,6 +1606,39 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
     is reduced again after adding `sagaId` to preserve the 16 KiB envelope. `state.story` remains
     plain JSON, resets at cycle replacement, and stays outside PPO observations and map exports.
     E3.4 owns player-facing telemetry and explainability presentation.
+- `experience_ledger.js` owns E5 lived dwarf history.
+  - It receives accepted canonical events after Story Director saga assignment and records only
+    qualifying dwarf actors, categories, and importance tiers. Each deed contains bounded event IDs,
+    ticks, type/category/importance, a short witnessed summary, role, compact actor snapshots,
+    location facts, optional saga ID, and occurrence count; full causes, consequences, and live
+    objects are never copied.
+  - Equivalent type/saga/role/location deeds merge inside `merge_window_ticks`. The merged record
+    retains the newest compact summary and a bounded tail of source event IDs.
+  - Retention is importance-then-recency with deterministic ID tie breaks. Active-saga participants
+    and Hall of Fame dwarves are protected at record level; active-saga deeds are protected inside a
+    biography. Hard ceilings remain `4096` dwarves, `32` deeds per dwarf, and `8` source/actor
+    references regardless of malformed configuration.
+  - Archived actor labels let Inspect resolve lived deeds after a participant dies or disappears.
+    `getDwarfBiography(...)` is read-only and returns recent/defining deeds, active saga roles, and
+    scars from the current warrior profile.
+- `chronicle.js` owns E5 factual cycle history.
+  - Every qualifying event maps deterministically to one of seven fixed chapters: Settlement Growth,
+    Crises, Politics, Expeditions, Heroes, Deaths, or Legacy. Each prose claim carries its exact
+    source event ID and is paired with compact actor/location evidence.
+  - Integrity verification rejects or omits claims if the source event, actor snapshot, or located
+    place/coordinates cannot resolve. Summary highlights reuse retained claim text and source IDs;
+    they never invent connective prose.
+  - Chapter and total-evidence limits evict lower-importance/older claims together with unreferenced
+    evidence. Endgame finalizes the old cycle before state replacement, places a three-highlight
+    summary in the transition panel, and carries only a bounded archive of completed factual records.
+    This archive has no gameplay modifiers; E6 owns persistent-world effects.
+  - Saga quality is measured separately. Because E3 evidence showed high fragmentation/eviction,
+    `chronicle.saga_quality.use_for_retention` defaults to `false`; active sagas still protect ledger
+    evidence they currently require, but do not make Chronicle claims intrinsically more valuable.
+- `../chronicle_export.js` serializes the latest completed or current Chronicle.
+  - JSON ordering and Markdown chapter ordering are stable, no wall-clock fields enter the payload,
+    and SHA-256 content determines the filename. Equal records therefore produce equal hashes and
+    safe names. Output paths are constrained to the application root and default to `chronicles/`.
 - `../dwarf_identity.js` is the single public dwarf identity read model.
   - `resolveDwarfIdentity(...)` returns stable ID, display name, house, role title, formatted label,
     status, and provenance without mutating state or consuming RNG.
@@ -1760,7 +1804,14 @@ but it does not mutate gameplay systems, resources, actors, or AI inputs.
 - `render/inspect.js`
   - Builds the ASCII inspect panel overlay (box, content, controls) and draws it onto the grid.
   - Panel size is controlled by `display.inspect_panel.width`/`height`.
-  - Lore content is deterministic and pulled from `src/dwarf_lore.js` (epithet, title, heraldry, saga).
+  - `LIVED HISTORY` appears near the top so standard-height panels show the defining deed, two recent
+    deeds, active relationships, current saga role, and scars. `INHERITED LORE` is explicitly
+    separate and continues to use deterministic `src/dwarf_lore.js` fields.
+
+- `render/transition.js`
+  - Applies the diagonal endgame mask and renders the New Frontier panel.
+  - During reset the panel receives only a completed Chronicle summary: claim/chapter counts plus up
+    to three source-backed highlights. `display.transition_panel.height` controls its readable budget.
 
 - `render/event_log_panel.js`
   - Builds the ASCII Event Log modal overlay and draws it onto the grid.
@@ -2283,6 +2334,8 @@ Quick checklist:
     - `simulation/warrior_events.js` → structured Warrior League marks, vows, consequences, tournament crown/Hall of Fame, and command-transition event builders
     - `simulation/political_events.js` → structured schism doctrine, phase, ritual, decree, and climax event builders
     - `simulation/endgame_events.js` → structured artifact, transition, cycle-closure, and legacy carry-over event builders
+    - `simulation/experience_ledger.js` → bounded source-backed dwarf deeds and read-only biography views
+    - `simulation/chronicle.js` → fact-backed cycle chapters, integrity checks, summaries, and bounded archives
     - `simulation/alchemy.js` → alchemy rite lifecycle and modifiers
     - `simulation/contracts.js` → contract offers, reputations, and boons
     - `simulation/world_events.js` → global event lifecycle and temporary world modifiers
@@ -2313,6 +2366,7 @@ Quick checklist:
   - `ai/` → observation + policy
   - `runtime.js`, `terminal.js`, `utils.js` → support
   - `runtime/time_controls.js` → ephemeral interactive speed, pause, single-step, and focus-protection controller
+- `chronicle_export.js` → deterministic safe-path Markdown/JSON Chronicle writer
 - `scripts/train_wrapper.js` → unified safe wrapper behind the parameterized `ai:train` command
 - `scripts/train_continuous.js` → cycle orchestrator for long-running `daily/full/high` training cadence, periodic validation gates, and stop-rule automation
 - `scripts/regression.js` → AI regression harness and profile recording with txt/json/markdown reports
@@ -2321,11 +2375,14 @@ Quick checklist:
 - `scripts/audit_narrative_producers.js` → reports/fails on direct legacy-only event producers outside approved boundaries
 - `scripts/test_narrative_contracts.js` → fast structured-event/identity/compatibility/isolation gate (`npm run test:narrative`; included in `npm test`)
 - `scripts/test_time_controls.js` → deterministic speed/step/auto-protection/render/isolation gate (`npm run test:time-controls`; included in `npm test`)
+- `scripts/test_chronicle_contracts.js` → deterministic ledger/biography/Chronicle/reset/export/bounds/AI-isolation gate (`npm run test:chronicle`; included in `npm test`)
 - `scripts/test_training_contracts.js` → deterministic technical test suite for policy shape and report-schema contracts (included in `npm test`)
 - `regression/baselines/regression_baseline.json` → durable profile baselines used by regression checks
 - `benchmark_cache/headless_benchmark_baseline.json` → versioned cached headless benchmark baseline for report-to-report diffs
 - `benchmark_cache/headless_benchmark_baseline.md` → markdown companion of cached headless benchmark baseline
 - `debug/epic_e4_time_controls_{120,72}.png` → retained full/narrow critical auto-slow and legendary auto-hold presentation captures
+- `debug/headless_benchmark_{candidate,diff}.{json,md}` → latest canonical E5 `4 x 8000` candidate and zero-delta baseline comparison
+- `chronicles/` → git-ignored deterministic JSON/Markdown Chronicle exports created with `c`
 - `scripts/export_map.js` → map export pipeline (PNG + SVG)
 - `scripts/headless_benchmark.js` → deterministic long-run headless benchmark with comparative score, seed deltas, schism decree telemetry, Story Director coverage/outcome counters, and optional gate checks
 - `scripts/ensure_benchmark_baseline.js` → auto-refresh guard for cached headless benchmark baseline metadata coherence

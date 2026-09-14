@@ -8,6 +8,7 @@ const { buildDwarfLore, capitalize, describeMorale, resolveRoleLabel } = require
 const { createDwarfIdentityCache, resolveDwarfIdentity } = require('../dwarf_identity');
 const { findNearestPlace } = require('../place_identity');
 const { ensureDwarfSocialState } = require('../simulation/social_drama');
+const { getDwarfBiography } = require('../simulation/experience_ledger');
 
 const SECTION_RUNES = {
   PROFILE: 'ᚦ',
@@ -16,7 +17,8 @@ const SECTION_RUNES = {
   CLAN: 'ᚲ',
   CHARACTER: 'ᛉ',
   SOCIAL: 'ᛖ',
-  LEGACY: 'ᛞ',
+  'LIVED HISTORY': 'ᛞ',
+  'INHERITED LORE': 'ᛟ',
 };
 
 // Build an inspect panel descriptor when enabled.
@@ -116,6 +118,21 @@ function buildInspectLines(dwarf, index, total, state, config, width, height) {
     ];
     pushDualSection(content, 'STATS', statLines, 'STATUS', statusLines, width);
 
+    const biography = getDwarfBiography(state, config, dwarf.id);
+    const socialLines = buildSocialSectionLines(dwarf, state, config, identityCache);
+    pushSectionWrapped(content, 'LIVED HISTORY', width, buildBiographyLines(biography, socialLines), 5);
+
+    const legacyLines = [];
+    if (lore.oath) legacyLines.push(`Oath: ${capitalize(lore.oath)}`);
+    if (lore.vow) legacyLines.push(`Vow: ${capitalize(lore.vow)}`);
+    if (lore.motto) legacyLines.push(`Motto: ${capitalize(lore.motto)}`);
+    if (lore.blazon) legacyLines.push(`Blazon: ${capitalize(lore.blazon)}`);
+    if (lore.saga && lore.saga.length > 0) {
+      legacyLines.push(`Saga: ${capitalize(lore.saga[0])}`);
+      if (lore.saga[1]) legacyLines.push(`Saga: ${capitalize(lore.saga[1])}`);
+    }
+    pushSectionWrapped(content, 'INHERITED LORE', width, legacyLines, 2);
+
     pushSectionWrappedFixed(content, 'CLAN', width, [
       clanId ? `Clan: ${clanLabel} (${clanId})` : `Clan: ${clanLabel}`,
       `Legacy: ${clanEffects}`,
@@ -129,33 +146,7 @@ function buildInspectLines(dwarf, index, total, state, config, width, height) {
       `Taboo: ${capitalize(lore.taboo)}`,
       `Mark: ${capitalize(lore.mark)}`,
     ]);
-    pushSection(content, 'SOCIAL', width, buildSocialSectionLines(
-      dwarf,
-      state,
-      config,
-      identityCache,
-    ));
-
-    const legacyLines = [];
-    if (lore.oath) {
-      legacyLines.push(`Oath: ${capitalize(lore.oath)}`);
-    }
-    if (lore.vow) {
-      legacyLines.push(`Vow: ${capitalize(lore.vow)}`);
-    }
-    if (lore.motto) {
-      legacyLines.push(`Motto: ${capitalize(lore.motto)}`);
-    }
-    if (lore.blazon) {
-      legacyLines.push(`Blazon: ${capitalize(lore.blazon)}`);
-    }
-    if (lore.saga && lore.saga.length > 0) {
-      legacyLines.push(`Saga: ${capitalize(lore.saga[0])}`);
-      if (lore.saga[1]) {
-        legacyLines.push(`Saga: ${capitalize(lore.saga[1])}`);
-      }
-    }
-    pushSectionWrapped(content, 'LEGACY', width, legacyLines, 2);
+    pushSection(content, 'SOCIAL', width, socialLines);
 
     if (content.length > 0) {
       content.push({ text: '', colorKey: null });
@@ -172,6 +163,31 @@ function buildInspectLines(dwarf, index, total, state, config, width, height) {
     text: fitLine(entry.text, width),
     colorKey: entry.colorKey || null,
   }));
+}
+
+// Build factual lived-history rows separately from inherited lore.
+function buildBiographyLines(biography, socialLines) {
+  const lines = [];
+  const defining = biography && biography.definingDeed;
+  lines.push(defining ? `Defining deed: ${formatBiographyDeed(defining)}` : 'Defining deed: None witnessed');
+  const recent = biography && Array.isArray(biography.recentDeeds) ? biography.recentDeeds : [];
+  for (const deed of recent.slice(0, 2)) lines.push(`Recent: ${formatBiographyDeed(deed)}`);
+  const saga = biography && Array.isArray(biography.activeSagaRoles) ? biography.activeSagaRoles[0] : null;
+  const scars = biography && Array.isArray(biography.scars) ? biography.scars : [];
+  const sagaText = saga ? `${saga.role} in ${saga.sagaId}` : 'None';
+  lines.push(`Saga: ${sagaText} | Scars: ${scars.length > 0 ? scars.join(', ') : 'None'}`);
+  const ties = (Array.isArray(socialLines) ? socialLines : [])
+    .filter((line) => !line.includes('None') && !line.startsWith('Incidents'))
+    .slice(0, 2);
+  lines.push(`Relationships: ${ties.length > 0 ? ties.join(' | ') : 'None active'}`);
+  return lines;
+}
+
+// Format one deed while preserving its compact source trace in state.
+function formatBiographyDeed(deed) {
+  const count = Number(deed && deed.occurrences || 1);
+  const suffix = count > 1 ? ` (x${count})` : '';
+  return `${String(deed && deed.summary || 'Unknown deed')}${suffix}`;
 }
 
 // Build inspect rows for the current dwarf's strongest social ties.

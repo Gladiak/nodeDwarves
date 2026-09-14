@@ -2,6 +2,7 @@
 
 const { clamp } = require('../utils');
 const { createInitialState } = require('../state');
+const { finalizeCycleChronicle, carryChronicleAcrossCycle } = require('./chronicle');
 const { carryMythsAcrossCycle } = require('./myths');
 const { carryTemplePrestigeAcrossCycle } = require('./temple');
 const { carryWarriorCompanyAcrossCycle } = require('./warriors');
@@ -171,6 +172,7 @@ function runEndgameReset(state, config, runtime, options = {}) {
     ? Object.values(state.ruins.artifactsFound).filter(Boolean).length
     : 0;
   const configOverride = buildResetConfig(config);
+  const completedChronicle = finalizeCycleChronicle(state, config, { completedTicks });
   const nextState = createInitialState(configOverride, runtime);
   carryMythsAcrossCycle(state, nextState, config);
   carryTemplePrestigeAcrossCycle(state, nextState, config);
@@ -179,6 +181,7 @@ function runEndgameReset(state, config, runtime, options = {}) {
     count: stats.count + 1,
     lastTicks: completedTicks,
   };
+  carryChronicleAcrossCycle(state, nextState, config, completedChronicle);
   nextState.lastDeathTick = 0;
   nextState.endgameArtifactsTick = null;
   updateEndgameDifficulty(nextState, config);
@@ -186,7 +189,9 @@ function runEndgameReset(state, config, runtime, options = {}) {
   if (options && options.preserveUi && typeof options.preserveUi === 'object') {
     state.ui = state.ui || {};
     for (const [key, value] of Object.entries(options.preserveUi)) {
-      state.ui[key] = value;
+      state.ui[key] = key === 'transition' && value && typeof value === 'object'
+        ? { ...value, chronicleSummary: completedChronicle.summary }
+        : value;
     }
   }
   const cycleEvent = emitEndgameCycleClosed(state, config, {
@@ -200,7 +205,7 @@ function runEndgameReset(state, config, runtime, options = {}) {
     config,
     warriorCarryover,
   );
-  return { cycleEvent, carryoverEvent, warriorCarryover };
+  return { cycleEvent, carryoverEvent, warriorCarryover, completedChronicle };
 }
 
 function maybeHandleEndgameReset(state, config, runtime) {

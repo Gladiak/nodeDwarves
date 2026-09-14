@@ -45,10 +45,15 @@ Chaos, strategy, and tiny bearded logistics experts included. 🧔🧱
   modal/Operations Snapshot collision rules. A restrained focus overlay recolors at most two
   involved dwarves and marks locations only for critical or legendary beats; off-layer action is
   reported in the ribbon instead of cluttering the current map.
-- ⏱️ Explicit slow/normal/fast/very-fast controls and exact single-step make the living chronicle
-  easier to inspect. Critical beats temporarily slow the visible loop, legendary beats briefly hold
-  it, and any timing command predictably returns control to the observer without touching simulation
-  rules, headless runs, or PPO inputs.
+- ⏱️ Explicit controls from `0.5x` through batched `100x`, plus exact single-step, support both close
+  observation and rapid endgame trials. Critical beats temporarily slow the visible loop, legendary
+  beats briefly hold it, and every accelerated tick still runs the full simulation, AI cadence, and
+  endgame checks without changing PPO inputs.
+- 🗝️ Late-game relic expeditions remain dangerous but feasible: the maximum D10 loadout can enter the
+  warning band, while repeat artifact hunts use a D9 readiness ceiling after the ruins are cleared.
+- 📖 Major lived deeds now follow each dwarf as a bounded, source-backed biography. Inspect separates
+  witnessed history from inherited lore, while cycle transitions distill seven factual Chronicle
+  chapters. Press `c` to export deterministic Markdown and JSON records with source-event trails.
 - 🌤️ In-map Ops Snapshot shows a live weather token (`Wx:*`, e.g. `Clear`, `Rain`, `Storm`) for at-a-glance climate context.
 - 📊 In-game Data Center (`h`) with dashboard, deep economy views, Story Director visibility, and AI explainability.
 - 🤖 PPO training pipeline in Python with JS runtime inference (`models/*.json`).
@@ -70,7 +75,7 @@ npm run ai:play
 ## Controls 🎮
 
 - ⏯️ `Space`: pause/resume
-- 🐢 `[` / `]` 🐇: decrease/increase visible simulation speed (`0.5x`, `1x`, `2x`, `4x`)
+- 🐢 `[` / `]` 🐇: decrease/increase visible simulation speed (`0.5x`, `1x`, `2x`, `4x`, `5x`, `25x`, `100x`; default `100x` for fast endgame trials)
 - 👣 `.`: advance exactly one tick and remain paused
 - 🗺️ `l`: legend
 - 🔍 `i`: dwarf inspect panel
@@ -78,6 +83,7 @@ npm run ai:play
 - 📡 `h`: telemetry Data Center
 - 🧾 `e`: Event Log modal
 - 🔁 `f`: switch Event Log filter
+- 📖 `c`: export the latest completed (or current) Chronicle as Markdown + JSON
 - ↔️ `←` / `→`: switch telemetry pages (or browse context-specific panels)
 - ↕️ `↑` / `↓`: change map depth view (or scroll Event Log)
 - 🖼️ `m`: export unlocked layers (PNG + SVG)
@@ -171,6 +177,9 @@ npm run debug:clean
 - 🔁 `src/simulation/endgame_events.js`: structured relic, cycle passage, and legacy carry-over facts.
 - 🎬 `src/simulation/story_director.js`: bounded deterministic story scoring, focus selection, and explainability state.
 - 📚 `src/simulation/story_sagas.js`: deterministic saga grouping, lifecycle, evidence, and fact-backed chapters.
+- 🧾 `src/simulation/experience_ledger.js`: bounded per-dwarf lived deeds, merge rules, and biography views.
+- 📖 `src/simulation/chronicle.js`: fact-backed cycle chapters, integrity checks, and bounded archives.
+- 💾 `src/chronicle_export.js`: deterministic safe-path Markdown/JSON Chronicle export.
 - 🌍 `src/state/`: world/terrain and initial state generation.
 - 🎨 `src/render/`: map, overlays, panels, and layout helpers.
 - 👁️ `src/render/dwarf_visibility.js`: stable story-priority selection for capped dwarf rendering.
@@ -185,11 +194,14 @@ npm run debug:clean
 - 🛠️ `scripts/`: benchmarking, regression, validation orchestration, narrative contracts, export, cleanup.
 - 🧪 `scripts/test_narrative_contracts.js`: fast executable gate for the living-chronicle event contract.
 - ⏱️ `scripts/test_time_controls.js`: deterministic E4.3 timing, input precedence, rendering, and isolation gate.
+- 📖 `scripts/test_chronicle_contracts.js`: E5 ledger, biography, Chronicle, reset, export, bounds, and AI-isolation gate.
 - 🔎 `scripts/audit_narrative_producers.js`: zero-legacy producer audit used by `npm test`.
 - 🐍 `python/`: PPO training and rollout tooling.
 - 🗂️ `benchmark_cache/`: cached deterministic benchmark baseline.
 - 📸 `debug/epic_e4_time_controls_{120,72}.png`: retained full/narrow E4 presentation evidence.
+- 🧪 `debug/headless_benchmark_{candidate,diff}.{json,md}`: latest canonical E5 balance evidence.
 - 📦 `regression/baselines/`: durable regression reference profiles.
+- 📜 `chronicles/`: generated Chronicle exports (git-ignored).
 - 📚 `docs/`: manuals, tuning references, the Epic Evolution workbook, and the narrative event contract.
 
 ## Contributing 🤝

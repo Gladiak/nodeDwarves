@@ -924,6 +924,100 @@ function validateRuinsGovernorContract() {
   }
 }
 
+// Build an apex-ready ruins state for endgame readiness and repeat-depth checks.
+function createEndgameRuinsBalanceState(config, repeatable) {
+  const runtime = buildRuntime(config.display, {
+    columns: Number(config.display.width || 90),
+    rows: Number(config.display.height || 45),
+  });
+  const state = createInitialState(config, runtime);
+  state.tick = 1;
+  state.jobs = [];
+  for (const dwarf of state.dwarves) {
+    dwarf.job = null;
+    dwarf.expedition = false;
+    dwarf.underrealmDuty = null;
+    dwarf.age = 100;
+    dwarf.lifeStage = 'adult';
+  }
+  state.stockpile = {
+    ...state.stockpile,
+    food: 1e9,
+    water: 1e9,
+    wood: 1e9,
+    stone: 1e9,
+    iron: 1e9,
+    mithril: 1e9,
+    expedition_kit: 25,
+    weapon_tier_9: 4,
+    armor_tier_9: 4,
+    weapon_tier_10: 3,
+    armor_tier_10: 3,
+  };
+  state.structures = (state.structures || [])
+    .filter((structure) => structure && !['ruins', 'armory'].includes(structure.type));
+  state.structures.push(
+    { id: 'balance_ruins', type: 'ruins', x: 1, y: 1 },
+    { id: 'balance_armory', type: 'armory', x: 2, y: 2, level: 10 },
+  );
+  state.ruins.roomsCleared = repeatable
+    ? config.ruins.rooms.length
+    : config.ruins.rooms.length - 1;
+  state.ruins.artifactsFound = {};
+  state.ruins.expeditions = [];
+  state.ruins.expedition = null;
+  state.ruins.cooldown = 0;
+  state.underrealm.maxUnlockedDepth = 10;
+  state.underrealm.maxDepth = 10;
+  const floor = state.underrealm.combat.floorsByDepth['10'];
+  floor.unlocked = true;
+  floor.state = 'cleared';
+  floor.unlock = { ...(floor.unlock || {}), required: false, cleared: true };
+  state.schism.enabled = false;
+  const champion = state.dwarves[0];
+  champion.underrealmChampionSurvivals = 100;
+  state.underrealm.combat.dwarfChampion.activeDwarfId = champion.id;
+  return { state, runtime };
+}
+
+// Validate that the D10 gate is feasible and repeatable artifact hunts cap at D9.
+function validateEndgameRuinsBalanceContract() {
+  const config = loadConfig();
+  assert(
+    Number(config.underrealm.combat.readiness.warning_zone_hard_guard.min_recommended_score_ratio) === 0.92,
+    'Endgame balance contract: deep warning guard ratio must be 0.92.',
+  );
+  assert(
+    Number(config.ruins.expedition.repeatReadinessDepthCap) === 9,
+    'Endgame balance contract: repeatable artifact hunt must cap readiness at D9.',
+  );
+
+  const apex = createEndgameRuinsBalanceState(config, false);
+  updateRuins(apex.state, config, apex.runtime, null);
+  const apexExpedition = apex.state.ruins.expeditions[0];
+  assert(apexExpedition, 'Endgame balance contract: maximum D10 loadout remained blocked.');
+  assert(
+    apexExpedition.readiness.depth === 10 && apexExpedition.readiness.status === 'warning',
+    'Endgame balance contract: D10 should remain a dispatchable warning-zone challenge.',
+  );
+  assert(
+    apex.state.ruins.readinessGate.score
+      >= apex.state.ruins.readinessGate.warningDeepGuardThreshold,
+    'Endgame balance contract: maximum D10 loadout did not clear the hard-guard threshold.',
+  );
+
+  const repeat = createEndgameRuinsBalanceState(config, true);
+  updateRuins(repeat.state, config, repeat.runtime, null);
+  assert(
+    repeat.state.ruins.expeditions.length > 0,
+    'Endgame balance contract: repeatable artifact hunt did not dispatch.',
+  );
+  assert(
+    repeat.state.ruins.expeditions.every((expedition) => expedition.readiness.depth === 9),
+    'Endgame balance contract: repeatable artifact hunt escaped the D9 readiness cap.',
+  );
+}
+
 // Build a deterministic config profile for underrealm-crew governor smoke scenarios.
 function createUnderrealmCrewSmokeConfig() {
   const config = loadConfig();
@@ -2825,6 +2919,7 @@ function main() {
     validateExternalCampsGovernorContract();
     validateContractGovernorContract();
     validateRuinsGovernorContract();
+    validateEndgameRuinsBalanceContract();
     validateUnderrealmGovernorContract();
     validateWarriorsDisabledNeutralContract();
     validateWarriorsBootstrapContract();
@@ -2841,7 +2936,7 @@ function main() {
     validateRegressionReportSchema(tmpDir);
     validateRegressionSeedPackDefaultModeContract(tmpDir);
     validatePromoteReportSchema(tmpDir);
-    console.log('[test:contracts] PASS policy_shape m4_balanced_wrapper external_camps_governor contracts_governor ruins_governor underrealm_governor warriors_disabled warriors_bootstrap warriors_phase1 warriors_thresholds warriors_phase2 warriors_phase3 warriors_phase4 warriors_phase5 warriors_phase6 social_governor social_slice4 social_slice5 regression_schema regression_seedpack_default promote_schema');
+    console.log('[test:contracts] PASS policy_shape m4_balanced_wrapper external_camps_governor contracts_governor ruins_governor endgame_ruins_balance underrealm_governor warriors_disabled warriors_bootstrap warriors_phase1 warriors_thresholds warriors_phase2 warriors_phase3 warriors_phase4 warriors_phase5 warriors_phase6 social_governor social_slice4 social_slice5 regression_schema regression_seedpack_default promote_schema');
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }

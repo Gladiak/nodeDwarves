@@ -13,6 +13,7 @@ const {
   consumeSimulationAdvance,
   createTimeControls,
   getLoopDelayMs,
+  getSimulationTicksPerFrame,
   getTimeControlsSnapshot,
   observeStoryFocus,
   queueSingleStep,
@@ -38,10 +39,16 @@ function validateTimeControlConfig() {
   const config = loadConfig();
   const settings = resolveTimeControlsConfig(config, 20);
   assert(settings.enabled === true, 'Time controls are unexpectedly disabled by default.');
-  assert(settings.defaultLevel === 'normal', 'Default speed level is not normal.');
+  assert(settings.defaultLevel === 'warp', 'Default speed level is not warp.');
   assert(
-    JSON.stringify(settings.levels.map((entry) => entry.delayMs)) === JSON.stringify([40, 20, 10, 5]),
+    JSON.stringify(settings.levels.map((entry) => entry.delayMs))
+      === JSON.stringify([40, 20, 10, 5, 4, 4, 4]),
     'Default speed levels do not resolve to the expected visible-loop delays.',
+  );
+  assert(
+    JSON.stringify(settings.levels.map((entry) => entry.ticksPerFrame))
+      === JSON.stringify([1, 1, 1, 1, 1, 5, 20]),
+    'Default speed levels do not resolve to the expected simulation batches.',
   );
   assert(settings.autoProtect.critical.mode === 'slow', 'Critical focus is not auto-slow protected.');
   assert(settings.autoProtect.legendary.mode === 'hold', 'Legendary focus is not auto-hold protected.');
@@ -75,10 +82,11 @@ function validateTimeControlConfig() {
 // Validate pause, speed, and exactly-one-tick stepping semantics.
 function validateManualControlFlow() {
   const controls = createTimeControls(loadConfig(), 20);
-  assert(getLoopDelayMs(controls, 0) === 20, 'Normal speed did not use base display.tickMs.');
-  assert(changeSpeedLevel(controls, 1).id === 'fast', 'Speed-up did not select the next level.');
-  assert(getLoopDelayMs(controls, 0) === 10, 'Fast speed did not update loop delay.');
-  assert(changeSpeedLevel(controls, -1).id === 'normal', 'Slow-down did not restore normal speed.');
+  assert(getLoopDelayMs(controls, 0) === 4, 'Warp speed did not use the configured delay.');
+  assert(getSimulationTicksPerFrame(controls, 0) === 20, 'Warp speed did not batch twenty ticks.');
+  assert(changeSpeedLevel(controls, -1).id === 'rapid', 'Slow-down did not select 25x speed.');
+  assert(getSimulationTicksPerFrame(controls, 0) === 5, 'Rapid speed did not batch five ticks.');
+  assert(changeSpeedLevel(controls, 1).id === 'warp', 'Speed-up did not restore warp speed.');
 
   assert(toggleManualPause(controls) === true, 'Space did not pause the visible simulation.');
   assert(consumeSimulationAdvance(controls, 0) === false, 'Manual pause allowed a simulation tick.');
@@ -87,6 +95,7 @@ function validateManualControlFlow() {
   assert(getLoopDelayMs(controls, 0) === 20, 'Paused fast mode busy-looped below base tick delay.');
   assert(queueSingleStep(controls) === true, 'Single-step command was not queued.');
   assert(consumeSimulationAdvance(controls, 0) === true, 'Queued single step did not advance once.');
+  assert(getSimulationTicksPerFrame(controls, 0) === 1, 'Single-step command retained a batched speed.');
   assert(getTimeControlsSnapshot(controls, 0).pendingStep === true, 'Completed single step is not visible while paused.');
   assert(consumeSimulationAdvance(controls, 0) === false, 'Single-step command advanced more than once.');
   assert(toggleManualPause(controls) === false, 'Space did not resume after single-step pause.');
@@ -96,10 +105,11 @@ function validateManualControlFlow() {
   changeSpeedLevel(controls, -99);
 
   queueSingleStep(controls);
+  const selectedBeforeTransition = getTimeControlsSnapshot(controls, 0).selectedLevel;
   resetTimeControlsForTransition(controls);
   const snapshot = getTimeControlsSnapshot(controls, 0);
   assert(snapshot.paused === false && snapshot.pendingStep === false, 'Transition reset retained pause/step state.');
-  assert(snapshot.selectedLevel === 'normal', 'Transition reset discarded the operator-selected speed.');
+  assert(snapshot.selectedLevel === selectedBeforeTransition, 'Transition reset discarded the operator-selected speed.');
 
   const disabled = createTimeControls({ display: { tickMs: 20, time_controls: { enabled: false } } }, 20);
   assert(toggleManualPause(disabled) === true, 'Disabling extended controls removed legacy Space pause.');
@@ -116,11 +126,12 @@ function validateAutomaticProtectionFlow() {
   assert(observeStoryFocus(controls, critical, 1000) === true, 'Critical focus did not arm auto-slow.');
   assert(JSON.stringify(critical) === criticalBefore, 'Focus observation mutated Director state.');
   assert(getLoopDelayMs(controls, 1000) === 40, 'Critical auto-slow did not select the slow level.');
+  assert(getSimulationTicksPerFrame(controls, 1000) === 1, 'Critical auto-slow retained batched ticks.');
   assert(consumeSimulationAdvance(controls, 1000) === true, 'Critical auto-slow blocked simulation ticks.');
   assert(observeStoryFocus(controls, critical, 1500) === false, 'Same focus re-armed automatic protection.');
   assert(getTimeControlsSnapshot(controls, 2799).autoProtection !== null, 'Critical protection expired early.');
   assert(getTimeControlsSnapshot(controls, 2800).autoProtection === null, 'Critical protection did not expire.');
-  assert(getLoopDelayMs(controls, 2800) === 20, 'Expired auto-slow did not restore manual speed.');
+  assert(getLoopDelayMs(controls, 2800) === 4, 'Expired auto-slow did not restore manual speed.');
 
   assert(observeStoryFocus(controls, { eventId: 'evt:critical:2', importance: 'critical' }, 2900) === true, 'Second critical focus did not auto-slow.');
   assert(toggleManualPause(controls) === true, 'Space during auto-slow did not become a manual pause.');
@@ -192,6 +203,7 @@ function validatePresentationAndIsolation() {
 
   const appSource = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
   assert(appSource.includes('consumeSimulationAdvance(timeControls'), 'Terminal loop bypasses time controls.');
+  assert(appSource.includes('getSimulationTicksPerFrame(timeControls'), 'Terminal loop bypasses batched speed levels.');
   assert(appSource.includes("char === '['") && appSource.includes("char === ']'") && appSource.includes("char === '.'"), 'Terminal input wiring is incomplete.');
   assert(!/\blet paused\b/.test(appSource), 'Legacy pause state still competes with the controller.');
 

@@ -16,8 +16,12 @@ Display and layout:
 - `display.time_controls.min_delay_ms`: absolute minimum visible-loop delay after multipliers are
   applied (clamped to `1..display.tickMs`).
 - `display.time_controls.levels[]`: ordered list used by `[` / `]`; each entry defines a unique `id`,
-  compact `label`, and positive `delay_multiplier` relative to `display.tickMs`. At most eight levels
-  are accepted; effective delay multipliers are clamped to `0.05..16`.
+  compact `label`, positive `delay_multiplier` relative to `display.tickMs`, and optional
+  `ticks_per_frame`. At most eight levels are accepted; delay multipliers are clamped to `0.05..16`
+  and simulation batches to `1..64` ticks per rendered frame.
+- Default interactive profile: `0.5x/1x/2x/4x/5x/25x/100x`, starting at `100x`. The `25x` and
+  `100x` levels batch `5` and `20` authoritative ticks per frame at a `4 ms` visible delay. Headless
+  and training execution remain unaffected.
 - `display.time_controls.auto_protect.enabled`: allow new Story Director focus IDs to trigger one
   presentation-only protection window.
 - `display.time_controls.auto_protect.minimum_importance`: lowest focus importance eligible for
@@ -518,6 +522,38 @@ Story Director:
 The Data Center and headless benchmark expose Story Director counters derived from the fields above
 (focus coverage, suppressed events, priority actor/location coverage, and saga outcomes). Those report
 fields are observability outputs, not separate tunables.
+
+Experience ledger:
+
+- `experience_ledger.enabled`: record qualifying accepted events as lived dwarf deeds.
+- `experience_ledger.minimum_importance`: minimum importance retained in a biography.
+- `experience_ledger.categories`: event categories eligible for lived-history recording.
+- `experience_ledger.max_dwarves`: maximum dwarf records retained globally; clamped to `1..4096`.
+- `experience_ledger.max_deeds_per_dwarf`: maximum compact deeds per dwarf; clamped to `1..32`.
+- `experience_ledger.max_source_refs_per_deed`: event IDs retained when equivalent deeds merge;
+  clamped to `1..8`.
+- `experience_ledger.max_actor_refs_per_deed`: archived actor snapshots retained per deed; clamped to
+  `1..8` so dead or missing participants remain resolvable.
+- `experience_ledger.merge_window_ticks`: maximum distance between equivalent type/saga/role/place
+  deeds before they stop merging; clamped to `0..1000000`.
+- `experience_ledger.inspect_recent_deeds`: recent deed rows requested by the read-only biography view;
+  the renderer clamps this to `1..6` and may show fewer rows at narrow heights.
+
+Chronicle:
+
+- `chronicle.enabled`: build fact-backed cycle chapters from qualifying accepted events.
+- `chronicle.minimum_importance`: minimum event importance eligible for a Chronicle claim.
+- `chronicle.max_claims_per_chapter`: cap for each of the seven fixed chapters; clamped to `1..64`.
+- `chronicle.max_evidence_per_cycle`: total claim/evidence cap per cycle; clamped to `7..512`.
+- `chronicle.max_archived_cycles`: completed factual cycles retained through reset; clamped to `1..16`.
+- `chronicle.saga_quality.use_for_retention`: permit saga membership to affect Chronicle retention.
+  This remains `false` because the E5 review found high saga fragmentation; active sagas still protect
+  the per-dwarf deed records they require.
+- `chronicle.export.enabled`: allow interactive Chronicle export with `c`.
+- `chronicle.export.directory`: output directory relative to the application root. Escaping paths are
+  rejected and fall back to `chronicles/`.
+- `chronicle.export.json`: write the canonical deterministic JSON payload.
+- `chronicle.export.markdown`: write the human-readable chapter companion with inline source IDs.
 
 Wildlife and pastures:
 
@@ -2115,6 +2151,9 @@ Ruins exploration:
 
 - `ruins.enabled`: enable ruins exploration system.
 - `ruins.outputBonusApplyTo`: resources that receive output bonuses from ruin artifacts.
+- `ruins.expedition.repeatReadinessDepthCap`: maximum Underrealm readiness depth used only after all
+  ruins rooms are clear and expeditions repeat for missing artifacts. Non-positive or omitted values
+  preserve uncapped frontier-depth mapping.
 - `ruins.expedition.requiresArmory`: require at least one armory to start expeditions.
 - `ruins.expedition.kitResource`: stockpile resource id used as expedition kits.
 - `ruins.expedition.kitPowerBonus`: combat power bonus from a kit (fraction).

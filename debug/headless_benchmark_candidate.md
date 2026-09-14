@@ -1,6 +1,6 @@
 # NodeDwarves Balance Report
 
-Generated: 2026-09-14T15:25:53.142Z
+Generated: 2026-09-14T15:11:41.711Z
 Ticks: 8000
 Seeds: 101, 202, 303, 404
 Resources: beer, food, water
@@ -9,27 +9,27 @@ Resources: beer, food, water
 
 | Variant | Population | Morale | BeerBoost | Hunger | Thirst |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| baseline | 701.50 | 0.8835 | 0.0189 | 0.1571 | 0.1097 |
+| candidate | 701.50 | 0.8835 | 0.0189 | 0.1571 | 0.1097 |
 
 ## Underrealm Summary
 
 | Variant | Depth | Champions | Failed Expeditions | Blocked Dispatches | Frontier Contested | Readiness Score | Hero Prom | Hero Loss | Hero Active | Hero Surv |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| baseline | 2.00 | 1.00 | 0.75 | 4.00 | 1.00 | 0.793 | 4.50 | 0.00 | 1.00 | 0.00 |
+| candidate | 2.00 | 1.00 | 0.75 | 4.00 | 1.00 | 0.793 | 4.50 | 0.00 | 1.00 | 0.00 |
 
 ## Story Director Summary
 
 | Variant | Considered | Selected | Suppressed | Preempted | Focus coverage | Critical focus | Legendary focus | Priority context | Sagas opened | Resolved | Failed | Archived | Resolution rate |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| baseline | 12964 | 120 | 12844 | 8 | 0.9% | 100.0% | 100.0% | 100.0% | 3126 | 130 | 8 | 3030 | 4.4% |
+| candidate | 12964 | 120 | 12844 | 8 | 0.9% | 100.0% | 100.0% | 100.0% | 3126 | 130 | 8 | 3030 | 4.4% |
 
 ## Schism Decree Usage
 
 | Variant | Issued total | Issued / seed | Active ticks total | Active ticks / seed |
 | --- | ---: | ---: | ---: | ---: |
-| baseline | 44 | 11.00 | 8800 | 2200.00 |
+| candidate | 44 | 11.00 | 8800 | 2200.00 |
 
-### Schism Decrees (baseline)
+### Schism Decrees (candidate)
 
 | Decree | Issued | Issued share | Active ticks | Active share |
 | --- | ---: | ---: | ---: | ---: |

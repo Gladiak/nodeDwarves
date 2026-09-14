@@ -9,10 +9,10 @@ const IMPORTANCE_RANK = Object.freeze({
 });
 
 const DEFAULT_LEVELS = Object.freeze([
-  Object.freeze({ id: 'slow', label: '0.5x', delayMultiplier: 2 }),
-  Object.freeze({ id: 'normal', label: '1x', delayMultiplier: 1 }),
-  Object.freeze({ id: 'fast', label: '2x', delayMultiplier: 0.5 }),
-  Object.freeze({ id: 'very_fast', label: '4x', delayMultiplier: 0.25 }),
+  Object.freeze({ id: 'slow', label: '0.5x', delayMultiplier: 2, ticksPerFrame: 1 }),
+  Object.freeze({ id: 'normal', label: '1x', delayMultiplier: 1, ticksPerFrame: 1 }),
+  Object.freeze({ id: 'fast', label: '2x', delayMultiplier: 0.5, ticksPerFrame: 1 }),
+  Object.freeze({ id: 'very_fast', label: '4x', delayMultiplier: 0.25, ticksPerFrame: 1 }),
 ]);
 
 const DEFAULT_AUTO_PROTECT = Object.freeze({
@@ -25,6 +25,7 @@ const DEFAULT_AUTO_PROTECT = Object.freeze({
 const HARD_MAX_LEVELS = 8;
 const HARD_MAX_DURATION_MS = 60000;
 const HARD_MAX_DELAY_MULTIPLIER = 16;
+const HARD_MAX_TICKS_PER_FRAME = 64;
 
 // Resolve presentation timing settings without mutating the source config.
 function resolveTimeControlsConfig(config, baseTickMsRaw) {
@@ -187,6 +188,19 @@ function getLoopDelayMs(controls, nowMs = Date.now()) {
   return held ? Math.max(controls.settings.baseTickMs, effective.delayMs) : effective.delayMs;
 }
 
+// Resolve simulation ticks batched into the next visible frame.
+function getSimulationTicksPerFrame(controls, nowMs = Date.now()) {
+  if (!controls || !controls.settings) return 1;
+  expireAutoProtection(controls, nowMs);
+  if (controls.manualPaused || controls.pendingSteps > 0 || controls.steppedPaused) return 1;
+  const selected = controls.settings.levels[controls.levelIndex] || controls.settings.levels[0];
+  const auto = controls.autoProtection;
+  const effective = auto && auto.mode === 'slow'
+    ? controls.settings.levels.find((entry) => entry.id === auto.level) || selected
+    : selected;
+  return Math.max(1, Math.floor(Number(effective.ticksPerFrame || 1)));
+}
+
 // Build a bounded read-only snapshot for renderers and operator feedback.
 function getTimeControlsSnapshot(controls, nowMs = Date.now()) {
   if (!controls || !controls.settings) return null;
@@ -205,6 +219,7 @@ function getTimeControlsSnapshot(controls, nowMs = Date.now()) {
     effectiveLevel: effective.id,
     effectiveLabel: effective.label,
     delayMs: effective.delayMs,
+    ticksPerFrame: effective.ticksPerFrame,
     paused,
     pauseReason: controls.manualPaused ? 'manual' : (autoHold ? 'auto' : null),
     pendingStep: controls.pendingSteps > 0 || controls.steppedPaused === true,
@@ -259,15 +274,22 @@ function normalizeLevels(rawLevels, baseTickMs, minDelayMs) {
       HARD_MAX_DELAY_MULTIPLIER,
     );
     const delayMs = Math.max(minDelayMs, Math.round(baseTickMs * delayMultiplier));
+    const ticksPerFrame = Math.floor(clampNumber(
+      raw.ticks_per_frame ?? raw.ticksPerFrame,
+      DEFAULT_LEVELS[index] ? DEFAULT_LEVELS[index].ticksPerFrame : 1,
+      1,
+      HARD_MAX_TICKS_PER_FRAME,
+    ));
     levels.push({
       id,
       label: String(raw.label || id).trim().slice(0, 12) || id,
       delayMultiplier,
       delayMs,
+      ticksPerFrame,
     });
   }
   if (levels.length > 0) return levels;
-  return [{ id: 'normal', label: '1x', delayMultiplier: 1, delayMs: baseTickMs }];
+  return [{ id: 'normal', label: '1x', delayMultiplier: 1, delayMs: baseTickMs, ticksPerFrame: 1 }];
 }
 
 // Normalize one critical/legendary protection rule against known speed levels.
@@ -326,6 +348,7 @@ module.exports = {
   consumeSimulationAdvance,
   createTimeControls,
   getLoopDelayMs,
+  getSimulationTicksPerFrame,
   getTimeControlsSnapshot,
   observeStoryFocus,
   queueSingleStep,

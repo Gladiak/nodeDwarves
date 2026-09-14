@@ -814,10 +814,10 @@ function buildMapInsetLines(state, config, width, height, themeState, options = 
       {
         text: pickFittingInsetText(
           [
-            '[␠]⏯ [[]− []]+ [.]› [h]▦ [w]⚔ [i]◎ [l]≡ [e]✎ [⇆] [⇅]',
-            '␠⏯ [−][+] .› h▦ w⚔ i◎ l≡ e✎ ⇆ ⇅',
-            'Sp⏯ [−][+] .› h w i l e LR UD',
-            'Sp [-][+] . h w i l e LR UD',
+            '[␠]⏯ [[]− []]+ [.]› [h]▦ [w]⚔ [i]◎ [l]≡ [e]✎ [c]ᛞ [⇆] [⇅]',
+            '␠⏯ [−][+] .› h▦ w⚔ i◎ l≡ e✎ cᛞ ⇆ ⇅',
+            'Sp⏯ [−][+] .› h w i l e c LR UD',
+            'Sp [-][+] . h w i l e c LR UD',
           ],
           width,
         ),

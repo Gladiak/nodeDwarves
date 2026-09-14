@@ -1,9 +1,9 @@
 # NodeDwarves Epic Evolution Workbook
 
 Last updated: 2026-09-14
-Status: Active implementation - M2 complete; M3 ready
-Completed checkpoint: `E4.4` done
-Next executable step: `E5.1` ready
+Status: Active implementation - M3 complete; M4 ready
+Completed checkpoint: `E5.4` done
+Next executable step: `E6.1` ready
 Scope: Step-by-step delivery and evidence tracking for the project-wide epic simulation evolution
 
 This workbook turns the "living dwarven chronicle" direction into an executable plan. It is the
@@ -127,16 +127,17 @@ Dashboard:
 | M0 - Measurement | E0 | Frozen narrative/watchability baseline and executable contracts | `Done` | Workbook initialized | E0 gate passes |
 | M1 - Structured stories | E1, E2 | Events know who/where/why; messages use stable identities | `Done` | M0 done | Structured-event + identity gates pass |
 | M2 - Watchable simulation | E3, E4 | The terminal guides attention and protects important moments | `Done` | M1 done | Director + presentation gates pass |
-| M3 - Lived history | E5 | Biographies and chronicles contain actual deeds | `Ready` | M2 done | Chronicle integrity + cycle export gate passes |
-| M4 - Persistent civilization | E6 | Cycles inherit bounded, visible history | `Not started` | M3 done | Deterministic multi-cycle gate passes |
+| M3 - Lived history | E5 | Biographies and chronicles contain actual deeds | `Done` | M2 done | Chronicle integrity + cycle export gate passes |
+| M4 - Persistent civilization | E6 | Cycles inherit bounded, visible history | `Ready` | M3 done | Deterministic multi-cycle gate passes |
 | M5 - Epic world | E7, E8 | Named nemeses, staged sieges, and evolving landmarks | `Not started` | M4 done | Full quality gate + experience review passes |
 
-Current checkpoint: `E4.4` is `Done`; `E5.1` is the next executable step. The terminal now presents
-the Director's active focus through a responsive Story Ribbon, bounded actor/location emphasis, and
-explicit presentation timing. Operators can select `0.5x/1x/2x/4x`, pause, or advance exactly one
-tick; critical focus briefly slows and legendary focus briefly holds while manual timing input keeps
-predictable precedence. The overlay-first result passes supported-width, performance, resize,
-determinism, headless, and PPO-isolation gates, so a camera abstraction is not justified for M2.
+Current checkpoint: `E5.4` is `Done`; `E6.1` is the next executable step. Qualifying canonical facts
+now feed a bounded per-dwarf deed ledger and a seven-chapter cycle Chronicle. Inspect separates lived
+history from inherited lore, the New Frontier transition presents source-backed legacy highlights,
+and `c` exports deterministic JSON/Markdown records. Invalid claims are omitted, active saga and Hall
+of Fame evidence receives ledger protection, Chronicle archives are capped at four cycles, and all E5
+state remains outside PPO observations and gameplay decisions. The canonical `4 x 8000` comparison
+is exactly flat, so M3 closes without balance or policy drift.
 
 Rules for ordering:
 
@@ -969,6 +970,19 @@ E4.3 closure snapshot (2026-09-14):
   Interactive TTY input covered speed, pause, step, panels, layer keys, and graceful shutdown; a
   separate live `72→100` terminal resize/SIGWINCH smoke completed without a crash.
 
+Post-closure endgame-trial tuning (2026-09-14):
+
+- Added `5x`, batched `25x`, and batched `100x` terminal levels; `100x` is the temporary default for
+  rapid endgame trials. It advances `20` authoritative ticks per rendered frame, while AI cadence,
+  endgame checks, pause, one-tick stepping, and critical/legendary batch interruption remain intact.
+- A deterministic 2000-tick rendering comparison retained identical gameplay endpoints and reduced
+  measured plus configured-delay time from about `16.7 s` at `5x` to `6.6 s` at `100x` (`~2.5x`
+  observed on this short sample). The label is timer-relative; large populations remain CPU-bound.
+- Corrected the deep-warning ratio from the invalid/clamped `1.12` to `0.92`, making a maximum D10
+  loadout dispatchable in the explicit `1.10x` risk band (`136.64/139`, hard threshold `127.88`).
+  Repeat artifact hunts cap readiness at D9 after all five rooms clear, so they remain apex-level
+  challenges without depending indefinitely on a favorable D10 political modifier.
+
 ### E4.4 Camera decision checkpoint
 
 Status: `Done`
@@ -1009,50 +1023,89 @@ E4 exit criteria:
 
 ## 9) Workstream E5 - Living biographies and Chronicle
 
-Status: `Not started`
+Status: `Done`
 
 Objective: replace disconnected flavor with a factual history of dwarves, places, and cycles.
 
 ### E5.1 Bounded experience ledger
 
-- [ ] Add per-dwarf deed references for major social, combat, civic, and lifecycle events.
-- [ ] Store source event IDs plus compact normalized facts, not copied full event objects.
-- [ ] Define importance-based retention and merge rules.
-- [ ] Preserve records required by active sagas and Hall of Fame entries.
-- [ ] Review saga samples, terminal/opened rate, archive/eviction causes, and false-fragmentation risk
+- [x] Add per-dwarf deed references for major social, combat, civic, and lifecycle events.
+- [x] Store source event IDs plus compact normalized facts, not copied full event objects.
+- [x] Define importance-based retention and merge rules.
+- [x] Preserve records required by active sagas and Hall of Fame entries.
+- [x] Review saga samples, terminal/opened rate, archive/eviction causes, and false-fragmentation risk
   before treating saga membership as a Chronicle retention or quality signal.
+
+Implementation note:
+
+- `state.experience` stores at most `1024` dwarf records and `12` deeds per dwarf by default, with
+  hard ceilings of `4096` and `32`. Equivalent type/saga/role/location deeds merge inside a
+  `1200`-tick window while retaining up to four source event IDs and actor snapshots.
+- The canonical E5 `4 x 8000` review found `2850` sagas opened, `140` terminal (`4.9%`), and `2754`
+  archived/evicted. Because eviction nearly matches opening, saga membership is not used as a
+  Chronicle-retention quality bonus (`chronicle.saga_quality.use_for_retention=false`). Active sagas
+  still protect the dwarf deed evidence they directly require, and Hall of Fame dwarf records remain
+  protected.
 
 ### E5.2 Inspect-panel biography
 
-- [ ] Show recent deeds, defining deed, active relationships, scars, and current saga role.
-- [ ] Keep deterministic flavor fields, but clearly separate inherited lore from lived history.
-- [ ] Resolve dead or missing related actors through archived identities.
-- [ ] Keep content readable at configured panel dimensions.
+- [x] Show recent deeds, defining deed, active relationships, scars, and current saga role.
+- [x] Keep deterministic flavor fields, but clearly separate inherited lore from lived history.
+- [x] Resolve dead or missing related actors through archived identities.
+- [x] Keep content readable at configured panel dimensions.
+
+Implementation note:
+
+- Inspect places `LIVED HISTORY` near the top and separates it from `INHERITED LORE`. Biography facts use
+  compact deed actor snapshots for dead/missing participants, current social summaries for live ties,
+  and the warrior profile for scars. The standard `90 x 40` panel contract renders both headings and
+  the defining deed without relying on the lower clipped sections.
 
 ### E5.3 Cycle Chronicle
 
-- [ ] Build chapters for settlement growth, crises, politics, expeditions, heroes, deaths, and legacy.
-- [ ] Link every factual statement to one or more source event IDs in the data model.
-- [ ] Generate an in-game summary before the new-frontier reset.
-- [ ] Add optional Markdown/JSON export with deterministic ordering and safe filenames.
+- [x] Build chapters for settlement growth, crises, politics, expeditions, heroes, deaths, and legacy.
+- [x] Link every factual statement to one or more source event IDs in the data model.
+- [x] Generate an in-game summary before the new-frontier reset.
+- [x] Add optional Markdown/JSON export with deterministic ordering and safe filenames.
+
+Implementation note:
+
+- `state.chronicle.current` owns seven fixed chapters. Defaults cap each chapter at `12` claims and
+  the whole cycle at `128` evidence records. Reset finalizes the old cycle before replacement,
+  attaches up to three sourced highlights to the transition, and carries only four completed factual
+  records. The archive does not confer gameplay effects; persistent-world semantics remain E6.
+- `c` exports the latest completed record, or the current record before the first reset, to the
+  git-ignored `chronicles/` directory. JSON and Markdown order are stable, SHA-256 content supplies
+  the filename suffix, and configured paths cannot escape the project root.
 
 ### E5.4 Chronicle verification
 
-- [ ] Reject or omit claims whose source actor/location/event no longer resolves.
-- [ ] Test empty, short, peaceful, catastrophic, and multi-cycle chronicles.
-- [ ] Validate retention bounds with high event density.
-- [ ] Compare exported chapter hashes across equal seeded runs.
+- [x] Reject or omit claims whose source actor/location/event no longer resolves.
+- [x] Test empty, short, peaceful, catastrophic, and multi-cycle chronicles.
+- [x] Validate retention bounds with high event density.
+- [x] Compare exported chapter hashes across equal seeded runs.
+
+Verification note:
+
+- `npm run test:chronicle` covers compact deed shape, merge/eviction, missing/dead actors, all seven
+  chapter routes, missing event/actor/location rejection, empty and multi-cycle records, high-density
+  caps, deterministic safe-path exports, canonical-event integration, Inspect/transition rendering,
+  reset carry-over, saga review, and explicit AI-observation isolation.
+- `npm test` passes all narrative, timing, Chronicle, training, and producer-audit suites. The
+  canonical `4 x 8000` candidate and refreshed cached baseline are identical for every reported
+  field: population endpoints `683/678/732/700`, average population `698.3`, morale `0.8851`, and
+  resource/Underrealm/Story Director/decree deltas all `0`.
 
 E5 exit criteria:
 
-- [ ] Chronicle factual integrity reaches target.
-- [ ] Priority dwarf biographies contain lived deeds when qualifying events occurred.
-- [ ] Endgame transition presents a readable cycle legacy summary.
-- [ ] Exported Chronicle is deterministic and bounded.
+- [x] Chronicle factual integrity reaches target.
+- [x] Priority dwarf biographies contain lived deeds when qualifying events occurred.
+- [x] Endgame transition presents a readable cycle legacy summary.
+- [x] Exported Chronicle is deterministic and bounded.
 
 ## 10) Workstream E6 - Persistent world legacy
 
-Status: `Not started`
+Status: `Ready`
 
 Objective: make each completed cycle leave inspectable and visible history without carrying an entire
 old simulation state.
@@ -1242,21 +1295,21 @@ Stop rules:
 
 | ID | Risk | Probability | Impact | Mitigation | Status |
 | --- | --- | --- | --- | --- | --- |
-| ER-001 | Narrative state becomes another unbounded log | Medium | High | Hard caps, compaction, source references, long-run size assertions | Mitigated through E3.3; monitor Chronicle/legacy consumers |
+| ER-001 | Narrative state becomes another unbounded log | Medium | High | Hard caps, compaction, source references, long-run size assertions | Mitigated through E5; monitor E6 legacy consumers |
 | ER-002 | Story Director creates constant interruptions | High | High | Importance threshold, cooldown budget, escalation, suppression trace, telemetry/report visibility | Mitigated through E4; monitor Chronicle consumers |
 | ER-003 | Structured-event migration changes simulation behavior | Low | High | Backward-compatible wrapper, presentation-only tests, end-state parity | Mitigated; E1 closed |
 | ER-004 | Display-name resolution becomes a render hotspot | Low | Medium | Stable cached identity resolver, bounded event scan, and allocation/performance probes | Mitigated through E2.4; monitor Story Director consumers |
-| ER-005 | Chronicle flavor invents unsupported facts | Medium | High | Fact templates bound to structured source events; integrity tests | Open |
+| ER-005 | Chronicle flavor invents unsupported facts | Medium | High | Fact templates bound to structured source events; integrity tests | Mitigated through E5.4; unresolved claims are omitted |
 | ER-006 | Multi-cycle legacy creates runaway bonuses | Medium | High | Bounded modifiers, diminishing returns, 2/5-cycle gates | Open |
 | ER-007 | Camera refactor couples world size to terminal size incorrectly | Medium | High | Overlay-first milestone; explicit architecture decision checkpoint | Mitigated for M2 by E4.4 deferral; reopen only with new evidence |
 | ER-008 | Landmark footprints break placement/pathing/export | Medium | Medium | Reuse temple pattern, deterministic placement scenarios, export tests | Open |
 | ER-009 | New threats make stable colonies unrecoverable | Medium | High | Staged rollout, recovery windows, cached benchmark and collapse blockers | Open |
 | ER-010 | AI observes a world contract that changed silently | Low | High | Shape contracts, compatibility classification, explicit fresh-training gate | Open |
-| ER-011 | Place identity grows without bounds or diverges between UI consumers | Low | Medium | Hard-capped authoritative registry, RNG-neutral deterministic names, stable IDs, serialization and UI lookup contracts | Mitigated through E2.3; monitor Chronicle integration |
+| ER-011 | Place identity grows without bounds or diverges between UI consumers | Low | Medium | Hard-capped authoritative registry, RNG-neutral deterministic names, stable IDs, serialization and UI lookup contracts | Mitigated through E5 verification; monitor E6 |
 | ER-012 | Capped rendering hides urgent actors or flickers as population grows | Low | High | Shared deterministic priority tiers, layer eligibility, prior-set stability, urgent preemption, above-cap contracts, and layer-local focus emphasis | Mitigated through E4.2; monitor future camera work |
-| ER-013 | Narrative contract tests become a monolithic maintenance bottleneck | Medium | Medium | Review thematic suite boundaries before the next substantial narrative domain; retain shared fixtures and one aggregate gate | Monitoring from E4 |
-| ER-014 | Story Director and saga modules accumulate presentation or Chronicle responsibilities | Medium | Medium | Keep E4 read-only, preserve module ownership, and reassess boundaries before E5 expansion | Mitigated through E4.1; monitor E5 |
-| ER-015 | High saga churn produces fragmented or prematurely evicted history | Medium | High | Sample seeded arcs, report terminal/opened and eviction causes, and gate Chronicle reliance on a quality review | Monitoring through E4; gate E5 |
+| ER-013 | Narrative contract tests become a monolithic maintenance bottleneck | Medium | Medium | Review thematic suite boundaries before the next substantial narrative domain; retain shared fixtures and one aggregate gate | Mitigated in E5 with dedicated Chronicle suite |
+| ER-014 | Story Director and saga modules accumulate presentation or Chronicle responsibilities | Medium | Medium | Keep E4 read-only, preserve module ownership, and reassess boundaries before E5 expansion | Mitigated through separate ledger/Chronicle/export modules |
+| ER-015 | High saga churn produces fragmented or prematurely evicted history | Medium | High | Sample seeded arcs, report terminal/opened and eviction causes, and gate Chronicle reliance on a quality review | Mitigated for E5: saga retention bonus disabled; monitor tuning |
 | ER-016 | Excellent priority coverage masks poor focus pacing or low-value selected moments | Medium | High | Pair counters with runtime observation, supported-width captures, selected/suppressed event sampling, and timing protection | Mitigated through E4.4; monitor Chronicle scene composition |
 | ER-017 | Automatic focus timing fights manual controls or leaks wall-clock behavior into simulation determinism | Low | High | Ephemeral controller, focus-ID one-shot guard, explicit input precedence, base-cadence holds, PPO/headless isolation tests | Mitigated through E4.3; monitor new runtime inputs |
 
@@ -1298,6 +1351,10 @@ Record every non-trivial scope or architecture decision.
 | 2026-09-04 | ED-030 | Use a single sparse focus overlay: actor-only for major beats, a four-cell tick-derived location pulse for critical/legendary beats, and paths disabled by default | Persistent runes for every major event; animated paths; multiple simultaneous focus regions; immediate camera/viewport work | Makes the selected event locatable while preserving terrain identity and visual quiet, bounds render work, and lets off-layer action remain explicit without inventing an on-map position | E4.2 map focus visual budget and layer boundary | Approved |
 | 2026-09-14 | ED-031 | Keep interactive timing in one ephemeral runtime controller; auto-slow critical focus, auto-hold legendary focus, and give timing input explicit cancellation precedence | Store timing in `state.ui`; change simulation tick size; pause every major event; let automatic protection override manual input until expiry | Keeps wall-clock state out of saves, PPO, headless runs, and Director logic while making important beats observable and operator control predictable | E4.3 timing ownership, defaults, and input precedence | Approved |
 | 2026-09-14 | ED-032 | Close M2 without a camera/viewport abstraction and reopen only when measured later scenes cannot be located through ribbon, overlay, layer cue, and timing protection | Add pan/zoom now; separate world/viewport immediately; leave the checkpoint undecided | Supported-width captures and live runs make priority events readable within the E0 performance envelope; camera work would currently add resize, pathing, export, input, and Underrealm risk without demonstrated value | E4.4 camera decision and M2 closure | Approved |
+| 2026-09-14 | ED-033 | Feed accepted facts into separate bounded deed and Chronicle owners after saga assignment; retain only compact source evidence and keep all E5 state out of PPO/gameplay | Copy canonical events into dwarves; grow Event Log into permanent history; let generated biography prose infer facts | Keeps biography/Chronicle provenance auditable, prevents live-object retention, preserves event ordering, and protects existing policy and balance contracts | E5 state ownership, integrity, and AI isolation | Approved |
+| 2026-09-14 | ED-034 | Carry completed Chronicle records through reset as a capped factual archive, but defer bonuses, visible world echoes, and persistent-civilization rules to E6 | Reset all Chronicle history; implement E6 gameplay hooks during E5; carry full prior state | E5 requires multi-cycle factual records and a pre-reset summary, while E6 owns historical world effects; the boundary supplies history without scope creep | E5/E6 reset boundary | Approved |
+| 2026-09-14 | ED-035 | Disable saga-derived Chronicle retention value after the required quality review, while protecting only active-saga ledger evidence | Treat any saga membership as historical quality; remove saga references entirely; retune saga matching in E5 | The canonical report has `2850` opened, `140` terminal, and `2754` evicted sagas, so membership is too fragmented to rank permanent claims safely | E5 saga-quality gate | Approved |
+| 2026-09-14 | ED-036 | Make late-game trials fast without skipping simulation semantics, and make the relic gate feasible without removing apex risk | Lower only the frame delay; skip intermediate ticks; remove readiness gates; raise artifact drop chance | Batched frames reduce render overhead while every tick still executes; a `0.92` hard-guard band plus D9 repeat cap preserves equipment, Champion, hazard, and political pressure without a D10 mathematical deadlock | Post-E5 endgame balance and trial pacing | Approved |
 
 ## 17) Implementation log
 
@@ -1331,6 +1388,8 @@ within the repository retention policy.
 | 2026-09-04 | EW-022 | E4.2 sparse map focus: emphasize layer-local actors and critical/legendary locations, preserve map symbols, and route depth/off-map direction through the Story Ribbon | `src/render/story_focus_overlay.js`, `src/render/story_ribbon.js`, `src/render/index.js`, `config.json`, `scripts/test_narrative_contracts.js`, `benchmark_cache/`, product/parameter/operations/layout docs | Syntax/config checks, focused six-cell/threshold/pulse/layer/path/cap/RNG/immutability fixtures, `500`-frame active-critical performance probe, repeated `2 x 1000`, `npm test`, cached `4 x 8000` refresh + aligned recheck, interactive `80`-column TTY smoke, `git diff --check` | Done | Major focus remains actor-only; critical ring is capped at five location cells and paths stay off by default; frame mean `0.798 ms`; exact short/full endpoints and Director totals retained; cache hash `18a9b490351c8f9d73d9ca3a893b2f32c68c8336b66c285a9d28dc6db81c0cc2` aligned; E4.3 ready |
 | 2026-09-14 | EW-023 | E4.3 presentation timing: add explicit speed/pause/single-step controls, critical auto-slow, legendary auto-hold, manual precedence, and compact Ops Snapshot status | `src/runtime/time_controls.js`, `app.js`, `src/render/index.js`, `src/render/map_inset_panel.js`, `config.json`, `scripts/test_time_controls.js`, `package.json`, `benchmark_cache/`, product/parameter/operations/layout docs | Syntax/config checks, dedicated config/level/pause/step/protection/expiry/precedence/transition/width/immutability/isolation fixtures, `npm test`, explicit policy-only check, repeated `2 x 1000`, cached `4 x 8000` refresh + aligned recheck, `500`-frame active-auto-slow probe, interactive input/resize TTY smoke, `git diff --check` | Done | Default delays `40/20/10/5 ms`; short/full endpoints and Director counters exact; frame mean `0.736 ms`; cache hash `58abc2e2332d0369307f3e0736c7e8f845c0b63ab27531a0e90c038c800d4585` aligned; no simulation/PPO/headless/export drift |
 | 2026-09-14 | EW-024 | E4.4 camera checkpoint and M2 closure: review overlay-first evidence at full/narrow widths, retain captures, document future viewport implications, and decide current camera scope | `debug/epic_e4_time_controls_120.png`, `debug/epic_e4_time_controls_72.png`, `docs/EPIC_EVOLUTION_WORKBOOK.md` | Real TTY observation, `120x40` critical and `72x32` legendary capture review, supported-width contracts, resize smoke, E4 exit-gate audit | Done | Camera deferred for M2: current stack locates and protects priority beats without world/viewport separation; M2 complete and E5.1 ready |
+| 2026-09-14 | EW-025 | E5.1-E5.4 and M3 closure: add bounded lived deeds, Inspect biography, fact-backed cycle chapters, pre-reset legacy summary, deterministic export, integrity sanitation, and dedicated contracts | `src/simulation/experience_ledger.js`, `src/simulation/chronicle.js`, `src/chronicle_export.js`, event/state/endgame/render/app integration, `scripts/test_chronicle_contracts.js`, config/package/cache/product/parameter/operations/layout/workbook docs | Syntax checks, dedicated 39-assertion ledger/Chronicle/export/reset/render/isolation suite, `npm test`, deterministic `2 x 1000`, canonical `4 x 8000` candidate, baseline refresh + exact diff, terminal UI smoke, `git diff --check` | Done | Every retained claim resolves source/actors/location; high-density caps and equal export hashes pass; E5 state stays outside PPO; full deltas are all zero with endpoints `683/678/732/700`; cache hash `0b06b08247464349a58044d77b5ae71f89c688918607c6c4739c8cb0fbdab57d` aligned; retained evidence: `debug/headless_benchmark_{candidate,diff}.{json,md}`; M3 complete and E6.1 ready |
+| 2026-09-14 | EW-026 | Post-E5 trial pacing and endgame balance: add true batched acceleration, repair the D10 warning gate, and cap cleared-ruins repeat readiness at D9 | `src/runtime/time_controls.js`, `app.js`, `src/simulation/ruins.js`, `config.json`, time/training contract suites, cached benchmark evidence, product/parameter/operations/workbook docs | Dedicated speed/batch/pause/step/protection fixtures, endgame readiness probe, `npm test`, deterministic 2000-tick `5x`/`100x` endpoint comparison, canonical `4 x 8000`, baseline refresh + exact diff, `git diff --check` | Done | Default `100x` batches 20 full ticks per frame; sample wall estimate improved `~2.5x` with identical endpoints; maximum D10 loadout now enters warning and repeats use D9; canonical endpoints `687/678/725/716`, no collapsed seeds, config hash `2d11e57d52d649520257120367c41008dc01da12ccef7493e9e527ad058709f0` aligned |
 
 ## 18) Checkpoint template
 
@@ -1441,10 +1500,18 @@ Execute one bounded step at a time:
     presentation-only critical/legendary slow or hold behavior.
 24. [x] `E4.4 / Camera decision checkpoint` - Measure the overlay-first stack and defer a camera
     abstraction until later scenes provide evidence that its coordinate and input complexity is needed.
-25. [ ] `E5.1 / Bounded experience ledger` - Add source-backed per-dwarf deed references with
-    explicit caps, merge/retention rules, and saga-quality gating. **Next.**
+25. [x] `E5.1 / Bounded experience ledger` - Add source-backed per-dwarf deed references with
+    explicit caps, merge/retention rules, and saga-quality gating.
+26. [x] `E5.2 / Inspect biography` - Present defining/recent deeds, relationships, scars, and saga
+    role while separating lived history from inherited lore.
+27. [x] `E5.3 / Cycle Chronicle` - Build seven source-backed chapters, a pre-reset summary, and
+    deterministic safe-path Markdown/JSON export.
+28. [x] `E5.4 / Chronicle verification` - Enforce resolvability, density bounds, equal hashes,
+    multi-cycle reset behavior, and explicit PPO isolation.
+29. [ ] `E6.1 / Legacy state contract` - Define bounded cross-cycle historical records and visible
+    legacy hooks without carrying full prior states or uncontrolled bonuses. **Next.**
 
-The next implementation slice should remain deliberately narrow: build the bounded factual deed
-ledger required by E5.1, while first reviewing saga churn and false-fragmentation risk. It should not
-add biography UI, Chronicle prose/export, cross-cycle persistence, camera work, new combat systems,
-or AI shape changes.
+The next implementation slice should remain deliberately narrow: formalize the E6.1 legacy-state
+contract on top of completed Chronicle records. It may add bounded inspectable/visible historical
+hooks, but must not carry full prior worlds, introduce epic threats/landmarks from E7/E8, change PPO
+shapes implicitly, or convert Chronicle archives into uncapped gameplay bonuses.

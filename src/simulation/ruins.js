@@ -261,12 +261,16 @@ function buildExpeditionStartContext(state, config, ruinsConfig, rooms, action) 
     return null;
   }
 
+  const repeatReadinessDepthCap = state.ruins.roomsCleared >= rooms.length
+    ? expeditionConfig.repeatReadinessDepthCap
+    : null;
   const readinessGate = evaluateExpeditionReadinessGate(
     state,
     config,
     roomIndex,
     partySize,
     kitResource,
+    repeatReadinessDepthCap,
   );
   const dispatchGate = evaluateChampionDispatchGate(state, readinessGate);
   updateReadinessGateState(state, config, dispatchGate);
@@ -432,10 +436,17 @@ function evaluateChampionDispatchGate(state, readinessGate) {
 }
 
 // Evaluate Underrealm readiness gate for one expedition dispatch.
-function evaluateExpeditionReadinessGate(state, config, roomIndex, partySize, kitResource) {
+function evaluateExpeditionReadinessGate(
+  state,
+  config,
+  roomIndex,
+  partySize,
+  kitResource,
+  depthCap = null,
+) {
   const safeRoomIndex = Math.max(0, Math.floor(Number(roomIndex || 0)));
   const safePartySize = Math.max(1, Math.floor(Number(partySize || 1)));
-  const depth = resolveExpeditionDepth(safeRoomIndex, state && state.underrealm);
+  const depth = resolveExpeditionDepth(safeRoomIndex, state && state.underrealm, depthCap);
   const defaultGate = {
     depth,
     roomIndex: safeRoomIndex,
@@ -936,7 +947,7 @@ function resolveUnderrealmCombatFloor(combat, depth) {
 }
 
 // Map ruins room progression index to an Underrealm combat depth.
-function resolveExpeditionDepth(roomIndex, underrealm) {
+function resolveExpeditionDepth(roomIndex, underrealm, depthCapRaw = null) {
   const roomDepth = Math.max(1, Math.floor(Number(roomIndex || 0)) + 1);
   const frontierDepth = Math.max(
     1,
@@ -946,10 +957,18 @@ function resolveExpeditionDepth(roomIndex, underrealm) {
     1,
     Math.floor(Number(underrealm && underrealm.maxDepth || roomDepth)),
   );
-  return clamp(
+  const resolvedDepth = clamp(
     Math.max(roomDepth, frontierDepth),
     1,
     maxDepth,
+  );
+  const depthCap = Number(depthCapRaw);
+  if (!Number.isFinite(depthCap) || depthCap <= 0) {
+    return resolvedDepth;
+  }
+  return Math.max(
+    roomDepth,
+    Math.min(resolvedDepth, maxDepth, Math.floor(depthCap)),
   );
 }
 

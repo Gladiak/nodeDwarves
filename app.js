@@ -15,11 +15,14 @@ const { clearScreen, moveCursorHome, hideCursor, showCursor } = require('./src/t
 const { loadPolicy, selectAction, normalizeActionEnvelope } = require('./src/ai_policy');
 const { getSpawnOrderedIds } = require('./src/dwarf_lore');
 const { shouldTriggerEndgameReset, runEndgameReset } = require('./src/simulation/endgame');
+const { exportChronicle } = require('./src/chronicle_export');
+const { buildCurrentChronicleSnapshot } = require('./src/simulation/chronicle');
 const {
   changeSpeedLevel,
   consumeSimulationAdvance,
   createTimeControls,
   getLoopDelayMs,
+  getSimulationTicksPerFrame,
   getTimeControlsSnapshot,
   observeStoryFocus,
   queueSingleStep,
@@ -101,15 +104,22 @@ function loop() {
   if (transitionState && transitionState.active) {
     advanceEndgameTransition(state, config, runtime);
   } else if (consumeSimulationAdvance(timeControls, nowMs)) {
-    if (policy && state.tick >= nextActionTick) {
-      const selected = selectAction(state, config, policy);
-      currentAction = normalizeActionEnvelope(selected);
-      nextActionTick = state.tick + getActionTicks(config);
-    }
+    const ticksThisFrame = getSimulationTicksPerFrame(timeControls, nowMs);
+    for (let batchTick = 0; batchTick < ticksThisFrame; batchTick += 1) {
+      if (policy && state.tick >= nextActionTick) {
+        const selected = selectAction(state, config, policy);
+        currentAction = normalizeActionEnvelope(selected);
+        nextActionTick = state.tick + getActionTicks(config);
+      }
 
-    stepState(state, config, runtime, currentAction, { suppressEndgameReset: true });
-    if (shouldTriggerEndgameReset(state, config)) {
-      startEndgameTransition(state, config, runtime);
+      stepState(state, config, runtime, currentAction, { suppressEndgameReset: true });
+      if (shouldTriggerEndgameReset(state, config)) {
+        startEndgameTransition(state, config, runtime);
+        break;
+      }
+      if (observeStoryFocus(timeControls, state.story && state.story.currentFocus, nowMs)) {
+        break;
+      }
     }
   }
 
@@ -591,6 +601,17 @@ function triggerMapExport(state, config, runtime, options = {}) {
   });
 }
 
+// Export the latest factual Chronicle in configured deterministic formats.
+function triggerChronicleExport(state, config) {
+  try {
+    const result = exportChronicle(state, config, { rootDir: __dirname });
+    const relative = path.relative(__dirname, result.outputDir) || '.';
+    openSaveMap(state, config, `Chronicle saved: ${result.files.length} files in ${relative}.`);
+  } catch (error) {
+    openSaveMap(state, config, `Chronicle export failed (${error.message || 'unknown error'}).`);
+  }
+}
+
 // Function: buildMapExportArgs.
 function buildMapExportArgs(state, runtime, options = {}) {
   const args = [];
@@ -789,6 +810,7 @@ function ensureTransitionState(state) {
       holdTicks: 0,
       fadeInTicks: 0,
       message: '',
+      chronicleSummary: null,
     };
   }
   return state.ui.transition;
@@ -854,6 +876,7 @@ function startEndgameTransition(state, config, runtime) {
   transition.holdTicks = transitionConfig.holdTicks;
   transition.fadeInTicks = transitionConfig.fadeInTicks;
   transition.message = pickTransitionMessage(transitionConfig.messages, state);
+  transition.chronicleSummary = null;
   transition.sourceCycle = Math.max(0, Number(state.cycleStats && state.cycleStats.count || 0));
   state.ui.inspect.open = false;
   state.ui.legend.open = false;
@@ -867,6 +890,7 @@ function startEndgameTransition(state, config, runtime) {
   emitEndgameTransitionStarted(state, config, {
     sourceCycle: transition.sourceCycle,
   });
+  transition.chronicleSummary = buildCurrentChronicleSnapshot(state).summary;
 }
 
 // Function: advanceEndgameTransition.
@@ -1034,6 +1058,11 @@ function handleInput(text) {
     }
     if (char === 'e' || char === 'E') {
       toggleEventLogPanel(state);
+      i += 1;
+      continue;
+    }
+    if (char === 'c' || char === 'C') {
+      triggerChronicleExport(state, config);
       i += 1;
       continue;
     }

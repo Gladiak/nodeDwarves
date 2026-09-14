@@ -15,6 +15,8 @@ const {
   resolveEventImportance,
 } = require('./narrative_normalizer');
 const { processStoryDirectorEvent } = require('./story_director');
+const { recordExperienceEvent } = require('./experience_ledger');
+const { recordChronicleEvent } = require('./chronicle');
 
 const EVENT_STATS_FIELDS = [
   'accepted',
@@ -101,6 +103,8 @@ function pushEvent(state, config, messageOrDraft, details = null) {
   } else {
     acceptedEvent.sagaId = null;
   }
+  recordExperienceEvent(state, config, acceptedEvent);
+  recordChronicleEvent(state, config, acceptedEvent);
   appendHudEvent(state, eventsConfig, reduced.event.message);
   appendEventLogEntry(state, eventsConfig, acceptedEvent);
   incrementEventStat(state, 'accepted');

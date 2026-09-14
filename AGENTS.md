@@ -45,6 +45,8 @@ This file defines how to implement new features in a consistent, stable way.
 - `src/simulation/narrative_normalizer.js`: bounded structured-event draft normalization, config-driven importance resolution, and deterministic optional-payload reduction.
 - `src/simulation/story_director.js`: bounded per-cycle Story Director state, deterministic event scoring/focus selection, cooldown/escalation budgets, reason traces, serialization repair, and hard-cap enforcement.
 - `src/simulation/story_sagas.js`: deterministic saga grouping, lifecycle transitions, bounded evidence indexes, fact-backed chapter summaries, and capacity eviction.
+- `src/simulation/experience_ledger.js`: bounded source-backed per-dwarf deed ledger, deterministic merge/retention rules, and read-only biography views.
+- `src/simulation/chronicle.js`: fixed cycle chapters, compact evidence, factual-integrity verification, summaries, and bounded cross-cycle Chronicle archives.
 - `src/simulation/secondary_events.js`: shared structured boundary and actor/location/resource-fact helpers for secondary world, culture, environment, economy, and development producers.
 - `src/simulation/lifecycle_events.js`: structured founding, birth, natural-death, and partnership event builders with deterministic actor snapshots and causal facts.
 - `src/simulation/social_events.js`: structured mentorship, rivalry, grudge, and reconciliation incident builders with pair evidence and typed outcomes.
@@ -83,6 +85,7 @@ This file defines how to implement new features in a consistent, stable way.
 - `src/runtime.js`: terminal sizing and layout.
 - `src/runtime/time_controls.js`: ephemeral interactive speed, pause, single-step, and
   Story Director critical/legendary presentation-protection controller.
+- `src/chronicle_export.js`: deterministic safe-path Markdown/JSON Chronicle serialization and export.
 - `src/terminal.js`: terminal helpers.
 - `src/dwarf_identity.js`: shared deterministic dwarf identity resolver and named-event formatter with
   bounded caches, historical snapshot lookup, collision disambiguation, and explicit fallbacks.
@@ -106,11 +109,17 @@ This file defines how to implement new features in a consistent, stable way.
 - `scripts/test_narrative_contracts.js`: deterministic structured-event, identity, legacy, retention, serialization, renderer, and isolation contract suite (`npm run test:narrative`; included in `npm test`).
 - `scripts/test_time_controls.js`: deterministic E4.3 speed, pause, single-step, auto-protection,
   supported-width rendering, manual precedence, and AI/headless isolation suite (`npm run test:time-controls`; included in `npm test`).
+- `scripts/test_chronicle_contracts.js`: deterministic E5 ledger, biography, Chronicle integrity,
+  reset, export-hash, density-bound, and AI-observation isolation suite (`npm run test:chronicle`; included in `npm test`).
 - `scripts/test_training_contracts.js`: deterministic technical contract suite for training/validation schemas (included in `npm test`).
 - `benchmark_cache/headless_benchmark_baseline.json`: versioned cached headless benchmark baseline used for report diffs.
 - `benchmark_cache/headless_benchmark_baseline.md`: markdown companion of the cached headless benchmark baseline.
 - `debug/epic_e4_time_controls_120.png` and `debug/epic_e4_time_controls_72.png`: retained E4.4
   full/narrow terminal presentation evidence for critical auto-slow and legendary auto-hold.
+- `debug/headless_benchmark_candidate.json`, `debug/headless_benchmark_candidate.md`,
+  `debug/headless_benchmark_diff.json`, and `debug/headless_benchmark_diff.md`: latest canonical E5
+  `4 x 8000` candidate and zero-delta cached-baseline comparison evidence.
+- `chronicles/`: git-ignored deterministic Markdown/JSON Chronicle exports created on demand.
 - `regression/baselines/regression_baseline.json`: durable regression baseline profiles used by checks.
 - `python/bootstrap.py`: venv bootstrap.
 - `python/train.py`: PPO training loop and logging.
