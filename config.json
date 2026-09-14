@@ -6,6 +6,47 @@
     "maxWidth": 0,
     "maxHeight": 0,
     "tickMs": 20,
+    "time_controls": {
+      "enabled": true,
+      "default_level": "normal",
+      "min_delay_ms": 4,
+      "levels": [
+        {
+          "id": "slow",
+          "label": "0.5x",
+          "delay_multiplier": 2
+        },
+        {
+          "id": "normal",
+          "label": "1x",
+          "delay_multiplier": 1
+        },
+        {
+          "id": "fast",
+          "label": "2x",
+          "delay_multiplier": 0.5
+        },
+        {
+          "id": "very_fast",
+          "label": "4x",
+          "delay_multiplier": 0.25
+        }
+      ],
+      "auto_protect": {
+        "enabled": true,
+        "minimum_importance": "critical",
+        "critical": {
+          "mode": "slow",
+          "level": "slow",
+          "duration_ms": 1800
+        },
+        "legendary": {
+          "mode": "hold",
+          "level": "slow",
+          "duration_ms": 2400
+        }
+      }
+    },
     "resize": {
       "enabled": true,
       "reflow_world": false

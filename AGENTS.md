@@ -81,6 +81,8 @@ This file defines how to implement new features in a consistent, stable way.
 - `src/telemetry/telemetry_panel.js`: in-game telemetry reference overlay panel (section and metric explanations).
 - `src/render.js`: thin wrapper for `src/render/index.js`.
 - `src/runtime.js`: terminal sizing and layout.
+- `src/runtime/time_controls.js`: ephemeral interactive speed, pause, single-step, and
+  Story Director critical/legendary presentation-protection controller.
 - `src/terminal.js`: terminal helpers.
 - `src/dwarf_identity.js`: shared deterministic dwarf identity resolver and named-event formatter with
   bounded caches, historical snapshot lookup, collision disambiguation, and explicit fallbacks.
@@ -102,9 +104,13 @@ This file defines how to implement new features in a consistent, stable way.
 - `scripts/clean_debug.js`: debug artifact housekeeping utility (transient cleanup + run retention).
 - `scripts/audit_narrative_producers.js`: deterministic source audit that reports direct legacy-only `pushEvent` producers outside approved structured boundaries.
 - `scripts/test_narrative_contracts.js`: deterministic structured-event, identity, legacy, retention, serialization, renderer, and isolation contract suite (`npm run test:narrative`; included in `npm test`).
+- `scripts/test_time_controls.js`: deterministic E4.3 speed, pause, single-step, auto-protection,
+  supported-width rendering, manual precedence, and AI/headless isolation suite (`npm run test:time-controls`; included in `npm test`).
 - `scripts/test_training_contracts.js`: deterministic technical contract suite for training/validation schemas (included in `npm test`).
 - `benchmark_cache/headless_benchmark_baseline.json`: versioned cached headless benchmark baseline used for report diffs.
 - `benchmark_cache/headless_benchmark_baseline.md`: markdown companion of the cached headless benchmark baseline.
+- `debug/epic_e4_time_controls_120.png` and `debug/epic_e4_time_controls_72.png`: retained E4.4
+  full/narrow terminal presentation evidence for critical auto-slow and legendary auto-hold.
 - `regression/baselines/regression_baseline.json`: durable regression baseline profiles used by checks.
 - `python/bootstrap.py`: venv bootstrap.
 - `python/train.py`: PPO training loop and logging.

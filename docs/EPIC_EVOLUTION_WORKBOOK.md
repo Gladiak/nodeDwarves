@@ -1,9 +1,9 @@
 # NodeDwarves Epic Evolution Workbook
 
-Last updated: 2026-09-04
-Status: Active implementation - M1 complete; M2 in progress
-Completed checkpoint: `E4.2` done
-Next executable step: `E4.3` ready
+Last updated: 2026-09-14
+Status: Active implementation - M2 complete; M3 ready
+Completed checkpoint: `E4.4` done
+Next executable step: `E5.1` ready
 Scope: Step-by-step delivery and evidence tracking for the project-wide epic simulation evolution
 
 This workbook turns the "living dwarven chronicle" direction into an executable plan. It is the
@@ -126,16 +126,17 @@ Dashboard:
 | --- | --- | --- | --- | --- | --- |
 | M0 - Measurement | E0 | Frozen narrative/watchability baseline and executable contracts | `Done` | Workbook initialized | E0 gate passes |
 | M1 - Structured stories | E1, E2 | Events know who/where/why; messages use stable identities | `Done` | M0 done | Structured-event + identity gates pass |
-| M2 - Watchable simulation | E3, E4 | The terminal guides attention and protects important moments | `In progress` | M1 done | Director + presentation gates pass |
-| M3 - Lived history | E5 | Biographies and chronicles contain actual deeds | `Not started` | M2 done | Chronicle integrity + cycle export gate passes |
+| M2 - Watchable simulation | E3, E4 | The terminal guides attention and protects important moments | `Done` | M1 done | Director + presentation gates pass |
+| M3 - Lived history | E5 | Biographies and chronicles contain actual deeds | `Ready` | M2 done | Chronicle integrity + cycle export gate passes |
 | M4 - Persistent civilization | E6 | Cycles inherit bounded, visible history | `Not started` | M3 done | Deterministic multi-cycle gate passes |
 | M5 - Epic world | E7, E8 | Named nemeses, staged sieges, and evolving landmarks | `Not started` | M4 done | Full quality gate + experience review passes |
 
-Current checkpoint: `E4.2` is `Done`; `E4.3` is the next executable step. The terminal now presents
-the Director's active focus through a responsive Story Ribbon plus bounded actor/location emphasis.
-Major beats remain actor-only, critical/legendary location pulses preserve underlying symbols, and
-off-layer action becomes a ribbon direction cue without gameplay RNG, mutable animation state, PPO
-observation changes, or balance drift.
+Current checkpoint: `E4.4` is `Done`; `E5.1` is the next executable step. The terminal now presents
+the Director's active focus through a responsive Story Ribbon, bounded actor/location emphasis, and
+explicit presentation timing. Operators can select `0.5x/1x/2x/4x`, pause, or advance exactly one
+tick; critical focus briefly slows and legendary focus briefly holds while manual timing input keeps
+predictable precedence. The overlay-first result passes supported-width, performance, resize,
+determinism, headless, and PPO-isolation gates, so a camera abstraction is not justified for M2.
 
 Rules for ordering:
 
@@ -850,7 +851,7 @@ Post-E3 implementation watchlist:
 
 ## 8) Workstream E4 - Cinematic terminal presentation
 
-Status: `In progress`
+Status: `Done`
 
 Objective: make important events immediately visible while preserving the terminal-first interface.
 
@@ -930,17 +931,73 @@ E4.2 closure snapshot (2026-09-04):
 
 ### E4.3 Time controls and major-event protection
 
-- [ ] Add explicit speed levels and single-step control.
-- [ ] Add configurable auto-slow or auto-hold for critical/legendary events.
-- [ ] Ensure headless runs and training remain unaffected by presentation timing.
-- [ ] Make manual input override auto-focus safely and predictably.
+Status: `Done`
+
+- [x] Add explicit speed levels and single-step control.
+- [x] Add configurable auto-slow or auto-hold for critical/legendary events.
+- [x] Ensure headless runs and training remain unaffected by presentation timing.
+- [x] Make manual input override auto-focus safely and predictably.
+
+E4.3 closure snapshot (2026-09-14):
+
+- Added `src/runtime/time_controls.js` as an ephemeral interactive controller outside authoritative
+  simulation state. The default ordered levels map `display.tickMs=20` to `0.5x/1x/2x/4x` delays
+  of `40/20/10/5 ms`; `[` and `]` change the selected level, `Space` pauses/resumes, and `.` permits
+  exactly one tick before settling into manual pause.
+- New focus IDs are protected once. Critical defaults to `1800 ms` at the configured slow level;
+  legendary defaults to a `2400 ms` hold. Protection expiry uses wall-clock presentation time while
+  simulation time stays frozen during holds. Held/paused loops never render faster than base
+  `display.tickMs`, preventing a fast-mode busy loop.
+- Timing commands cancel the active automatic window without changing unrelated UI state. `Space`
+  during auto-hold dismisses and resumes; during auto-slow it establishes manual pause. Speed input
+  preserves manual pause, and single-step always ends paused. Endgame transitions clear pause,
+  pending-step, and protection while retaining selected speed and their own base cadence.
+- The Ops Snapshot exposes `0.5x/1x/2x/4x`, `AUTO:0.5x`, `HOLD`, `PAUSE`, or `STEP` beside runtime
+  context and keeps compact speed/step hints at `120`, `90`, and `72` columns. The controller passes
+  only a bounded read-only snapshot into rendering; no timing field enters saved state, Director
+  state, map export, telemetry history, or PPO observations.
+- A new dedicated `npm run test:time-controls` suite keeps the already-large narrative suite from
+  absorbing runtime concerns. It covers config and hard caps, pause/speed/step semantics,
+  critical/legendary expiry and manual precedence, supported-width labels, transition reset, legacy
+  pause with extended controls disabled, render immutability, and AI/headless import isolation.
+- `npm test` and explicit `--policy-only` pass. Repeated `2 x 1000` reports are byte-identical except
+  timestamps (`18/30` endpoints; Director `9/319`, critical `1/1`, legendary `1/1`). Refreshed
+  `4 x 8000` endpoints remain exactly `683/678/732/700`, with Director `120/12637`, critical `4/4`,
+  legendary `4/4`, and no collapsed seed under aligned config hash
+  `58abc2e2332d0369307f3e0736c7e8f845c0b63ab27531a0e90c038c800d4585`.
+- A `500`-frame `120x40` auto-slow probe averaged `0.736 ms` versus the E0 `1.146 ms` reference.
+  Interactive TTY input covered speed, pause, step, panels, layer keys, and graceful shutdown; a
+  separate live `72→100` terminal resize/SIGWINCH smoke completed without a crash.
 
 ### E4.4 Camera decision checkpoint
 
-- [ ] Measure the overlay-first approach with real runs and screenshots.
-- [ ] Decide whether a camera/viewport abstraction is still needed.
-- [ ] If approved, separate world dimensions from terminal viewport dimensions before adding pan/zoom.
-- [ ] Record resize, pathing, export, and Underrealm implications before implementation.
+Status: `Done`
+
+- [x] Measure the overlay-first approach with real runs and screenshots.
+- [x] Decide whether a camera/viewport abstraction is still needed.
+- [x] Resolve the conditional: camera not approved, so world/viewport separation and pan/zoom are
+      not implemented in M2.
+- [x] Record resize, pathing, export, and Underrealm implications before implementation.
+
+E4.4 closure snapshot (2026-09-14):
+
+- The overlay-first stack was reviewed in real TTY runs and in retained `120x40` critical auto-slow
+  plus `72x32` legendary auto-hold captures. Both make actor/action/place, map location, and timing
+  state readable without panning; the narrow capture preserves the Story Ribbon and Ops Snapshot
+  boundary. Evidence: `debug/epic_e4_time_controls_120.png` and
+  `debug/epic_e4_time_controls_72.png`.
+- Decision: do not add a camera/viewport abstraction in M2. Story selection, priority visibility,
+  sparse map emphasis, cross-layer cues, and time protection now answer the watchability questions
+  without adding a second coordinate system. This is a measured deferral, not a ban: reopen only if
+  later Chronicle/legacy/epic-world scenes demonstrate unresolved off-screen navigation needs.
+- Because camera work was not approved, world dimensions remain equal to current runtime grid
+  dimensions and no pan/zoom implementation was added. Any future approval must first separate
+  world-to-viewport transforms, then explicitly cover resize without world regeneration, entity and
+  path overlays, inset carving, focus-coordinate projection, every Underrealm layer, snapshot/export
+  dimensions, terminal input ownership, and deterministic render caps.
+- E4 closes without simulation mechanics, RNG ordering, policy observation/action shapes, headless
+  cadence, or map-export behavior changing. The retained screenshots and `0.736 ms` frame probe show
+  no evidence that camera complexity would materially improve the current terminal experience.
 
 E4 exit criteria:
 
@@ -948,7 +1005,7 @@ E4 exit criteria:
 - [x] Overlay priority and panel collisions pass supported terminal-size checks.
 - [x] Presentation timing does not alter deterministic simulation results.
 - [x] Render performance remains within the E0 threshold.
-- [ ] `npm start` smoke covers pause, speed, step, panels, layer switching, and resize.
+- [x] `npm start` smoke covers pause, speed, step, panels, layer switching, and resize.
 
 ## 9) Workstream E5 - Living biographies and Chronicle
 
@@ -1186,12 +1243,12 @@ Stop rules:
 | ID | Risk | Probability | Impact | Mitigation | Status |
 | --- | --- | --- | --- | --- | --- |
 | ER-001 | Narrative state becomes another unbounded log | Medium | High | Hard caps, compaction, source references, long-run size assertions | Mitigated through E3.3; monitor Chronicle/legacy consumers |
-| ER-002 | Story Director creates constant interruptions | High | High | Importance threshold, cooldown budget, escalation, suppression trace, telemetry/report visibility | Mitigated through E3.4; monitor E4 presentation |
+| ER-002 | Story Director creates constant interruptions | High | High | Importance threshold, cooldown budget, escalation, suppression trace, telemetry/report visibility | Mitigated through E4; monitor Chronicle consumers |
 | ER-003 | Structured-event migration changes simulation behavior | Low | High | Backward-compatible wrapper, presentation-only tests, end-state parity | Mitigated; E1 closed |
 | ER-004 | Display-name resolution becomes a render hotspot | Low | Medium | Stable cached identity resolver, bounded event scan, and allocation/performance probes | Mitigated through E2.4; monitor Story Director consumers |
 | ER-005 | Chronicle flavor invents unsupported facts | Medium | High | Fact templates bound to structured source events; integrity tests | Open |
 | ER-006 | Multi-cycle legacy creates runaway bonuses | Medium | High | Bounded modifiers, diminishing returns, 2/5-cycle gates | Open |
-| ER-007 | Camera refactor couples world size to terminal size incorrectly | Medium | High | Overlay-first milestone; explicit architecture decision checkpoint | Open |
+| ER-007 | Camera refactor couples world size to terminal size incorrectly | Medium | High | Overlay-first milestone; explicit architecture decision checkpoint | Mitigated for M2 by E4.4 deferral; reopen only with new evidence |
 | ER-008 | Landmark footprints break placement/pathing/export | Medium | Medium | Reuse temple pattern, deterministic placement scenarios, export tests | Open |
 | ER-009 | New threats make stable colonies unrecoverable | Medium | High | Staged rollout, recovery windows, cached benchmark and collapse blockers | Open |
 | ER-010 | AI observes a world contract that changed silently | Low | High | Shape contracts, compatibility classification, explicit fresh-training gate | Open |
@@ -1200,7 +1257,8 @@ Stop rules:
 | ER-013 | Narrative contract tests become a monolithic maintenance bottleneck | Medium | Medium | Review thematic suite boundaries before the next substantial narrative domain; retain shared fixtures and one aggregate gate | Monitoring from E4 |
 | ER-014 | Story Director and saga modules accumulate presentation or Chronicle responsibilities | Medium | Medium | Keep E4 read-only, preserve module ownership, and reassess boundaries before E5 expansion | Mitigated through E4.1; monitor E5 |
 | ER-015 | High saga churn produces fragmented or prematurely evicted history | Medium | High | Sample seeded arcs, report terminal/opened and eviction causes, and gate Chronicle reliance on a quality review | Monitoring through E4; gate E5 |
-| ER-016 | Excellent priority coverage masks poor focus pacing or low-value selected moments | Medium | High | Pair counters with runtime observation, supported-width captures, and selected/suppressed event sampling | Partially mitigated through E4.2; monitor E4.3 time controls |
+| ER-016 | Excellent priority coverage masks poor focus pacing or low-value selected moments | Medium | High | Pair counters with runtime observation, supported-width captures, selected/suppressed event sampling, and timing protection | Mitigated through E4.4; monitor Chronicle scene composition |
+| ER-017 | Automatic focus timing fights manual controls or leaks wall-clock behavior into simulation determinism | Low | High | Ephemeral controller, focus-ID one-shot guard, explicit input precedence, base-cadence holds, PPO/headless isolation tests | Mitigated through E4.3; monitor new runtime inputs |
 
 ## 16) Decision log
 
@@ -1238,6 +1296,8 @@ Record every non-trivial scope or architecture decision.
 | 2026-07-17 | ED-028 | Expose Story Director state through a read-only telemetry/report helper and version the headless report schema for new story counters | Build display rows inside the scorer; infer metrics from Event Log retention; change balance-gate scoring; wait for E4 ribbon before any visibility | Keeps observability deterministic and reusable, avoids coupling presentation to selection logic, gives benchmark evidence without affecting tuning gates, and lets cache refresh on report-shape drift | E3.4 explainability, Data Center, and headless reporting | Approved |
 | 2026-09-04 | ED-029 | Render the active focus as a lower-map, four-row read-only ribbon that resolves canonical facts by ID and yields to existing overlays | Add story text to the Ops Snapshot; copy event payloads into Director state; reserve new simulation cells; start camera work | Preserves Director/render ownership, keeps operational telemetry distinct, supports retained-event eviction safely, and delivers immediate watchability without world-layout or AI changes | E4.1 Story Ribbon presentation and collision boundary | Approved |
 | 2026-09-04 | ED-030 | Use a single sparse focus overlay: actor-only for major beats, a four-cell tick-derived location pulse for critical/legendary beats, and paths disabled by default | Persistent runes for every major event; animated paths; multiple simultaneous focus regions; immediate camera/viewport work | Makes the selected event locatable while preserving terrain identity and visual quiet, bounds render work, and lets off-layer action remain explicit without inventing an on-map position | E4.2 map focus visual budget and layer boundary | Approved |
+| 2026-09-14 | ED-031 | Keep interactive timing in one ephemeral runtime controller; auto-slow critical focus, auto-hold legendary focus, and give timing input explicit cancellation precedence | Store timing in `state.ui`; change simulation tick size; pause every major event; let automatic protection override manual input until expiry | Keeps wall-clock state out of saves, PPO, headless runs, and Director logic while making important beats observable and operator control predictable | E4.3 timing ownership, defaults, and input precedence | Approved |
+| 2026-09-14 | ED-032 | Close M2 without a camera/viewport abstraction and reopen only when measured later scenes cannot be located through ribbon, overlay, layer cue, and timing protection | Add pan/zoom now; separate world/viewport immediately; leave the checkpoint undecided | Supported-width captures and live runs make priority events readable within the E0 performance envelope; camera work would currently add resize, pathing, export, input, and Underrealm risk without demonstrated value | E4.4 camera decision and M2 closure | Approved |
 
 ## 17) Implementation log
 
@@ -1269,6 +1329,8 @@ within the repository retention policy.
 | 2026-07-17 | EW-020 | E3.4 Story Director explainability: expose current focus/saga/cooldowns/reasons in Data Center and add deterministic headless focus/context/saga counters | `src/telemetry/story_director.js`, `src/telemetry/telemetry.js`, `src/telemetry/telemetry_panel.js`, `src/simulation/story_director.js`, `scripts/headless_benchmark.js`, `scripts/ensure_benchmark_baseline.js`, `scripts/test_narrative_contracts.js`, `benchmark_cache/`, telemetry/narrative/product/operations/layout docs | Story telemetry/report fixtures, syntax checks, `npm test`, repeated deterministic `2 x 1000`, cached `4 x 8000` schema-2 refresh + aligned recheck, terminal render smoke, `git diff --check` | Done | Full report: critical `4/4`, legendary `4/4`, priority context `8/8`, selected `120/12637`, suppressed `12517`, preempted `7`, sagas `2850` opened / `140` terminal; endpoints and cache hash unchanged; E3 is closed and E4.1 is ready |
 | 2026-09-04 | EW-021 | E4.1 Story Ribbon: present the Director's active focus as responsive actor/action/place/consequence context with fact-backed eviction fallback and explicit overlay collision rules | `src/render/story_ribbon.js`, `src/render/index.js`, `config.json`, `scripts/test_narrative_contracts.js`, `benchmark_cache/`, product/parameter/operations/layout docs | Syntax checks, `120/90/72` layout and collision/RNG/immutability fixtures, seeded `202 x 2000` focus sample, `500`-frame performance probe, repeated `2 x 1000`, `npm test`, cached `4 x 8000` refresh + aligned recheck, interactive TTY smoke, `git diff --check` | Done | Ribbon remains presentation-only; selected sample covers varied meaningful beats with one repeated schism-phase pacing watch; frame mean `1.125 ms`; exact short/full endpoints and E3 counters retained; cache hash `5010093856457e7d91557d89407fdfdd13f4c98768f7703b344004ec9e9bdb30` aligned; E4.2 ready |
 | 2026-09-04 | EW-022 | E4.2 sparse map focus: emphasize layer-local actors and critical/legendary locations, preserve map symbols, and route depth/off-map direction through the Story Ribbon | `src/render/story_focus_overlay.js`, `src/render/story_ribbon.js`, `src/render/index.js`, `config.json`, `scripts/test_narrative_contracts.js`, `benchmark_cache/`, product/parameter/operations/layout docs | Syntax/config checks, focused six-cell/threshold/pulse/layer/path/cap/RNG/immutability fixtures, `500`-frame active-critical performance probe, repeated `2 x 1000`, `npm test`, cached `4 x 8000` refresh + aligned recheck, interactive `80`-column TTY smoke, `git diff --check` | Done | Major focus remains actor-only; critical ring is capped at five location cells and paths stay off by default; frame mean `0.798 ms`; exact short/full endpoints and Director totals retained; cache hash `18a9b490351c8f9d73d9ca3a893b2f32c68c8336b66c285a9d28dc6db81c0cc2` aligned; E4.3 ready |
+| 2026-09-14 | EW-023 | E4.3 presentation timing: add explicit speed/pause/single-step controls, critical auto-slow, legendary auto-hold, manual precedence, and compact Ops Snapshot status | `src/runtime/time_controls.js`, `app.js`, `src/render/index.js`, `src/render/map_inset_panel.js`, `config.json`, `scripts/test_time_controls.js`, `package.json`, `benchmark_cache/`, product/parameter/operations/layout docs | Syntax/config checks, dedicated config/level/pause/step/protection/expiry/precedence/transition/width/immutability/isolation fixtures, `npm test`, explicit policy-only check, repeated `2 x 1000`, cached `4 x 8000` refresh + aligned recheck, `500`-frame active-auto-slow probe, interactive input/resize TTY smoke, `git diff --check` | Done | Default delays `40/20/10/5 ms`; short/full endpoints and Director counters exact; frame mean `0.736 ms`; cache hash `58abc2e2332d0369307f3e0736c7e8f845c0b63ab27531a0e90c038c800d4585` aligned; no simulation/PPO/headless/export drift |
+| 2026-09-14 | EW-024 | E4.4 camera checkpoint and M2 closure: review overlay-first evidence at full/narrow widths, retain captures, document future viewport implications, and decide current camera scope | `debug/epic_e4_time_controls_120.png`, `debug/epic_e4_time_controls_72.png`, `docs/EPIC_EVOLUTION_WORKBOOK.md` | Real TTY observation, `120x40` critical and `72x32` legendary capture review, supported-width contracts, resize smoke, E4 exit-gate audit | Done | Camera deferred for M2: current stack locates and protects priority beats without world/viewport separation; M2 complete and E5.1 ready |
 
 ## 18) Checkpoint template
 
@@ -1375,9 +1437,14 @@ Execute one bounded step at a time:
     event or saga beat.
 22. [x] `E4.2 / Map focus overlays` - Add deterministic location/actor emphasis and cross-layer cues
     for the active focus without changing terrain identity or simulation state.
-23. [ ] `E4.3 / Time controls and major-event protection` - Add manual speed/step controls and
-    presentation-only critical/legendary slow or hold behavior. **Next.**
+23. [x] `E4.3 / Time controls and major-event protection` - Add manual speed/step controls and
+    presentation-only critical/legendary slow or hold behavior.
+24. [x] `E4.4 / Camera decision checkpoint` - Measure the overlay-first stack and defer a camera
+    abstraction until later scenes provide evidence that its coordinate and input complexity is needed.
+25. [ ] `E5.1 / Bounded experience ledger` - Add source-backed per-dwarf deed references with
+    explicit caps, merge/retention rules, and saga-quality gating. **Next.**
 
-The next implementation slice should remain deliberately narrow: present the already selected
-Director focus through explicit time controls and presentation-only event protection. It should not
-include camera work, persistent legacy, new combat systems, or AI shape changes.
+The next implementation slice should remain deliberately narrow: build the bounded factual deed
+ledger required by E5.1, while first reviewing saga churn and false-fragmentation risk. It should not
+add biography UI, Chronicle prose/export, cross-cycle persistence, camera work, new combat systems,
+or AI shape changes.

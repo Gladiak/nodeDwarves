@@ -16,6 +16,17 @@ const { loadPolicy, selectAction, normalizeActionEnvelope } = require('./src/ai_
 const { getSpawnOrderedIds } = require('./src/dwarf_lore');
 const { shouldTriggerEndgameReset, runEndgameReset } = require('./src/simulation/endgame');
 const {
+  changeSpeedLevel,
+  consumeSimulationAdvance,
+  createTimeControls,
+  getLoopDelayMs,
+  getTimeControlsSnapshot,
+  observeStoryFocus,
+  queueSingleStep,
+  resetTimeControlsForTransition,
+  toggleManualPause,
+} = require('./src/runtime/time_controls');
+const {
   emitEndgameTransitionStarted,
   emitEndgameTransitionCompleted,
 } = require('./src/simulation/endgame_events');
@@ -27,10 +38,10 @@ const policyPath = resolvePolicyPath(config);
 const policy = policyPath ? loadPolicy(policyPath) : null;
 let currentAction = null;
 let nextActionTick = 0;
-let paused = false;
 
 const tickMs = Number(config.display.tickMs || 200);
 const maxTicks = Number(config.simulation.maxTicks || 0);
+const timeControls = createTimeControls(config, tickMs);
 
 let running = true;
 const EVENT_LOG_FILTERS = ['all', 'drama'];
@@ -85,10 +96,11 @@ function loop() {
 
   updateUiTimers(state, config);
 
+  const nowMs = Date.now();
   const transitionState = getTransitionState(state);
   if (transitionState && transitionState.active) {
     advanceEndgameTransition(state, config, runtime);
-  } else if (!paused) {
+  } else if (consumeSimulationAdvance(timeControls, nowMs)) {
     if (policy && state.tick >= nextActionTick) {
       const selected = selectAction(state, config, policy);
       currentAction = normalizeActionEnvelope(selected);
@@ -101,7 +113,14 @@ function loop() {
     }
   }
 
-  const frame = renderFrame(state, config, runtime);
+  const activeTransition = Boolean(getTransitionState(state)?.active);
+  if (!activeTransition) {
+    observeStoryFocus(timeControls, state.story && state.story.currentFocus, nowMs);
+  }
+
+  const frame = renderFrame(state, config, runtime, {
+    timeControls: getTimeControlsSnapshot(timeControls, nowMs),
+  });
   moveCursorHome();
   process.stdout.write(frame);
 
@@ -111,7 +130,7 @@ function loop() {
     return;
   }
 
-  setTimeout(loop, tickMs);
+  setTimeout(loop, activeTransition ? tickMs : getLoopDelayMs(timeControls, nowMs));
 }
 
 // Function: shutdown.
@@ -844,7 +863,7 @@ function startEndgameTransition(state, config, runtime) {
   closeSaveMap(state);
   currentAction = null;
   nextActionTick = 0;
-  paused = false;
+  resetTimeControlsForTransition(timeControls);
   emitEndgameTransitionStarted(state, config, {
     sourceCycle: transition.sourceCycle,
   });
@@ -974,7 +993,22 @@ function handleInput(text) {
       continue;
     }
     if (char === ' ') {
-      paused = !paused;
+      toggleManualPause(timeControls);
+      i += 1;
+      continue;
+    }
+    if (char === '[' || char === '{') {
+      changeSpeedLevel(timeControls, -1);
+      i += 1;
+      continue;
+    }
+    if (char === ']' || char === '}') {
+      changeSpeedLevel(timeControls, 1);
+      i += 1;
+      continue;
+    }
+    if (char === '.') {
+      queueSingleStep(timeControls);
       i += 1;
       continue;
     }

@@ -8,8 +8,8 @@
       303,
       404
     ],
-    "configPath": "/Users/filippoverni/ProgettiLavoro/nodeDwarves/config.json",
-    "configHash": "18a9b490351c8f9d73d9ca3a893b2f32c68c8336b66c285a9d28dc6db81c0cc2",
+    "configPath": "/Users/gladiak/ProgettiLavoro/nodeDwarves/config.json",
+    "configHash": "58abc2e2332d0369307f3e0736c7e8f845c0b63ab27531a0e90c038c800d4585",
     "resources": [
       "beer",
       "food",
@@ -17,7 +17,7 @@
     ],
     "width": 120,
     "height": 40,
-    "generatedAt": "2026-09-04T10:40:52.979Z"
+    "generatedAt": "2026-09-14T07:38:51.319Z"
   },
   "variants": [
     {

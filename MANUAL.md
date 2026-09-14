@@ -26,7 +26,8 @@ Use this as the runtime runbook for local dev loops and exports.
 npm start
 ```
 
-Runtime controls: `Space` pause/resume, `l` legend panel, `i` dwarf inspect panel,
+Runtime controls: `Space` pause/resume, `[` / `]` decrease/increase visible speed,
+`.` advances exactly one simulation tick and remains paused, `l` legend panel, `i` dwarf inspect panel,
 `w` Warrior League modal panel, `h` telemetry Data Center panel, `e` Event Log panel,
 `f` cycles Event Log filter while Event Log is open,
 `←`/`→` change telemetry pages (or browse inspect entries when inspect is open, or switch Event Log filter),
@@ -113,15 +114,19 @@ node scripts/test_training_contracts.js --policy-only
 npm run test:narrative
 npm run audit:narrative-producers
 npm test
+npm run test:time-controls
 ```
 
-`npm run audit:narrative-producers` scans simulation sources and fails when a direct `pushEvent`
+`npm run test:time-controls` is the focused E4.3 gate for configured speed levels, exact stepping,
+critical auto-slow, legendary auto-hold, manual precedence, supported-width status rendering, and
+PPO/headless isolation. `npm run audit:narrative-producers` scans simulation sources and fails when a direct `pushEvent`
 writer exists outside the approved structured boundaries. `npm run test:narrative` runs the focused schema-v1 event gate: canonical and malformed envelopes,
 deterministic cycle/tick/sequence IDs, legacy `pushEvent` compatibility, bounded retention/references,
 JSON serialization, migrated-secondary audit integration, mixed v0/v1 Event Log filtering, and
 responsive Event Log context rendering, bounded Story Director state/reset/serialization, plus
 AI/map-export isolation. `npm test` runs the source
-audit, this suite, and then the complete training/validation contract suite.
+audit, the narrative suite, the time-control suite, and then the complete training/validation
+contract suite.
 
 Clean debug artifacts after a completed cycle:
 
@@ -359,10 +364,18 @@ Notes:
   - Main CLI orchestrator and simulation control loop.
   - Loads `config.json`, builds the terminal runtime, creates initial state, and starts the tick loop.
   - Optionally loads an AI policy when `--ai <path>` or env `AI_POLICY` is provided.
-  - Tick pacing uses `display.tickMs`; hard stop uses `simulation.maxTicks`.
+  - Base tick pacing uses `display.tickMs`; `src/runtime/time_controls.js` applies only interactive
+    visible-loop delay multipliers. Hard stop uses `simulation.maxTicks`.
   - AI action cadence uses `ai.stepTicks` to throttle policy calls.
   - Terminal resize behavior is configured under `display.resize.*`: default profile keeps resize handling enabled but does not reflow world geometry (`reflow_world=false`) to avoid live road/village/temple resets.
-  - Space toggles pause/resume during the live simulation.
+  - `Space` toggles manual pause/resume. During legendary auto-hold it dismisses the hold and resumes;
+    during critical auto-slow it cancels protection and establishes a manual pause.
+  - `[` / `]` select the adjacent configured speed and cancel active automatic protection without
+    changing manual pause. `.` cancels protection, advances exactly one tick, and remains paused.
+  - Each new eligible focus ID can arm protection once: critical defaults to `0.5x` for `1800 ms`,
+    while legendary defaults to a `2400 ms` hold. Expiry uses wall-clock presentation time, never
+    simulation ticks; frames and raw input continue during a hold at no faster than the base
+    `display.tickMs` cadence.
   - Press `i` to open/close the dwarf inspect panel (works during pause or live); use `←`/`→` to browse spawn order.
   - Press `w` to open/close the Warrior League modal panel (company identity/carry-over hooks + champion/top-5/marks analytics).
   - Press `e` to open/close the Event Log modal panel. Each structured entry shows a textual
@@ -380,6 +393,12 @@ Notes:
   - Computes grid/frame layout and overlay bounds, and handles terminal resize.
   - Auto-size caps (`display.maxWidth`, `display.maxHeight`) accept `<= 0` as uncapped (follow terminal dimensions).
   - Resolves optional in-map inset carving (`display.mapInset.*`) and exports effective playable area (`runtime.playableArea`) for scaling-sensitive systems.
+- `src/runtime/time_controls.js`
+  - Owns ephemeral interactive speed, pause, pending-step, and automatic focus-protection state.
+  - Consumes only the Director's read-only focus identity/importance and returns a bounded renderer
+    snapshot. It is not imported by headless benchmarks, training, AI inference, or simulation code.
+  - Endgame transitions clear pause/protection/step state but retain the operator-selected speed;
+    transition animation itself keeps the base `display.tickMs` cadence.
 - `src/terminal.js`
   - Low-level terminal I/O helpers (clear screen, move cursor, hide/show cursor).
   - Handles screen clearing and cursor control during live rendering.
@@ -1729,12 +1748,13 @@ but it does not mutate gameplay systems, resources, actors, or AI inputs.
 
 - `render/map_inset_panel.js`
   - Renders the carved top-right in-map Ops Snapshot (`display.mapInset.*`) as a dedicated component.
-  - Uses a status-stack digest focused on core progression signals: tick/year/cycle, live weather token (`Wx:*`, e.g. `Clear`, `Rain`, `Storm`), population + age split + morale, underrealm unlock status, and current view depth.
+  - Uses a status-stack digest focused on core progression signals: tick/year/cycle, live weather token (`Wx:*`, e.g. `Clear`, `Rain`, `Storm`), current speed/protection (`1x`, `AUTO:0.5x`, `HOLD`, `PAUSE`, `STEP`), population + age split + morale, underrealm unlock status, and current view depth.
   - Computes a static risk level (`Stable`/`Warning`/`Critical`) from stockpile-ratio pressure, morale, shortage urgency, and active raid flags.
   - Adds a compact alert cause tag in the inset status line (`raid`, `deepRaid`, `shortage`, `stockpile`, `morale`, `mixed`) when level is not stable.
   - Applies semantic alert accents (`alert_warning` / `alert_critical`) to risk tokens and command strip; morale is emphasized only when morale thresholds are actually breached.
   - Supports theme-driven focus mode (`display.themes.<id>.focus.*`) with compact critical layout and optional alert-tinted inset frame/title.
-  - Keeps the keyboard-command row fixed at the bottom of the inset (symbol-first labels with short fallbacks on narrow widths).
+  - Keeps the keyboard-command row fixed at the bottom of the inset, including `Space`, speed, and
+    step hints (symbol-first labels with short fallbacks on narrow widths).
   - Uses width-aware wording fallbacks to reduce truncation on narrow terminals.
 
 - `render/inspect.js`
@@ -2282,7 +2302,7 @@ Quick checklist:
   - `render/` → ASCII output (grid, legend, inspect overlays, frame orchestration)
     - `render/dwarf_visibility.js` → deterministic story-priority selection for capped surface/deep actors
     - `render/story_ribbon.js` → responsive read-only current-focus ribbon with structured-fact fallbacks
-    - `render/story_focus_overlay.js` → bounded actor/location emphasis and cross-layer direction cues
+  - `render/story_focus_overlay.js` → bounded actor/location emphasis and cross-layer direction cues
     - `render/map_inset_panel.js` → carved in-map Ops Snapshot component (stable counters + keyboard hints)
     - `render/warrior_panel.js` → Warrior League modal overlay (company identity/carry-over context, champion lineage, top-5 fighters, marks/legacy summary)
     - `render/event_log_panel.js` → Event Log modal overlay (scrollable real-time event history with drama-focused filter)
@@ -2292,6 +2312,7 @@ Quick checklist:
     - `telemetry/telemetry_panel.js` → paged in-game telemetry Data Center with section pages and full-height telemetry body
   - `ai/` → observation + policy
   - `runtime.js`, `terminal.js`, `utils.js` → support
+  - `runtime/time_controls.js` → ephemeral interactive speed, pause, single-step, and focus-protection controller
 - `scripts/train_wrapper.js` → unified safe wrapper behind the parameterized `ai:train` command
 - `scripts/train_continuous.js` → cycle orchestrator for long-running `daily/full/high` training cadence, periodic validation gates, and stop-rule automation
 - `scripts/regression.js` → AI regression harness and profile recording with txt/json/markdown reports
@@ -2299,10 +2320,12 @@ Quick checklist:
 - `scripts/clean_debug.js` → deterministic debug cleanup (transient artifacts + keep latest `run_*` history)
 - `scripts/audit_narrative_producers.js` → reports/fails on direct legacy-only event producers outside approved boundaries
 - `scripts/test_narrative_contracts.js` → fast structured-event/identity/compatibility/isolation gate (`npm run test:narrative`; included in `npm test`)
+- `scripts/test_time_controls.js` → deterministic speed/step/auto-protection/render/isolation gate (`npm run test:time-controls`; included in `npm test`)
 - `scripts/test_training_contracts.js` → deterministic technical test suite for policy shape and report-schema contracts (included in `npm test`)
 - `regression/baselines/regression_baseline.json` → durable profile baselines used by regression checks
 - `benchmark_cache/headless_benchmark_baseline.json` → versioned cached headless benchmark baseline for report-to-report diffs
 - `benchmark_cache/headless_benchmark_baseline.md` → markdown companion of cached headless benchmark baseline
+- `debug/epic_e4_time_controls_{120,72}.png` → retained full/narrow critical auto-slow and legendary auto-hold presentation captures
 - `scripts/export_map.js` → map export pipeline (PNG + SVG)
 - `scripts/headless_benchmark.js` → deterministic long-run headless benchmark with comparative score, seed deltas, schism decree telemetry, Story Director coverage/outcome counters, and optional gate checks
 - `scripts/ensure_benchmark_baseline.js` → auto-refresh guard for cached headless benchmark baseline metadata coherence

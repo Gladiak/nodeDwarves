@@ -10,6 +10,24 @@ Display and layout:
 - `display.resize.enabled`: handle terminal resize events while the simulation is running.
 - `display.resize.reflow_world`: when true, apply the new runtime grid immediately and reflow terrain/entities (`fitStateToGrid`); when false, live resize keeps the current world dimensions to avoid road/village/temple reflow resets.
 - `display.tickMs`: milliseconds between ticks in the visible simulation.
+- `display.time_controls.enabled`: enable speed levels, single-step, and Story Director focus
+  protection in the interactive terminal. Setting it false preserves legacy `Space` pause/resume.
+- `display.time_controls.default_level`: speed-level ID selected at startup.
+- `display.time_controls.min_delay_ms`: absolute minimum visible-loop delay after multipliers are
+  applied (clamped to `1..display.tickMs`).
+- `display.time_controls.levels[]`: ordered list used by `[` / `]`; each entry defines a unique `id`,
+  compact `label`, and positive `delay_multiplier` relative to `display.tickMs`. At most eight levels
+  are accepted; effective delay multipliers are clamped to `0.05..16`.
+- `display.time_controls.auto_protect.enabled`: allow new Story Director focus IDs to trigger one
+  presentation-only protection window.
+- `display.time_controls.auto_protect.minimum_importance`: lowest focus importance eligible for
+  automatic protection (default: `critical`).
+- `display.time_controls.auto_protect.critical|legendary.mode`: protection behavior for each tier:
+  `slow`, `hold`, or `off`.
+- `display.time_controls.auto_protect.critical|legendary.level`: configured speed-level ID used by
+  `slow` mode. `hold` freezes simulation ticks while frames and input continue to update.
+- `display.time_controls.auto_protect.critical|legendary.duration_ms`: wall-clock protection window,
+  clamped to `0..60000`. Defaults are `1800 ms` critical auto-slow and `2400 ms` legendary auto-hold.
 - `display.header.enabled`: enable the header bar.
 - `display.header.height`: header height in lines.
 - `display.header.title`: header title text.

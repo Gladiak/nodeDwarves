@@ -650,7 +650,7 @@ function renderUnderrealmLifts(grid, state, config, colors, depth) {
 }
 
 // Render a full frame including map, telemetry overlays, header, and footer.
-function renderFrame(state, config, runtime) {
+function renderFrame(state, config, runtime, options = {}) {
   const symbols = config.symbols || {};
   const colors = getColorConfig(config);
   const emptySymbol = symbols.empty || '.';
@@ -789,7 +789,9 @@ function renderFrame(state, config, runtime) {
   }
 
   applyTransitionMask(grid, state.ui ? state.ui.transition : null, runtime);
-  applyMapInsetPanel(grid, state, config, runtime, colors, frameSymbols);
+  applyMapInsetPanel(grid, state, config, runtime, colors, frameSymbols, {
+    timeControls: options.timeControls,
+  });
 
   const storyRibbon = buildStoryRibbon(state, config, runtime, {
     focusCue: storyFocusOverlay && storyFocusOverlay.cue,

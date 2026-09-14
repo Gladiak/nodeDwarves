@@ -291,37 +291,62 @@ function resolveInsetWeatherColorKey(weatherType) {
   return 'weather_clear';
 }
 
-// Build runtime line with tick/year/cycle and weather token.
+// Resolve the compact visible-loop timing token supplied by the terminal runtime.
+function resolveTimeControlsToken(timeControls) {
+  if (!timeControls || timeControls.enabled === false) return '';
+  const label = String(timeControls.effectiveLabel || timeControls.selectedLabel || '1x');
+  if (timeControls.pendingStep) return 'STEP';
+  if (timeControls.pauseReason === 'manual') return 'PAUSE';
+  if (timeControls.pauseReason === 'auto') return 'HOLD';
+  if (timeControls.autoProtection && timeControls.autoProtection.mode === 'slow') {
+    return `AUTO:${label}`;
+  }
+  return label;
+}
+
+// Build runtime line with tick/year/cycle, weather, and presentation timing.
 function buildInsetRuntimeMetricLine(meta, width, compact = false) {
   const weatherToken = `Wx:${meta.weatherToken}`;
+  const timeToken = resolveTimeControlsToken(meta.timeControls);
+  const timeSuffix = timeToken ? ` ${timeToken}` : '';
   const options = compact
     ? [
-      `T:${meta.tick} Y:${meta.year} C:${meta.cycleCount} ${weatherToken}`,
-      `T${meta.tick} Y${meta.year} C${meta.cycleCount} ${weatherToken}`,
-      `T:${meta.tick} Y:${meta.year} ${weatherToken}`,
-      `T${meta.tick} ${weatherToken}`,
-      weatherToken,
+      `T:${meta.tick} Y:${meta.year} C:${meta.cycleCount} ${weatherToken}${timeSuffix}`,
+      `T${meta.tick} Y${meta.year} C${meta.cycleCount} ${weatherToken}${timeSuffix}`,
+      `T:${meta.tick} Y:${meta.year} ${weatherToken}${timeSuffix}`,
+      `T${meta.tick} ${weatherToken}${timeSuffix}`,
+      `${weatherToken}${timeSuffix}`,
     ]
     : [
-      `T:${meta.tick}  Y:${meta.year}  Cy:${meta.cycleCount}  ${weatherToken}`,
-      `Tick:${meta.tick} Year:${meta.year} C:${meta.cycleCount} ${weatherToken}`,
-      `T${meta.tick} Y${meta.year} C${meta.cycleCount} ${weatherToken}`,
-      `T:${meta.tick} Y:${meta.year} ${weatherToken}`,
-      `T${meta.tick} ${weatherToken}`,
-      weatherToken,
+      `T:${meta.tick}  Y:${meta.year}  Cy:${meta.cycleCount}  ${weatherToken}${timeSuffix}`,
+      `Tick:${meta.tick} Year:${meta.year} C:${meta.cycleCount} ${weatherToken}${timeSuffix}`,
+      `T${meta.tick} Y${meta.year} C${meta.cycleCount} ${weatherToken}${timeSuffix}`,
+      `T:${meta.tick} Y:${meta.year} ${weatherToken}${timeSuffix}`,
+      `T${meta.tick} ${weatherToken}${timeSuffix}`,
+      `${weatherToken}${timeSuffix}`,
     ];
   const text = pickFittingInsetText(options, width);
-  const start = text.indexOf(weatherToken);
-  if (start < 0) {
-    return buildInsetTextLine(text, width);
-  }
-  return buildInsetTextLine(text, width, [
-    {
-      start,
-      end: start + weatherToken.length,
+  const spans = [];
+  const weatherStart = text.indexOf(weatherToken);
+  if (weatherStart >= 0) {
+    spans.push({
+      start: weatherStart,
+      end: weatherStart + weatherToken.length,
       colorKey: meta.weatherColorKey || 'weather_clear',
-    },
-  ]);
+    });
+  }
+  const timeStart = timeToken ? text.lastIndexOf(timeToken) : -1;
+  if (timeStart >= 0) {
+    const protectedTiming = Boolean(meta.timeControls && meta.timeControls.autoProtection);
+    spans.push({
+      start: timeStart,
+      end: timeStart + timeToken.length,
+      colorKey: protectedTiming || timeToken === 'PAUSE' || timeToken === 'HOLD'
+        ? 'alert_warning'
+        : 'hud_header',
+    });
+  }
+  return buildInsetTextLine(text, width, spans);
 }
 
 // Compute alert severity for inset emphasis using stockpile/morale/pressure signals.
@@ -703,7 +728,7 @@ function buildInsetFocusMetricLines(meta, alertState, width) {
 }
 
 // Build concise map-inset lines with high-signal runtime data.
-function buildMapInsetLines(state, config, width, height, themeState) {
+function buildMapInsetLines(state, config, width, height, themeState, options = {}) {
   const safeHeight = Math.max(0, Math.floor(Number(height || 0)));
   if (safeHeight <= 0) {
     return {
@@ -768,6 +793,7 @@ function buildMapInsetLines(state, config, width, height, themeState) {
     depthToken,
     unlockToken,
     combatTokens: resolveInsetUnderrealmCombatTokens(state),
+    timeControls: options.timeControls || null,
   };
 
   const focus = themeState && themeState.focus ? themeState.focus : DEFAULT_FOCUS;
@@ -788,10 +814,10 @@ function buildMapInsetLines(state, config, width, height, themeState) {
       {
         text: pickFittingInsetText(
           [
-            '[␠]⏯ [h]▦ [w]⚔ [i]◎ [l]≡ [e]✎ [⇆] [⇅] [m]⤓ [M]⤓+',
-            '␠⏯ h▦ w⚔ i◎ l≡ e✎ ⇆ ⇅ m⤓ M⤓+',
-            'h w i l e ⇆ ⇅ m M+ ␠',
-            'h w i l e LR UD m M+ Sp',
+            '[␠]⏯ [[]− []]+ [.]› [h]▦ [w]⚔ [i]◎ [l]≡ [e]✎ [⇆] [⇅]',
+            '␠⏯ [−][+] .› h▦ w⚔ i◎ l≡ e✎ ⇆ ⇅',
+            'Sp⏯ [−][+] .› h w i l e LR UD',
+            'Sp [-][+] . h w i l e LR UD',
           ],
           width,
         ),
@@ -819,7 +845,7 @@ function buildMapInsetLines(state, config, width, height, themeState) {
 }
 
 // Carve and render the top-right inset panel directly inside the map grid.
-function applyMapInsetPanel(grid, state, config, runtime, colors, frameSymbols) {
+function applyMapInsetPanel(grid, state, config, runtime, colors, frameSymbols, options = {}) {
   const inset = runtime && runtime.mapInset;
   if (!inset) {
     return;
@@ -846,7 +872,7 @@ function applyMapInsetPanel(grid, state, config, runtime, colors, frameSymbols) 
   const innerWidth = Math.max(0, width - 2);
   const innerHeight = Math.max(0, height - 2);
   const themeState = resolveInsetThemeState(colors);
-  const insetData = buildMapInsetLines(state, config, innerWidth, innerHeight, themeState);
+  const insetData = buildMapInsetLines(state, config, innerWidth, innerHeight, themeState, options);
   const alertState = insetData && insetData.alertState
     ? insetData.alertState
     : { level: 'stable', colorKey: 'hud_header' };

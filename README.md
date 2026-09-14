@@ -45,6 +45,10 @@ Chaos, strategy, and tiny bearded logistics experts included. 🧔🧱
   modal/Operations Snapshot collision rules. A restrained focus overlay recolors at most two
   involved dwarves and marks locations only for critical or legendary beats; off-layer action is
   reported in the ribbon instead of cluttering the current map.
+- ⏱️ Explicit slow/normal/fast/very-fast controls and exact single-step make the living chronicle
+  easier to inspect. Critical beats temporarily slow the visible loop, legendary beats briefly hold
+  it, and any timing command predictably returns control to the observer without touching simulation
+  rules, headless runs, or PPO inputs.
 - 🌤️ In-map Ops Snapshot shows a live weather token (`Wx:*`, e.g. `Clear`, `Rain`, `Storm`) for at-a-glance climate context.
 - 📊 In-game Data Center (`h`) with dashboard, deep economy views, Story Director visibility, and AI explainability.
 - 🤖 PPO training pipeline in Python with JS runtime inference (`models/*.json`).
@@ -66,6 +70,8 @@ npm run ai:play
 ## Controls 🎮
 
 - ⏯️ `Space`: pause/resume
+- 🐢 `[` / `]` 🐇: decrease/increase visible simulation speed (`0.5x`, `1x`, `2x`, `4x`)
+- 👣 `.`: advance exactly one tick and remain paused
 - 🗺️ `l`: legend
 - 🔍 `i`: dwarf inspect panel
 - ⚔️ `w`: Warrior League modal
@@ -170,6 +176,7 @@ npm run debug:clean
 - 👁️ `src/render/dwarf_visibility.js`: stable story-priority selection for capped dwarf rendering.
 - 🎞️ `src/render/story_ribbon.js`: responsive read-only presentation of the active story focus.
 - ✨ `src/render/story_focus_overlay.js`: bounded actor/location emphasis and cross-layer focus cues.
+- ⏱️ `src/runtime/time_controls.js`: presentation-only speed, pause, step, and major-event protection controller.
 - 📊 `src/telemetry/`: Data Center sections and metric builders.
   - `src/telemetry/story_director.js`: Story Director telemetry rows and headless report counters.
 - 🧠 `src/ai/`: observation and policy helpers.
@@ -177,9 +184,11 @@ npm run debug:clean
 - 🗿 `src/place_identity.js`: bounded authoritative registry for deterministic world-place names.
 - 🛠️ `scripts/`: benchmarking, regression, validation orchestration, narrative contracts, export, cleanup.
 - 🧪 `scripts/test_narrative_contracts.js`: fast executable gate for the living-chronicle event contract.
+- ⏱️ `scripts/test_time_controls.js`: deterministic E4.3 timing, input precedence, rendering, and isolation gate.
 - 🔎 `scripts/audit_narrative_producers.js`: zero-legacy producer audit used by `npm test`.
 - 🐍 `python/`: PPO training and rollout tooling.
 - 🗂️ `benchmark_cache/`: cached deterministic benchmark baseline.
+- 📸 `debug/epic_e4_time_controls_{120,72}.png`: retained full/narrow E4 presentation evidence.
 - 📦 `regression/baselines/`: durable regression reference profiles.
 - 📚 `docs/`: manuals, tuning references, the Epic Evolution workbook, and the narrative event contract.
 
