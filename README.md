@@ -30,6 +30,9 @@ Chaos, strategy, and tiny bearded logistics experts included. 🧔🧱
 - 🗿 Villages, roads, the Deep Gate, lifts, ruins, and the Ancestor Temple receive deterministic
   names stored with the world. Events, Inspect, and telemetry share those names, with short labels
   ready for cramped terminals.
+- 🏺 Completed cycles now leave a bounded world legacy: remembered heroes and holds, memorials,
+  inherited institutions, and golden map echoes survive new terrain without copying an old world or
+  stacking runaway bonuses.
 - 👁️ When population exceeds the map cap, urgent story actors, endangered dwarves, champions, saga
   protagonists, and recent incident actors keep their place on-screen through a stable RNG-free
   priority selector.
@@ -75,7 +78,7 @@ npm run ai:play
 ## Controls 🎮
 
 - ⏯️ `Space`: pause/resume
-- 🐢 `[` / `]` 🐇: decrease/increase visible simulation speed (`0.5x`, `1x`, `2x`, `4x`, `5x`, `25x`, `100x`; default `100x` for fast endgame trials)
+- 🐢 `[` / `]` 🐇: decrease/increase visible simulation speed (`0.5x`, `1x`, `2x`, `4x`, `5x`, `25x`, `100x`; default `1x`, with faster levels available for endgame trials)
 - 👣 `.`: advance exactly one tick and remain paused
 - 🗺️ `l`: legend
 - 🔍 `i`: dwarf inspect panel
@@ -179,6 +182,7 @@ npm run debug:clean
 - 📚 `src/simulation/story_sagas.js`: deterministic saga grouping, lifecycle, evidence, and fact-backed chapters.
 - 🧾 `src/simulation/experience_ledger.js`: bounded per-dwarf lived deeds, merge rules, and biography views.
 - 📖 `src/simulation/chronicle.js`: fact-backed cycle chapters, integrity checks, and bounded archives.
+- 🏺 `src/simulation/world_legacy.js`: versioned cross-cycle records, memorials, institutions, and deterministic new-world echoes.
 - 💾 `src/chronicle_export.js`: deterministic safe-path Markdown/JSON Chronicle export.
 - 🌍 `src/state/`: world/terrain and initial state generation.
 - 🎨 `src/render/`: map, overlays, panels, and layout helpers.
@@ -195,6 +199,8 @@ npm run debug:clean
 - 🧪 `scripts/test_narrative_contracts.js`: fast executable gate for the living-chronicle event contract.
 - ⏱️ `scripts/test_time_controls.js`: deterministic E4.3 timing, input precedence, rendering, and isolation gate.
 - 📖 `scripts/test_chronicle_contracts.js`: E5 ledger, biography, Chronicle, reset, export, bounds, and AI-isolation gate.
+- 🏺 `scripts/test_world_legacy_contracts.js`: E6 migration, retention, remapping, rendering, and AI-isolation gate.
+- 🔁 `scripts/validate_world_legacy.js`: deterministic two-cycle/five-cycle growth and compounding validator.
 - 🔎 `scripts/audit_narrative_producers.js`: zero-legacy producer audit used by `npm test`.
 - 🐍 `python/`: PPO training and rollout tooling.
 - 🗂️ `benchmark_cache/`: cached deterministic benchmark baseline.

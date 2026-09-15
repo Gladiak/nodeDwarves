@@ -3,6 +3,7 @@
 const { clamp } = require('../utils');
 const { createInitialState } = require('../state');
 const { finalizeCycleChronicle, carryChronicleAcrossCycle } = require('./chronicle');
+const { carryWorldLegacyAcrossCycle } = require('./world_legacy');
 const { carryMythsAcrossCycle } = require('./myths');
 const { carryTemplePrestigeAcrossCycle } = require('./temple');
 const { carryWarriorCompanyAcrossCycle } = require('./warriors');
@@ -182,6 +183,12 @@ function runEndgameReset(state, config, runtime, options = {}) {
     lastTicks: completedTicks,
   };
   carryChronicleAcrossCycle(state, nextState, config, completedChronicle);
+  const legacySummary = carryWorldLegacyAcrossCycle(
+    state,
+    nextState,
+    config,
+    completedChronicle,
+  );
   nextState.lastDeathTick = 0;
   nextState.endgameArtifactsTick = null;
   updateEndgameDifficulty(nextState, config);
@@ -190,7 +197,7 @@ function runEndgameReset(state, config, runtime, options = {}) {
     state.ui = state.ui || {};
     for (const [key, value] of Object.entries(options.preserveUi)) {
       state.ui[key] = key === 'transition' && value && typeof value === 'object'
-        ? { ...value, chronicleSummary: completedChronicle.summary }
+        ? { ...value, chronicleSummary: completedChronicle.summary, legacySummary }
         : value;
     }
   }
@@ -205,7 +212,7 @@ function runEndgameReset(state, config, runtime, options = {}) {
     config,
     warriorCarryover,
   );
-  return { cycleEvent, carryoverEvent, warriorCarryover, completedChronicle };
+  return { cycleEvent, carryoverEvent, warriorCarryover, completedChronicle, legacySummary };
 }
 
 function maybeHandleEndgameReset(state, config, runtime) {

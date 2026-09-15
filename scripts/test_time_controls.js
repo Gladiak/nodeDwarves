@@ -39,7 +39,7 @@ function validateTimeControlConfig() {
   const config = loadConfig();
   const settings = resolveTimeControlsConfig(config, 20);
   assert(settings.enabled === true, 'Time controls are unexpectedly disabled by default.');
-  assert(settings.defaultLevel === 'warp', 'Default speed level is not warp.');
+  assert(settings.defaultLevel === 'normal', 'Default speed level is not normal.');
   assert(
     JSON.stringify(settings.levels.map((entry) => entry.delayMs))
       === JSON.stringify([40, 20, 10, 5, 4, 4, 4]),
@@ -82,6 +82,11 @@ function validateTimeControlConfig() {
 // Validate pause, speed, and exactly-one-tick stepping semantics.
 function validateManualControlFlow() {
   const controls = createTimeControls(loadConfig(), 20);
+  assert(getLoopDelayMs(controls, 0) === 20, 'Normal speed did not use the configured delay.');
+  assert(getSimulationTicksPerFrame(controls, 0) === 1, 'Normal speed batched simulation ticks.');
+  assert(changeSpeedLevel(controls, 1).id === 'fast', 'Speed-up did not select 2x speed.');
+  for (let index = 0; index < 4; index += 1) changeSpeedLevel(controls, 1);
+  assert(getTimeControlsSnapshot(controls, 0).selectedLevel === 'warp', 'Maximum speed did not select warp.');
   assert(getLoopDelayMs(controls, 0) === 4, 'Warp speed did not use the configured delay.');
   assert(getSimulationTicksPerFrame(controls, 0) === 20, 'Warp speed did not batch twenty ticks.');
   assert(changeSpeedLevel(controls, -1).id === 'rapid', 'Slow-down did not select 25x speed.');
@@ -131,7 +136,7 @@ function validateAutomaticProtectionFlow() {
   assert(observeStoryFocus(controls, critical, 1500) === false, 'Same focus re-armed automatic protection.');
   assert(getTimeControlsSnapshot(controls, 2799).autoProtection !== null, 'Critical protection expired early.');
   assert(getTimeControlsSnapshot(controls, 2800).autoProtection === null, 'Critical protection did not expire.');
-  assert(getLoopDelayMs(controls, 2800) === 4, 'Expired auto-slow did not restore manual speed.');
+  assert(getLoopDelayMs(controls, 2800) === 20, 'Expired auto-slow did not restore normal speed.');
 
   assert(observeStoryFocus(controls, { eventId: 'evt:critical:2', importance: 'critical' }, 2900) === true, 'Second critical focus did not auto-slow.');
   assert(toggleManualPause(controls) === true, 'Space during auto-slow did not become a manual pause.');

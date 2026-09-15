@@ -1,6 +1,6 @@
 # NodeDwarves Balance Report
 
-Generated: 2026-09-14T15:11:41.711Z
+Generated: 2026-09-15T15:39:31.886Z
 Ticks: 8000
 Seeds: 101, 202, 303, 404
 Resources: beer, food, water
@@ -10,6 +10,12 @@ Resources: beer, food, water
 | Variant | Population | Morale | BeerBoost | Hunger | Thirst |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | candidate | 701.50 | 0.8835 | 0.0189 | 0.1571 | 0.1097 |
+
+## World Legacy Summary
+
+| Variant | Cycles | Last cycle ticks | Records | Memorials | Institutions | Echoes | Modifier | State bytes | Deaths |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| candidate | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.0000 | 211.0 | 63.00 |
 
 ## Underrealm Summary
 

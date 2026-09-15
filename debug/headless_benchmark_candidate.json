@@ -8,8 +8,8 @@
       303,
       404
     ],
-    "configPath": "/Users/gladiak/ProgettiLavoro/nodeDwarves/config.json",
-    "configHash": "2d11e57d52d649520257120367c41008dc01da12ccef7493e9e527ad058709f0",
+    "configPath": "/Users/filippoverni/ProgettiLavoro/nodeDwarves/config.json",
+    "configHash": "28c11e8e0b070a952054d5b96b629d6f51f73104387819174307bd5b256eb88c",
     "resources": [
       "beer",
       "food",
@@ -17,7 +17,7 @@
     ],
     "width": 120,
     "height": 40,
-    "generatedAt": "2026-09-14T15:11:41.711Z"
+    "generatedAt": "2026-09-15T15:39:31.886Z"
   },
   "variants": [
     {
@@ -89,6 +89,20 @@
             "sagaTerminal": 41,
             "sagaResolutionRate": 0.09879518072289156
           },
+          "worldLegacy": {
+            "completedCycles": 0,
+            "lastCycleTicks": 0,
+            "records": 0,
+            "identities": 0,
+            "places": 0,
+            "memorials": 0,
+            "institutions": 0,
+            "echoes": 0,
+            "modifierMagnitude": 0,
+            "evictedRecords": 0,
+            "stateBytes": 211
+          },
+          "deaths": 59,
           "resources": {
             "beer": 28660.27512195127,
             "food": 748.6543097471186,
@@ -160,6 +174,20 @@
             "sagaTerminal": 37,
             "sagaResolutionRate": 0.02172636523781562
           },
+          "worldLegacy": {
+            "completedCycles": 0,
+            "lastCycleTicks": 0,
+            "records": 0,
+            "identities": 0,
+            "places": 0,
+            "memorials": 0,
+            "institutions": 0,
+            "echoes": 0,
+            "modifierMagnitude": 0,
+            "evictedRecords": 0,
+            "stateBytes": 211
+          },
+          "deaths": 83,
           "resources": {
             "beer": 37523.40547049892,
             "food": 885.0393438868064,
@@ -233,6 +261,20 @@
             "sagaTerminal": 28,
             "sagaResolutionRate": 0.060085836909871244
           },
+          "worldLegacy": {
+            "completedCycles": 0,
+            "lastCycleTicks": 0,
+            "records": 0,
+            "identities": 0,
+            "places": 0,
+            "memorials": 0,
+            "institutions": 0,
+            "echoes": 0,
+            "modifierMagnitude": 0,
+            "evictedRecords": 0,
+            "stateBytes": 211
+          },
+          "deaths": 59,
           "resources": {
             "beer": 40368.85262541363,
             "food": 952.2417123513316,
@@ -306,6 +348,20 @@
             "sagaTerminal": 32,
             "sagaResolutionRate": 0.05904059040590406
           },
+          "worldLegacy": {
+            "completedCycles": 0,
+            "lastCycleTicks": 0,
+            "records": 0,
+            "identities": 0,
+            "places": 0,
+            "memorials": 0,
+            "institutions": 0,
+            "echoes": 0,
+            "modifierMagnitude": 0,
+            "evictedRecords": 0,
+            "stateBytes": 211
+          },
+          "deaths": 51,
           "resources": {
             "beer": 44195.546765082116,
             "food": 814.8823262014831,
@@ -396,6 +452,20 @@
           "sagaTerminal": 138,
           "sagaResolutionRate": 0.044145873320537425
         },
+        "worldLegacy": {
+          "completedCycles": 0,
+          "lastCycleTicks": 0,
+          "records": 0,
+          "identities": 0,
+          "places": 0,
+          "memorials": 0,
+          "institutions": 0,
+          "echoes": 0,
+          "modifierMagnitude": 0,
+          "evictedRecords": 0,
+          "stateBytes": 211
+        },
+        "deaths": 63,
         "resources": {
           "beer": 37687.01999573648,
           "food": 850.2044230466848,

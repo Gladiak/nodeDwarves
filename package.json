@@ -12,14 +12,16 @@
     "ai:validate": "node scripts/validate_extended_optimized.js",
     "ai:validate:weekly": "node scripts/regression.js --profile horizon --seed-pack weekly --report-json debug/regression_horizon_weekly_latest.json --report-md debug/regression_horizon_weekly_latest.md",
     "bench:ensure-baseline": "node scripts/ensure_benchmark_baseline.js --baseline-json benchmark_cache/headless_benchmark_baseline.json --candidate-report debug/headless_benchmark_candidate.json",
-    "bench:candidate": "node scripts/headless_benchmark.js --variant candidate --output table --report-json debug/headless_benchmark_candidate.json --report-md debug/headless_benchmark_candidate.md --progress --progress-every 2000",
+    "bench:candidate": "node scripts/headless_benchmark.js --ticks 8000 --seeds 101,202,303,404 --variant candidate --output table --report-json debug/headless_benchmark_candidate.json --report-md debug/headless_benchmark_candidate.md --progress --progress-every 2000",
     "bench:diff": "node scripts/ensure_benchmark_baseline.js --baseline-json benchmark_cache/headless_benchmark_baseline.json --candidate-report debug/headless_benchmark_candidate.json && node scripts/compare_benchmark_reports.js --baseline benchmark_cache/headless_benchmark_baseline.json --candidate debug/headless_benchmark_candidate.json --output table --report-json debug/headless_benchmark_diff.json --report-md debug/headless_benchmark_diff.md",
     "debug:clean": "node scripts/clean_debug.js",
     "audit:narrative-producers": "node scripts/audit_narrative_producers.js",
     "test:narrative": "node scripts/test_narrative_contracts.js",
     "test:time-controls": "node scripts/test_time_controls.js",
     "test:chronicle": "node scripts/test_chronicle_contracts.js",
-    "test": "node scripts/audit_narrative_producers.js && node scripts/test_narrative_contracts.js && node scripts/test_time_controls.js && node scripts/test_chronicle_contracts.js && node scripts/test_training_contracts.js"
+    "test:world-legacy": "node scripts/test_world_legacy_contracts.js",
+    "validate:world-legacy": "node scripts/validate_world_legacy.js",
+    "test": "node scripts/audit_narrative_producers.js && node scripts/test_narrative_contracts.js && node scripts/test_time_controls.js && node scripts/test_chronicle_contracts.js && node scripts/test_world_legacy_contracts.js && node scripts/test_training_contracts.js"
   },
   "dependencies": {
     "puppeteer": "^24.36.1"

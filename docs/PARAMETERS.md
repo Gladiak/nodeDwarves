@@ -19,7 +19,7 @@ Display and layout:
   compact `label`, positive `delay_multiplier` relative to `display.tickMs`, and optional
   `ticks_per_frame`. At most eight levels are accepted; delay multipliers are clamped to `0.05..16`
   and simulation batches to `1..64` ticks per rendered frame.
-- Default interactive profile: `0.5x/1x/2x/4x/5x/25x/100x`, starting at `100x`. The `25x` and
+- Default interactive profile: `0.5x/1x/2x/4x/5x/25x/100x`, starting at `1x`. The `25x` and
   `100x` levels batch `5` and `20` authoritative ticks per frame at a `4 ms` visible delay. Headless
   and training execution remain unaffected.
 - `display.time_controls.auto_protect.enabled`: allow new Story Director focus IDs to trigger one
@@ -554,6 +554,41 @@ Chronicle:
   rejected and fall back to `chronicles/`.
 - `chronicle.export.json`: write the canonical deterministic JSON payload.
 - `chronicle.export.markdown`: write the human-readable chapter companion with inline source IDs.
+
+World legacy:
+
+- `world_legacy.enabled`: carry bounded historical records into new cycles after the completed
+  Chronicle has been verified.
+- `world_legacy.retention.max_cycles`: completed-cycle summary cap; clamped to `1..16`.
+- `world_legacy.retention.max_identities`: archived actor-snapshot cap; clamped to `1..256`.
+- `world_legacy.retention.max_places`: old named-place snapshot cap; clamped to `1..128`. Old
+  coordinates are never retained as current-world coordinates.
+- `world_legacy.retention.max_memorials`: memorial/tomb/statue/ancestor-hall record cap; clamped to
+  `1..64`.
+- `world_legacy.retention.max_institutions`: inherited institution cap; clamped to `1..32`.
+- `world_legacy.retention.max_echoes`: visible remapped-site cap; clamped to `1..64`.
+- `world_legacy.retention.max_total_records`: aggregate hard cap across all legacy categories;
+  clamped to `6..384` and enforced after category caps.
+- `world_legacy.selection.max_identities_per_cycle`: important identities selected from verified
+  Chronicle evidence per completed cycle; clamped to `0..16`.
+- `world_legacy.selection.max_places_per_cycle`: named historical places selected per cycle; clamped
+  to `0..12`.
+- `world_legacy.selection.max_memorials_per_cycle`: qualifying memorial records per cycle; clamped to
+  `0..4`.
+- `world_legacy.selection.max_institutions_per_cycle`: inherited institution records per cycle;
+  clamped to `0..2`.
+- `world_legacy.selection.max_echoes_per_cycle`: geographic echo intents created per cycle; clamped
+  to `0..4`.
+- `world_legacy.selection.memorial_minimum_importance`: minimum verified event importance that can
+  establish a memorial.
+- `world_legacy.institutions.modifiers.per_cycle`: magnitude reserved by each inherited institution
+  hook; clamped to `0..0.05`.
+- `world_legacy.institutions.modifiers.total_cap`: aggregate institution-hook budget; clamped to
+  `0..0.10`. E6 stores these hooks with `applied=false`, so they cannot affect gameplay or PPO input.
+- `world_legacy.echoes.enabled`: remap retained historical sites onto walkable cells in each new
+  terrain and expose them through the authoritative place registry.
+- `world_legacy.echoes.color_key`: `display.colors.map` key used for visible legacy sites.
+- `symbols.world_legacy_echo`: single map glyph used for remapped legacy sites.
 
 Wildlife and pastures:
 

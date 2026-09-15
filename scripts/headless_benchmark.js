@@ -549,6 +549,30 @@ function collectUnderrealmMetrics(state) {
   };
 }
 
+// Capture bounded persistent-world growth and modifier budget metrics.
+function collectWorldLegacyMetrics(state) {
+  const legacy = state && state.worldLegacy && typeof state.worldLegacy === 'object'
+    ? state.worldLegacy : {};
+  const listLength = (field) => Array.isArray(legacy[field]) ? legacy[field].length : 0;
+  const institutions = Array.isArray(legacy.institutions) ? legacy.institutions : [];
+  return {
+    completedCycles: Math.max(0, Number(state?.cycleStats?.count || 0)),
+    lastCycleTicks: Math.max(0, Number(state?.cycleStats?.lastTicks || 0)),
+    records: ['cycles', 'identities', 'places', 'memorials', 'institutions', 'echoes']
+      .reduce((sum, field) => sum + listLength(field), 0),
+    identities: listLength('identities'),
+    places: listLength('places'),
+    memorials: listLength('memorials'),
+    institutions: listLength('institutions'),
+    echoes: listLength('echoes'),
+    modifierMagnitude: institutions.reduce(
+      (sum, entry) => sum + Math.max(0, Number(entry?.modifier?.magnitude || 0)), 0,
+    ),
+    evictedRecords: Math.max(0, Number(legacy?.stats?.evictedRecords || 0)),
+    stateBytes: Buffer.byteLength(JSON.stringify(legacy)),
+  };
+}
+
 // Increment one string-keyed counter map.
 function incrementCounter(counterMap, keyRaw, amountRaw) {
   if (!counterMap || typeof counterMap !== 'object') {
@@ -654,6 +678,7 @@ function collectRow(state, resources, seed, decreeTracker, storyTracker) {
   const dwarves = Array.isArray(state.dwarves) ? state.dwarves : [];
   const stockpile = state.stockpile || {};
   const underrealm = collectUnderrealmMetrics(state);
+  const worldLegacy = collectWorldLegacyMetrics(state);
   const decree = decreeTracker && typeof decreeTracker === 'object'
     ? decreeTracker
     : createSchismDecreeTracker();
@@ -684,6 +709,8 @@ function collectRow(state, resources, seed, decreeTracker, storyTracker) {
     schismDecreeById: sortCounterMap(decree.byId),
     schismDecreeActiveTicksById: sortCounterMap(decree.activeTicksById),
     storyDirector: getStoryDirectorCounterReport(storyTracker),
+    worldLegacy,
+    deaths: Math.max(0, Number(state.deathsCount || 0)),
     resources: resourceValues,
   };
 }
@@ -710,6 +737,19 @@ function summarizeRows(rows, resources) {
   const storyDirector = summarizeStoryDirectorReports(
     rows.map((row) => row && row.storyDirector),
   );
+  const worldLegacy = {
+    completedCycles: average(rows, (row) => row.worldLegacy && row.worldLegacy.completedCycles),
+    lastCycleTicks: average(rows, (row) => row.worldLegacy && row.worldLegacy.lastCycleTicks),
+    records: average(rows, (row) => row.worldLegacy && row.worldLegacy.records),
+    identities: average(rows, (row) => row.worldLegacy && row.worldLegacy.identities),
+    places: average(rows, (row) => row.worldLegacy && row.worldLegacy.places),
+    memorials: average(rows, (row) => row.worldLegacy && row.worldLegacy.memorials),
+    institutions: average(rows, (row) => row.worldLegacy && row.worldLegacy.institutions),
+    echoes: average(rows, (row) => row.worldLegacy && row.worldLegacy.echoes),
+    modifierMagnitude: average(rows, (row) => row.worldLegacy && row.worldLegacy.modifierMagnitude),
+    evictedRecords: average(rows, (row) => row.worldLegacy && row.worldLegacy.evictedRecords),
+    stateBytes: average(rows, (row) => row.worldLegacy && row.worldLegacy.stateBytes),
+  };
   return {
     population: average(rows, (row) => row.population),
     morale: average(rows, (row) => row.morale),
@@ -737,6 +777,8 @@ function summarizeRows(rows, resources) {
       activeTicksByIdShare: buildCounterShareMap(decreeActiveTicksById, decreeActiveTicksTotal),
     },
     storyDirector,
+    worldLegacy,
+    deaths: average(rows, (row) => row.deaths),
     resources: resourceAverages,
   };
 }
@@ -1206,6 +1248,17 @@ function buildMarkdownReport(report) {
   for (const variant of report.variants) {
     lines.push(
       `| ${variant.label} | ${formatNumber(variant.summary.population, 2)} | ${formatNumber(variant.summary.morale, 4)} | ${formatNumber(variant.summary.beerBoost, 4)} | ${formatNumber(variant.summary.hunger, 4)} | ${formatNumber(variant.summary.thirst, 4)} |`,
+    );
+  }
+  lines.push('');
+  lines.push('## World Legacy Summary');
+  lines.push('');
+  lines.push('| Variant | Cycles | Last cycle ticks | Records | Memorials | Institutions | Echoes | Modifier | State bytes | Deaths |');
+  lines.push('| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |');
+  for (const variant of report.variants) {
+    const legacy = variant.summary.worldLegacy || {};
+    lines.push(
+      `| ${variant.label} | ${formatNumber(legacy.completedCycles, 2)} | ${formatNumber(legacy.lastCycleTicks, 2)} | ${formatNumber(legacy.records, 2)} | ${formatNumber(legacy.memorials, 2)} | ${formatNumber(legacy.institutions, 2)} | ${formatNumber(legacy.echoes, 2)} | ${formatNumber(legacy.modifierMagnitude, 4)} | ${formatNumber(legacy.stateBytes, 1)} | ${formatNumber(variant.summary.deaths, 2)} |`,
     );
   }
   lines.push('');

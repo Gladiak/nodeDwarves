@@ -9,6 +9,7 @@ const { createDwarfSocialState, createSocialDramaState } = require('../simulatio
 const { createStoryDirectorState } = require('../simulation/story_director');
 const { createExperienceLedger } = require('../simulation/experience_ledger');
 const { createChronicleState } = require('../simulation/chronicle');
+const { createWorldLegacyState } = require('../simulation/world_legacy');
 const { bootstrapPlaceRegistry, createPlaceRegistry } = require('../place_identity');
 const {
   createTerrain,
@@ -1799,6 +1800,7 @@ function createInitialState(config, runtime) {
   const story = createStoryDirectorState(config);
   const experience = createExperienceLedger();
   const chronicle = createChronicleState(0);
+  const worldLegacy = createWorldLegacyState();
 
   const state = {
     tick: 0,
@@ -1829,6 +1831,7 @@ function createInitialState(config, runtime) {
     story,
     experience,
     chronicle,
+    worldLegacy,
     places: createPlaceRegistry(),
     roads,
     temple,
@@ -1902,6 +1905,7 @@ function createInitialState(config, runtime) {
         fadeInTicks: 0,
         message: '',
         chronicleSummary: null,
+        legacySummary: null,
       },
     },
     birthsCount: 0,

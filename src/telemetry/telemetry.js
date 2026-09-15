@@ -970,6 +970,12 @@ function buildEndgameSectionRows(state, config, options = {}) {
   const lastCycleTicks = Math.max(0, Number(cycleStats.lastTicks || 0));
   const lastCycleLabel =
     lastCycleTicks > 0 ? `${formatCompactNumber(lastCycleTicks)} ticks` : "-";
+  const worldLegacy = state && state.worldLegacy && typeof state.worldLegacy === "object"
+    ? state.worldLegacy : {};
+  const legacyCount = ["cycles", "identities", "places", "memorials", "institutions", "echoes"]
+    .reduce((sum, field) => sum + (Array.isArray(worldLegacy[field]) ? worldLegacy[field].length : 0), 0);
+  const legacyModifier = (Array.isArray(worldLegacy.institutions) ? worldLegacy.institutions : [])
+    .reduce((sum, entry) => sum + Math.max(0, Number(entry && entry.modifier && entry.modifier.magnitude || 0)), 0);
   const structures = Array.isArray(state && state.structures)
     ? state.structures
     : [];
@@ -1056,6 +1062,8 @@ function buildEndgameSectionRows(state, config, options = {}) {
   return [
     `Cycle reset loop: ${endgameEnabled ? "enabled" : "disabled"}`,
     `Cycle history: current ${cycleCount} | last cycle length ${lastCycleLabel}`,
+    `World legacy: ${legacyCount} records | ${(worldLegacy.echoes || []).length} echoes | ${(worldLegacy.memorials || []).length} memorials`,
+    `Legacy modifier hooks: ${(legacyModifier * 100).toFixed(1)}% reserved | gameplay inactive`,
     `Ruins gateway: ${ruinsGatewayLabel}`,
     `Required path progress: ${requiredDone}/4`,
     formatChecklistStep(

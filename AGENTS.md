@@ -47,6 +47,7 @@ This file defines how to implement new features in a consistent, stable way.
 - `src/simulation/story_sagas.js`: deterministic saga grouping, lifecycle transitions, bounded evidence indexes, fact-backed chapter summaries, and capacity eviction.
 - `src/simulation/experience_ledger.js`: bounded source-backed per-dwarf deed ledger, deterministic merge/retention rules, and read-only biography views.
 - `src/simulation/chronicle.js`: fixed cycle chapters, compact evidence, factual-integrity verification, summaries, and bounded cross-cycle Chronicle archives.
+- `src/simulation/world_legacy.js`: versioned bounded cross-cycle summaries, archived identities/places, memorials, inherited institutions, deterministic geographic remapping, and saga hooks.
 - `src/simulation/secondary_events.js`: shared structured boundary and actor/location/resource-fact helpers for secondary world, culture, environment, economy, and development producers.
 - `src/simulation/lifecycle_events.js`: structured founding, birth, natural-death, and partnership event builders with deterministic actor snapshots and causal facts.
 - `src/simulation/social_events.js`: structured mentorship, rivalry, grudge, and reconciliation incident builders with pair evidence and typed outcomes.
@@ -73,6 +74,7 @@ This file defines how to implement new features in a consistent, stable way.
   focus with actor/action/place/consequence fallbacks and overlay collision handling.
 - `src/render/story_focus_overlay.js`: deterministic bounded actor/location emphasis and off-layer
   direction cues for the active Story Director focus.
+- `src/render/world_legacy.js`: read-only rendering of remapped persistent-world legacy sites.
 - `src/render/map_inset_panel.js`: carved top-right in-map operations snapshot panel (tick/year/cycle, population age split, underrealm unlock info, keyboard hints).
 - `src/render/warrior_panel.js`: Warrior League analytics modal overlay (champion lineage, top-5 fighters, marks/legacy summary).
 - `src/render/event_log_panel.js`: Event Log modal overlay with scrollable real-time events,
@@ -111,6 +113,9 @@ This file defines how to implement new features in a consistent, stable way.
   supported-width rendering, manual precedence, and AI/headless isolation suite (`npm run test:time-controls`; included in `npm test`).
 - `scripts/test_chronicle_contracts.js`: deterministic E5 ledger, biography, Chronicle integrity,
   reset, export-hash, density-bound, and AI-observation isolation suite (`npm run test:chronicle`; included in `npm test`).
+- `scripts/test_world_legacy_contracts.js`: deterministic E6 schema, migration, retention, remapping,
+  rendering, multi-cycle, and AI-observation isolation suite (`npm run test:world-legacy`; included in `npm test`).
+- `scripts/validate_world_legacy.js`: deterministic two-cycle/five-cycle E6 state-growth, balance-signal, and stop-rule validator.
 - `scripts/test_training_contracts.js`: deterministic technical contract suite for training/validation schemas (included in `npm test`).
 - `benchmark_cache/headless_benchmark_baseline.json`: versioned cached headless benchmark baseline used for report diffs.
 - `benchmark_cache/headless_benchmark_baseline.md`: markdown companion of the cached headless benchmark baseline.

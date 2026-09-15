@@ -551,6 +551,7 @@
         "underrealm_lift_down": "\u001b[38;2;122;255;178m",
         "underrealm_lift_active": "\u001b[38;2;255;198;94m",
         "underrealm_lift_locked": "\u001b[38;2;199;170;120m",
+        "world_legacy_echo": "\u001b[38;2;214;176;82m",
         "terrain_void": "\u001b[48;2;9;10;15m\u001b[38;2;9;10;15m",
         "terrain_stone": "\u001b[37m",
         "terrain_plain_spring": "\u001b[38;2;122;150;126m",
@@ -926,6 +927,36 @@
       "directory": "chronicles",
       "json": true,
       "markdown": true
+    }
+  },
+  "world_legacy": {
+    "enabled": true,
+    "retention": {
+      "max_cycles": 5,
+      "max_identities": 32,
+      "max_places": 24,
+      "max_memorials": 12,
+      "max_institutions": 8,
+      "max_echoes": 12,
+      "max_total_records": 96
+    },
+    "selection": {
+      "max_identities_per_cycle": 4,
+      "max_places_per_cycle": 3,
+      "max_memorials_per_cycle": 1,
+      "max_institutions_per_cycle": 1,
+      "max_echoes_per_cycle": 2,
+      "memorial_minimum_importance": "critical"
+    },
+    "institutions": {
+      "modifiers": {
+        "per_cycle": 0.005,
+        "total_cap": 0.02
+      }
+    },
+    "echoes": {
+      "enabled": true,
+      "color_key": "world_legacy_echo"
     }
   },
   "wildlife": {
@@ -6975,6 +7006,7 @@
     "underrealm_lift_up": "↑",
     "underrealm_lift_down": "↓",
     "underrealm_lift_locked": "↓",
-    "underrealm_hostile": "☠"
+    "underrealm_hostile": "☠",
+    "world_legacy_echo": "†"
   }
 }

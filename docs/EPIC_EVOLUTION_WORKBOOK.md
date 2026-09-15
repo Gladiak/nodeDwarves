@@ -1,9 +1,9 @@
 # NodeDwarves Epic Evolution Workbook
 
-Last updated: 2026-09-14
-Status: Active implementation - M3 complete; M4 ready
-Completed checkpoint: `E5.4` done
-Next executable step: `E6.1` ready
+Last updated: 2026-09-15
+Status: Active implementation - M4 complete; M5 ready
+Completed checkpoint: `E6.4` done
+Next executable step: `E7.1` ready
 Scope: Step-by-step delivery and evidence tracking for the project-wide epic simulation evolution
 
 This workbook turns the "living dwarven chronicle" direction into an executable plan. It is the
@@ -128,16 +128,15 @@ Dashboard:
 | M1 - Structured stories | E1, E2 | Events know who/where/why; messages use stable identities | `Done` | M0 done | Structured-event + identity gates pass |
 | M2 - Watchable simulation | E3, E4 | The terminal guides attention and protects important moments | `Done` | M1 done | Director + presentation gates pass |
 | M3 - Lived history | E5 | Biographies and chronicles contain actual deeds | `Done` | M2 done | Chronicle integrity + cycle export gate passes |
-| M4 - Persistent civilization | E6 | Cycles inherit bounded, visible history | `Ready` | M3 done | Deterministic multi-cycle gate passes |
-| M5 - Epic world | E7, E8 | Named nemeses, staged sieges, and evolving landmarks | `Not started` | M4 done | Full quality gate + experience review passes |
+| M4 - Persistent civilization | E6 | Cycles inherit bounded, visible history | `Done` | M3 done | Deterministic multi-cycle gate passes |
+| M5 - Epic world | E7, E8 | Named nemeses, staged sieges, and evolving landmarks | `Ready` | M4 done | Full quality gate + experience review passes |
 
-Current checkpoint: `E5.4` is `Done`; `E6.1` is the next executable step. Qualifying canonical facts
-now feed a bounded per-dwarf deed ledger and a seven-chapter cycle Chronicle. Inspect separates lived
-history from inherited lore, the New Frontier transition presents source-backed legacy highlights,
-and `c` exports deterministic JSON/Markdown records. Invalid claims are omitted, active saga and Hall
-of Fame evidence receives ledger protection, Chronicle archives are capped at four cycles, and all E5
-state remains outside PPO observations and gameplay decisions. The canonical `4 x 8000` comparison
-is exactly flat, so M3 closes without balance or policy drift.
+Current checkpoint: `E6.4` is `Done`; `E7.1` is the next executable step. Every completed Chronicle
+now feeds a separate versioned `worldLegacy` store with deterministic migration, per-category and
+aggregate hard caps, source-backed identities/places/memorials/institutions, and terrain-seed-aware
+surface echoes. Old coordinates and full worlds never cross reset. Institution modifier hooks remain
+explicitly inactive and globally capped, the state stays outside PPO observations, and dedicated
+two-cycle/five-cycle profiles close M4 without compounding or state-growth failures.
 
 Rules for ordering:
 
@@ -972,8 +971,9 @@ E4.3 closure snapshot (2026-09-14):
 
 Post-closure endgame-trial tuning (2026-09-14):
 
-- Added `5x`, batched `25x`, and batched `100x` terminal levels; `100x` is the temporary default for
-  rapid endgame trials. It advances `20` authoritative ticks per rendered frame, while AI cadence,
+- Added `5x`, batched `25x`, and batched `100x` terminal levels; `100x` was the temporary default for
+  rapid endgame trials and the operator default is now restored to `1x`. The `100x` level advances
+  `20` authoritative ticks per rendered frame, while AI cadence,
   endgame checks, pause, one-tick stepping, and critical/legendary batch interruption remain intact.
 - A deterministic 2000-tick rendering comparison retained identical gameplay endpoints and reduced
   measured plus configured-delay time from about `16.7 s` at `5x` to `6.6 s` at `100x` (`~2.5x`
@@ -1105,50 +1105,82 @@ E5 exit criteria:
 
 ## 10) Workstream E6 - Persistent world legacy
 
-Status: `Ready`
+Status: `Done`
 
 Objective: make each completed cycle leave inspectable and visible history without carrying an entire
 old simulation state.
 
 ### E6.1 Legacy state contract
 
-- [ ] Define bounded `worldLegacy` state for cycle summaries, archived identities, named places,
+- [x] Define bounded `worldLegacy` state for cycle summaries, archived identities, named places,
       memorials, scars, and inherited hooks.
-- [ ] Define versioning and migration behavior.
-- [ ] Set explicit per-category and total retention caps.
-- [ ] Keep carry-over deterministic and compatible with randomized new terrain seeds.
+- [x] Define versioning and migration behavior.
+- [x] Set explicit per-category and total retention caps.
+- [x] Keep carry-over deterministic and compatible with randomized new terrain seeds.
+
+Implementation note:
+
+- `state.worldLegacy` is a plain-JSON schema-v1 owner separate from Chronicle and live story state.
+  Missing-version/v0 records migrate deterministically; unknown future schemas are rejected safely.
+  Six category caps and a `96`-record aggregate default cap are backed by absolute ceilings and
+  deterministic oldest-first compaction.
 
 ### E6.2 Memorials and inherited institutions
 
-- [ ] Carry selected champions, founders, myths, houses, and Warrior Company history.
-- [ ] Create memorial, tomb, statue, or ancestor-hall records for qualifying figures.
-- [ ] Allow institutions to inherit names, mottos, or bounded modifiers.
-- [ ] Prevent prestige/bonus stacking from becoming an uncontrolled economy accelerator.
+- [x] Carry selected champions, founders, myths, houses, and Warrior Company history.
+- [x] Create memorial, tomb, statue, or ancestor-hall records for qualifying figures.
+- [x] Allow institutions to inherit names, mottos, or bounded modifiers.
+- [x] Prevent prestige/bonus stacking from becoming an uncontrolled economy accelerator.
+
+Implementation note:
+
+- Verified Chronicle evidence selects bounded actor snapshots and qualifying memorial forms.
+  Institutions inherit the Warrior Company identity when present and otherwise receive stable
+  cycle-derived names. Their modifier metadata is globally capped at `0.02` by default and remains
+  `applied=false`; E6 therefore adds no economy, combat, prestige, or policy feedback loop.
 
 ### E6.3 Geographic echoes
 
-- [ ] Map prior-cycle places to new-world echoes instead of copying invalid coordinates.
-- [ ] Support ancient road, lost hold, ancestral ruin, or named frontier hooks.
-- [ ] Make inherited sites visible and usable by future sagas.
-- [ ] Record provenance to the source cycle and chronicle chapter.
+- [x] Map prior-cycle places to new-world echoes instead of copying invalid coordinates.
+- [x] Support ancient road, lost hold, ancestral ruin, or named frontier hooks.
+- [x] Make inherited sites visible and usable by future sagas.
+- [x] Record provenance to the source cycle and chronicle chapter.
+
+Implementation note:
+
+- Echo records preserve source cycle/place/actor/event references, then hash their stable IDs with
+  the new terrain seed and choose free walkable cells only after the replacement terrain exists.
+  Registered current-world place IDs make the sites available to future event/saga producers;
+  surface rendering, legend, transition, and Endgame telemetry expose them now.
 
 ### E6.4 Multi-cycle balance
 
-- [ ] Add deterministic 2-cycle and 5-cycle validation profiles.
-- [ ] Track legacy count, bonus magnitude, population stability, deaths, stockpiles, and endgame time.
-- [ ] Add stop rules for runaway compounding or state growth.
-- [ ] Verify old legacy entries expire or compact as configured.
+- [x] Add deterministic 2-cycle and 5-cycle validation profiles.
+- [x] Track legacy count, bonus magnitude, population stability, deaths, stockpiles, and endgame time.
+- [x] Add stop rules for runaway compounding or state growth.
+- [x] Verify old legacy entries expire or compact as configured.
+
+Verification note:
+
+- `npm run test:world-legacy` covers schema migration/rejection, verified-record derivation, peaceful
+  cycles, deterministic remapping, place/saga hooks, rendering, transition visibility, hard caps,
+  expiry, founder/house/myth carry-over, zero-selector behavior, modifier aggregation, and PPO
+  isolation with `39` assertions.
+- `npm run validate:world-legacy` runs explicit `2-cycle` and `5-cycle` profiles. Current endpoints
+  are `15` records / `4613` bytes / `4` echoes / `0.010` modifier magnitude and `39` records /
+  `11745` bytes / `10` echoes / capped `0.020`, with all population, stockpile, size, and compounding
+  stop rules passing. Headless balance reports now include the same legacy/death/endgame metrics.
 
 E6 exit criteria:
 
-- [ ] Every normal completed cycle creates at least one bounded legacy record.
-- [ ] Multi-cycle state size respects configured caps.
-- [ ] No unbounded prestige/economy/combat bonus accumulation.
-- [ ] Multi-cycle benchmark and AI non-regression gates pass.
+- [x] Every normal completed cycle creates at least one bounded legacy record.
+- [x] Multi-cycle state size respects configured caps.
+- [x] No unbounded prestige/economy/combat bonus accumulation.
+- [x] Multi-cycle benchmark and AI non-regression gates pass.
 
 ## 11) Workstream E7 - Nemeses and staged sieges
 
-Status: `Not started`
+Status: `Ready`
 
 Objective: create recognizable antagonists whose actions form persistent sagas.
 
@@ -1295,20 +1327,20 @@ Stop rules:
 
 | ID | Risk | Probability | Impact | Mitigation | Status |
 | --- | --- | --- | --- | --- | --- |
-| ER-001 | Narrative state becomes another unbounded log | Medium | High | Hard caps, compaction, source references, long-run size assertions | Mitigated through E5; monitor E6 legacy consumers |
+| ER-001 | Narrative state becomes another unbounded log | Medium | High | Hard caps, compaction, source references, long-run size assertions | Mitigated through E6; category + aggregate legacy caps verified |
 | ER-002 | Story Director creates constant interruptions | High | High | Importance threshold, cooldown budget, escalation, suppression trace, telemetry/report visibility | Mitigated through E4; monitor Chronicle consumers |
 | ER-003 | Structured-event migration changes simulation behavior | Low | High | Backward-compatible wrapper, presentation-only tests, end-state parity | Mitigated; E1 closed |
 | ER-004 | Display-name resolution becomes a render hotspot | Low | Medium | Stable cached identity resolver, bounded event scan, and allocation/performance probes | Mitigated through E2.4; monitor Story Director consumers |
 | ER-005 | Chronicle flavor invents unsupported facts | Medium | High | Fact templates bound to structured source events; integrity tests | Mitigated through E5.4; unresolved claims are omitted |
-| ER-006 | Multi-cycle legacy creates runaway bonuses | Medium | High | Bounded modifiers, diminishing returns, 2/5-cycle gates | Open |
+| ER-006 | Multi-cycle legacy creates runaway bonuses | Medium | High | Bounded modifiers, diminishing returns, 2/5-cycle gates | Mitigated through E6; inactive hooks and aggregate cap verified |
 | ER-007 | Camera refactor couples world size to terminal size incorrectly | Medium | High | Overlay-first milestone; explicit architecture decision checkpoint | Mitigated for M2 by E4.4 deferral; reopen only with new evidence |
 | ER-008 | Landmark footprints break placement/pathing/export | Medium | Medium | Reuse temple pattern, deterministic placement scenarios, export tests | Open |
 | ER-009 | New threats make stable colonies unrecoverable | Medium | High | Staged rollout, recovery windows, cached benchmark and collapse blockers | Open |
 | ER-010 | AI observes a world contract that changed silently | Low | High | Shape contracts, compatibility classification, explicit fresh-training gate | Open |
-| ER-011 | Place identity grows without bounds or diverges between UI consumers | Low | Medium | Hard-capped authoritative registry, RNG-neutral deterministic names, stable IDs, serialization and UI lookup contracts | Mitigated through E5 verification; monitor E6 |
+| ER-011 | Place identity grows without bounds or diverges between UI consumers | Low | Medium | Hard-capped authoritative registry, RNG-neutral deterministic names, stable IDs, serialization and UI lookup contracts | Mitigated through E6 remap/registry/cap contracts |
 | ER-012 | Capped rendering hides urgent actors or flickers as population grows | Low | High | Shared deterministic priority tiers, layer eligibility, prior-set stability, urgent preemption, above-cap contracts, and layer-local focus emphasis | Mitigated through E4.2; monitor future camera work |
-| ER-013 | Narrative contract tests become a monolithic maintenance bottleneck | Medium | Medium | Review thematic suite boundaries before the next substantial narrative domain; retain shared fixtures and one aggregate gate | Mitigated in E5 with dedicated Chronicle suite |
-| ER-014 | Story Director and saga modules accumulate presentation or Chronicle responsibilities | Medium | Medium | Keep E4 read-only, preserve module ownership, and reassess boundaries before E5 expansion | Mitigated through separate ledger/Chronicle/export modules |
+| ER-013 | Narrative contract tests become a monolithic maintenance bottleneck | Medium | Medium | Review thematic suite boundaries before the next substantial narrative domain; retain shared fixtures and one aggregate gate | Mitigated through dedicated Chronicle and world-legacy suites |
+| ER-014 | Story Director and saga modules accumulate presentation or Chronicle responsibilities | Medium | Medium | Keep E4 read-only, preserve module ownership, and reassess boundaries before E5 expansion | Mitigated through separate ledger/Chronicle/export/world-legacy modules |
 | ER-015 | High saga churn produces fragmented or prematurely evicted history | Medium | High | Sample seeded arcs, report terminal/opened and eviction causes, and gate Chronicle reliance on a quality review | Mitigated for E5: saga retention bonus disabled; monitor tuning |
 | ER-016 | Excellent priority coverage masks poor focus pacing or low-value selected moments | Medium | High | Pair counters with runtime observation, supported-width captures, selected/suppressed event sampling, and timing protection | Mitigated through E4.4; monitor Chronicle scene composition |
 | ER-017 | Automatic focus timing fights manual controls or leaks wall-clock behavior into simulation determinism | Low | High | Ephemeral controller, focus-ID one-shot guard, explicit input precedence, base-cadence holds, PPO/headless isolation tests | Mitigated through E4.3; monitor new runtime inputs |
@@ -1355,6 +1387,8 @@ Record every non-trivial scope or architecture decision.
 | 2026-09-14 | ED-034 | Carry completed Chronicle records through reset as a capped factual archive, but defer bonuses, visible world echoes, and persistent-civilization rules to E6 | Reset all Chronicle history; implement E6 gameplay hooks during E5; carry full prior state | E5 requires multi-cycle factual records and a pre-reset summary, while E6 owns historical world effects; the boundary supplies history without scope creep | E5/E6 reset boundary | Approved |
 | 2026-09-14 | ED-035 | Disable saga-derived Chronicle retention value after the required quality review, while protecting only active-saga ledger evidence | Treat any saga membership as historical quality; remove saga references entirely; retune saga matching in E5 | The canonical report has `2850` opened, `140` terminal, and `2754` evicted sagas, so membership is too fragmented to rank permanent claims safely | E5 saga-quality gate | Approved |
 | 2026-09-14 | ED-036 | Make late-game trials fast without skipping simulation semantics, and make the relic gate feasible without removing apex risk | Lower only the frame delay; skip intermediate ticks; remove readiness gates; raise artifact drop chance | Batched frames reduce render overhead while every tick still executes; a `0.92` hard-guard band plus D9 repeat cap preserves equipment, Champion, hazard, and political pressure without a D10 mathematical deadlock | Post-E5 endgame balance and trial pacing | Approved |
+| 2026-09-15 | ED-037 | Derive a separate versioned `worldLegacy` store only from completed Chronicle evidence, remap visible echoes after new terrain creation, and keep institution modifiers inactive behind a global budget | Carry full prior states; reuse old coordinates; extend Chronicle into gameplay state; immediately apply stacking bonuses | Keeps historical provenance auditable, makes randomized new worlds safe, bounds memory twice, preserves trained-policy behavior, and leaves future gameplay activation explicit | E6 persistent-world ownership, migration, geography, and balance | Approved |
+| 2026-09-15 | ED-038 | Restore the interactive default to operator-selected `1x` while retaining batched `25x/100x` trial modes | Keep the temporary E4 validation default at `100x`; remove batched modes | Makes ordinary viewing deliberate without losing rapid endgame validation controls and aligns config, tests, and current documentation | Runtime presentation default only | Approved |
 
 ## 17) Implementation log
 
@@ -1390,6 +1424,7 @@ within the repository retention policy.
 | 2026-09-14 | EW-024 | E4.4 camera checkpoint and M2 closure: review overlay-first evidence at full/narrow widths, retain captures, document future viewport implications, and decide current camera scope | `debug/epic_e4_time_controls_120.png`, `debug/epic_e4_time_controls_72.png`, `docs/EPIC_EVOLUTION_WORKBOOK.md` | Real TTY observation, `120x40` critical and `72x32` legendary capture review, supported-width contracts, resize smoke, E4 exit-gate audit | Done | Camera deferred for M2: current stack locates and protects priority beats without world/viewport separation; M2 complete and E5.1 ready |
 | 2026-09-14 | EW-025 | E5.1-E5.4 and M3 closure: add bounded lived deeds, Inspect biography, fact-backed cycle chapters, pre-reset legacy summary, deterministic export, integrity sanitation, and dedicated contracts | `src/simulation/experience_ledger.js`, `src/simulation/chronicle.js`, `src/chronicle_export.js`, event/state/endgame/render/app integration, `scripts/test_chronicle_contracts.js`, config/package/cache/product/parameter/operations/layout/workbook docs | Syntax checks, dedicated 39-assertion ledger/Chronicle/export/reset/render/isolation suite, `npm test`, deterministic `2 x 1000`, canonical `4 x 8000` candidate, baseline refresh + exact diff, terminal UI smoke, `git diff --check` | Done | Every retained claim resolves source/actors/location; high-density caps and equal export hashes pass; E5 state stays outside PPO; full deltas are all zero with endpoints `683/678/732/700`; cache hash `0b06b08247464349a58044d77b5ae71f89c688918607c6c4739c8cb0fbdab57d` aligned; retained evidence: `debug/headless_benchmark_{candidate,diff}.{json,md}`; M3 complete and E6.1 ready |
 | 2026-09-14 | EW-026 | Post-E5 trial pacing and endgame balance: add true batched acceleration, repair the D10 warning gate, and cap cleared-ruins repeat readiness at D9 | `src/runtime/time_controls.js`, `app.js`, `src/simulation/ruins.js`, `config.json`, time/training contract suites, cached benchmark evidence, product/parameter/operations/workbook docs | Dedicated speed/batch/pause/step/protection fixtures, endgame readiness probe, `npm test`, deterministic 2000-tick `5x`/`100x` endpoint comparison, canonical `4 x 8000`, baseline refresh + exact diff, `git diff --check` | Done | Default `100x` batches 20 full ticks per frame; sample wall estimate improved `~2.5x` with identical endpoints; maximum D10 loadout now enters warning and repeats use D9; canonical endpoints `687/678/725/716`, no collapsed seeds, config hash `2d11e57d52d649520257120367c41008dc01da12ccef7493e9e527ad058709f0` aligned |
+| 2026-09-15 | EW-027 | E6.1-E6.4 and M4 closure: add bounded versioned world legacy, archived identity/place provenance, memorials, inactive inherited institutions, remapped surface echoes, telemetry/reporting, and multi-cycle stop rules | `src/simulation/world_legacy.js`, state/endgame/place integration, `src/render/world_legacy.js`, transition/legend/telemetry, `scripts/test_world_legacy_contracts.js`, `scripts/validate_world_legacy.js`, benchmark/config/package/product/parameter/operations/layout/workbook docs | Syntax/config checks, dedicated 39-assertion E6 suite, deterministic 2-cycle/5-cycle profiles, `npm test`, cached canonical `4 x 8000` candidate/diff, terminal render smoke, `git diff --check` | Done | Five-cycle profile retained 39 records in 11,745 bytes with 10 echoes and modifier magnitude capped at 0.020; canonical endpoints `687/678/725/716` and all compared fields are exact zero-delta under cache hash `28c11e8e0b070a952054d5b96b629d6f51f73104387819174307bd5b256eb88c`; E6 remains outside PPO/gameplay, M4 complete, E7.1 ready |
 
 ## 18) Checkpoint template
 
@@ -1508,10 +1543,18 @@ Execute one bounded step at a time:
     deterministic safe-path Markdown/JSON export.
 28. [x] `E5.4 / Chronicle verification` - Enforce resolvability, density bounds, equal hashes,
     multi-cycle reset behavior, and explicit PPO isolation.
-29. [ ] `E6.1 / Legacy state contract` - Define bounded cross-cycle historical records and visible
-    legacy hooks without carrying full prior states or uncontrolled bonuses. **Next.**
+29. [x] `E6.1 / Legacy state contract` - Define bounded versioned cross-cycle records, migration,
+    category caps, and an aggregate retention ceiling.
+30. [x] `E6.2 / Memorials and inherited institutions` - Preserve selected witnessed identities,
+    memorial forms, company/myth identity, and globally bounded inactive modifier hooks.
+31. [x] `E6.3 / Geographic echoes` - Remap source-backed old places onto valid new terrain, expose
+    current place IDs and saga hooks, and render inherited sites.
+32. [x] `E6.4 / Multi-cycle balance` - Add deterministic two/five-cycle profiles, legacy metrics,
+    expiry checks, and compounding/state-growth stop rules.
+33. [ ] `E7.1 / Nemesis identity and memory` - Define stable antagonist identity, bounded cross-event
+    memory, motives, titles, and deterministic reappearance rules. **Next.**
 
-The next implementation slice should remain deliberately narrow: formalize the E6.1 legacy-state
-contract on top of completed Chronicle records. It may add bounded inspectable/visible historical
-hooks, but must not carry full prior worlds, introduce epic threats/landmarks from E7/E8, change PPO
-shapes implicitly, or convert Chronicle archives into uncapped gameplay bonuses.
+The next implementation slice should remain deliberately narrow: define the E7.1 nemesis identity
+and memory contract on top of structured events, Story Director sagas, and bounded E6 legacy hooks.
+It must not add the full staged siege lifecycle from E7.2, landmark footprints from E8, implicit PPO
+shape changes, or an unbounded antagonist history.

@@ -366,7 +366,7 @@ Notes:
   - Loads `config.json`, builds the terminal runtime, creates initial state, and starts the tick loop.
   - Optionally loads an AI policy when `--ai <path>` or env `AI_POLICY` is provided.
   - Base tick pacing uses `display.tickMs`; `src/runtime/time_controls.js` applies only interactive
-    visible-loop timing. The default terminal selection is the endgame-trial `100x` level: it batches
+    visible-loop timing. The default terminal selection is `1x`; the endgame-trial `100x` level batches
     `20` authoritative simulation ticks per rendered frame with a `4 ms` visible delay. The
     `0.5x/1x/2x/4x/5x/25x` levels remain selectable. Hard stop uses `simulation.maxTicks`.
   - AI action cadence uses `ai.stepTicks` to throttle policy calls.
@@ -1263,7 +1263,9 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - optionally randomizes terrain seed when transition config requests it.
   - swaps old state in-place with new state object.
 - Persisted vs reset data:
-  - persisted: `cycleStats.count`, `cycleStats.lastTicks`, myth traditions/history carry-over, temple prestige meta-progression, warrior-company lineage carry-over (`hallOfFame` slice + identity/carryover memory hooks).
+  - persisted: `cycleStats.count`, `cycleStats.lastTicks`, bounded `worldLegacy` records, completed
+    Chronicle archives, myth traditions/history carry-over, temple prestige meta-progression, and
+    warrior-company lineage carry-over (`hallOfFame` slice + identity/carryover memory hooks).
   - reset: terrain, nodes, structures, stockpile, jobs, raid/weather/alchemy/festival runtime state.
   - `endgameArtifactsTick` is cleared after reset.
 - Difficulty scaling:
@@ -1635,6 +1637,35 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - Saga quality is measured separately. Because E3 evidence showed high fragmentation/eviction,
     `chronicle.saga_quality.use_for_retention` defaults to `false`; active sagas still protect ledger
     evidence they currently require, but do not make Chronicle claims intrinsically more valuable.
+- `world_legacy.js` owns E6 persistent-civilization history.
+  - Endgame feeds it only the completed, sanitized Chronicle after the old cycle closes. The v1
+    plain-JSON schema separates cycle summaries, archived identities, named places, memorials,
+    inherited institutions, and current-world echoes; full event objects and prior simulation states
+    are never copied.
+  - Missing-version/v0 data is repaired deterministically. Unsupported future schemas are rejected
+    into a fresh v1 container and counted instead of being guessed. Every category has a configured
+    cap plus an absolute ceiling, followed by a total-record cap with deterministic oldest-first
+    compaction.
+  - A completed cycle always produces one `cycles` record, even when its Chronicle has no qualifying
+    claims. Important actor and named-place records retain compact source-event provenance. Critical
+    or legendary actor evidence may create one tomb, statue, or ancestor-hall record per cycle by
+    default.
+  - Institutions inherit the Warrior Company name/motto when available, otherwise use a stable
+    cycle-derived fallback. Their `legacy_resolve` modifier is a bounded future-consumer hook. E6
+    writes `applied=false`, constrains aggregate magnitude to the configured total cap, and has no
+    gameplay or PPO consumer, preventing accidental economy/combat compounding.
+  - Geographic echoes keep source cycle/place/actor/event references but discard old-world
+    coordinates. After fresh terrain exists, retained echoes hash their stable ID with the new terrain
+    seed, select free walkable surface cells, and register authoritative current-world place IDs. This
+    makes them renderable and available to future saga producers through `getLegacySagaHooks(...)`.
+  - Surface rendering draws `symbols.world_legacy_echo` with the configured map color. The legend,
+    New Frontier transition, Endgame telemetry, and headless benchmark expose legacy counts without
+    mutating the legacy state.
+  - `npm run test:world-legacy` is the deterministic schema/migration/retention/remap/render/PPO gate.
+    `npm run validate:world-legacy` executes explicit two-cycle and five-cycle profiles, tracking
+    population around reset, deaths, selected stockpiles, endgame ticks, record count, serialized
+    bytes, echo count, evictions, and modifier magnitude. Stop rules reject population collapse,
+    negative stockpiles, cap violations, modifier compounding, and legacy state above 256 KiB.
 - `../chronicle_export.js` serializes the latest completed or current Chronicle.
   - JSON ordering and Markdown chapter ordering are stable, no wall-clock fields enter the payload,
     and SHA-256 content determines the filename. Equal records therefore produce equal hashes and
@@ -2336,6 +2367,7 @@ Quick checklist:
     - `simulation/endgame_events.js` → structured artifact, transition, cycle-closure, and legacy carry-over event builders
     - `simulation/experience_ledger.js` → bounded source-backed dwarf deeds and read-only biography views
     - `simulation/chronicle.js` → fact-backed cycle chapters, integrity checks, summaries, and bounded archives
+    - `simulation/world_legacy.js` → versioned bounded cross-cycle summaries, memorials, institutions, migration, and deterministic geographic echoes
     - `simulation/alchemy.js` → alchemy rite lifecycle and modifiers
     - `simulation/contracts.js` → contract offers, reputations, and boons
     - `simulation/world_events.js` → global event lifecycle and temporary world modifiers
@@ -2355,7 +2387,8 @@ Quick checklist:
   - `render/` → ASCII output (grid, legend, inspect overlays, frame orchestration)
     - `render/dwarf_visibility.js` → deterministic story-priority selection for capped surface/deep actors
     - `render/story_ribbon.js` → responsive read-only current-focus ribbon with structured-fact fallbacks
-  - `render/story_focus_overlay.js` → bounded actor/location emphasis and cross-layer direction cues
+    - `render/story_focus_overlay.js` → bounded actor/location emphasis and cross-layer direction cues
+    - `render/world_legacy.js` → read-only surface rendering for remapped legacy sites
     - `render/map_inset_panel.js` → carved in-map Ops Snapshot component (stable counters + keyboard hints)
     - `render/warrior_panel.js` → Warrior League modal overlay (company identity/carry-over context, champion lineage, top-5 fighters, marks/legacy summary)
     - `render/event_log_panel.js` → Event Log modal overlay (scrollable real-time event history with drama-focused filter)
@@ -2376,6 +2409,8 @@ Quick checklist:
 - `scripts/test_narrative_contracts.js` → fast structured-event/identity/compatibility/isolation gate (`npm run test:narrative`; included in `npm test`)
 - `scripts/test_time_controls.js` → deterministic speed/step/auto-protection/render/isolation gate (`npm run test:time-controls`; included in `npm test`)
 - `scripts/test_chronicle_contracts.js` → deterministic ledger/biography/Chronicle/reset/export/bounds/AI-isolation gate (`npm run test:chronicle`; included in `npm test`)
+- `scripts/test_world_legacy_contracts.js` → deterministic E6 schema/migration/retention/remap/render/AI-isolation gate (`npm run test:world-legacy`; included in `npm test`)
+- `scripts/validate_world_legacy.js` → deterministic two-cycle/five-cycle E6 balance and state-growth gate (`npm run validate:world-legacy`)
 - `scripts/test_training_contracts.js` → deterministic technical test suite for policy shape and report-schema contracts (included in `npm test`)
 - `regression/baselines/regression_baseline.json` → durable profile baselines used by regression checks
 - `benchmark_cache/headless_benchmark_baseline.json` → versioned cached headless benchmark baseline for report-to-report diffs

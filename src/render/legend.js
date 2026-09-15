@@ -201,6 +201,18 @@ function buildLegendSections(config, options = {}) {
     legendParts.push(formatEntry(symbols.herd, "herds", "herd"));
   }
 
+  const worldLegacyConfig = config.world_legacy || {};
+  const legacyEchoConfig = worldLegacyConfig.echoes || {};
+  if (!underrealmActive && worldLegacyConfig.enabled !== false && legacyEchoConfig.enabled !== false) {
+    legendParts.push(
+      formatEntry(
+        symbols.world_legacy_echo || "*",
+        "legacy echo",
+        String(legacyEchoConfig.color_key || "world_legacy_echo"),
+      ),
+    );
+  }
+
   const terrainParts = [];
   if (terrainEnabled) {
     if (
