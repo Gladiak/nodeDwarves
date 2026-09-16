@@ -891,6 +891,12 @@ suppression totals, and saga outcomes, but it must not replay events, change foc
 presentation timing. Headless benchmark reports use the same helper module to accumulate monotonic
 coverage and saga-resolution counters across cycle resets.
 
+The Story Director page also carries three read-only E7 rows from `state.epicConflict`: nemesis
+registry/active counts, current siege stage plus recovery ticks, and cumulative hold-win/nemesis-win/
+reconciliation outcomes. These rows diagnose the story context only; siege advancement, battle
+resolution, and repair remain simulation responsibilities. Headless reports expose the same bounded
+counts plus injuries, damaged/restored structures, and serialized conflict-state bytes.
+
 ## 15) Final mental model 🧭
 
 The most productive way to use NodeDwarves telemetry is to read it as a three-layer story: state, direction, consequence. When all three align, decisions become obvious; when they diverge, that divergence is usually the clue you need.

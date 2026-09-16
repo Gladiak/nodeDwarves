@@ -10,6 +10,7 @@ const { applyMapInsetPanel } = require('./map_inset_panel');
 const { buildStoryRibbon, applyStoryRibbon } = require('./story_ribbon');
 const { buildStoryFocusOverlay, applyStoryFocusOverlay } = require('./story_focus_overlay');
 const { renderWorldLegacyEchoes } = require('./world_legacy');
+const { renderEpicConflicts } = require('./epic_conflicts');
 const { getColorConfig, applyColor } = require('./colors');
 const { formatMapLine } = require('./format');
 const { buildInspectPanel, applyInspectPanel } = require('./inspect');
@@ -709,6 +710,7 @@ function renderFrame(state, config, runtime, options = {}) {
 
     renderExternalCamps(grid, state, config, colors, symbols);
     renderWorldLegacyEchoes(grid, state, config, colors);
+    renderEpicConflicts(grid, state, config, colors);
 
     const visibleDwarves = selectPriorityVisibleDwarves(state, config);
     for (const dwarf of visibleDwarves) {

@@ -60,6 +60,9 @@ function updateRaidStart(state, config, runtime) {
   if (state.raid.active) {
     return;
   }
+  if (state.epicConflict && state.epicConflict.activeSiege) {
+    return;
+  }
 
   const seasonNames = Array.isArray(raidConfig.seasonNames) && raidConfig.seasonNames.length > 0
     ? raidConfig.seasonNames

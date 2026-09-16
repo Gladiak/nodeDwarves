@@ -212,6 +212,11 @@ function buildLegendSections(config, options = {}) {
       ),
     );
   }
+  const epicConflictConfig = config.epic_conflicts || {};
+  if (!underrealmActive && epicConflictConfig.enabled !== false) {
+    legendParts.push(formatEntry(symbols.nemesis || 'N', 'nemesis front', 'nemesis'));
+    legendParts.push(formatEntry(symbols.siege_damage || 'x', 'siege damage', 'siege_damage'));
+  }
 
   const terrainParts = [];
   if (terrainEnabled) {

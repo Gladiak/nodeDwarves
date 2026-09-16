@@ -552,6 +552,8 @@
         "underrealm_lift_active": "\u001b[38;2;255;198;94m",
         "underrealm_lift_locked": "\u001b[38;2;199;170;120m",
         "world_legacy_echo": "\u001b[38;2;214;176;82m",
+        "nemesis": "\u001b[38;2;255;96;72m",
+        "siege_damage": "\u001b[38;2;255;156;72m",
         "terrain_void": "\u001b[48;2;9;10;15m\u001b[38;2;9;10;15m",
         "terrain_stone": "\u001b[37m",
         "terrain_plain_spring": "\u001b[38;2;122;150;126m",
@@ -800,7 +802,18 @@
         "underrealm.lift_completed": "major",
         "underrealm.rare_resource_found": "notable",
         "wildlife.hunt_death": "major",
-        "warrior.company_doctrine_active": "notable"
+        "warrior.company_doctrine_active": "notable",
+        "nemesis.promoted": "critical",
+        "nemesis.reappeared": "major",
+        "siege.warning": "critical",
+        "siege.approach": "major",
+        "siege.demand": "critical",
+        "siege.breach": "critical",
+        "siege.battle": "legendary",
+        "siege.battle_resolved": "legendary",
+        "siege.retreat": "major",
+        "siege.victory": "legendary",
+        "siege.aftermath": "major"
       }
     }
   },
@@ -938,6 +951,7 @@
       "max_memorials": 12,
       "max_institutions": 8,
       "max_echoes": 12,
+      "max_nemeses": 8,
       "max_total_records": 96
     },
     "selection": {
@@ -946,6 +960,9 @@
       "max_memorials_per_cycle": 1,
       "max_institutions_per_cycle": 1,
       "max_echoes_per_cycle": 2,
+      "max_nemeses_per_cycle": 2,
+      "nemesis_minimum_encounters": 1,
+      "max_nemesis_encounters": 6,
       "memorial_minimum_importance": "critical"
     },
     "institutions": {
@@ -957,6 +974,97 @@
     "echoes": {
       "enabled": true,
       "color_key": "world_legacy_echo"
+    }
+  },
+  "epic_conflicts": {
+    "enabled": true,
+    "nemeses": {
+      "max_active": 8,
+      "max_encounters_per_nemesis": 8,
+      "max_grudges_per_nemesis": 4,
+      "max_scars_per_nemesis": 4,
+      "promotion": {
+        "check_interval_ticks": 20,
+        "raider_min_hostility": 0.55,
+        "raider_min_demands": 2,
+        "underrealm_min_attempts": 1
+      },
+      "identity": {
+        "names": ["Vark", "Skarn", "Morgul", "Thraxx", "Rhaz", "Uldrek"],
+        "epithets": ["the Ashen", "the Gatebreaker", "the Deep-Crowned", "the Oath-Eater", "the Road-Wolf", "the Unforgotten"],
+        "traits": ["patient", "ruthless", "cunning", "unyielding", "proud", "vengeful"],
+        "goals": ["seeks dominion over the hold", "hunts the Warrior Company", "covets the deep roads", "would break the ancestor oaths"]
+      }
+    },
+    "siege": {
+      "enabled": true,
+      "min_tick": 1800,
+      "cooldown_ticks": 2200,
+      "recovery_ticks": 600,
+      "min_population": 24,
+      "max_history": 16,
+      "trigger": {
+        "raider_min_hostility": 0.68,
+        "raider_min_demands": 10
+      },
+      "stage_ticks": {
+        "warning": 80,
+        "approach": 90,
+        "demand": 70,
+        "breach": 45,
+        "battle": 60,
+        "retreat": 50,
+        "victory": 70,
+        "aftermath": 100
+      },
+      "road_approach_reduction_per_segment": 1,
+      "road_approach_reduction_cap": 25,
+      "tribute_costs": {
+        "wood": 12,
+        "stone": 8,
+        "beer": 6
+      },
+      "guardrails": {
+        "collapse_population_floor": 18,
+        "collapse_stockpile_ratio": 0.2,
+        "max_injuries": 3,
+        "max_resource_loss_ratio": 0.03,
+        "max_damaged_structures": 2,
+        "resource_reserve_ratio": 0.25
+      },
+      "battle": {
+        "adult_defense_per": 0.012,
+        "adult_defense_cap": 0.45,
+        "watchtower_defense": 0.08,
+        "armory_defense": 0.04,
+        "hero_defense_weight": 0.22,
+        "nemesis_base_power": 0.34,
+        "source_power_weight": 0.36,
+        "victory_power": 0.04,
+        "cycle_power": 0.015,
+        "structure_damage_severity": 2,
+        "injury_recovery_ticks": 180,
+        "injury_stress_gain": 0.12,
+        "injury_gap_scale": 8,
+        "resource_loss_base": 0.01,
+        "resource_loss_gap_scale": 0.05,
+        "loss_resources": ["food", "wood", "stone", "beer", "iron"]
+      },
+      "recovery": {
+        "repair_interval_ticks": 120
+      },
+      "politics": {
+        "warning_pressure_gain": 0.01,
+        "defeat_pressure_gain": 0.04,
+        "defeat_legitimacy_loss": 0.025,
+        "victory_pressure_relief": 0.02,
+        "victory_legitimacy_gain": 0.015
+      }
+    },
+    "rivalry": {
+      "rescue_min_hero_score": 0.62,
+      "rescue_defense_bonus": 0.16,
+      "reconciliation_hostility_max": 0.28
     }
   },
   "wildlife": {
@@ -7007,6 +7115,8 @@
     "underrealm_lift_down": "↓",
     "underrealm_lift_locked": "↓",
     "underrealm_hostile": "☠",
-    "world_legacy_echo": "†"
+    "world_legacy_echo": "†",
+    "nemesis": "⚑",
+    "siege_damage": "×"
   }
 }

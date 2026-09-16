@@ -567,6 +567,7 @@ World legacy:
   `1..64`.
 - `world_legacy.retention.max_institutions`: inherited institution cap; clamped to `1..32`.
 - `world_legacy.retention.max_echoes`: visible remapped-site cap; clamped to `1..64`.
+- `world_legacy.retention.max_nemeses`: qualifying cross-cycle antagonist cap; clamped to `1..32`.
 - `world_legacy.retention.max_total_records`: aggregate hard cap across all legacy categories;
   clamped to `6..384` and enforced after category caps.
 - `world_legacy.selection.max_identities_per_cycle`: important identities selected from verified
@@ -579,6 +580,12 @@ World legacy:
   clamped to `0..2`.
 - `world_legacy.selection.max_echoes_per_cycle`: geographic echo intents created per cycle; clamped
   to `0..4`.
+- `world_legacy.selection.max_nemeses_per_cycle`: qualifying antagonists admitted from one completed
+  cycle; clamped to `0..4`.
+- `world_legacy.selection.nemesis_minimum_encounters`: minimum factual hero/champion encounters
+  required before a nemesis may cross a cycle; clamped to `1..16`.
+- `world_legacy.selection.max_nemesis_encounters`: recent encounter references retained in each
+  legacy nemesis record; clamped to `1..16`.
 - `world_legacy.selection.memorial_minimum_importance`: minimum verified event importance that can
   establish a memorial.
 - `world_legacy.institutions.modifiers.per_cycle`: magnitude reserved by each inherited institution
@@ -589,6 +596,86 @@ World legacy:
   terrain and expose them through the authoritative place registry.
 - `world_legacy.echoes.color_key`: `display.colors.map` key used for visible legacy sites.
 - `symbols.world_legacy_echo`: single map glyph used for remapped legacy sites.
+
+Epic conflicts:
+
+- `epic_conflicts.enabled`: enable deterministic nemesis promotion, memory, staged sieges, and
+  recovery. Disabling it leaves the bounded state owner inert.
+- `epic_conflicts.nemeses.max_active`: total in-cycle nemesis registry cap; clamped to `1..32`.
+- `epic_conflicts.nemeses.max_encounters_per_nemesis`: recent factual encounter cap per antagonist;
+  clamped to `1..32`.
+- `epic_conflicts.nemeses.max_grudges_per_nemesis`: remembered dwarf-grudge ID cap; clamped to
+  `1..8`.
+- `epic_conflicts.nemeses.max_scars_per_nemesis`: stable scar/title memory cap; clamped to `1..8`.
+- `epic_conflicts.nemeses.promotion.check_interval_ticks`: deterministic eligibility scan cadence;
+  clamped to `1..1000`.
+- `epic_conflicts.nemeses.promotion.raider_min_hostility`: hostility threshold that promotes an
+  active raider-camp leader; clamped to `0..1`.
+- `epic_conflicts.nemeses.promotion.raider_min_demands`: alternative completed-demand threshold;
+  clamped to `0..20`.
+- `epic_conflicts.nemeses.promotion.underrealm_min_attempts`: champion encounter attempts required
+  for promotion; clamped to `1..20`.
+- `epic_conflicts.nemeses.identity.names`, `.epithets`, `.traits`, `.goals`: non-empty deterministic
+  identity pools. Selection hashes source kind and stable source ID and never consumes gameplay RNG.
+- `epic_conflicts.siege.enabled`: enable surface sieges for eligible raider nemeses.
+- `epic_conflicts.siege.min_tick`: earliest in-cycle siege tick; clamped to `0..1000000`.
+- `epic_conflicts.siege.cooldown_ticks`: per-nemesis interval between sieges; clamped to
+  `0..1000000`.
+- `epic_conflicts.siege.recovery_ticks`: post-aftermath quiet/recovery window; clamped to
+  `1..100000`.
+- `epic_conflicts.siege.min_population`: minimum population for defiant staged conflict; clamped to
+  `1..10000`.
+- `epic_conflicts.siege.max_history`: completed compact siege summaries retained; clamped to
+  `1..64`.
+- `epic_conflicts.siege.trigger.raider_min_hostility`: hostility required for automatic siege start;
+  clamped to `0..1`.
+- `epic_conflicts.siege.trigger.raider_min_demands`: alternative repeated-demand threshold for an
+  automatic siege; clamped to `0..100`, where `0` disables this alternative trigger.
+- `epic_conflicts.siege.stage_ticks.{warning,approach,demand,breach,battle,retreat,victory,aftermath}`:
+  duration of each visible stage; each value is clamped to `1..10000`.
+- `epic_conflicts.siege.road_approach_reduction_per_segment`: approach ticks removed per road segment;
+  clamped to `0..100`.
+- `epic_conflicts.siege.road_approach_reduction_cap`: maximum road-derived approach reduction;
+  clamped to `0..10000`.
+- `epic_conflicts.siege.tribute_costs`: non-negative resource payment used by the collapse guardrail.
+- `epic_conflicts.siege.guardrails.collapse_population_floor`: population at/below which demand
+  resolves as bounded tribute rather than breach; clamped to `1..10000`.
+- `epic_conflicts.siege.guardrails.collapse_stockpile_ratio`: critical food/water target ratio that
+  selects tribute; clamped to `0..1`.
+- `epic_conflicts.siege.guardrails.max_injuries`: injury cap per lost battle; clamped to `0..12`.
+- `epic_conflicts.siege.guardrails.max_resource_loss_ratio`: maximum stockpile loss ratio per lost
+  battle; clamped to `0..0.25`.
+- `epic_conflicts.siege.guardrails.max_damaged_structures`: breach damage cap; clamped to `0..8`.
+- `epic_conflicts.siege.guardrails.resource_reserve_ratio`: protected share of each resource target;
+  clamped to `0..1`.
+- `epic_conflicts.siege.battle.adult_defense_per`, `.adult_defense_cap`, `.watchtower_defense`,
+  `.armory_defense`, and `.hero_defense_weight`: components of deterministic hold defense.
+- `epic_conflicts.siege.battle.nemesis_base_power`, `.source_power_weight`, `.victory_power`, and
+  `.cycle_power`: deterministic threat components; final defense and threat scores are clamped to
+  `0..2`.
+- `epic_conflicts.siege.battle.structure_damage_severity`: repair steps placed on each damaged
+  structure; clamped to `1..8`.
+- `epic_conflicts.siege.battle.injury_recovery_ticks`: Warrior injury duration; clamped to
+  `1..10000`.
+- `epic_conflicts.siege.battle.injury_stress_gain`: stress added to injured defenders; clamped to
+  `0..1`.
+- `epic_conflicts.siege.battle.injury_gap_scale`: non-negative score-gap-to-injury multiplier.
+- `epic_conflicts.siege.battle.resource_loss_base` and `.resource_loss_gap_scale`: bounded base and
+  score-gap resource-loss inputs.
+- `epic_conflicts.siege.battle.loss_resources`: resource IDs eligible for guarded battle loss.
+- `epic_conflicts.siege.recovery.repair_interval_ticks`: deterministic severity-repair cadence;
+  clamped to `1..10000`.
+- `epic_conflicts.siege.politics.warning_pressure_gain`, `.defeat_pressure_gain`,
+  `.defeat_legitimacy_loss`, `.victory_pressure_relief`, and `.victory_legitimacy_gain`: clamped
+  `0..1` schism deltas applied at committed conflict beats.
+- `epic_conflicts.rivalry.rescue_min_hero_score`: minimum hero score for the rescue branch; clamped
+  to `0..1`.
+- `epic_conflicts.rivalry.rescue_defense_bonus`: non-negative rescue margin added only during branch
+  resolution.
+- `epic_conflicts.rivalry.reconciliation_hostility_max`: maximum hostility for a nemesis with both a
+  win and a loss to accept reconciliation; clamped to `0..1`.
+- `symbols.nemesis` / `display.colors.map.nemesis`: active surface front glyph/color.
+- `symbols.siege_damage` / `display.colors.map.siege_damage`: damaged-structure overlay glyph/color.
 
 Wildlife and pastures:
 

@@ -4404,6 +4404,7 @@ module.exports = {
   computeBaseCombatAptitude,
   computeHeroPotential,
   ensureDwarfWarriorState,
+  setWarriorInjuryState,
   isWarriorRiskyDispatch,
   computeWarriorDispatchScore,
   compareRiskDispatchCandidates,

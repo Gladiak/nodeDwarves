@@ -80,6 +80,12 @@ function run() {
   assert.equal(migrated.schemaVersion, WORLD_LEGACY_SCHEMA_VERSION, 'v0 migrates to current schema');
   assert.equal(migrated.cycles[0].sourceCycle, 2, 'v0 cycle survives migration');
   assert.equal(migrated.stats.migratedStates, 1, 'migration is counted');
+  const migratedV1 = migrateWorldLegacyState({
+    schemaVersion: 1,
+    cycles: [{ id: 'legacy_cycle_1', sourceCycle: 1, sourceEventIds: [] }],
+  }, config);
+  assert.equal(migratedV1.schemaVersion, WORLD_LEGACY_SCHEMA_VERSION, 'v1 migrates to E7-aware schema');
+  assert.equal(migratedV1.stats.migratedStates, 1, 'v1 to v2 migration is counted');
   const rejectedFuture = migrateWorldLegacyState({ schemaVersion: 99, echoes: [{ id: 'future' }] }, config);
   assert.equal(countLegacyRecords(rejectedFuture), 0, 'future schema is rejected safely');
   assert.equal(rejectedFuture.stats.rejectedRecords, 1, 'future records are counted as rejected');
@@ -179,7 +185,7 @@ function run() {
   assert(mythState.worldLegacy.identities.some((entry) => entry.role === 'founder' && entry.house), 'founder house is archived');
   assert(mythState.worldLegacy.institutions.some((entry) => entry.name.includes('Myth Keepers')), 'qualified myth becomes inherited institution memory');
 
-  console.log('World legacy contracts: 39 assertions passed.');
+  console.log('World legacy contracts: 41 assertions passed.');
 }
 
 run();

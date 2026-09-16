@@ -24,7 +24,19 @@
 | underHeroProm | 0.00 | 0.00% |
 | underHeroLoss | 0.00 | n/a |
 | underHeroAct | 0.00 | 0.00% |
-| underHeroSurv | 0.00 | n/a |
+| underHeroSurv | 0.00 | 0.00% |
+| legacyRecords | 0.00 | n/a |
+| legacyNemeses | 0.00 | n/a |
+| legacyBytes | 0.0 | 0.00% |
+| epicNemeses | 0.00 | 0.00% |
+| epicStarted | 0.00 | 0.00% |
+| epicCompleted | 0.00 | 0.00% |
+| epicHoldWins | 0.00 | 0.00% |
+| epicNemesisWins | 0.00 | n/a |
+| epicInjuries | 0.00 | n/a |
+| epicDamaged | 0.00 | 0.00% |
+| epicRestored | 0.00 | 0.00% |
+| epicBytes | 0.0 | 0.00% |
 | beer | 0.0 | 0.00% |
 | food | 0.0 | 0.00% |
 | water | 0.0 | 0.00% |
@@ -63,7 +75,19 @@
 | 101 | underHeroProm | 0.00 | 0.00% |
 | 101 | underHeroLoss | 0.00 | n/a |
 | 101 | underHeroAct | 0.00 | 0.00% |
-| 101 | underHeroSurv | 0.00 | n/a |
+| 101 | underHeroSurv | 0.00 | 0.00% |
+| 101 | legacyRecords | 0.00 | n/a |
+| 101 | legacyNemeses | 0.00 | n/a |
+| 101 | legacyBytes | 0.0 | 0.00% |
+| 101 | epicNemeses | 0.00 | 0.00% |
+| 101 | epicStarted | 0.00 | 0.00% |
+| 101 | epicCompleted | 0.00 | 0.00% |
+| 101 | epicHoldWins | 0.00 | 0.00% |
+| 101 | epicNemesisWins | 0.00 | n/a |
+| 101 | epicInjuries | 0.00 | n/a |
+| 101 | epicDamaged | 0.00 | 0.00% |
+| 101 | epicRestored | 0.00 | 0.00% |
+| 101 | epicBytes | 0.0 | 0.00% |
 | 101 | beer | 0.0 | 0.00% |
 | 101 | food | 0.0 | 0.00% |
 | 101 | water | 0.0 | 0.00% |
@@ -83,6 +107,18 @@
 | 202 | underHeroLoss | 0.00 | n/a |
 | 202 | underHeroAct | 0.00 | 0.00% |
 | 202 | underHeroSurv | 0.00 | n/a |
+| 202 | legacyRecords | 0.00 | n/a |
+| 202 | legacyNemeses | 0.00 | n/a |
+| 202 | legacyBytes | 0.0 | 0.00% |
+| 202 | epicNemeses | 0.00 | 0.00% |
+| 202 | epicStarted | 0.00 | 0.00% |
+| 202 | epicCompleted | 0.00 | 0.00% |
+| 202 | epicHoldWins | 0.00 | 0.00% |
+| 202 | epicNemesisWins | 0.00 | n/a |
+| 202 | epicInjuries | 0.00 | n/a |
+| 202 | epicDamaged | 0.00 | 0.00% |
+| 202 | epicRestored | 0.00 | 0.00% |
+| 202 | epicBytes | 0.0 | 0.00% |
 | 202 | beer | 0.0 | 0.00% |
 | 202 | food | 0.0 | 0.00% |
 | 202 | water | 0.0 | 0.00% |
@@ -102,6 +138,18 @@
 | 303 | underHeroLoss | 0.00 | n/a |
 | 303 | underHeroAct | 0.00 | 0.00% |
 | 303 | underHeroSurv | 0.00 | n/a |
+| 303 | legacyRecords | 0.00 | n/a |
+| 303 | legacyNemeses | 0.00 | n/a |
+| 303 | legacyBytes | 0.0 | 0.00% |
+| 303 | epicNemeses | 0.00 | 0.00% |
+| 303 | epicStarted | 0.00 | n/a |
+| 303 | epicCompleted | 0.00 | n/a |
+| 303 | epicHoldWins | 0.00 | n/a |
+| 303 | epicNemesisWins | 0.00 | n/a |
+| 303 | epicInjuries | 0.00 | n/a |
+| 303 | epicDamaged | 0.00 | n/a |
+| 303 | epicRestored | 0.00 | n/a |
+| 303 | epicBytes | 0.0 | 0.00% |
 | 303 | beer | 0.0 | 0.00% |
 | 303 | food | 0.0 | 0.00% |
 | 303 | water | 0.0 | 0.00% |
@@ -115,12 +163,24 @@
 | 404 | underChamp | 0.00 | 0.00% |
 | 404 | underFail | 0.00 | 0.00% |
 | 404 | underBlocked | 0.00 | 0.00% |
-| 404 | underContested | 0.00 | 0.00% |
+| 404 | underContested | 0.00 | n/a |
 | 404 | underReadiness | 0.000 | 0.00% |
 | 404 | underHeroProm | 0.00 | 0.00% |
 | 404 | underHeroLoss | 0.00 | n/a |
 | 404 | underHeroAct | 0.00 | 0.00% |
-| 404 | underHeroSurv | 0.00 | n/a |
+| 404 | underHeroSurv | 0.00 | 0.00% |
+| 404 | legacyRecords | 0.00 | n/a |
+| 404 | legacyNemeses | 0.00 | n/a |
+| 404 | legacyBytes | 0.0 | 0.00% |
+| 404 | epicNemeses | 0.00 | 0.00% |
+| 404 | epicStarted | 0.00 | 0.00% |
+| 404 | epicCompleted | 0.00 | 0.00% |
+| 404 | epicHoldWins | 0.00 | 0.00% |
+| 404 | epicNemesisWins | 0.00 | n/a |
+| 404 | epicInjuries | 0.00 | n/a |
+| 404 | epicDamaged | 0.00 | 0.00% |
+| 404 | epicRestored | 0.00 | 0.00% |
+| 404 | epicBytes | 0.0 | 0.00% |
 | 404 | beer | 0.0 | 0.00% |
 | 404 | food | 0.0 | 0.00% |
 | 404 | water | 0.0 | 0.00% |

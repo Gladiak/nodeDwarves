@@ -4,6 +4,7 @@ const { clamp } = require('../utils');
 const { createInitialState } = require('../state');
 const { finalizeCycleChronicle, carryChronicleAcrossCycle } = require('./chronicle');
 const { carryWorldLegacyAcrossCycle } = require('./world_legacy');
+const { restoreLegacyNemeses } = require('./epic_conflicts');
 const { carryMythsAcrossCycle } = require('./myths');
 const { carryTemplePrestigeAcrossCycle } = require('./temple');
 const { carryWarriorCompanyAcrossCycle } = require('./warriors');
@@ -189,6 +190,7 @@ function runEndgameReset(state, config, runtime, options = {}) {
     config,
     completedChronicle,
   );
+  restoreLegacyNemeses(nextState, config);
   nextState.lastDeathTick = 0;
   nextState.endgameArtifactsTick = null;
   updateEndgameDifficulty(nextState, config);

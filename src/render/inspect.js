@@ -9,6 +9,7 @@ const { createDwarfIdentityCache, resolveDwarfIdentity } = require('../dwarf_ide
 const { findNearestPlace } = require('../place_identity');
 const { ensureDwarfSocialState } = require('../simulation/social_drama');
 const { getDwarfBiography } = require('../simulation/experience_ledger');
+const { getDwarfNemesisMemory } = require('../simulation/epic_conflicts');
 
 const SECTION_RUNES = {
   PROFILE: 'ᚦ',
@@ -120,7 +121,8 @@ function buildInspectLines(dwarf, index, total, state, config, width, height) {
 
     const biography = getDwarfBiography(state, config, dwarf.id);
     const socialLines = buildSocialSectionLines(dwarf, state, config, identityCache);
-    pushSectionWrapped(content, 'LIVED HISTORY', width, buildBiographyLines(biography, socialLines), 5);
+    const nemesisMemory = getDwarfNemesisMemory(state, dwarf.id);
+    pushSectionWrapped(content, 'LIVED HISTORY', width, buildBiographyLines(biography, socialLines, nemesisMemory), 6);
 
     const legacyLines = [];
     if (lore.oath) legacyLines.push(`Oath: ${capitalize(lore.oath)}`);
@@ -166,7 +168,7 @@ function buildInspectLines(dwarf, index, total, state, config, width, height) {
 }
 
 // Build factual lived-history rows separately from inherited lore.
-function buildBiographyLines(biography, socialLines) {
+function buildBiographyLines(biography, socialLines, nemesisMemory = []) {
   const lines = [];
   const defining = biography && biography.definingDeed;
   lines.push(defining ? `Defining deed: ${formatBiographyDeed(defining)}` : 'Defining deed: None witnessed');
@@ -180,6 +182,10 @@ function buildBiographyLines(biography, socialLines) {
     .filter((line) => !line.includes('None') && !line.startsWith('Incidents'))
     .slice(0, 2);
   lines.push(`Relationships: ${ties.length > 0 ? ties.join(' | ') : 'None active'}`);
+  const rivalry = Array.isArray(nemesisMemory) ? nemesisMemory[0] : null;
+  lines.push(rivalry
+    ? `Nemesis: ${rivalry.label} | ${rivalry.outcome}/${rivalry.branch} (${rivalry.encounters})`
+    : 'Nemesis: None witnessed');
   return lines;
 }
 

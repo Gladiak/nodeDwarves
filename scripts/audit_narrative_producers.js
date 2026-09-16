@@ -10,6 +10,7 @@ const STRUCTURED_BOUNDARIES = new Set([
   'endgame_events.js',
   'events.js',
   'lifecycle_events.js',
+  'nemesis_events.js',
   'political_events.js',
   'secondary_events.js',
   'social_events.js',

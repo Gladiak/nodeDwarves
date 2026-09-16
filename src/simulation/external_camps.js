@@ -456,6 +456,13 @@ function updateExistingCamps(state, config, runtime, action, externalConfig, ext
 function updateSingleCamp(state, config, runtime, action, externalConfig, externalState, camp, tick) {
   normalizeCampRuntimeState(camp, externalConfig);
 
+  const activeSiege = state && state.epicConflict && state.epicConflict.activeSiege;
+  if (activeSiege && activeSiege.sourceCampId === camp.id) {
+    camp.phase = 'active';
+    camp.phaseTicksRemaining = Math.max(2, Number(camp.phaseTicksRemaining || 0));
+    return true;
+  }
+
   if (camp.phase === 'setting_up') {
     camp.phaseTicksRemaining = Math.max(0, Number(camp.phaseTicksRemaining || 0) - 1);
     if (camp.phaseTicksRemaining <= 0) {

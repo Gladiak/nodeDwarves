@@ -1,6 +1,6 @@
 # Training Quality Status
 
-Last updated: 2026-09-15
+Last updated: 2026-09-16
 Scope: current operational status for training quality validation.
 Historical archive: `docs/TRAINING_OPTIMIZATION_WORKBOOK.md`
 
@@ -8,8 +8,9 @@ Historical archive: `docs/TRAINING_OPTIMIZATION_WORKBOOK.md`
 
 - Core optimization workstreams completed: A (reward/termination), B (PPO stability), C (throughput/resume continuity).
 - Operational quality uplift completed: OQ-1, OQ-2, OQ-3, OQ-4, OQ-5, OQ-6.2, OQ-6.3, OQ-6.4.
-- Epic Evolution E6 persistent-world state is explicitly isolated from PPO observations and gameplay
-  decisions; no fresh training is required.
+- Epic Evolution E7 nemesis, siege, rivalry, and cross-cycle state is explicitly isolated from PPO
+  observations and action shapes. E7 is simulation-affecting, but old policies remain loadable and
+  no fresh training is required.
 
 ## Active validation cadence
 
@@ -27,16 +28,32 @@ Historical archive: `docs/TRAINING_OPTIMIZATION_WORKBOOK.md`
 4. Contract preflight:
    - `npm test`
 
-## Latest local validation snapshot (2026-09-15)
+## Latest local validation snapshot (2026-09-16)
 
-- E6 persistent-world acceptance completed.
-- `npm test`: PASS, including the dedicated 39-assertion world-legacy suite and policy contracts.
-- Deterministic two-cycle/five-cycle validation: PASS; five-cycle legacy state is 11,745 bytes with
-  39 records, 10 mapped echoes, and modifier metadata capped at 0.020 and inactive.
-- Canonical `4 x 8000`: exact cached-baseline diff, population endpoints `687/678/725/716`, no
-  collapsed seeds, config hash
-  `28c11e8e0b070a952054d5b96b629d6f51f73104387819174307bd5b256eb88c`.
-- Reports: `debug/headless_benchmark_{candidate,diff}.{json,md}`.
+- E7 named-nemesis and staged-siege acceptance completed.
+- `npm test`: PASS, including the dedicated 56-assertion epic-conflict suite, 41-assertion
+  world-legacy migration/retention suite, and policy contracts.
+- Deterministic E7 validation: PASS; the full victory path completes in 21 ticks, collapse protection
+  takes the bounded tribute branch, and the five-siege profile retains three nemeses in 5,897 bytes.
+- Deterministic two-cycle/five-cycle legacy validation: PASS; five-cycle legacy state is 11,758 bytes
+  with 39 records, 10 mapped echoes, and modifier metadata capped at 0.020 and inactive.
+- Canonical `4 x 8000`: population endpoints `693/731/725/716`, no collapsed seeds; one siege starts
+  and completes in three of four seeds, all three are colony victories, and all `6/6` damaged
+  structures recover. Config hash
+  `c6f462f98d7d2c7562f2bb838051c8e786234dea3ce48a7b01c9444a14f45f60`.
+- Policy-only contract: PASS; observation/action shape is unchanged and fresh training is not needed.
+- Underrealm danger policy: surface/deep crisis overlap remains enabled. The profile now pairs an
+  absolute `+1.5` average-death budget with a `-15%` average-birth floor; reward, score, randomized
+  stock, and extinction gates remain unchanged so rare mass-casualty risk is not mistaken for
+  systemic collapse. The longer Horizon profile applies the same birth floor with a `+1.75`
+  average-death budget and retains its deep readiness/combat-pressure gates.
+- Underrealm replay: PASS with reward `10168.941`, score `4.237`, births `56.350`, deaths `3.150`,
+  randomized stock floor `0.895`, and extinction `0.000`.
+- Four-seed Horizon replay: PASS with reward `13773.122`, score `4.304`, births `70.425`, deaths
+  `4.150`, randomized stock floor `0.948`, extinction `0.000`, readiness score `0.530`, blocked
+  readiness `0.842`, and combat pressure `0.265`.
+- Reports: `debug/headless_benchmark_{candidate,diff}.{json,md}` and
+  `debug/regression_horizon_latest.{json,md}`.
 
 ## Previous local validation snapshot (2026-03-01)
 

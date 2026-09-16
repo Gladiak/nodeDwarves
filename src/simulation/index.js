@@ -38,6 +38,7 @@ const { updateUnderrealm } = require('./underrealm');
 const { updateWarriors } = require('./warriors');
 const { updateWorldEvents, getWorldEventModifier } = require('./world_events');
 const { updateExternalCamps } = require('./external_camps');
+const { updateEpicConflicts } = require('./epic_conflicts');
 const { ensureSettlementFoundingEvent } = require('./lifecycle_events');
 const { advanceStoryDirector } = require('./story_director');
 const { clamp } = require('../utils');
@@ -110,6 +111,7 @@ function stepState(state, config, runtime, action, options = {}) {
   updateRoles(state, config);
   updateUnderrealm(state, config, resolvedAction);
   updateRuins(state, config, runtime, resolvedAction);
+  updateEpicConflicts(state, config);
   assignHousing(state, config);
   updateRelationships(state, config);
   updateSocialDrama(state, config, resolvedAction);

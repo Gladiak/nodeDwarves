@@ -10,6 +10,7 @@ const { createStoryDirectorState } = require('../simulation/story_director');
 const { createExperienceLedger } = require('../simulation/experience_ledger');
 const { createChronicleState } = require('../simulation/chronicle');
 const { createWorldLegacyState } = require('../simulation/world_legacy');
+const { createEpicConflictState } = require('../simulation/epic_conflicts');
 const { bootstrapPlaceRegistry, createPlaceRegistry } = require('../place_identity');
 const {
   createTerrain,
@@ -1801,6 +1802,7 @@ function createInitialState(config, runtime) {
   const experience = createExperienceLedger();
   const chronicle = createChronicleState(0);
   const worldLegacy = createWorldLegacyState();
+  const epicConflict = createEpicConflictState();
 
   const state = {
     tick: 0,
@@ -1832,6 +1834,7 @@ function createInitialState(config, runtime) {
     experience,
     chronicle,
     worldLegacy,
+    epicConflict,
     places: createPlaceRegistry(),
     roads,
     temple,

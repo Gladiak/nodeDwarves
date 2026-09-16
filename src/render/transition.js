@@ -134,7 +134,7 @@ function buildTransitionLines(message, chronicleSummary, legacySummary, width, h
   if (legacySummary && content.length < maxContent) {
     pushLine(
       content,
-      `WORLD LEGACY · ${Number(legacySummary.records || 0)} records · ${Number(legacySummary.echoes || 0)} echoes · ${Number(legacySummary.memorials || 0)} memorials`,
+      `WORLD LEGACY · ${Number(legacySummary.records || 0)} records · ${Number(legacySummary.echoes || 0)} echoes · ${Number(legacySummary.memorials || 0)} memorials · ${Number(legacySummary.nemeses || 0)} nemeses`,
       width,
       'hud_header',
     );

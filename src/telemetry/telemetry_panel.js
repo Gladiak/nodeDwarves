@@ -118,7 +118,7 @@ const TELEMETRY_PANEL_PAGES = [
   {
     id: 'story_director',
     title: 'Story Director',
-    subtitle: 'Narrative lens: current focus and saga, cooldowns, interruption budget, decision reasons, coverage, and saga outcomes.',
+    subtitle: 'Narrative lens: named nemeses, active siege and rivalry branch, current focus and saga, cooldowns, coverage, and saga outcomes.',
     sections: ['storyDirector', 'social', 'lore'],
     preferredColumns: 2,
     minColumnWidth: 38,

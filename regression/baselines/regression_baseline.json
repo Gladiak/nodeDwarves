@@ -98,9 +98,13 @@
             "mode": "rel",
             "limit": -0.05
           },
-          "avg_deaths": {
+          "avg_births": {
             "mode": "rel",
-            "limit": 0.15
+            "limit": -0.15
+          },
+          "avg_deaths": {
+            "mode": "abs",
+            "limit": 1.5
           }
         },
         "random": {
@@ -277,9 +281,13 @@
             "mode": "rel",
             "limit": -0.06
           },
-          "avg_deaths": {
+          "avg_births": {
             "mode": "rel",
-            "limit": 0.16
+            "limit": -0.15
+          },
+          "avg_deaths": {
+            "mode": "abs",
+            "limit": 1.75
           }
         },
         "random": {

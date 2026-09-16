@@ -1637,13 +1637,14 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - Saga quality is measured separately. Because E3 evidence showed high fragmentation/eviction,
     `chronicle.saga_quality.use_for_retention` defaults to `false`; active sagas still protect ledger
     evidence they currently require, but do not make Chronicle claims intrinsically more valuable.
-- `world_legacy.js` owns E6 persistent-civilization history.
-  - Endgame feeds it only the completed, sanitized Chronicle after the old cycle closes. The v1
+- `world_legacy.js` owns bounded persistent-civilization history.
+  - Endgame feeds it only the completed, sanitized Chronicle after the old cycle closes. The v2
     plain-JSON schema separates cycle summaries, archived identities, named places, memorials,
-    inherited institutions, and current-world echoes; full event objects and prior simulation states
-    are never copied.
-  - Missing-version/v0 data is repaired deterministically. Unsupported future schemas are rejected
-    into a fresh v1 container and counted instead of being guessed. Every category has a configured
+    inherited institutions, current-world echoes, and qualifying E7 nemeses; full event objects and
+    prior simulation states are never copied.
+  - Missing-version/v0 data is repaired deterministically and v1 records migrate with an empty
+    nemesis collection. Unsupported future schemas are rejected into a fresh v2 container and
+    counted instead of being guessed. Every category has a configured
     cap plus an absolute ceiling, followed by a total-record cap with deterministic oldest-first
     compaction.
   - A completed cycle always produces one `cycles` record, even when its Chronicle has no qualifying
@@ -1666,6 +1667,33 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
     population around reset, deaths, selected stockpiles, endgame ticks, record count, serialized
     bytes, echo count, evictions, and modifier magnitude. Stop rules reject population collapse,
     negative stockpiles, cap violations, modifier compounding, and legacy state above 256 KiB.
+- `epic_conflicts.js` owns E7 named antagonists and staged surface conflict.
+  - Raider leaders qualify through hostility or completed demands; encountered Underrealm champions
+    qualify through an explicit attempt threshold. Source kind plus stable source ID hashes into a
+    deterministic name, epithet, trait set, and goal without consuming simulation RNG.
+  - Every nemesis owns one explicit saga ID and bounded victories, defeats, retreats, scars, grudges,
+    and encounter facts. Dwarf Inspect resolves direct hero-nemesis memory; Story Director telemetry
+    and the benchmark expose counts, current stage, outcomes, recovery, and serialized size.
+  - Surface sieges begin when an active nemesis camp reaches either the configured hostility or
+    repeated-demand threshold, then progress through warning, approach, demand, breach, battle,
+    retreat or victory, and aftermath. Active surface raids and active sieges exclude each other;
+    independent Underrealm pressure can still overlap, preserving rare compound-crisis danger. The
+    source camp remains present for the conflict. Roads shorten approach,
+    watchtowers/armories/militia/Warrior heroes contribute defense, and committed beats adjust schism
+    pressure or legitimacy.
+  - Collapse guardrails convert a dangerous demand into capped tribute before a breach. Defeats cap
+    injuries, stockpile loss, and structure damage while preserving target-based reserves. Recovery
+    blocks another siege and repairs visible damage at a fixed cadence.
+  - Rivalry outcomes are deterministic: a prior defeated hero may take revenge, a strong defender
+    may rescue the hold, a clan successor can inherit a grudge, and balanced low-hostility histories
+    can reconcile. Qualified encountered nemeses are admitted to world-legacy schema v2 and can
+    reappear after reset with the same identity and bounded encounter evidence.
+  - `nemesis_events.js` is the canonical structured-event boundary. `render/epic_conflicts.js` draws
+    the configured front and damage glyphs without mutating simulation state.
+  - `npm run test:epic-conflicts` covers promotion, stable identity, automatic start, both battle
+    outcomes, branches, Inspect/telemetry/rendering, retention, serialization repair, and PPO
+    isolation. `npm run validate:epic-conflicts` runs a complete siege, collapse guard, and five-siege
+    bounded recovery/legacy profile.
 - `../chronicle_export.js` serializes the latest completed or current Chronicle.
   - JSON ordering and Markdown chapter ordering are stable, no wall-clock fields enter the payload,
     and SHA-256 content determines the filename. Equal records therefore produce equal hashes and
@@ -2033,6 +2061,14 @@ Clan dynamics add heterogeneity and longer-horizon trade-offs. To keep PPO stabl
 
 - `display`: grid size, frame, telemetry, in-map inset panel (`display.mapInset.*`), terrain, colors.
 - `underrealm`: multi-depth full-size generation, cave topology tuning, dedicated crew planning, deep extraction economy, exploration unlock pacing, and hostile deep-faction raids.
+  - Its regression profile intentionally permits rare compound-crisis mortality instead of
+    serializing surface and deep threats. Acceptance still requires reward and score non-regression,
+    average births no worse than `-15%` from baseline, average deaths no more than `+1.5` above
+    baseline, and randomized extinction at or below the existing absolute cap. This keeps dangerous
+    worlds possible without accepting systematic demographic collapse.
+  - The longer Horizon profile uses the same joint contract with a `+1.75` average-death budget and
+    the same `-15%` birth floor, while retaining its stricter reward, stock, readiness, combat-pressure,
+    and extinction checks.
 - `resources`: stockpile targets, node counts/capacity, regen rates, crafting inputs.
 - `structures`: build costs, build ticks, upgrade rules, capacities.
 - `structures.temple_of_ancestors`: staged temple progression, topology-based site tuning, costs/effects.
@@ -2043,6 +2079,9 @@ Clan dynamics add heterogeneity and longer-horizon trade-offs. To keep PPO stabl
 - `raids`: wildlife raid settings.
 - `merchant`: spawn cadence and trade behavior (including `neverGive` exclusions).
 - `externalCamps`: long-lived external faction camps (trade/militia/raider), spawn cadence, and pressure/economy knobs.
+- `world_legacy`: bounded cross-cycle identities, places, memorials, institutions, echoes, and qualifying nemeses.
+- `epic_conflicts`: nemesis eligibility/identity pools, staged siege cadence, deterministic battle,
+  recovery/collapse guardrails, political effects, and rivalry thresholds.
 - `worldEvents`: global short-arc events (bards, rival caravans, and limited opportunities).
 - `schism`: run-scale social pressure/legitimacy arc, doctrine shifts, ritual windows, and climax tuning.
 - `ai`: runtime policy + training defaults.
@@ -2368,6 +2407,8 @@ Quick checklist:
     - `simulation/experience_ledger.js` → bounded source-backed dwarf deeds and read-only biography views
     - `simulation/chronicle.js` → fact-backed cycle chapters, integrity checks, summaries, and bounded archives
     - `simulation/world_legacy.js` → versioned bounded cross-cycle summaries, memorials, institutions, migration, and deterministic geographic echoes
+    - `simulation/epic_conflicts.js` → deterministic nemesis registry, staged sieges, rivalry memory, recovery, and legacy restoration
+    - `simulation/nemesis_events.js` → canonical structured nemesis and siege event boundary
     - `simulation/alchemy.js` → alchemy rite lifecycle and modifiers
     - `simulation/contracts.js` → contract offers, reputations, and boons
     - `simulation/world_events.js` → global event lifecycle and temporary world modifiers
@@ -2389,6 +2430,7 @@ Quick checklist:
     - `render/story_ribbon.js` → responsive read-only current-focus ribbon with structured-fact fallbacks
     - `render/story_focus_overlay.js` → bounded actor/location emphasis and cross-layer direction cues
     - `render/world_legacy.js` → read-only surface rendering for remapped legacy sites
+    - `render/epic_conflicts.js` → active nemesis-front and siege-damage map overlays
     - `render/map_inset_panel.js` → carved in-map Ops Snapshot component (stable counters + keyboard hints)
     - `render/warrior_panel.js` → Warrior League modal overlay (company identity/carry-over context, champion lineage, top-5 fighters, marks/legacy summary)
     - `render/event_log_panel.js` → Event Log modal overlay (scrollable real-time event history with drama-focused filter)
@@ -2411,17 +2453,19 @@ Quick checklist:
 - `scripts/test_chronicle_contracts.js` → deterministic ledger/biography/Chronicle/reset/export/bounds/AI-isolation gate (`npm run test:chronicle`; included in `npm test`)
 - `scripts/test_world_legacy_contracts.js` → deterministic E6 schema/migration/retention/remap/render/AI-isolation gate (`npm run test:world-legacy`; included in `npm test`)
 - `scripts/validate_world_legacy.js` → deterministic two-cycle/five-cycle E6 balance and state-growth gate (`npm run validate:world-legacy`)
+- `scripts/test_epic_conflict_contracts.js` → deterministic E7 identity/lifecycle/branch/legacy/render/PPO-isolation gate (`npm run test:epic-conflicts`; included in `npm test`)
+- `scripts/validate_epic_conflicts.js` → deterministic complete-siege, collapse-guard, and repeated-siege recovery/retention gate (`npm run validate:epic-conflicts`)
 - `scripts/test_training_contracts.js` → deterministic technical test suite for policy shape and report-schema contracts (included in `npm test`)
 - `regression/baselines/regression_baseline.json` → durable profile baselines used by regression checks
 - `benchmark_cache/headless_benchmark_baseline.json` → versioned cached headless benchmark baseline for report-to-report diffs
 - `benchmark_cache/headless_benchmark_baseline.md` → markdown companion of cached headless benchmark baseline
 - `debug/epic_e4_time_controls_{120,72}.png` → retained full/narrow critical auto-slow and legendary auto-hold presentation captures
-- `debug/headless_benchmark_{candidate,diff}.{json,md}` → latest canonical E5 `4 x 8000` candidate and zero-delta baseline comparison
+- `debug/headless_benchmark_{candidate,diff}.{json,md}` → latest canonical `4 x 8000` candidate and zero-delta baseline comparison with legacy and epic-conflict summaries
 - `chronicles/` → git-ignored deterministic JSON/Markdown Chronicle exports created with `c`
 - `scripts/export_map.js` → map export pipeline (PNG + SVG)
 - `scripts/headless_benchmark.js` → deterministic long-run headless benchmark with comparative score, seed deltas, schism decree telemetry, Story Director coverage/outcome counters, and optional gate checks
 - `scripts/ensure_benchmark_baseline.js` → auto-refresh guard for cached headless benchmark baseline metadata coherence
-- `scripts/compare_benchmark_reports.js` → report-to-report benchmark diff utility for cached baseline/candidate comparisons, including schism decree usage deltas
+- `scripts/compare_benchmark_reports.js` → report-to-report benchmark diff utility for cached baseline/candidate economy, Underrealm, legacy, epic-conflict, and schism decree usage deltas
 - `python/train.py` → PPO trainer and best-checkpoint updates
 - `python/promote_best.py` → post-train promotion check (latest vs best)
 - `python/regression_rollout.py` → randomized regression rollouts without PPO updates/checkpoint writes

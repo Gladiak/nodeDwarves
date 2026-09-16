@@ -3,9 +3,9 @@
 const { registerPlace } = require('../place_identity');
 const { resolveDwarfIdentity } = require('../dwarf_identity');
 
-const WORLD_LEGACY_SCHEMA_VERSION = 1;
+const WORLD_LEGACY_SCHEMA_VERSION = 2;
 const IMPORTANCE = ['ambient', 'notable', 'major', 'critical', 'legendary'];
-const RECORD_FIELDS = ['cycles', 'identities', 'places', 'memorials', 'institutions', 'echoes'];
+const RECORD_FIELDS = ['cycles', 'identities', 'places', 'memorials', 'institutions', 'echoes', 'nemeses'];
 
 // Create the versioned, bounded cross-cycle history container.
 function createWorldLegacyState() {
@@ -17,6 +17,7 @@ function createWorldLegacyState() {
     memorials: [],
     institutions: [],
     echoes: [],
+    nemeses: [],
     stats: {
       completedCycles: 0,
       createdRecords: 0,
@@ -85,6 +86,7 @@ function carryWorldLegacyAcrossCycle(previousState, nextState, config, completed
   mergeRecords(legacy.memorials, memorials, 'id');
   mergeRecords(legacy.institutions, buildInstitutionRecords(previousState, completedChronicle, settings), 'id');
   mergeRecords(legacy.echoes, buildEchoRecords(completedChronicle, memorials, settings), 'id');
+  mergeRecords(legacy.nemeses, buildNemesisRecords(previousState, settings), 'id');
 
   legacy.stats.completedCycles = Math.max(legacy.stats.completedCycles, sourceCycle + 1);
   legacy.stats.createdRecords += Math.max(0, countLegacyRecords(legacy) - before);
@@ -104,6 +106,8 @@ function getLegacySagaHooks(state) {
       ? legacy.echoes.map(copyRecord) : [],
     memorials: Array.isArray(legacy && legacy.memorials)
       ? legacy.memorials.map(copyRecord) : [],
+    nemeses: Array.isArray(legacy && legacy.nemeses)
+      ? legacy.nemeses.map(copyRecord) : [],
   };
 }
 
@@ -120,6 +124,7 @@ function buildLegacySummary(legacy) {
     memorials: Array.isArray(source.memorials) ? source.memorials.length : 0,
     institutions: Array.isArray(source.institutions) ? source.institutions.length : 0,
     echoes: Array.isArray(source.echoes) ? source.echoes.length : 0,
+    nemeses: Array.isArray(source.nemeses) ? source.nemeses.length : 0,
   };
 }
 
@@ -307,6 +312,70 @@ function buildEchoRecords(chronicle, memorials, settings) {
   return results;
 }
 
+// Admit only witnessed, bounded nemeses into the cross-cycle legacy contract.
+function buildNemesisRecords(previousState, settings) {
+  if (settings.nemesesPerCycle <= 0) return [];
+  const runtime = previousState && previousState.epicConflict;
+  const byId = runtime && runtime.nemeses && runtime.nemeses.byId || {};
+  return Object.values(byId)
+    .filter((record) => record && Array.isArray(record.encounters)
+      && record.encounters.length >= settings.nemesisMinimumEncounters)
+    .sort((left, right) => (
+      Number(right.victories || 0) + Number(right.defeats || 0)
+      - Number(left.victories || 0) - Number(left.defeats || 0)
+      || Number(right.lastSeenTick || 0) - Number(left.lastSeenTick || 0)
+      || String(left.id).localeCompare(String(right.id))
+    ))
+    .slice(0, settings.nemesesPerCycle)
+    .map((record) => ({
+      id: shortText(record.id, 128),
+      sagaId: shortText(record.sagaId, 96),
+      sourceKind: shortText(record.sourceKind, 32),
+      sourceId: shortText(record.sourceId, 64),
+      sourceDepth: safeCount(record.sourceDepth),
+      factionId: shortText(record.factionId, 64),
+      factionLabel: shortText(record.factionLabel, 96),
+      name: shortText(record.name, 64),
+      epithet: shortText(record.epithet, 96),
+      displayName: shortText(record.displayName, 128),
+      traits: uniqueStrings(record.traits, 4),
+      goal: shortText(record.goal, 128),
+      titles: uniqueStrings(record.titles, 4),
+      scars: uniqueStrings(record.scars, 4),
+      grudges: uniqueStrings(record.grudges, 4),
+      encounters: sanitizeNemesisEncounters(record.encounters, settings.nemesisEncounterRefs),
+      victories: safeCount(record.victories),
+      defeats: safeCount(record.defeats),
+      retreats: safeCount(record.retreats),
+      status: shortText(record.status || 'dormant', 32),
+      promotedCycle: safeCount(record.promotedCycle),
+      promotedTick: safeCount(record.promotedTick),
+      lastSeenTick: safeCount(record.lastSeenTick),
+      lastSiegeTick: safeCount(record.lastSiegeTick),
+      grudgeHeroId: shortText(record.grudgeHeroId, 96),
+      grudgeHeroClanId: shortText(record.grudgeHeroClanId, 64),
+      power: clampNumber(record.power, 0, 2, 0),
+      sourceCycle: safeCount(previousState && previousState.cycleStats && previousState.cycleStats.count),
+      sourceEventIds: uniqueStrings(
+        (record.encounters || []).map((entry) => entry && entry.sourceEventId),
+        settings.nemesisEncounterRefs,
+      ),
+    }));
+}
+
+function sanitizeNemesisEncounters(value, limit) {
+  return (Array.isArray(value) ? value : []).slice(-limit).map((entry, index) => ({
+    id: shortText(entry && entry.id || `legacy_encounter_${index}`, 128),
+    cycle: safeCount(entry && entry.cycle),
+    tick: safeCount(entry && entry.tick),
+    heroId: shortText(entry && entry.heroId, 96) || null,
+    heroClanId: shortText(entry && entry.heroClanId, 64) || null,
+    outcome: shortText(entry && entry.outcome || 'unknown', 48),
+    branch: shortText(entry && entry.branch || 'mainline', 48),
+    sourceEventId: shortText(entry && entry.sourceEventId, 128) || null,
+  }));
+}
+
 // Deterministically map every retained echo to a valid free cell in the current terrain.
 function remapLegacyEchoes(state, config) {
   const settings = getWorldLegacySettings(config);
@@ -370,12 +439,16 @@ function getWorldLegacySettings(config) {
     maxMemorials: clampInt(retention.max_memorials, 1, 64, 12),
     maxInstitutions: clampInt(retention.max_institutions, 1, 32, 8),
     maxEchoes: clampInt(retention.max_echoes, 1, 64, 12),
+    maxNemeses: clampInt(retention.max_nemeses, 1, 32, 8),
     maxTotal: clampInt(retention.max_total_records, 6, 384, 96),
     identitiesPerCycle: clampInt(selection.max_identities_per_cycle, 0, 16, 4),
     placesPerCycle: clampInt(selection.max_places_per_cycle, 0, 12, 3),
     memorialsPerCycle: clampInt(selection.max_memorials_per_cycle, 0, 4, 1),
     institutionsPerCycle: clampInt(selection.max_institutions_per_cycle, 0, 2, 1),
     echoesPerCycle: clampInt(selection.max_echoes_per_cycle, 0, 4, 2),
+    nemesesPerCycle: clampInt(selection.max_nemeses_per_cycle, 0, 4, 2),
+    nemesisMinimumEncounters: clampInt(selection.nemesis_minimum_encounters, 1, 16, 1),
+    nemesisEncounterRefs: clampInt(selection.max_nemesis_encounters, 1, 16, 6),
     memorialImportance: normalizeImportance(selection.memorial_minimum_importance || 'critical'),
     modifierPerCycle: clampNumber(modifiers.per_cycle, 0, 0.05, 0.005),
     modifierCap: clampNumber(modifiers.total_cap, 0, 0.1, 0.02),
@@ -391,6 +464,7 @@ function enforceLegacyBounds(legacy, settings) {
     memorials: settings.maxMemorials,
     institutions: settings.maxInstitutions,
     echoes: settings.maxEchoes,
+    nemeses: settings.maxNemeses,
   };
   for (const field of RECORD_FIELDS) {
     const list = Array.isArray(legacy[field]) ? legacy[field] : [];
@@ -403,7 +477,7 @@ function enforceLegacyBounds(legacy, settings) {
     }
   }
   enforceInstitutionModifierCap(legacy.institutions, settings.modifierCap);
-  const evictionOrder = ['identities', 'places', 'echoes', 'memorials', 'institutions', 'cycles'];
+  const evictionOrder = ['identities', 'places', 'echoes', 'memorials', 'institutions', 'nemeses', 'cycles'];
   while (countLegacyRecords(legacy) > settings.maxTotal) {
     const field = evictionOrder.find((name) => legacy[name].length > (name === 'cycles' ? 1 : 0));
     if (!field) break;
@@ -432,6 +506,7 @@ function sanitizeRecordList(value, field, settings) {
   const limit = {
     cycles: settings.maxCycles, identities: settings.maxIdentities, places: settings.maxPlaces,
     memorials: settings.maxMemorials, institutions: settings.maxInstitutions, echoes: settings.maxEchoes,
+    nemeses: settings.maxNemeses,
   }[field];
   return value.filter((entry) => entry && typeof entry === 'object' && entry.id)
     .map((entry) => sanitizeRecord(entry, field)).sort(compareRecords).slice(-limit);
@@ -444,9 +519,12 @@ function sanitizeRecord(record, field) {
     sourceEventIds: uniqueStrings(record.sourceEventIds, 12),
   };
   const fields = ['title', 'actorId', 'kind', 'label', 'name', 'house', 'roleTitle', 'role',
-    'importance', 'sourcePlaceId', 'sourceScope', 'sourceChapterId', 'form', 'motto', 'sourceActorId'];
+    'importance', 'sourcePlaceId', 'sourceScope', 'sourceChapterId', 'form', 'motto', 'sourceActorId',
+    'sagaId', 'sourceKind', 'sourceId', 'factionId', 'factionLabel', 'epithet', 'displayName', 'goal',
+    'status', 'grudgeHeroId', 'grudgeHeroClanId'];
   for (const key of fields) if (record[key] !== undefined) result[key] = shortText(record[key], key === 'motto' ? 160 : 120);
-  for (const key of ['completedTick', 'claimCount', 'chapterCount', 'sourceDepth']) {
+  for (const key of ['completedTick', 'claimCount', 'chapterCount', 'sourceDepth', 'promotedCycle',
+    'promotedTick', 'lastSeenTick', 'lastSiegeTick', 'victories', 'defeats', 'retreats']) {
     if (record[key] !== undefined) result[key] = safeCount(record[key]);
   }
   if (field === 'identities') {
@@ -463,6 +541,14 @@ function sanitizeRecord(record, field) {
     result.modifier.magnitude = Math.min(result.modifier.magnitude, result.modifier.cap);
   }
   if (field === 'echoes') result.location = sanitizeMappedLocation(record.location);
+  if (field === 'nemeses') {
+    result.traits = uniqueStrings(record.traits, 4);
+    result.titles = uniqueStrings(record.titles, 4);
+    result.scars = uniqueStrings(record.scars, 4);
+    result.grudges = uniqueStrings(record.grudges, 4);
+    result.encounters = sanitizeNemesisEncounters(record.encounters, 16);
+    result.power = clampNumber(record.power, 0, 2, 0);
+  }
   return result;
 }
 

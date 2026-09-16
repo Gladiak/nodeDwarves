@@ -8,6 +8,7 @@ const { getWorldEventStatus } = require("../simulation/world_events");
 const { getExternalCampStatus } = require("../simulation/external_camps");
 const { getSchismStatus } = require("../simulation/schism");
 const { getSocialDramaStatus } = require("../simulation/social_drama");
+const { getEpicConflictStatus } = require('../simulation/epic_conflicts');
 const {
   formatWarriorDisplayNameById,
   resolveWarriorLeagueEpicName,
@@ -204,6 +205,7 @@ function collectTelemetrySnapshot(state, config, columnWidth, options = {}) {
   const worldEventStatus = getWorldEventStatus(safeState, safeConfig);
   const schismStatus = getSchismStatus(safeState, safeConfig);
   const socialSnapshot = buildSocialTelemetrySnapshot(safeState, safeConfig);
+  const epicConflictStatus = getEpicConflictStatus(safeState);
   const shortages = Array.isArray(safeState.lastPriorities)
     ? safeState.lastPriorities
     : [];
@@ -292,6 +294,7 @@ function collectTelemetrySnapshot(state, config, columnWidth, options = {}) {
     worldEventStatus,
     schismStatus,
     socialSnapshot,
+    epicConflictStatus,
     shortages,
     governorSignals,
     stockRatioLine,
@@ -535,7 +538,10 @@ function buildTelemetrySectionModels(snapshot) {
       column: "right",
       key: "storyDirector",
       label: "Story Director",
-      rows: buildStoryDirectorSectionRows(snapshot.state, snapshot.config),
+      rows: [
+        ...buildEpicConflictSectionRows(snapshot.epicConflictStatus),
+        ...buildStoryDirectorSectionRows(snapshot.state, snapshot.config),
+      ],
     },
   ];
 }
@@ -972,7 +978,7 @@ function buildEndgameSectionRows(state, config, options = {}) {
     lastCycleTicks > 0 ? `${formatCompactNumber(lastCycleTicks)} ticks` : "-";
   const worldLegacy = state && state.worldLegacy && typeof state.worldLegacy === "object"
     ? state.worldLegacy : {};
-  const legacyCount = ["cycles", "identities", "places", "memorials", "institutions", "echoes"]
+  const legacyCount = ["cycles", "identities", "places", "memorials", "institutions", "echoes", "nemeses"]
     .reduce((sum, field) => sum + (Array.isArray(worldLegacy[field]) ? worldLegacy[field].length : 0), 0);
   const legacyModifier = (Array.isArray(worldLegacy.institutions) ? worldLegacy.institutions : [])
     .reduce((sum, entry) => sum + Math.max(0, Number(entry && entry.modifier && entry.modifier.magnitude || 0)), 0);
@@ -1062,7 +1068,7 @@ function buildEndgameSectionRows(state, config, options = {}) {
   return [
     `Cycle reset loop: ${endgameEnabled ? "enabled" : "disabled"}`,
     `Cycle history: current ${cycleCount} | last cycle length ${lastCycleLabel}`,
-    `World legacy: ${legacyCount} records | ${(worldLegacy.echoes || []).length} echoes | ${(worldLegacy.memorials || []).length} memorials`,
+    `World legacy: ${legacyCount} records | ${(worldLegacy.echoes || []).length} echoes | ${(worldLegacy.memorials || []).length} memorials | ${(worldLegacy.nemeses || []).length} nemeses`,
     `Legacy modifier hooks: ${(legacyModifier * 100).toFixed(1)}% reserved | gameplay inactive`,
     `Ruins gateway: ${ruinsGatewayLabel}`,
     `Required path progress: ${requiredDone}/4`,
@@ -1107,6 +1113,20 @@ function buildEndgameSectionRows(state, config, options = {}) {
       templeDetail,
     ),
     `Cycle pressure multiplier: x${difficulty.toFixed(2)}`,
+  ];
+}
+
+// Present bounded nemesis identity, siege stage, rivalry branch, and recovery state.
+function buildEpicConflictSectionRows(status) {
+  const snapshot = status && typeof status === 'object' ? status : {};
+  const siege = snapshot.activeSiege;
+  const stats = snapshot.stats || {};
+  return [
+    `Nemeses: ${Math.max(0, Number(snapshot.nemesisCount || 0))} remembered | ${Math.max(0, Number(snapshot.activeNemeses || 0))} active`,
+    siege
+      ? `Siege: ${siege.nemesisName} | ${siege.stage} ${Math.max(0, Number(siege.ticksRemaining || 0))}t | branch ${siege.branch || '-'}`
+      : `Siege: none | recovery ${Math.max(0, Number(snapshot.recoveryTicks || 0))}t`,
+    `Epic outcomes: ${Math.max(0, Number(stats.siegesCompleted || 0))} complete | hold ${Math.max(0, Number(stats.colonyVictories || 0))} / nemesis ${Math.max(0, Number(stats.nemesisVictories || 0))} | reconciled ${Math.max(0, Number(stats.reconciliations || 0))}`,
   ];
 }
 

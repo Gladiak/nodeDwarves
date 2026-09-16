@@ -1,9 +1,9 @@
 # NodeDwarves Epic Evolution Workbook
 
-Last updated: 2026-09-15
-Status: Active implementation - M4 complete; M5 ready
-Completed checkpoint: `E6.4` done
-Next executable step: `E7.1` ready
+Last updated: 2026-09-16
+Status: Active implementation - M4 complete; M5 in progress
+Completed checkpoint: `E7.3` done
+Current executable step: `E8.1` ready
 Scope: Step-by-step delivery and evidence tracking for the project-wide epic simulation evolution
 
 This workbook turns the "living dwarven chronicle" direction into an executable plan. It is the
@@ -129,14 +129,15 @@ Dashboard:
 | M2 - Watchable simulation | E3, E4 | The terminal guides attention and protects important moments | `Done` | M1 done | Director + presentation gates pass |
 | M3 - Lived history | E5 | Biographies and chronicles contain actual deeds | `Done` | M2 done | Chronicle integrity + cycle export gate passes |
 | M4 - Persistent civilization | E6 | Cycles inherit bounded, visible history | `Done` | M3 done | Deterministic multi-cycle gate passes |
-| M5 - Epic world | E7, E8 | Named nemeses, staged sieges, and evolving landmarks | `Ready` | M4 done | Full quality gate + experience review passes |
+| M5 - Epic world | E7, E8 | Named nemeses, staged sieges, and evolving landmarks | `In progress` | M4 done | Full quality gate + experience review passes |
 
-Current checkpoint: `E6.4` is `Done`; `E7.1` is the next executable step. Every completed Chronicle
-now feeds a separate versioned `worldLegacy` store with deterministic migration, per-category and
-aggregate hard caps, source-backed identities/places/memorials/institutions, and terrain-seed-aware
-surface echoes. Old coordinates and full worlds never cross reset. Institution modifier hooks remain
-explicitly inactive and globally capped, the state stays outside PPO observations, and dedicated
-two-cycle/five-cycle profiles close M4 without compounding or state-growth failures.
+Current checkpoint: `E7.3` is `Done`; `E8.1` is the next executable step. Raider leaders and
+encountered Underrealm champions now become deterministic, bounded nemeses with explicit sagas,
+hero encounters, grudges, and qualifying cross-cycle reappearance. Surface sieges reuse camps,
+roads, raids, schism, defensive structures, and Warrior heroes through a staged lifecycle with
+collapse guardrails and visible repair. The canonical `4 x 8000` profile naturally exercises one
+fully recovered siege in three of four seeds, while dedicated loss/tribute/revenge/reconciliation
+scenarios cover branches that a stable colony should not be forced to encounter frequently.
 
 Rules for ordering:
 
@@ -1165,10 +1166,10 @@ Verification note:
 - `npm run test:world-legacy` covers schema migration/rejection, verified-record derivation, peaceful
   cycles, deterministic remapping, place/saga hooks, rendering, transition visibility, hard caps,
   expiry, founder/house/myth carry-over, zero-selector behavior, modifier aggregation, and PPO
-  isolation with `39` assertions.
+  isolation with `41` assertions, including the E7 v1-to-v2 empty-nemesis migration.
 - `npm run validate:world-legacy` runs explicit `2-cycle` and `5-cycle` profiles. Current endpoints
-  are `15` records / `4613` bytes / `4` echoes / `0.010` modifier magnitude and `39` records /
-  `11745` bytes / `10` echoes / capped `0.020`, with all population, stockpile, size, and compounding
+  are `15` records / `4626` bytes / `4` echoes / `0.010` modifier magnitude and `39` records /
+  `11758` bytes / `10` echoes / capped `0.020`, with all population, stockpile, size, and compounding
   stop rules passing. Headless balance reports now include the same legacy/death/endgame metrics.
 
 E6 exit criteria:
@@ -1180,41 +1181,60 @@ E6 exit criteria:
 
 ## 11) Workstream E7 - Nemeses and staged sieges
 
-Status: `Ready`
+Status: `Done`
 
 Objective: create recognizable antagonists whose actions form persistent sagas.
 
 ### E7.1 Nemesis identity and memory
 
-- [ ] Add deterministic identity, faction, traits, goals, scars, victories, defeats, and grudges.
-- [ ] Promote existing Underrealm champions or raider leaders through explicit eligibility rules.
-- [ ] Persist only qualifying nemeses through the bounded legacy contract.
-- [ ] Make nemesis state visible in events, saga view, and relevant inspect panels.
+- [x] Add deterministic identity, faction, traits, goals, scars, victories, defeats, and grudges.
+- [x] Promote existing Underrealm champions or raider leaders through explicit eligibility rules.
+- [x] Persist only qualifying nemeses through the bounded legacy contract.
+- [x] Make nemesis state visible in events, saga view, and relevant inspect panels.
 
 ### E7.2 Staged conflict lifecycle
 
-- [ ] Define warning, approach, demand, breach, battle, retreat/victory, and aftermath stages.
-- [ ] Reuse raids, external camps, schism, roads, watchtowers, and Warrior League where possible.
-- [ ] Attach structured consequences to damaged structures, casualties, morale, politics, and territory.
-- [ ] Add recovery windows so conflicts do not create unrecoverable event storms.
+- [x] Define warning, approach, demand, breach, battle, retreat/victory, and aftermath stages.
+- [x] Reuse raids, external camps, schism, roads, watchtowers, and Warrior League where possible.
+- [x] Attach structured consequences to damaged structures, casualties, morale, politics, and territory.
+- [x] Add recovery windows so conflicts do not create unrecoverable event storms.
 
 ### E7.3 Rivalry and consequence arcs
 
-- [ ] Track specific hero-nemesis encounters and outcomes.
-- [ ] Allow rescue, revenge, reconciliation, succession, or inherited-grudge branches.
-- [ ] Convert major outcomes into Chronicle chapters and memorial/legacy candidates.
-- [ ] Keep branch selection deterministic and config-driven.
+- [x] Track specific hero-nemesis encounters and outcomes.
+- [x] Allow rescue, revenge, reconciliation, succession, or inherited-grudge branches.
+- [x] Convert major outcomes into Chronicle chapters and memorial/legacy candidates.
+- [x] Keep branch selection deterministic and config-driven.
+
+Verification note:
+
+- `npm run test:epic-conflicts` covers stable RNG-free identity, automatic hostility and repeated-
+  demand triggers, explicit sagas, Underrealm promotion, both battle outcomes, every stage, all five
+  rivalry branches, Inspect/telemetry/rendering, recovery, bounded retention/serialization, legacy
+  migration/reappearance, and PPO isolation with `56` assertions.
+- `npm run validate:epic-conflicts` completes the full victory path in `21` ticks, verifies the
+  collapse-guard tribute path, and runs five repeated sieges with three retained nemeses, two
+  capacity evictions, ten cross-cycle restores, and a `5,897`-byte conflict state.
+- A threshold audit over canonical seeds found `4-6` raider camps and `8-11` demands per seed, but
+  hostility peaks of only `0.498/0.409/0.350/0.350`. Keeping the `0.68` hostility trigger while
+  adding a `10`-demand alternative makes siege eligibility reachable without lowering the hostility
+  bar. Independent deep pressure remains allowed to overlap so rare compound danger is preserved;
+  collapse and extinction evidence, rather than zero-risk serialization, remain the safety stop.
+- The final Underrealm replay passes at `56.350` births / `3.150` deaths with zero randomized
+  extinction. The longer four-seed Horizon replay passes at `70.425` births / `4.150` deaths,
+  reward `13773.122`, score `4.304`, stock floor `0.948`, and zero extinction. Joint birth/death and
+  extinction gates preserve stochastic catastrophe risk without accepting sustained collapse.
 
 E7 exit criteria:
 
-- [ ] At least one deterministic scenario exercises a full staged siege.
-- [ ] Nemesis identity and encounter history remain stable across the scenario.
-- [ ] Colony recovery and collapse guardrails are both meaningful.
-- [ ] Combat presentation and aftermath are visible without telemetry reconstruction.
+- [x] At least one deterministic scenario exercises a full staged siege.
+- [x] Nemesis identity and encounter history remain stable across the scenario.
+- [x] Colony recovery and collapse guardrails are both meaningful.
+- [x] Combat presentation and aftermath are visible without telemetry reconstruction.
 
 ## 12) Workstream E8 - Monumental settlement evolution
 
-Status: `Not started`
+Status: `Ready`
 
 Objective: make colony progress physically legible through a small number of iconic, evolving
 landmarks.
@@ -1335,8 +1355,8 @@ Stop rules:
 | ER-006 | Multi-cycle legacy creates runaway bonuses | Medium | High | Bounded modifiers, diminishing returns, 2/5-cycle gates | Mitigated through E6; inactive hooks and aggregate cap verified |
 | ER-007 | Camera refactor couples world size to terminal size incorrectly | Medium | High | Overlay-first milestone; explicit architecture decision checkpoint | Mitigated for M2 by E4.4 deferral; reopen only with new evidence |
 | ER-008 | Landmark footprints break placement/pathing/export | Medium | Medium | Reuse temple pattern, deterministic placement scenarios, export tests | Open |
-| ER-009 | New threats make stable colonies unrecoverable | Medium | High | Staged rollout, recovery windows, cached benchmark and collapse blockers | Open |
-| ER-010 | AI observes a world contract that changed silently | Low | High | Shape contracts, compatibility classification, explicit fresh-training gate | Open |
+| ER-009 | New threats make stable colonies unrecoverable | Medium | High | Staged rollout, recovery windows, cached benchmark and collapse blockers | Mitigated through E7; natural/dedicated siege recovery and collapse guardrails verified |
+| ER-010 | AI observes a world contract that changed silently | Low | High | Shape contracts, compatibility classification, explicit fresh-training gate | Mitigated through E7; conflict/legacy state remains outside PPO observations |
 | ER-011 | Place identity grows without bounds or diverges between UI consumers | Low | Medium | Hard-capped authoritative registry, RNG-neutral deterministic names, stable IDs, serialization and UI lookup contracts | Mitigated through E6 remap/registry/cap contracts |
 | ER-012 | Capped rendering hides urgent actors or flickers as population grows | Low | High | Shared deterministic priority tiers, layer eligibility, prior-set stability, urgent preemption, above-cap contracts, and layer-local focus emphasis | Mitigated through E4.2; monitor future camera work |
 | ER-013 | Narrative contract tests become a monolithic maintenance bottleneck | Medium | Medium | Review thematic suite boundaries before the next substantial narrative domain; retain shared fixtures and one aggregate gate | Mitigated through dedicated Chronicle and world-legacy suites |
@@ -1389,6 +1409,9 @@ Record every non-trivial scope or architecture decision.
 | 2026-09-14 | ED-036 | Make late-game trials fast without skipping simulation semantics, and make the relic gate feasible without removing apex risk | Lower only the frame delay; skip intermediate ticks; remove readiness gates; raise artifact drop chance | Batched frames reduce render overhead while every tick still executes; a `0.92` hard-guard band plus D9 repeat cap preserves equipment, Champion, hazard, and political pressure without a D10 mathematical deadlock | Post-E5 endgame balance and trial pacing | Approved |
 | 2026-09-15 | ED-037 | Derive a separate versioned `worldLegacy` store only from completed Chronicle evidence, remap visible echoes after new terrain creation, and keep institution modifiers inactive behind a global budget | Carry full prior states; reuse old coordinates; extend Chronicle into gameplay state; immediately apply stacking bonuses | Keeps historical provenance auditable, makes randomized new worlds safe, bounds memory twice, preserves trained-policy behavior, and leaves future gameplay activation explicit | E6 persistent-world ownership, migration, geography, and balance | Approved |
 | 2026-09-15 | ED-038 | Restore the interactive default to operator-selected `1x` while retaining batched `25x/100x` trial modes | Keep the temporary E4 validation default at `100x`; remove batched modes | Makes ordinary viewing deliberate without losing rapid endgame validation controls and aligns config, tests, and current documentation | Runtime presentation default only | Approved |
+| 2026-09-16 | ED-039 | Own all named-antagonist and siege state in one bounded schema-v1 `epicConflict` runtime, while admitting only encountered qualifying nemeses to world-legacy schema v2 | Extend camps/champions with unrelated histories; store full siege events across cycles; add nemesis fields to PPO | One owner keeps identity, rivalry, siege recovery, serialization repair, and caps auditable while E6 retains only compact evidence and trained policies remain loadable | E7 state ownership, legacy migration, and AI boundary | Approved |
+| 2026-09-16 | ED-040 | Trigger surface sieges through high hostility or ten repeated demands, with population/stockpile collapse guards and a per-nemesis cooldown | Lower hostility until every camp sieges; keep the unreachable hostility-only trigger; force one siege per cycle | Canonical audit shows normal hostility tops out below `0.50` while long-lived camps reach `8-11` demands; the alternative threshold produces rare natural sieges in `3/4` seeds without forcing the peaceful seed or weakening early-colony safety | E7 natural frequency and balance | Approved |
+| 2026-09-16 | ED-041 | Preserve independent surface/deep crisis overlap and evaluate deep danger with joint reward, score, births, deaths, stock, and extinction envelopes | Block surface sieges during deep pressure; treat any death increase as a hard failure; remove compound-crisis exposure | A no-overlap control reproduced the same `3.150` Underrealm eval deaths, proving E7 overlap was not causal. Reward, score, births, net growth, randomized stock floor, and zero extinction remain healthy. Underrealm therefore receives a `+1.5` absolute death budget and Horizon `+1.75` for its longer run; both add a `-15%` birth floor while reward/score and randomized extinction gates remain active | Stochastic difficulty acceptance | Approved |
 
 ## 17) Implementation log
 
@@ -1425,6 +1448,7 @@ within the repository retention policy.
 | 2026-09-14 | EW-025 | E5.1-E5.4 and M3 closure: add bounded lived deeds, Inspect biography, fact-backed cycle chapters, pre-reset legacy summary, deterministic export, integrity sanitation, and dedicated contracts | `src/simulation/experience_ledger.js`, `src/simulation/chronicle.js`, `src/chronicle_export.js`, event/state/endgame/render/app integration, `scripts/test_chronicle_contracts.js`, config/package/cache/product/parameter/operations/layout/workbook docs | Syntax checks, dedicated 39-assertion ledger/Chronicle/export/reset/render/isolation suite, `npm test`, deterministic `2 x 1000`, canonical `4 x 8000` candidate, baseline refresh + exact diff, terminal UI smoke, `git diff --check` | Done | Every retained claim resolves source/actors/location; high-density caps and equal export hashes pass; E5 state stays outside PPO; full deltas are all zero with endpoints `683/678/732/700`; cache hash `0b06b08247464349a58044d77b5ae71f89c688918607c6c4739c8cb0fbdab57d` aligned; retained evidence: `debug/headless_benchmark_{candidate,diff}.{json,md}`; M3 complete and E6.1 ready |
 | 2026-09-14 | EW-026 | Post-E5 trial pacing and endgame balance: add true batched acceleration, repair the D10 warning gate, and cap cleared-ruins repeat readiness at D9 | `src/runtime/time_controls.js`, `app.js`, `src/simulation/ruins.js`, `config.json`, time/training contract suites, cached benchmark evidence, product/parameter/operations/workbook docs | Dedicated speed/batch/pause/step/protection fixtures, endgame readiness probe, `npm test`, deterministic 2000-tick `5x`/`100x` endpoint comparison, canonical `4 x 8000`, baseline refresh + exact diff, `git diff --check` | Done | Default `100x` batches 20 full ticks per frame; sample wall estimate improved `~2.5x` with identical endpoints; maximum D10 loadout now enters warning and repeats use D9; canonical endpoints `687/678/725/716`, no collapsed seeds, config hash `2d11e57d52d649520257120367c41008dc01da12ccef7493e9e527ad058709f0` aligned |
 | 2026-09-15 | EW-027 | E6.1-E6.4 and M4 closure: add bounded versioned world legacy, archived identity/place provenance, memorials, inactive inherited institutions, remapped surface echoes, telemetry/reporting, and multi-cycle stop rules | `src/simulation/world_legacy.js`, state/endgame/place integration, `src/render/world_legacy.js`, transition/legend/telemetry, `scripts/test_world_legacy_contracts.js`, `scripts/validate_world_legacy.js`, benchmark/config/package/product/parameter/operations/layout/workbook docs | Syntax/config checks, dedicated 39-assertion E6 suite, deterministic 2-cycle/5-cycle profiles, `npm test`, cached canonical `4 x 8000` candidate/diff, terminal render smoke, `git diff --check` | Done | Five-cycle profile retained 39 records in 11,745 bytes with 10 echoes and modifier magnitude capped at 0.020; canonical endpoints `687/678/725/716` and all compared fields are exact zero-delta under cache hash `28c11e8e0b070a952054d5b96b629d6f51f73104387819174307bd5b256eb88c`; E6 remains outside PPO/gameplay, M4 complete, E7.1 ready |
+| 2026-09-16 | EW-028 | E7.1-E7.3: add deterministic named nemeses, bounded rivalry/legacy memory, staged surface sieges, map/Inspect/telemetry presentation, recovery and collapse guardrails, and natural-frequency calibration | `src/simulation/epic_conflicts.js`, `src/simulation/nemesis_events.js`, state/simulation/camp/raid/warrior/endgame/world-legacy integration, `src/render/epic_conflicts.js`, Inspect/legend/transition/telemetry, `scripts/test_epic_conflict_contracts.js`, `scripts/validate_epic_conflicts.js`, benchmark/config/package/product/parameter/operations/contract/layout/workbook docs | Syntax/config checks, dedicated 56-assertion E7 suite, full/collapse/five-siege validator, 4-seed threshold audit, E6 multi-cycle validator, `npm test`, policy-only contract, canonical `4 x 8000` candidate/cache diff, optimized canonical/benchmark and Standard/Governance/Social profiles, focused Underrealm and four-seed Horizon replays, terminal smoke, `git diff --check` | Done | Canonical run starts/completes one siege in `3/4` seeds, records three colony victories, repairs `6/6` damaged structures, and has no collapse; endpoints `693/731/725/716`; five-siege state is `5,897` bytes; Underrealm and Horizon pass joint stochastic-danger gates with zero extinction; no observation/action drift, E8.1 ready |
 
 ## 18) Checkpoint template
 
@@ -1551,10 +1575,16 @@ Execute one bounded step at a time:
     current place IDs and saga hooks, and render inherited sites.
 32. [x] `E6.4 / Multi-cycle balance` - Add deterministic two/five-cycle profiles, legacy metrics,
     expiry checks, and compounding/state-growth stop rules.
-33. [ ] `E7.1 / Nemesis identity and memory` - Define stable antagonist identity, bounded cross-event
-    memory, motives, titles, and deterministic reappearance rules. **Next.**
+33. [x] `E7.1 / Nemesis identity and memory` - Define stable antagonist identity, bounded cross-event
+    memory, motives, titles, and deterministic reappearance rules.
+34. [x] `E7.2 / Staged conflict lifecycle` - Reuse existing conflict/economy/political systems for a
+    deterministic warning-to-aftermath siege with recovery and collapse guardrails.
+35. [x] `E7.3 / Rivalry and consequence arcs` - Retain hero encounters and deterministic rescue,
+    revenge, reconciliation, succession, and inherited-grudge outcomes.
+36. [ ] `E8.1 / Landmark framework` - Generalize bounded multi-stage footprints, placement,
+    collision, rendering, legend, and export-map behavior. **Next.**
 
-The next implementation slice should remain deliberately narrow: define the E7.1 nemesis identity
-and memory contract on top of structured events, Story Director sagas, and bounded E6 legacy hooks.
-It must not add the full staged siege lifecycle from E7.2, landmark footprints from E8, implicit PPO
-shape changes, or an unbounded antagonist history.
+The next implementation slice should remain deliberately narrow: establish the E8.1 landmark
+framework and validate placement/export behavior before selecting or building the full E8.2 landmark
+set. It must reuse the Temple pattern where practical, keep the landmark count config-driven, and
+avoid adding governor/PPO inputs unless autonomous construction cannot remain stable without them.

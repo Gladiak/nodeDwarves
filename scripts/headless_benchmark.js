@@ -558,18 +558,43 @@ function collectWorldLegacyMetrics(state) {
   return {
     completedCycles: Math.max(0, Number(state?.cycleStats?.count || 0)),
     lastCycleTicks: Math.max(0, Number(state?.cycleStats?.lastTicks || 0)),
-    records: ['cycles', 'identities', 'places', 'memorials', 'institutions', 'echoes']
+    records: ['cycles', 'identities', 'places', 'memorials', 'institutions', 'echoes', 'nemeses']
       .reduce((sum, field) => sum + listLength(field), 0),
     identities: listLength('identities'),
     places: listLength('places'),
     memorials: listLength('memorials'),
     institutions: listLength('institutions'),
     echoes: listLength('echoes'),
+    nemeses: listLength('nemeses'),
     modifierMagnitude: institutions.reduce(
       (sum, entry) => sum + Math.max(0, Number(entry?.modifier?.magnitude || 0)), 0,
     ),
     evictedRecords: Math.max(0, Number(legacy?.stats?.evictedRecords || 0)),
     stateBytes: Buffer.byteLength(JSON.stringify(legacy)),
+  };
+}
+
+// Capture bounded E7 antagonist, staged-siege, recovery, and consequence metrics.
+function collectEpicConflictMetrics(state) {
+  const runtime = state && state.epicConflict && typeof state.epicConflict === 'object'
+    ? state.epicConflict : {};
+  const stats = runtime.stats && typeof runtime.stats === 'object' ? runtime.stats : {};
+  const active = runtime.activeSiege && typeof runtime.activeSiege === 'object'
+    ? runtime.activeSiege : null;
+  return {
+    nemeses: Object.keys(runtime.nemeses && runtime.nemeses.byId || {}).length,
+    activeSiege: active ? 1 : 0,
+    activeStage: active ? String(active.stage || '') : '',
+    siegesStarted: Math.max(0, Number(stats.siegesStarted || 0)),
+    siegesCompleted: Math.max(0, Number(stats.siegesCompleted || 0)),
+    colonyVictories: Math.max(0, Number(stats.colonyVictories || 0)),
+    nemesisVictories: Math.max(0, Number(stats.nemesisVictories || 0)),
+    reconciliations: Math.max(0, Number(stats.reconciliations || 0)),
+    injuries: Math.max(0, Number(stats.injuries || 0)),
+    structuresDamaged: Math.max(0, Number(stats.structuresDamaged || 0)),
+    structuresRestored: Math.max(0, Number(stats.structuresRestored || 0)),
+    recoveryTicks: Math.max(0, Number(runtime.recoveryUntilTick || 0) - Number(state && state.tick || 0)),
+    stateBytes: Buffer.byteLength(JSON.stringify(runtime)),
   };
 }
 
@@ -679,6 +704,7 @@ function collectRow(state, resources, seed, decreeTracker, storyTracker) {
   const stockpile = state.stockpile || {};
   const underrealm = collectUnderrealmMetrics(state);
   const worldLegacy = collectWorldLegacyMetrics(state);
+  const epicConflicts = collectEpicConflictMetrics(state);
   const decree = decreeTracker && typeof decreeTracker === 'object'
     ? decreeTracker
     : createSchismDecreeTracker();
@@ -710,6 +736,7 @@ function collectRow(state, resources, seed, decreeTracker, storyTracker) {
     schismDecreeActiveTicksById: sortCounterMap(decree.activeTicksById),
     storyDirector: getStoryDirectorCounterReport(storyTracker),
     worldLegacy,
+    epicConflicts,
     deaths: Math.max(0, Number(state.deathsCount || 0)),
     resources: resourceValues,
   };
@@ -746,9 +773,24 @@ function summarizeRows(rows, resources) {
     memorials: average(rows, (row) => row.worldLegacy && row.worldLegacy.memorials),
     institutions: average(rows, (row) => row.worldLegacy && row.worldLegacy.institutions),
     echoes: average(rows, (row) => row.worldLegacy && row.worldLegacy.echoes),
+    nemeses: average(rows, (row) => row.worldLegacy && row.worldLegacy.nemeses),
     modifierMagnitude: average(rows, (row) => row.worldLegacy && row.worldLegacy.modifierMagnitude),
     evictedRecords: average(rows, (row) => row.worldLegacy && row.worldLegacy.evictedRecords),
     stateBytes: average(rows, (row) => row.worldLegacy && row.worldLegacy.stateBytes),
+  };
+  const epicConflicts = {
+    nemeses: average(rows, (row) => row.epicConflicts && row.epicConflicts.nemeses),
+    activeSiege: average(rows, (row) => row.epicConflicts && row.epicConflicts.activeSiege),
+    siegesStarted: average(rows, (row) => row.epicConflicts && row.epicConflicts.siegesStarted),
+    siegesCompleted: average(rows, (row) => row.epicConflicts && row.epicConflicts.siegesCompleted),
+    colonyVictories: average(rows, (row) => row.epicConflicts && row.epicConflicts.colonyVictories),
+    nemesisVictories: average(rows, (row) => row.epicConflicts && row.epicConflicts.nemesisVictories),
+    reconciliations: average(rows, (row) => row.epicConflicts && row.epicConflicts.reconciliations),
+    injuries: average(rows, (row) => row.epicConflicts && row.epicConflicts.injuries),
+    structuresDamaged: average(rows, (row) => row.epicConflicts && row.epicConflicts.structuresDamaged),
+    structuresRestored: average(rows, (row) => row.epicConflicts && row.epicConflicts.structuresRestored),
+    recoveryTicks: average(rows, (row) => row.epicConflicts && row.epicConflicts.recoveryTicks),
+    stateBytes: average(rows, (row) => row.epicConflicts && row.epicConflicts.stateBytes),
   };
   return {
     population: average(rows, (row) => row.population),
@@ -778,6 +820,7 @@ function summarizeRows(rows, resources) {
     },
     storyDirector,
     worldLegacy,
+    epicConflicts,
     deaths: average(rows, (row) => row.deaths),
     resources: resourceAverages,
   };
@@ -1253,12 +1296,23 @@ function buildMarkdownReport(report) {
   lines.push('');
   lines.push('## World Legacy Summary');
   lines.push('');
-  lines.push('| Variant | Cycles | Last cycle ticks | Records | Memorials | Institutions | Echoes | Modifier | State bytes | Deaths |');
-  lines.push('| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |');
+  lines.push('| Variant | Cycles | Last cycle ticks | Records | Memorials | Institutions | Echoes | Nemeses | Modifier | State bytes | Deaths |');
+  lines.push('| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |');
   for (const variant of report.variants) {
     const legacy = variant.summary.worldLegacy || {};
     lines.push(
-      `| ${variant.label} | ${formatNumber(legacy.completedCycles, 2)} | ${formatNumber(legacy.lastCycleTicks, 2)} | ${formatNumber(legacy.records, 2)} | ${formatNumber(legacy.memorials, 2)} | ${formatNumber(legacy.institutions, 2)} | ${formatNumber(legacy.echoes, 2)} | ${formatNumber(legacy.modifierMagnitude, 4)} | ${formatNumber(legacy.stateBytes, 1)} | ${formatNumber(variant.summary.deaths, 2)} |`,
+      `| ${variant.label} | ${formatNumber(legacy.completedCycles, 2)} | ${formatNumber(legacy.lastCycleTicks, 2)} | ${formatNumber(legacy.records, 2)} | ${formatNumber(legacy.memorials, 2)} | ${formatNumber(legacy.institutions, 2)} | ${formatNumber(legacy.echoes, 2)} | ${formatNumber(legacy.nemeses, 2)} | ${formatNumber(legacy.modifierMagnitude, 4)} | ${formatNumber(legacy.stateBytes, 1)} | ${formatNumber(variant.summary.deaths, 2)} |`,
+    );
+  }
+  lines.push('');
+  lines.push('## Epic Conflict Summary');
+  lines.push('');
+  lines.push('| Variant | Nemeses | Siege active | Started | Completed | Hold wins | Nemesis wins | Reconciled | Injuries | Damaged | Restored | Recovery ticks | State bytes |');
+  lines.push('| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |');
+  for (const variant of report.variants) {
+    const epic = variant.summary.epicConflicts || {};
+    lines.push(
+      `| ${variant.label} | ${formatNumber(epic.nemeses, 2)} | ${formatNumber(epic.activeSiege, 2)} | ${formatNumber(epic.siegesStarted, 2)} | ${formatNumber(epic.siegesCompleted, 2)} | ${formatNumber(epic.colonyVictories, 2)} | ${formatNumber(epic.nemesisVictories, 2)} | ${formatNumber(epic.reconciliations, 2)} | ${formatNumber(epic.injuries, 2)} | ${formatNumber(epic.structuresDamaged, 2)} | ${formatNumber(epic.structuresRestored, 2)} | ${formatNumber(epic.recoveryTicks, 2)} | ${formatNumber(epic.stateBytes, 1)} |`,
     );
   }
   lines.push('');
