@@ -34,7 +34,7 @@ This file defines how to implement new features in a consistent, stable way.
 - `docs/TRAINING_OVERRIDES.md`: training overrides guide.
 - `docs/TRAINING_STATUS.md`: current training quality status, active validation cadence, and pending closure items.
 - `docs/TRAINING_OPTIMIZATION_WORKBOOK.md`: step-by-step implementation workbook, decision log, and timeline for training optimization workstreams.
-- `docs/EPIC_EVOLUTION_WORKBOOK.md`: staged implementation workbook, progress dashboard, decision log, validation gates, and evidence tracker for narrative, cinematic, legacy, and epic-world workstreams.
+- `docs/SIMULATION_REFINEMENT_WORKBOOK.md`: active ordered implementation workbook, progress dashboard, decision log, validation gates, risk register, and evidence tracker for simulation refinement workstreams.
 - `docs/NARRATIVE_EVENT_CONTRACT.md`: normative versioned event envelope, deterministic identity, compatibility, retention, and serialization contract for narrative systems.
 - `docs/TELEMETRY.md`: telemetry operator manual (from zero to hero).
 - `.github/workflows/quality_gates.yml`: CI automation for extended/weekly training quality gates and artifact upload.
@@ -130,8 +130,6 @@ This file defines how to implement new features in a consistent, stable way.
 - `scripts/test_training_contracts.js`: deterministic technical contract suite for training/validation schemas (included in `npm test`).
 - `benchmark_cache/headless_benchmark_baseline.json`: versioned cached headless benchmark baseline used for report diffs.
 - `benchmark_cache/headless_benchmark_baseline.md`: markdown companion of the cached headless benchmark baseline.
-- `debug/epic_e4_time_controls_120.png` and `debug/epic_e4_time_controls_72.png`: retained E4.4
-  full/narrow terminal presentation evidence for critical auto-slow and legendary auto-hold.
 - `debug/headless_benchmark_candidate.json`, `debug/headless_benchmark_candidate.md`,
   `debug/headless_benchmark_diff.json`, and `debug/headless_benchmark_diff.md`: latest canonical E8
   `4 x 8000` candidate and zero-delta cached-baseline comparison evidence.

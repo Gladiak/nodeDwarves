@@ -166,7 +166,7 @@ npm run debug:clean
 - 🧩 `docs/TRAINING_OVERRIDES.md`: training override guide.
 - ✅ `docs/TRAINING_STATUS.md`: current quality status and validation cadence.
 - 🧪 `docs/TRAINING_OPTIMIZATION_WORKBOOK.md`: optimization timeline and decisions.
-- 📜 `docs/EPIC_EVOLUTION_WORKBOOK.md`: step-by-step roadmap and progress tracker for the living-chronicle evolution.
+- 🧭 `docs/SIMULATION_REFINEMENT_WORKBOOK.md`: active ordered roadmap for social depth, saga coherence, spatial behavior, legacy effects, validation, and implementation evidence.
 - 🧬 `docs/NARRATIVE_EVENT_CONTRACT.md`: versioned facts, deterministic event identity, and bounded-history rules for the living chronicle.
 - 📡 `docs/TELEMETRY.md`: telemetry operator guide.
 - 🤖 `AGENTS.md`: contributor implementation guidelines.
@@ -221,11 +221,10 @@ npm run debug:clean
 - 🔎 `scripts/audit_narrative_producers.js`: zero-legacy producer audit used by `npm test`.
 - 🐍 `python/`: PPO training and rollout tooling.
 - 🗂️ `benchmark_cache/`: cached deterministic benchmark baseline.
-- 📸 `debug/epic_e4_time_controls_{120,72}.png`: retained full/narrow E4 presentation evidence.
 - 🧪 `debug/headless_benchmark_{candidate,diff}.{json,md}`: latest canonical balance, legacy, epic-conflict, and landmark evidence.
 - 📦 `regression/baselines/`: durable regression reference profiles.
 - 📜 `chronicles/`: generated Chronicle exports (git-ignored).
-- 📚 `docs/`: manuals, tuning references, the Epic Evolution workbook, and the narrative event contract.
+- 📚 `docs/`: manuals, tuning references, the active simulation-refinement workbook, and the narrative event contract.
 
 ## Contributing 🤝
 

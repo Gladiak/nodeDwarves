@@ -2,8 +2,8 @@
 
 Status: `Implemented by E1.1`
 
-This document is the normative contract for NodeDwarves narrative events. It closes Epic Evolution
-step E0.2 and defines the target behavior for E0.3 tests and the E1.1 event-core implementation.
+This document is the normative contract for NodeDwarves narrative events. It defines the target
+behavior for the implemented event-core tests and all current narrative consumers.
 It does not authorize simulation, balance, observation-shape, or policy changes by itself.
 
 ## 1) Goals and boundaries

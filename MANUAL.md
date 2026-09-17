@@ -12,7 +12,7 @@ flow, and implementation references, with a deterministic-chaos engineering mind
 - For rendering internals and view-layer constraints, see "Rendering system".
 - For policy inference and PPO training details, see "AI and training".
 - For config control-plane reference, see "Configuration".
-- For the staged narrative, cinematic, Chronicle, and persistent-world implementation plan, see `docs/EPIC_EVOLUTION_WORKBOOK.md`.
+- For the active ordered plan covering social depth, saga coherence, spatial behavior, legacy effects, validation, and implementation evidence, see `docs/SIMULATION_REFINEMENT_WORKBOOK.md`.
 - For the normative structured-event envelope, deterministic IDs, retention ownership, and compatibility rules, see `docs/NARRATIVE_EVENT_CONTRACT.md`.
 - For deep dives and checklists, see "Adding a new resource" and "Project layout cheatsheet".
 
@@ -2502,7 +2502,6 @@ Quick checklist:
 - `regression/baselines/regression_baseline.json` → durable profile baselines used by regression checks
 - `benchmark_cache/headless_benchmark_baseline.json` → versioned cached headless benchmark baseline for report-to-report diffs
 - `benchmark_cache/headless_benchmark_baseline.md` → markdown companion of cached headless benchmark baseline
-- `debug/epic_e4_time_controls_{120,72}.png` → retained full/narrow critical auto-slow and legendary auto-hold presentation captures
 - `debug/headless_benchmark_{candidate,diff}.{json,md}` → latest canonical `4 x 8000` candidate and zero-delta baseline comparison with legacy and epic-conflict summaries
 - `chronicles/` → git-ignored deterministic JSON/Markdown Chronicle exports created with `c`
 - `scripts/export_map.js` → map export pipeline (PNG + SVG)
@@ -2513,5 +2512,5 @@ Quick checklist:
 - `python/promote_best.py` → post-train promotion check (latest vs best)
 - `python/regression_rollout.py` → randomized regression rollouts without PPO updates/checkpoint writes
 - `python/bootstrap.py` / `python/agent.py` → venv bootstrap + sample agent
-- `docs/PARAMETERS.md` / `docs/TRAINING_OVERRIDES.md` / `docs/TRAINING_STATUS.md` / `docs/TRAINING_OPTIMIZATION_WORKBOOK.md` / `docs/EPIC_EVOLUTION_WORKBOOK.md` / `docs/NARRATIVE_EVENT_CONTRACT.md` / `docs/TELEMETRY.md` → config reference, training overrides, current training status, training optimization archive, Epic Evolution execution tracker, normative narrative-event contract, and telemetry operator manual
+- `docs/PARAMETERS.md` / `docs/TRAINING_OVERRIDES.md` / `docs/TRAINING_STATUS.md` / `docs/TRAINING_OPTIMIZATION_WORKBOOK.md` / `docs/SIMULATION_REFINEMENT_WORKBOOK.md` / `docs/NARRATIVE_EVENT_CONTRACT.md` / `docs/TELEMETRY.md` → config reference, training overrides, current training status, training optimization archive, active simulation-refinement execution tracker, normative narrative-event contract, and telemetry operator manual
 - `models/` → `policy.json`, `policy_best.json`, `policy_best.meta.json`

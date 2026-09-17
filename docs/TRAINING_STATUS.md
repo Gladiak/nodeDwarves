@@ -8,7 +8,7 @@ Historical archive: `docs/TRAINING_OPTIMIZATION_WORKBOOK.md`
 
 - Core optimization workstreams completed: A (reward/termination), B (PPO stability), C (throughput/resume continuity).
 - Operational quality uplift completed: OQ-1, OQ-2, OQ-3, OQ-4, OQ-5, OQ-6.2, OQ-6.3, OQ-6.4.
-- Epic Evolution E8 landmark state is explicitly isolated from PPO observations and action shapes.
+- Landmark state is explicitly isolated from PPO observations and action shapes.
   Monument construction is simulation-affecting through bounded material/work costs, but old
   policies remain loadable and no fresh training is required.
 
