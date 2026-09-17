@@ -6,6 +6,13 @@ const { createTempleState, createPrestigeState } = require('../simulation/temple
 const { createSchismState } = require('../simulation/schism');
 const { createDwarfWarriorState, createWarriorsState } = require('../simulation/warriors');
 const { createDwarfSocialState, createSocialDramaState } = require('../simulation/social_drama');
+const { createStoryDirectorState } = require('../simulation/story_director');
+const { createExperienceLedger } = require('../simulation/experience_ledger');
+const { createChronicleState } = require('../simulation/chronicle');
+const { createWorldLegacyState } = require('../simulation/world_legacy');
+const { createEpicConflictState } = require('../simulation/epic_conflicts');
+const { createLandmarkState } = require('../simulation/landmarks');
+const { bootstrapPlaceRegistry, createPlaceRegistry } = require('../place_identity');
 const {
   createTerrain,
   getTerrainSpawnPredicate,
@@ -1792,8 +1799,14 @@ function createInitialState(config, runtime) {
   const underrealm = createUnderrealmState(config, runtime, terrain, null);
   const warriors = createWarriorsState(config);
   const social = createSocialDramaState(config);
+  const story = createStoryDirectorState(config);
+  const experience = createExperienceLedger();
+  const chronicle = createChronicleState(0);
+  const worldLegacy = createWorldLegacyState();
+  const epicConflict = createEpicConflictState();
+  const landmarks = createLandmarkState(config);
 
-  return {
+  const state = {
     tick: 0,
     lastConfig: config,
     dwarves,
@@ -1819,6 +1832,13 @@ function createInitialState(config, runtime) {
     underrealm,
     warriors,
     social,
+    story,
+    experience,
+    chronicle,
+    worldLegacy,
+    epicConflict,
+    landmarks,
+    places: createPlaceRegistry(),
     roads,
     temple,
     prestige,
@@ -1839,6 +1859,20 @@ function createInitialState(config, runtime) {
     dwarfCounter: dwarves.length,
     events: [],
     eventLog: [],
+    eventClock: {
+      tick: -1,
+      nextSequence: 0,
+    },
+    eventStats: {
+      accepted: 0,
+      rejected: 0,
+      legacyNormalized: 0,
+      truncated: 0,
+      collisions: 0,
+    },
+    lifecycle: {
+      foundingEmitted: false,
+    },
     ui: {
       inspect: {
         open: false,
@@ -1876,6 +1910,8 @@ function createInitialState(config, runtime) {
         holdTicks: 0,
         fadeInTicks: 0,
         message: '',
+        chronicleSummary: null,
+        legacySummary: null,
       },
     },
     birthsCount: 0,
@@ -1917,6 +1953,8 @@ function createInitialState(config, runtime) {
       blockedChance: 0,
     },
   };
+  bootstrapPlaceRegistry(state, config);
+  return state;
 }
 
 // Create the initial world events state.
@@ -2699,6 +2737,7 @@ function syncTerrainToGrid(state, runtime, config) {
         state.temple.site = null;
         state.temple.blockedReason = null;
       }
+      resetLandmarkSites(state);
     }
     return;
   }
@@ -2720,6 +2759,7 @@ function syncTerrainToGrid(state, runtime, config) {
         state.temple.site = null;
         state.temple.blockedReason = null;
       }
+      resetLandmarkSites(state);
     }
   }
   if (applyRuntimeInsetMaskToTerrain(state.terrain, runtime)) {
@@ -2727,6 +2767,17 @@ function syncTerrainToGrid(state, runtime, config) {
     state.roads = createRoadState(config, runtime);
   }
   syncUnderrealmToGrid(state, runtime, config);
+}
+
+// Release reserved landmark sites when the terrain dimensions change.
+function resetLandmarkSites(state) {
+  const owner = state && state.landmarks;
+  if (!owner || !owner.byId) return;
+  for (const landmark of Object.values(owner.byId)) {
+    if (!landmark || typeof landmark !== 'object') continue;
+    landmark.site = null;
+    landmark.placeId = null;
+  }
 }
 
 // Sync underrealm layer data to the current runtime grid size.

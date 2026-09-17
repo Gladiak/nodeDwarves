@@ -35,37 +35,74 @@ This file defines how to implement new features in a consistent, stable way.
 - `docs/TRAINING_STATUS.md`: current training quality status, active validation cadence, and pending closure items.
 - `docs/TRAINING_OPTIMIZATION_WORKBOOK.md`: step-by-step implementation workbook, decision log, and timeline for training optimization workstreams.
 - `docs/EPIC_EVOLUTION_WORKBOOK.md`: staged implementation workbook, progress dashboard, decision log, validation gates, and evidence tracker for narrative, cinematic, legacy, and epic-world workstreams.
+- `docs/NARRATIVE_EVENT_CONTRACT.md`: normative versioned event envelope, deterministic identity, compatibility, retention, and serialization contract for narrative systems.
 - `docs/TELEMETRY.md`: telemetry operator manual (from zero to hero).
 - `.github/workflows/quality_gates.yml`: CI automation for extended/weekly training quality gates and artifact upload.
 - `src/config.js`: config loader.
 - `src/simulation/`: simulation systems split by theme.
 - `src/simulation/index.js`: simulation orchestrator.
+- `src/simulation/narrative_contract.js`: strict schema-v1 validator and deterministic event identity helpers used by narrative contract gates and the runtime event core.
+- `src/simulation/narrative_normalizer.js`: bounded structured-event draft normalization, config-driven importance resolution, and deterministic optional-payload reduction.
+- `src/simulation/story_director.js`: bounded per-cycle Story Director state, deterministic event scoring/focus selection, cooldown/escalation budgets, reason traces, serialization repair, and hard-cap enforcement.
+- `src/simulation/story_sagas.js`: deterministic saga grouping, lifecycle transitions, bounded evidence indexes, fact-backed chapter summaries, and capacity eviction.
+- `src/simulation/experience_ledger.js`: bounded source-backed per-dwarf deed ledger, deterministic merge/retention rules, and read-only biography views.
+- `src/simulation/chronicle.js`: fixed cycle chapters, compact evidence, factual-integrity verification, summaries, and bounded cross-cycle Chronicle archives.
+- `src/simulation/world_legacy.js`: versioned bounded cross-cycle summaries, archived identities/places, memorials, inherited institutions, deterministic geographic remapping, and saga hooks.
+- `src/simulation/epic_conflicts.js`: bounded deterministic nemesis registry, staged surface sieges, hero rivalry branches, recovery, and legacy restoration.
+- `src/simulation/nemesis_events.js`: canonical structured nemesis promotion, reappearance, siege-stage, battle, and aftermath event boundary.
+- `src/simulation/landmarks.js`: bounded multi-stage monumental landmarks, deterministic final-footprint reservation, district conditions, and render-tile projection.
+- `src/simulation/landmark_events.js`: canonical structured landmark construction and condition-transition boundary.
+- `src/simulation/secondary_events.js`: shared structured boundary and actor/location/resource-fact helpers for secondary world, culture, environment, economy, and development producers.
+- `src/simulation/lifecycle_events.js`: structured founding, birth, natural-death, and partnership event builders with deterministic actor snapshots and causal facts.
+- `src/simulation/social_events.js`: structured mentorship, rivalry, grudge, and reconciliation incident builders with pair evidence and typed outcomes.
+- `src/simulation/combat_events.js`: structured surface-raid, ruins-expedition, Underrealm battle, deep-raid, and Dwarf Champion event builders.
+- `src/simulation/warrior_events.js`: structured Warrior League marks, vows, injuries, retirements, deaths, tournament crowns, Hall of Fame, and command-transition event builders.
+- `src/simulation/political_events.js`: structured schism doctrine, phase, ritual, decree, and climax event builders with committed state evidence.
+- `src/simulation/endgame_events.js`: structured artifact, cycle-transition, cycle-closure, and Warrior Company carry-over event builders.
 - `src/simulation/underrealm.js`: underrealm crew assignment, deep economy, exploration unlocks, and hostile deep raids.
 - `src/simulation/world_events.js`: world event lifecycle, timed opportunities, and temporary world modifiers.
 - `src/simulation/external_camps.js`: long-lived external faction camps with trade, militia support, and raider pressure.
-- `src/simulation/schism.js`: run-scale social schism arc (pressure/legitimacy, doctrine shifts, ritual windows, and climax events).
+- `src/simulation/schism.js`: run-scale social schism arc (pressure/legitimacy, doctrine shifts, ritual windows, decrees, climax lifecycle, and committed structured-event integration).
 - `src/simulation/social_drama.js`: social-drama runtime for friendship/rivalry/mentorship/grudge inference and aggregate social pressure/cohesion metrics.
 - `src/simulation/temple.js`: Temple of Ancestors stages, site selection, bonuses, and prestige.
-- `src/simulation/warriors.js`: Warrior League helpers for deterministic per-dwarf combat profiles, risk-aware expedition dispatch, and seasonal tournament runtime/champion sync.
+- `src/simulation/warriors.js`: Warrior League helpers for deterministic per-dwarf combat profiles, risk-aware expedition dispatch, seasonal tournament runtime/champion sync, and committed structured-event integration.
 - `src/simulation.js`: thin wrapper for `src/simulation/index.js`.
 - `src/state/`: state creation and terrain generation.
 - `src/state/index.js`: state orchestrator.
 - `src/state.js`: thin wrapper for `src/state/index.js`.
 - `src/render/`: render helpers (grid, header, legend, colors, format, overlays).
 - `src/render/index.js`: render orchestrator.
+- `src/render/dwarf_visibility.js`: deterministic bounded story-priority selection shared by surface
+  and Underrealm dwarf rendering.
+- `src/render/story_ribbon.js`: read-only responsive in-map presentation of the active Story Director
+  focus with actor/action/place/consequence fallbacks and overlay collision handling.
+- `src/render/story_focus_overlay.js`: deterministic bounded actor/location emphasis and off-layer
+  direction cues for the active Story Director focus.
+- `src/render/epic_conflicts.js`: read-only active nemesis-front and siege-damage map overlays.
+- `src/render/landmarks.js`: read-only evolving landmark footprints and compact district-state overlays.
+- `src/render/world_legacy.js`: read-only rendering of remapped persistent-world legacy sites.
 - `src/render/map_inset_panel.js`: carved top-right in-map operations snapshot panel (tick/year/cycle, population age split, underrealm unlock info, keyboard hints).
 - `src/render/warrior_panel.js`: Warrior League analytics modal overlay (champion lineage, top-5 fighters, marks/legacy summary).
-- `src/render/event_log_panel.js`: Event Log modal overlay with scrollable real-time events and drama-focused filter.
+- `src/render/event_log_panel.js`: Event Log modal overlay with scrollable real-time events,
+  all/drama filters, importance badges, and compact actor/place/saga context.
 - `src/telemetry/`: telemetry section and Data Center panel builders.
 - `src/telemetry/telemetry.js`: telemetry section builders and formatting helpers.
+- `src/telemetry/story_director.js`: read-only Story Director telemetry rows plus deterministic headless counter tracking and report summaries.
 - `src/telemetry/telemetry_panel.js`: in-game telemetry reference overlay panel (section and metric explanations).
 - `src/render.js`: thin wrapper for `src/render/index.js`.
 - `src/runtime.js`: terminal sizing and layout.
+- `src/runtime/time_controls.js`: ephemeral interactive speed, pause, single-step, and
+  Story Director critical/legendary presentation-protection controller.
+- `src/chronicle_export.js`: deterministic safe-path Markdown/JSON Chronicle serialization and export.
 - `src/terminal.js`: terminal helpers.
+- `src/dwarf_identity.js`: shared deterministic dwarf identity resolver and named-event formatter with
+  bounded caches, historical snapshot lookup, collision disambiguation, and explicit fallbacks.
+- `src/place_identity.js`: bounded authoritative registry for deterministic place names, compact
+  labels, coordinates, and event/UI location lookup.
 - `src/ai/`: AI modules (policy and observation).
 - `src/ai_policy.js`: thin wrapper for `src/ai/policy.js`.
 - `src/clans.js`: clan helpers and weighted clan distribution.
-- `src/dwarf_lore.js`: deterministic lore generation for inspect panel.
+- `src/dwarf_lore.js`: deterministic lore seed and generation for identity, inspect, and narrative consumers.
 - `src/utils.js`: shared helpers.
 - `ai_server.js`: JS inference bridge for training.
 - `scripts/export_map.js`: CLI map export pipeline (PNG + SVG).
@@ -74,11 +111,31 @@ This file defines how to implement new features in a consistent, stable way.
 - `scripts/validate_extended_optimized.js`: optimized full-quality validation orchestrator with per-phase runtime reporting (deduplicates benchmark execution across gate+risk).
 - `scripts/headless_benchmark.js`: deterministic headless benchmark CLI for long-run tuning and validation.
 - `scripts/ensure_benchmark_baseline.js`: baseline cache guard that auto-refreshes cached baseline reports when benchmark profile metadata mismatches.
-- `scripts/compare_benchmark_reports.js`: report-to-report benchmark diff CLI for cached baseline/candidate comparisons.
+- `scripts/compare_benchmark_reports.js`: report-to-report benchmark diff CLI for cached baseline/candidate economy, Underrealm, legacy, and epic-conflict comparisons.
 - `scripts/clean_debug.js`: debug artifact housekeeping utility (transient cleanup + run retention).
-- `scripts/test_training_contracts.js`: deterministic technical contract suite for training/validation schemas (`npm test`).
+- `scripts/audit_narrative_producers.js`: deterministic source audit that reports direct legacy-only `pushEvent` producers outside approved structured boundaries.
+- `scripts/test_narrative_contracts.js`: deterministic structured-event, identity, legacy, retention, serialization, renderer, and isolation contract suite (`npm run test:narrative`; included in `npm test`).
+- `scripts/test_time_controls.js`: deterministic E4.3 speed, pause, single-step, auto-protection,
+  supported-width rendering, manual precedence, and AI/headless isolation suite (`npm run test:time-controls`; included in `npm test`).
+- `scripts/test_chronicle_contracts.js`: deterministic E5 ledger, biography, Chronicle integrity,
+  reset, export-hash, density-bound, and AI-observation isolation suite (`npm run test:chronicle`; included in `npm test`).
+- `scripts/test_world_legacy_contracts.js`: deterministic E6 schema, migration, retention, remapping,
+  rendering, multi-cycle, and AI-observation isolation suite (`npm run test:world-legacy`; included in `npm test`).
+- `scripts/validate_world_legacy.js`: deterministic two-cycle/five-cycle E6 state-growth, balance-signal, and stop-rule validator.
+- `scripts/test_epic_conflict_contracts.js`: deterministic E7 identity, promotion, siege lifecycle,
+  rivalry, legacy, rendering, retention, serialization, and AI-observation isolation suite (`npm run test:epic-conflicts`; included in `npm test`).
+- `scripts/validate_epic_conflicts.js`: deterministic full-siege, collapse-guard, and repeated-siege E7 validator.
+- `scripts/test_landmark_contracts.js`: deterministic E8 schema, placement, progression, collision, rendering/export, condition, serialization, and AI-observation isolation suite (`npm run test:landmarks`; included in `npm test`).
+- `scripts/validate_landmarks.js`: deterministic multi-seed/size E8 organic-construction, population, and bounded-state validator.
+- `scripts/test_training_contracts.js`: deterministic technical contract suite for training/validation schemas (included in `npm test`).
 - `benchmark_cache/headless_benchmark_baseline.json`: versioned cached headless benchmark baseline used for report diffs.
 - `benchmark_cache/headless_benchmark_baseline.md`: markdown companion of the cached headless benchmark baseline.
+- `debug/epic_e4_time_controls_120.png` and `debug/epic_e4_time_controls_72.png`: retained E4.4
+  full/narrow terminal presentation evidence for critical auto-slow and legendary auto-hold.
+- `debug/headless_benchmark_candidate.json`, `debug/headless_benchmark_candidate.md`,
+  `debug/headless_benchmark_diff.json`, and `debug/headless_benchmark_diff.md`: latest canonical E8
+  `4 x 8000` candidate and zero-delta cached-baseline comparison evidence.
+- `chronicles/`: git-ignored deterministic Markdown/JSON Chronicle exports created on demand.
 - `regression/baselines/regression_baseline.json`: durable regression baseline profiles used by checks.
 - `python/bootstrap.py`: venv bootstrap.
 - `python/train.py`: PPO training loop and logging.

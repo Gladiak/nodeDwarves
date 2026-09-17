@@ -29,13 +29,31 @@ const METRICS = [
   { key: 'underrealmHeroLosses', label: 'underHeroLoss', decimals: 2 },
   { key: 'underrealmHeroActive', label: 'underHeroAct', decimals: 2 },
   { key: 'underrealmHeroSurvivals', label: 'underHeroSurv', decimals: 2 },
+  { key: 'legacyRecords', label: 'legacyRecords', decimals: 2, path: ['worldLegacy', 'records'] },
+  { key: 'legacyNemeses', label: 'legacyNemeses', decimals: 2, path: ['worldLegacy', 'nemeses'] },
+  { key: 'legacyStateBytes', label: 'legacyBytes', decimals: 1, path: ['worldLegacy', 'stateBytes'] },
+  { key: 'epicNemeses', label: 'epicNemeses', decimals: 2, path: ['epicConflicts', 'nemeses'] },
+  { key: 'epicSiegesStarted', label: 'epicStarted', decimals: 2, path: ['epicConflicts', 'siegesStarted'] },
+  { key: 'epicSiegesCompleted', label: 'epicCompleted', decimals: 2, path: ['epicConflicts', 'siegesCompleted'] },
+  { key: 'epicColonyVictories', label: 'epicHoldWins', decimals: 2, path: ['epicConflicts', 'colonyVictories'] },
+  { key: 'epicNemesisVictories', label: 'epicNemesisWins', decimals: 2, path: ['epicConflicts', 'nemesisVictories'] },
+  { key: 'epicInjuries', label: 'epicInjuries', decimals: 2, path: ['epicConflicts', 'injuries'] },
+  { key: 'epicStructuresDamaged', label: 'epicDamaged', decimals: 2, path: ['epicConflicts', 'structuresDamaged'] },
+  { key: 'epicStructuresRestored', label: 'epicRestored', decimals: 2, path: ['epicConflicts', 'structuresRestored'] },
+  { key: 'epicStateBytes', label: 'epicBytes', decimals: 1, path: ['epicConflicts', 'stateBytes'] },
+  { key: 'landmarksFounded', label: 'landmarkFounded', decimals: 2, path: ['landmarks', 'founded'] },
+  { key: 'landmarksCompleted', label: 'landmarkDone', decimals: 2, path: ['landmarks', 'completed'] },
+  { key: 'landmarkStagesBuilt', label: 'landmarkStages', decimals: 2, path: ['landmarks', 'stagesBuilt'] },
+  { key: 'landmarkDamaged', label: 'landmarkDamaged', decimals: 2, path: ['landmarks', 'damaged'] },
+  { key: 'landmarkRestored', label: 'landmarkRestored', decimals: 2, path: ['landmarks', 'restored'] },
+  { key: 'landmarkStateBytes', label: 'landmarkBytes', decimals: 1, path: ['landmarks', 'stateBytes'] },
 ];
 
 // Print CLI usage with examples.
 function printHelp() {
   const lines = [
     'Compare two headless benchmark report JSON files.',
-    'Includes summary/seed deltas plus schism decree usage deltas when available.',
+    'Includes economy, Underrealm, legacy, epic-conflict, seed, and schism decree deltas.',
     '',
     'Usage:',
     '  node scripts/compare_benchmark_reports.js [options]',
@@ -308,8 +326,8 @@ function buildSummaryDeltas(baselineSummary, candidateSummary, resourceIds) {
   const metricDeltas = {};
   for (const metric of METRICS) {
     metricDeltas[metric.key] = buildDelta(
-      candidateSummary && candidateSummary[metric.key],
-      baselineSummary && baselineSummary[metric.key],
+      readMetric(candidateSummary, metric),
+      readMetric(baselineSummary, metric),
     );
   }
   const resourceDeltas = {};
@@ -336,6 +354,18 @@ function buildSummaryDeltas(baselineSummary, candidateSummary, resourceIds) {
     resources: resourceDeltas,
     resourceAverageRel,
   };
+}
+
+// Read one root or nested benchmark metric without inventing missing values.
+function readMetric(source, metric) {
+  if (!source || !metric) return undefined;
+  if (!Array.isArray(metric.path)) return source[metric.key];
+  let current = source;
+  for (const key of metric.path) {
+    if (!current || typeof current !== 'object') return undefined;
+    current = current[key];
+  }
+  return current;
 }
 
 // Build per-seed deltas for seeds shared by both reports.

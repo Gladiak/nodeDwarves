@@ -20,6 +20,7 @@ const DEFAULT_RESOURCES = ['beer', 'food', 'water'];
 const DEFAULT_WIDTH = 120;
 const DEFAULT_HEIGHT = 40;
 const DEFAULT_PROGRESS_EVERY = 2000;
+const DEFAULT_REPORT_SCHEMA_VERSION = 2;
 
 // Print CLI usage and examples.
 function printHelp() {
@@ -45,7 +46,7 @@ function printHelp() {
     '',
     'Notes:',
     '  - If candidate report exists, its meta profile is used as target unless overridden by explicit flags.',
-    '  - Baseline is refreshed when missing or when ticks/seeds/resources/layout/config hash mismatch.',
+    '  - Baseline is refreshed when missing or when report schema/ticks/seeds/resources/layout/config hash mismatch.',
     '',
   ];
   process.stdout.write(`${lines.join('\n')}\n`);
@@ -224,6 +225,7 @@ function arraysEqual(left, right) {
 // Resolve target benchmark profile from defaults, candidate meta, and explicit options.
 function resolveTargetProfile(options) {
   const target = {
+    reportSchemaVersion: DEFAULT_REPORT_SCHEMA_VERSION,
     configPath: options.configPath,
     ticks: DEFAULT_TICKS,
     seeds: DEFAULT_SEEDS.slice(),
@@ -317,6 +319,16 @@ function collectRefreshReasons(target, baselineReport, forceRefresh) {
   const baselineTicks = Number(meta.ticks);
   if (!Number.isFinite(baselineTicks) || Math.floor(baselineTicks) !== target.ticks) {
     reasons.push(`ticks mismatch (cache=${meta.ticks} target=${target.ticks})`);
+  }
+
+  const baselineSchemaVersion = Number(meta.reportSchemaVersion);
+  if (
+    !Number.isFinite(baselineSchemaVersion)
+    || Math.floor(baselineSchemaVersion) !== target.reportSchemaVersion
+  ) {
+    reasons.push(
+      `report schema mismatch (cache=${meta.reportSchemaVersion} target=${target.reportSchemaVersion})`,
+    );
   }
 
   const baselineSeeds = Array.isArray(meta.seeds)

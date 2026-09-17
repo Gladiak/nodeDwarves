@@ -1,7 +1,16 @@
 'use strict';
 
 const { clamp } = require('../utils');
-const { pushEvent } = require('./events');
+const {
+  emitSchismDoctrineShifted,
+  emitSchismPhaseShifted,
+  emitSchismRitualWindowOpened,
+  emitSchismCouncilRitualLit,
+  emitSchismRitualChanged,
+  emitSchismDecreeProposed,
+  emitSchismDecreeChanged,
+  emitSchismClimaxChanged,
+} = require('./political_events');
 
 const SCHISM_PHASES = ['concord', 'murmurs', 'fracture', 'reckoning'];
 const SCHISM_DOCTRINES = ['austerity', 'revelry'];
@@ -208,17 +217,27 @@ function updateSchism(state, config) {
     seasonIndex,
   );
   if (nextDoctrine !== schism.doctrine) {
+    const previousDoctrine = schism.doctrine;
     schism.doctrine = nextDoctrine;
     schism.lastDoctrineSwitchTick = tick;
     schism.stats.doctrineShifts = Number(schism.stats.doctrineShifts || 0) + 1;
-    pushEvent(state, config, buildDoctrineShiftMessage(nextDoctrine));
+    emitSchismDoctrineShifted(state, config, schism, {
+      doctrine: nextDoctrine,
+      previousDoctrine,
+      message: buildDoctrineShiftMessage(nextDoctrine),
+    });
   }
 
   const nextPhase = resolveSchismPhase(schism.pressure, schismConfig);
   if (nextPhase !== schism.phase) {
+    const previousPhase = schism.phase;
     schism.phase = nextPhase;
     schism.stats.phaseShifts = Number(schism.stats.phaseShifts || 0) + 1;
-    pushEvent(state, config, buildPhaseShiftMessage(nextPhase));
+    emitSchismPhaseShifted(state, config, schism, {
+      phase: nextPhase,
+      previousPhase,
+      message: buildPhaseShiftMessage(nextPhase),
+    });
   }
 
   updateSchismClimax(state, config, schism, schismConfig, tick);
@@ -382,7 +401,7 @@ function notifySchismFestivalStarted(state, config, source, ritualPlan) {
     schism.ritualWindow.councilTriggered = true;
     schism.councilCooldownUntilTick = tick + resolveRitualWindowConfig(getSchismConfig(config)).min_ticks_between_council_festivals;
     schism.stats.councilFestivals = Number(schism.stats.councilFestivals || 0) + 1;
-    pushEvent(state, config, 'Council ritual: the Nine Braziers are lit');
+    emitSchismCouncilRitualLit(state, config, schism, 'Council ritual: the Nine Braziers are lit');
   }
   if (ritualPlan && ritualPlan.id) {
     activateSchismRitual(state, config, schism, ritualPlan, sourceLabel, tick);
@@ -1038,7 +1057,10 @@ function updateRitualWindow(state, config, schism, schismConfig, tick, seasonInd
   ritual.closesAtTick = tick + Math.max(0, ritualConfig.window_ticks - tickInSeason);
   if (!ritual.announced && ritualConfig.announce_at_open) {
     ritual.announced = true;
-    pushEvent(state, config, `Ritual window opened: ${seasonName} council rites`);
+    emitSchismRitualWindowOpened(state, config, schism, {
+      seasonName,
+      message: `Ritual window opened: ${seasonName} council rites`,
+    });
   }
 }
 
@@ -1052,7 +1074,11 @@ function updateActiveRitualLifecycle(state, config, schism, schismConfig, tick) 
     return;
   }
   const ritualConfig = resolveFestivalRitualConfig(schismConfig);
-  pushEvent(state, config, `Ritual faded: ${ritual.label || ritual.id || 'Council Rite'}`);
+  const expiredRitual = {
+    ...ritual,
+    deltas: { ...(ritual.deltas || {}) },
+  };
+  const message = `Ritual faded: ${ritual.label || ritual.id || 'Council Rite'}`;
   schism.ritualHistory.push({
     id: ritual.id || null,
     label: ritual.label || null,
@@ -1062,6 +1088,7 @@ function updateActiveRitualLifecycle(state, config, schism, schismConfig, tick) 
   });
   trimRitualHistory(schism, ritualConfig.history_limit);
   schism.ritual = normalizeActiveRitualState(null);
+  emitSchismRitualChanged(state, config, schism, 'expired', expiredRitual, message);
 }
 
 // Tick active council-decree lifecycle and expire decree effects.
@@ -1073,7 +1100,12 @@ function updateActiveDecreeLifecycle(state, config, schism, schismConfig, tick) 
   if (tick < Number(decree.endsAtTick || 0)) {
     return;
   }
-  pushEvent(state, config, `Council decree expired: ${decree.label || decree.id || 'Unnamed Decree'}`);
+  const expiredDecree = {
+    ...decree,
+    options: Array.isArray(decree.options) ? decree.options.slice(0, 3) : [],
+    deltas: { ...(decree.deltas || {}) },
+  };
+  const message = `Council decree expired: ${decree.label || decree.id || 'Unnamed Decree'}`;
   schism.decreeHistory.push({
     id: decree.id || null,
     label: decree.label || null,
@@ -1087,6 +1119,7 @@ function updateActiveDecreeLifecycle(state, config, schism, schismConfig, tick) 
   schism.decree = normalizeActiveDecreeState({
     issuedSeasonIndex: decree.issuedSeasonIndex,
   });
+  emitSchismDecreeChanged(state, config, schism, 'expired', expiredDecree, message);
 }
 
 // Resolve and issue one seasonal council decree (pick 1 out of 3 options).
@@ -1146,7 +1179,16 @@ function maybeIssueCouncilDecree(
 
   const optionLabels = options.map((entry) => String(entry.definition.label || entry.definition.id || 'Decree'));
   if (decreeConfig.announce_options && optionLabels.length > 1) {
-    pushEvent(state, config, `Council decrees proposed: ${optionLabels.join(' | ')}`);
+    emitSchismDecreeProposed(
+      state,
+      config,
+      schism,
+      options.map((entry) => ({
+        id: entry.definition.id,
+        label: entry.definition.label,
+      })),
+      `Council decrees proposed: ${optionLabels.join(' | ')}`,
+    );
   }
 
   const decreeDef = chosen.definition;
@@ -1346,9 +1388,12 @@ function activateCouncilDecree(state, config, schism, decreeDef, durationTicks, 
   }
 
   const deltaText = formatCouncilDecreeDeltaText(decree.deltas);
-  pushEvent(
+  emitSchismDecreeChanged(
     state,
     config,
+    schism,
+    'enacted',
+    decree,
     `Council decree enacted: ${decree.label || decree.id || 'Unnamed Decree'} (${decree.durationTicks} ticks${deltaText ? `, ${deltaText}` : ''})`,
   );
 }
@@ -1379,9 +1424,12 @@ function activateSchismRitual(state, config, schism, ritualPlan, sourceLabel, ti
     schism.legitimacy = clamp(schism.legitimacy + deltaLegitimacy, 0, 1);
   }
 
-  pushEvent(
+  emitSchismRitualChanged(
     state,
     config,
+    schism,
+    'invoked',
+    ritual,
     `Ritual invoked: ${ritual.label || ritual.id || 'Council Rite'} (${ritual.durationTicks} ticks)`,
   );
 }
@@ -1711,7 +1759,10 @@ function updateSchismClimax(state, config, schism, schismConfig, tick) {
       schism.climax.doctrine = schism.doctrine;
       schism.climax.endsAtTick = tick + duration;
       schism.stats.climaxes = Number(schism.stats.climaxes || 0) + 1;
-      pushEvent(state, config, 'Schism climax: the halls split under the Nine Braziers');
+      emitSchismClimaxChanged(state, config, schism, 'started', {
+        doctrine: schism.climax.doctrine,
+        message: 'Schism climax: the halls split under the Nine Braziers',
+      });
     }
     return;
   }
@@ -1724,7 +1775,12 @@ function updateSchismClimax(state, config, schism, schismConfig, tick) {
   schism.climax.resolved = true;
   schism.pressure = clamp(schism.pressure - pressureDrop, 0, 1);
   schism.legitimacy = clamp(schism.legitimacy + legitimacyGain, 0, 1);
-  pushEvent(state, config, buildClimaxResolutionMessage(schism.climax.doctrine));
+  emitSchismClimaxChanged(state, config, schism, 'resolved', {
+    doctrine: schism.climax.doctrine,
+    pressureDrop,
+    legitimacyGain,
+    message: buildClimaxResolutionMessage(schism.climax.doctrine),
+  });
 }
 
 // Collect current marker counters from state.

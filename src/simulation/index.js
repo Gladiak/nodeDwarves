@@ -38,16 +38,22 @@ const { updateUnderrealm } = require('./underrealm');
 const { updateWarriors } = require('./warriors');
 const { updateWorldEvents, getWorldEventModifier } = require('./world_events');
 const { updateExternalCamps } = require('./external_camps');
+const { updateEpicConflicts } = require('./epic_conflicts');
+const { updateLandmarks } = require('./landmarks');
+const { ensureSettlementFoundingEvent } = require('./lifecycle_events');
+const { advanceStoryDirector } = require('./story_director');
 const { clamp } = require('../utils');
 
 const BUILD_CLASS_ORDER = ['housing', 'economy', 'defense', 'special'];
 
 // Advance the simulation by one tick.
 function stepState(state, config, runtime, action, options = {}) {
+  ensureSettlementFoundingEvent(state, config);
   const resolvedAction = normalizeActionEnvelope(action);
   state.lastGovernorSignals = buildGovernorSignals(config, resolvedAction);
   state.lastConfig = config;
   state.tick += 1;
+  advanceStoryDirector(state, config);
   const endgameDifficulty = updateEndgameDifficulty(state, config);
   updateSeason(state, config);
   updateWarriors(state, config, resolvedAction);
@@ -106,6 +112,8 @@ function stepState(state, config, runtime, action, options = {}) {
   updateRoles(state, config);
   updateUnderrealm(state, config, resolvedAction);
   updateRuins(state, config, runtime, resolvedAction);
+  updateEpicConflicts(state, config);
+  updateLandmarks(state, config, runtime);
   assignHousing(state, config);
   updateRelationships(state, config);
   updateSocialDrama(state, config, resolvedAction);

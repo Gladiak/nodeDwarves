@@ -15,6 +15,24 @@ const { clearScreen, moveCursorHome, hideCursor, showCursor } = require('./src/t
 const { loadPolicy, selectAction, normalizeActionEnvelope } = require('./src/ai_policy');
 const { getSpawnOrderedIds } = require('./src/dwarf_lore');
 const { shouldTriggerEndgameReset, runEndgameReset } = require('./src/simulation/endgame');
+const { exportChronicle } = require('./src/chronicle_export');
+const { buildCurrentChronicleSnapshot } = require('./src/simulation/chronicle');
+const {
+  changeSpeedLevel,
+  consumeSimulationAdvance,
+  createTimeControls,
+  getLoopDelayMs,
+  getSimulationTicksPerFrame,
+  getTimeControlsSnapshot,
+  observeStoryFocus,
+  queueSingleStep,
+  resetTimeControlsForTransition,
+  toggleManualPause,
+} = require('./src/runtime/time_controls');
+const {
+  emitEndgameTransitionStarted,
+  emitEndgameTransitionCompleted,
+} = require('./src/simulation/endgame_events');
 
 const config = loadConfig();
 let runtime = buildRuntime(config.display, getTerminalSize(config.display));
@@ -23,10 +41,10 @@ const policyPath = resolvePolicyPath(config);
 const policy = policyPath ? loadPolicy(policyPath) : null;
 let currentAction = null;
 let nextActionTick = 0;
-let paused = false;
 
 const tickMs = Number(config.display.tickMs || 200);
 const maxTicks = Number(config.simulation.maxTicks || 0);
+const timeControls = createTimeControls(config, tickMs);
 
 let running = true;
 const EVENT_LOG_FILTERS = ['all', 'drama'];
@@ -81,23 +99,38 @@ function loop() {
 
   updateUiTimers(state, config);
 
+  const nowMs = Date.now();
   const transitionState = getTransitionState(state);
   if (transitionState && transitionState.active) {
     advanceEndgameTransition(state, config, runtime);
-  } else if (!paused) {
-    if (policy && state.tick >= nextActionTick) {
-      const selected = selectAction(state, config, policy);
-      currentAction = normalizeActionEnvelope(selected);
-      nextActionTick = state.tick + getActionTicks(config);
-    }
+  } else if (consumeSimulationAdvance(timeControls, nowMs)) {
+    const ticksThisFrame = getSimulationTicksPerFrame(timeControls, nowMs);
+    for (let batchTick = 0; batchTick < ticksThisFrame; batchTick += 1) {
+      if (policy && state.tick >= nextActionTick) {
+        const selected = selectAction(state, config, policy);
+        currentAction = normalizeActionEnvelope(selected);
+        nextActionTick = state.tick + getActionTicks(config);
+      }
 
-    stepState(state, config, runtime, currentAction, { suppressEndgameReset: true });
-    if (shouldTriggerEndgameReset(state, config)) {
-      startEndgameTransition(state, config, runtime);
+      stepState(state, config, runtime, currentAction, { suppressEndgameReset: true });
+      if (shouldTriggerEndgameReset(state, config)) {
+        startEndgameTransition(state, config, runtime);
+        break;
+      }
+      if (observeStoryFocus(timeControls, state.story && state.story.currentFocus, nowMs)) {
+        break;
+      }
     }
   }
 
-  const frame = renderFrame(state, config, runtime);
+  const activeTransition = Boolean(getTransitionState(state)?.active);
+  if (!activeTransition) {
+    observeStoryFocus(timeControls, state.story && state.story.currentFocus, nowMs);
+  }
+
+  const frame = renderFrame(state, config, runtime, {
+    timeControls: getTimeControlsSnapshot(timeControls, nowMs),
+  });
   moveCursorHome();
   process.stdout.write(frame);
 
@@ -107,7 +140,7 @@ function loop() {
     return;
   }
 
-  setTimeout(loop, tickMs);
+  setTimeout(loop, activeTransition ? tickMs : getLoopDelayMs(timeControls, nowMs));
 }
 
 // Function: shutdown.
@@ -568,6 +601,17 @@ function triggerMapExport(state, config, runtime, options = {}) {
   });
 }
 
+// Export the latest factual Chronicle in configured deterministic formats.
+function triggerChronicleExport(state, config) {
+  try {
+    const result = exportChronicle(state, config, { rootDir: __dirname });
+    const relative = path.relative(__dirname, result.outputDir) || '.';
+    openSaveMap(state, config, `Chronicle saved: ${result.files.length} files in ${relative}.`);
+  } catch (error) {
+    openSaveMap(state, config, `Chronicle export failed (${error.message || 'unknown error'}).`);
+  }
+}
+
 // Function: buildMapExportArgs.
 function buildMapExportArgs(state, runtime, options = {}) {
   const args = [];
@@ -766,6 +810,7 @@ function ensureTransitionState(state) {
       holdTicks: 0,
       fadeInTicks: 0,
       message: '',
+      chronicleSummary: null,
     };
   }
   return state.ui.transition;
@@ -831,6 +876,8 @@ function startEndgameTransition(state, config, runtime) {
   transition.holdTicks = transitionConfig.holdTicks;
   transition.fadeInTicks = transitionConfig.fadeInTicks;
   transition.message = pickTransitionMessage(transitionConfig.messages, state);
+  transition.chronicleSummary = null;
+  transition.sourceCycle = Math.max(0, Number(state.cycleStats && state.cycleStats.count || 0));
   state.ui.inspect.open = false;
   state.ui.legend.open = false;
   state.ui.telemetryPanel.open = false;
@@ -839,7 +886,11 @@ function startEndgameTransition(state, config, runtime) {
   closeSaveMap(state);
   currentAction = null;
   nextActionTick = 0;
-  paused = false;
+  resetTimeControlsForTransition(timeControls);
+  emitEndgameTransitionStarted(state, config, {
+    sourceCycle: transition.sourceCycle,
+  });
+  transition.chronicleSummary = buildCurrentChronicleSnapshot(state).summary;
 }
 
 // Function: advanceEndgameTransition.
@@ -893,6 +944,9 @@ function advanceEndgameTransition(state, config, runtime) {
       transition.showPanel = false;
       transition.phase = 'done';
       transition.progress = 1;
+      emitEndgameTransitionCompleted(state, config, {
+        sourceCycle: transition.sourceCycle,
+      });
     }
   }
 }
@@ -963,7 +1017,22 @@ function handleInput(text) {
       continue;
     }
     if (char === ' ') {
-      paused = !paused;
+      toggleManualPause(timeControls);
+      i += 1;
+      continue;
+    }
+    if (char === '[' || char === '{') {
+      changeSpeedLevel(timeControls, -1);
+      i += 1;
+      continue;
+    }
+    if (char === ']' || char === '}') {
+      changeSpeedLevel(timeControls, 1);
+      i += 1;
+      continue;
+    }
+    if (char === '.') {
+      queueSingleStep(timeControls);
       i += 1;
       continue;
     }
@@ -989,6 +1058,11 @@ function handleInput(text) {
     }
     if (char === 'e' || char === 'E') {
       toggleEventLogPanel(state);
+      i += 1;
+      continue;
+    }
+    if (char === 'c' || char === 'C') {
+      triggerChronicleExport(state, config);
       i += 1;
       continue;
     }

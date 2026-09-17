@@ -2,7 +2,12 @@
 
 const { clamp } = require('../utils');
 const { randomBetween } = require('./random');
-const { pushEvent } = require('./events');
+const {
+  buildSecondaryActor,
+  buildSecondaryLocation,
+  buildSettlementActor,
+  emitSecondaryEvent,
+} = require('./secondary_events');
 const { moveTowards, findEdgeSpawnPosition, getAdjacentPositions } = require('./movement');
 const { getStockpileTarget } = require('./resources');
 const { getWorldEventModifier } = require('./world_events');
@@ -180,7 +185,7 @@ function spawnMerchant(state, config, runtime, merchant) {
 
   merchant.nextSpawnTick = scheduleNextMerchantSpawnTick(state.tick, merchantConfig);
 
-  pushEvent(state, config, 'Merchant arrived');
+  emitMerchantEvent(state, config, merchant, 'arrived', 'Merchant arrived');
 }
 
 // Begin the merchant exit phase.
@@ -198,9 +203,9 @@ function startMerchantExit(state, runtime, merchant) {
 // Finalize the merchant visit and reset state.
 function finalizeMerchantVisit(state, config, merchant) {
   const summary = buildMerchantTradeSummary(merchant.tradeLog, 2);
-  pushEvent(state, config, 'Merchant departed');
+  emitMerchantEvent(state, config, merchant, 'departed', 'Merchant departed');
   if (summary) {
-    pushEvent(state, config, summary);
+    emitMerchantEvent(state, config, merchant, 'trade_summary', summary);
   }
 
   merchant.phase = 'idle';
@@ -215,6 +220,36 @@ function finalizeMerchantVisit(state, config, merchant) {
   merchant.tradesMax = 0;
   merchant.tradeCount = 0;
   merchant.tradeLog = null;
+}
+
+// Emit one merchant visit fact while the committed visit snapshot is still available.
+function emitMerchantEvent(state, config, merchant, phase, message) {
+  return emitSecondaryEvent(state, config, {
+    type: `merchant.${phase}`,
+    category: 'diplomacy',
+    message,
+    actors: [
+      buildSecondaryActor('caravan', 'roaming_merchant', 'primary', 'Roaming Merchant'),
+      buildSettlementActor('secondary'),
+    ],
+    location: buildSecondaryLocation(merchant, 'Merchant route'),
+    causes: [{
+      kind: phase === 'arrived' ? 'threshold' : 'state',
+      ref: 'merchant.visit',
+      metric: phase === 'arrived' ? 'spawn_tick' : 'trades_completed',
+      value: phase === 'arrived' ? Number(state.tick || 0) : Number(merchant.tradeCount || 0),
+    }],
+    consequences: [{
+      kind: 'status',
+      targetKind: 'caravan',
+      targetId: 'roaming_merchant',
+      metric: 'visit_phase',
+      value: phase,
+      unit: null,
+    }],
+    source: 'merchant',
+    tags: ['merchant', phase],
+  });
 }
 
 // Pick a random map side for merchant entry.

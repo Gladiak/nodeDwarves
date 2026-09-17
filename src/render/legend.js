@@ -40,6 +40,7 @@ function buildLegendSections(config, options = {}) {
   const resourceConfig = config.resources || {};
   const nodeConfig = resourceConfig.nodes || {};
   const structureConfig = config.structures || {};
+  const landmarksConfig = config.landmarks || {};
   const terrainConfig = (config.display && config.display.terrain) || {};
   const terrainSymbols = terrainConfig.symbols || {};
   const underrealmTerrainConfig =
@@ -133,6 +134,21 @@ function buildLegendSections(config, options = {}) {
     const symbol = symbols[type] || symbols.structure || "#";
     legendParts.push(formatEntry(symbol, type, type));
   }
+  if (!underrealmActive && landmarksConfig.enabled !== false) {
+    const maxActive = Math.max(0, Number(landmarksConfig.max_active || 0));
+    const definitions = Object.entries(landmarksConfig.definitions || {}).slice(0, maxActive);
+    for (const [id, definition] of definitions) {
+      if (!definition || definition.enabled === false) continue;
+      legendParts.push(formatEntry(
+        String(definition.symbol || 'L'),
+        definition.label || id,
+        definition.color_key || `landmark_${id}`,
+      ));
+    }
+    const conditions = landmarksConfig.condition_symbols || {};
+    legendParts.push(formatEntry(String(conditions.damaged || 'x'), 'damaged landmark', 'landmark_damaged'));
+    legendParts.push(formatEntry(String(conditions.restoration || '~'), 'restoring landmark', 'landmark_restoration'));
+  }
   const underrealmConfig = config.underrealm || {};
   const discoveryConfig = underrealmConfig.discovery || {};
   if (underrealmConfig.enabled !== false && discoveryConfig.enabled !== false) {
@@ -199,6 +215,23 @@ function buildLegendSections(config, options = {}) {
   const wildlifeConfig = config.wildlife || {};
   if (wildlifeConfig.enabled === true && symbols.herd) {
     legendParts.push(formatEntry(symbols.herd, "herds", "herd"));
+  }
+
+  const worldLegacyConfig = config.world_legacy || {};
+  const legacyEchoConfig = worldLegacyConfig.echoes || {};
+  if (!underrealmActive && worldLegacyConfig.enabled !== false && legacyEchoConfig.enabled !== false) {
+    legendParts.push(
+      formatEntry(
+        symbols.world_legacy_echo || "*",
+        "legacy echo",
+        String(legacyEchoConfig.color_key || "world_legacy_echo"),
+      ),
+    );
+  }
+  const epicConflictConfig = config.epic_conflicts || {};
+  if (!underrealmActive && epicConflictConfig.enabled !== false) {
+    legendParts.push(formatEntry(symbols.nemesis || 'N', 'nemesis front', 'nemesis'));
+    legendParts.push(formatEntry(symbols.siege_damage || 'x', 'siege damage', 'siege_damage'));
   }
 
   const terrainParts = [];

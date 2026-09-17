@@ -13,6 +13,7 @@ flow, and implementation references, with a deterministic-chaos engineering mind
 - For policy inference and PPO training details, see "AI and training".
 - For config control-plane reference, see "Configuration".
 - For the staged narrative, cinematic, Chronicle, and persistent-world implementation plan, see `docs/EPIC_EVOLUTION_WORKBOOK.md`.
+- For the normative structured-event envelope, deterministic IDs, retention ownership, and compatibility rules, see `docs/NARRATIVE_EVENT_CONTRACT.md`.
 - For deep dives and checklists, see "Adding a new resource" and "Project layout cheatsheet".
 
 ## 1) Operations and workflows 🛠️
@@ -25,13 +26,15 @@ Use this as the runtime runbook for local dev loops and exports.
 npm start
 ```
 
-Runtime controls: `Space` pause/resume, `l` legend panel, `i` dwarf inspect panel,
+Runtime controls: `Space` pause/resume, `[` / `]` decrease/increase visible speed,
+`.` advances exactly one simulation tick and remains paused, `l` legend panel, `i` dwarf inspect panel,
 `w` Warrior League modal panel, `h` telemetry Data Center panel, `e` Event Log panel,
 `f` cycles Event Log filter while Event Log is open,
 `←`/`→` change telemetry pages (or browse inspect entries when inspect is open, or switch Event Log filter),
 `↑`/`↓` switch between surface and unlocked underrealm depths (or scroll Event Log),
 `m` export all currently unlocked layers (PNG + SVG), `Shift+M` export all
-unlocked layers with structures/roads.
+unlocked layers with structures/roads, `c` export the latest completed Chronicle (or the current
+cycle if none has completed) as deterministic JSON and Markdown in `chronicles/`.
 
 ### Run training 🏋️
 
@@ -109,8 +112,22 @@ node scripts/headless_benchmark.js --ticks 8000 --seeds 101,202,303,404 --progre
 node scripts/regression.js --all
 node scripts/regression.js --profile underrealm
 node scripts/test_training_contracts.js --policy-only
+npm run test:narrative
+npm run audit:narrative-producers
 npm test
+npm run test:time-controls
 ```
+
+`npm run test:time-controls` is the focused E4.3 gate for configured speed levels, exact stepping,
+critical auto-slow, legendary auto-hold, manual precedence, supported-width status rendering, and
+PPO/headless isolation. `npm run audit:narrative-producers` scans simulation sources and fails when a direct `pushEvent`
+writer exists outside the approved structured boundaries. `npm run test:narrative` runs the focused schema-v1 event gate: canonical and malformed envelopes,
+deterministic cycle/tick/sequence IDs, legacy `pushEvent` compatibility, bounded retention/references,
+JSON serialization, migrated-secondary audit integration, mixed v0/v1 Event Log filtering, and
+responsive Event Log context rendering, bounded Story Director state/reset/serialization, plus
+AI/map-export isolation. `npm test` runs the source
+audit, the narrative suite, the time-control suite, and then the complete training/validation
+contract suite.
 
 Clean debug artifacts after a completed cycle:
 
@@ -348,13 +365,24 @@ Notes:
   - Main CLI orchestrator and simulation control loop.
   - Loads `config.json`, builds the terminal runtime, creates initial state, and starts the tick loop.
   - Optionally loads an AI policy when `--ai <path>` or env `AI_POLICY` is provided.
-  - Tick pacing uses `display.tickMs`; hard stop uses `simulation.maxTicks`.
+  - Base tick pacing uses `display.tickMs`; `src/runtime/time_controls.js` applies only interactive
+    visible-loop timing. The default terminal selection is `1x`; the endgame-trial `100x` level batches
+    `20` authoritative simulation ticks per rendered frame with a `4 ms` visible delay. The
+    `0.5x/1x/2x/4x/5x/25x` levels remain selectable. Hard stop uses `simulation.maxTicks`.
   - AI action cadence uses `ai.stepTicks` to throttle policy calls.
   - Terminal resize behavior is configured under `display.resize.*`: default profile keeps resize handling enabled but does not reflow world geometry (`reflow_world=false`) to avoid live road/village/temple resets.
-  - Space toggles pause/resume during the live simulation.
+  - `Space` toggles manual pause/resume. During legendary auto-hold it dismisses the hold and resumes;
+    during critical auto-slow it cancels protection and establishes a manual pause.
+  - `[` / `]` select the adjacent configured speed and cancel active automatic protection without
+    changing manual pause. `.` cancels protection, advances exactly one tick, and remains paused.
+  - Each new eligible focus ID can arm protection once: critical defaults to `0.5x` for `1800 ms`,
+    while legendary defaults to a `2400 ms` hold. Expiry uses wall-clock presentation time, never
+    simulation ticks; frames and raw input continue during a hold at no faster than the base
+    `display.tickMs` cadence.
   - Press `i` to open/close the dwarf inspect panel (works during pause or live); use `←`/`→` to browse spawn order.
   - Press `w` to open/close the Warrior League modal panel (company identity/carry-over hooks + champion/top-5/marks analytics).
-  - Press `e` to open/close the Event Log modal panel (scrollable real-time event history with `All events` / `Dwarf drama` filter).
+  - Press `e` to open/close the Event Log modal panel. Each structured entry shows a textual
+    importance badge and, when available, a compact context row for named actors, place, and saga.
   - Press `f` while Event Log is open to cycle log filter mode quickly.
   - Press `h` to open/close the telemetry Data Center panel (`Dashboard`, `Overview + Deep`, `Economy`, `Warrior League`).
   - While telemetry is open, use `←`/`→` to switch pages.
@@ -368,6 +396,15 @@ Notes:
   - Computes grid/frame layout and overlay bounds, and handles terminal resize.
   - Auto-size caps (`display.maxWidth`, `display.maxHeight`) accept `<= 0` as uncapped (follow terminal dimensions).
   - Resolves optional in-map inset carving (`display.mapInset.*`) and exports effective playable area (`runtime.playableArea`) for scaling-sensitive systems.
+- `src/runtime/time_controls.js`
+  - Owns ephemeral interactive speed, pause, pending-step, and automatic focus-protection state.
+  - Consumes only the Director's read-only focus identity/importance and returns a bounded renderer
+    snapshot. It is not imported by headless benchmarks, training, AI inference, or simulation code.
+  - High-speed levels may batch up to `64` authoritative ticks per rendered frame. AI action cadence
+    and endgame checks still execute on every tick; a newly protected critical/legendary focus ends
+    the current batch immediately, while pause and single-step always remain exactly one-tick safe.
+  - Endgame transitions clear pause/protection/step state but retain the operator-selected speed;
+    transition animation itself keeps the base `display.tickMs` cadence.
 - `src/terminal.js`
   - Low-level terminal I/O helpers (clear screen, move cursor, hide/show cursor).
   - Handles screen clearing and cursor control during live rendering.
@@ -438,15 +475,40 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - Current beer-morale defaults are slightly persistence-biased for endgame support (`beerMoraleGain=0.095`, `beerMoraleDecayPerTick=0.0032`, `beerMoraleMax=0.30`).
   - Derived mood metrics (morale/stress/fatigue) come from average needs and beer morale boost.
   - Deaths: starvation threshold/ticks and old-age chance from `population.death` and `population.aging`.
+  - Natural deaths emit `lifecycle.death` only after population/job cleanup, while retaining the
+    victim's final actor-name snapshot, last known location, exact cause, and death consequence.
   - Housing assignment, couple co-housing, and winter penalties are driven by `population.housing.*`.
   - Relationships/bonding use `population.relationships.*`, with morale and housing multipliers,
     plus optional same-clan bond gain bonuses.
+  - The first mutual partnership emits one `lifecycle.partnership_formed` fact with both actors and
+    reciprocal partner consequences; later interactions do not duplicate that event.
   - Social-drama phase-1 (`social_drama.js`) derives explicit per-dwarf relationship statuses (`friendship`, `rivalry`, `mentorship`, `grudge`) from sampled adult interactions, pair bond intensity, mood stressors, and bounded decay/pruning.
   - Social-drama phase-1.5 adds bounded incident resolution (`mentorship_breakthrough`, `rivalry_clash`, `grudge_escalation`, `reconciliation`) with global/per-pair cooldowns, capped mood/warrior/link deltas, and rolling incident history.
+  - Each committed incident now emits a canonical `social.*` fact after the existing effects, ledger,
+    counters, and cooldowns update. The event records both dwarf identities, deterministic name
+    snapshots, pre-incident relationship evidence, and bounded post-incident relationship outcomes.
+  - Social incident emission does not participate in candidate selection and consumes no RNG. A
+    shared location is retained only when the pair has matching coordinates or the same home;
+    otherwise the event correctly falls back to world scope.
   - Social-drama phase-2 closes observability loops: telemetry includes a dedicated `Social` section and AI explainability now prints compact social context (`cohesion/conflict/mentorship/grudge/incident recency`) from decision traces.
   - Social-drama phase-3 adds explicit AI-facing social governor channels (`action.social.mediationBias|mentorshipBias|accountabilityBias`) plus long-horizon social memory (`support/burden` per dwarf + settlement `harmony/strife`) implemented in runtime; `population.socialDrama.longArc.enabled` is currently `false` by default for conservative regression stability.
   - Runtime aggregates are exported in `state.social` (`cohesion`, `conflictPressure`, `mentorshipCoverage`, `grudgeLoad`, `longArc.*`, `governor.*` + counters) for deterministic monitoring and AI reward/observation integration (`social*` channels).
   - Reproduction uses `population.reproduction.*` (base chance, soft cap, gestation, cooldown, stockpile gates, birth cost).
+  - A completed pregnancy emits `lifecycle.birth` with the newborn, available parents, spawn
+    location, reproduction cause, and dwarf-creation consequence without changing the compact HUD message.
+- `lifecycle_events.js`
+  - Centralizes structured founding, birth, natural-death, and partnership payloads so population
+    logic does not duplicate narrative-contract details.
+  - Dwarf actors retain deterministic lore-name snapshots alongside stable dwarf IDs; events never
+    retain live dwarf objects.
+  - `stepState` emits one `lifecycle.settlement_founded` fact at tick `0` before advancing each newly
+    initialized cycle. A cycle-local flag prevents duplicates, and the first seven founders plus the
+    settlement actor respect the eight-actor contract cap.
+- `social_events.js`
+  - Centralizes structured `social.mentorship_breakthrough`, `social.rivalry_clash`,
+    `social.grudge_escalation`, and `social.reconciliation` payloads.
+  - Mentorship distinguishes mentor and beneficiary; symmetric incidents avoid inventing an
+    instigator. Typed outcomes retain the resulting mentorship, rivalry, or grudge state.
 
 ### Clan culture 🛡️
 
@@ -522,6 +584,14 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - identity bonuses are bounded and applied explicitly to dispatch ranking, tournament seed/duel scoring, and training intensity (`warriors.bonuses.legacy.company_identity.*`),
   - cross-cycle carry-over hooks archive company lineage (`state.warriors.company.cycleHistory`), preserve bounded hall-of-fame depth, and inject capped startup seed bonuses in the next cycle (`warriors.bonuses.legacy.carryover.*`),
   - Warrior League telemetry/panel now exposes identity, doctrine, carry-over signals, and lineage memory for deterministic operator debugging.
+- The E1.2 narrative migration adds canonical Warrior League facts without changing tournament logic:
+  - scars, titles, and vows emit only after deterministic progression marks commit;
+  - injuries and retirements describe the finalized warrior payload, while tournament deaths retain
+    the fighter snapshot and emit only after population/job/social cleanup;
+  - tournament crowns carry participant evidence and a typed Hall of Fame induction after ranking,
+    champion, company, and hall state commit;
+  - hero succession and Underrealm command synchronization/relinquishment emit after the command
+    owner changes. Event construction consumes no RNG and does not participate in seeding or duels.
 - Default profile now ships with `warriors.enabled=true`, so Warrior League runtime is active from run start.
 
 ### Jobs and economy 📦
@@ -770,6 +840,15 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
 - Climax lifecycle:
   - High pressure + low legitimacy can trigger a timed crisis (`schism.climax.*`).
   - On resolution, pressure/legitimacy are shifted and explicit narrative events are emitted.
+- E1.2 political narrative boundary:
+  - `political_events.js` owns canonical doctrine, phase, ritual-window, council-ritual, ritual,
+    decree, and climax facts while `schism.js` retains all selection and state mutation;
+  - doctrine/phase changes and ritual/decree activation emit after counters, active state, and
+    immediate pressure/legitimacy deltas commit;
+  - expired rituals/decrees are copied for historical labels, archived into bounded history, reset
+    to inactive state, and only then emitted;
+  - climax start/resolution facts carry current pressure/legitimacy evidence and typed crisis/delta
+    outcomes. Builders consume no RNG and never participate in doctrine, ritual, or decree selection.
 - Integration points:
   - Tick order: runs before festivals in `simulation/index.js`.
   - Needs pipeline consumes schism `needDecay` modifier.
@@ -893,6 +972,9 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
 ### Raids 🐺
 
 - `raids.js` has two phases: `updateRaidStart` (season-edge trigger) and `updateRaidTick` (active raid loop + resolution).
+- Raid start and resolution emit `combat.surface_raid_started|resolved` through
+  `combat_events.js`. Resolution retains victim name snapshots before authoritative population
+  removal, plus defense, difficulty, casualty, and stolen-resource facts.
 - Start trigger is intentionally narrow:
   - raids only roll on `season.tickInSeason === 1` for allowed `raids.seasonNames`.
   - requires `minTick`, `minPopulation`, and `minSeasonsBetween` since previous raid.
@@ -1055,6 +1137,9 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - Recipe gating uses both armory level (`min_level`) and per-level mineral allow-lists (`allowed_minerals`), with deterministic stock-cap scheduling (`max_stock`).
 - Underrealm V2 readiness dispatch policy (M3):
   - Ruins expedition dispatch evaluates readiness on depth `max(roomIndex + 1, currentFrontierDepth)` (clamped by `underrealm.maxDepth`).
+  - Once every ruins room is clear, artifact-hunt repeats cap that mapped readiness depth at
+    `ruins.expedition.repeatReadinessDepthCap` (default `D9`). This preserves an apex-level military
+    check without making the final artifact depend on the stricter D10 frontier gate.
   - When the current frontier floor is `contested`, champion cooldown gating and champion combat target the contested frontier depth first (instead of following room depth growth).
   - Readiness score uses weighted offense/defense/support components plus optional Dwarf Champion command bonus:
     - offense from average best-available weapon tier for party slots,
@@ -1069,6 +1154,8 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
     - `underrealm.combat.readiness.warning_zone_hard_guard.enabled=true`,
     - mapped depth >= `warning_zone_hard_guard.min_depth`,
     - `score < recommended_score * min_recommended_score_ratio`.
+  - The default hard-guard ratio is `0.92`: the lower 92% of the recommended target remains blocked,
+    while the upper warning band is dispatchable with the configured `1.10x` risk multiplier.
   - Warning zone dispatch (`score < recommended_score`) remains allowed, but applies explicit risk via `warning_zone_risk_multiplier`.
   - Runtime emits gate snapshots to telemetry (`state.ruins.readinessGate`) and increments:
     - `underrealm.combat.stats.blockedDispatches` for any blocked transition,
@@ -1085,6 +1172,9 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - Map inset Ops Snapshot adds a concise deep-combat token line (`P:* C:* R:*`) for at-a-glance progression/champion/readiness context.
 - Underrealm V2 AI/training/regression integration (M6):
   - AI observation exports normalized Underrealm combat/progression signals for PPO (`depth/champion/readiness/pressure` bundle).
+  - Hostile deep-raid start, casualty, and resolution events are canonical `combat.deep_raid_*`
+    facts. They retain faction identity, depth, strength, victims, and bounded resource losses after
+    the corresponding gameplay transaction commits.
   - Trainer summary line now includes `under=...` and `deaths_by_cause=...` diagnostics, so randomized regression can ingest `under_*` rollout metrics plus cause-split death metrics (`death_*`).
   - `scripts/regression.js` randomized suite reports now include both `under_*` and `death_*` rows when summary diagnostics are available.
   - `scripts/headless_benchmark.js` now includes compact Underrealm KPIs (`underDepth`, `underChamp`, `underFail`, `underBlocked`, `underContested`, `underReady`) in summaries, comparisons, and seed deltas, plus schism decree usage telemetry (`issued`, per-decree share, active-tick share) in table/JSON/Markdown reports.
@@ -1173,7 +1263,9 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - optionally randomizes terrain seed when transition config requests it.
   - swaps old state in-place with new state object.
 - Persisted vs reset data:
-  - persisted: `cycleStats.count`, `cycleStats.lastTicks`, myth traditions/history carry-over, temple prestige meta-progression, warrior-company lineage carry-over (`hallOfFame` slice + identity/carryover memory hooks).
+  - persisted: `cycleStats.count`, `cycleStats.lastTicks`, bounded `worldLegacy` records, completed
+    Chronicle archives, myth traditions/history carry-over, temple prestige meta-progression, and
+    warrior-company lineage carry-over (`hallOfFame` slice + identity/carryover memory hooks).
   - reset: terrain, nodes, structures, stockpile, jobs, raid/weather/alchemy/festival runtime state.
   - `endgameArtifactsTick` is cleared after reset.
 - Difficulty scaling:
@@ -1185,6 +1277,13 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
 - Transition/UI note:
   - fade/story presentation is configured under `endgame.transition.*` in runtime/render flow.
   - simulation reset logic itself remains isolated in `endgame.js`.
+  - `endgame_events.js` records artifact recovery and collection completion, fade start/completion,
+    cycle closure, and Warrior Company carry-over as canonical `endgame.*` facts.
+  - The collection-complete fact is emitted only when `endgameArtifactsTick` first latches. Cycle
+    closure and carry-over emit after state replacement and `cycleStats` installation, so their IDs
+    belong to the new cycle at tick `0`; fade completion remains a presentation-layer commit.
+  - Endgame builders observe committed state only and consume no RNG. The reset seed policy and all
+    carry-over calculations remain owned by their existing simulation systems.
 
 ### Temple of Ancestors and prestige 🏛️
 
@@ -1215,9 +1314,56 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - Endgame reset carries prestige forward and can add `prestige.cycleResetBonus`.
   - Temple stage progress itself resets per cycle; prestige does not.
 
+### Monumental landmarks and compact districts 🏰
+
+- `landmarks.js` owns a schema-versioned, hard-capped registry of unique civic landmarks. Defaults
+  provide five institutions: Great Hall, Warrior Arena, Legendary Forge, Gate Fortress, and
+  Ancestor Walk.
+- Each institution has an ordered, config-driven stage list. A stage consumes its committed cost,
+  enters the ordinary `special` build queue, and is completed by a dwarf at the reserved center.
+  Landmark construction therefore competes with other non-emergency work instead of appearing as
+  a free map decoration. When its high stockpile/population gates pass, one landmark job receives a
+  bounded autonomous priority slot; only one can be active, and `stage_interval_ticks` returns work
+  to housing/economy/defense between monumental stages.
+- Site selection is deterministic and bounded to the surface grid. It scores valid candidates by
+  distance from the settlement, uses a stable coordinate/id tie-break, and rejects non-spawnable
+  terrain, nodes, structures, Temple cells, map edges, and every other landmark's final footprint.
+  The final radius is reserved before stage one, so normal construction cannot block later growth.
+- Stage one creates one center entry in `state.structures`. This makes the institution a factual,
+  damageable siege target without teaching generic structure automation how to replicate it.
+- Completed footprints use a restrained center/outline language; four optional cardinal district
+  markers appear only at the final stage. Center states are deliberately compact:
+  - `%` construction;
+  - the configured identity glyph for active/prosperous operation;
+  - `x` siege damage;
+  - `?` abandonment below the population floor;
+  - `~` the bounded restoration window after repairs.
+- The Gate Fortress is the first-priority monumental siege target. E7 repairs its normal
+  `siegeDamage` severity, while E8 derives the visible `damaged` and `restoration` conditions from
+  that authoritative structure fact. Repopulation likewise moves an abandoned district back to
+  active/prosperous operation without a separate repair job.
+- Landmark stage and condition transitions emit canonical `landmark.*` facts after state commit.
+  Telemetry lists founded/completed counts, per-landmark stage progress, and exceptional district
+  states. The normal frame renderer is also the export-map source, so PNG/SVG exports use identical
+  footprints, colors, and state glyphs.
+- Landmark metadata is not part of the PPO observation/action contract. Autonomous construction
+  uses the existing `specialWeight`; no new policy head or fresh training is required.
+- Operations:
+  - `npm run test:landmarks` runs deterministic contracts for progression, collision, narrow maps,
+    damage/restoration, abandonment, serialization, rendering/export, telemetry, and PPO isolation.
+  - `npm run validate:landmarks` exercises organic construction across five deterministic seeds and
+    three supported map sizes, with population and serialized-state stop rules.
+
 ### Ruins and expeditions 🗝️
 
 - `ruins.js`
+  - Expedition dispatch and terminal outcomes emit `combat.ruins_expedition_started`,
+    `combat.ruins_expedition_succeeded`, or `combat.ruins_expedition_failed` with party, readiness,
+    depth, reason, and retained casualty snapshots.
+  - Deterministic depth-champion battles emit defeated/setback facts with the opposing champion,
+    expedition members, contested/cleared state, and any newly unlocked depth.
+  - Dwarf Champion appointment/coronation/fall emits a stable combat fact from both ruins and
+    Underrealm maintenance paths; tournament champions remain owned by the Warrior League slice.
   - Drives the ruins expedition loop (rooms, hazards, guardians, rewards).
   - Manages expedition cooldowns, casualties, and artifact bonuses.
 - Armory kits are crafted in the `armory` structure and consumed per expedition.
@@ -1424,15 +1570,259 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
 
 ### Events + randomness 🎲
 
-- `events.js` tracks event log lines for telemetry (`events.maxEntries`).
-  - Systems push concise strings for weather, raids, ruins, builds, and myth changes.
-  - Keeps a separate scroll-friendly history buffer for the Event Log modal (`events.logMaxEntries`) with per-entry `tick`, inferred `category`, and normalized source metadata.
+- `events.js` is the backward-compatible structured narrative gateway.
+  - Legacy external/test callers may keep pushing concise strings. Each accepted string is normalized
+    into a canonical v1 event with generated `cycle/tick/sequence` identity and
+    `legacy.<category>` type; repository simulation producers are guarded to use structured facts.
+  - Migrated producers may pass a structured object with message, type/category, importance, actors,
+    location, causes, consequences, saga ID, source, and tags. Producer-supplied identity fields are
+    ignored.
+  - The transitional string-plus-details form remains supported. Combining structured-object input
+    with a separate details argument is rejected deterministically.
+  - `state.events` remains the compact newest-first message list capped by `events.maxEntries` for HUD
+    and telemetry compatibility.
+  - `state.eventLog` stores newest-first canonical v1 objects capped independently by
+    `events.logMaxEntries`. A zero history cap still returns the accepted event to the caller.
+  - `state.eventClock` owns same-tick ordering independently of retained-log length. IDs use
+    `evt:v1:cCCCC:tTTTTTTTTTT:sSSSS`; rejected or colliding candidates do not consume a sequence.
+  - `state.eventStats` keeps bounded scalar diagnostics: accepted, rejected, legacy-normalized,
+    truncated, and collision counts.
+  - Importance resolution is explicit value → `events.importance.by_type` →
+    `events.importance.by_category` → `events.importance.default` → `ambient`.
+  - Human text is stripped of ANSI/control data and bounded on UTF-8 code-point boundaries. Actors,
+    locations, causes, consequences, and tags are normalized into compact JSON references; live state
+    objects never enter retained events.
+  - Optional payload is reduced in a fixed order if a canonical event approaches the 16 KiB ceiling;
+    reduced events carry `contract_truncated` when space permits.
+- `narrative_contract.js` validates canonical v1 envelopes and provides transactional deterministic
+  identity helpers shared by runtime and `npm run test:narrative`.
+- `story_director.js` owns the E3 Story Director read/write model.
+  - E3.1 installed one plain-JSON `state.story` object per cycle with a nullable current focus, ordered
+    saga registry, focus/escalation cooldowns, interruption budget, bounded focus history, bounded
+    reason trace, event cursor, and scalar counters.
+  - `getStoryDirectorConfig(...)` normalizes importance thresholds and integer limits. Configured
+    storage caps cannot exceed the absolute runtime ceilings: `64` sagas, `32` event references per
+    saga, `512` focus-history records, and `512` reason-trace records.
+  - `ensureStoryDirectorState(...)` repairs loaded or malformed state into the active schema and
+    enforces both configured and absolute caps. It retains compact IDs and scalar facts, never live
+    event, dwarf, place, or render objects.
+  - New-cycle initialization deliberately starts empty. Cross-cycle story summaries remain owned by
+    E6, so E3.1 does not leak focus, saga, cooldown, or history records through endgame reset.
+  - E3.2 receives each accepted canonical event directly after its event transaction commits, so
+    selection remains independent of Event Log retention (including `events.logMaxEntries=0`). The
+    canonical cycle/tick/sequence cursor rejects duplicate or out-of-order replay.
+  - Score is the sum of configured severity, inverse prior type frequency, named-actor count, typed
+    consequence count, matching active `sagaId`, and current surface/Underrealm visibility. Each
+    component is retained in the bounded reason trace; no opaque random tie-break exists.
+  - Ordinary events must meet `minimum_importance` and wait for focus protection to end. Events at
+    or above the escalation threshold may replace only a weaker focus (or a same-tier focus with a
+    strictly higher score), and must pass both escalation cooldown and rolling interruption budget.
+    Critical-over-notable preemption is therefore deterministic and bounded.
+  - Focus expiration and preemption move compact references into bounded history. A per-cycle,
+    hard-capped type-frequency registry (`256`) supplies rarity without retaining event payloads.
+    Reason-trace capacity cannot be configured below one entry.
+  - Creation, scoring, selection, and repair use no gameplay RNG, render timing, process timing, or
+    wall-clock time. `state.story` remains excluded from PPO observations and map-export snapshots.
+- `story_sagas.js` owns E3.3 aggregation after a canonical event identity commits.
+  - An explicit producer `sagaId` is authoritative. Otherwise an event-cause reference reuses its
+    parent's retained saga, then a deterministic weighted match considers threat, faction, stable
+    place, exact location, and typed actor evidence in that order of configured strength. Equal
+    candidates prefer the highest score, most recent event tick, then lexical saga ID. Only events
+    at or above `sagas.minimum_importance` may open or match an inferred saga; explicit and causal
+    continuations remain valid below that threshold.
+  - Generated IDs are monotonic per cycle (`saga_cCCCC_SSSS`) and use no random or timing source.
+    Generic system, settlement, and institution actors are excluded from similarity evidence so
+    broad producers cannot collapse unrelated facts into one arc.
+  - Lifecycle is `open -> active -> dormant -> archived`, with `resolved` and `failed` terminal
+    branches that also age into `archived`. Event count or configured importance activates an arc;
+    inactivity closes its active chapter; new matching evidence reactivates a dormant arc. Terminal
+    type suffixes/tags and authoritative threat-destruction consequences close an arc explicitly.
+  - Chapters retain bounded event IDs plus sanitized opening/latest event messages. Their summary is
+    a compact concatenation of those source facts, never generated flavor. Chapter rollover,
+    compaction, evidence lists, summaries, and the saga registry all enforce configured limits below
+    absolute runtime ceilings.
+  - When the registry is full, deterministic eviction prefers archived, terminal, dormant, open,
+    then active records; oldest activity wins within a tier. Runtime counters record opened,
+    resolved, failed, archived, evicted, opened-chapter, and compacted-chapter totals.
+  - Saga assignment happens before the event enters Event Log retention, and the canonical payload
+    is reduced again after adding `sagaId` to preserve the 16 KiB envelope. `state.story` remains
+    plain JSON, resets at cycle replacement, and stays outside PPO observations and map exports.
+    E3.4 owns player-facing telemetry and explainability presentation.
+- `experience_ledger.js` owns E5 lived dwarf history.
+  - It receives accepted canonical events after Story Director saga assignment and records only
+    qualifying dwarf actors, categories, and importance tiers. Each deed contains bounded event IDs,
+    ticks, type/category/importance, a short witnessed summary, role, compact actor snapshots,
+    location facts, optional saga ID, and occurrence count; full causes, consequences, and live
+    objects are never copied.
+  - Equivalent type/saga/role/location deeds merge inside `merge_window_ticks`. The merged record
+    retains the newest compact summary and a bounded tail of source event IDs.
+  - Retention is importance-then-recency with deterministic ID tie breaks. Active-saga participants
+    and Hall of Fame dwarves are protected at record level; active-saga deeds are protected inside a
+    biography. Hard ceilings remain `4096` dwarves, `32` deeds per dwarf, and `8` source/actor
+    references regardless of malformed configuration.
+  - Archived actor labels let Inspect resolve lived deeds after a participant dies or disappears.
+    `getDwarfBiography(...)` is read-only and returns recent/defining deeds, active saga roles, and
+    scars from the current warrior profile.
+- `chronicle.js` owns E5 factual cycle history.
+  - Every qualifying event maps deterministically to one of seven fixed chapters: Settlement Growth,
+    Crises, Politics, Expeditions, Heroes, Deaths, or Legacy. Each prose claim carries its exact
+    source event ID and is paired with compact actor/location evidence.
+  - Integrity verification rejects or omits claims if the source event, actor snapshot, or located
+    place/coordinates cannot resolve. Summary highlights reuse retained claim text and source IDs;
+    they never invent connective prose.
+  - Chapter and total-evidence limits evict lower-importance/older claims together with unreferenced
+    evidence. Endgame finalizes the old cycle before state replacement, places a three-highlight
+    summary in the transition panel, and carries only a bounded archive of completed factual records.
+    This archive has no gameplay modifiers; E6 owns persistent-world effects.
+  - Saga quality is measured separately. Because E3 evidence showed high fragmentation/eviction,
+    `chronicle.saga_quality.use_for_retention` defaults to `false`; active sagas still protect ledger
+    evidence they currently require, but do not make Chronicle claims intrinsically more valuable.
+- `world_legacy.js` owns bounded persistent-civilization history.
+  - Endgame feeds it only the completed, sanitized Chronicle after the old cycle closes. The v2
+    plain-JSON schema separates cycle summaries, archived identities, named places, memorials,
+    inherited institutions, current-world echoes, and qualifying E7 nemeses; full event objects and
+    prior simulation states are never copied.
+  - Missing-version/v0 data is repaired deterministically and v1 records migrate with an empty
+    nemesis collection. Unsupported future schemas are rejected into a fresh v2 container and
+    counted instead of being guessed. Every category has a configured
+    cap plus an absolute ceiling, followed by a total-record cap with deterministic oldest-first
+    compaction.
+  - A completed cycle always produces one `cycles` record, even when its Chronicle has no qualifying
+    claims. Important actor and named-place records retain compact source-event provenance. Critical
+    or legendary actor evidence may create one tomb, statue, or ancestor-hall record per cycle by
+    default.
+  - Institutions inherit the Warrior Company name/motto when available, otherwise use a stable
+    cycle-derived fallback. Their `legacy_resolve` modifier is a bounded future-consumer hook. E6
+    writes `applied=false`, constrains aggregate magnitude to the configured total cap, and has no
+    gameplay or PPO consumer, preventing accidental economy/combat compounding.
+  - Geographic echoes keep source cycle/place/actor/event references but discard old-world
+    coordinates. After fresh terrain exists, retained echoes hash their stable ID with the new terrain
+    seed, select free walkable surface cells, and register authoritative current-world place IDs. This
+    makes them renderable and available to future saga producers through `getLegacySagaHooks(...)`.
+  - Surface rendering draws `symbols.world_legacy_echo` with the configured map color. The legend,
+    New Frontier transition, Endgame telemetry, and headless benchmark expose legacy counts without
+    mutating the legacy state.
+  - `npm run test:world-legacy` is the deterministic schema/migration/retention/remap/render/PPO gate.
+    `npm run validate:world-legacy` executes explicit two-cycle and five-cycle profiles, tracking
+    population around reset, deaths, selected stockpiles, endgame ticks, record count, serialized
+    bytes, echo count, evictions, and modifier magnitude. Stop rules reject population collapse,
+    negative stockpiles, cap violations, modifier compounding, and legacy state above 256 KiB.
+- `epic_conflicts.js` owns E7 named antagonists and staged surface conflict.
+  - Raider leaders qualify through hostility or completed demands; encountered Underrealm champions
+    qualify through an explicit attempt threshold. Source kind plus stable source ID hashes into a
+    deterministic name, epithet, trait set, and goal without consuming simulation RNG.
+  - Every nemesis owns one explicit saga ID and bounded victories, defeats, retreats, scars, grudges,
+    and encounter facts. Dwarf Inspect resolves direct hero-nemesis memory; Story Director telemetry
+    and the benchmark expose counts, current stage, outcomes, recovery, and serialized size.
+  - Surface sieges begin when an active nemesis camp reaches either the configured hostility or
+    repeated-demand threshold, then progress through warning, approach, demand, breach, battle,
+    retreat or victory, and aftermath. Active surface raids and active sieges exclude each other;
+    independent Underrealm pressure can still overlap, preserving rare compound-crisis danger. The
+    source camp remains present for the conflict. Roads shorten approach,
+    watchtowers/armories/militia/Warrior heroes contribute defense, and committed beats adjust schism
+    pressure or legitimacy.
+  - Collapse guardrails convert a dangerous demand into capped tribute before a breach. Defeats cap
+    injuries, stockpile loss, and structure damage while preserving target-based reserves. Recovery
+    blocks another siege and repairs visible damage at a fixed cadence.
+  - Rivalry outcomes are deterministic: a prior defeated hero may take revenge, a strong defender
+    may rescue the hold, a clan successor can inherit a grudge, and balanced low-hostility histories
+    can reconcile. Qualified encountered nemeses are admitted to world-legacy schema v2 and can
+    reappear after reset with the same identity and bounded encounter evidence.
+  - `nemesis_events.js` is the canonical structured-event boundary. `render/epic_conflicts.js` draws
+    the configured front and damage glyphs without mutating simulation state.
+  - `npm run test:epic-conflicts` covers promotion, stable identity, automatic start, both battle
+    outcomes, branches, Inspect/telemetry/rendering, retention, serialization repair, and PPO
+    isolation. `npm run validate:epic-conflicts` runs a complete siege, collapse guard, and five-siege
+    bounded recovery/legacy profile.
+- `../chronicle_export.js` serializes the latest completed or current Chronicle.
+  - JSON ordering and Markdown chapter ordering are stable, no wall-clock fields enter the payload,
+    and SHA-256 content determines the filename. Equal records therefore produce equal hashes and
+    safe names. Output paths are constrained to the application root and default to `chronicles/`.
+- `../dwarf_identity.js` is the single public dwarf identity read model.
+  - `resolveDwarfIdentity(...)` returns stable ID, display name, house, role title, formatted label,
+    status, and provenance without mutating state or consuming RNG.
+  - Live dwarves reuse `dwarf_lore.js`; retired live dwarves retain their normal identity with an
+    explicit `retired` status. Dead actors resolve from retained event labels. Hall of Fame and
+    carry-over actors resolve from bounded identity snapshots. Unknown IDs render as
+    `Unknown <stable_id>` and never receive lore generated from an unrelated cycle seed.
+  - `createDwarfIdentityCache(limit)` owns operation-scoped FIFO identity/live/history maps. All maps
+    have the same explicit hard cap; only requested live IDs are indexed, avoiding a full-population
+    allocation on every render.
+  - A separate process-local FIFO cache retains only seed/ID-stable `name` and `house` fields across
+    frames (`2048` hard cap). Dynamic role/status fields remain operation-local, preventing stale
+    retirement or lifecycle labels.
+  - Event Log, Inspect/social links, Warrior League, lifecycle actor snapshots, and Warrior telemetry
+    consume this resolver. Compatibility display helpers remain thin wrappers.
+  - `formatNamedEventMessage(...)` is the presentation boundary for priority lifecycle, social,
+    combat, and Warrior messages. It replaces full `Name <id>` labels and raw dwarf IDs with compact
+    names while leaving canonical actor IDs untouched.
+  - Repeated references to the same actor are deduplicated before formatting. Equal display names add
+    `of House <house>` only when it distinguishes two actors; an ID appears in the message only as
+    the final collision fallback or in the explicit `Unknown <id>` form. Tournament clan context is
+    retained because clan standings are part of that event's meaning.
+- `../place_identity.js` owns stable world-place identity.
+  - `state.places` is a plain-JSON registry (`schemaVersion`, insertion `order`, `byId`, and scalar
+    rejection diagnostics) with a hard cap of `256` records. Reaching the cap rejects new identities;
+    it never evicts or renames an established place.
+  - Names are deterministic hashes of the authoritative terrain seed, normalized place kind, stable
+    ID, and committed spatial facts. Generation consumes no gameplay RNG. Re-registering an ID may
+    refresh its coordinates/depth but preserves its original full and compact names.
+  - Initial state registers the surface Deep Gate and bounded per-depth ruins. Village creation,
+    road completion, Temple site selection, and Deep Lift milestones register their identities only
+    after the corresponding authoritative state exists.
+  - Each record stores a full name plus a compact fallback (`Vn`, `Road xxx`, `Deep Gate`, `Lift Dn`,
+    `Ruins Dn`, or `Ancestor Temple`). `buildPlaceLocation(...)` supplies stable `placeId`, full label,
+    scope, depth, and available coordinates to structured events. Canonical v1 retention keeps the
+    full label; narrow UI reads the compact label from authoritative registry state.
+  - Event Log resolves `placeId` against current authoritative state before trusting retained labels
+    and chooses compact labels in narrow fact rows. Dwarf Inspect shows the nearest registered
+    village; Underrealm and Temple telemetry use the same registry. Future Chronicle code must cite
+    the stored `placeId`/name rather than synthesize another place name.
+- `secondary_events.js` is the shared E1.3 boundary for lower-frequency producers. It supplies stable
+  actor/location helpers, signed resource consequences, and a single RNG-neutral emission path while
+  each producer retains its existing compact message and authoritative state-transition order.
+  - World events, camps, caravans, merchants, and contracts now retain faction/institution actors,
+    available surface coordinates, lifecycle causes, trades, losses, rewards, and outcomes.
+  - Myths, alchemy, festivals, weather, and wildlife retain cultural/system actors, trigger state,
+    committed costs/losses, duration transitions, season context, and herd locations.
+  - Construction, upgrades, villages, roads, Temple stages, ruins readiness, Deep Lift progression,
+    shrine oaths, and deep resource finds retain builders/places, thresholds, unlocks, and signed
+    resource deltas.
+  - `npm run audit:narrative-producers` owns the executable zero-legacy report; `npm test` runs it
+    before contract suites so a new direct string-only writer cannot silently bypass E1.3.
+- `lifecycle_events.js` supplies the first migrated producer family: settlement founding, births,
+  natural deaths, and first-mutual-bond partnerships. These events carry deterministic actor label
+  snapshots, locations when coordinates exist, causal evidence, and typed consequences. Their
+  configured type importance is birth/partnership `notable` and death/founding `major`.
+- `social_events.js` supplies the migrated social-incident family after gameplay effects commit.
+  Mentorship, rivalry, grudge, and reconciliation events preserve their existing compact messages
+  while adding pair actors, defensible shared locations, pre-incident relationship metrics, and
+  post-incident typed outcomes. Grudge escalation is `major`; the other three types are `notable`.
+- `combat_events.js` supplies structured surface raids, ruins expeditions, depth-champion encounters,
+  hostile deep raids, and Dwarf Champion changes. Builders run after authoritative outcomes, retain
+  bounded participant/victim snapshots, and never participate in combat selection or RNG. Ordinary
+  combat outcomes are `major`, expedition dispatch is `notable`, and champion/deep-raid deaths are
+  `critical`.
+- `warrior_events.js` supplies structured Warrior League marks, vows, retirements, injuries,
+  tournament deaths, hero succession, tournament crowns, Hall of Fame inductions, and Underrealm
+  command transitions. Ordinary progression/injury facts are `notable`; retirements, crowns, hero
+  succession, and command changes are `major`; tournament deaths are `critical`.
+- `warrior_events.js` also owns the active Warrior Company doctrine summary; endgame owns the migrated
+  cycle carry-over seed fact. No simulation producer retains a direct legacy-only event writer.
+- `political_events.js` supplies all eleven schism priority facts: doctrine/phase shifts,
+  ritual-window/council/invocation/expiry transitions, decree proposal/enactment/expiry, and climax
+  start/resolution. Windows and expirations are `notable`; shifts, invocations, enactments, and the
+  council ignition are `major`; climax start is `critical` and resolution is `legendary`.
+- `endgame_events.js` supplies structured artifact recovery/collection, transition, cycle-closure,
+  and Warrior Company carry-over facts. Builders preserve compact runtime messages, attach a stable
+  cycle saga, and emit closure/carry-over only after the replacement state owns its cycle identity.
 - `random.js` provides random helpers (ranges, shuffling) used across systems.
   - Training/eval can override randomness through scenario config and seed control.
 
 ## 7) Rendering system (ASCII + Telemetry) 🎨
 
-Everything under `src/render/` is view-layer only: no simulation state mutations.
+Everything under `src/render/` is view-layer only: it may retain bounded `renderState` continuity,
+but it does not mutate gameplay systems, resources, actors, or AI inputs.
 
 - `render/index.js`
   - Composes header, grid, overlays, and optional frame/footer.
@@ -1444,31 +1834,96 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
   - Places nodes, structures, temple footprint overlay, external camp role markers + caravans, dwarves, merchant, and raid beasts on the grid.
   - When underrealm depth view is active, it renders the selected depth terrain layer and hides surface entities.
   - Selects a stable subset of dwarves to keep the map readable (`display.dwarves.maxVisible`; set `< 0` to skip dwarf rendering).
+  - `render/dwarf_visibility.js` owns capped actor selection for both surface and Underrealm layers.
+    It scans at most `160` newest retained events and assigns deterministic tiers in this order:
+    critical/legendary actors from the last `240` ticks; endangered dwarves; current League/Deep
+    champions; saga actors from the last `1200` ticks; any incident actors from the last `240` ticks;
+    previously visible IDs; adults; then other life stages.
+  - Event order breaks story-tier ties; previous visible order breaks stability ties; authoritative
+    population order is the final fallback. A new higher tier preempts the lowest selected tier,
+    while an unchanged state produces the same ordered set without flicker.
+  - Only live actors eligible for the currently rendered layer participate. Underrealm depth views
+    rank the assigned delver set with the same tiers. If urgent actors alone exceed the cap, newest
+    event/actor order wins deterministically; the renderer never exceeds `maxVisible`.
+  - Visibility selection consumes no RNG and stores only the capped surface ID list in
+    `state.renderState.visibleDwarfIds`. This removes presentation-dependent gameplay RNG drift;
+    old interactive trajectories that depended on render-time shuffling are intentionally not a
+    replay contract. Headless simulation and AI observation/action contracts are unchanged.
   - Applies the dwarf inspect overlay when `display.inspect_panel.enabled` is true.
   - Applies the Warrior League modal overlay when `display.warrior_panel.enabled` is true.
   - Applies the Event Log modal overlay when `display.event_log_panel.enabled` is true.
   - Applies the telemetry overlay when `display.telemetry_panel.enabled` is true.
   - Applies the map-save confirmation overlay when `display.save_panel.enabled` is true.
 
+- `render/story_ribbon.js`
+  - Renders the current Story Director focus as a four-row in-map ribbon near the lower map edge.
+  - Presents actor, action, authoritative place, and first typed consequence in that reading order.
+    The action uses the retained canonical message and removes a repeated leading actor label when
+    possible; the place resolver prefers the current bounded place registry over stale event text.
+  - Resolves the focused canonical event by ID from the Event Log buffer. If that record has already
+    been evicted, it falls back to the saga's fact-backed summary and compact focus references; it
+    never copies facts into new simulation state.
+  - Uses deterministic truncation and compact labels at narrow widths. The ribbon is omitted when
+    its configured minimum width cannot fit, clipped left of an overlapping Ops Snapshot, and hidden
+    while modal, save, or cycle-transition overlays are active.
+  - Rendering is read-only and consumes no RNG. It does not choose focus, alter Director cooldowns,
+    reserve simulation cells, affect headless execution, or enter PPO observations.
+  - Layout is controlled by `display.storyRibbon.*`.
+
+- `render/story_focus_overlay.js`
+  - Adds a read-only emphasis layer for the Story Director's single active focus. It consumes the
+    actual surface or Underrealm positions already resolved by the renderer, so it neither moves
+    actors nor creates a competing spatial model.
+  - Major beats recolor only involved visible dwarves, capped at two. Critical and legendary beats
+    may additionally recolor the authoritative location cell plus at most four cardinal cells; the
+    underlying dwarf, structure, resource, and terrain symbols are preserved.
+  - The cardinal ring alternates between visible and quiet phases using `state.tick` and
+    `display.storyFocusOverlay.cadenceTicks`. This is a deterministic render phase: it adds no timer,
+    mutable animation state, RNG call, or headless/training behavior.
+  - If the event belongs to another layer, no false marker is painted on the active map. The Story
+    Ribbon receives an explicit `↑ Surface` or `↓/↑ Underrealm Dn` cue instead; out-of-bounds
+    coordinates use a compact directional off-map cue.
+  - Paths are supported as a short Manhattan hint with an absolute twelve-cell cap, but remain off
+    by default (`showPaths=false`) to protect map legibility. The overlay also yields to modal, save,
+    and cycle-transition views and is applied before those panels and the Ops Snapshot.
+  - Visual budget and thresholds are controlled by `display.storyFocusOverlay.*`; importance colors
+    use `display.colors.map.story_focus_major|story_focus_critical|story_focus_legendary`.
+
 - `render/map_inset_panel.js`
   - Renders the carved top-right in-map Ops Snapshot (`display.mapInset.*`) as a dedicated component.
-  - Uses a status-stack digest focused on core progression signals: tick/year/cycle, live weather token (`Wx:*`, e.g. `Clear`, `Rain`, `Storm`), population + age split + morale, underrealm unlock status, and current view depth.
+  - Uses a status-stack digest focused on core progression signals: tick/year/cycle, live weather token (`Wx:*`, e.g. `Clear`, `Rain`, `Storm`), current speed/protection (`1x`, `AUTO:0.5x`, `HOLD`, `PAUSE`, `STEP`), population + age split + morale, underrealm unlock status, and current view depth.
   - Computes a static risk level (`Stable`/`Warning`/`Critical`) from stockpile-ratio pressure, morale, shortage urgency, and active raid flags.
   - Adds a compact alert cause tag in the inset status line (`raid`, `deepRaid`, `shortage`, `stockpile`, `morale`, `mixed`) when level is not stable.
   - Applies semantic alert accents (`alert_warning` / `alert_critical`) to risk tokens and command strip; morale is emphasized only when morale thresholds are actually breached.
   - Supports theme-driven focus mode (`display.themes.<id>.focus.*`) with compact critical layout and optional alert-tinted inset frame/title.
-  - Keeps the keyboard-command row fixed at the bottom of the inset (symbol-first labels with short fallbacks on narrow widths).
+  - Keeps the keyboard-command row fixed at the bottom of the inset, including `Space`, speed, and
+    step hints (symbol-first labels with short fallbacks on narrow widths).
   - Uses width-aware wording fallbacks to reduce truncation on narrow terminals.
 
 - `render/inspect.js`
   - Builds the ASCII inspect panel overlay (box, content, controls) and draws it onto the grid.
   - Panel size is controlled by `display.inspect_panel.width`/`height`.
-  - Lore content is deterministic and pulled from `src/dwarf_lore.js` (epithet, title, heraldry, saga).
+  - `LIVED HISTORY` appears near the top so standard-height panels show the defining deed, two recent
+    deeds, active relationships, current saga role, and scars. `INHERITED LORE` is explicitly
+    separate and continues to use deterministic `src/dwarf_lore.js` fields.
+
+- `render/transition.js`
+  - Applies the diagonal endgame mask and renders the New Frontier panel.
+  - During reset the panel receives only a completed Chronicle summary: claim/chapter counts plus up
+    to three source-backed highlights. `display.transition_panel.height` controls its readable budget.
 
 - `render/event_log_panel.js`
   - Builds the ASCII Event Log modal overlay and draws it onto the grid.
   - Reads the dedicated rolling history buffer (`state.eventLog`) and falls back to the mini HUD event list if needed.
-  - Supports `All events` / `Dwarf drama` filtering, tick-tagged entries, and arrow-key scrolling through wrapped rows.
+  - Supports `All events` / `Dwarf drama` filtering, importance-tagged entries, and arrow-key
+    scrolling through wrapped rows. No new filter was added without usage evidence.
+  - Renders at most three unique actor labels per context row (then `+N`), preferring shared resolved
+    identities over stable-ID fallbacks. Location uses its label when available, otherwise world/surface/depth
+    scope plus valid coordinates; saga membership is shown by its stable saga ID.
+  - Structured context wraps inside the panel and is covered at the minimum supported `72x18`
+    layout. Legacy v0/future-safe records retain their message/category path and ambient fallback.
+  - Rendering is read-only: it does not mutate event records, UI storage, simulation state, or AI
+    observation/action shapes.
   - Panel size is controlled by `display.event_log_panel.width`/`height`.
 
 - `render/legend_panel.js`
@@ -1476,12 +1931,13 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
   - Panel size is controlled by `display.legend_panel.width`/`height`.
 
 - `telemetry/telemetry_panel.js`
-  - Builds a paged telemetry Data Center with four pages: `Dashboard`, `Overview + Deep`, `Economy`, and `Warrior League`.
+  - Builds a paged telemetry Data Center with five pages: `Dashboard`, `Overview + Deep`, `Economy`, `Warrior League`, and `Story Director`.
   - `Dashboard` is an analyst-style summary layer: KPI snapshot, ASCII trend charts (sparkline rows), forecast/bottleneck context (runway, net flow, volatility, momentum), risk gauge + pressure decomposition, workforce/job distribution bars, event timeline windows, and deterministic action hints.
   - Dashboard trend charts are sampled as snapshots (not every tick): cadence and history window are tunable via `display.telemetry_panel.dashboard.snapshot_interval_ticks` and `display.telemetry_panel.dashboard.history_points` (default profile: `120t` cadence, `32` points).
   - Trend deltas are computed on a tick-based lookback window (not fixed sample count), so interpretation stays stable when sampling cadence changes.
   - `Overview + Deep` and `Economy` prepend a compact context-lens block (`Deep Context` / `Economy Context`) to frame risk posture, trend direction, timeline clocks, shortage drivers, and workload before raw section details.
   - Economy page includes dedicated `AI Explainability` rows (driver ranking, shortage scoring context, governor sources/intents) plus the `Endgame` checklist block.
+  - Story Director page exposes the current focus, current saga, focus/escalation cooldowns, interruption budget, latest decision reason, focus coverage, priority context coverage, and saga outcome counters. It is read-only and does not drive presentation timing or simulation decisions.
   - Adds a top static risk row (`Colony risk`) with warning/critical color accents plus a compact cause tag, aligned to the same alert thresholds used by the map inset.
   - Reuses live section builders from `telemetry/telemetry.js`, so values stay consistent across overlays.
   - Uses the full body area for live telemetry rows (no guide footer); labels are expanded directly in the telemetry rows for readability.
@@ -1512,7 +1968,8 @@ Everything under `src/render/` is view-layer only: no simulation state mutations
 - `telemetry/telemetry.js`
   - Provides telemetry section builders and formatting helpers used by the telemetry panel.
   - Internal build flow is split into explicit phases (`collectTelemetrySnapshot` -> section models -> render), so adding telemetry metrics no longer requires touching all formatting paths.
-  - Section set: `World`, `Population`, `Social`, `Pressure`, `Stockpile`, `Structures`, `Diplomacy`, `Operations`, `AI Explainability`, `Endgame`, `Underrealm`, `Lore`, `Deep Signals`.
+  - Section set: `World`, `Population`, `Social`, `Pressure`, `Stockpile`, `Structures`, `Diplomacy`, `Operations`, `AI Explainability`, `Endgame`, `Underrealm`, `Lore`, `Deep Signals`, `Warrior League`, `Story Director`.
+  - Story Director rows are built by `telemetry/story_director.js` from `state.story`; they summarize nullable focus/saga state, cooldowns, reason traces, selection/suppression counters, priority context coverage, and saga resolution without retaining full events.
   - Housing details are intentionally compressed: only `House ratio` is shown in `World`.
   - World timeline shows `Tick`, `Year`, and season name only (capitalized label, no season tick progress fraction).
   - Section rows are adaptive (no fixed per-section filler quotas), which removes repeated placeholder noise while preserving deterministic ordering.
@@ -1644,6 +2101,14 @@ Clan dynamics add heterogeneity and longer-horizon trade-offs. To keep PPO stabl
 
 - `display`: grid size, frame, telemetry, in-map inset panel (`display.mapInset.*`), terrain, colors.
 - `underrealm`: multi-depth full-size generation, cave topology tuning, dedicated crew planning, deep extraction economy, exploration unlock pacing, and hostile deep-faction raids.
+  - Its regression profile intentionally permits rare compound-crisis mortality instead of
+    serializing surface and deep threats. Acceptance still requires reward and score non-regression,
+    average births no worse than `-15%` from baseline, average deaths no more than `+1.5` above
+    baseline, and randomized extinction at or below the existing absolute cap. This keeps dangerous
+    worlds possible without accepting systematic demographic collapse.
+  - The longer Horizon profile uses the same joint contract with a `+1.75` average-death budget and
+    the same `-15%` birth floor, while retaining its stricter reward, stock, readiness, combat-pressure,
+    and extinction checks.
 - `resources`: stockpile targets, node counts/capacity, regen rates, crafting inputs.
 - `structures`: build costs, build ticks, upgrade rules, capacities.
 - `structures.temple_of_ancestors`: staged temple progression, topology-based site tuning, costs/effects.
@@ -1654,6 +2119,9 @@ Clan dynamics add heterogeneity and longer-horizon trade-offs. To keep PPO stabl
 - `raids`: wildlife raid settings.
 - `merchant`: spawn cadence and trade behavior (including `neverGive` exclusions).
 - `externalCamps`: long-lived external faction camps (trade/militia/raider), spawn cadence, and pressure/economy knobs.
+- `world_legacy`: bounded cross-cycle identities, places, memorials, institutions, echoes, and qualifying nemeses.
+- `epic_conflicts`: nemesis eligibility/identity pools, staged siege cadence, deterministic battle,
+  recovery/collapse guardrails, political effects, and rivalry thresholds.
 - `worldEvents`: global short-arc events (bards, rival caravans, and limited opportunities).
 - `schism`: run-scale social pressure/legitimacy arc, doctrine shifts, ritual windows, and climax tuning.
 - `ai`: runtime policy + training defaults.
@@ -1966,44 +2434,84 @@ Quick checklist:
 - `src/`
   - `simulation.js` / `state.js` / `render.js` / `ai_policy.js` → stable wrappers
   - `simulation/` → game logic
+    - `simulation/narrative_contract.js` → strict narrative-event v1 validator plus deterministic identity peek/commit helpers
+    - `simulation/narrative_normalizer.js` → bounded draft normalization, importance fallback, and deterministic optional-payload reduction
+    - `simulation/story_director.js` → bounded per-cycle story scoring, focus/preemption rules, reason traces, serialization repair, and hard-cap enforcement
+    - `simulation/secondary_events.js` → shared structured boundary/helpers for secondary producer families
+    - `simulation/lifecycle_events.js` → structured founding, birth, natural-death, and partnership event builders
+    - `simulation/social_events.js` → structured mentorship, rivalry, grudge, and reconciliation incident builders
+    - `simulation/combat_events.js` → structured surface-raid, ruins-expedition, Underrealm battle, deep-raid, and champion event builders
+    - `simulation/warrior_events.js` → structured Warrior League marks, vows, consequences, tournament crown/Hall of Fame, and command-transition event builders
+    - `simulation/political_events.js` → structured schism doctrine, phase, ritual, decree, and climax event builders
+    - `simulation/endgame_events.js` → structured artifact, transition, cycle-closure, and legacy carry-over event builders
+    - `simulation/experience_ledger.js` → bounded source-backed dwarf deeds and read-only biography views
+    - `simulation/chronicle.js` → fact-backed cycle chapters, integrity checks, summaries, and bounded archives
+    - `simulation/world_legacy.js` → versioned bounded cross-cycle summaries, memorials, institutions, migration, and deterministic geographic echoes
+    - `simulation/epic_conflicts.js` → deterministic nemesis registry, staged sieges, rivalry memory, recovery, and legacy restoration
+    - `simulation/nemesis_events.js` → canonical structured nemesis and siege event boundary
+    - `simulation/landmarks.js` → bounded staged landmarks, deterministic placement, district states, and render tiles
+    - `simulation/landmark_events.js` → canonical structured landmark progress/condition boundary
     - `simulation/alchemy.js` → alchemy rite lifecycle and modifiers
     - `simulation/contracts.js` → contract offers, reputations, and boons
     - `simulation/world_events.js` → global event lifecycle and temporary world modifiers
     - `simulation/social_drama.js` → bounded dwarf social ties, passive mood effects, emergent incidents, and social cleanup/status helpers
   - `simulation/external_camps.js` → long-lived external faction camps and map-level diplomacy pressure
-  - `simulation/schism.js` → run-scale social schism arc, doctrine shifts, ritual windows, and climax events
+  - `simulation/schism.js` → run-scale social schism arc, doctrine shifts, ritual/decree lifecycles, climax state, and structured political emission
   - `simulation/social_drama.js` → social-drama runtime for friendship/rivalry/mentorship/grudge inference and aggregate cohesion/conflict metrics
-  - `simulation/warriors.js` → Warrior League runtime (combat profile bootstrap, risk-aware dispatch ranking, expedition progression, seasonal tournaments, bounded injury/recovery + succession/training loops, persistent marks/vows/legacy bonuses, and company identity/cycle carry-over hooks)
+  - `simulation/warriors.js` → Warrior League runtime (combat profile bootstrap, risk-aware dispatch ranking, expedition progression, seasonal tournaments, bounded injury/recovery + succession/training loops, persistent marks/vows/legacy bonuses, structured facts, and company identity/cycle carry-over hooks)
   - `simulation/roads.js` → road planning/build queue/pathing
     - `simulation/underrealm.js` → crew assignment, deep economy/exploration, and hostile deep raids
     - `simulation/temple.js` → Temple of Ancestors progression, effects, and prestige
     - `simulation/ruins.js` → expeditions, artifacts, and set bonuses
   - `state/` → initial state + terrain generation
+  - `dwarf_identity.js` → shared deterministic identity resolver, bounded operation cache, and historical fallbacks
+  - `place_identity.js` → bounded authoritative deterministic place-name registry and UI/event lookup
+  - `dwarf_lore.js` → deterministic identity seed plus character lore generation
   - `render/` → ASCII output (grid, legend, inspect overlays, frame orchestration)
+    - `render/dwarf_visibility.js` → deterministic story-priority selection for capped surface/deep actors
+    - `render/story_ribbon.js` → responsive read-only current-focus ribbon with structured-fact fallbacks
+    - `render/story_focus_overlay.js` → bounded actor/location emphasis and cross-layer direction cues
+    - `render/world_legacy.js` → read-only surface rendering for remapped legacy sites
+    - `render/epic_conflicts.js` → active nemesis-front and siege-damage map overlays
+    - `render/landmarks.js` → evolving landmark footprints and compact district-state overlays
     - `render/map_inset_panel.js` → carved in-map Ops Snapshot component (stable counters + keyboard hints)
     - `render/warrior_panel.js` → Warrior League modal overlay (company identity/carry-over context, champion lineage, top-5 fighters, marks/legacy summary)
     - `render/event_log_panel.js` → Event Log modal overlay (scrollable real-time event history with drama-focused filter)
   - `telemetry/` → telemetry extraction and Data Center composition
     - `telemetry/telemetry.js` → telemetry section builders and formatting helpers
+    - `telemetry/story_director.js` → Story Director Data Center rows plus deterministic headless counter aggregation
     - `telemetry/telemetry_panel.js` → paged in-game telemetry Data Center with section pages and full-height telemetry body
   - `ai/` → observation + policy
   - `runtime.js`, `terminal.js`, `utils.js` → support
+  - `runtime/time_controls.js` → ephemeral interactive speed, pause, single-step, and focus-protection controller
+- `chronicle_export.js` → deterministic safe-path Markdown/JSON Chronicle writer
 - `scripts/train_wrapper.js` → unified safe wrapper behind the parameterized `ai:train` command
 - `scripts/train_continuous.js` → cycle orchestrator for long-running `daily/full/high` training cadence, periodic validation gates, and stop-rule automation
 - `scripts/regression.js` → AI regression harness and profile recording with txt/json/markdown reports
 - `scripts/validate_extended_optimized.js` → optimized full-quality validation orchestrator with per-phase runtime reports
 - `scripts/clean_debug.js` → deterministic debug cleanup (transient artifacts + keep latest `run_*` history)
-- `scripts/test_training_contracts.js` → deterministic technical test suite for policy shape and report-schema contracts (`npm test`)
+- `scripts/audit_narrative_producers.js` → reports/fails on direct legacy-only event producers outside approved boundaries
+- `scripts/test_narrative_contracts.js` → fast structured-event/identity/compatibility/isolation gate (`npm run test:narrative`; included in `npm test`)
+- `scripts/test_time_controls.js` → deterministic speed/step/auto-protection/render/isolation gate (`npm run test:time-controls`; included in `npm test`)
+- `scripts/test_chronicle_contracts.js` → deterministic ledger/biography/Chronicle/reset/export/bounds/AI-isolation gate (`npm run test:chronicle`; included in `npm test`)
+- `scripts/test_world_legacy_contracts.js` → deterministic E6 schema/migration/retention/remap/render/AI-isolation gate (`npm run test:world-legacy`; included in `npm test`)
+- `scripts/validate_world_legacy.js` → deterministic two-cycle/five-cycle E6 balance and state-growth gate (`npm run validate:world-legacy`)
+- `scripts/test_epic_conflict_contracts.js` → deterministic E7 identity/lifecycle/branch/legacy/render/PPO-isolation gate (`npm run test:epic-conflicts`; included in `npm test`)
+- `scripts/validate_epic_conflicts.js` → deterministic complete-siege, collapse-guard, and repeated-siege recovery/retention gate (`npm run validate:epic-conflicts`)
+- `scripts/test_training_contracts.js` → deterministic technical test suite for policy shape and report-schema contracts (included in `npm test`)
 - `regression/baselines/regression_baseline.json` → durable profile baselines used by regression checks
 - `benchmark_cache/headless_benchmark_baseline.json` → versioned cached headless benchmark baseline for report-to-report diffs
 - `benchmark_cache/headless_benchmark_baseline.md` → markdown companion of cached headless benchmark baseline
+- `debug/epic_e4_time_controls_{120,72}.png` → retained full/narrow critical auto-slow and legendary auto-hold presentation captures
+- `debug/headless_benchmark_{candidate,diff}.{json,md}` → latest canonical `4 x 8000` candidate and zero-delta baseline comparison with legacy and epic-conflict summaries
+- `chronicles/` → git-ignored deterministic JSON/Markdown Chronicle exports created with `c`
 - `scripts/export_map.js` → map export pipeline (PNG + SVG)
-- `scripts/headless_benchmark.js` → deterministic long-run headless benchmark with comparative score, seed deltas, schism decree telemetry, and optional gate checks
+- `scripts/headless_benchmark.js` → deterministic long-run headless benchmark with comparative score, seed deltas, schism decree telemetry, Story Director coverage/outcome counters, and optional gate checks
 - `scripts/ensure_benchmark_baseline.js` → auto-refresh guard for cached headless benchmark baseline metadata coherence
-- `scripts/compare_benchmark_reports.js` → report-to-report benchmark diff utility for cached baseline/candidate comparisons, including schism decree usage deltas
+- `scripts/compare_benchmark_reports.js` → report-to-report benchmark diff utility for cached baseline/candidate economy, Underrealm, legacy, epic-conflict, and schism decree usage deltas
 - `python/train.py` → PPO trainer and best-checkpoint updates
 - `python/promote_best.py` → post-train promotion check (latest vs best)
 - `python/regression_rollout.py` → randomized regression rollouts without PPO updates/checkpoint writes
 - `python/bootstrap.py` / `python/agent.py` → venv bootstrap + sample agent
-- `docs/PARAMETERS.md` / `docs/TRAINING_OVERRIDES.md` / `docs/TRAINING_STATUS.md` / `docs/TRAINING_OPTIMIZATION_WORKBOOK.md` / `docs/EPIC_EVOLUTION_WORKBOOK.md` / `docs/TELEMETRY.md` → config reference, training overrides, current training status, training optimization archive, Epic Evolution execution tracker, and telemetry operator manual
+- `docs/PARAMETERS.md` / `docs/TRAINING_OVERRIDES.md` / `docs/TRAINING_STATUS.md` / `docs/TRAINING_OPTIMIZATION_WORKBOOK.md` / `docs/EPIC_EVOLUTION_WORKBOOK.md` / `docs/NARRATIVE_EVENT_CONTRACT.md` / `docs/TELEMETRY.md` → config reference, training overrides, current training status, training optimization archive, Epic Evolution execution tracker, normative narrative-event contract, and telemetry operator manual
 - `models/` → `policy.json`, `policy_best.json`, `policy_best.meta.json`

@@ -8,10 +8,15 @@ const { getWorldEventStatus } = require("../simulation/world_events");
 const { getExternalCampStatus } = require("../simulation/external_camps");
 const { getSchismStatus } = require("../simulation/schism");
 const { getSocialDramaStatus } = require("../simulation/social_drama");
+const { getEpicConflictStatus } = require('../simulation/epic_conflicts');
+const { getLandmarkStatus } = require('../simulation/landmarks');
 const {
   formatWarriorDisplayNameById,
   resolveWarriorLeagueEpicName,
 } = require("../simulation/warriors");
+const { createDwarfIdentityCache } = require("../dwarf_identity");
+const { resolvePlaceLabel } = require('../place_identity');
+const { buildStoryDirectorSectionRows } = require('./story_director');
 const { getColorConfig, applyColor } = require("../render/colors");
 const { fitLine, wrapLine } = require("../render/format");
 
@@ -35,7 +40,7 @@ const TELEMETRY_LAYOUT = [
   {
     id: "deep_meta",
     title: "Deep & Meta",
-    sections: ["underrealm", "lore", "deepSignals", "warriorLeague"],
+    sections: ["underrealm", "lore", "deepSignals", "warriorLeague", "storyDirector"],
   },
 ];
 
@@ -201,6 +206,8 @@ function collectTelemetrySnapshot(state, config, columnWidth, options = {}) {
   const worldEventStatus = getWorldEventStatus(safeState, safeConfig);
   const schismStatus = getSchismStatus(safeState, safeConfig);
   const socialSnapshot = buildSocialTelemetrySnapshot(safeState, safeConfig);
+  const epicConflictStatus = getEpicConflictStatus(safeState);
+  const landmarkStatus = getLandmarkStatus(safeState, safeConfig);
   const shortages = Array.isArray(safeState.lastPriorities)
     ? safeState.lastPriorities
     : [];
@@ -289,6 +296,8 @@ function collectTelemetrySnapshot(state, config, columnWidth, options = {}) {
     worldEventStatus,
     schismStatus,
     socialSnapshot,
+    epicConflictStatus,
+    landmarkStatus,
     shortages,
     governorSignals,
     stockRatioLine,
@@ -416,11 +425,13 @@ function buildTelemetrySectionModels(snapshot) {
         `Defense structures: Armories ${snapshot.structureCounts.armory || 0}, Mithril forges ${snapshot.structureCounts.mithril_forge || 0}`,
         `Arcane structures: Alchemy labs ${snapshot.structureCounts.alchemy_lab || 0}, Ruins ${snapshot.structureCounts.ruins || 0}`,
         formatTempleStageStatus(
+          snapshot.state,
           snapshot.templeState,
           snapshot.templeStage,
           snapshot.templeMaxStage,
         ),
         templeProgress,
+        ...buildLandmarkSectionRows(snapshot.landmarkStatus),
         snapshot.toolLine,
         snapshot.structureLevelSummary
           ? `Structure levels: ${snapshot.structureLevelSummary}`
@@ -526,6 +537,15 @@ function buildTelemetrySectionModels(snapshot) {
       key: "warriorLeague",
       label: "Warrior League",
       rows: buildWarriorLeagueSectionRows(snapshot.state, snapshot.config),
+    },
+    {
+      column: "right",
+      key: "storyDirector",
+      label: "Story Director",
+      rows: [
+        ...buildEpicConflictSectionRows(snapshot.epicConflictStatus),
+        ...buildStoryDirectorSectionRows(snapshot.state, snapshot.config),
+      ],
     },
   ];
 }
@@ -778,7 +798,7 @@ function buildWarriorLeagueSectionRows(state, config) {
     ? company.cycleHistory
     : [];
   const dwarves = Array.isArray(state && state.dwarves) ? state.dwarves : [];
-  const nameCache = new Map();
+  const nameCache = createDwarfIdentityCache();
   const topFighters = buildWarriorTopFighterEntries(
     state,
     config,
@@ -960,6 +980,12 @@ function buildEndgameSectionRows(state, config, options = {}) {
   const lastCycleTicks = Math.max(0, Number(cycleStats.lastTicks || 0));
   const lastCycleLabel =
     lastCycleTicks > 0 ? `${formatCompactNumber(lastCycleTicks)} ticks` : "-";
+  const worldLegacy = state && state.worldLegacy && typeof state.worldLegacy === "object"
+    ? state.worldLegacy : {};
+  const legacyCount = ["cycles", "identities", "places", "memorials", "institutions", "echoes", "nemeses"]
+    .reduce((sum, field) => sum + (Array.isArray(worldLegacy[field]) ? worldLegacy[field].length : 0), 0);
+  const legacyModifier = (Array.isArray(worldLegacy.institutions) ? worldLegacy.institutions : [])
+    .reduce((sum, entry) => sum + Math.max(0, Number(entry && entry.modifier && entry.modifier.magnitude || 0)), 0);
   const structures = Array.isArray(state && state.structures)
     ? state.structures
     : [];
@@ -1046,6 +1072,8 @@ function buildEndgameSectionRows(state, config, options = {}) {
   return [
     `Cycle reset loop: ${endgameEnabled ? "enabled" : "disabled"}`,
     `Cycle history: current ${cycleCount} | last cycle length ${lastCycleLabel}`,
+    `World legacy: ${legacyCount} records | ${(worldLegacy.echoes || []).length} echoes | ${(worldLegacy.memorials || []).length} memorials | ${(worldLegacy.nemeses || []).length} nemeses`,
+    `Legacy modifier hooks: ${(legacyModifier * 100).toFixed(1)}% reserved | gameplay inactive`,
     `Ruins gateway: ${ruinsGatewayLabel}`,
     `Required path progress: ${requiredDone}/4`,
     formatChecklistStep(
@@ -1089,6 +1117,38 @@ function buildEndgameSectionRows(state, config, options = {}) {
       templeDetail,
     ),
     `Cycle pressure multiplier: x${difficulty.toFixed(2)}`,
+  ];
+}
+
+// Present bounded nemesis identity, siege stage, rivalry branch, and recovery state.
+function buildEpicConflictSectionRows(status) {
+  const snapshot = status && typeof status === 'object' ? status : {};
+  const siege = snapshot.activeSiege;
+  const stats = snapshot.stats || {};
+  return [
+    `Nemeses: ${Math.max(0, Number(snapshot.nemesisCount || 0))} remembered | ${Math.max(0, Number(snapshot.activeNemeses || 0))} active`,
+    siege
+      ? `Siege: ${siege.nemesisName} | ${siege.stage} ${Math.max(0, Number(siege.ticksRemaining || 0))}t | branch ${siege.branch || '-'}`
+      : `Siege: none | recovery ${Math.max(0, Number(snapshot.recoveryTicks || 0))}t`,
+    `Epic outcomes: ${Math.max(0, Number(stats.siegesCompleted || 0))} complete | hold ${Math.max(0, Number(stats.colonyVictories || 0))} / nemesis ${Math.max(0, Number(stats.nemesisVictories || 0))} | reconciled ${Math.max(0, Number(stats.reconciliations || 0))}`,
+  ];
+}
+
+// Present unique landmark progression and the currently exceptional district states.
+function buildLandmarkSectionRows(status) {
+  const snapshot = status && typeof status === 'object' ? status : {};
+  const entries = Array.isArray(snapshot.entries) ? snapshot.entries : [];
+  const progress = entries.filter((entry) => entry.stage > 0)
+    .map((entry) => `${entry.label} ${entry.stage}/${entry.maxStage}`)
+    .join(', ');
+  const exceptional = entries
+    .filter((entry) => ['construction', 'damaged', 'abandoned', 'restoration'].includes(entry.condition))
+    .map((entry) => `${entry.label}:${entry.condition}`)
+    .join(', ');
+  return [
+    `Landmarks: ${Math.max(0, Number(snapshot.count || 0))}/${entries.length} founded | ${Math.max(0, Number(snapshot.completed || 0))} complete`,
+    `Landmark stages: ${progress || '-'}`,
+    `District states: ${exceptional || 'stable'}`,
   ];
 }
 
@@ -3579,13 +3639,15 @@ function getUnderrealmTelemetryLines(state) {
     maxUnlockedDepth,
   );
   const lines = [];
+  const gateName = resolvePlaceLabel(state, 'underrealm_gate', 'Hidden gate');
   if (activeDepth <= 0) {
     lines.push(
       `Realm: Surface view (unlocked depths ${maxUnlockedDepth}/${maxDepth})`,
     );
   } else {
+    const activePlaceName = resolvePlaceLabel(state, `ruins_d${activeDepth}`, `Underrealm depth ${activeDepth}`);
     lines.push(
-      `Realm: Underrealm depth ${activeDepth} (unlocked depths ${maxUnlockedDepth}/${maxDepth})`,
+      `Realm: ${activePlaceName} (unlocked depths ${maxUnlockedDepth}/${maxDepth})`,
     );
   }
   const frontierDepth = clamp(maxUnlockedDepth, 0, maxDepth);
@@ -3612,7 +3674,7 @@ function getUnderrealmTelemetryLines(state) {
       typeof timerStartedTick === "number" && Number.isFinite(timerStartedTick);
     if (!hasTimerStarted) {
       lines.push(
-        `Hidden gate: waiting for population ${nowPopulation}/${threshold}`,
+        `${gateName}: waiting for population ${nowPopulation}/${threshold}`,
       );
     } else {
       const targetTick = Math.max(
@@ -3620,14 +3682,14 @@ function getUnderrealmTelemetryLines(state) {
         Math.floor(Number(discovery.targetTick || 0)),
       );
       const eta = Math.max(0, targetTick - Math.floor(Number(state.tick || 0)));
-      lines.push(`Hidden gate search time: ${eta} ticks remaining`);
+      lines.push(`${gateName} search time: ${eta} ticks remaining`);
     }
   } else if (
     discovery &&
     discovery.enabled !== false &&
     discovery.found === true
   ) {
-    lines.push("Hidden gate: discovered");
+    lines.push(`${gateName}: discovered`);
   }
   lines.push(
     formatUnderrealmProgressionLine(
@@ -4335,7 +4397,7 @@ function getStructureLevelSummary(structures) {
 }
 
 // Format temple stage line for telemetry display.
-function formatTempleStageStatus(templeState, stage, maxStage) {
+function formatTempleStageStatus(state, templeState, stage, maxStage) {
   if (maxStage <= 0 || !templeState || templeState.enabled === false) {
     return "Temple status: disabled";
   }
@@ -4343,16 +4405,17 @@ function formatTempleStageStatus(templeState, stage, maxStage) {
     templeState && templeState.doctrinePath
       ? ` | path ${String(templeState.doctrinePath)}`
       : "";
+  const templeName = resolvePlaceLabel(state, 'temple_of_ancestors', 'Temple');
   if (!templeState.site) {
-    return `Temple status: stage ${stage}/${maxStage} (site scan in progress)${doctrinePath}`;
+    return `${templeName} status: stage ${stage}/${maxStage} (site scan in progress)${doctrinePath}`;
   }
   if (stage <= 0) {
-    return `Temple status: stage 0/${maxStage} (site ready)${doctrinePath}`;
+    return `${templeName} status: stage 0/${maxStage} (site ready)${doctrinePath}`;
   }
   if (stage >= maxStage) {
-    return `Temple status: stage ${maxStage}/${maxStage} complete${doctrinePath}`;
+    return `${templeName} status: stage ${maxStage}/${maxStage} complete${doctrinePath}`;
   }
-  return `Temple status: stage ${stage}/${maxStage}${doctrinePath}`;
+  return `${templeName} status: stage ${stage}/${maxStage}${doctrinePath}`;
 }
 
 // Format temple build progress line while a stage is under construction.

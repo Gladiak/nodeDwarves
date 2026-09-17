@@ -1,6 +1,6 @@
 # NodeDwarves Balance Report
 
-Generated: 2026-03-16T22:32:25.685Z
+Generated: 2026-09-16T14:14:35.021Z
 Ticks: 8000
 Seeds: 101, 202, 303, 404
 Resources: beer, food, water
@@ -9,26 +9,50 @@ Resources: beer, food, water
 
 | Variant | Population | Morale | BeerBoost | Hunger | Thirst |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| baseline | 705.00 | 0.8869 | 0.0210 | 0.1576 | 0.1054 |
+| baseline | 677.00 | 0.8862 | 0.0206 | 0.1556 | 0.1079 |
+
+## World Legacy Summary
+
+| Variant | Cycles | Last cycle ticks | Records | Memorials | Institutions | Echoes | Nemeses | Modifier | State bytes | Deaths |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| baseline | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.0000 | 224.0 | 81.25 |
+
+## Epic Conflict Summary
+
+| Variant | Nemeses | Siege active | Started | Completed | Hold wins | Nemesis wins | Reconciled | Injuries | Damaged | Restored | Recovery ticks | State bytes |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| baseline | 2.50 | 0.00 | 1.75 | 1.75 | 1.75 | 0.00 | 0.00 | 0.00 | 3.50 | 3.50 | 21.75 | 4112.3 |
+
+## Landmark Summary
+
+| Variant | Founded | Completed | Stages built | Damaged | Abandoned | Restored | State bytes |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| baseline | 5.00 | 5.00 | 15.00 | 0.75 | 0.00 | 0.75 | 1866.0 |
 
 ## Underrealm Summary
 
 | Variant | Depth | Champions | Failed Expeditions | Blocked Dispatches | Frontier Contested | Readiness Score | Hero Prom | Hero Loss | Hero Active | Hero Surv |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| baseline | 1.75 | 0.75 | 0.25 | 3.50 | 0.75 | 0.811 | 7.25 | 0.00 | 1.00 | 0.25 |
+| baseline | 2.50 | 1.50 | 0.25 | 6.00 | 0.75 | 0.746 | 4.75 | 0.00 | 1.00 | 0.00 |
+
+## Story Director Summary
+
+| Variant | Considered | Selected | Suppressed | Preempted | Focus coverage | Critical focus | Legendary focus | Priority context | Sagas opened | Resolved | Failed | Archived | Resolution rate |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| baseline | 12415 | 133 | 12282 | 32 | 1.1% | 82.9% | 29.4% | 100.0% | 2177 | 137 | 6 | 2081 | 6.6% |
 
 ## Schism Decree Usage
 
 | Variant | Issued total | Issued / seed | Active ticks total | Active ticks / seed |
 | --- | ---: | ---: | ---: | ---: |
-| baseline | 59 | 14.75 | 11800 | 2950.00 |
+| baseline | 32 | 8.00 | 6400 | 1600.00 |
 
 ### Schism Decrees (baseline)
 
 | Decree | Issued | Issued share | Active ticks | Active share |
 | --- | ---: | ---: | ---: | ---: |
-| granary_compact | 22 | 37.3% | 4400 | 37.3% |
-| frontier_levy | 15 | 25.4% | 3000 | 25.4% |
-| forge_quota | 10 | 16.9% | 2000 | 16.9% |
-| deep_claims | 9 | 15.3% | 1800 | 15.3% |
-| hearth_festivity | 3 | 5.1% | 600 | 5.1% |
+| granary_compact | 11 | 34.4% | 2200 | 34.4% |
+| frontier_levy | 8 | 25.0% | 1600 | 25.0% |
+| forge_quota | 6 | 18.8% | 1200 | 18.8% |
+| deep_claims | 5 | 15.6% | 1000 | 15.6% |
+| hearth_festivity | 2 | 6.3% | 400 | 6.3% |

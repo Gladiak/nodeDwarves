@@ -1,0 +1,2028 @@
+{
+  "meta": {
+    "generatedAt": "2026-09-16T14:30:15.482Z",
+    "baselineReportPath": "/Users/filippoverni/ProgettiLavoro/nodeDwarves/benchmark_cache/headless_benchmark_baseline.json",
+    "candidateReportPath": "/Users/filippoverni/ProgettiLavoro/nodeDwarves/debug/headless_benchmark_candidate.json",
+    "baselineVariantLabel": "baseline",
+    "candidateVariantLabel": "candidate",
+    "resources": [
+      "beer",
+      "food",
+      "water"
+    ],
+    "sharedSeeds": [
+      101,
+      202,
+      303,
+      404
+    ]
+  },
+  "baseline": {
+    "summary": {
+      "population": 677,
+      "morale": 0.8862308041492107,
+      "beerBoost": 0.020644538876938456,
+      "hunger": 0.15558076247077918,
+      "thirst": 0.10794992511448648,
+      "underrealmDepth": 2.5,
+      "underrealmChampions": 1.5,
+      "underrealmFailedExpeditions": 0.25,
+      "underrealmBlockedDispatches": 6,
+      "underrealmFrontierContested": 0.75,
+      "underrealmReadinessScore": 0.7462900880600225,
+      "underrealmHeroPromotions": 4.75,
+      "underrealmHeroLosses": 0,
+      "underrealmHeroActive": 1,
+      "underrealmHeroSurvivals": 0,
+      "schismDecrees": {
+        "issuedTotal": 32,
+        "issuedPerSeedAvg": 8,
+        "activeTicksTotal": 6400,
+        "activeTicksPerSeedAvg": 1600,
+        "byId": {
+          "granary_compact": 11,
+          "frontier_levy": 8,
+          "forge_quota": 6,
+          "deep_claims": 5,
+          "hearth_festivity": 2
+        },
+        "byIdShare": {
+          "granary_compact": 0.34375,
+          "frontier_levy": 0.25,
+          "forge_quota": 0.1875,
+          "deep_claims": 0.15625,
+          "hearth_festivity": 0.0625
+        },
+        "activeTicksById": {
+          "granary_compact": 2200,
+          "frontier_levy": 1600,
+          "forge_quota": 1200,
+          "deep_claims": 1000,
+          "hearth_festivity": 400
+        },
+        "activeTicksByIdShare": {
+          "granary_compact": 0.34375,
+          "frontier_levy": 0.25,
+          "forge_quota": 0.1875,
+          "deep_claims": 0.15625,
+          "hearth_festivity": 0.0625
+        }
+      },
+      "storyDirector": {
+        "considered": 12415,
+        "selected": 133,
+        "suppressed": 12282,
+        "preempted": 32,
+        "criticalConsidered": 35,
+        "criticalSelected": 29,
+        "criticalSuppressed": 6,
+        "criticalContextCovered": 35,
+        "legendaryConsidered": 17,
+        "legendarySelected": 5,
+        "legendarySuppressed": 12,
+        "legendaryContextCovered": 17,
+        "sagasOpened": 2177,
+        "sagasResolved": 137,
+        "sagasFailed": 6,
+        "sagasArchived": 2081,
+        "sagasEvicted": 2081,
+        "chaptersOpened": 2284,
+        "chaptersCompacted": 25,
+        "focusCoverage": 0.010712847362062022,
+        "criticalFocusCoverage": 0.8285714285714286,
+        "legendaryFocusCoverage": 0.29411764705882354,
+        "priorityConsidered": 52,
+        "prioritySelected": 34,
+        "priorityFocusCoverage": 0.6538461538461539,
+        "criticalContextCoverage": 1,
+        "legendaryContextCoverage": 1,
+        "priorityContextCovered": 52,
+        "priorityContextCoverage": 1,
+        "sagaTerminal": 143,
+        "sagaResolutionRate": 0.06568672485071199
+      },
+      "worldLegacy": {
+        "completedCycles": 0,
+        "lastCycleTicks": 0,
+        "records": 0,
+        "identities": 0,
+        "places": 0,
+        "memorials": 0,
+        "institutions": 0,
+        "echoes": 0,
+        "nemeses": 0,
+        "modifierMagnitude": 0,
+        "evictedRecords": 0,
+        "stateBytes": 224
+      },
+      "epicConflicts": {
+        "nemeses": 2.5,
+        "activeSiege": 0,
+        "siegesStarted": 1.75,
+        "siegesCompleted": 1.75,
+        "colonyVictories": 1.75,
+        "nemesisVictories": 0,
+        "reconciliations": 0,
+        "injuries": 0,
+        "structuresDamaged": 3.5,
+        "structuresRestored": 3.5,
+        "recoveryTicks": 21.75,
+        "stateBytes": 4112.25
+      },
+      "landmarks": {
+        "founded": 5,
+        "completed": 5,
+        "stagesBuilt": 15,
+        "damaged": 0.75,
+        "abandoned": 0,
+        "restored": 0.75,
+        "stateBytes": 1866
+      },
+      "deaths": 81.25,
+      "resources": {
+        "beer": 39273.2497422734,
+        "food": 749.1939550562929,
+        "water": 816.4963593623343
+      }
+    },
+    "rows": [
+      {
+        "seed": 101,
+        "tick": 8000,
+        "population": 662,
+        "morale": 0.8833300221780624,
+        "beerBoost": 0.02031540785498489,
+        "hunger": 0.15823528599956155,
+        "thirst": 0.11179425917751769,
+        "underrealmDepth": 3,
+        "underrealmChampions": 2,
+        "underrealmFailedExpeditions": 0,
+        "underrealmBlockedDispatches": 3,
+        "underrealmFrontierContested": 0,
+        "underrealmReadinessScore": 0.9259784859462684,
+        "underrealmHeroPromotions": 3,
+        "underrealmHeroLosses": 0,
+        "underrealmHeroActive": 1,
+        "underrealmHeroSurvivals": 0,
+        "schismDecreeIssued": 12,
+        "schismDecreeActiveTicks": 2400,
+        "schismDecreeById": {
+          "granary_compact": 4,
+          "frontier_levy": 3,
+          "deep_claims": 2,
+          "forge_quota": 2,
+          "hearth_festivity": 1
+        },
+        "schismDecreeActiveTicksById": {
+          "granary_compact": 800,
+          "frontier_levy": 600,
+          "deep_claims": 400,
+          "forge_quota": 400,
+          "hearth_festivity": 200
+        },
+        "storyDirector": {
+          "considered": 2839,
+          "selected": 37,
+          "suppressed": 2802,
+          "preempted": 12,
+          "criticalConsidered": 13,
+          "criticalSelected": 11,
+          "criticalSuppressed": 2,
+          "criticalContextCovered": 13,
+          "legendaryConsidered": 7,
+          "legendarySelected": 2,
+          "legendarySuppressed": 5,
+          "legendaryContextCovered": 7,
+          "sagasOpened": 325,
+          "sagasResolved": 35,
+          "sagasFailed": 1,
+          "sagasArchived": 301,
+          "sagasEvicted": 301,
+          "chaptersOpened": 352,
+          "chaptersCompacted": 3,
+          "focusCoverage": 0.013032758013384995,
+          "criticalFocusCoverage": 0.8461538461538461,
+          "legendaryFocusCoverage": 0.2857142857142857,
+          "priorityConsidered": 20,
+          "prioritySelected": 13,
+          "priorityFocusCoverage": 0.65,
+          "criticalContextCoverage": 1,
+          "legendaryContextCoverage": 1,
+          "priorityContextCovered": 20,
+          "priorityContextCoverage": 1,
+          "sagaTerminal": 36,
+          "sagaResolutionRate": 0.11076923076923077
+        },
+        "worldLegacy": {
+          "completedCycles": 0,
+          "lastCycleTicks": 0,
+          "records": 0,
+          "identities": 0,
+          "places": 0,
+          "memorials": 0,
+          "institutions": 0,
+          "echoes": 0,
+          "nemeses": 0,
+          "modifierMagnitude": 0,
+          "evictedRecords": 0,
+          "stateBytes": 224
+        },
+        "epicConflicts": {
+          "nemeses": 3,
+          "activeSiege": 0,
+          "activeStage": "",
+          "siegesStarted": 3,
+          "siegesCompleted": 3,
+          "colonyVictories": 3,
+          "nemesisVictories": 0,
+          "reconciliations": 0,
+          "injuries": 0,
+          "structuresDamaged": 6,
+          "structuresRestored": 6,
+          "recoveryTicks": 87,
+          "stateBytes": 5358
+        },
+        "landmarks": {
+          "founded": 5,
+          "completed": 5,
+          "stagesBuilt": 15,
+          "damaged": 1,
+          "abandoned": 0,
+          "restored": 1,
+          "stateBytes": 1868
+        },
+        "deaths": 66,
+        "resources": {
+          "beer": 33466.595115063195,
+          "food": 718.1323480566483,
+          "water": 694.557219685658
+        }
+      },
+      {
+        "seed": 202,
+        "tick": 8000,
+        "population": 683,
+        "morale": 0.8838931141794698,
+        "beerBoost": 0.019467935578330858,
+        "hunger": 0.15466574154223928,
+        "thirst": 0.11063400199411763,
+        "underrealmDepth": 1,
+        "underrealmChampions": 0,
+        "underrealmFailedExpeditions": 0,
+        "underrealmBlockedDispatches": 2,
+        "underrealmFrontierContested": 1,
+        "underrealmReadinessScore": 0.5290697674418605,
+        "underrealmHeroPromotions": 5,
+        "underrealmHeroLosses": 0,
+        "underrealmHeroActive": 1,
+        "underrealmHeroSurvivals": 0,
+        "schismDecreeIssued": 14,
+        "schismDecreeActiveTicks": 2800,
+        "schismDecreeById": {
+          "granary_compact": 5,
+          "frontier_levy": 4,
+          "forge_quota": 3,
+          "deep_claims": 2
+        },
+        "schismDecreeActiveTicksById": {
+          "granary_compact": 1000,
+          "frontier_levy": 800,
+          "forge_quota": 600,
+          "deep_claims": 400
+        },
+        "storyDirector": {
+          "considered": 4146,
+          "selected": 33,
+          "suppressed": 4113,
+          "preempted": 8,
+          "criticalConsidered": 8,
+          "criticalSelected": 7,
+          "criticalSuppressed": 1,
+          "criticalContextCovered": 8,
+          "legendaryConsidered": 5,
+          "legendarySelected": 1,
+          "legendarySuppressed": 4,
+          "legendaryContextCovered": 5,
+          "sagasOpened": 1650,
+          "sagasResolved": 29,
+          "sagasFailed": 1,
+          "sagasArchived": 1626,
+          "sagasEvicted": 1626,
+          "chaptersOpened": 1674,
+          "chaptersCompacted": 4,
+          "focusCoverage": 0.007959479015918957,
+          "criticalFocusCoverage": 0.875,
+          "legendaryFocusCoverage": 0.2,
+          "priorityConsidered": 13,
+          "prioritySelected": 8,
+          "priorityFocusCoverage": 0.6153846153846154,
+          "criticalContextCoverage": 1,
+          "legendaryContextCoverage": 1,
+          "priorityContextCovered": 13,
+          "priorityContextCoverage": 1,
+          "sagaTerminal": 30,
+          "sagaResolutionRate": 0.01818181818181818
+        },
+        "worldLegacy": {
+          "completedCycles": 0,
+          "lastCycleTicks": 0,
+          "records": 0,
+          "identities": 0,
+          "places": 0,
+          "memorials": 0,
+          "institutions": 0,
+          "echoes": 0,
+          "nemeses": 0,
+          "modifierMagnitude": 0,
+          "evictedRecords": 0,
+          "stateBytes": 224
+        },
+        "epicConflicts": {
+          "nemeses": 1,
+          "activeSiege": 0,
+          "activeStage": "",
+          "siegesStarted": 2,
+          "siegesCompleted": 2,
+          "colonyVictories": 2,
+          "nemesisVictories": 0,
+          "reconciliations": 0,
+          "injuries": 0,
+          "structuresDamaged": 4,
+          "structuresRestored": 4,
+          "recoveryTicks": 0,
+          "stateBytes": 2405
+        },
+        "landmarks": {
+          "founded": 5,
+          "completed": 5,
+          "stagesBuilt": 15,
+          "damaged": 1,
+          "abandoned": 0,
+          "restored": 1,
+          "stateBytes": 1865
+        },
+        "deaths": 73,
+        "resources": {
+          "beer": 45498.93386632737,
+          "food": 801.0135492222951,
+          "water": 883.8225501351452
+        }
+      },
+      {
+        "seed": 303,
+        "tick": 8000,
+        "population": 674,
+        "morale": 0.8945680750743009,
+        "beerBoost": 0.02294836795252224,
+        "hunger": 0.14905844185903902,
+        "thirst": 0.10169938008642446,
+        "underrealmDepth": 2,
+        "underrealmChampions": 1,
+        "underrealmFailedExpeditions": 0,
+        "underrealmBlockedDispatches": 5,
+        "underrealmFrontierContested": 1,
+        "underrealmReadinessScore": 0.8143008051781817,
+        "underrealmHeroPromotions": 5,
+        "underrealmHeroLosses": 0,
+        "underrealmHeroActive": 1,
+        "underrealmHeroSurvivals": 0,
+        "schismDecreeIssued": 0,
+        "schismDecreeActiveTicks": 0,
+        "schismDecreeById": {},
+        "schismDecreeActiveTicksById": {},
+        "storyDirector": {
+          "considered": 2634,
+          "selected": 31,
+          "suppressed": 2603,
+          "preempted": 5,
+          "criticalConsidered": 7,
+          "criticalSelected": 4,
+          "criticalSuppressed": 3,
+          "criticalContextCovered": 7,
+          "legendaryConsidered": 3,
+          "legendarySelected": 2,
+          "legendarySuppressed": 1,
+          "legendaryContextCovered": 3,
+          "sagasOpened": 73,
+          "sagasResolved": 33,
+          "sagasFailed": 1,
+          "sagasArchived": 49,
+          "sagasEvicted": 49,
+          "chaptersOpened": 100,
+          "chaptersCompacted": 12,
+          "focusCoverage": 0.011769172361427487,
+          "criticalFocusCoverage": 0.5714285714285714,
+          "legendaryFocusCoverage": 0.6666666666666666,
+          "priorityConsidered": 10,
+          "prioritySelected": 6,
+          "priorityFocusCoverage": 0.6,
+          "criticalContextCoverage": 1,
+          "legendaryContextCoverage": 1,
+          "priorityContextCovered": 10,
+          "priorityContextCoverage": 1,
+          "sagaTerminal": 34,
+          "sagaResolutionRate": 0.4657534246575342
+        },
+        "worldLegacy": {
+          "completedCycles": 0,
+          "lastCycleTicks": 0,
+          "records": 0,
+          "identities": 0,
+          "places": 0,
+          "memorials": 0,
+          "institutions": 0,
+          "echoes": 0,
+          "nemeses": 0,
+          "modifierMagnitude": 0,
+          "evictedRecords": 0,
+          "stateBytes": 224
+        },
+        "epicConflicts": {
+          "nemeses": 2,
+          "activeSiege": 0,
+          "activeStage": "",
+          "siegesStarted": 1,
+          "siegesCompleted": 1,
+          "colonyVictories": 1,
+          "nemesisVictories": 0,
+          "reconciliations": 0,
+          "injuries": 0,
+          "structuresDamaged": 2,
+          "structuresRestored": 2,
+          "recoveryTicks": 0,
+          "stateBytes": 3121
+        },
+        "landmarks": {
+          "founded": 5,
+          "completed": 5,
+          "stagesBuilt": 15,
+          "damaged": 1,
+          "abandoned": 0,
+          "restored": 1,
+          "stateBytes": 1866
+        },
+        "deaths": 99,
+        "resources": {
+          "beer": 27598.91126611456,
+          "food": 728.2443133184443,
+          "water": 955.99317389241
+        }
+      },
+      {
+        "seed": 404,
+        "tick": 8000,
+        "population": 689,
+        "morale": 0.8831320051650094,
+        "beerBoost": 0.01984644412191585,
+        "hunger": 0.1603635804822769,
+        "thirst": 0.1076720591998861,
+        "underrealmDepth": 4,
+        "underrealmChampions": 3,
+        "underrealmFailedExpeditions": 1,
+        "underrealmBlockedDispatches": 14,
+        "underrealmFrontierContested": 1,
+        "underrealmReadinessScore": 0.7158112936737793,
+        "underrealmHeroPromotions": 6,
+        "underrealmHeroLosses": 0,
+        "underrealmHeroActive": 1,
+        "underrealmHeroSurvivals": 0,
+        "schismDecreeIssued": 6,
+        "schismDecreeActiveTicks": 1200,
+        "schismDecreeById": {
+          "granary_compact": 2,
+          "deep_claims": 1,
+          "forge_quota": 1,
+          "frontier_levy": 1,
+          "hearth_festivity": 1
+        },
+        "schismDecreeActiveTicksById": {
+          "granary_compact": 400,
+          "deep_claims": 200,
+          "forge_quota": 200,
+          "frontier_levy": 200,
+          "hearth_festivity": 200
+        },
+        "storyDirector": {
+          "considered": 2796,
+          "selected": 32,
+          "suppressed": 2764,
+          "preempted": 7,
+          "criticalConsidered": 7,
+          "criticalSelected": 7,
+          "criticalSuppressed": 0,
+          "criticalContextCovered": 7,
+          "legendaryConsidered": 2,
+          "legendarySelected": 0,
+          "legendarySuppressed": 2,
+          "legendaryContextCovered": 2,
+          "sagasOpened": 129,
+          "sagasResolved": 40,
+          "sagasFailed": 3,
+          "sagasArchived": 105,
+          "sagasEvicted": 105,
+          "chaptersOpened": 158,
+          "chaptersCompacted": 6,
+          "focusCoverage": 0.011444921316165951,
+          "criticalFocusCoverage": 1,
+          "legendaryFocusCoverage": 0,
+          "priorityConsidered": 9,
+          "prioritySelected": 7,
+          "priorityFocusCoverage": 0.7777777777777778,
+          "criticalContextCoverage": 1,
+          "legendaryContextCoverage": 1,
+          "priorityContextCovered": 9,
+          "priorityContextCoverage": 1,
+          "sagaTerminal": 43,
+          "sagaResolutionRate": 0.3333333333333333
+        },
+        "worldLegacy": {
+          "completedCycles": 0,
+          "lastCycleTicks": 0,
+          "records": 0,
+          "identities": 0,
+          "places": 0,
+          "memorials": 0,
+          "institutions": 0,
+          "echoes": 0,
+          "nemeses": 0,
+          "modifierMagnitude": 0,
+          "evictedRecords": 0,
+          "stateBytes": 224
+        },
+        "epicConflicts": {
+          "nemeses": 4,
+          "activeSiege": 0,
+          "activeStage": "",
+          "siegesStarted": 1,
+          "siegesCompleted": 1,
+          "colonyVictories": 1,
+          "nemesisVictories": 0,
+          "reconciliations": 0,
+          "injuries": 0,
+          "structuresDamaged": 2,
+          "structuresRestored": 2,
+          "recoveryTicks": 0,
+          "stateBytes": 5565
+        },
+        "landmarks": {
+          "founded": 5,
+          "completed": 5,
+          "stagesBuilt": 15,
+          "damaged": 0,
+          "abandoned": 0,
+          "restored": 0,
+          "stateBytes": 1865
+        },
+        "deaths": 87,
+        "resources": {
+          "beer": 50528.55872158848,
+          "food": 749.3856096277842,
+          "water": 731.6124937361238
+        }
+      }
+    ]
+  },
+  "candidate": {
+    "summary": {
+      "population": 677,
+      "morale": 0.8862308041492107,
+      "beerBoost": 0.020644538876938456,
+      "hunger": 0.15558076247077918,
+      "thirst": 0.10794992511448648,
+      "underrealmDepth": 2.5,
+      "underrealmChampions": 1.5,
+      "underrealmFailedExpeditions": 0.25,
+      "underrealmBlockedDispatches": 6,
+      "underrealmFrontierContested": 0.75,
+      "underrealmReadinessScore": 0.7462900880600225,
+      "underrealmHeroPromotions": 4.75,
+      "underrealmHeroLosses": 0,
+      "underrealmHeroActive": 1,
+      "underrealmHeroSurvivals": 0,
+      "schismDecrees": {
+        "issuedTotal": 32,
+        "issuedPerSeedAvg": 8,
+        "activeTicksTotal": 6400,
+        "activeTicksPerSeedAvg": 1600,
+        "byId": {
+          "granary_compact": 11,
+          "frontier_levy": 8,
+          "forge_quota": 6,
+          "deep_claims": 5,
+          "hearth_festivity": 2
+        },
+        "byIdShare": {
+          "granary_compact": 0.34375,
+          "frontier_levy": 0.25,
+          "forge_quota": 0.1875,
+          "deep_claims": 0.15625,
+          "hearth_festivity": 0.0625
+        },
+        "activeTicksById": {
+          "granary_compact": 2200,
+          "frontier_levy": 1600,
+          "forge_quota": 1200,
+          "deep_claims": 1000,
+          "hearth_festivity": 400
+        },
+        "activeTicksByIdShare": {
+          "granary_compact": 0.34375,
+          "frontier_levy": 0.25,
+          "forge_quota": 0.1875,
+          "deep_claims": 0.15625,
+          "hearth_festivity": 0.0625
+        }
+      },
+      "storyDirector": {
+        "considered": 12415,
+        "selected": 133,
+        "suppressed": 12282,
+        "preempted": 32,
+        "criticalConsidered": 35,
+        "criticalSelected": 29,
+        "criticalSuppressed": 6,
+        "criticalContextCovered": 35,
+        "legendaryConsidered": 17,
+        "legendarySelected": 5,
+        "legendarySuppressed": 12,
+        "legendaryContextCovered": 17,
+        "sagasOpened": 2177,
+        "sagasResolved": 137,
+        "sagasFailed": 6,
+        "sagasArchived": 2081,
+        "sagasEvicted": 2081,
+        "chaptersOpened": 2284,
+        "chaptersCompacted": 25,
+        "focusCoverage": 0.010712847362062022,
+        "criticalFocusCoverage": 0.8285714285714286,
+        "legendaryFocusCoverage": 0.29411764705882354,
+        "priorityConsidered": 52,
+        "prioritySelected": 34,
+        "priorityFocusCoverage": 0.6538461538461539,
+        "criticalContextCoverage": 1,
+        "legendaryContextCoverage": 1,
+        "priorityContextCovered": 52,
+        "priorityContextCoverage": 1,
+        "sagaTerminal": 143,
+        "sagaResolutionRate": 0.06568672485071199
+      },
+      "worldLegacy": {
+        "completedCycles": 0,
+        "lastCycleTicks": 0,
+        "records": 0,
+        "identities": 0,
+        "places": 0,
+        "memorials": 0,
+        "institutions": 0,
+        "echoes": 0,
+        "nemeses": 0,
+        "modifierMagnitude": 0,
+        "evictedRecords": 0,
+        "stateBytes": 224
+      },
+      "epicConflicts": {
+        "nemeses": 2.5,
+        "activeSiege": 0,
+        "siegesStarted": 1.75,
+        "siegesCompleted": 1.75,
+        "colonyVictories": 1.75,
+        "nemesisVictories": 0,
+        "reconciliations": 0,
+        "injuries": 0,
+        "structuresDamaged": 3.5,
+        "structuresRestored": 3.5,
+        "recoveryTicks": 21.75,
+        "stateBytes": 4112.25
+      },
+      "landmarks": {
+        "founded": 5,
+        "completed": 5,
+        "stagesBuilt": 15,
+        "damaged": 0.75,
+        "abandoned": 0,
+        "restored": 0.75,
+        "stateBytes": 1866
+      },
+      "deaths": 81.25,
+      "resources": {
+        "beer": 39273.2497422734,
+        "food": 749.1939550562929,
+        "water": 816.4963593623343
+      }
+    },
+    "rows": [
+      {
+        "seed": 101,
+        "tick": 8000,
+        "population": 662,
+        "morale": 0.8833300221780624,
+        "beerBoost": 0.02031540785498489,
+        "hunger": 0.15823528599956155,
+        "thirst": 0.11179425917751769,
+        "underrealmDepth": 3,
+        "underrealmChampions": 2,
+        "underrealmFailedExpeditions": 0,
+        "underrealmBlockedDispatches": 3,
+        "underrealmFrontierContested": 0,
+        "underrealmReadinessScore": 0.9259784859462684,
+        "underrealmHeroPromotions": 3,
+        "underrealmHeroLosses": 0,
+        "underrealmHeroActive": 1,
+        "underrealmHeroSurvivals": 0,
+        "schismDecreeIssued": 12,
+        "schismDecreeActiveTicks": 2400,
+        "schismDecreeById": {
+          "granary_compact": 4,
+          "frontier_levy": 3,
+          "deep_claims": 2,
+          "forge_quota": 2,
+          "hearth_festivity": 1
+        },
+        "schismDecreeActiveTicksById": {
+          "granary_compact": 800,
+          "frontier_levy": 600,
+          "deep_claims": 400,
+          "forge_quota": 400,
+          "hearth_festivity": 200
+        },
+        "storyDirector": {
+          "considered": 2839,
+          "selected": 37,
+          "suppressed": 2802,
+          "preempted": 12,
+          "criticalConsidered": 13,
+          "criticalSelected": 11,
+          "criticalSuppressed": 2,
+          "criticalContextCovered": 13,
+          "legendaryConsidered": 7,
+          "legendarySelected": 2,
+          "legendarySuppressed": 5,
+          "legendaryContextCovered": 7,
+          "sagasOpened": 325,
+          "sagasResolved": 35,
+          "sagasFailed": 1,
+          "sagasArchived": 301,
+          "sagasEvicted": 301,
+          "chaptersOpened": 352,
+          "chaptersCompacted": 3,
+          "focusCoverage": 0.013032758013384995,
+          "criticalFocusCoverage": 0.8461538461538461,
+          "legendaryFocusCoverage": 0.2857142857142857,
+          "priorityConsidered": 20,
+          "prioritySelected": 13,
+          "priorityFocusCoverage": 0.65,
+          "criticalContextCoverage": 1,
+          "legendaryContextCoverage": 1,
+          "priorityContextCovered": 20,
+          "priorityContextCoverage": 1,
+          "sagaTerminal": 36,
+          "sagaResolutionRate": 0.11076923076923077
+        },
+        "worldLegacy": {
+          "completedCycles": 0,
+          "lastCycleTicks": 0,
+          "records": 0,
+          "identities": 0,
+          "places": 0,
+          "memorials": 0,
+          "institutions": 0,
+          "echoes": 0,
+          "nemeses": 0,
+          "modifierMagnitude": 0,
+          "evictedRecords": 0,
+          "stateBytes": 224
+        },
+        "epicConflicts": {
+          "nemeses": 3,
+          "activeSiege": 0,
+          "activeStage": "",
+          "siegesStarted": 3,
+          "siegesCompleted": 3,
+          "colonyVictories": 3,
+          "nemesisVictories": 0,
+          "reconciliations": 0,
+          "injuries": 0,
+          "structuresDamaged": 6,
+          "structuresRestored": 6,
+          "recoveryTicks": 87,
+          "stateBytes": 5358
+        },
+        "landmarks": {
+          "founded": 5,
+          "completed": 5,
+          "stagesBuilt": 15,
+          "damaged": 1,
+          "abandoned": 0,
+          "restored": 1,
+          "stateBytes": 1868
+        },
+        "deaths": 66,
+        "resources": {
+          "beer": 33466.595115063195,
+          "food": 718.1323480566483,
+          "water": 694.557219685658
+        }
+      },
+      {
+        "seed": 202,
+        "tick": 8000,
+        "population": 683,
+        "morale": 0.8838931141794698,
+        "beerBoost": 0.019467935578330858,
+        "hunger": 0.15466574154223928,
+        "thirst": 0.11063400199411763,
+        "underrealmDepth": 1,
+        "underrealmChampions": 0,
+        "underrealmFailedExpeditions": 0,
+        "underrealmBlockedDispatches": 2,
+        "underrealmFrontierContested": 1,
+        "underrealmReadinessScore": 0.5290697674418605,
+        "underrealmHeroPromotions": 5,
+        "underrealmHeroLosses": 0,
+        "underrealmHeroActive": 1,
+        "underrealmHeroSurvivals": 0,
+        "schismDecreeIssued": 14,
+        "schismDecreeActiveTicks": 2800,
+        "schismDecreeById": {
+          "granary_compact": 5,
+          "frontier_levy": 4,
+          "forge_quota": 3,
+          "deep_claims": 2
+        },
+        "schismDecreeActiveTicksById": {
+          "granary_compact": 1000,
+          "frontier_levy": 800,
+          "forge_quota": 600,
+          "deep_claims": 400
+        },
+        "storyDirector": {
+          "considered": 4146,
+          "selected": 33,
+          "suppressed": 4113,
+          "preempted": 8,
+          "criticalConsidered": 8,
+          "criticalSelected": 7,
+          "criticalSuppressed": 1,
+          "criticalContextCovered": 8,
+          "legendaryConsidered": 5,
+          "legendarySelected": 1,
+          "legendarySuppressed": 4,
+          "legendaryContextCovered": 5,
+          "sagasOpened": 1650,
+          "sagasResolved": 29,
+          "sagasFailed": 1,
+          "sagasArchived": 1626,
+          "sagasEvicted": 1626,
+          "chaptersOpened": 1674,
+          "chaptersCompacted": 4,
+          "focusCoverage": 0.007959479015918957,
+          "criticalFocusCoverage": 0.875,
+          "legendaryFocusCoverage": 0.2,
+          "priorityConsidered": 13,
+          "prioritySelected": 8,
+          "priorityFocusCoverage": 0.6153846153846154,
+          "criticalContextCoverage": 1,
+          "legendaryContextCoverage": 1,
+          "priorityContextCovered": 13,
+          "priorityContextCoverage": 1,
+          "sagaTerminal": 30,
+          "sagaResolutionRate": 0.01818181818181818
+        },
+        "worldLegacy": {
+          "completedCycles": 0,
+          "lastCycleTicks": 0,
+          "records": 0,
+          "identities": 0,
+          "places": 0,
+          "memorials": 0,
+          "institutions": 0,
+          "echoes": 0,
+          "nemeses": 0,
+          "modifierMagnitude": 0,
+          "evictedRecords": 0,
+          "stateBytes": 224
+        },
+        "epicConflicts": {
+          "nemeses": 1,
+          "activeSiege": 0,
+          "activeStage": "",
+          "siegesStarted": 2,
+          "siegesCompleted": 2,
+          "colonyVictories": 2,
+          "nemesisVictories": 0,
+          "reconciliations": 0,
+          "injuries": 0,
+          "structuresDamaged": 4,
+          "structuresRestored": 4,
+          "recoveryTicks": 0,
+          "stateBytes": 2405
+        },
+        "landmarks": {
+          "founded": 5,
+          "completed": 5,
+          "stagesBuilt": 15,
+          "damaged": 1,
+          "abandoned": 0,
+          "restored": 1,
+          "stateBytes": 1865
+        },
+        "deaths": 73,
+        "resources": {
+          "beer": 45498.93386632737,
+          "food": 801.0135492222951,
+          "water": 883.8225501351452
+        }
+      },
+      {
+        "seed": 303,
+        "tick": 8000,
+        "population": 674,
+        "morale": 0.8945680750743009,
+        "beerBoost": 0.02294836795252224,
+        "hunger": 0.14905844185903902,
+        "thirst": 0.10169938008642446,
+        "underrealmDepth": 2,
+        "underrealmChampions": 1,
+        "underrealmFailedExpeditions": 0,
+        "underrealmBlockedDispatches": 5,
+        "underrealmFrontierContested": 1,
+        "underrealmReadinessScore": 0.8143008051781817,
+        "underrealmHeroPromotions": 5,
+        "underrealmHeroLosses": 0,
+        "underrealmHeroActive": 1,
+        "underrealmHeroSurvivals": 0,
+        "schismDecreeIssued": 0,
+        "schismDecreeActiveTicks": 0,
+        "schismDecreeById": {},
+        "schismDecreeActiveTicksById": {},
+        "storyDirector": {
+          "considered": 2634,
+          "selected": 31,
+          "suppressed": 2603,
+          "preempted": 5,
+          "criticalConsidered": 7,
+          "criticalSelected": 4,
+          "criticalSuppressed": 3,
+          "criticalContextCovered": 7,
+          "legendaryConsidered": 3,
+          "legendarySelected": 2,
+          "legendarySuppressed": 1,
+          "legendaryContextCovered": 3,
+          "sagasOpened": 73,
+          "sagasResolved": 33,
+          "sagasFailed": 1,
+          "sagasArchived": 49,
+          "sagasEvicted": 49,
+          "chaptersOpened": 100,
+          "chaptersCompacted": 12,
+          "focusCoverage": 0.011769172361427487,
+          "criticalFocusCoverage": 0.5714285714285714,
+          "legendaryFocusCoverage": 0.6666666666666666,
+          "priorityConsidered": 10,
+          "prioritySelected": 6,
+          "priorityFocusCoverage": 0.6,
+          "criticalContextCoverage": 1,
+          "legendaryContextCoverage": 1,
+          "priorityContextCovered": 10,
+          "priorityContextCoverage": 1,
+          "sagaTerminal": 34,
+          "sagaResolutionRate": 0.4657534246575342
+        },
+        "worldLegacy": {
+          "completedCycles": 0,
+          "lastCycleTicks": 0,
+          "records": 0,
+          "identities": 0,
+          "places": 0,
+          "memorials": 0,
+          "institutions": 0,
+          "echoes": 0,
+          "nemeses": 0,
+          "modifierMagnitude": 0,
+          "evictedRecords": 0,
+          "stateBytes": 224
+        },
+        "epicConflicts": {
+          "nemeses": 2,
+          "activeSiege": 0,
+          "activeStage": "",
+          "siegesStarted": 1,
+          "siegesCompleted": 1,
+          "colonyVictories": 1,
+          "nemesisVictories": 0,
+          "reconciliations": 0,
+          "injuries": 0,
+          "structuresDamaged": 2,
+          "structuresRestored": 2,
+          "recoveryTicks": 0,
+          "stateBytes": 3121
+        },
+        "landmarks": {
+          "founded": 5,
+          "completed": 5,
+          "stagesBuilt": 15,
+          "damaged": 1,
+          "abandoned": 0,
+          "restored": 1,
+          "stateBytes": 1866
+        },
+        "deaths": 99,
+        "resources": {
+          "beer": 27598.91126611456,
+          "food": 728.2443133184443,
+          "water": 955.99317389241
+        }
+      },
+      {
+        "seed": 404,
+        "tick": 8000,
+        "population": 689,
+        "morale": 0.8831320051650094,
+        "beerBoost": 0.01984644412191585,
+        "hunger": 0.1603635804822769,
+        "thirst": 0.1076720591998861,
+        "underrealmDepth": 4,
+        "underrealmChampions": 3,
+        "underrealmFailedExpeditions": 1,
+        "underrealmBlockedDispatches": 14,
+        "underrealmFrontierContested": 1,
+        "underrealmReadinessScore": 0.7158112936737793,
+        "underrealmHeroPromotions": 6,
+        "underrealmHeroLosses": 0,
+        "underrealmHeroActive": 1,
+        "underrealmHeroSurvivals": 0,
+        "schismDecreeIssued": 6,
+        "schismDecreeActiveTicks": 1200,
+        "schismDecreeById": {
+          "granary_compact": 2,
+          "deep_claims": 1,
+          "forge_quota": 1,
+          "frontier_levy": 1,
+          "hearth_festivity": 1
+        },
+        "schismDecreeActiveTicksById": {
+          "granary_compact": 400,
+          "deep_claims": 200,
+          "forge_quota": 200,
+          "frontier_levy": 200,
+          "hearth_festivity": 200
+        },
+        "storyDirector": {
+          "considered": 2796,
+          "selected": 32,
+          "suppressed": 2764,
+          "preempted": 7,
+          "criticalConsidered": 7,
+          "criticalSelected": 7,
+          "criticalSuppressed": 0,
+          "criticalContextCovered": 7,
+          "legendaryConsidered": 2,
+          "legendarySelected": 0,
+          "legendarySuppressed": 2,
+          "legendaryContextCovered": 2,
+          "sagasOpened": 129,
+          "sagasResolved": 40,
+          "sagasFailed": 3,
+          "sagasArchived": 105,
+          "sagasEvicted": 105,
+          "chaptersOpened": 158,
+          "chaptersCompacted": 6,
+          "focusCoverage": 0.011444921316165951,
+          "criticalFocusCoverage": 1,
+          "legendaryFocusCoverage": 0,
+          "priorityConsidered": 9,
+          "prioritySelected": 7,
+          "priorityFocusCoverage": 0.7777777777777778,
+          "criticalContextCoverage": 1,
+          "legendaryContextCoverage": 1,
+          "priorityContextCovered": 9,
+          "priorityContextCoverage": 1,
+          "sagaTerminal": 43,
+          "sagaResolutionRate": 0.3333333333333333
+        },
+        "worldLegacy": {
+          "completedCycles": 0,
+          "lastCycleTicks": 0,
+          "records": 0,
+          "identities": 0,
+          "places": 0,
+          "memorials": 0,
+          "institutions": 0,
+          "echoes": 0,
+          "nemeses": 0,
+          "modifierMagnitude": 0,
+          "evictedRecords": 0,
+          "stateBytes": 224
+        },
+        "epicConflicts": {
+          "nemeses": 4,
+          "activeSiege": 0,
+          "activeStage": "",
+          "siegesStarted": 1,
+          "siegesCompleted": 1,
+          "colonyVictories": 1,
+          "nemesisVictories": 0,
+          "reconciliations": 0,
+          "injuries": 0,
+          "structuresDamaged": 2,
+          "structuresRestored": 2,
+          "recoveryTicks": 0,
+          "stateBytes": 5565
+        },
+        "landmarks": {
+          "founded": 5,
+          "completed": 5,
+          "stagesBuilt": 15,
+          "damaged": 0,
+          "abandoned": 0,
+          "restored": 0,
+          "stateBytes": 1865
+        },
+        "deaths": 87,
+        "resources": {
+          "beer": 50528.55872158848,
+          "food": 749.3856096277842,
+          "water": 731.6124937361238
+        }
+      }
+    ]
+  },
+  "summary": {
+    "deltas": {
+      "metrics": {
+        "population": {
+          "abs": 0,
+          "rel": 0
+        },
+        "morale": {
+          "abs": 0,
+          "rel": 0
+        },
+        "beerBoost": {
+          "abs": 0,
+          "rel": 0
+        },
+        "hunger": {
+          "abs": 0,
+          "rel": 0
+        },
+        "thirst": {
+          "abs": 0,
+          "rel": 0
+        },
+        "underrealmDepth": {
+          "abs": 0,
+          "rel": 0
+        },
+        "underrealmChampions": {
+          "abs": 0,
+          "rel": 0
+        },
+        "underrealmFailedExpeditions": {
+          "abs": 0,
+          "rel": 0
+        },
+        "underrealmBlockedDispatches": {
+          "abs": 0,
+          "rel": 0
+        },
+        "underrealmFrontierContested": {
+          "abs": 0,
+          "rel": 0
+        },
+        "underrealmReadinessScore": {
+          "abs": 0,
+          "rel": 0
+        },
+        "underrealmHeroPromotions": {
+          "abs": 0,
+          "rel": 0
+        },
+        "underrealmHeroLosses": {
+          "abs": 0,
+          "rel": null
+        },
+        "underrealmHeroActive": {
+          "abs": 0,
+          "rel": 0
+        },
+        "underrealmHeroSurvivals": {
+          "abs": 0,
+          "rel": null
+        },
+        "legacyRecords": {
+          "abs": 0,
+          "rel": null
+        },
+        "legacyNemeses": {
+          "abs": 0,
+          "rel": null
+        },
+        "legacyStateBytes": {
+          "abs": 0,
+          "rel": 0
+        },
+        "epicNemeses": {
+          "abs": 0,
+          "rel": 0
+        },
+        "epicSiegesStarted": {
+          "abs": 0,
+          "rel": 0
+        },
+        "epicSiegesCompleted": {
+          "abs": 0,
+          "rel": 0
+        },
+        "epicColonyVictories": {
+          "abs": 0,
+          "rel": 0
+        },
+        "epicNemesisVictories": {
+          "abs": 0,
+          "rel": null
+        },
+        "epicInjuries": {
+          "abs": 0,
+          "rel": null
+        },
+        "epicStructuresDamaged": {
+          "abs": 0,
+          "rel": 0
+        },
+        "epicStructuresRestored": {
+          "abs": 0,
+          "rel": 0
+        },
+        "epicStateBytes": {
+          "abs": 0,
+          "rel": 0
+        },
+        "landmarksFounded": {
+          "abs": 0,
+          "rel": 0
+        },
+        "landmarksCompleted": {
+          "abs": 0,
+          "rel": 0
+        },
+        "landmarkStagesBuilt": {
+          "abs": 0,
+          "rel": 0
+        },
+        "landmarkDamaged": {
+          "abs": 0,
+          "rel": 0
+        },
+        "landmarkRestored": {
+          "abs": 0,
+          "rel": 0
+        },
+        "landmarkStateBytes": {
+          "abs": 0,
+          "rel": 0
+        }
+      },
+      "resources": {
+        "beer": {
+          "abs": 0,
+          "rel": 0
+        },
+        "food": {
+          "abs": 0,
+          "rel": 0
+        },
+        "water": {
+          "abs": 0,
+          "rel": 0
+        }
+      },
+      "resourceAverageRel": 0
+    },
+    "schismDecrees": {
+      "issuedTotal": {
+        "abs": 0,
+        "rel": 0
+      },
+      "activeTicksTotal": {
+        "abs": 0,
+        "rel": 0
+      },
+      "rows": [
+        {
+          "decreeId": "deep_claims",
+          "issued": {
+            "abs": 0,
+            "rel": 0
+          },
+          "issuedShare": {
+            "abs": 0,
+            "rel": 0
+          },
+          "activeTicks": {
+            "abs": 0,
+            "rel": 0
+          },
+          "activeShare": {
+            "abs": 0,
+            "rel": 0
+          }
+        },
+        {
+          "decreeId": "forge_quota",
+          "issued": {
+            "abs": 0,
+            "rel": 0
+          },
+          "issuedShare": {
+            "abs": 0,
+            "rel": 0
+          },
+          "activeTicks": {
+            "abs": 0,
+            "rel": 0
+          },
+          "activeShare": {
+            "abs": 0,
+            "rel": 0
+          }
+        },
+        {
+          "decreeId": "frontier_levy",
+          "issued": {
+            "abs": 0,
+            "rel": 0
+          },
+          "issuedShare": {
+            "abs": 0,
+            "rel": 0
+          },
+          "activeTicks": {
+            "abs": 0,
+            "rel": 0
+          },
+          "activeShare": {
+            "abs": 0,
+            "rel": 0
+          }
+        },
+        {
+          "decreeId": "granary_compact",
+          "issued": {
+            "abs": 0,
+            "rel": 0
+          },
+          "issuedShare": {
+            "abs": 0,
+            "rel": 0
+          },
+          "activeTicks": {
+            "abs": 0,
+            "rel": 0
+          },
+          "activeShare": {
+            "abs": 0,
+            "rel": 0
+          }
+        },
+        {
+          "decreeId": "hearth_festivity",
+          "issued": {
+            "abs": 0,
+            "rel": 0
+          },
+          "issuedShare": {
+            "abs": 0,
+            "rel": 0
+          },
+          "activeTicks": {
+            "abs": 0,
+            "rel": 0
+          },
+          "activeShare": {
+            "abs": 0,
+            "rel": 0
+          }
+        }
+      ]
+    }
+  },
+  "seedDeltas": [
+    {
+      "seed": 101,
+      "deltas": {
+        "metrics": {
+          "population": {
+            "abs": 0,
+            "rel": 0
+          },
+          "morale": {
+            "abs": 0,
+            "rel": 0
+          },
+          "beerBoost": {
+            "abs": 0,
+            "rel": 0
+          },
+          "hunger": {
+            "abs": 0,
+            "rel": 0
+          },
+          "thirst": {
+            "abs": 0,
+            "rel": 0
+          },
+          "underrealmDepth": {
+            "abs": 0,
+            "rel": 0
+          },
+          "underrealmChampions": {
+            "abs": 0,
+            "rel": 0
+          },
+          "underrealmFailedExpeditions": {
+            "abs": 0,
+            "rel": null
+          },
+          "underrealmBlockedDispatches": {
+            "abs": 0,
+            "rel": 0
+          },
+          "underrealmFrontierContested": {
+            "abs": 0,
+            "rel": null
+          },
+          "underrealmReadinessScore": {
+            "abs": 0,
+            "rel": 0
+          },
+          "underrealmHeroPromotions": {
+            "abs": 0,
+            "rel": 0
+          },
+          "underrealmHeroLosses": {
+            "abs": 0,
+            "rel": null
+          },
+          "underrealmHeroActive": {
+            "abs": 0,
+            "rel": 0
+          },
+          "underrealmHeroSurvivals": {
+            "abs": 0,
+            "rel": null
+          },
+          "legacyRecords": {
+            "abs": 0,
+            "rel": null
+          },
+          "legacyNemeses": {
+            "abs": 0,
+            "rel": null
+          },
+          "legacyStateBytes": {
+            "abs": 0,
+            "rel": 0
+          },
+          "epicNemeses": {
+            "abs": 0,
+            "rel": 0
+          },
+          "epicSiegesStarted": {
+            "abs": 0,
+            "rel": 0
+          },
+          "epicSiegesCompleted": {
+            "abs": 0,
+            "rel": 0
+          },
+          "epicColonyVictories": {
+            "abs": 0,
+            "rel": 0
+          },
+          "epicNemesisVictories": {
+            "abs": 0,
+            "rel": null
+          },
+          "epicInjuries": {
+            "abs": 0,
+            "rel": null
+          },
+          "epicStructuresDamaged": {
+            "abs": 0,
+            "rel": 0
+          },
+          "epicStructuresRestored": {
+            "abs": 0,
+            "rel": 0
+          },
+          "epicStateBytes": {
+            "abs": 0,
+            "rel": 0
+          },
+          "landmarksFounded": {
+            "abs": 0,
+            "rel": 0
+          },
+          "landmarksCompleted": {
+            "abs": 0,
+            "rel": 0
+          },
+          "landmarkStagesBuilt": {
+            "abs": 0,
+            "rel": 0
+          },
+          "landmarkDamaged": {
+            "abs": 0,
+            "rel": 0
+          },
+          "landmarkRestored": {
+            "abs": 0,
+            "rel": 0
+          },
+          "landmarkStateBytes": {
+            "abs": 0,
+            "rel": 0
+          }
+        },
+        "resources": {
+          "beer": {
+            "abs": 0,
+            "rel": 0
+          },
+          "food": {
+            "abs": 0,
+            "rel": 0
+          },
+          "water": {
+            "abs": 0,
+            "rel": 0
+          }
+        },
+        "resourceAverageRel": 0
+      }
+    },
+    {
+      "seed": 202,
+      "deltas": {
+        "metrics": {
+          "population": {
+            "abs": 0,
+            "rel": 0
+          },
+          "morale": {
+            "abs": 0,
+            "rel": 0
+          },
+          "beerBoost": {
+            "abs": 0,
+            "rel": 0
+          },
+          "hunger": {
+            "abs": 0,
+            "rel": 0
+          },
+          "thirst": {
+            "abs": 0,
+            "rel": 0
+          },
+          "underrealmDepth": {
+            "abs": 0,
+            "rel": 0
+          },
+          "underrealmChampions": {
+            "abs": 0,
+            "rel": null
+          },
+          "underrealmFailedExpeditions": {
+            "abs": 0,
+            "rel": null
+          },
+          "underrealmBlockedDispatches": {
+            "abs": 0,
+            "rel": 0
+          },
+          "underrealmFrontierContested": {
+            "abs": 0,
+            "rel": 0
+          },
+          "underrealmReadinessScore": {
+            "abs": 0,
+            "rel": 0
+          },
+          "underrealmHeroPromotions": {
+            "abs": 0,
+            "rel": 0
+          },
+          "underrealmHeroLosses": {
+            "abs": 0,
+            "rel": null
+          },
+          "underrealmHeroActive": {
+            "abs": 0,
+            "rel": 0
+          },
+          "underrealmHeroSurvivals": {
+            "abs": 0,
+            "rel": null
+          },
+          "legacyRecords": {
+            "abs": 0,
+            "rel": null
+          },
+          "legacyNemeses": {
+            "abs": 0,
+            "rel": null
+          },
+          "legacyStateBytes": {
+            "abs": 0,
+            "rel": 0
+          },
+          "epicNemeses": {
+            "abs": 0,
+            "rel": 0
+          },
+          "epicSiegesStarted": {
+            "abs": 0,
+            "rel": 0
+          },
+          "epicSiegesCompleted": {
+            "abs": 0,
+            "rel": 0
+          },
+          "epicColonyVictories": {
+            "abs": 0,
+            "rel": 0
+          },
+          "epicNemesisVictories": {
+            "abs": 0,
+            "rel": null
+          },
+          "epicInjuries": {
+            "abs": 0,
+            "rel": null
+          },
+          "epicStructuresDamaged": {
+            "abs": 0,
+            "rel": 0
+          },
+          "epicStructuresRestored": {
+            "abs": 0,
+            "rel": 0
+          },
+          "epicStateBytes": {
+            "abs": 0,
+            "rel": 0
+          },
+          "landmarksFounded": {
+            "abs": 0,
+            "rel": 0
+          },
+          "landmarksCompleted": {
+            "abs": 0,
+            "rel": 0
+          },
+          "landmarkStagesBuilt": {
+            "abs": 0,
+            "rel": 0
+          },
+          "landmarkDamaged": {
+            "abs": 0,
+            "rel": 0
+          },
+          "landmarkRestored": {
+            "abs": 0,
+            "rel": 0
+          },
+          "landmarkStateBytes": {
+            "abs": 0,
+            "rel": 0
+          }
+        },
+        "resources": {
+          "beer": {
+            "abs": 0,
+            "rel": 0
+          },
+          "food": {
+            "abs": 0,
+            "rel": 0
+          },
+          "water": {
+            "abs": 0,
+            "rel": 0
+          }
+        },
+        "resourceAverageRel": 0
+      }
+    },
+    {
+      "seed": 303,
+      "deltas": {
+        "metrics": {
+          "population": {
+            "abs": 0,
+            "rel": 0
+          },
+          "morale": {
+            "abs": 0,
+            "rel": 0
+          },
+          "beerBoost": {
+            "abs": 0,
+            "rel": 0
+          },
+          "hunger": {
+            "abs": 0,
+            "rel": 0
+          },
+          "thirst": {
+            "abs": 0,
+            "rel": 0
+          },
+          "underrealmDepth": {
+            "abs": 0,
+            "rel": 0
+          },
+          "underrealmChampions": {
+            "abs": 0,
+            "rel": 0
+          },
+          "underrealmFailedExpeditions": {
+            "abs": 0,
+            "rel": null
+          },
+          "underrealmBlockedDispatches": {
+            "abs": 0,
+            "rel": 0
+          },
+          "underrealmFrontierContested": {
+            "abs": 0,
+            "rel": 0
+          },
+          "underrealmReadinessScore": {
+            "abs": 0,
+            "rel": 0
+          },
+          "underrealmHeroPromotions": {
+            "abs": 0,
+            "rel": 0
+          },
+          "underrealmHeroLosses": {
+            "abs": 0,
+            "rel": null
+          },
+          "underrealmHeroActive": {
+            "abs": 0,
+            "rel": 0
+          },
+          "underrealmHeroSurvivals": {
+            "abs": 0,
+            "rel": null
+          },
+          "legacyRecords": {
+            "abs": 0,
+            "rel": null
+          },
+          "legacyNemeses": {
+            "abs": 0,
+            "rel": null
+          },
+          "legacyStateBytes": {
+            "abs": 0,
+            "rel": 0
+          },
+          "epicNemeses": {
+            "abs": 0,
+            "rel": 0
+          },
+          "epicSiegesStarted": {
+            "abs": 0,
+            "rel": 0
+          },
+          "epicSiegesCompleted": {
+            "abs": 0,
+            "rel": 0
+          },
+          "epicColonyVictories": {
+            "abs": 0,
+            "rel": 0
+          },
+          "epicNemesisVictories": {
+            "abs": 0,
+            "rel": null
+          },
+          "epicInjuries": {
+            "abs": 0,
+            "rel": null
+          },
+          "epicStructuresDamaged": {
+            "abs": 0,
+            "rel": 0
+          },
+          "epicStructuresRestored": {
+            "abs": 0,
+            "rel": 0
+          },
+          "epicStateBytes": {
+            "abs": 0,
+            "rel": 0
+          },
+          "landmarksFounded": {
+            "abs": 0,
+            "rel": 0
+          },
+          "landmarksCompleted": {
+            "abs": 0,
+            "rel": 0
+          },
+          "landmarkStagesBuilt": {
+            "abs": 0,
+            "rel": 0
+          },
+          "landmarkDamaged": {
+            "abs": 0,
+            "rel": 0
+          },
+          "landmarkRestored": {
+            "abs": 0,
+            "rel": 0
+          },
+          "landmarkStateBytes": {
+            "abs": 0,
+            "rel": 0
+          }
+        },
+        "resources": {
+          "beer": {
+            "abs": 0,
+            "rel": 0
+          },
+          "food": {
+            "abs": 0,
+            "rel": 0
+          },
+          "water": {
+            "abs": 0,
+            "rel": 0
+          }
+        },
+        "resourceAverageRel": 0
+      }
+    },
+    {
+      "seed": 404,
+      "deltas": {
+        "metrics": {
+          "population": {
+            "abs": 0,
+            "rel": 0
+          },
+          "morale": {
+            "abs": 0,
+            "rel": 0
+          },
+          "beerBoost": {
+            "abs": 0,
+            "rel": 0
+          },
+          "hunger": {
+            "abs": 0,
+            "rel": 0
+          },
+          "thirst": {
+            "abs": 0,
+            "rel": 0
+          },
+          "underrealmDepth": {
+            "abs": 0,
+            "rel": 0
+          },
+          "underrealmChampions": {
+            "abs": 0,
+            "rel": 0
+          },
+          "underrealmFailedExpeditions": {
+            "abs": 0,
+            "rel": 0
+          },
+          "underrealmBlockedDispatches": {
+            "abs": 0,
+            "rel": 0
+          },
+          "underrealmFrontierContested": {
+            "abs": 0,
+            "rel": 0
+          },
+          "underrealmReadinessScore": {
+            "abs": 0,
+            "rel": 0
+          },
+          "underrealmHeroPromotions": {
+            "abs": 0,
+            "rel": 0
+          },
+          "underrealmHeroLosses": {
+            "abs": 0,
+            "rel": null
+          },
+          "underrealmHeroActive": {
+            "abs": 0,
+            "rel": 0
+          },
+          "underrealmHeroSurvivals": {
+            "abs": 0,
+            "rel": null
+          },
+          "legacyRecords": {
+            "abs": 0,
+            "rel": null
+          },
+          "legacyNemeses": {
+            "abs": 0,
+            "rel": null
+          },
+          "legacyStateBytes": {
+            "abs": 0,
+            "rel": 0
+          },
+          "epicNemeses": {
+            "abs": 0,
+            "rel": 0
+          },
+          "epicSiegesStarted": {
+            "abs": 0,
+            "rel": 0
+          },
+          "epicSiegesCompleted": {
+            "abs": 0,
+            "rel": 0
+          },
+          "epicColonyVictories": {
+            "abs": 0,
+            "rel": 0
+          },
+          "epicNemesisVictories": {
+            "abs": 0,
+            "rel": null
+          },
+          "epicInjuries": {
+            "abs": 0,
+            "rel": null
+          },
+          "epicStructuresDamaged": {
+            "abs": 0,
+            "rel": 0
+          },
+          "epicStructuresRestored": {
+            "abs": 0,
+            "rel": 0
+          },
+          "epicStateBytes": {
+            "abs": 0,
+            "rel": 0
+          },
+          "landmarksFounded": {
+            "abs": 0,
+            "rel": 0
+          },
+          "landmarksCompleted": {
+            "abs": 0,
+            "rel": 0
+          },
+          "landmarkStagesBuilt": {
+            "abs": 0,
+            "rel": 0
+          },
+          "landmarkDamaged": {
+            "abs": 0,
+            "rel": null
+          },
+          "landmarkRestored": {
+            "abs": 0,
+            "rel": null
+          },
+          "landmarkStateBytes": {
+            "abs": 0,
+            "rel": 0
+          }
+        },
+        "resources": {
+          "beer": {
+            "abs": 0,
+            "rel": 0
+          },
+          "food": {
+            "abs": 0,
+            "rel": 0
+          },
+          "water": {
+            "abs": 0,
+            "rel": 0
+          }
+        },
+        "resourceAverageRel": 0
+      }
+    }
+  ]
+}

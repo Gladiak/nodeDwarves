@@ -1,0 +1,88 @@
+{
+  "version": 1,
+  "timestamp": 1789569831,
+  "timestamp_iso": "2026-09-16T14:43:51.420157+00:00",
+  "promoted": false,
+  "reason": "eval_only",
+  "model_path": "models/policy_best.json",
+  "model_state_path": "models/policy.state.pt",
+  "best_model_path": "models/policy_best.json",
+  "best_model_meta_path": "models/policy_best.meta.json",
+  "best_model_state_path": "models/policy_best.state.pt",
+  "eval_context": {
+    "source": "promote_best",
+    "config": "config.json",
+    "reportTag": "canonical-master",
+    "evalEpisodes": 20,
+    "evalMaxSteps": 2200,
+    "evalDifficulty": 1.0,
+    "evalScore": "rpt",
+    "maxSteps": 2200,
+    "stepTicks": 2,
+    "seedBase": 100000,
+    "minImprove": 0.005,
+    "requirePositiveLcb": true,
+    "lcbZ": 1.96,
+    "evalProgress": true,
+    "evalProgressEvery": 10,
+    "transport": "compact"
+  },
+  "thresholds": {
+    "min_improve": 0.005,
+    "require_positive_lcb": true,
+    "lcb_z": 1.96
+  },
+  "latest": {
+    "avg_reward": 18517.771641933217,
+    "avg_steps": 2200.0,
+    "avg_ticks": 4400.0,
+    "avg_births": 96.75,
+    "avg_deaths": 6.55,
+    "score": 4.208584464075731,
+    "avg_under_depthProgress": 0.04,
+    "avg_under_championProgress": 0.01,
+    "avg_under_readinessScore": 0.6513060817379619,
+    "avg_under_combatPressure": 0.36297321428571416,
+    "episode_scores": [
+      4.4251719511880445,
+      4.2086265269856025,
+      4.111073750164233,
+      4.54667619868068,
+      4.230273180765777,
+      4.3064208776146735,
+      4.1601640119480185,
+      4.505225423672746,
+      4.262501480128094,
+      4.455622354944799,
+      4.009370686440574,
+      4.171618626562615,
+      3.9612814141796497,
+      3.7926631569537252,
+      3.9365061092160176,
+      3.9751575173682085,
+      4.330885791953389,
+      4.300975492109334,
+      4.189106894217205,
+      4.292367836421498
+    ]
+  },
+  "best_before": null,
+  "best_score_before": null,
+  "best_score_after": null,
+  "delta_score": null,
+  "diagnostic": {
+    "enabled": true,
+    "latest": {
+      "rpt_score": 4.208584464075731,
+      "deep_aux": 0.42999309392494006,
+      "ensemble_score": 4.205084118771977,
+      "weights": {
+        "rpt": 1.0,
+        "deep_aux_delta": 0.05
+      }
+    },
+    "best_before": null,
+    "delta_ensemble_score": null,
+    "notes": "Diagnostics only: ensemble score never drives promotion decisions (promotion remains based on evalScore + existing guardrails)."
+  }
+}

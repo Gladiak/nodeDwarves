@@ -6,6 +6,7 @@ __pycache__/
 node_modules/
 maps/*/**/*.png
 maps/*/**/*.svg
+chronicles/
 
 # Debug artifacts (keep curated reports explicit)
 debug/run_*/

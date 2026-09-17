@@ -1,0 +1,248 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-16T13:12:10Z",
+  "status": "complete",
+  "workbookStep": "E0.1",
+  "source": {
+    "branch": "epicEvolution",
+    "commit": "c9cda62f495f83cf825f28b63db1f79c1abb1540",
+    "workingTreeBeforeE0_1": "clean",
+    "platform": "Darwin 25.5.0 arm64",
+    "nodeVersion": "v24.14.0"
+  },
+  "configuration": {
+    "path": "config.json",
+    "sha256": "16cab5b529e99eed7f65ce3f4a08fe994f7828a8cb2e7be690926a0b253bffb3",
+    "display": {
+      "autoSize": true,
+      "fallbackWidth": 190,
+      "fallbackHeight": 60,
+      "tickMs": 20
+    }
+  },
+  "policy": {
+    "defaultRuntimeEnabled": false,
+    "configuredRuntimePath": "models/policy.json",
+    "defaultNpmStartMode": "heuristic governor",
+    "aiPlayPath": "models/policy_best.json",
+    "bestPolicySha256": "9168d821b3994923e91d1f34d961a739e86ffc9f288325759d91bd4388446689",
+    "bestMetaSha256": "aabba792de2f64accf2ce3def98380ee8c36eb60ca4393381266bbd554f643d7",
+    "bestMeta": {
+      "bestReward": 18493.063244463723,
+      "bestScore": 4.202968919196301,
+      "scoreMode": "rpt",
+      "avgSteps": 2200,
+      "avgTicks": 4400,
+      "avgBirths": 98.25,
+      "avgDeaths": 6.65,
+      "evalEpisodes": 20,
+      "evalMaxSteps": 2200,
+      "stepTicks": 2,
+      "transport": "compact"
+    }
+  },
+  "benchmarkCache": {
+    "status": "aligned",
+    "refreshReason": "config hash mismatch",
+    "previousConfigHash": "619598a2315b57c594203e260dd896b739c1c55d0a41057ed2777843aac07dab",
+    "jsonPath": "benchmark_cache/headless_benchmark_baseline.json",
+    "markdownPath": "benchmark_cache/headless_benchmark_baseline.md",
+    "jsonSha256": "fb410b3b5fc1b433a4ffd8b37193c8135564f3d0facb42a59497b96fc1ba2a1c",
+    "markdownSha256": "bdf31e1c19f604409b7df81c0c91352674eef63dd02a08b50edeb49f1e9dc749",
+    "meta": {
+      "ticks": 8000,
+      "seeds": [101, 202, 303, 404],
+      "resources": ["beer", "food", "water"],
+      "width": 120,
+      "height": 40,
+      "configHash": "16cab5b529e99eed7f65ce3f4a08fe994f7828a8cb2e7be690926a0b253bffb3",
+      "generatedAt": "2026-07-16T12:54:25.470Z"
+    },
+    "summary": {
+      "population": 698.25,
+      "morale": 0.8851340586697928,
+      "beerBoost": 0.020387315933915975,
+      "hunger": 0.15750525049385444,
+      "thirst": 0.10826574954738671,
+      "underrealmDepth": 2.25,
+      "underrealmChampions": 1.25,
+      "underrealmFailedExpeditions": 0.25,
+      "underrealmReadinessScore": 0.8060748097884353,
+      "resources": {
+        "beer": 36804.17830641317,
+        "food": 818.4094894084642,
+        "water": 836.9331088557002
+      }
+    },
+    "perSeed": [
+      { "seed": 101, "population": 683, "morale": 0.8821486458258563, "underrealmDepth": 3 },
+      { "seed": 202, "population": 678, "morale": 0.8795528474017517, "underrealmDepth": 1 },
+      { "seed": 303, "population": 732, "morale": 0.892200222314709, "underrealmDepth": 3 },
+      { "seed": 404, "population": 700, "morale": 0.8866345191368539, "underrealmDepth": 2 }
+    ]
+  },
+  "layout": {
+    "benchmarkArguments": { "width": 120, "height": 40 },
+    "resolvedRuntime": {
+      "totalWidth": 120,
+      "totalHeight": 40,
+      "gridWidth": 118,
+      "gridHeight": 38,
+      "frameEnabled": true
+    },
+    "referenceScreenshotPixels": { "width": 2904, "height": 2048 }
+  },
+  "screenshots": [
+    {
+      "kind": "surface",
+      "path": "assets/NodeDwarves_1.png",
+      "sha256": "bb9f76a01425e0ac6432ba69f38c5f01dc1b6168dfc2875b2a1daf08519fe58f",
+      "observedTick": 4800
+    },
+    {
+      "kind": "data_center",
+      "path": "assets/NodeDwarves_2.png",
+      "sha256": "b54c0335107a4d4b91e522b33370ea9de2e8aae33cbba603715864de76c1dd32",
+      "observedTick": 5051
+    },
+    {
+      "kind": "character_inspect",
+      "path": "assets/NodeDwarves_4.png",
+      "sha256": "296444614b8a958a0afb0c54ea369b48ffb2db864ec9df9b591c445f1d085da2",
+      "observedTick": 5298
+    },
+    {
+      "kind": "underrealm",
+      "path": "assets/NodeDwarves_5.png",
+      "sha256": "8d20d42dd03fa9781cf006d64ab1028e0b1d9189adee5b416bfc780a9ee230de",
+      "observedTick": 5475
+    }
+  ],
+  "screenshotProvenance": {
+    "classification": "existing sequential product screenshots frozen as E0.1 visual references",
+    "sameRunEvidence": "matching layout and monotonically increasing ticks 4800, 5051, 5298, 5475",
+    "seed": "not embedded; visual references are not used for deterministic metric comparison"
+  },
+  "eventLog": {
+    "method": "One deterministic 8000-tick run per benchmark seed; the short snapshot is taken at tick 1000 from the same run. Counts describe the retained state.eventLog, including its configured 300-entry cap.",
+    "schemaFields": ["category", "message", "source", "tick"],
+    "short": {
+      "tick": 1000,
+      "storedEntries": 631,
+      "rawDwarfIdMessages": 238,
+      "rawDwarfIdShare": 0.37717908082408874,
+      "categories": {
+        "diplomacy": 138,
+        "economy": 122,
+        "social": 99,
+        "warrior": 78,
+        "lifecycle": 59,
+        "schism": 46,
+        "world": 32,
+        "other": 29,
+        "combat": 21,
+        "myth": 5,
+        "festival": 2
+      },
+      "perSeed": [
+        { "seed": 101, "population": 18, "storedEntries": 133, "retainedTickMin": 1, "retainedTickMax": 1000, "rawDwarfIdShare": 0.3609022556390977 },
+        { "seed": 202, "population": 30, "storedEntries": 163, "retainedTickMin": 1, "retainedTickMax": 987, "rawDwarfIdShare": 0.3803680981595092 },
+        { "seed": 303, "population": 29, "storedEntries": 170, "retainedTickMin": 1, "retainedTickMax": 1000, "rawDwarfIdShare": 0.3764705882352941 },
+        { "seed": 404, "population": 27, "storedEntries": 165, "retainedTickMin": 1, "retainedTickMax": 995, "rawDwarfIdShare": 0.3878787878787879 }
+      ]
+    },
+    "long": {
+      "tick": 8000,
+      "storedEntries": 1200,
+      "configuredEntries": 1200,
+      "capacitySaturatedForEverySeed": true,
+      "rawDwarfIdMessages": 462,
+      "rawDwarfIdShare": 0.385,
+      "categories": {
+        "lifecycle": 285,
+        "schism": 230,
+        "diplomacy": 155,
+        "underrealm": 113,
+        "social": 100,
+        "other": 78,
+        "warrior": 77,
+        "economy": 52,
+        "combat": 44,
+        "world": 40,
+        "festival": 14,
+        "myth": 12
+      },
+      "perSeed": [
+        { "seed": 101, "population": 683, "storedEntries": 300, "retainedTickMin": 7141, "retainedTickMax": 8000, "retainedTickSpan": 859, "rawDwarfIdShare": 0.3333333333333333 },
+        { "seed": 202, "population": 678, "storedEntries": 300, "retainedTickMin": 6829, "retainedTickMax": 7995, "retainedTickSpan": 1166, "rawDwarfIdShare": 0.43333333333333335 },
+        { "seed": 303, "population": 732, "storedEntries": 300, "retainedTickMin": 6980, "retainedTickMax": 7999, "retainedTickSpan": 1019, "rawDwarfIdShare": 0.44 },
+        { "seed": 404, "population": 700, "storedEntries": 300, "retainedTickMin": 7080, "retainedTickMax": 8000, "retainedTickSpan": 920, "rawDwarfIdShare": 0.3333333333333333 }
+      ]
+    }
+  },
+  "rendering": {
+    "method": {
+      "state": "final tick-8000 state for each benchmark seed",
+      "modes": ["surface", "underrealm", "telemetry", "inspect"],
+      "warmupFramesPerMode": 2,
+      "renderSamplesPerModePerSeed": 12,
+      "writeSamplesPerModePerSeed": 24,
+      "outputSink": "/dev/null",
+      "writeLimitation": "Measures synchronous byte-write cost separately from frame construction; terminal emulator paint cost is unavailable in headless execution."
+    },
+    "aggregateByMode": {
+      "surface": {
+        "frameBytesMin": 92956,
+        "frameBytesMean": 97247.5,
+        "frameBytesMax": 102406,
+        "renderBuildMeanMs": 1.1456346041729073,
+        "maxSeedP95Ms": 2.0898749999760184,
+        "outputWriteMeanMs": 0.09660409375161787
+      },
+      "underrealm": {
+        "frameBytesMin": 92545,
+        "frameBytesMean": 92922,
+        "frameBytesMax": 93293,
+        "renderBuildMeanMs": 0.8167248958325217,
+        "maxSeedP95Ms": 1.0005419999943115,
+        "outputWriteMeanMs": 0.08158112500071486
+      },
+      "telemetry": {
+        "frameBytesMin": 14897,
+        "frameBytesMean": 15445.25,
+        "frameBytesMax": 16158,
+        "renderBuildMeanMs": 1.448888083329924,
+        "maxSeedP95Ms": 2.3010420000064187,
+        "outputWriteMeanMs": 0.01965974999257014
+      },
+      "inspect": {
+        "frameBytesMin": 33658,
+        "frameBytesMean": 34367.25,
+        "frameBytesMax": 35762,
+        "renderBuildMeanMs": 1.9144036666651423,
+        "maxSeedP95Ms": 7.8317499999538995,
+        "outputWriteMeanMs": 0.03062625000469173
+      }
+    },
+    "perSeedRenderBuildMeanMs": [
+      { "seed": 101, "surface": 1.2996284166680805, "underrealm": 0.8149132500038831, "telemetry": 1.4639478333386553, "inspect": 2.1724097499997392 },
+      { "seed": 202, "surface": 1.1486944166681496, "underrealm": 0.8433438333352873, "telemetry": 1.7763230833321966, "inspect": 3.411576333329625 },
+      { "seed": 303, "surface": 1.0826355833560228, "underrealm": 0.8064133333197484, "telemetry": 1.284722249993744, "inspect": 1.0501701666604883 },
+      { "seed": 404, "surface": 1.051579999999376, "underrealm": 0.8022291666711681, "telemetry": 1.2705591666550997, "inspect": 1.0234584166707161 }
+    ]
+  },
+  "findings": [
+    "The cached balance baseline was stale and was refreshed from config hash 619598a2... to 16cab5b5....",
+    "At tick 8000 every seed saturates the 300-entry event-log cap; the retained window covers only 859-1166 ticks.",
+    "Raw dwarf IDs appear in 37.72% of short-horizon retained messages and 38.50% of long-horizon retained messages.",
+    "The current event schema contains only tick, message, category, and source; actors, locations, causes, consequences, importance, and stable event IDs are absent.",
+    "Surface and Underrealm frame construction is near or below 1.15 ms on average in the frozen headless layout; Inspect has the highest observed seed p95 at 7.83 ms.",
+    "Default npm start does not load a trained policy because ai.runtime.enabled is false; npm run ai:play uses models/policy_best.json."
+  ],
+  "limitations": [
+    "Reference screenshots predate this freeze and do not embed a deterministic seed; hashes and visible sequential ticks are frozen for visual comparison only.",
+    "Event distributions describe the retained event log, not every event emitted before older entries were truncated.",
+    "Output-write timing uses /dev/null and excludes terminal-emulator rendering/paint latency.",
+    "Performance timings are local-machine measurements and must be compared on the same hardware and runtime profile."
+  ]
+}

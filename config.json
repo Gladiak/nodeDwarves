@@ -6,6 +6,64 @@
     "maxWidth": 0,
     "maxHeight": 0,
     "tickMs": 20,
+    "time_controls": {
+      "enabled": true,
+      "default_level": "normal",
+      "min_delay_ms": 4,
+      "levels": [
+        {
+          "id": "slow",
+          "label": "0.5x",
+          "delay_multiplier": 2
+        },
+        {
+          "id": "normal",
+          "label": "1x",
+          "delay_multiplier": 1
+        },
+        {
+          "id": "fast",
+          "label": "2x",
+          "delay_multiplier": 0.5
+        },
+        {
+          "id": "very_fast",
+          "label": "4x",
+          "delay_multiplier": 0.25
+        },
+        {
+          "id": "turbo",
+          "label": "5x",
+          "delay_multiplier": 0.2
+        },
+        {
+          "id": "rapid",
+          "label": "25x",
+          "delay_multiplier": 0.2,
+          "ticks_per_frame": 5
+        },
+        {
+          "id": "warp",
+          "label": "100x",
+          "delay_multiplier": 0.2,
+          "ticks_per_frame": 20
+        }
+      ],
+      "auto_protect": {
+        "enabled": true,
+        "minimum_importance": "critical",
+        "critical": {
+          "mode": "slow",
+          "level": "slow",
+          "duration_ms": 1800
+        },
+        "legendary": {
+          "mode": "hold",
+          "level": "slow",
+          "duration_ms": 2400
+        }
+      }
+    },
     "resize": {
       "enabled": true,
       "reflow_world": false
@@ -30,6 +88,28 @@
       "marginRight": 1,
       "title": "ᚦ NodeDwarves ᛞ",
       "reserveSimulationSpace": true
+    },
+    "storyRibbon": {
+      "enabled": true,
+      "maxWidth": 118,
+      "minWidth": 40,
+      "marginLeft": 1,
+      "marginRight": 1,
+      "marginBottom": 1,
+      "hideWhenModalOpen": true
+    },
+    "storyFocusOverlay": {
+      "enabled": true,
+      "minimumImportance": "major",
+      "locationMinimumImportance": "critical",
+      "maxActors": 2,
+      "radius": 1,
+      "maxMarkers": 4,
+      "cadenceTicks": 16,
+      "markerSymbol": "",
+      "showPaths": false,
+      "maxPathCells": 6,
+      "hideWhenModalOpen": true
     },
     "frame": {
       "enabled": true,
@@ -76,7 +156,7 @@
     "transition_panel": {
       "enabled": true,
       "width": 72,
-      "height": 9
+      "height": 14
     },
     "terrain": {
       "enabled": true,
@@ -146,11 +226,7 @@
           "strength": 0.18,
           "noise_scale": 0.28,
           "seed_offset": 1723,
-          "types": [
-            "forest",
-            "food",
-            "pasture"
-          ]
+          "types": ["forest", "food", "pasture"]
         },
         "landmarks": {
           "enabled": true,
@@ -207,12 +283,7 @@
         },
         "riverCount": 3,
         "riverSourceMinDistance": 8,
-        "riverSourceSides": [
-          "north",
-          "south",
-          "east",
-          "west"
-        ],
+        "riverSourceSides": ["north", "south", "east", "west"],
         "riverWander": 0.55,
         "riverValleyDrop": 0.26,
         "riverValleyDropAdjacent": 0.12,
@@ -410,10 +481,7 @@
         "bridge": "=",
         "ford": ":"
       },
-      "riverConnectsTo": [
-        "river",
-        "lake"
-      ]
+      "riverConnectsTo": ["river", "lake"]
     },
     "dwarves": {
       "maxVisible": 60
@@ -432,11 +500,7 @@
           }
         },
         "alerts": {
-          "tracked_resources": [
-            "food",
-            "water",
-            "beer"
-          ],
+          "tracked_resources": ["food", "water", "beer"],
           "stockpile_warning_ratio": 0.5,
           "stockpile_critical_ratio": 0.25,
           "morale_warning": 0.45,
@@ -487,6 +551,9 @@
         "underrealm_lift_down": "\u001b[38;2;122;255;178m",
         "underrealm_lift_active": "\u001b[38;2;255;198;94m",
         "underrealm_lift_locked": "\u001b[38;2;199;170;120m",
+        "world_legacy_echo": "\u001b[38;2;214;176;82m",
+        "nemesis": "\u001b[38;2;255;96;72m",
+        "siege_damage": "\u001b[38;2;255;156;72m",
         "terrain_void": "\u001b[48;2;9;10;15m\u001b[38;2;9;10;15m",
         "terrain_stone": "\u001b[37m",
         "terrain_plain_spring": "\u001b[38;2;122;150;126m",
@@ -538,10 +605,22 @@
         "sawmill": "\u001b[33m",
         "watchtower": "\u001b[37m",
         "temple_of_ancestors": "\u001b[38;5;220m",
+        "landmark_great_hall": "\u001b[38;5;221m",
+        "landmark_warrior_arena": "\u001b[38;5;203m",
+        "landmark_legendary_forge": "\u001b[38;5;208m",
+        "landmark_gate_fortress": "\u001b[38;5;117m",
+        "landmark_ancestor_walk": "\u001b[38;5;183m",
+        "landmark_construction": "\u001b[38;5;214m",
+        "landmark_damaged": "\u001b[91m",
+        "landmark_abandoned": "\u001b[38;5;244m",
+        "landmark_restoration": "\u001b[92m",
         "brewery": "\u001b[35m",
         "beast": "\u001b[91m",
         "alert_warning": "\u001b[93m",
         "alert_critical": "\u001b[91m",
+        "story_focus_major": "\u001b[96m",
+        "story_focus_critical": "\u001b[93m",
+        "story_focus_legendary": "\u001b[95m",
         "herd": "\u001b[38;2;160;134;121m",
         "food": "\u001b[32m",
         "water": "\u001b[34m",
@@ -641,14 +720,443 @@
   },
   "events": {
     "maxEntries": 5,
-    "logMaxEntries": 300
+    "logMaxEntries": 300,
+    "importance": {
+      "default": "ambient",
+      "by_category": {
+        "social": "notable",
+        "lifecycle": "notable",
+        "schism": "major",
+        "festival": "notable",
+        "myth": "notable",
+        "warrior": "notable",
+        "diplomacy": "notable",
+        "combat": "major",
+        "underrealm": "notable",
+        "economy": "ambient",
+        "world": "notable",
+        "other": "ambient"
+      },
+      "by_type": {
+        "lifecycle.birth": "notable",
+        "lifecycle.death": "major",
+        "lifecycle.partnership_formed": "notable",
+        "lifecycle.settlement_founded": "major",
+        "social.mentorship_breakthrough": "notable",
+        "social.rivalry_clash": "notable",
+        "social.grudge_escalation": "major",
+        "social.reconciliation": "notable",
+        "combat.surface_raid_started": "major",
+        "combat.surface_raid_resolved": "major",
+        "combat.ruins_expedition_started": "notable",
+        "combat.ruins_expedition_succeeded": "major",
+        "combat.ruins_expedition_failed": "major",
+        "combat.underrealm_champion_defeated": "major",
+        "combat.underrealm_champion_setback": "major",
+        "combat.dwarf_champion_appointed": "major",
+        "combat.dwarf_champion_fallen": "critical",
+        "combat.deep_raid_started": "major",
+        "combat.deep_raid_casualties": "critical",
+        "combat.deep_raid_resolved": "major",
+        "warrior.scar_earned": "notable",
+        "warrior.title_earned": "notable",
+        "warrior.vow_sworn": "notable",
+        "warrior.vow_replaced": "notable",
+        "warrior.retired": "major",
+        "warrior.underrealm_command_relinquished": "major",
+        "warrior.hero_command_taken": "major",
+        "warrior.tournament_injury": "notable",
+        "warrior.tournament_death": "critical",
+        "warrior.tournament_champion_crowned": "major",
+        "warrior.underrealm_command_synced": "major",
+        "schism.doctrine_shifted": "major",
+        "schism.phase_shifted": "major",
+        "schism.ritual_window_opened": "notable",
+        "schism.council_ritual_lit": "major",
+        "schism.ritual_invoked": "major",
+        "schism.ritual_expired": "notable",
+        "schism.decree_proposed": "notable",
+        "schism.decree_enacted": "major",
+        "schism.decree_expired": "notable",
+        "schism.climax_started": "critical",
+        "schism.climax_resolved": "legendary",
+        "endgame.artifact_recovered": "major",
+        "endgame.artifact_collection_completed": "legendary",
+        "endgame.transition_started": "critical",
+        "endgame.cycle_closed": "legendary",
+        "endgame.warrior_company_carried_over": "major",
+        "endgame.transition_completed": "major",
+        "world.limited_opportunities_completed": "major",
+        "world.limited_opportunities_expired": "major",
+        "caravan.intercepted": "major",
+        "external_camp.skirmish": "major",
+        "contract.completed": "notable",
+        "contract.failed": "major",
+        "myth.awakened": "major",
+        "myth.tradition_formed": "major",
+        "alchemy.backlash_started": "major",
+        "alchemy.backlash_losses": "major",
+        "festival.started": "notable",
+        "weather.changed": "ambient",
+        "wildlife.herds_spawned": "ambient",
+        "village.founded": "major",
+        "road.completed": "notable",
+        "construction.structure_completed": "notable",
+        "construction.house_upgraded": "ambient",
+        "construction.tools_upgraded": "notable",
+        "construction.structure_upgraded": "notable",
+        "temple.stage_completed": "major",
+        "temple.completed": "legendary",
+        "underrealm.gate_discovered": "major",
+        "underrealm.lift_completed": "major",
+        "underrealm.rare_resource_found": "notable",
+        "wildlife.hunt_death": "major",
+        "warrior.company_doctrine_active": "notable",
+        "nemesis.promoted": "critical",
+        "nemesis.reappeared": "major",
+        "siege.warning": "critical",
+        "siege.approach": "major",
+        "siege.demand": "critical",
+        "siege.breach": "critical",
+        "siege.battle": "legendary",
+        "siege.battle_resolved": "legendary",
+        "siege.retreat": "major",
+        "siege.victory": "legendary",
+        "siege.aftermath": "major"
+      }
+    }
+  },
+  "story_director": {
+    "enabled": true,
+    "focus": {
+      "minimum_importance": "major",
+      "cooldown_ticks": 180,
+      "duration_ticks": 240,
+      "interruption_budget": {
+        "window_ticks": 1200,
+        "max_interruptions": 3
+      },
+      "escalation": {
+        "enabled": true,
+        "minimum_importance": "critical",
+        "cooldown_ticks": 60
+      }
+    },
+    "scoring": {
+      "importance": {
+        "ambient": 0,
+        "notable": 25,
+        "major": 50,
+        "critical": 80,
+        "legendary": 120
+      },
+      "rarity": {
+        "first_occurrence_bonus": 18,
+        "max_tracked_types": 128
+      },
+      "named_actors": {
+        "per_actor": 8,
+        "max_actors": 3
+      },
+      "consequences": {
+        "per_entry": 5,
+        "max_entries": 4
+      },
+      "current_saga_bonus": 24,
+      "visibility": {
+        "visible_bonus": 12,
+        "world_bonus": 4,
+        "hidden_penalty": 6
+      }
+    },
+    "sagas": {
+      "minimum_importance": "major",
+      "inactivity_timeout_ticks": 2400,
+      "archive_timeout_ticks": 7200,
+      "max_entries": 24,
+      "max_event_refs": 16,
+      "max_actor_refs": 12,
+      "max_place_refs": 8,
+      "max_faction_refs": 8,
+      "max_threat_refs": 8,
+      "max_location_refs": 8,
+      "matching": {
+        "minimum_score": 30,
+        "actor_weight": 30,
+        "location_weight": 20,
+        "place_weight": 40,
+        "faction_weight": 80,
+        "threat_weight": 100
+      },
+      "lifecycle": {
+        "activation_event_count": 2,
+        "activation_minimum_importance": "critical",
+        "resolved_type_suffixes": [
+          "resolved",
+          "completed",
+          "succeeded",
+          "defeated",
+          "reconciliation",
+          "closed"
+        ],
+        "failed_type_suffixes": ["failed", "expired"]
+      },
+      "chapters": {
+        "max_entries": 8,
+        "max_event_refs": 4,
+        "summary_max_chars": 240
+      }
+    },
+    "history": {
+      "max_entries": 160,
+      "reason_trace_max_entries": 160
+    }
+  },
+  "experience_ledger": {
+    "enabled": true,
+    "minimum_importance": "major",
+    "categories": [
+      "social",
+      "lifecycle",
+      "combat",
+      "warrior",
+      "underrealm",
+      "schism",
+      "economy",
+      "world",
+      "festival",
+      "myth",
+      "endgame"
+    ],
+    "max_dwarves": 1024,
+    "max_deeds_per_dwarf": 12,
+    "max_source_refs_per_deed": 4,
+    "max_actor_refs_per_deed": 4,
+    "merge_window_ticks": 1200,
+    "inspect_recent_deeds": 3
+  },
+  "chronicle": {
+    "enabled": true,
+    "minimum_importance": "notable",
+    "max_claims_per_chapter": 12,
+    "max_evidence_per_cycle": 128,
+    "max_archived_cycles": 4,
+    "saga_quality": {
+      "use_for_retention": false
+    },
+    "export": {
+      "enabled": true,
+      "directory": "chronicles",
+      "json": true,
+      "markdown": true
+    }
+  },
+  "world_legacy": {
+    "enabled": true,
+    "retention": {
+      "max_cycles": 5,
+      "max_identities": 32,
+      "max_places": 24,
+      "max_memorials": 12,
+      "max_institutions": 8,
+      "max_echoes": 12,
+      "max_nemeses": 8,
+      "max_total_records": 96
+    },
+    "selection": {
+      "max_identities_per_cycle": 4,
+      "max_places_per_cycle": 3,
+      "max_memorials_per_cycle": 1,
+      "max_institutions_per_cycle": 1,
+      "max_echoes_per_cycle": 2,
+      "max_nemeses_per_cycle": 2,
+      "nemesis_minimum_encounters": 1,
+      "max_nemesis_encounters": 6,
+      "memorial_minimum_importance": "critical"
+    },
+    "institutions": {
+      "modifiers": {
+        "per_cycle": 0.005,
+        "total_cap": 0.02
+      }
+    },
+    "echoes": {
+      "enabled": true,
+      "color_key": "world_legacy_echo"
+    }
+  },
+  "epic_conflicts": {
+    "enabled": true,
+    "nemeses": {
+      "max_active": 8,
+      "max_encounters_per_nemesis": 8,
+      "max_grudges_per_nemesis": 4,
+      "max_scars_per_nemesis": 4,
+      "promotion": {
+        "check_interval_ticks": 20,
+        "raider_min_hostility": 0.55,
+        "raider_min_demands": 2,
+        "underrealm_min_attempts": 1
+      },
+      "identity": {
+        "names": ["Vark", "Skarn", "Morgul", "Thraxx", "Rhaz", "Uldrek"],
+        "epithets": ["the Ashen", "the Gatebreaker", "the Deep-Crowned", "the Oath-Eater", "the Road-Wolf", "the Unforgotten"],
+        "traits": ["patient", "ruthless", "cunning", "unyielding", "proud", "vengeful"],
+        "goals": ["seeks dominion over the hold", "hunts the Warrior Company", "covets the deep roads", "would break the ancestor oaths"]
+      }
+    },
+    "siege": {
+      "enabled": true,
+      "min_tick": 1800,
+      "cooldown_ticks": 2200,
+      "recovery_ticks": 600,
+      "min_population": 24,
+      "max_history": 16,
+      "trigger": {
+        "raider_min_hostility": 0.68,
+        "raider_min_demands": 10
+      },
+      "stage_ticks": {
+        "warning": 80,
+        "approach": 90,
+        "demand": 70,
+        "breach": 45,
+        "battle": 60,
+        "retreat": 50,
+        "victory": 70,
+        "aftermath": 100
+      },
+      "road_approach_reduction_per_segment": 1,
+      "road_approach_reduction_cap": 25,
+      "tribute_costs": {
+        "wood": 12,
+        "stone": 8,
+        "beer": 6
+      },
+      "guardrails": {
+        "collapse_population_floor": 18,
+        "collapse_stockpile_ratio": 0.2,
+        "max_injuries": 3,
+        "max_resource_loss_ratio": 0.03,
+        "max_damaged_structures": 2,
+        "resource_reserve_ratio": 0.25
+      },
+      "battle": {
+        "adult_defense_per": 0.012,
+        "adult_defense_cap": 0.45,
+        "watchtower_defense": 0.08,
+        "armory_defense": 0.04,
+        "hero_defense_weight": 0.22,
+        "nemesis_base_power": 0.34,
+        "source_power_weight": 0.36,
+        "victory_power": 0.04,
+        "cycle_power": 0.015,
+        "structure_damage_severity": 2,
+        "injury_recovery_ticks": 180,
+        "injury_stress_gain": 0.12,
+        "injury_gap_scale": 8,
+        "resource_loss_base": 0.01,
+        "resource_loss_gap_scale": 0.05,
+        "loss_resources": ["food", "wood", "stone", "beer", "iron"]
+      },
+      "recovery": {
+        "repair_interval_ticks": 120
+      },
+      "politics": {
+        "warning_pressure_gain": 0.01,
+        "defeat_pressure_gain": 0.04,
+        "defeat_legitimacy_loss": 0.025,
+        "victory_pressure_relief": 0.02,
+        "victory_legitimacy_gain": 0.015
+      }
+    },
+    "rivalry": {
+      "rescue_min_hero_score": 0.62,
+      "rescue_defense_bonus": 0.16,
+      "reconciliation_hostility_max": 0.28
+    }
+  },
+  "landmarks": {
+    "enabled": true,
+    "max_active": 5,
+    "restoration_ticks": 160,
+    "stage_interval_ticks": 180,
+    "abandonment_population": 8,
+    "prosperity_stockpile_ratio": 0.75,
+    "districts": { "enabled": true, "symbol": ":" },
+    "condition_symbols": { "construction": "%", "damaged": "x", "abandoned": "?", "restoration": "~" },
+    "condition_color_keys": {
+      "construction": "landmark_construction",
+      "damaged": "landmark_damaged",
+      "abandoned": "landmark_abandoned",
+      "restoration": "landmark_restoration"
+    },
+    "definitions": {
+      "great_hall": {
+        "enabled": true, "order": 1, "label": "Great Hall", "short_label": "Hall",
+        "symbol": "G", "outline_symbol": "+", "color_key": "landmark_great_hall",
+        "build_min_population": 22, "build_min_cycles": 0,
+        "build_min_resources": { "food": 0.82, "water": 0.82, "wood": 0.78, "stone": 0.78 },
+        "target_distance": 10,
+        "stages": [
+          { "name": "Council Stone", "radius": 0, "build_ticks": 70, "build_cost": { "wood": 12, "stone": 16 } },
+          { "name": "Archive Wing", "radius": 1, "build_ticks": 100, "build_cost": { "wood": 16, "stone": 20, "iron": 4 } },
+          { "name": "Cycle Hall", "radius": 2, "build_ticks": 130, "build_cost": { "wood": 20, "stone": 26, "iron": 6 } }
+        ]
+      },
+      "warrior_arena": {
+        "enabled": true, "order": 2, "label": "Warrior Arena", "short_label": "Arena",
+        "symbol": "A", "outline_symbol": "o", "color_key": "landmark_warrior_arena",
+        "build_min_population": 26, "build_min_cycles": 0,
+        "build_min_resources": { "food": 0.82, "water": 0.82, "wood": 0.8, "stone": 0.8 },
+        "target_distance": 13,
+        "stages": [
+          { "name": "Training Ring", "radius": 0, "build_ticks": 75, "build_cost": { "wood": 14, "stone": 12 } },
+          { "name": "Champion Stands", "radius": 1, "build_ticks": 105, "build_cost": { "wood": 18, "stone": 18, "iron": 5 } },
+          { "name": "Tournament Arena", "radius": 2, "build_ticks": 140, "build_cost": { "wood": 22, "stone": 24, "iron": 7 } }
+        ]
+      },
+      "legendary_forge": {
+        "enabled": true, "order": 3, "label": "Legendary Forge", "short_label": "Forge",
+        "symbol": "F", "outline_symbol": "#", "color_key": "landmark_legendary_forge",
+        "build_min_population": 30, "build_min_cycles": 0,
+        "build_min_resources": { "food": 0.84, "water": 0.84, "wood": 0.82, "stone": 0.82, "iron": 0.65 },
+        "target_distance": 15,
+        "stages": [
+          { "name": "Anvil Vault", "radius": 0, "build_ticks": 85, "build_cost": { "wood": 10, "stone": 16, "iron": 5 } },
+          { "name": "Lineage Hearth", "radius": 1, "build_ticks": 115, "build_cost": { "wood": 14, "stone": 20, "iron": 7 } },
+          { "name": "Legendary Crucible", "radius": 2, "build_ticks": 150, "build_cost": { "wood": 16, "stone": 26, "iron": 9 } }
+        ]
+      },
+      "gate_fortress": {
+        "enabled": true, "order": 4, "label": "Gate Fortress", "short_label": "Gate",
+        "symbol": "H", "outline_symbol": "|", "color_key": "landmark_gate_fortress",
+        "build_min_population": 28, "build_min_cycles": 0,
+        "build_min_resources": { "food": 0.8, "water": 0.8, "wood": 0.78, "stone": 0.8, "iron": 0.6 },
+        "target_distance": 18,
+        "stages": [
+          { "name": "Gatehouse", "radius": 0, "build_ticks": 80, "build_cost": { "wood": 12, "stone": 18, "iron": 4 } },
+          { "name": "Bastion", "radius": 1, "build_ticks": 110, "build_cost": { "wood": 14, "stone": 24, "iron": 6 } },
+          { "name": "Fortress Ring", "radius": 2, "build_ticks": 145, "build_cost": { "wood": 18, "stone": 30, "iron": 8 } }
+        ]
+      },
+      "ancestor_walk": {
+        "enabled": true, "order": 5, "label": "Ancestor Walk", "short_label": "Walk",
+        "symbol": "N", "outline_symbol": ".", "color_key": "landmark_ancestor_walk",
+        "build_min_population": 20, "build_min_cycles": 0,
+        "build_min_resources": { "food": 0.8, "water": 0.8, "wood": 0.75, "stone": 0.78 },
+        "target_distance": 16,
+        "stages": [
+          { "name": "Memorial Path", "radius": 0, "build_ticks": 65, "build_cost": { "wood": 8, "stone": 14 } },
+          { "name": "Ancestor Stones", "radius": 1, "build_ticks": 95, "build_cost": { "wood": 10, "stone": 18, "iron": 3 } },
+          { "name": "Necropolis Walk", "radius": 2, "build_ticks": 125, "build_cost": { "wood": 12, "stone": 24, "iron": 4 } }
+        ]
+      }
+    }
   },
   "wildlife": {
     "enabled": true,
-    "seasons": [
-      "spring",
-      "autumn"
-    ],
+    "seasons": ["spring", "autumn"],
     "spawn": {
       "herds_min": 1,
       "herds_max": 2
@@ -689,10 +1197,7 @@
   "raids": {
     "enabled": true,
     "symbol": "ö",
-    "seasonNames": [
-      "spring",
-      "autumn"
-    ],
+    "seasonNames": ["spring", "autumn"],
     "durationTicks": 100,
     "chance": {
       "min": 0.16,
@@ -745,10 +1250,7 @@
         },
         "trigger": {
           "type": "resource_crisis",
-          "resources": [
-            "food",
-            "water"
-          ],
+          "resources": ["food", "water"],
           "ratioThreshold": 0.35,
           "ticksRequired": 90,
           "seasonWindow": 3,
@@ -883,10 +1385,7 @@
         "label": "Basalt Ward Draught",
         "durationTicks": 180,
         "cooldownTicks": 210,
-        "requiredStructures": [
-          "alchemy_lab",
-          "armory"
-        ],
+        "requiredStructures": ["alchemy_lab", "armory"],
         "minPopulation": 72,
         "blockDuringRaid": false,
         "minStockpileRatios": {
@@ -912,12 +1411,7 @@
           "failureThreshold": 2,
           "durationTicks": 160,
           "resourceLossRatio": 0.12,
-          "lossResources": [
-            "stone",
-            "iron",
-            "mana_crystal",
-            "beer"
-          ],
+          "lossResources": ["stone", "iron", "mana_crystal", "beer"],
           "outputBonus": -0.14,
           "effects": {
             "underrealmRaidStrength": 1.12,
@@ -932,10 +1426,7 @@
         "label": "Emberforge Elixir",
         "durationTicks": 200,
         "cooldownTicks": 230,
-        "requiredStructures": [
-          "alchemy_lab",
-          "mithril_forge"
-        ],
+        "requiredStructures": ["alchemy_lab", "mithril_forge"],
         "minPopulation": 80,
         "blockDuringRaid": true,
         "minStockpileRatios": {
@@ -962,12 +1453,7 @@
           "failureThreshold": 2,
           "durationTicks": 170,
           "resourceLossRatio": 0.1,
-          "lossResources": [
-            "wood",
-            "stone",
-            "iron",
-            "beer"
-          ],
+          "lossResources": ["wood", "stone", "iron", "beer"],
           "outputBonus": -0.18,
           "effects": {
             "gatherTicks": 1.08,
@@ -1115,10 +1601,7 @@
         "raiderTributeIntentThreshold": 0.55,
         "forceComplianceOnCritical": true,
         "criticalStockpileFloor": 0.42,
-        "criticalResources": [
-          "food",
-          "water"
-        ]
+        "criticalResources": ["food", "water"]
       },
       "social": {
         "enabled": true,
@@ -1256,12 +1739,7 @@
         "allowDuringRaid": false,
         "maxUnderrealmCombatPressure": 0.72,
         "maxMythsSeverity": 0.68,
-        "resources": [
-          "food",
-          "water",
-          "wood",
-          "stone"
-        ]
+        "resources": ["food", "water", "wood", "stone"]
       },
       "scenarioSampling": {
         "mode": "adaptive",
@@ -1300,67 +1778,27 @@
         "seedPackRotation": {
           "defaultMode": "weekly",
           "packs": {
-            "pack_alpha": [
-              12345,
-              22222,
-              33333,
-              44444
-            ],
-            "pack_beta": [
-              13579,
-              24680,
-              11223,
-              33445
-            ],
-            "pack_gamma": [
-              31415,
-              27182,
-              16180,
-              14142
-            ],
-            "pack_delta": [
-              42424,
-              51515,
-              60606,
-              70707
-            ]
+            "pack_alpha": [12345, 22222, 33333, 44444],
+            "pack_beta": [13579, 24680, 11223, 33445],
+            "pack_gamma": [31415, 27182, 16180, 14142],
+            "pack_delta": [42424, 51515, 60606, 70707]
           },
-          "weeklyOrder": [
-            "pack_alpha",
-            "pack_beta",
-            "pack_gamma",
-            "pack_delta"
-          ]
+          "weeklyOrder": ["pack_alpha", "pack_beta", "pack_gamma", "pack_delta"]
         }
       },
       "randomization": {
-        "stockpileScale": [
-          0.92,
-          1.05
-        ],
+        "stockpileScale": [0.92, 1.05],
         "stockpileFloor": {
           "food": 10,
           "water": 10,
           "wood": 4,
           "stone": 4
         },
-        "nodeCountScale": [
-          0.92,
-          1.05
-        ],
+        "nodeCountScale": [0.92, 1.05],
         "nodeCountMin": 8,
-        "nodeCapacityScale": [
-          0.95,
-          1.1
-        ],
-        "nodeRegenScale": [
-          1,
-          1.2
-        ],
-        "needDecayScale": [
-          0.9,
-          1
-        ],
+        "nodeCapacityScale": [0.95, 1.1],
+        "nodeRegenScale": [1, 1.2],
+        "needDecayScale": [0.9, 1],
         "seasonStartRandom": true,
         "seasonTickRandom": true
       },
@@ -2522,10 +2960,7 @@
         "epochs": 4,
         "miniBatchSize": 512,
         "batchEpisodes": 16,
-        "hiddenSizes": [
-          128,
-          128
-        ],
+        "hiddenSizes": [128, 128],
         "featureNames": [
           "shortage",
           "nodeScarcity",
@@ -2734,7 +3169,7 @@
         "warning_zone_hard_guard": {
           "enabled": true,
           "min_depth": 2,
-          "min_recommended_score_ratio": 1.12
+          "min_recommended_score_ratio": 0.92
         },
         "score_weights": {
           "offense": 1,
@@ -3243,20 +3678,10 @@
       "ember_resin": "EmberResin"
     },
     "terrainAllowed": {
-      "food": [
-        "food",
-        "pasture"
-      ],
-      "water": [
-        "river",
-        "lake"
-      ],
-      "wood": [
-        "forest"
-      ],
-      "stone": [
-        "mountain"
-      ]
+      "food": ["food", "pasture"],
+      "water": ["river", "lake"],
+      "wood": ["forest"],
+      "stone": ["mountain"]
     },
     "useTerrainTiles": true,
     "defaultNodeCapacity": 12,
@@ -3291,10 +3716,7 @@
       },
       "storage": {
         "enabled": true,
-        "resources": [
-          "food",
-          "water"
-        ],
+        "resources": ["food", "water"],
         "capacityPerLevel": {
           "1": 2,
           "2": 3,
@@ -3415,10 +3837,7 @@
         "minDistanceBetween": 1,
         "minStructureDistance": 6,
         "maxAttempts": 800,
-        "avoidTerrain": [
-          "river",
-          "lake"
-        ]
+        "avoidTerrain": ["river", "lake"]
       },
       "cluster": {
         "enabled": false,
@@ -3465,10 +3884,7 @@
         "minDistanceBetween": 1,
         "minStructureDistance": 6,
         "maxAttempts": 800,
-        "avoidTerrain": [
-          "river",
-          "lake"
-        ]
+        "avoidTerrain": ["river", "lake"]
       },
       "cluster": {
         "enabled": false,
@@ -3497,12 +3913,7 @@
         "minDistanceBetween": 4,
         "minStructureDistance": 3,
         "maxAttempts": 700,
-        "avoidTerrain": [
-          "river",
-          "lake",
-          "mountain",
-          "stone"
-        ],
+        "avoidTerrain": ["river", "lake", "mountain", "stone"],
         "district": {
           "enabled": true,
           "autoAngle": true,
@@ -3552,12 +3963,7 @@
         "minDistanceBetween": 2,
         "minStructureDistance": 2,
         "maxAttempts": 600,
-        "avoidTerrain": [
-          "river",
-          "lake",
-          "mountain",
-          "stone"
-        ],
+        "avoidTerrain": ["river", "lake", "mountain", "stone"],
         "district": {
           "enabled": true,
           "autoAngle": true,
@@ -3595,12 +4001,7 @@
         "minDistanceBetween": 2,
         "minStructureDistance": 2,
         "maxAttempts": 600,
-        "avoidTerrain": [
-          "river",
-          "lake",
-          "mountain",
-          "stone"
-        ],
+        "avoidTerrain": ["river", "lake", "mountain", "stone"],
         "district": {
           "enabled": true,
           "autoAngle": true,
@@ -3640,9 +4041,7 @@
       "levels": {
         "1": {
           "equipment_tier_max": 1,
-          "allowed_minerals": [
-            "iron"
-          ]
+          "allowed_minerals": ["iron"]
         },
         "2": {
           "upgradeTicks": 95,
@@ -3652,10 +4051,7 @@
             "iron": 16
           },
           "equipment_tier_max": 2,
-          "allowed_minerals": [
-            "iron",
-            "mithril"
-          ]
+          "allowed_minerals": ["iron", "mithril"]
         },
         "3": {
           "upgradeTicks": 125,
@@ -3666,11 +4062,7 @@
             "mithril": 6
           },
           "equipment_tier_max": 3,
-          "allowed_minerals": [
-            "iron",
-            "mithril",
-            "mana_crystal"
-          ]
+          "allowed_minerals": ["iron", "mithril", "mana_crystal"]
         },
         "4": {
           "upgradeTicks": 160,
@@ -3682,12 +4074,7 @@
             "mana_crystal": 6
           },
           "equipment_tier_max": 4,
-          "allowed_minerals": [
-            "iron",
-            "mithril",
-            "mana_crystal",
-            "adamantio"
-          ]
+          "allowed_minerals": ["iron", "mithril", "mana_crystal", "adamantio"]
         },
         "5": {
           "upgradeTicks": 205,
@@ -3700,12 +4087,7 @@
             "adamantio": 6
           },
           "equipment_tier_max": 5,
-          "allowed_minerals": [
-            "iron",
-            "mithril",
-            "mana_crystal",
-            "adamantio"
-          ]
+          "allowed_minerals": ["iron", "mithril", "mana_crystal", "adamantio"]
         },
         "6": {
           "upgradeTicks": 255,
@@ -3854,9 +4236,7 @@
             "max_stock": 18,
             "work_ticks": 18,
             "output": 1,
-            "minerals": [
-              "iron"
-            ],
+            "minerals": ["iron"],
             "cost": {
               "iron": 2,
               "wood": 1
@@ -3869,9 +4249,7 @@
             "max_stock": 18,
             "work_ticks": 18,
             "output": 1,
-            "minerals": [
-              "iron"
-            ],
+            "minerals": ["iron"],
             "cost": {
               "iron": 2,
               "stone": 1
@@ -3884,10 +4262,7 @@
             "max_stock": 16,
             "work_ticks": 20,
             "output": 1,
-            "minerals": [
-              "iron",
-              "mithril"
-            ],
+            "minerals": ["iron", "mithril"],
             "cost": {
               "iron": 3,
               "mithril": 1,
@@ -3901,10 +4276,7 @@
             "max_stock": 16,
             "work_ticks": 20,
             "output": 1,
-            "minerals": [
-              "iron",
-              "mithril"
-            ],
+            "minerals": ["iron", "mithril"],
             "cost": {
               "iron": 3,
               "mithril": 1,
@@ -3918,10 +4290,7 @@
             "max_stock": 14,
             "work_ticks": 22,
             "output": 1,
-            "minerals": [
-              "mithril",
-              "mana_crystal"
-            ],
+            "minerals": ["mithril", "mana_crystal"],
             "cost": {
               "mithril": 2,
               "mana_crystal": 1,
@@ -3935,10 +4304,7 @@
             "max_stock": 14,
             "work_ticks": 22,
             "output": 1,
-            "minerals": [
-              "mithril",
-              "mana_crystal"
-            ],
+            "minerals": ["mithril", "mana_crystal"],
             "cost": {
               "mithril": 2,
               "mana_crystal": 1,
@@ -3952,9 +4318,7 @@
             "max_stock": 12,
             "work_ticks": 24,
             "output": 1,
-            "minerals": [
-              "adamantio"
-            ],
+            "minerals": ["adamantio"],
             "cost": {
               "adamantio": 2,
               "mithril": 1,
@@ -3968,9 +4332,7 @@
             "max_stock": 12,
             "work_ticks": 24,
             "output": 1,
-            "minerals": [
-              "adamantio"
-            ],
+            "minerals": ["adamantio"],
             "cost": {
               "adamantio": 2,
               "mithril": 1,
@@ -3984,10 +4346,7 @@
             "max_stock": 10,
             "work_ticks": 26,
             "output": 1,
-            "minerals": [
-              "adamantio",
-              "mana_crystal"
-            ],
+            "minerals": ["adamantio", "mana_crystal"],
             "cost": {
               "adamantio": 3,
               "mana_crystal": 2,
@@ -4001,10 +4360,7 @@
             "max_stock": 10,
             "work_ticks": 26,
             "output": 1,
-            "minerals": [
-              "adamantio",
-              "mana_crystal"
-            ],
+            "minerals": ["adamantio", "mana_crystal"],
             "cost": {
               "adamantio": 3,
               "mana_crystal": 2,
@@ -4018,9 +4374,7 @@
             "max_stock": 8,
             "work_ticks": 28,
             "output": 1,
-            "minerals": [
-              "embersteel"
-            ],
+            "minerals": ["embersteel"],
             "cost": {
               "embersteel": 2,
               "adamantio": 2,
@@ -4034,9 +4388,7 @@
             "max_stock": 8,
             "work_ticks": 28,
             "output": 1,
-            "minerals": [
-              "embersteel"
-            ],
+            "minerals": ["embersteel"],
             "cost": {
               "embersteel": 2,
               "adamantio": 2,
@@ -4050,10 +4402,7 @@
             "max_stock": 6,
             "work_ticks": 30,
             "output": 1,
-            "minerals": [
-              "embersteel",
-              "mana_crystal"
-            ],
+            "minerals": ["embersteel", "mana_crystal"],
             "cost": {
               "embersteel": 3,
               "mana_crystal": 2,
@@ -4067,10 +4416,7 @@
             "max_stock": 6,
             "work_ticks": 30,
             "output": 1,
-            "minerals": [
-              "embersteel",
-              "mana_crystal"
-            ],
+            "minerals": ["embersteel", "mana_crystal"],
             "cost": {
               "embersteel": 3,
               "mana_crystal": 2,
@@ -4084,9 +4430,7 @@
             "max_stock": 5,
             "work_ticks": 33,
             "output": 1,
-            "minerals": [
-              "ironshade"
-            ],
+            "minerals": ["ironshade"],
             "cost": {
               "ironshade": 2,
               "embersteel": 2,
@@ -4100,9 +4444,7 @@
             "max_stock": 5,
             "work_ticks": 33,
             "output": 1,
-            "minerals": [
-              "ironshade"
-            ],
+            "minerals": ["ironshade"],
             "cost": {
               "ironshade": 2,
               "embersteel": 2,
@@ -4116,11 +4458,7 @@
             "max_stock": 4,
             "work_ticks": 36,
             "output": 1,
-            "minerals": [
-              "ironshade",
-              "embersteel",
-              "mana_crystal"
-            ],
+            "minerals": ["ironshade", "embersteel", "mana_crystal"],
             "cost": {
               "ironshade": 3,
               "embersteel": 2,
@@ -4135,11 +4473,7 @@
             "max_stock": 4,
             "work_ticks": 36,
             "output": 1,
-            "minerals": [
-              "ironshade",
-              "embersteel",
-              "mana_crystal"
-            ],
+            "minerals": ["ironshade", "embersteel", "mana_crystal"],
             "cost": {
               "ironshade": 3,
               "embersteel": 2,
@@ -4214,12 +4548,7 @@
         "minDistanceBetween": 2,
         "minStructureDistance": 3,
         "maxAttempts": 700,
-        "avoidTerrain": [
-          "river",
-          "lake",
-          "mountain",
-          "stone"
-        ],
+        "avoidTerrain": ["river", "lake", "mountain", "stone"],
         "district": {
           "enabled": true,
           "autoAngle": true,
@@ -4318,12 +4647,7 @@
         "minDistanceBetween": 2,
         "minStructureDistance": 3,
         "maxAttempts": 700,
-        "avoidTerrain": [
-          "river",
-          "lake",
-          "mountain",
-          "stone"
-        ],
+        "avoidTerrain": ["river", "lake", "mountain", "stone"],
         "district": {
           "enabled": true,
           "autoAngle": true,
@@ -4340,10 +4664,7 @@
           "avoidRoadTiles": true
         }
       },
-      "requiresStructures": [
-        "mithril_forge",
-        "armory"
-      ],
+      "requiresStructures": ["mithril_forge", "armory"],
       "buildMinResources": {
         "food": 0.92,
         "water": 0.92,
@@ -4374,12 +4695,7 @@
         "minDistanceBetween": 3,
         "minStructureDistance": 2,
         "maxAttempts": 700,
-        "avoidTerrain": [
-          "river",
-          "lake",
-          "mountain",
-          "stone"
-        ],
+        "avoidTerrain": ["river", "lake", "mountain", "stone"],
         "district": {
           "enabled": true,
           "autoAngle": true,
@@ -4434,10 +4750,7 @@
       "buildMinRadius": 4,
       "buildOuterBuffer": 2,
       "ignorePeripheralRadius": true,
-      "buildTerrain": [
-        "mountain",
-        "stone"
-      ],
+      "buildTerrain": ["mountain", "stone"],
       "buildTicks": 55,
       "buildTicksExtra": 45,
       "buildCost": {
@@ -4495,10 +4808,7 @@
     "ruins": {
       "count": 1,
       "capacity": 1,
-      "spawnTerrain": [
-        "mountain",
-        "stone"
-      ],
+      "spawnTerrain": ["mountain", "stone"],
       "minSpawnTiles": 48
     },
     "watchtower": {
@@ -4523,10 +4833,7 @@
       "placement": {
         "minDistanceBetween": 6,
         "maxAttempts": 200,
-        "avoidTerrain": [
-          "river",
-          "lake"
-        ]
+        "avoidTerrain": ["river", "lake"]
       },
       "raid": {
         "range": 6,
@@ -4586,24 +4893,10 @@
       ],
       "footprintShape": "square",
       "site": {
-        "preferTerrain": [
-          "mountain",
-          "hill",
-          "stone"
-        ],
-        "highlandTerrain": [
-          "mountain",
-          "hill",
-          "stone"
-        ],
-        "avoidTerrain": [
-          "river",
-          "lake"
-        ],
-        "waterTerrain": [
-          "river",
-          "lake"
-        ],
+        "preferTerrain": ["mountain", "hill", "stone"],
+        "highlandTerrain": ["mountain", "hill", "stone"],
+        "avoidTerrain": ["river", "lake"],
+        "waterTerrain": ["river", "lake"],
         "searchPadding": 3,
         "minDistanceFromVillage": 6,
         "maxDistanceFromVillage": 40,
@@ -4703,12 +4996,7 @@
   },
   "ruins": {
     "enabled": true,
-    "outputBonusApplyTo": [
-      "wood",
-      "stone",
-      "iron",
-      "mithril"
-    ],
+    "outputBonusApplyTo": ["wood", "stone", "iron", "mithril"],
     "expedition": {
       "requiresArmory": true,
       "kitResource": "expedition_kit",
@@ -4728,6 +5016,7 @@
       "partySizeMin": 3,
       "partySizeMax": 7,
       "maxConcurrentAfterClear": 3,
+      "repeatReadinessDepthCap": 9,
       "minStockpileRatio": {
         "food": 0.6,
         "water": 0.6,
@@ -5022,10 +5311,7 @@
     },
     "stayTicks": 20,
     "maxTradesPerVisit": 10,
-    "neverGive": [
-      "food",
-      "water"
-    ],
+    "neverGive": ["food", "water"],
     "reserveRatio": 0.7,
     "tradeRate": {
       "default": 1
@@ -5047,12 +5333,7 @@
       "max": 0.45
     },
     "targetBoost": 1.2,
-    "allowedResources": [
-      "wood",
-      "stone",
-      "iron",
-      "beer"
-    ],
+    "allowedResources": ["wood", "stone", "iron", "beer"],
     "requestTargets": {
       "iron": 12,
       "beer": 18
@@ -5147,10 +5428,7 @@
         "water": 0.8
       },
       "baseTradeAmount": 14,
-      "protectedGiveResources": [
-        "food",
-        "water"
-      ],
+      "protectedGiveResources": ["food", "water"],
       "eventEveryTrades": 2
     },
     "militia": {
@@ -5482,13 +5760,7 @@
         "wood": 0.8,
         "stone": 0.6
       },
-      "blockedTerrain": [
-        "river",
-        "lake",
-        "mountain",
-        "forest",
-        "stone"
-      ]
+      "blockedTerrain": ["river", "lake", "mountain", "forest", "stone"]
     },
     "pathing": {
       "mode": "field",
@@ -5532,10 +5804,7 @@
       "managerRatio": 0.12,
       "switchCooldownTicks": 200,
       "emergencyMinRatio": 0.52,
-      "emergencyResources": [
-        "food",
-        "water"
-      ]
+      "emergencyResources": ["food", "water"]
     },
     "reproduction": {
       "enabled": true,
@@ -5569,22 +5838,12 @@
     "enabled": true,
     "maxCount": 3,
     "founderCount": 8,
-    "populationThresholds": [
-      200,
-      400
-    ],
+    "populationThresholds": [200, 400],
     "minDistanceBetween": 20,
-    "requiredResources": [
-      "food",
-      "water"
-    ],
+    "requiredResources": ["food", "water"],
     "requiredResourceDistance": 12,
     "structureRadius": 12,
-    "expandStructures": [
-      "house",
-      "well",
-      "field"
-    ]
+    "expandStructures": ["house", "well", "field"]
   },
   "roads": {
     "enabled": true,
@@ -5594,18 +5853,8 @@
       "water": 0.5
     },
     "avoidTerrain": [],
-    "softAvoidTerrain": [
-      "lake",
-      "water",
-      "shore",
-      "hill",
-      "mountain"
-    ],
-    "waterTerrain": [
-      "lake",
-      "water",
-      "shore"
-    ],
+    "softAvoidTerrain": ["lake", "water", "shore", "hill", "mountain"],
+    "waterTerrain": ["lake", "water", "shore"],
     "pathStyle": {
       "enabled": true,
       "profile": "scenic",
@@ -5651,12 +5900,7 @@
   },
   "clans": {
     "enabled": true,
-    "list": [
-      "abyssborn",
-      "khorg_embers",
-      "threshold_wardens",
-      "deep_lantern"
-    ],
+    "list": ["abyssborn", "khorg_embers", "threshold_wardens", "deep_lantern"],
     "labels": {
       "abyssborn": "Abyssborn",
       "khorg_embers": "Embers",
@@ -5693,10 +5937,7 @@
         "ruins_combat_bonus": 0.08,
         "ruins_hazard_reduction": 0.05,
         "gather_yield_penalty": 0.05,
-        "gather_penalty_resources": [
-          "wood",
-          "stone"
-        ]
+        "gather_penalty_resources": ["wood", "stone"]
       }
     }
   },
@@ -5839,24 +6080,17 @@
         "rules": [
           {
             "id": "scar_broken_guard",
-            "outcomes": [
-              "failure"
-            ],
+            "outcomes": ["failure"],
             "losses_min": 1
           },
           {
             "id": "scar_ashen_step",
-            "outcomes": [
-              "retreat"
-            ],
+            "outcomes": ["retreat"],
             "retreats_min": 1
           },
           {
             "id": "scar_deep_mark",
-            "outcomes": [
-              "failure",
-              "retreat"
-            ],
+            "outcomes": ["failure", "retreat"],
             "expeditions_min": 5,
             "losses_min": 2
           }
@@ -6090,12 +6324,7 @@
   "seasons": {
     "enabled": true,
     "durationTicks": 200,
-    "order": [
-      "spring",
-      "summer",
-      "autumn",
-      "winter"
-    ],
+    "order": ["spring", "summer", "autumn", "winter"],
     "modifiers": {
       "spring": {
         "needDecay": 0.95,
@@ -6134,10 +6363,7 @@
   "festivals": {
     "enabled": true,
     "label": "Seasonal Festival",
-    "seasonNames": [
-      "spring",
-      "autumn"
-    ],
+    "seasonNames": ["spring", "autumn"],
     "seasonWindowTicks": 28,
     "durationTicks": 52,
     "cooldownSeasons": 0,
@@ -6226,10 +6452,7 @@
     },
     "ritual_windows": {
       "enabled": true,
-      "season_names": [
-        "spring",
-        "autumn"
-      ],
+      "season_names": ["spring", "autumn"],
       "window_ticks": 28,
       "min_legitimacy": 0.22,
       "max_pressure": 0.92,
@@ -6364,10 +6587,7 @@
     },
     "decrees": {
       "enabled": true,
-      "season_names": [
-        "spring",
-        "autumn"
-      ],
+      "season_names": ["spring", "autumn"],
       "window_ticks": 26,
       "options_count": 3,
       "min_legitimacy": 0.28,
@@ -6567,12 +6787,7 @@
     },
     "temple": {
       "legitimacy_path_enabled": true,
-      "min_legitimacy_by_stage": [
-        0.32,
-        0.45,
-        0.58,
-        0.7
-      ]
+      "min_legitimacy_by_stage": [0.32, 0.45, 0.58, 0.7]
     },
     "modifiers": {
       "phase": {
@@ -6749,12 +6964,7 @@
       "cooldownTicks": 280,
       "expiryTicks": 110,
       "failureLossRatio": 0.04,
-      "failureLossResources": [
-        "food",
-        "water",
-        "wood",
-        "stone"
-      ],
+      "failureLossResources": ["food", "water", "wood", "stone"],
       "templates": [
         {
           "id": "stone_surge",
@@ -6916,12 +7126,7 @@
       "moraleMax": 0.95,
       "bonusMax": 0.3,
       "exponent": 1.3,
-      "resources": [
-        "food",
-        "water",
-        "wood",
-        "stone"
-      ]
+      "resources": ["food", "water", "wood", "stone"]
     }
   },
   "jobs": {
@@ -6992,10 +7197,18 @@
     "watchtower": "┼",
     "temple_of_ancestors": "A",
     "temple_of_ancestors_outline": "+",
+    "landmark_great_hall": "G",
+    "landmark_warrior_arena": "A",
+    "landmark_legendary_forge": "F",
+    "landmark_gate_fortress": "H",
+    "landmark_ancestor_walk": "N",
     "underrealm_gate": "@",
     "underrealm_lift_up": "↑",
     "underrealm_lift_down": "↓",
     "underrealm_lift_locked": "↓",
-    "underrealm_hostile": "☠"
+    "underrealm_hostile": "☠",
+    "world_legacy_echo": "†",
+    "nemesis": "⚑",
+    "siege_damage": "×"
   }
 }

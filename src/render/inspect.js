@@ -5,7 +5,11 @@ const { fitLine, wrapLine } = require('./format');
 const { applyColor } = require('./colors');
 const { getClanLabel, getClanEffects } = require('../clans');
 const { buildDwarfLore, capitalize, describeMorale, resolveRoleLabel } = require('../dwarf_lore');
+const { createDwarfIdentityCache, resolveDwarfIdentity } = require('../dwarf_identity');
+const { findNearestPlace } = require('../place_identity');
 const { ensureDwarfSocialState } = require('../simulation/social_drama');
+const { getDwarfBiography } = require('../simulation/experience_ledger');
+const { getDwarfNemesisMemory } = require('../simulation/epic_conflicts');
 
 const SECTION_RUNES = {
   PROFILE: 'ᚦ',
@@ -14,7 +18,8 @@ const SECTION_RUNES = {
   CLAN: 'ᚲ',
   CHARACTER: 'ᛉ',
   SOCIAL: 'ᛖ',
-  LEGACY: 'ᛞ',
+  'LIVED HISTORY': 'ᛞ',
+  'INHERITED LORE': 'ᛟ',
 };
 
 // Build an inspect panel descriptor when enabled.
@@ -73,8 +78,10 @@ function buildInspectLines(dwarf, index, total, state, config, width, height) {
   if (!dwarf) {
     pushLine(content, 'No dwarves available.', width);
   } else {
+    const identityCache = createDwarfIdentityCache();
+    const identity = resolveDwarfIdentity(dwarf, state, config, { cache: identityCache });
     const lore = buildDwarfLore(dwarf, state, config);
-    const displayName = `${lore.name} <${dwarf.id}>`;
+    const displayName = identity.label;
     const morale = capitalize(describeMorale(dwarf.state ? dwarf.state.morale : 0));
     const role = capitalize(resolveRoleLabel(dwarf));
     const age = Number(dwarf.ageTicks || 0);
@@ -87,6 +94,7 @@ function buildInspectLines(dwarf, index, total, state, config, width, height) {
     const moraleValue = clampUnit(dwarf.state ? dwarf.state.morale : 0);
     const strength = clampUnit(lore.baseStrength + (1 - fatigue) * 0.15 - stress * 0.1);
     const dexterity = clampUnit(lore.baseDexterity + (1 - stress) * 0.15 - fatigue * 0.1);
+    const nearestVillage = findNearestPlace(state, dwarf, ['village']);
 
     pushCartiglio(content, lore, index, total, width);
     content.push({ text: '', colorKey: null, separator: true });
@@ -94,9 +102,10 @@ function buildInspectLines(dwarf, index, total, state, config, width, height) {
 
     pushSection(content, 'PROFILE', width, [
       `Name: ${displayName}`,
-      `House: ${capitalize(lore.house)}`,
+      `House: ${capitalize(identity.house)}`,
       formatTwoColumn(`Title: ${capitalize(lore.title)}`, `Rank: ${capitalize(lore.rank)}`, width),
       `Archetype: ${capitalize(lore.archetype)}`,
+      `Home hold: ${nearestVillage ? nearestVillage.name : 'Uncharted'}`,
     ]);
 
     const statusLines = [
@@ -109,6 +118,22 @@ function buildInspectLines(dwarf, index, total, state, config, width, height) {
       formatStatLine('Morale', moraleValue, 14, width),
     ];
     pushDualSection(content, 'STATS', statLines, 'STATUS', statusLines, width);
+
+    const biography = getDwarfBiography(state, config, dwarf.id);
+    const socialLines = buildSocialSectionLines(dwarf, state, config, identityCache);
+    const nemesisMemory = getDwarfNemesisMemory(state, dwarf.id);
+    pushSectionWrapped(content, 'LIVED HISTORY', width, buildBiographyLines(biography, socialLines, nemesisMemory), 6);
+
+    const legacyLines = [];
+    if (lore.oath) legacyLines.push(`Oath: ${capitalize(lore.oath)}`);
+    if (lore.vow) legacyLines.push(`Vow: ${capitalize(lore.vow)}`);
+    if (lore.motto) legacyLines.push(`Motto: ${capitalize(lore.motto)}`);
+    if (lore.blazon) legacyLines.push(`Blazon: ${capitalize(lore.blazon)}`);
+    if (lore.saga && lore.saga.length > 0) {
+      legacyLines.push(`Saga: ${capitalize(lore.saga[0])}`);
+      if (lore.saga[1]) legacyLines.push(`Saga: ${capitalize(lore.saga[1])}`);
+    }
+    pushSectionWrapped(content, 'INHERITED LORE', width, legacyLines, 2);
 
     pushSectionWrappedFixed(content, 'CLAN', width, [
       clanId ? `Clan: ${clanLabel} (${clanId})` : `Clan: ${clanLabel}`,
@@ -123,28 +148,7 @@ function buildInspectLines(dwarf, index, total, state, config, width, height) {
       `Taboo: ${capitalize(lore.taboo)}`,
       `Mark: ${capitalize(lore.mark)}`,
     ]);
-    pushSection(content, 'SOCIAL', width, buildSocialSectionLines(dwarf, state, config));
-
-    const legacyLines = [];
-    if (lore.oath) {
-      legacyLines.push(`Oath: ${capitalize(lore.oath)}`);
-    }
-    if (lore.vow) {
-      legacyLines.push(`Vow: ${capitalize(lore.vow)}`);
-    }
-    if (lore.motto) {
-      legacyLines.push(`Motto: ${capitalize(lore.motto)}`);
-    }
-    if (lore.blazon) {
-      legacyLines.push(`Blazon: ${capitalize(lore.blazon)}`);
-    }
-    if (lore.saga && lore.saga.length > 0) {
-      legacyLines.push(`Saga: ${capitalize(lore.saga[0])}`);
-      if (lore.saga[1]) {
-        legacyLines.push(`Saga: ${capitalize(lore.saga[1])}`);
-      }
-    }
-    pushSectionWrapped(content, 'LEGACY', width, legacyLines, 2);
+    pushSection(content, 'SOCIAL', width, socialLines);
 
     if (content.length > 0) {
       content.push({ text: '', colorKey: null });
@@ -163,31 +167,57 @@ function buildInspectLines(dwarf, index, total, state, config, width, height) {
   }));
 }
 
+// Build factual lived-history rows separately from inherited lore.
+function buildBiographyLines(biography, socialLines, nemesisMemory = []) {
+  const lines = [];
+  const defining = biography && biography.definingDeed;
+  lines.push(defining ? `Defining deed: ${formatBiographyDeed(defining)}` : 'Defining deed: None witnessed');
+  const recent = biography && Array.isArray(biography.recentDeeds) ? biography.recentDeeds : [];
+  for (const deed of recent.slice(0, 2)) lines.push(`Recent: ${formatBiographyDeed(deed)}`);
+  const saga = biography && Array.isArray(biography.activeSagaRoles) ? biography.activeSagaRoles[0] : null;
+  const scars = biography && Array.isArray(biography.scars) ? biography.scars : [];
+  const sagaText = saga ? `${saga.role} in ${saga.sagaId}` : 'None';
+  lines.push(`Saga: ${sagaText} | Scars: ${scars.length > 0 ? scars.join(', ') : 'None'}`);
+  const ties = (Array.isArray(socialLines) ? socialLines : [])
+    .filter((line) => !line.includes('None') && !line.startsWith('Incidents'))
+    .slice(0, 2);
+  lines.push(`Relationships: ${ties.length > 0 ? ties.join(' | ') : 'None active'}`);
+  const rivalry = Array.isArray(nemesisMemory) ? nemesisMemory[0] : null;
+  lines.push(rivalry
+    ? `Nemesis: ${rivalry.label} | ${rivalry.outcome}/${rivalry.branch} (${rivalry.encounters})`
+    : 'Nemesis: None witnessed');
+  return lines;
+}
+
+// Format one deed while preserving its compact source trace in state.
+function formatBiographyDeed(deed) {
+  const count = Number(deed && deed.occurrences || 1);
+  const suffix = count > 1 ? ` (x${count})` : '';
+  return `${String(deed && deed.summary || 'Unknown deed')}${suffix}`;
+}
+
 // Build inspect rows for the current dwarf's strongest social ties.
-function buildSocialSectionLines(dwarf, state, config) {
+function buildSocialSectionLines(dwarf, state, config, identityCache) {
   const social = ensureDwarfSocialState(dwarf, state);
   const summary = social.summary || {};
   return [
-    formatSocialLinkLine('Friend', summary.friendId, summary.friendScore, state, config),
-    formatSocialLinkLine('Rival', summary.rivalId, summary.rivalScore, state, config),
-    formatSocialLinkLine('Grudge', summary.grudgeId, summary.grudgeScore, state, config),
-    formatSocialLinkLine('Mentor', summary.mentorId, summary.mentorScore, state, config),
-    formatSocialLinkLine('Protege', summary.protegeId, summary.protegeScore, state, config),
+    formatSocialLinkLine('Friend', summary.friendId, summary.friendScore, state, config, identityCache),
+    formatSocialLinkLine('Rival', summary.rivalId, summary.rivalScore, state, config, identityCache),
+    formatSocialLinkLine('Grudge', summary.grudgeId, summary.grudgeScore, state, config, identityCache),
+    formatSocialLinkLine('Mentor', summary.mentorId, summary.mentorScore, state, config, identityCache),
+    formatSocialLinkLine('Protege', summary.protegeId, summary.protegeScore, state, config, identityCache),
     `Incidents seen: ${Math.max(0, Number(social.incidentCount || 0))}`,
   ];
 }
 
 // Format one social tie line with dwarf name, id, and current score.
-function formatSocialLinkLine(label, targetId, score, state, config) {
+function formatSocialLinkLine(label, targetId, score, state, config, identityCache) {
   const id = targetId ? String(targetId) : '';
   if (!id) {
     return `${label}: -`;
   }
-  const dwarves = Array.isArray(state && state.dwarves) ? state.dwarves : [];
-  const target = dwarves.find((entry) => entry && entry.id === id) || null;
-  const lore = target ? buildDwarfLore(target, state, config) : null;
-  const name = lore && lore.name ? String(lore.name) : id;
-  return `${label}: ${name} <${id}> (${Number(score || 0).toFixed(1)})`;
+  const identity = resolveDwarfIdentity(id, state, config, { cache: identityCache });
+  return `${label}: ${identity.label} (${Number(score || 0).toFixed(1)})`;
 }
 
 // Push a single line into the buffer.

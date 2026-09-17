@@ -33,6 +33,7 @@ const {
   findMineBuildSpot,
 } = require("./structures");
 const { createTempleBuildJob } = require("./temple");
+const { createLandmarkBuildJob } = require("./landmarks");
 
 const BUILD_CLASS_ORDER = ["housing", "economy", "defense", "special"];
 
@@ -839,7 +840,8 @@ function createDefenseClassBuildJob(state, config, runtime, buildQueue) {
 // Resolve special build candidates.
 function createSpecialClassBuildJob(state, config, runtime, buildQueue) {
   return createAlchemyLabBuildJob(state, config, runtime, buildQueue.reservedPositions)
-    || createTempleBuildJob(state, config, runtime, buildQueue.reservedPositions);
+    || createTempleBuildJob(state, config, runtime, buildQueue.reservedPositions)
+    || createLandmarkBuildJob(state, config, runtime, buildQueue.reservedPositions);
 }
 
 // Assign a build or upgrade job when housing or defenses need attention.
@@ -923,7 +925,13 @@ function assignBuildJobIfNeeded(
     }
     if (!buildJob && prioritizeMine) {
       buildJob = createMineBuildJob(state, config, runtime, buildQueue.reservedPositions);
-    } else if (!buildJob && !managerMode) {
+    }
+
+    if (!buildJob && !emergency) {
+      buildJob = createLandmarkBuildJob(state, config, runtime, buildQueue.reservedPositions);
+    }
+
+    if (!buildJob && !managerMode) {
       buildJob =
         createWellBuildJob(state, config, runtime, buildQueue.reservedPositions) ||
         createFieldBuildJob(state, config, runtime, buildQueue.reservedPositions);

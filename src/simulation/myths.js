@@ -1,7 +1,11 @@
 'use strict';
 
 const { clamp } = require('../utils');
-const { pushEvent } = require('./events');
+const {
+  buildSecondaryActor,
+  buildSettlementActor,
+  emitSecondaryEvent,
+} = require('./secondary_events');
 
 // Build a new myths state object.
 function createMythsState() {
@@ -166,7 +170,7 @@ function activateMyth(state, config, myths, mythId, def, reason) {
     historyIndex: myths.history.length - 1,
   };
   myths.lastTriggerTicks[mythId] = now;
-  pushEvent(state, config, `Myth awakened: ${label}`);
+  emitMythEvent(state, config, mythId, label, 'awakened', reason || 'trigger');
 }
 
 // Add or refresh a tradition entry.
@@ -203,7 +207,7 @@ function addTradition(state, config, myths, mythId, def) {
     id: mythId,
     acquiredTick: now,
   };
-  pushEvent(state, config, `Tradition formed: ${def.label || mythId}`);
+  emitMythEvent(state, config, mythId, def.label || mythId, 'tradition_formed', 'myth_completed');
 }
 
 // Expire active myths and apply traditions.
@@ -225,8 +229,42 @@ function expireMyths(state, config, myths, defs) {
     }
     addTradition(state, config, myths, mythId, def);
     delete myths.active[mythId];
-    pushEvent(state, config, `Myth faded: ${label}`);
+    emitMythEvent(state, config, mythId, label, 'faded', 'duration_elapsed');
   }
+}
+
+// Emit a structured myth or tradition transition after state and history commit.
+function emitMythEvent(state, config, mythId, label, phase, reason) {
+  const targetKind = phase === 'tradition_formed' ? 'institution' : 'system';
+  return emitSecondaryEvent(state, config, {
+    type: `myth.${phase}`,
+    category: 'myth',
+    message: phase === 'awakened'
+      ? `Myth awakened: ${label}`
+      : phase === 'faded'
+        ? `Myth faded: ${label}`
+        : `Tradition formed: ${label}`,
+    actors: [
+      buildSecondaryActor('institution', mythId, 'primary', label),
+      buildSettlementActor('beneficiary'),
+    ],
+    causes: [{
+      kind: phase === 'awakened' ? 'threshold' : 'state',
+      ref: `myths.${reason}`,
+      metric: 'phase',
+      value: phase,
+    }],
+    consequences: [{
+      kind: phase === 'tradition_formed' ? 'create' : 'status',
+      targetKind,
+      targetId: phase === 'tradition_formed' ? `tradition_${mythId}` : mythId,
+      metric: phase === 'tradition_formed' ? null : 'phase',
+      value: phase === 'tradition_formed' ? null : phase,
+      unit: null,
+    }],
+    source: 'myths',
+    tags: ['myth', mythId, phase],
+  });
 }
 
 // Check activation cooldown and slot limits.

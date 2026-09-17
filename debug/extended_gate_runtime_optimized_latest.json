@@ -1,0 +1,59 @@
+{
+  "meta": {
+    "generatedAt": "2026-09-16T09:54:27.910Z",
+    "flowStartedAt": "2026-09-16T08:50:09.516Z",
+    "allOk": false
+  },
+  "summary": {
+    "baselineSeconds": 2728.58,
+    "totalSeconds": 3858.392,
+    "deltaSeconds": 1129.812,
+    "deltaPercent": 41.40659244002375
+  },
+  "steps": [
+    {
+      "id": "bootstrap",
+      "label": "Python environment",
+      "note": "Ensures the project virtualenv and Python dependencies are ready.",
+      "command": "python3 python/bootstrap.py",
+      "startedAt": "2026-09-16T08:50:09.516Z",
+      "durationSeconds": 0.074,
+      "exitCode": 0,
+      "ok": true,
+      "runtimeShare": 0.00001917897403892606
+    },
+    {
+      "id": "canonical",
+      "label": "Canonical master",
+      "note": "Fixed canonical contract (20x2200, rpt, compact).",
+      "command": "/Users/filippoverni/ProgettiLavoro/nodeDwarves/.venv/bin/python python/promote_best.py --eval-only --model-path models/policy_best.json --best-model-path models/policy_best.json --eval-episodes 20 --eval-max-steps 2200 --eval-score rpt --transport compact --report-tag canonical-master --report-json debug/canonical_master_latest.json --report-md debug/canonical_master_latest.md --eval-progress --eval-progress-every 10",
+      "startedAt": "2026-09-16T08:50:09.591Z",
+      "durationSeconds": 485.145,
+      "exitCode": 0,
+      "ok": true,
+      "runtimeShare": 0.1257376129745241
+    },
+    {
+      "id": "benchmark",
+      "label": "Deterministic benchmark",
+      "note": "Shared deterministic collapse and balance signal; executed once.",
+      "command": "/Users/filippoverni/.nvm/versions/node/v24.14.0/bin/node scripts/headless_benchmark.js --ticks 8000 --seeds 101,202,303,404 --progress --progress-every 2000",
+      "startedAt": "2026-09-16T08:58:14.741Z",
+      "durationSeconds": 823.514,
+      "exitCode": 0,
+      "ok": true,
+      "runtimeShare": 0.21343450846881293
+    },
+    {
+      "id": "regression",
+      "label": "Deterministic regression profiles",
+      "note": "All stored deterministic regression profiles.",
+      "command": "/Users/filippoverni/.nvm/versions/node/v24.14.0/bin/node scripts/regression.js --all",
+      "startedAt": "2026-09-16T09:11:58.256Z",
+      "durationSeconds": 2549.652,
+      "exitCode": 1,
+      "ok": false,
+      "runtimeShare": 0.6608068853553501
+    }
+  ]
+}

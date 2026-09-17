@@ -1,7 +1,13 @@
 'use strict';
 
 const { clamp } = require('../utils');
-const { pushEvent } = require('./events');
+const {
+  buildResourceConsequences,
+  buildSecondaryActor,
+  buildSecondaryLocation,
+  buildSettlementActor,
+  emitSecondaryEvent,
+} = require('./secondary_events');
 const { randomBetween } = require('./random');
 const { isSpawnableTile } = require('./terrain');
 const { getEdgePositions } = require('./movement');
@@ -450,13 +456,20 @@ function updateExistingCamps(state, config, runtime, action, externalConfig, ext
 function updateSingleCamp(state, config, runtime, action, externalConfig, externalState, camp, tick) {
   normalizeCampRuntimeState(camp, externalConfig);
 
+  const activeSiege = state && state.epicConflict && state.epicConflict.activeSiege;
+  if (activeSiege && activeSiege.sourceCampId === camp.id) {
+    camp.phase = 'active';
+    camp.phaseTicksRemaining = Math.max(2, Number(camp.phaseTicksRemaining || 0));
+    return true;
+  }
+
   if (camp.phase === 'setting_up') {
     camp.phaseTicksRemaining = Math.max(0, Number(camp.phaseTicksRemaining || 0) - 1);
     if (camp.phaseTicksRemaining <= 0) {
       camp.phase = 'active';
       camp.phaseTicksRemaining = Math.max(1, Number(camp.activeTicks || 1));
       camp.nextActionTick = tick + getRoleInterval(externalConfig, camp.role);
-      pushEvent(state, config, `External camp active: ${camp.factionLabel} (${camp.role})`);
+      emitCampEvent(state, config, camp, 'activated', `External camp active: ${camp.factionLabel} (${camp.role})`);
     }
     return true;
   }
@@ -484,7 +497,13 @@ function updateSingleCamp(state, config, runtime, action, externalConfig, extern
     if (camp.phaseTicksRemaining <= 0) {
       camp.phase = 'withdrawing';
       camp.phaseTicksRemaining = Math.max(1, Number(camp.withdrawTicks || 1));
-      pushEvent(state, config, `External camp withdrawing: ${camp.factionLabel} (${camp.role})`);
+      emitCampEvent(
+        state,
+        config,
+        camp,
+        'withdrawing',
+        `External camp withdrawing: ${camp.factionLabel} (${camp.role})`,
+      );
     }
     return true;
   }
@@ -572,10 +591,13 @@ function runTradeCampTick(state, config, runtime, externalConfig, externalState,
     externalState.stats.caravans.dispatched = Number(externalState.stats.caravans.dispatched || 0) + 1;
     const convoyCount = Number(externalState.stats.caravans.dispatched || 0);
     if (convoyCount === 1 || convoyCount % tradeConfig.eventEveryTrades === 0) {
-      pushEvent(
+      emitCampEvent(
         state,
         config,
+        camp,
+        'caravan_dispatched',
         `Trade caravan departed: ${camp.factionLabel} (${deal.giveResource} -${deal.giveAmount} for ${deal.receiveResource})`,
+        buildResourceConsequences({ [deal.giveResource]: deal.giveAmount }, -1),
       );
     }
     return;
@@ -589,10 +611,16 @@ function runTradeCampTick(state, config, runtime, externalConfig, externalState,
   roleStats.received[deal.receiveResource] = Number(roleStats.received[deal.receiveResource] || 0) + deal.receiveAmount;
 
   if (camp.tradeActions === 1 || camp.tradeActions % tradeConfig.eventEveryTrades === 0) {
-    pushEvent(
+    emitCampEvent(
       state,
       config,
+      camp,
+      'trade_completed',
       `Trade camp: ${camp.factionLabel} ${deal.giveResource} -${deal.giveAmount}, ${deal.receiveResource} +${deal.receiveAmount}`,
+      [
+        ...buildResourceConsequences({ [deal.giveResource]: deal.giveAmount }, -1),
+        ...buildResourceConsequences({ [deal.receiveResource]: deal.receiveAmount }),
+      ],
     );
   }
 }
@@ -813,9 +841,11 @@ function runMilitiaCampTick(state, config, action, externalConfig, externalState
     camp.militiaDefenseBonus = desiredBonus;
     roleStats.paid = Number(roleStats.paid || 0) + 1;
     if (camp.militiaContracts === 1 || camp.militiaContracts % militiaConfig.eventEveryContracts === 0) {
-      pushEvent(
+      emitCampEvent(
         state,
         config,
+        camp,
+        'militia_support_renewed',
         `Militia camp: ${camp.factionLabel} patrol contract renewed (+${Math.round(camp.militiaDefenseBonus * 100)}% defense)`,
       );
     }
@@ -829,7 +859,13 @@ function runMilitiaCampTick(state, config, action, externalConfig, externalState
     const skipReason = canPay && decision.source === 'action'
       ? 'policy hold'
       : 'low reserves';
-    pushEvent(state, config, `Militia camp: ${camp.factionLabel} support skipped (${skipReason})`);
+    emitCampEvent(
+      state,
+      config,
+      camp,
+      'militia_support_skipped',
+      `Militia camp: ${camp.factionLabel} support skipped (${skipReason})`,
+    );
   }
 }
 
@@ -855,10 +891,13 @@ function runRaiderCampTick(state, config, action, externalConfig, externalState,
     );
     roleStats.paid = Number(roleStats.paid || 0) + 1;
     if (camp.raiderDemands === 1 || camp.raiderDemands % raiderConfig.eventEveryDemands === 0) {
-      pushEvent(
+      emitCampEvent(
         state,
         config,
+        camp,
+        'tribute_paid',
         `Raider camp: tribute paid to ${camp.factionLabel} (hostility ${Math.round(camp.hostility * 100)}%${decision.forced ? ', forced' : ''})`,
+        buildResourceConsequences(raiderConfig.tributeCosts, -1),
       );
     }
     return;
@@ -886,9 +925,22 @@ function runRaiderCampTick(state, config, action, externalConfig, externalState,
     const stanceTag = canPay && decision.source === 'action'
       ? ', policy refused tribute'
       : '';
-    pushEvent(state, config, `Raider camp: ${camp.factionLabel} skirmish (${lossSummary}${stanceTag})`);
+    emitCampEvent(
+      state,
+      config,
+      camp,
+      'skirmish',
+      `Raider camp: ${camp.factionLabel} skirmish (${lossSummary}${stanceTag})`,
+      buildResourceConsequences(losses, -1),
+    );
   } else {
-    pushEvent(state, config, `Raider camp: ${camp.factionLabel} pressure rises`);
+    emitCampEvent(
+      state,
+      config,
+      camp,
+      'pressure_rose',
+      `Raider camp: ${camp.factionLabel} pressure rises`,
+    );
   }
 }
 
@@ -1187,10 +1239,13 @@ function finalizeCaravanArrival(state, config, externalConfig, externalState, ca
   const arrivalCount = Number(externalState.stats.caravans.arrived || 0);
   const caravanConfig = externalConfig.caravans || {};
   if (arrivalCount === 1 || arrivalCount % Math.max(1, Number(caravanConfig.eventEveryArrivals || 1)) === 0) {
-    pushEvent(
+    emitCaravanEvent(
       state,
       config,
+      caravan,
+      'arrived',
       `Trade caravan arrived: ${caravan.campLabel} delivered ${receiveResource} +${Math.floor(receiveAmount)}`,
+      buildResourceConsequences({ [receiveResource]: receiveAmount }),
     );
   }
 
@@ -1241,7 +1296,13 @@ function tryInterceptCaravan(state, config, externalConfig, externalState, carav
 
   const interceptedCount = Number(externalState.stats.caravans.intercepted || 0);
   if (interceptedCount === 1 || interceptedCount % Math.max(1, Number(caravanConfig.eventEveryInterceptions || 1)) === 0) {
-    pushEvent(state, config, `Trade caravan intercepted: ${caravan.campLabel} lost ${caravan.receiveResource}`);
+    emitCaravanEvent(
+      state,
+      config,
+      caravan,
+      'intercepted',
+      `Trade caravan intercepted: ${caravan.campLabel} lost ${caravan.receiveResource}`,
+    );
   }
   return true;
 }
@@ -1430,7 +1491,13 @@ function spawnCampIfEligible(state, config, runtime, externalConfig, externalSta
   externalState.cooldownUntilTick = tick + externalConfig.globalCooldownTicks;
   externalState.nextSpawnTick = scheduleNextCampSpawnTick(externalConfig, tick);
 
-  pushEvent(state, config, `External camp arrived: ${camp.factionLabel} (${camp.role})`);
+  emitCampEvent(
+    state,
+    config,
+    camp,
+    'arrived',
+    `External camp arrived: ${camp.factionLabel} (${camp.role})`,
+  );
 }
 
 // Build one camp descriptor with deterministic lifecycle values.
@@ -1615,7 +1682,13 @@ function finalizeCampDeparture(state, config, externalConfig, externalState, cam
   externalState.stats.byRole[camp.role].departed = Number(externalState.stats.byRole[camp.role].departed || 0) + 1;
 
   const summary = buildCampDepartureSummary(camp);
-  pushEvent(state, config, summary ? `External camp departed: ${summary}` : `External camp departed: ${camp.factionLabel}`);
+  emitCampEvent(
+    state,
+    config,
+    camp,
+    'departed',
+    summary ? `External camp departed: ${summary}` : `External camp departed: ${camp.factionLabel}`,
+  );
 
   externalState.history.push({
     id: camp.id,
@@ -1963,6 +2036,70 @@ function isCampBuildableCell(state, runtime, x, y) {
     }
   }
   return true;
+}
+
+// Emit one committed camp lifecycle, trade, support, or pressure fact.
+function emitCampEvent(state, config, camp, phase, message, consequences = null) {
+  const campId = String(camp && camp.id || 'external_camp');
+  const factionId = String(camp && camp.factionId || 'external_faction');
+  return emitSecondaryEvent(state, config, {
+    type: `external_camp.${phase}`,
+    category: phase === 'skirmish' || phase === 'pressure_rose' ? 'combat' : 'diplomacy',
+    message,
+    actors: [
+      buildSecondaryActor('camp', campId, 'primary', camp && camp.factionLabel),
+      buildSecondaryActor('faction', factionId, 'secondary', camp && camp.factionLabel),
+      buildSettlementActor(phase === 'skirmish' ? 'target' : 'beneficiary'),
+    ],
+    location: buildSecondaryLocation(camp, camp && camp.factionLabel),
+    causes: [{
+      kind: phase === 'arrived' || phase === 'activated' ? 'threshold' : 'action',
+      ref: `external_camps.${camp && camp.role || 'camp'}`,
+      metric: 'phase',
+      value: phase,
+    }],
+    consequences: consequences || [{
+      kind: 'status',
+      targetKind: 'camp',
+      targetId: campId,
+      metric: 'phase',
+      value: phase,
+      unit: null,
+    }],
+    source: 'external_camps',
+    tags: ['external_camp', String(camp && camp.role || 'camp'), phase],
+  });
+}
+
+// Emit one caravan result at its last committed map position.
+function emitCaravanEvent(state, config, caravan, phase, message, consequences = null) {
+  const caravanId = String(caravan && caravan.id || 'trade_caravan');
+  return emitSecondaryEvent(state, config, {
+    type: `caravan.${phase}`,
+    category: phase === 'intercepted' ? 'combat' : 'diplomacy',
+    message,
+    actors: [
+      buildSecondaryActor('caravan', caravanId, 'primary', caravan && caravan.campLabel),
+      buildSettlementActor(phase === 'intercepted' ? 'target' : 'beneficiary'),
+    ],
+    location: buildSecondaryLocation(caravan, 'Trade route'),
+    causes: [{
+      kind: phase === 'intercepted' ? 'action' : 'state',
+      ref: `external_camps.caravan_${phase}`,
+      metric: 'payload_resource',
+      value: String(caravan && caravan.receiveResource || 'unknown'),
+    }],
+    consequences: consequences || [{
+      kind: 'status',
+      targetKind: 'caravan',
+      targetId: caravanId,
+      metric: 'phase',
+      value: phase,
+      unit: null,
+    }],
+    source: 'external_camps',
+    tags: ['caravan', phase],
+  });
 }
 
 module.exports = {

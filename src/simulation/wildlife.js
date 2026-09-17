@@ -3,7 +3,11 @@
 const { clamp } = require('../utils');
 const { randomBetween, shuffleInPlace } = require('./random');
 const { moveTowards, findEdgeSpawnPosition } = require('./movement');
-const { pushEvent } = require('./events');
+const {
+  buildSecondaryActor,
+  buildSecondaryLocation,
+  emitSecondaryEvent,
+} = require('./secondary_events');
 
 const WILDLIFE_SIDES = ['north', 'south', 'west', 'east'];
 
@@ -142,14 +146,43 @@ function updateWildlifeStart(state, config, runtime) {
     return;
   }
   let spawned = 0;
+  const spawnedHerds = [];
   for (let i = 0; i < count; i += 1) {
     const herd = spawnHerd(state, runtime, wildlifeConfig);
     if (herd) {
       spawned += 1;
+      spawnedHerds.push(herd);
     }
   }
   if (spawned > 0) {
-    pushEvent(state, config, `Wildlife: ${spawned} herd${spawned > 1 ? 's' : ''} roaming`);
+    emitSecondaryEvent(state, config, {
+      type: 'wildlife.herds_spawned',
+      category: 'world',
+      message: `Wildlife: ${spawned} herd${spawned > 1 ? 's' : ''} roaming`,
+      actors: spawnedHerds.slice(0, 8).map((herd) => buildSecondaryActor(
+        'wildlife',
+        herd.id,
+        'primary',
+        'Roaming Herd',
+      )),
+      location: buildSecondaryLocation(spawnedHerds[0], 'Wildlife range'),
+      causes: [{
+        kind: 'state',
+        ref: 'wildlife.season_spawn',
+        metric: 'season',
+        value: state.season.name,
+      }],
+      consequences: [{
+        kind: 'create',
+        targetKind: 'wildlife',
+        targetId: String(spawnedHerds[0].id),
+        metric: 'herd_count',
+        value: spawned,
+        unit: 'herds',
+      }],
+      source: 'wildlife',
+      tags: ['wildlife', 'herd', 'spawned'],
+    });
   }
 }
 

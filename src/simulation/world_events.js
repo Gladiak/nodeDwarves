@@ -1,7 +1,11 @@
 'use strict';
 
 const { clamp } = require('../utils');
-const { pushEvent } = require('./events');
+const {
+  buildResourceConsequences,
+  buildSecondaryActor,
+  emitSecondaryEvent,
+} = require('./secondary_events');
 const { randomBetween } = require('./random');
 
 const WORLD_EVENT_TYPES = ['traveling_bards', 'rival_caravans', 'limited_opportunities'];
@@ -184,7 +188,7 @@ function spawnNextWorldEvent(state, config, worldState, worldConfig, tick, actio
       worldState.active = active;
       worldState.nextSpawnTick = scheduleNextWorldEventTick(worldState, worldConfig, tick);
       incrementWorldEventStat(worldState, active.type, 'spawned');
-      pushEvent(state, config, buildWorldEventStartMessage(active));
+      emitWorldEventFact(state, config, active, 'started', buildWorldEventStartMessage(active));
       return true;
     }
 
@@ -455,11 +459,14 @@ function completeLimitedOpportunity(state, config, worldState, worldConfig, acti
     state.stockpile[resource] = Number(state.stockpile[resource] || 0) + Number(amount || 0);
   }
   const rewardSummary = formatAmountSummary(active.reward, 3);
-  if (rewardSummary) {
-    pushEvent(state, config, `Opportunity completed: ${rewardSummary}`);
-  } else {
-    pushEvent(state, config, 'Opportunity completed');
-  }
+  emitWorldEventFact(
+    state,
+    config,
+    active,
+    'completed',
+    rewardSummary ? `Opportunity completed: ${rewardSummary}` : 'Opportunity completed',
+    buildResourceConsequences(active.reward),
+  );
   finalizeWorldEvent(state, config, worldState, worldConfig, active, tick, 'completed', null);
 }
 
@@ -471,6 +478,7 @@ function failLimitedOpportunity(state, config, worldState, worldConfig, active, 
     ? def.failureLossResources.filter((value) => typeof value === 'string')
     : [];
   const losses = [];
+  const lossAmounts = {};
   for (const resource of resources) {
     const current = Math.max(0, Number(state.stockpile[resource] || 0));
     if (current <= 0 || ratio <= 0) {
@@ -482,12 +490,18 @@ function failLimitedOpportunity(state, config, worldState, worldConfig, active, 
     }
     state.stockpile[resource] = current - loss;
     losses.push(`${resource} x${loss}`);
+    lossAmounts[resource] = loss;
   }
-  if (losses.length > 0) {
-    pushEvent(state, config, `Opportunity expired: losses ${losses.slice(0, 3).join(', ')}`);
-  } else {
-    pushEvent(state, config, 'Opportunity expired');
-  }
+  emitWorldEventFact(
+    state,
+    config,
+    active,
+    'expired',
+    losses.length > 0
+      ? `Opportunity expired: losses ${losses.slice(0, 3).join(', ')}`
+      : 'Opportunity expired',
+    buildResourceConsequences(lossAmounts, -1),
+  );
   finalizeWorldEvent(state, config, worldState, worldConfig, active, tick, 'failed', 'expired');
 }
 
@@ -498,13 +512,15 @@ function finalizeWorldEvent(state, config, worldState, worldConfig, active, tick
   }
 
   if (active.type !== 'limited_opportunities') {
-    pushEvent(state, config, buildWorldEventEndMessage(active));
+    emitWorldEventFact(state, config, active, 'ended', buildWorldEventEndMessage(active));
   }
   if (active.type === 'rival_caravans') {
     const outcome = active.meta && active.meta.outcome ? active.meta.outcome : 'lose';
-    pushEvent(
+    emitWorldEventFact(
       state,
       config,
+      active,
+      `contest_${outcome}`,
       outcome === 'win'
         ? 'Rival caravans: contest won'
         : 'Rival caravans: contest lost',
@@ -536,6 +552,41 @@ function finalizeWorldEvent(state, config, worldState, worldConfig, active, tick
   const globalCooldown = Math.max(0, Number(worldConfig.globalCooldownTicks || 0));
   worldState.cooldownUntilTick = Math.max(worldState.cooldownUntilTick || 0, tick + globalCooldown);
   worldState.active = null;
+}
+
+// Emit a structured world-event lifecycle fact from committed active state.
+function emitWorldEventFact(state, config, active, phase, message, consequences = null) {
+  const eventId = String(active && active.id || 'world_event');
+  const eventType = String(active && active.type || 'unknown');
+  return emitSecondaryEvent(state, config, {
+    type: `world.${eventType}_${phase}`,
+    category: 'world',
+    message,
+    actors: [buildSecondaryActor(
+      eventType === 'rival_caravans' ? 'caravan' : 'institution',
+      eventId,
+      'primary',
+      active && active.label,
+    )],
+    causes: [{
+      kind: phase === 'started' ? 'state' : 'threshold',
+      ref: `world_events.${eventType}`,
+      metric: 'phase',
+      value: phase,
+    }],
+    consequences: Array.isArray(consequences) && consequences.length > 0
+      ? consequences
+      : [{
+        kind: 'status',
+        targetKind: eventType === 'rival_caravans' ? 'caravan' : 'institution',
+        targetId: eventId,
+        metric: 'phase',
+        value: phase,
+        unit: null,
+      }],
+    source: 'world_events',
+    tags: ['world_event', eventType, phase],
+  });
 }
 
 // Increment world event stats counters.

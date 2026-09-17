@@ -10,6 +10,28 @@ Display and layout:
 - `display.resize.enabled`: handle terminal resize events while the simulation is running.
 - `display.resize.reflow_world`: when true, apply the new runtime grid immediately and reflow terrain/entities (`fitStateToGrid`); when false, live resize keeps the current world dimensions to avoid road/village/temple reflow resets.
 - `display.tickMs`: milliseconds between ticks in the visible simulation.
+- `display.time_controls.enabled`: enable speed levels, single-step, and Story Director focus
+  protection in the interactive terminal. Setting it false preserves legacy `Space` pause/resume.
+- `display.time_controls.default_level`: speed-level ID selected at startup.
+- `display.time_controls.min_delay_ms`: absolute minimum visible-loop delay after multipliers are
+  applied (clamped to `1..display.tickMs`).
+- `display.time_controls.levels[]`: ordered list used by `[` / `]`; each entry defines a unique `id`,
+  compact `label`, positive `delay_multiplier` relative to `display.tickMs`, and optional
+  `ticks_per_frame`. At most eight levels are accepted; delay multipliers are clamped to `0.05..16`
+  and simulation batches to `1..64` ticks per rendered frame.
+- Default interactive profile: `0.5x/1x/2x/4x/5x/25x/100x`, starting at `1x`. The `25x` and
+  `100x` levels batch `5` and `20` authoritative ticks per frame at a `4 ms` visible delay. Headless
+  and training execution remain unaffected.
+- `display.time_controls.auto_protect.enabled`: allow new Story Director focus IDs to trigger one
+  presentation-only protection window.
+- `display.time_controls.auto_protect.minimum_importance`: lowest focus importance eligible for
+  automatic protection (default: `critical`).
+- `display.time_controls.auto_protect.critical|legendary.mode`: protection behavior for each tier:
+  `slow`, `hold`, or `off`.
+- `display.time_controls.auto_protect.critical|legendary.level`: configured speed-level ID used by
+  `slow` mode. `hold` freezes simulation ticks while frames and input continue to update.
+- `display.time_controls.auto_protect.critical|legendary.duration_ms`: wall-clock protection window,
+  clamped to `0..60000`. Defaults are `1800 ms` critical auto-slow and `2400 ms` legendary auto-hold.
 - `display.header.enabled`: enable the header bar.
 - `display.header.height`: header height in lines.
 - `display.header.title`: header title text.
@@ -24,6 +46,37 @@ Display and layout:
 - `display.mapInset.marginRight`: inset right margin in map cells.
 - `display.mapInset.title`: inset title text rendered in the top border (default: `ᚦ NodeDwarves ᛞ`).
 - `display.mapInset.reserveSimulationSpace`: when true, carved cells are non-walkable/non-spawnable and excluded from build/path systems.
+- `display.storyRibbon.enabled`: show the active Story Director focus as a compact in-map ribbon.
+- `display.storyRibbon.maxWidth`: maximum ribbon width in map cells; runtime clamps it to available
+  space (default: `118`).
+- `display.storyRibbon.minWidth`: minimum usable ribbon width; below it the ribbon is omitted rather
+  than producing unreadable output (default: `40`, hard minimum: `24`).
+- `display.storyRibbon.marginLeft|marginRight|marginBottom`: non-negative map-cell margins used for
+  lower-edge placement.
+- `display.storyRibbon.hideWhenModalOpen`: hide the ribbon while Inspect, Legend, Data Center,
+  Warrior League, Event Log, map-save, or cycle-transition overlays are active.
+- `display.storyFocusOverlay.enabled`: enable bounded map emphasis for the active Story Director
+  focus without changing the underlying map symbols or simulation state.
+- `display.storyFocusOverlay.minimumImportance`: lowest importance eligible for actor emphasis
+  (default: `major`).
+- `display.storyFocusOverlay.locationMinimumImportance`: lowest importance eligible for location
+  emphasis (default: `critical`; therefore ordinary major beats remain actor-only).
+- `display.storyFocusOverlay.maxActors`: maximum involved actors recolored on the active layer
+  (default and hard maximum: `2`).
+- `display.storyFocusOverlay.radius`: cardinal marker distance from the focused location (default:
+  `1`, clamped to `1..2`).
+- `display.storyFocusOverlay.maxMarkers`: maximum cardinal location markers (default and hard
+  maximum: `4`).
+- `display.storyFocusOverlay.cadenceTicks`: ticks per visible/quiet marker phase (default: `16`);
+  the phase derives from simulation tick and stores no animation state.
+- `display.storyFocusOverlay.markerSymbol`: optional single-character marker override. Empty by
+  default so the overlay preserves and only recolors existing terrain/entity symbols.
+- `display.storyFocusOverlay.showPaths`: enable an optional bounded Manhattan hint from the first
+  visible actor to the focused location (default: `false` to minimize map clutter).
+- `display.storyFocusOverlay.maxPathCells`: maximum cells in the optional path hint (default: `6`,
+  hard maximum: `12`).
+- `display.storyFocusOverlay.hideWhenModalOpen`: hide focus emphasis while Inspect, Legend, Data
+  Center, Warrior League, Event Log, map-save, or cycle-transition overlays are active.
 - `display.frame.enabled`: render a frame around the map.
 - `display.frame.horizontal`: frame horizontal character.
 - `display.frame.vertical`: frame vertical character.
@@ -46,8 +99,9 @@ Display and layout:
 - `display.warrior_panel.width`: Warrior League modal width in characters.
 - `display.warrior_panel.height`: Warrior League modal height in lines.
 - `display.event_log_panel.enabled`: enable the Event Log modal overlay (toggle with `e`).
-- `display.event_log_panel.width`: Event Log modal width in characters.
-- `display.event_log_panel.height`: Event Log modal height in lines.
+- `display.event_log_panel.width`: Event Log modal width in characters; structured importance and
+  actor/place/saga context wrap within the effective panel width (minimum supported width: `72`).
+- `display.event_log_panel.height`: Event Log modal height in lines (minimum supported height: `18`).
 - `display.save_panel.enabled`: enable the map-export confirmation panel.
 - `display.save_panel.width`: save panel width in characters.
 - `display.save_panel.height`: save panel height in lines.
@@ -293,7 +347,10 @@ Display and layout:
 - `display.terrain.roadSpecialSymbols.bridge`: symbol for bridge road tiles.
 - `display.terrain.roadSpecialSymbols.ford`: symbol for ford road tiles.
 - `display.terrain.riverConnectsTo`: list of terrain types treated as connected to rivers (defaults to `["river"]`).
-- `display.dwarves.maxVisible`: max dwarves to render on the map (`0` = show all, `< 0` = hide all).
+- `display.dwarves.maxVisible`: max dwarves to render on the active map layer (`0` = show all,
+  `< 0` = hide all). Above the cap, deterministic story tiers prefer current critical/legendary
+  actors, endangered dwarves, champions, saga protagonists, recent incident actors, and the prior
+  visible set before stable population-order fallback.
 - `display.theme`: active visual theme id (uses `display.themes.<id>` when present).
 - `display.themes.<id>.colors.*`: theme-level color overrides merged on top of `display.colors` (supports nested `map` and `seasonal` keys).
 - `display.themes.<id>.alerts.tracked_resources`: stockpile ids used to evaluate global warning/critical pressure in inset and telemetry panel.
@@ -333,6 +390,8 @@ Display and layout:
 - `display.colors.map.terrain_pasture_depleted`: ANSI color for depleted pasture tiles.
 - `display.colors.map.alert_warning`: ANSI color used by warning-level UI pressure markers.
 - `display.colors.map.alert_critical`: ANSI color used by high-priority telemetry markers (for example pressure/critical rows in telemetry panels).
+- `display.colors.map.story_focus_major|story_focus_critical|story_focus_legendary`: ANSI emphasis
+  colors applied by the active-story map overlay while preserving existing map symbols.
 - `display.colors.seasonal.enabled`: enable seasonal terrain color transitions.
 - `display.colors.seasonal.preset`: optional named seasonal palette preset (for example `ice_fantasy`, currently tuned to a softer winter look).
 - `display.colors.seasonal.types`: terrain types that should use seasonal palettes (e.g. `plain`, `fertile`, `forest`, `food`, `grass`, `river`, `lake`; hills/mountains/stone remain fixed across seasons).
@@ -356,7 +415,313 @@ Display and layout:
 Events:
 
 - `events.maxEntries`: number of recent events kept for telemetry panels/snapshots.
-- `events.logMaxEntries`: number of rolling event entries kept for the Event Log modal history (`tick`, category, message).
+- `events.logMaxEntries`: number of rolling canonical v1 events kept for the Event Log modal history; `0` disables UI-history retention without suppressing event return values.
+- `events.importance.default`: final importance fallback (`ambient`, `notable`, `major`, `critical`, or `legendary`).
+- `events.importance.by_category.<category>`: importance fallback for one normalized event category; overrides `default`.
+- `events.importance.by_type.<type>`: importance fallback for one normalized event type; overrides category and default mappings.
+- Lifecycle type defaults: `lifecycle.birth=notable`, `lifecycle.death=major`,
+  `lifecycle.partnership_formed=notable`, and `lifecycle.settlement_founded=major`.
+- Social incident type defaults: `social.mentorship_breakthrough=notable`,
+  `social.rivalry_clash=notable`, `social.grudge_escalation=major`, and
+  `social.reconciliation=notable`.
+- Combat type defaults: surface raid start/resolution, ruins success/failure, Underrealm champion
+  outcomes, Dwarf Champion appointment, and deep-raid start/resolution are `major`;
+  `combat.ruins_expedition_started=notable`; `combat.dwarf_champion_fallen` and
+  `combat.deep_raid_casualties` are `critical`.
+- Warrior League type defaults: scars, titles, vows, and tournament injuries are `notable`;
+  retirement, hero-command succession, tournament crowns, and Underrealm command sync/relinquishment
+  are `major`; `warrior.tournament_death` is `critical`.
+- Political type defaults: ritual-window opening, ritual expiry, decree proposal, and decree expiry
+  are `notable`; doctrine/phase shifts, council ignition, ritual invocation, and decree enactment are
+  `major`; `schism.climax_started=critical` and `schism.climax_resolved=legendary`.
+- Endgame type defaults: artifact recovery, Warrior Company carry-over, and transition completion
+  are `major`; transition start is `critical`; artifact-collection completion and cycle closure are
+  `legendary`.
+- Secondary-producer defaults keep routine weather, wildlife, and house upgrades `ambient`; roads,
+  construction, tools, trade/contract success, festivals, rare finds, and company doctrine are
+  `notable`; failed/intercepted diplomacy, myths/backlashes, village founding, Underrealm unlocks,
+  temple stages, and hunt deaths are `major`; `temple.completed` is `legendary`.
+
+Story Director:
+
+- `story_director.enabled`: enables bounded per-cycle event scoring and focus selection.
+- `story_director.focus.minimum_importance`: lowest event importance eligible for ordinary focus
+  (`ambient`, `notable`, `major`, `critical`, or `legendary`).
+- `story_director.focus.cooldown_ticks`: minimum tick cooldown reserved between ordinary focus changes.
+- `story_director.focus.duration_ticks`: number of simulation ticks a selected focus remains active
+  unless a stronger escalation preempts it.
+- `story_director.focus.interruption_budget.window_ticks`: rolling interruption-budget window length.
+- `story_director.focus.interruption_budget.max_interruptions`: maximum interruptions allowed inside one
+  budget window.
+- `story_director.focus.escalation.enabled`: allows sufficiently important events to bypass ordinary
+  focus protection when they outrank the current focus.
+- `story_director.focus.escalation.minimum_importance`: minimum importance eligible for escalation.
+- `story_director.focus.escalation.cooldown_ticks`: minimum ticks between escalation attempts that
+  successfully replace or bypass focus.
+- `story_director.scoring.importance.<importance>`: severity points for `ambient`, `notable`, `major`,
+  `critical`, and `legendary` events.
+- `story_director.scoring.rarity.first_occurrence_bonus`: rarity points for the first observed event
+  of a type; later occurrences receive `floor(bonus / (prior_count + 1))`.
+- `story_director.scoring.rarity.max_tracked_types`: per-cycle event-frequency registry cap;
+  additionally hard-capped at `256`.
+- `story_director.scoring.named_actors.per_actor|max_actors`: points per actor carrying a retained
+  display label and the number of actors allowed to contribute.
+- `story_director.scoring.consequences.per_entry|max_entries`: points per typed consequence and the
+  number of consequences allowed to contribute.
+- `story_director.scoring.current_saga_bonus`: continuity points when an event shares the active
+  focus's explicit `sagaId`.
+- `story_director.scoring.visibility.visible_bonus`: points when the event location scope/depth
+  matches the currently rendered surface or Underrealm layer.
+- `story_director.scoring.visibility.world_bonus`: points for world-scoped events.
+- `story_director.scoring.visibility.hidden_penalty`: points subtracted when a located event is on a
+  different layer from the current view.
+- `story_director.sagas.minimum_importance`: lowest importance allowed to infer, match, or open a
+  saga without an explicit `sagaId` or parent-event cause.
+- `story_director.sagas.inactivity_timeout_ticks`: ticks without a matching fact before an open or
+  active saga becomes dormant and its current chapter closes.
+- `story_director.sagas.archive_timeout_ticks`: ticks without a matching fact before a dormant,
+  resolved, or failed saga becomes archived.
+- `story_director.sagas.max_entries`: configured saga-registry cap; additionally hard-capped at `64`.
+- `story_director.sagas.max_event_refs`: source-event references retained per saga; additionally
+  hard-capped at `32`.
+- `story_director.sagas.max_actor_refs`: typed actor IDs/keys retained per saga; additionally
+  hard-capped at `16`.
+- `story_director.sagas.max_place_refs`: stable place IDs retained per saga; additionally hard-capped
+  at `8`.
+- `story_director.sagas.max_faction_refs`: faction actor IDs retained per saga; additionally
+  hard-capped at `8`.
+- `story_director.sagas.max_threat_refs`: threat actor IDs retained per saga; additionally
+  hard-capped at `8`.
+- `story_director.sagas.max_location_refs`: exact place/coordinate/depth keys retained per saga;
+  additionally hard-capped at `8`.
+- `story_director.sagas.matching.minimum_score`: minimum weighted evidence score required to join an
+  inferred saga.
+- `story_director.sagas.matching.actor_weight`: score per shared typed actor.
+- `story_director.sagas.matching.location_weight`: score per shared exact location key.
+- `story_director.sagas.matching.place_weight`: score per shared stable place ID.
+- `story_director.sagas.matching.faction_weight`: score per shared faction actor.
+- `story_director.sagas.matching.threat_weight`: score per shared threat actor.
+- `story_director.sagas.lifecycle.activation_event_count`: event count that moves an open saga to
+  active.
+- `story_director.sagas.lifecycle.activation_minimum_importance`: single-event importance that can
+  activate a saga before the event-count threshold.
+- `story_director.sagas.lifecycle.resolved_type_suffixes`: terminal type tokens recognized after a
+  dot or underscore, or as the full type, as authoritative resolution facts.
+- `story_director.sagas.lifecycle.failed_type_suffixes`: terminal type tokens recognized after a dot
+  or underscore, or as the full type, as authoritative failure facts.
+- `story_director.sagas.chapters.max_entries`: chapters retained per saga; additionally hard-capped
+  at `16`.
+- `story_director.sagas.chapters.max_event_refs`: event references retained per chapter before a new
+  chapter opens; additionally hard-capped at `8`.
+- `story_director.sagas.chapters.summary_max_chars`: maximum fact-summary characters per chapter and
+  saga; clamped to `32..512`.
+- `story_director.history.max_entries`: completed-focus history cap; additionally hard-capped at `512`.
+- `story_director.history.reason_trace_max_entries`: focus decision/suppression trace cap, clamped to
+  `1..512` so critical suppression can never disable its explanation entirely.
+
+The Data Center and headless benchmark expose Story Director counters derived from the fields above
+(focus coverage, suppressed events, priority actor/location coverage, and saga outcomes). Those report
+fields are observability outputs, not separate tunables.
+
+Experience ledger:
+
+- `experience_ledger.enabled`: record qualifying accepted events as lived dwarf deeds.
+- `experience_ledger.minimum_importance`: minimum importance retained in a biography.
+- `experience_ledger.categories`: event categories eligible for lived-history recording.
+- `experience_ledger.max_dwarves`: maximum dwarf records retained globally; clamped to `1..4096`.
+- `experience_ledger.max_deeds_per_dwarf`: maximum compact deeds per dwarf; clamped to `1..32`.
+- `experience_ledger.max_source_refs_per_deed`: event IDs retained when equivalent deeds merge;
+  clamped to `1..8`.
+- `experience_ledger.max_actor_refs_per_deed`: archived actor snapshots retained per deed; clamped to
+  `1..8` so dead or missing participants remain resolvable.
+- `experience_ledger.merge_window_ticks`: maximum distance between equivalent type/saga/role/place
+  deeds before they stop merging; clamped to `0..1000000`.
+- `experience_ledger.inspect_recent_deeds`: recent deed rows requested by the read-only biography view;
+  the renderer clamps this to `1..6` and may show fewer rows at narrow heights.
+
+Chronicle:
+
+- `chronicle.enabled`: build fact-backed cycle chapters from qualifying accepted events.
+- `chronicle.minimum_importance`: minimum event importance eligible for a Chronicle claim.
+- `chronicle.max_claims_per_chapter`: cap for each of the seven fixed chapters; clamped to `1..64`.
+- `chronicle.max_evidence_per_cycle`: total claim/evidence cap per cycle; clamped to `7..512`.
+- `chronicle.max_archived_cycles`: completed factual cycles retained through reset; clamped to `1..16`.
+- `chronicle.saga_quality.use_for_retention`: permit saga membership to affect Chronicle retention.
+  This remains `false` because the E5 review found high saga fragmentation; active sagas still protect
+  the per-dwarf deed records they require.
+- `chronicle.export.enabled`: allow interactive Chronicle export with `c`.
+- `chronicle.export.directory`: output directory relative to the application root. Escaping paths are
+  rejected and fall back to `chronicles/`.
+- `chronicle.export.json`: write the canonical deterministic JSON payload.
+- `chronicle.export.markdown`: write the human-readable chapter companion with inline source IDs.
+
+World legacy:
+
+- `world_legacy.enabled`: carry bounded historical records into new cycles after the completed
+  Chronicle has been verified.
+- `world_legacy.retention.max_cycles`: completed-cycle summary cap; clamped to `1..16`.
+- `world_legacy.retention.max_identities`: archived actor-snapshot cap; clamped to `1..256`.
+- `world_legacy.retention.max_places`: old named-place snapshot cap; clamped to `1..128`. Old
+  coordinates are never retained as current-world coordinates.
+- `world_legacy.retention.max_memorials`: memorial/tomb/statue/ancestor-hall record cap; clamped to
+  `1..64`.
+- `world_legacy.retention.max_institutions`: inherited institution cap; clamped to `1..32`.
+- `world_legacy.retention.max_echoes`: visible remapped-site cap; clamped to `1..64`.
+- `world_legacy.retention.max_nemeses`: qualifying cross-cycle antagonist cap; clamped to `1..32`.
+- `world_legacy.retention.max_total_records`: aggregate hard cap across all legacy categories;
+  clamped to `6..384` and enforced after category caps.
+- `world_legacy.selection.max_identities_per_cycle`: important identities selected from verified
+  Chronicle evidence per completed cycle; clamped to `0..16`.
+- `world_legacy.selection.max_places_per_cycle`: named historical places selected per cycle; clamped
+  to `0..12`.
+- `world_legacy.selection.max_memorials_per_cycle`: qualifying memorial records per cycle; clamped to
+  `0..4`.
+- `world_legacy.selection.max_institutions_per_cycle`: inherited institution records per cycle;
+  clamped to `0..2`.
+- `world_legacy.selection.max_echoes_per_cycle`: geographic echo intents created per cycle; clamped
+  to `0..4`.
+- `world_legacy.selection.max_nemeses_per_cycle`: qualifying antagonists admitted from one completed
+  cycle; clamped to `0..4`.
+- `world_legacy.selection.nemesis_minimum_encounters`: minimum factual hero/champion encounters
+  required before a nemesis may cross a cycle; clamped to `1..16`.
+- `world_legacy.selection.max_nemesis_encounters`: recent encounter references retained in each
+  legacy nemesis record; clamped to `1..16`.
+- `world_legacy.selection.memorial_minimum_importance`: minimum verified event importance that can
+  establish a memorial.
+- `world_legacy.institutions.modifiers.per_cycle`: magnitude reserved by each inherited institution
+  hook; clamped to `0..0.05`.
+- `world_legacy.institutions.modifiers.total_cap`: aggregate institution-hook budget; clamped to
+  `0..0.10`. E6 stores these hooks with `applied=false`, so they cannot affect gameplay or PPO input.
+- `world_legacy.echoes.enabled`: remap retained historical sites onto walkable cells in each new
+  terrain and expose them through the authoritative place registry.
+- `world_legacy.echoes.color_key`: `display.colors.map` key used for visible legacy sites.
+- `symbols.world_legacy_echo`: single map glyph used for remapped legacy sites.
+
+Epic conflicts:
+
+- `epic_conflicts.enabled`: enable deterministic nemesis promotion, memory, staged sieges, and
+  recovery. Disabling it leaves the bounded state owner inert.
+- `epic_conflicts.nemeses.max_active`: total in-cycle nemesis registry cap; clamped to `1..32`.
+- `epic_conflicts.nemeses.max_encounters_per_nemesis`: recent factual encounter cap per antagonist;
+  clamped to `1..32`.
+- `epic_conflicts.nemeses.max_grudges_per_nemesis`: remembered dwarf-grudge ID cap; clamped to
+  `1..8`.
+- `epic_conflicts.nemeses.max_scars_per_nemesis`: stable scar/title memory cap; clamped to `1..8`.
+- `epic_conflicts.nemeses.promotion.check_interval_ticks`: deterministic eligibility scan cadence;
+  clamped to `1..1000`.
+- `epic_conflicts.nemeses.promotion.raider_min_hostility`: hostility threshold that promotes an
+  active raider-camp leader; clamped to `0..1`.
+- `epic_conflicts.nemeses.promotion.raider_min_demands`: alternative completed-demand threshold;
+  clamped to `0..20`.
+- `epic_conflicts.nemeses.promotion.underrealm_min_attempts`: champion encounter attempts required
+  for promotion; clamped to `1..20`.
+- `epic_conflicts.nemeses.identity.names`, `.epithets`, `.traits`, `.goals`: non-empty deterministic
+  identity pools. Selection hashes source kind and stable source ID and never consumes gameplay RNG.
+- `epic_conflicts.siege.enabled`: enable surface sieges for eligible raider nemeses.
+- `epic_conflicts.siege.min_tick`: earliest in-cycle siege tick; clamped to `0..1000000`.
+- `epic_conflicts.siege.cooldown_ticks`: per-nemesis interval between sieges; clamped to
+  `0..1000000`.
+- `epic_conflicts.siege.recovery_ticks`: post-aftermath quiet/recovery window; clamped to
+  `1..100000`.
+- `epic_conflicts.siege.min_population`: minimum population for defiant staged conflict; clamped to
+  `1..10000`.
+- `epic_conflicts.siege.max_history`: completed compact siege summaries retained; clamped to
+  `1..64`.
+- `epic_conflicts.siege.trigger.raider_min_hostility`: hostility required for automatic siege start;
+  clamped to `0..1`.
+- `epic_conflicts.siege.trigger.raider_min_demands`: alternative repeated-demand threshold for an
+  automatic siege; clamped to `0..100`, where `0` disables this alternative trigger.
+- `epic_conflicts.siege.stage_ticks.{warning,approach,demand,breach,battle,retreat,victory,aftermath}`:
+  duration of each visible stage; each value is clamped to `1..10000`.
+- `epic_conflicts.siege.road_approach_reduction_per_segment`: approach ticks removed per road segment;
+  clamped to `0..100`.
+- `epic_conflicts.siege.road_approach_reduction_cap`: maximum road-derived approach reduction;
+  clamped to `0..10000`.
+- `epic_conflicts.siege.tribute_costs`: non-negative resource payment used by the collapse guardrail.
+- `epic_conflicts.siege.guardrails.collapse_population_floor`: population at/below which demand
+  resolves as bounded tribute rather than breach; clamped to `1..10000`.
+- `epic_conflicts.siege.guardrails.collapse_stockpile_ratio`: critical food/water target ratio that
+  selects tribute; clamped to `0..1`.
+- `epic_conflicts.siege.guardrails.max_injuries`: injury cap per lost battle; clamped to `0..12`.
+- `epic_conflicts.siege.guardrails.max_resource_loss_ratio`: maximum stockpile loss ratio per lost
+  battle; clamped to `0..0.25`.
+- `epic_conflicts.siege.guardrails.max_damaged_structures`: breach damage cap; clamped to `0..8`.
+- `epic_conflicts.siege.guardrails.resource_reserve_ratio`: protected share of each resource target;
+  clamped to `0..1`.
+- `epic_conflicts.siege.battle.adult_defense_per`, `.adult_defense_cap`, `.watchtower_defense`,
+  `.armory_defense`, and `.hero_defense_weight`: components of deterministic hold defense.
+- `epic_conflicts.siege.battle.nemesis_base_power`, `.source_power_weight`, `.victory_power`, and
+  `.cycle_power`: deterministic threat components; final defense and threat scores are clamped to
+  `0..2`.
+- `epic_conflicts.siege.battle.structure_damage_severity`: repair steps placed on each damaged
+  structure; clamped to `1..8`.
+- `epic_conflicts.siege.battle.injury_recovery_ticks`: Warrior injury duration; clamped to
+  `1..10000`.
+- `epic_conflicts.siege.battle.injury_stress_gain`: stress added to injured defenders; clamped to
+  `0..1`.
+- `epic_conflicts.siege.battle.injury_gap_scale`: non-negative score-gap-to-injury multiplier.
+- `epic_conflicts.siege.battle.resource_loss_base` and `.resource_loss_gap_scale`: bounded base and
+  score-gap resource-loss inputs.
+- `epic_conflicts.siege.battle.loss_resources`: resource IDs eligible for guarded battle loss.
+- `epic_conflicts.siege.recovery.repair_interval_ticks`: deterministic severity-repair cadence;
+  clamped to `1..10000`.
+- `epic_conflicts.siege.politics.warning_pressure_gain`, `.defeat_pressure_gain`,
+  `.defeat_legitimacy_loss`, `.victory_pressure_relief`, and `.victory_legitimacy_gain`: clamped
+  `0..1` schism deltas applied at committed conflict beats.
+- `epic_conflicts.rivalry.rescue_min_hero_score`: minimum hero score for the rescue branch; clamped
+  to `0..1`.
+- `epic_conflicts.rivalry.rescue_defense_bonus`: non-negative rescue margin added only during branch
+  resolution.
+- `epic_conflicts.rivalry.reconciliation_hostility_max`: maximum hostility for a nemesis with both a
+  win and a loss to accept reconciliation; clamped to `0..1`.
+- `symbols.nemesis` / `display.colors.map.nemesis`: active surface front glyph/color.
+- `symbols.siege_damage` / `display.colors.map.siege_damage`: damaged-structure overlay glyph/color.
+
+Monumental landmarks:
+
+- `landmarks.enabled`: enable the bounded landmark registry, autonomous stage jobs, condition
+  tracking, telemetry, and surface rendering.
+- `landmarks.max_active`: maximum configured landmark definitions admitted; clamped to `0..8` by a
+  code hard cap.
+- `landmarks.restoration_ticks`: ticks for the visible restoration state after siege damage clears;
+  clamped to `1..10000`.
+- `landmarks.stage_interval_ticks`: minimum quiet interval after a completed stage before another
+  landmark stage can enter the autonomous priority slot; clamped to `0..100000`.
+- `landmarks.abandonment_population`: population below which built, undamaged landmark districts
+  become abandoned; clamped to `0..10000`.
+- `landmarks.prosperity_stockpile_ratio`: minimum food, water, wood, and stone target ratio for a
+  final-stage landmark to display prosperous status; clamped to `0..1`.
+- `landmarks.districts.enabled`: render four compact cardinal district markers around a completed
+  landmark.
+- `landmarks.districts.symbol`: one-character district marker.
+- `landmarks.condition_symbols.{construction,damaged,abandoned,restoration}`: center glyphs for
+  exceptional landmark states.
+- `landmarks.condition_color_keys.<condition>`: `display.colors.map` key for each exceptional state.
+- `landmarks.definitions.<id>.enabled`: include one unique landmark in configured order.
+- `landmarks.definitions.<id>.order`: stable autonomous construction order and deterministic tie
+  breaker.
+- `landmarks.definitions.<id>.label` / `.short_label`: full event/telemetry identity and compact
+  place-registry label.
+- `landmarks.definitions.<id>.symbol` / `.outline_symbol` / `.color_key`: center, footprint, and map
+  presentation tokens.
+- `landmarks.definitions.<id>.build_min_population`: population gate for every stage.
+- `landmarks.definitions.<id>.build_min_cycles`: completed-cycle gate for every stage.
+- `landmarks.definitions.<id>.build_min_resources.<resource>`: gather-first stockpile-ratio guard
+  checked before committing a stage cost.
+- `landmarks.definitions.<id>.target_distance`: preferred Manhattan distance from the current
+  settlement center used by deterministic site scoring.
+- `landmarks.definitions.<id>.stages[].name`: stable stage label.
+- `landmarks.definitions.<id>.stages[].radius`: visible square footprint radius; clamped to `0..3`.
+  The largest configured radius is reserved from the first site choice.
+- `landmarks.definitions.<id>.stages[].build_ticks`: normal dwarf work ticks; clamped to
+  `1..100000`.
+- `landmarks.definitions.<id>.stages[].build_cost.<resource>`: non-negative cost committed when the
+  stage job is queued.
+- Default landmark color keys are `landmark_great_hall`, `landmark_warrior_arena`,
+  `landmark_legendary_forge`, `landmark_gate_fortress`, and `landmark_ancestor_walk`; state keys are
+  `landmark_construction`, `landmark_damaged`, `landmark_abandoned`, and `landmark_restoration`.
+- The default institutions use `G`, `A`, `F`, `H`, and `N`. The renderer reads symbols from each
+  definition; matching `symbols.landmark_*` entries are available to other UI consumers.
 
 Wildlife and pastures:
 
@@ -1954,6 +2319,9 @@ Ruins exploration:
 
 - `ruins.enabled`: enable ruins exploration system.
 - `ruins.outputBonusApplyTo`: resources that receive output bonuses from ruin artifacts.
+- `ruins.expedition.repeatReadinessDepthCap`: maximum Underrealm readiness depth used only after all
+  ruins rooms are clear and expeditions repeat for missing artifacts. Non-positive or omitted values
+  preserve uncapped frontier-depth mapping.
 - `ruins.expedition.requiresArmory`: require at least one armory to start expeditions.
 - `ruins.expedition.kitResource`: stockpile resource id used as expedition kits.
 - `ruins.expedition.kitPowerBonus`: combat power bonus from a kit (fraction).

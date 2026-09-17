@@ -3,7 +3,12 @@
 const { clamp } = require('../utils');
 const { getStockpileRatio, hasInputs, consumeInputs } = require('./resources');
 const { getTerrainTypeAt, isSpawnableTile } = require('./terrain');
-const { pushEvent } = require('./events');
+const {
+  buildSecondaryActor,
+  buildSettlementActor,
+  emitSecondaryEvent,
+} = require('./secondary_events');
+const { buildPlaceLocation, registerPlace } = require('../place_identity');
 
 const NEIGHBOR_STEPS = [
   { dx: 1, dy: 0 },
@@ -1717,10 +1722,43 @@ function finalizeRoadLink(state, roads, config, linkKey) {
     return;
   }
   link.completed = true;
-  pushEvent(state, config, buildRoadCompleteMessage(linkKey, link.kind));
+  const roadId = `road_${String(linkKey).toLowerCase().replace(/[^a-z0-9._-]+/g, '_')}`;
+  const road = registerPlace(state, config, {
+    id: roadId,
+    kind: 'road',
+    x: link.from && link.from.x,
+    y: link.from && link.from.y,
+  });
+  const roadName = road ? road.name : buildRoadCompleteLabel(linkKey, link.kind);
+  emitSecondaryEvent(state, config, {
+    type: 'road.completed',
+    category: 'economy',
+    message: `${roadName} completed`,
+    actors: [
+      buildSecondaryActor('location', roadId, 'primary', roadName),
+      buildSettlementActor('beneficiary'),
+    ],
+    location: buildPlaceLocation(state, roadId),
+    causes: [{
+      kind: 'threshold',
+      ref: 'roads.build_progress',
+      metric: 'remaining_tiles',
+      value: 0,
+    }],
+    consequences: [{
+      kind: 'create',
+      targetKind: 'location',
+      targetId: roadId,
+      metric: 'link_kind',
+      value: String(link.kind || 'road'),
+      unit: null,
+    }],
+    source: 'roads',
+    tags: ['road', 'completed', String(link.kind || 'road')],
+  });
 }
 
-function buildRoadCompleteMessage(linkKey, kind) {
+function buildRoadCompleteLabel(linkKey, kind) {
   if (kind === 'village') {
     const parts = String(linkKey).split('-');
     if (parts.length === 2) {

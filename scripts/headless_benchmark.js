@@ -8,6 +8,12 @@ const crypto = require('crypto');
 const { buildRuntime } = require('../src/runtime');
 const { createInitialState } = require('../src/state');
 const { stepState } = require('../src/simulation');
+const {
+  createStoryDirectorCounterTracker,
+  getStoryDirectorCounterReport,
+  summarizeStoryDirectorReports,
+  trackStoryDirectorCounters,
+} = require('../src/telemetry/story_director');
 
 const ROOT = path.resolve(__dirname, '..');
 const DEFAULT_CONFIG_PATH = path.join(ROOT, 'config.json');
@@ -16,6 +22,7 @@ const DEFAULT_SEEDS = [101, 202, 303, 404];
 const DEFAULT_RESOURCES = ['beer', 'food', 'water'];
 const DEFAULT_VARIANT_LABEL = 'current';
 const DEFAULT_PROGRESS_STEPS = 8;
+const BENCHMARK_REPORT_SCHEMA_VERSION = 2;
 const DEFAULT_GATE_THRESHOLDS = {
   minScore: -2,
   maxPopulationDrop: 0.08,
@@ -542,6 +549,71 @@ function collectUnderrealmMetrics(state) {
   };
 }
 
+// Capture bounded persistent-world growth and modifier budget metrics.
+function collectWorldLegacyMetrics(state) {
+  const legacy = state && state.worldLegacy && typeof state.worldLegacy === 'object'
+    ? state.worldLegacy : {};
+  const listLength = (field) => Array.isArray(legacy[field]) ? legacy[field].length : 0;
+  const institutions = Array.isArray(legacy.institutions) ? legacy.institutions : [];
+  return {
+    completedCycles: Math.max(0, Number(state?.cycleStats?.count || 0)),
+    lastCycleTicks: Math.max(0, Number(state?.cycleStats?.lastTicks || 0)),
+    records: ['cycles', 'identities', 'places', 'memorials', 'institutions', 'echoes', 'nemeses']
+      .reduce((sum, field) => sum + listLength(field), 0),
+    identities: listLength('identities'),
+    places: listLength('places'),
+    memorials: listLength('memorials'),
+    institutions: listLength('institutions'),
+    echoes: listLength('echoes'),
+    nemeses: listLength('nemeses'),
+    modifierMagnitude: institutions.reduce(
+      (sum, entry) => sum + Math.max(0, Number(entry?.modifier?.magnitude || 0)), 0,
+    ),
+    evictedRecords: Math.max(0, Number(legacy?.stats?.evictedRecords || 0)),
+    stateBytes: Buffer.byteLength(JSON.stringify(legacy)),
+  };
+}
+
+// Capture bounded E7 antagonist, staged-siege, recovery, and consequence metrics.
+function collectEpicConflictMetrics(state) {
+  const runtime = state && state.epicConflict && typeof state.epicConflict === 'object'
+    ? state.epicConflict : {};
+  const stats = runtime.stats && typeof runtime.stats === 'object' ? runtime.stats : {};
+  const active = runtime.activeSiege && typeof runtime.activeSiege === 'object'
+    ? runtime.activeSiege : null;
+  return {
+    nemeses: Object.keys(runtime.nemeses && runtime.nemeses.byId || {}).length,
+    activeSiege: active ? 1 : 0,
+    activeStage: active ? String(active.stage || '') : '',
+    siegesStarted: Math.max(0, Number(stats.siegesStarted || 0)),
+    siegesCompleted: Math.max(0, Number(stats.siegesCompleted || 0)),
+    colonyVictories: Math.max(0, Number(stats.colonyVictories || 0)),
+    nemesisVictories: Math.max(0, Number(stats.nemesisVictories || 0)),
+    reconciliations: Math.max(0, Number(stats.reconciliations || 0)),
+    injuries: Math.max(0, Number(stats.injuries || 0)),
+    structuresDamaged: Math.max(0, Number(stats.structuresDamaged || 0)),
+    structuresRestored: Math.max(0, Number(stats.structuresRestored || 0)),
+    recoveryTicks: Math.max(0, Number(runtime.recoveryUntilTick || 0) - Number(state && state.tick || 0)),
+    stateBytes: Buffer.byteLength(JSON.stringify(runtime)),
+  };
+}
+
+// Capture bounded E8 landmark progression and district-condition metrics.
+function collectLandmarkMetrics(state) {
+  const owner = state && state.landmarks && typeof state.landmarks === 'object' ? state.landmarks : {};
+  const entries = Object.values(owner.byId && typeof owner.byId === 'object' ? owner.byId : {});
+  const stats = owner.stats && typeof owner.stats === 'object' ? owner.stats : {};
+  return {
+    founded: entries.filter((entry) => Number(entry && entry.stage || 0) > 0).length,
+    completed: entries.filter((entry) => Number(entry && entry.completedAtTick || 0) > 0).length,
+    stagesBuilt: Math.max(0, Number(stats.stagesBuilt || 0)),
+    damaged: Math.max(0, Number(stats.damaged || 0)),
+    abandoned: Math.max(0, Number(stats.abandoned || 0)),
+    restored: Math.max(0, Number(stats.restored || 0)),
+    stateBytes: Buffer.byteLength(JSON.stringify(owner)),
+  };
+}
+
 // Increment one string-keyed counter map.
 function incrementCounter(counterMap, keyRaw, amountRaw) {
   if (!counterMap || typeof counterMap !== 'object') {
@@ -643,10 +715,13 @@ function trackSchismDecreeTick(state, tracker) {
 }
 
 // Capture end-of-run metrics from simulation state.
-function collectRow(state, resources, seed, decreeTracker) {
+function collectRow(state, resources, seed, decreeTracker, storyTracker) {
   const dwarves = Array.isArray(state.dwarves) ? state.dwarves : [];
   const stockpile = state.stockpile || {};
   const underrealm = collectUnderrealmMetrics(state);
+  const worldLegacy = collectWorldLegacyMetrics(state);
+  const epicConflicts = collectEpicConflictMetrics(state);
+  const landmarks = collectLandmarkMetrics(state);
   const decree = decreeTracker && typeof decreeTracker === 'object'
     ? decreeTracker
     : createSchismDecreeTracker();
@@ -676,6 +751,11 @@ function collectRow(state, resources, seed, decreeTracker) {
     schismDecreeActiveTicks: Math.max(0, Number(decree.activeTicks || 0)),
     schismDecreeById: sortCounterMap(decree.byId),
     schismDecreeActiveTicksById: sortCounterMap(decree.activeTicksById),
+    storyDirector: getStoryDirectorCounterReport(storyTracker),
+    worldLegacy,
+    epicConflicts,
+    landmarks,
+    deaths: Math.max(0, Number(state.deathsCount || 0)),
     resources: resourceValues,
   };
 }
@@ -699,6 +779,46 @@ function summarizeRows(rows, resources) {
 
   const decreeById = sortCounterMap(decreeByIdTotals);
   const decreeActiveTicksById = sortCounterMap(decreeActiveTicksByIdTotals);
+  const storyDirector = summarizeStoryDirectorReports(
+    rows.map((row) => row && row.storyDirector),
+  );
+  const worldLegacy = {
+    completedCycles: average(rows, (row) => row.worldLegacy && row.worldLegacy.completedCycles),
+    lastCycleTicks: average(rows, (row) => row.worldLegacy && row.worldLegacy.lastCycleTicks),
+    records: average(rows, (row) => row.worldLegacy && row.worldLegacy.records),
+    identities: average(rows, (row) => row.worldLegacy && row.worldLegacy.identities),
+    places: average(rows, (row) => row.worldLegacy && row.worldLegacy.places),
+    memorials: average(rows, (row) => row.worldLegacy && row.worldLegacy.memorials),
+    institutions: average(rows, (row) => row.worldLegacy && row.worldLegacy.institutions),
+    echoes: average(rows, (row) => row.worldLegacy && row.worldLegacy.echoes),
+    nemeses: average(rows, (row) => row.worldLegacy && row.worldLegacy.nemeses),
+    modifierMagnitude: average(rows, (row) => row.worldLegacy && row.worldLegacy.modifierMagnitude),
+    evictedRecords: average(rows, (row) => row.worldLegacy && row.worldLegacy.evictedRecords),
+    stateBytes: average(rows, (row) => row.worldLegacy && row.worldLegacy.stateBytes),
+  };
+  const epicConflicts = {
+    nemeses: average(rows, (row) => row.epicConflicts && row.epicConflicts.nemeses),
+    activeSiege: average(rows, (row) => row.epicConflicts && row.epicConflicts.activeSiege),
+    siegesStarted: average(rows, (row) => row.epicConflicts && row.epicConflicts.siegesStarted),
+    siegesCompleted: average(rows, (row) => row.epicConflicts && row.epicConflicts.siegesCompleted),
+    colonyVictories: average(rows, (row) => row.epicConflicts && row.epicConflicts.colonyVictories),
+    nemesisVictories: average(rows, (row) => row.epicConflicts && row.epicConflicts.nemesisVictories),
+    reconciliations: average(rows, (row) => row.epicConflicts && row.epicConflicts.reconciliations),
+    injuries: average(rows, (row) => row.epicConflicts && row.epicConflicts.injuries),
+    structuresDamaged: average(rows, (row) => row.epicConflicts && row.epicConflicts.structuresDamaged),
+    structuresRestored: average(rows, (row) => row.epicConflicts && row.epicConflicts.structuresRestored),
+    recoveryTicks: average(rows, (row) => row.epicConflicts && row.epicConflicts.recoveryTicks),
+    stateBytes: average(rows, (row) => row.epicConflicts && row.epicConflicts.stateBytes),
+  };
+  const landmarks = {
+    founded: average(rows, (row) => row.landmarks && row.landmarks.founded),
+    completed: average(rows, (row) => row.landmarks && row.landmarks.completed),
+    stagesBuilt: average(rows, (row) => row.landmarks && row.landmarks.stagesBuilt),
+    damaged: average(rows, (row) => row.landmarks && row.landmarks.damaged),
+    abandoned: average(rows, (row) => row.landmarks && row.landmarks.abandoned),
+    restored: average(rows, (row) => row.landmarks && row.landmarks.restored),
+    stateBytes: average(rows, (row) => row.landmarks && row.landmarks.stateBytes),
+  };
   return {
     population: average(rows, (row) => row.population),
     morale: average(rows, (row) => row.morale),
@@ -725,6 +845,11 @@ function summarizeRows(rows, resources) {
       activeTicksById: decreeActiveTicksById,
       activeTicksByIdShare: buildCounterShareMap(decreeActiveTicksById, decreeActiveTicksTotal),
     },
+    storyDirector,
+    worldLegacy,
+    epicConflicts,
+    landmarks,
+    deaths: average(rows, (row) => row.deaths),
     resources: resourceAverages,
   };
 }
@@ -745,12 +870,14 @@ function runVariant(baseConfig, options, variant) {
       const runtime = buildFixedRuntime(variantConfig, options.width, options.height);
       const state = createInitialState(variantConfig, runtime);
       const decreeTracker = createSchismDecreeTracker();
+      const storyTracker = createStoryDirectorCounterTracker();
       const progressEvery = resolveProgressEvery(options.ticks, options.progressEvery);
       let nextProgressTick = progressEvery;
 
       for (let index = 0; index < options.ticks; index += 1) {
         stepState(state, variantConfig, runtime, null);
         trackSchismDecreeTick(state, decreeTracker);
+        trackStoryDirectorCounters(state, storyTracker);
         const tick = index + 1;
         if (options.progress === true && (tick >= nextProgressTick || tick === options.ticks)) {
           const elapsedMs = Date.now() - seedStartMs;
@@ -768,7 +895,13 @@ function runVariant(baseConfig, options, variant) {
         }
       }
 
-      const collected = collectRow(state, options.resources, seed, decreeTracker);
+      const collected = collectRow(
+        state,
+        options.resources,
+        seed,
+        decreeTracker,
+        storyTracker,
+      );
       writeProgress(
         options,
         `variant=${variant.label} seed=${seed} done tick=${collected.tick} pop=${collected.population} elapsed=${formatElapsedMs(Date.now() - seedStartMs)}`,
@@ -1189,6 +1322,39 @@ function buildMarkdownReport(report) {
     );
   }
   lines.push('');
+  lines.push('## World Legacy Summary');
+  lines.push('');
+  lines.push('| Variant | Cycles | Last cycle ticks | Records | Memorials | Institutions | Echoes | Nemeses | Modifier | State bytes | Deaths |');
+  lines.push('| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |');
+  for (const variant of report.variants) {
+    const legacy = variant.summary.worldLegacy || {};
+    lines.push(
+      `| ${variant.label} | ${formatNumber(legacy.completedCycles, 2)} | ${formatNumber(legacy.lastCycleTicks, 2)} | ${formatNumber(legacy.records, 2)} | ${formatNumber(legacy.memorials, 2)} | ${formatNumber(legacy.institutions, 2)} | ${formatNumber(legacy.echoes, 2)} | ${formatNumber(legacy.nemeses, 2)} | ${formatNumber(legacy.modifierMagnitude, 4)} | ${formatNumber(legacy.stateBytes, 1)} | ${formatNumber(variant.summary.deaths, 2)} |`,
+    );
+  }
+  lines.push('');
+  lines.push('## Epic Conflict Summary');
+  lines.push('');
+  lines.push('| Variant | Nemeses | Siege active | Started | Completed | Hold wins | Nemesis wins | Reconciled | Injuries | Damaged | Restored | Recovery ticks | State bytes |');
+  lines.push('| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |');
+  for (const variant of report.variants) {
+    const epic = variant.summary.epicConflicts || {};
+    lines.push(
+      `| ${variant.label} | ${formatNumber(epic.nemeses, 2)} | ${formatNumber(epic.activeSiege, 2)} | ${formatNumber(epic.siegesStarted, 2)} | ${formatNumber(epic.siegesCompleted, 2)} | ${formatNumber(epic.colonyVictories, 2)} | ${formatNumber(epic.nemesisVictories, 2)} | ${formatNumber(epic.reconciliations, 2)} | ${formatNumber(epic.injuries, 2)} | ${formatNumber(epic.structuresDamaged, 2)} | ${formatNumber(epic.structuresRestored, 2)} | ${formatNumber(epic.recoveryTicks, 2)} | ${formatNumber(epic.stateBytes, 1)} |`,
+    );
+  }
+  lines.push('');
+  lines.push('## Landmark Summary');
+  lines.push('');
+  lines.push('| Variant | Founded | Completed | Stages built | Damaged | Abandoned | Restored | State bytes |');
+  lines.push('| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |');
+  for (const variant of report.variants) {
+    const landmarks = variant.summary.landmarks || {};
+    lines.push(
+      `| ${variant.label} | ${formatNumber(landmarks.founded, 2)} | ${formatNumber(landmarks.completed, 2)} | ${formatNumber(landmarks.stagesBuilt, 2)} | ${formatNumber(landmarks.damaged, 2)} | ${formatNumber(landmarks.abandoned, 2)} | ${formatNumber(landmarks.restored, 2)} | ${formatNumber(landmarks.stateBytes, 1)} |`,
+    );
+  }
+  lines.push('');
   lines.push('## Underrealm Summary');
   lines.push('');
   lines.push('| Variant | Depth | Champions | Failed Expeditions | Blocked Dispatches | Frontier Contested | Readiness Score | Hero Prom | Hero Loss | Hero Active | Hero Surv |');
@@ -1196,6 +1362,17 @@ function buildMarkdownReport(report) {
   for (const variant of report.variants) {
     lines.push(
       `| ${variant.label} | ${formatNumber(variant.summary.underrealmDepth, 2)} | ${formatNumber(variant.summary.underrealmChampions, 2)} | ${formatNumber(variant.summary.underrealmFailedExpeditions, 2)} | ${formatNumber(variant.summary.underrealmBlockedDispatches, 2)} | ${formatNumber(variant.summary.underrealmFrontierContested, 2)} | ${formatNumber(variant.summary.underrealmReadinessScore, 3)} | ${formatNumber(variant.summary.underrealmHeroPromotions, 2)} | ${formatNumber(variant.summary.underrealmHeroLosses, 2)} | ${formatNumber(variant.summary.underrealmHeroActive, 2)} | ${formatNumber(variant.summary.underrealmHeroSurvivals, 2)} |`,
+    );
+  }
+  lines.push('');
+  lines.push('## Story Director Summary');
+  lines.push('');
+  lines.push('| Variant | Considered | Selected | Suppressed | Preempted | Focus coverage | Critical focus | Legendary focus | Priority context | Sagas opened | Resolved | Failed | Archived | Resolution rate |');
+  lines.push('| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |');
+  for (const variant of report.variants) {
+    const story = variant && variant.summary && variant.summary.storyDirector || {};
+    lines.push(
+      `| ${variant.label} | ${formatNumber(story.considered, 0)} | ${formatNumber(story.selected, 0)} | ${formatNumber(story.suppressed, 0)} | ${formatNumber(story.preempted, 0)} | ${formatPercent(story.focusCoverage, 1)} | ${formatPercent(story.criticalFocusCoverage, 1)} | ${formatPercent(story.legendaryFocusCoverage, 1)} | ${formatPercent(story.priorityContextCoverage, 1)} | ${formatNumber(story.sagasOpened, 0)} | ${formatNumber(story.sagasResolved, 0)} | ${formatNumber(story.sagasFailed, 0)} | ${formatNumber(story.sagasArchived, 0)} | ${formatPercent(story.sagaResolutionRate, 1)} |`,
     );
   }
   const hasSchismDecreeTelemetry = report.variants.some((variant) => {
@@ -1341,6 +1518,19 @@ function printTable(report) {
       `underHeroSurv ${formatNumber(variant.summary.underrealmHeroSurvivals, 2)}, ` +
       formatResources(variant.summary.resources, report.meta.resources);
     process.stdout.write(`${summaryLine}\n`);
+
+    const landmarkSummary = variant.summary.landmarks || {};
+    process.stdout.write(
+      `landmarks: founded ${formatNumber(landmarkSummary.founded, 2)}, completed ${formatNumber(landmarkSummary.completed, 2)}, stages ${formatNumber(landmarkSummary.stagesBuilt, 2)}, damaged ${formatNumber(landmarkSummary.damaged, 2)}, restored ${formatNumber(landmarkSummary.restored, 2)}, bytes ${formatNumber(landmarkSummary.stateBytes, 1)}\n`,
+    );
+
+    const story = variant && variant.summary && variant.summary.storyDirector || {};
+    process.stdout.write(
+      `story: selected ${formatNumber(story.selected, 0)}/${formatNumber(story.considered, 0)} (${formatPercent(story.focusCoverage, 1)}), suppressed ${formatNumber(story.suppressed, 0)}, preempted ${formatNumber(story.preempted, 0)}, critical ${formatNumber(story.criticalSelected, 0)}/${formatNumber(story.criticalConsidered, 0)} (${formatPercent(story.criticalFocusCoverage, 1)}), legendary ${formatNumber(story.legendarySelected, 0)}/${formatNumber(story.legendaryConsidered, 0)} (${formatPercent(story.legendaryFocusCoverage, 1)}), priority context ${formatNumber(story.priorityContextCovered, 0)}/${formatNumber(story.priorityConsidered, 0)} (${formatPercent(story.priorityContextCoverage, 1)})\n`,
+    );
+    process.stdout.write(
+      `sagas: opened ${formatNumber(story.sagasOpened, 0)}, resolved ${formatNumber(story.sagasResolved, 0)}, failed ${formatNumber(story.sagasFailed, 0)}, archived ${formatNumber(story.sagasArchived, 0)}, evicted ${formatNumber(story.sagasEvicted, 0)}, terminal/opened ${formatPercent(story.sagaResolutionRate, 1)}\n`,
+    );
 
     const decrees = variant
       && variant.summary
@@ -1491,6 +1681,7 @@ function runBenchmark(options) {
     };
   return {
     meta: {
+      reportSchemaVersion: BENCHMARK_REPORT_SCHEMA_VERSION,
       ticks: options.ticks,
       seeds: options.seeds,
       configPath: options.configPath,

@@ -556,6 +556,22 @@ Weather:
 - `weather.states.<type>.irrigation`: irrigation multiplier.
 - `weather.seasonBias.<season>.<type>`: seasonal weight bias for a weather type.
 
+Landmark scenarios:
+
+- `landmarks.enabled`: disable monumental construction when a training scenario must isolate the
+  pre-E8 economy.
+- `landmarks.definitions.<id>.build_min_population`: lower only in focused short scenarios that must
+  observe stage progression before normal population growth.
+- `landmarks.definitions.<id>.build_min_cycles`: delay a landmark until later cycles without adding
+  a policy input.
+- `landmarks.stage_interval_ticks`: shorten only in focused progression scenarios; production uses
+  the interval to prevent monumental work from monopolizing normal construction.
+- `landmarks.definitions.<id>.build_min_resources.<resource>`: tune gather-first reserves for a
+  scenario; keep normal training profiles aligned with production defaults.
+- `landmarks.definitions.<id>.stages[].build_ticks` and `.build_cost`: accelerate deterministic
+  landmark validators. Changing these in model-training profiles changes resource/work demand but
+  not observation/action shapes.
+
 Needs and consumption:
 
 - `needs.initial.<need>`: initial need values (0..1).
@@ -598,3 +614,6 @@ Symbols:
 - `symbols.field`: field symbol.
 - `symbols.temple_of_ancestors`: temple center symbol.
 - `symbols.temple_of_ancestors_outline`: temple footprint symbol.
+- `symbols.landmark_great_hall`, `symbols.landmark_warrior_arena`,
+  `symbols.landmark_legendary_forge`, `symbols.landmark_gate_fortress`, and
+  `symbols.landmark_ancestor_walk`: unique landmark center symbols exposed to UI consumers.

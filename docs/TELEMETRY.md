@@ -42,12 +42,13 @@ Lifecycle-wise, the panel follows runtime sizing and keeps content constrained t
 
 ### Pages
 
-The Data Center has 4 pages:
+The Data Center has 5 pages:
 
 1. `Dashboard`
 2. `Overview + Deep`
 3. `Economy`
 4. `Warrior League`
+5. `Story Director`
 
 ### Panel sizing
 
@@ -93,10 +94,11 @@ This produces canonical section rows for:
 - `Endgame`
 - `Deep Signals`
 - `Warrior League`
+- `Story Director`
 
 ## 3.2 Data Center panel (`src/telemetry/telemetry_panel.js`)
 
-The panel layer adds operator ergonomics: paging, high-level summary blocks, trend history, context lenses, and inline status highlighting. It does not replace section telemetry; it composes it into decision-friendly views. This is why the same run can be read at multiple zoom levels, from executive summary (Dashboard) to root-cause deep dive (`Overview + Deep`, `Economy`, `Warrior League`).
+The panel layer adds operator ergonomics: paging, high-level summary blocks, trend history, context lenses, and inline status highlighting. It does not replace section telemetry; it composes it into decision-friendly views. This is why the same run can be read at multiple zoom levels, from executive summary (Dashboard) to root-cause deep dive (`Overview + Deep`, `Economy`, `Warrior League`, `Story Director`).
 
 Panel pipeline:
 
@@ -546,6 +548,7 @@ Rows:
 - Arcane structures counts
 - Temple stage status
 - Temple construction progress
+- Landmark founded/completed totals and per-institution stage/condition status
 - Tool upgrade level
 - Structure level summary (mine/sawmill/brewery/mithril forge)
 
@@ -865,6 +868,7 @@ For contributors, this section is the fast map of where telemetry truth is produ
 Main sources:
 
 - `src/telemetry/telemetry.js`
+- `src/telemetry/story_director.js`
 - `src/telemetry/telemetry_panel.js`
 - `src/render/colors.js`
 
@@ -881,6 +885,23 @@ When adding a telemetry metric, verify:
 3. Labels are readable and compact
 4. `telemetry_panel.js` and section telemetry stay coherent
 5. Documentation stays synchronized
+
+Story Director telemetry has one extra rule: it must remain a read-only observer of `state.story`.
+The Data Center may show current focus, current saga, cooldowns, decision reasons, priority coverage,
+suppression totals, and saga outcomes, but it must not replay events, change focus selection, or alter
+presentation timing. Headless benchmark reports use the same helper module to accumulate monotonic
+coverage and saga-resolution counters across cycle resets.
+
+The Story Director page also carries three read-only E7 rows from `state.epicConflict`: nemesis
+registry/active counts, current siege stage plus recovery ticks, and cumulative hold-win/nemesis-win/
+reconciliation outcomes. These rows diagnose the story context only; siege advancement, battle
+resolution, and repair remain simulation responsibilities. Headless reports expose the same bounded
+counts plus injuries, damaged/restored structures, and serialized conflict-state bytes.
+
+The Structures page carries read-only E8 landmark rows from `state.landmarks`: founded/completed
+totals plus compact progress and exceptional-condition summaries for each configured institution.
+Headless reports expose the same bounded stage, damage/restoration, and serialized-state metrics.
+Telemetry never schedules landmark work or changes district condition state.
 
 ## 15) Final mental model 🧭
 

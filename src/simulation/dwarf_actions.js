@@ -1,7 +1,12 @@
 'use strict';
 
 const { clamp } = require('../utils');
-const { pushEvent } = require('./events');
+const {
+  buildSecondaryActor,
+  buildSecondaryLocation,
+  buildSettlementActor,
+  emitSecondaryEvent,
+} = require('./secondary_events');
 const {
   moveTowards,
   moveWithDetour,
@@ -32,6 +37,8 @@ const {
 const { getAlchemyMultiplier } = require('./alchemy');
 const { findHerdById } = require('./wildlife');
 const { completeTempleStageBuild } = require('./temple');
+const { completeLandmarkStageBuild } = require('./landmarks');
+const { buildPlaceLocation, resolvePlace } = require('../place_identity');
 
 // Process the dwarf's per-tick action (panic, job, or idle).
 function processDwarfAction(dwarf, state, config, runtime) {
@@ -227,7 +234,8 @@ function processDwarfJob(dwarf, state, config, runtime) {
 
   if (job.type === 'build') {
     const isTempleBuild = job.structureType === 'temple_of_ancestors';
-    if (!isTempleBuild && !isBuildableCell(state, runtime, targetX, targetY)) {
+    const isLandmarkBuild = Boolean(job.landmarkId);
+    if (!isTempleBuild && !isLandmarkBuild && !isBuildableCell(state, runtime, targetX, targetY)) {
       removeJob(state, job.id);
       dwarf.job = null;
       return;
@@ -456,19 +464,56 @@ function processDwarfJob(dwarf, state, config, runtime) {
   }
   if (job.type === 'build') {
     const type = job.structureType || 'house';
+    if (job.landmarkId) {
+      completeLandmarkStageBuild(state, config, job, dwarf);
+      applyClanBuildCostPenalty(dwarf, state, config, job);
+      removeJob(state, job.id);
+      dwarf.job = null;
+      return;
+    }
     if (type === 'temple_of_ancestors') {
       const result = completeTempleStageBuild(state, config, job);
       if (result && result.completed) {
         const stageLabel = result.stageName
           ? `Temple: Stage ${result.stage}/${result.maxStage} ${result.stageName}`
           : `Temple: Stage ${result.stage}/${result.maxStage}`;
-        pushEvent(state, config, stageLabel);
+        emitDevelopmentEvent(state, config, dwarf, {
+          type: 'temple.stage_completed',
+          category: 'myth',
+          message: stageLabel,
+          subjectKind: 'structure',
+          subjectId: 'temple_of_ancestors',
+          subjectLabel: 'Temple of Ancestors',
+          subject: targetStructure,
+          metric: 'stage',
+          value: result.stage,
+        });
         if (result.fullyCompleted) {
           const prestige = Math.round(Number(result.completionPrestige || 0));
           if (prestige > 0) {
-            pushEvent(state, config, `Temple complete: +${prestige} prestige`);
+            emitDevelopmentEvent(state, config, dwarf, {
+              type: 'temple.completed',
+              category: 'myth',
+              message: `Temple complete: +${prestige} prestige`,
+              subjectKind: 'structure',
+              subjectId: 'temple_of_ancestors',
+              subjectLabel: 'Temple of Ancestors',
+              subject: targetStructure,
+              metric: 'prestige',
+              value: prestige,
+            });
           } else {
-            pushEvent(state, config, 'Temple complete: Ancestors honored');
+            emitDevelopmentEvent(state, config, dwarf, {
+              type: 'temple.completed',
+              category: 'myth',
+              message: 'Temple complete: Ancestors honored',
+              subjectKind: 'structure',
+              subjectId: 'temple_of_ancestors',
+              subjectLabel: 'Temple of Ancestors',
+              subject: targetStructure,
+              metric: 'completed',
+              value: true,
+            });
           }
         }
       }
@@ -494,7 +539,18 @@ function processDwarfJob(dwarf, state, config, runtime) {
       );
       state.nodes.push(node);
     }
-    pushEvent(state, config, `Build: ${structure.id}`);
+    emitDevelopmentEvent(state, config, dwarf, {
+      type: 'construction.structure_completed',
+      category: 'economy',
+      message: `Build: ${structure.id}`,
+      subjectKind: 'structure',
+      subjectId: structure.id,
+      subjectLabel: type,
+      subject: structure,
+      metric: 'level',
+      value: Number(structure.level || 1),
+      consequenceKind: 'create',
+    });
     applyClanBuildCostPenalty(dwarf, state, config, job);
     removeJob(state, job.id);
     dwarf.job = null;
@@ -520,7 +576,17 @@ function processDwarfJob(dwarf, state, config, runtime) {
     house.capacity = getHouseCapacity(houseConfig, nextLevel, house.capacity);
     const symbols = config.symbols || {};
     house.symbol = symbols.house || house.symbol;
-    pushEvent(state, config, `Upgrade: ${house.id} L${nextLevel}`);
+    emitDevelopmentEvent(state, config, dwarf, {
+      type: 'construction.house_upgraded',
+      category: 'economy',
+      message: `Upgrade: ${house.id} L${nextLevel}`,
+      subjectKind: 'structure',
+      subjectId: house.id,
+      subjectLabel: 'House',
+      subject: house,
+      metric: 'level',
+      value: nextLevel,
+    });
     applyClanBuildCostPenalty(dwarf, state, config, job);
     removeJob(state, job.id);
     dwarf.job = null;
@@ -535,7 +601,17 @@ function processDwarfJob(dwarf, state, config, runtime) {
     tools.level = nextLevel;
     tools.maxLevel = maxLevel;
     state.tools = tools;
-    pushEvent(state, config, `Tools: L${nextLevel}`);
+    emitDevelopmentEvent(state, config, dwarf, {
+      type: 'construction.tools_upgraded',
+      category: 'economy',
+      message: `Tools: L${nextLevel}`,
+      subjectKind: 'institution',
+      subjectId: 'settlement_tools',
+      subjectLabel: 'Settlement Tools',
+      subject: null,
+      metric: 'level',
+      value: nextLevel,
+    });
     applyClanBuildCostPenalty(dwarf, state, config, job);
     removeJob(state, job.id);
     dwarf.job = null;
@@ -553,7 +629,17 @@ function processDwarfJob(dwarf, state, config, runtime) {
     const current = Math.max(1, Number(structure.level || 1));
     const nextLevel = Math.min(maxLevel, Number(job.nextLevel || current + 1));
     structure.level = nextLevel;
-    pushEvent(state, config, `Upgrade: ${structure.id} L${nextLevel}`);
+    emitDevelopmentEvent(state, config, dwarf, {
+      type: 'construction.structure_upgraded',
+      category: 'economy',
+      message: `Upgrade: ${structure.id} L${nextLevel}`,
+      subjectKind: 'structure',
+      subjectId: structure.id,
+      subjectLabel: structure.type,
+      subject: structure,
+      metric: 'level',
+      value: nextLevel,
+    });
     applyClanBuildCostPenalty(dwarf, state, config, job);
     removeJob(state, job.id);
     dwarf.job = null;
@@ -581,8 +667,22 @@ function processDwarfJob(dwarf, state, config, runtime) {
     const penaltyChance = clamp(Number(riskConfig.penalty_chance ?? 0), 0, 1);
     const roll = Math.random();
     if (roll < deathChance) {
-      pushEvent(state, config, `Hunt failed: ${dwarf.id} fell`);
+      const fallenDwarf = { ...dwarf };
       applyHuntDeath(state, dwarf);
+      emitDevelopmentEvent(state, config, fallenDwarf, {
+        type: 'wildlife.hunt_death',
+        category: 'combat',
+        message: `Hunt failed: ${dwarf.id} fell`,
+        subjectKind: 'wildlife',
+        subjectId: String(herd.id),
+        subjectLabel: 'Roaming Herd',
+        subject: herd,
+        metric: 'outcome',
+        value: 'hunter_death',
+        consequenceKind: 'death',
+        consequenceTargetKind: 'dwarf',
+        consequenceTargetId: String(fallenDwarf.id),
+      });
       return;
     }
     if (roll < deathChance + penaltyChance) {
@@ -986,6 +1086,48 @@ function getStructureLevelMultiplier(structure, structConfig) {
   const progress = clamp((level - 1) / (maxLevel - 1), 0, 1);
   const bonus = minBonus + (maxBonus - minBonus) * Math.pow(progress, exponent);
   return 1 + bonus;
+}
+
+// Emit a committed construction, upgrade, temple, or hunt fact.
+function emitDevelopmentEvent(state, config, dwarf, details) {
+  const subjectId = String(details && details.subjectId || 'development');
+  const subjectKind = String(details && details.subjectKind || 'institution');
+  const targetKind = String(details && details.consequenceTargetKind || subjectKind);
+  const targetId = String(details && details.consequenceTargetId || subjectId);
+  const place = resolvePlace(state, subjectId);
+  const subjectLabel = place ? place.name : details.subjectLabel;
+  const message = place
+    ? String(details.message || '').replace(/Temple(?: of Ancestors)?/g, place.name)
+    : details.message;
+  return emitSecondaryEvent(state, config, {
+    type: details.type,
+    category: details.category,
+    message,
+    actors: [
+      buildSecondaryActor(subjectKind, subjectId, 'primary', subjectLabel),
+      buildSecondaryActor('dwarf', dwarf && dwarf.id || 'unknown_dwarf', 'secondary'),
+      buildSettlementActor('beneficiary'),
+    ],
+    location: place
+      ? buildPlaceLocation(state, subjectId)
+      : buildSecondaryLocation(details.subject || dwarf, details.subjectLabel || null),
+    causes: [{
+      kind: 'action',
+      ref: 'dwarf_actions.job_completion',
+      metric: 'worker_id',
+      value: String(dwarf && dwarf.id || 'unknown_dwarf'),
+    }],
+    consequences: [{
+      kind: details.consequenceKind || 'status',
+      targetKind,
+      targetId,
+      metric: details.metric === undefined ? null : details.metric,
+      value: details.value === undefined ? null : details.value,
+      unit: null,
+    }],
+    source: 'dwarf_actions',
+    tags: [details.type.split('.')[0], details.type.split('.').slice(1).join('_')],
+  });
 }
 
 module.exports = { processDwarfAction };

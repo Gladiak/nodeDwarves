@@ -1,6 +1,9 @@
 'use strict';
 
-const { pushEvent } = require('./events');
+const {
+  buildSecondaryActor,
+  emitSecondaryEvent,
+} = require('./secondary_events');
 
 // Advance the weather timer and pick a new weather state when needed.
 function updateWeather(state, config) {
@@ -24,6 +27,7 @@ function updateWeather(state, config) {
     return;
   }
 
+  const previousType = String(state.weather.type || 'clear');
   const nextType = pickWeatherType(state, config);
   const duration = getWeatherDuration(weatherConfig, nextType);
   state.weather = {
@@ -31,7 +35,28 @@ function updateWeather(state, config) {
     ticksRemaining: duration,
     duration,
   };
-  pushEvent(state, config, `Weather: ${formatWeatherName(state.weather.type)}`);
+  emitSecondaryEvent(state, config, {
+    type: 'weather.changed',
+    category: 'world',
+    message: `Weather: ${formatWeatherName(state.weather.type)}`,
+    actors: [buildSecondaryActor('system', 'weather', 'primary', 'Weather')],
+    causes: [{
+      kind: 'threshold',
+      ref: 'weather.duration',
+      metric: 'previous_type',
+      value: previousType,
+    }],
+    consequences: [{
+      kind: 'status',
+      targetKind: 'world',
+      targetId: 'surface_world',
+      metric: 'weather',
+      value: state.weather.type,
+      unit: null,
+    }],
+    source: 'weather',
+    tags: ['weather', state.weather.type],
+  });
 }
 
 // Format a weather id for player-facing event strings.

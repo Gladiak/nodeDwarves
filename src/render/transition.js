@@ -76,7 +76,13 @@ function buildTransitionPanel(state, config, runtime) {
   const innerHeight = Math.max(1, height - 2);
 
   const message = String(transition.message || 'A new journey begins.');
-  const lines = buildTransitionLines(message, contentWidth, innerHeight);
+  const lines = buildTransitionLines(
+    message,
+    transition.chronicleSummary,
+    transition.legacySummary,
+    contentWidth,
+    innerHeight,
+  );
   const panelLines = buildPanelBox(lines, innerWidth, contentWidth);
 
   const x = Math.max(0, Math.floor((gridWidth - width) / 2));
@@ -92,7 +98,7 @@ function buildTransitionPanel(state, config, runtime) {
 }
 
 // Build inner lines for the transition panel.
-function buildTransitionLines(message, width, height) {
+function buildTransitionLines(message, chronicleSummary, legacySummary, width, height) {
   const maxContent = Math.max(1, Number(height || 1));
   const content = [];
 
@@ -103,6 +109,35 @@ function buildTransitionLines(message, width, height) {
   const remaining = Math.max(1, maxContent - content.length);
   for (let i = 0; i < wrapped.length && i < remaining; i += 1) {
     pushLine(content, wrapped[i], width);
+  }
+
+  if (chronicleSummary && content.length < maxContent) {
+    content.push({ text: '', colorKey: null });
+    pushLine(
+      content,
+      `CYCLE LEGACY · ${Number(chronicleSummary.claimCount || 0)} claims · ${Number(chronicleSummary.chapterCount || 0)} chapters`,
+      width,
+      'hud_header',
+    );
+    for (const highlight of Array.isArray(chronicleSummary.highlights) ? chronicleSummary.highlights : []) {
+      const legacySlots = legacySummary ? 1 : 0;
+      if (content.length >= maxContent - legacySlots) break;
+      const summaryLine = `${highlight.chapter}: ${highlight.text}`;
+      const summaryWrapped = wrapLine(summaryLine, width);
+      for (const line of summaryWrapped) {
+        if (content.length >= maxContent - legacySlots) break;
+        pushLine(content, line, width);
+      }
+    }
+  }
+
+  if (legacySummary && content.length < maxContent) {
+    pushLine(
+      content,
+      `WORLD LEGACY · ${Number(legacySummary.records || 0)} records · ${Number(legacySummary.echoes || 0)} echoes · ${Number(legacySummary.memorials || 0)} memorials · ${Number(legacySummary.nemeses || 0)} nemeses`,
+      width,
+      'hud_header',
+    );
   }
 
   while (content.length < maxContent) {
