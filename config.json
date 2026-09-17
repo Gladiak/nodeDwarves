@@ -605,6 +605,15 @@
         "sawmill": "\u001b[33m",
         "watchtower": "\u001b[37m",
         "temple_of_ancestors": "\u001b[38;5;220m",
+        "landmark_great_hall": "\u001b[38;5;221m",
+        "landmark_warrior_arena": "\u001b[38;5;203m",
+        "landmark_legendary_forge": "\u001b[38;5;208m",
+        "landmark_gate_fortress": "\u001b[38;5;117m",
+        "landmark_ancestor_walk": "\u001b[38;5;183m",
+        "landmark_construction": "\u001b[38;5;214m",
+        "landmark_damaged": "\u001b[91m",
+        "landmark_abandoned": "\u001b[38;5;244m",
+        "landmark_restoration": "\u001b[92m",
         "brewery": "\u001b[35m",
         "beast": "\u001b[91m",
         "alert_warning": "\u001b[93m",
@@ -1065,6 +1074,84 @@
       "rescue_min_hero_score": 0.62,
       "rescue_defense_bonus": 0.16,
       "reconciliation_hostility_max": 0.28
+    }
+  },
+  "landmarks": {
+    "enabled": true,
+    "max_active": 5,
+    "restoration_ticks": 160,
+    "stage_interval_ticks": 180,
+    "abandonment_population": 8,
+    "prosperity_stockpile_ratio": 0.75,
+    "districts": { "enabled": true, "symbol": ":" },
+    "condition_symbols": { "construction": "%", "damaged": "x", "abandoned": "?", "restoration": "~" },
+    "condition_color_keys": {
+      "construction": "landmark_construction",
+      "damaged": "landmark_damaged",
+      "abandoned": "landmark_abandoned",
+      "restoration": "landmark_restoration"
+    },
+    "definitions": {
+      "great_hall": {
+        "enabled": true, "order": 1, "label": "Great Hall", "short_label": "Hall",
+        "symbol": "G", "outline_symbol": "+", "color_key": "landmark_great_hall",
+        "build_min_population": 22, "build_min_cycles": 0,
+        "build_min_resources": { "food": 0.82, "water": 0.82, "wood": 0.78, "stone": 0.78 },
+        "target_distance": 10,
+        "stages": [
+          { "name": "Council Stone", "radius": 0, "build_ticks": 70, "build_cost": { "wood": 12, "stone": 16 } },
+          { "name": "Archive Wing", "radius": 1, "build_ticks": 100, "build_cost": { "wood": 16, "stone": 20, "iron": 4 } },
+          { "name": "Cycle Hall", "radius": 2, "build_ticks": 130, "build_cost": { "wood": 20, "stone": 26, "iron": 6 } }
+        ]
+      },
+      "warrior_arena": {
+        "enabled": true, "order": 2, "label": "Warrior Arena", "short_label": "Arena",
+        "symbol": "A", "outline_symbol": "o", "color_key": "landmark_warrior_arena",
+        "build_min_population": 26, "build_min_cycles": 0,
+        "build_min_resources": { "food": 0.82, "water": 0.82, "wood": 0.8, "stone": 0.8 },
+        "target_distance": 13,
+        "stages": [
+          { "name": "Training Ring", "radius": 0, "build_ticks": 75, "build_cost": { "wood": 14, "stone": 12 } },
+          { "name": "Champion Stands", "radius": 1, "build_ticks": 105, "build_cost": { "wood": 18, "stone": 18, "iron": 5 } },
+          { "name": "Tournament Arena", "radius": 2, "build_ticks": 140, "build_cost": { "wood": 22, "stone": 24, "iron": 7 } }
+        ]
+      },
+      "legendary_forge": {
+        "enabled": true, "order": 3, "label": "Legendary Forge", "short_label": "Forge",
+        "symbol": "F", "outline_symbol": "#", "color_key": "landmark_legendary_forge",
+        "build_min_population": 30, "build_min_cycles": 0,
+        "build_min_resources": { "food": 0.84, "water": 0.84, "wood": 0.82, "stone": 0.82, "iron": 0.65 },
+        "target_distance": 15,
+        "stages": [
+          { "name": "Anvil Vault", "radius": 0, "build_ticks": 85, "build_cost": { "wood": 10, "stone": 16, "iron": 5 } },
+          { "name": "Lineage Hearth", "radius": 1, "build_ticks": 115, "build_cost": { "wood": 14, "stone": 20, "iron": 7 } },
+          { "name": "Legendary Crucible", "radius": 2, "build_ticks": 150, "build_cost": { "wood": 16, "stone": 26, "iron": 9 } }
+        ]
+      },
+      "gate_fortress": {
+        "enabled": true, "order": 4, "label": "Gate Fortress", "short_label": "Gate",
+        "symbol": "H", "outline_symbol": "|", "color_key": "landmark_gate_fortress",
+        "build_min_population": 28, "build_min_cycles": 0,
+        "build_min_resources": { "food": 0.8, "water": 0.8, "wood": 0.78, "stone": 0.8, "iron": 0.6 },
+        "target_distance": 18,
+        "stages": [
+          { "name": "Gatehouse", "radius": 0, "build_ticks": 80, "build_cost": { "wood": 12, "stone": 18, "iron": 4 } },
+          { "name": "Bastion", "radius": 1, "build_ticks": 110, "build_cost": { "wood": 14, "stone": 24, "iron": 6 } },
+          { "name": "Fortress Ring", "radius": 2, "build_ticks": 145, "build_cost": { "wood": 18, "stone": 30, "iron": 8 } }
+        ]
+      },
+      "ancestor_walk": {
+        "enabled": true, "order": 5, "label": "Ancestor Walk", "short_label": "Walk",
+        "symbol": "N", "outline_symbol": ".", "color_key": "landmark_ancestor_walk",
+        "build_min_population": 20, "build_min_cycles": 0,
+        "build_min_resources": { "food": 0.8, "water": 0.8, "wood": 0.75, "stone": 0.78 },
+        "target_distance": 16,
+        "stages": [
+          { "name": "Memorial Path", "radius": 0, "build_ticks": 65, "build_cost": { "wood": 8, "stone": 14 } },
+          { "name": "Ancestor Stones", "radius": 1, "build_ticks": 95, "build_cost": { "wood": 10, "stone": 18, "iron": 3 } },
+          { "name": "Necropolis Walk", "radius": 2, "build_ticks": 125, "build_cost": { "wood": 12, "stone": 24, "iron": 4 } }
+        ]
+      }
     }
   },
   "wildlife": {
@@ -7110,6 +7197,11 @@
     "watchtower": "┼",
     "temple_of_ancestors": "A",
     "temple_of_ancestors_outline": "+",
+    "landmark_great_hall": "G",
+    "landmark_warrior_arena": "A",
+    "landmark_legendary_forge": "F",
+    "landmark_gate_fortress": "H",
+    "landmark_ancestor_walk": "N",
     "underrealm_gate": "@",
     "underrealm_lift_up": "↑",
     "underrealm_lift_down": "↓",

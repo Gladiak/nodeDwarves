@@ -548,6 +548,7 @@ Rows:
 - Arcane structures counts
 - Temple stage status
 - Temple construction progress
+- Landmark founded/completed totals and per-institution stage/condition status
 - Tool upgrade level
 - Structure level summary (mine/sawmill/brewery/mithril forge)
 
@@ -896,6 +897,11 @@ registry/active counts, current siege stage plus recovery ticks, and cumulative 
 reconciliation outcomes. These rows diagnose the story context only; siege advancement, battle
 resolution, and repair remain simulation responsibilities. Headless reports expose the same bounded
 counts plus injuries, damaged/restored structures, and serialized conflict-state bytes.
+
+The Structures page carries read-only E8 landmark rows from `state.landmarks`: founded/completed
+totals plus compact progress and exceptional-condition summaries for each configured institution.
+Headless reports expose the same bounded stage, damage/restoration, and serialized-state metrics.
+Telemetry never schedules landmark work or changes district condition state.
 
 ## 15) Final mental model 🧭
 

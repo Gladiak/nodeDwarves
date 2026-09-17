@@ -8,6 +8,7 @@ const {
 } = require('./terrain');
 const { randomBetween } = require('./random');
 const { isTempleFootprintCell } = require('./temple');
+const { isLandmarkFootprintCell } = require('./landmarks');
 const {
   getResourceNodeRatio,
   getStockpileRatio,
@@ -3034,6 +3035,9 @@ function isBuildableCell(state, runtime, x, y) {
   }
   const lastConfig = state && state.lastConfig ? state.lastConfig : {};
   if (isTempleFootprintCell(state, lastConfig, x, y)) {
+    return false;
+  }
+  if (isLandmarkFootprintCell(state, lastConfig, x, y)) {
     return false;
   }
   if (!isSpawnableTile(state, x, y)) {

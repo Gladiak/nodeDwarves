@@ -38,6 +38,10 @@ Chaos, strategy, and tiny bearded logistics experts included. 🧔🧱
   transitions; surface nemeses can drive readable warning → approach → demand → breach → battle →
   aftermath sieges with guarded losses and visible recovery. Independent deep threats may still
   overlap, because a dwarven epic should occasionally produce a genuinely terrifying bad year. ☠️
+- 🏰 Five unique settlement landmarks grow through visible stages: Great Hall, Warrior Arena,
+  Legendary Forge, Gate Fortress, and Ancestor Walk. Their reserved footprints blossom into compact
+  districts, while construction, prosperity, siege damage, abandonment, and restoration remain
+  readable on the live map and exported maps.
 - 👁️ When population exceeds the map cap, urgent story actors, endangered dwarves, champions, saga
   protagonists, and recent incident actors keep their place on-screen through a stable RNG-free
   priority selector.
@@ -197,6 +201,7 @@ npm run debug:clean
 - 🎞️ `src/render/story_ribbon.js`: responsive read-only presentation of the active story focus.
 - ✨ `src/render/story_focus_overlay.js`: bounded actor/location emphasis and cross-layer focus cues.
 - 🛡️ `src/render/epic_conflicts.js`: active nemesis-front and damaged-structure map overlays.
+- 🏰 `src/render/landmarks.js`: evolving landmark footprints and compact district-state markers.
 - ⏱️ `src/runtime/time_controls.js`: presentation-only speed, pause, step, and major-event protection controller.
 - 📊 `src/telemetry/`: Data Center sections and metric builders.
   - `src/telemetry/story_director.js`: Story Director telemetry rows and headless report counters.
@@ -211,11 +216,13 @@ npm run debug:clean
 - 🔁 `scripts/validate_world_legacy.js`: deterministic two-cycle/five-cycle growth and compounding validator.
 - ⚑ `scripts/test_epic_conflict_contracts.js`: deterministic E7 identity, lifecycle, branch, legacy, rendering, bounds, and PPO-isolation gate.
 - 🛡️ `scripts/validate_epic_conflicts.js`: full-siege, collapse-guard, and repeated-siege recovery validator.
+- 🏰 `scripts/test_landmark_contracts.js`: E8 progression, placement, rendering, state, and PPO-isolation gate.
+- 🗺️ `scripts/validate_landmarks.js`: multi-seed/size landmark growth and state-bound validator.
 - 🔎 `scripts/audit_narrative_producers.js`: zero-legacy producer audit used by `npm test`.
 - 🐍 `python/`: PPO training and rollout tooling.
 - 🗂️ `benchmark_cache/`: cached deterministic benchmark baseline.
 - 📸 `debug/epic_e4_time_controls_{120,72}.png`: retained full/narrow E4 presentation evidence.
-- 🧪 `debug/headless_benchmark_{candidate,diff}.{json,md}`: latest canonical balance, legacy, and epic-conflict evidence.
+- 🧪 `debug/headless_benchmark_{candidate,diff}.{json,md}`: latest canonical balance, legacy, epic-conflict, and landmark evidence.
 - 📦 `regression/baselines/`: durable regression reference profiles.
 - 📜 `chronicles/`: generated Chronicle exports (git-ignored).
 - 📚 `docs/`: manuals, tuning references, the Epic Evolution workbook, and the narrative event contract.

@@ -1,6 +1,6 @@
 # Promotion Report
 
-- Timestamp (UTC): `2026-09-16T08:58:14.032196+00:00`
+- Timestamp (UTC): `2026-09-16T14:43:51.420157+00:00`
 - Reason: `eval_only`
 - Promoted: `False`
 - Best score before: `-`
@@ -20,7 +20,7 @@
 
 | Policy | Score | Avg reward | Avg steps | Avg ticks | Avg births | Avg deaths |
 |---|---:|---:|---:|---:|---:|---:|
-| latest | 4.2282 | 18604.16 | 2200.00 | 4400.00 | 97.35 | 7.05 |
+| latest | 4.2086 | 18517.77 | 2200.00 | 4400.00 | 96.75 | 6.55 |
 | best_before | - | - | - | - | - | - |
 
 ## Promotion Guardrails
@@ -32,7 +32,7 @@
 ## Diagnostic Ensemble (Non-Blocking)
 
 - `ensemble_score = rpt_score + 0.05 * (deep_aux - 0.5)` (reported for diagnostics only).
-- Latest: `rpt=4.2282`, `deep_aux=0.4200`, `ensemble=4.2242`
+- Latest: `rpt=4.2086`, `deep_aux=0.4300`, `ensemble=4.2051`
 - Best before: `rpt=-`, `deep_aux=-`, `ensemble=-`
 - Delta ensemble: `-`
 - Deep auxiliary channels use eval aggregates from `avg_under_*` (`readiness`, `depth`, `champion`, `combat_pressure`).

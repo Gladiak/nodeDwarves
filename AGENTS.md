@@ -50,6 +50,8 @@ This file defines how to implement new features in a consistent, stable way.
 - `src/simulation/world_legacy.js`: versioned bounded cross-cycle summaries, archived identities/places, memorials, inherited institutions, deterministic geographic remapping, and saga hooks.
 - `src/simulation/epic_conflicts.js`: bounded deterministic nemesis registry, staged surface sieges, hero rivalry branches, recovery, and legacy restoration.
 - `src/simulation/nemesis_events.js`: canonical structured nemesis promotion, reappearance, siege-stage, battle, and aftermath event boundary.
+- `src/simulation/landmarks.js`: bounded multi-stage monumental landmarks, deterministic final-footprint reservation, district conditions, and render-tile projection.
+- `src/simulation/landmark_events.js`: canonical structured landmark construction and condition-transition boundary.
 - `src/simulation/secondary_events.js`: shared structured boundary and actor/location/resource-fact helpers for secondary world, culture, environment, economy, and development producers.
 - `src/simulation/lifecycle_events.js`: structured founding, birth, natural-death, and partnership event builders with deterministic actor snapshots and causal facts.
 - `src/simulation/social_events.js`: structured mentorship, rivalry, grudge, and reconciliation incident builders with pair evidence and typed outcomes.
@@ -77,6 +79,7 @@ This file defines how to implement new features in a consistent, stable way.
 - `src/render/story_focus_overlay.js`: deterministic bounded actor/location emphasis and off-layer
   direction cues for the active Story Director focus.
 - `src/render/epic_conflicts.js`: read-only active nemesis-front and siege-damage map overlays.
+- `src/render/landmarks.js`: read-only evolving landmark footprints and compact district-state overlays.
 - `src/render/world_legacy.js`: read-only rendering of remapped persistent-world legacy sites.
 - `src/render/map_inset_panel.js`: carved top-right in-map operations snapshot panel (tick/year/cycle, population age split, underrealm unlock info, keyboard hints).
 - `src/render/warrior_panel.js`: Warrior League analytics modal overlay (champion lineage, top-5 fighters, marks/legacy summary).
@@ -122,13 +125,15 @@ This file defines how to implement new features in a consistent, stable way.
 - `scripts/test_epic_conflict_contracts.js`: deterministic E7 identity, promotion, siege lifecycle,
   rivalry, legacy, rendering, retention, serialization, and AI-observation isolation suite (`npm run test:epic-conflicts`; included in `npm test`).
 - `scripts/validate_epic_conflicts.js`: deterministic full-siege, collapse-guard, and repeated-siege E7 validator.
+- `scripts/test_landmark_contracts.js`: deterministic E8 schema, placement, progression, collision, rendering/export, condition, serialization, and AI-observation isolation suite (`npm run test:landmarks`; included in `npm test`).
+- `scripts/validate_landmarks.js`: deterministic multi-seed/size E8 organic-construction, population, and bounded-state validator.
 - `scripts/test_training_contracts.js`: deterministic technical contract suite for training/validation schemas (included in `npm test`).
 - `benchmark_cache/headless_benchmark_baseline.json`: versioned cached headless benchmark baseline used for report diffs.
 - `benchmark_cache/headless_benchmark_baseline.md`: markdown companion of the cached headless benchmark baseline.
 - `debug/epic_e4_time_controls_120.png` and `debug/epic_e4_time_controls_72.png`: retained E4.4
   full/narrow terminal presentation evidence for critical auto-slow and legendary auto-hold.
 - `debug/headless_benchmark_candidate.json`, `debug/headless_benchmark_candidate.md`,
-  `debug/headless_benchmark_diff.json`, and `debug/headless_benchmark_diff.md`: latest canonical E7
+  `debug/headless_benchmark_diff.json`, and `debug/headless_benchmark_diff.md`: latest canonical E8
   `4 x 8000` candidate and zero-delta cached-baseline comparison evidence.
 - `chronicles/`: git-ignored deterministic Markdown/JSON Chronicle exports created on demand.
 - `regression/baselines/regression_baseline.json`: durable regression baseline profiles used by checks.

@@ -1026,8 +1026,8 @@ function configTarget(state, resource) {
 }
 
 function structureDamageRank(type) {
-  return ['watchtower', 'armory', 'workshop', 'mine', 'well', 'field'].indexOf(type) >= 0
-    ? ['watchtower', 'armory', 'workshop', 'mine', 'well', 'field'].indexOf(type) : 99;
+  const order = ['landmark_gate_fortress', 'watchtower', 'armory', 'workshop', 'mine', 'well', 'field'];
+  return order.indexOf(type) >= 0 ? order.indexOf(type) : 99;
 }
 
 function normalizeLocation(raw) {

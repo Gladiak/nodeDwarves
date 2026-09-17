@@ -11,6 +11,7 @@ const { createExperienceLedger } = require('../simulation/experience_ledger');
 const { createChronicleState } = require('../simulation/chronicle');
 const { createWorldLegacyState } = require('../simulation/world_legacy');
 const { createEpicConflictState } = require('../simulation/epic_conflicts');
+const { createLandmarkState } = require('../simulation/landmarks');
 const { bootstrapPlaceRegistry, createPlaceRegistry } = require('../place_identity');
 const {
   createTerrain,
@@ -1803,6 +1804,7 @@ function createInitialState(config, runtime) {
   const chronicle = createChronicleState(0);
   const worldLegacy = createWorldLegacyState();
   const epicConflict = createEpicConflictState();
+  const landmarks = createLandmarkState(config);
 
   const state = {
     tick: 0,
@@ -1835,6 +1837,7 @@ function createInitialState(config, runtime) {
     chronicle,
     worldLegacy,
     epicConflict,
+    landmarks,
     places: createPlaceRegistry(),
     roads,
     temple,
@@ -2734,6 +2737,7 @@ function syncTerrainToGrid(state, runtime, config) {
         state.temple.site = null;
         state.temple.blockedReason = null;
       }
+      resetLandmarkSites(state);
     }
     return;
   }
@@ -2755,6 +2759,7 @@ function syncTerrainToGrid(state, runtime, config) {
         state.temple.site = null;
         state.temple.blockedReason = null;
       }
+      resetLandmarkSites(state);
     }
   }
   if (applyRuntimeInsetMaskToTerrain(state.terrain, runtime)) {
@@ -2762,6 +2767,17 @@ function syncTerrainToGrid(state, runtime, config) {
     state.roads = createRoadState(config, runtime);
   }
   syncUnderrealmToGrid(state, runtime, config);
+}
+
+// Release reserved landmark sites when the terrain dimensions change.
+function resetLandmarkSites(state) {
+  const owner = state && state.landmarks;
+  if (!owner || !owner.byId) return;
+  for (const landmark of Object.values(owner.byId)) {
+    if (!landmark || typeof landmark !== 'object') continue;
+    landmark.site = null;
+    landmark.placeId = null;
+  }
 }
 
 // Sync underrealm layer data to the current runtime grid size.

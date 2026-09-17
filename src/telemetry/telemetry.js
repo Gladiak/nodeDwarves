@@ -9,6 +9,7 @@ const { getExternalCampStatus } = require("../simulation/external_camps");
 const { getSchismStatus } = require("../simulation/schism");
 const { getSocialDramaStatus } = require("../simulation/social_drama");
 const { getEpicConflictStatus } = require('../simulation/epic_conflicts');
+const { getLandmarkStatus } = require('../simulation/landmarks');
 const {
   formatWarriorDisplayNameById,
   resolveWarriorLeagueEpicName,
@@ -206,6 +207,7 @@ function collectTelemetrySnapshot(state, config, columnWidth, options = {}) {
   const schismStatus = getSchismStatus(safeState, safeConfig);
   const socialSnapshot = buildSocialTelemetrySnapshot(safeState, safeConfig);
   const epicConflictStatus = getEpicConflictStatus(safeState);
+  const landmarkStatus = getLandmarkStatus(safeState, safeConfig);
   const shortages = Array.isArray(safeState.lastPriorities)
     ? safeState.lastPriorities
     : [];
@@ -295,6 +297,7 @@ function collectTelemetrySnapshot(state, config, columnWidth, options = {}) {
     schismStatus,
     socialSnapshot,
     epicConflictStatus,
+    landmarkStatus,
     shortages,
     governorSignals,
     stockRatioLine,
@@ -428,6 +431,7 @@ function buildTelemetrySectionModels(snapshot) {
           snapshot.templeMaxStage,
         ),
         templeProgress,
+        ...buildLandmarkSectionRows(snapshot.landmarkStatus),
         snapshot.toolLine,
         snapshot.structureLevelSummary
           ? `Structure levels: ${snapshot.structureLevelSummary}`
@@ -1127,6 +1131,24 @@ function buildEpicConflictSectionRows(status) {
       ? `Siege: ${siege.nemesisName} | ${siege.stage} ${Math.max(0, Number(siege.ticksRemaining || 0))}t | branch ${siege.branch || '-'}`
       : `Siege: none | recovery ${Math.max(0, Number(snapshot.recoveryTicks || 0))}t`,
     `Epic outcomes: ${Math.max(0, Number(stats.siegesCompleted || 0))} complete | hold ${Math.max(0, Number(stats.colonyVictories || 0))} / nemesis ${Math.max(0, Number(stats.nemesisVictories || 0))} | reconciled ${Math.max(0, Number(stats.reconciliations || 0))}`,
+  ];
+}
+
+// Present unique landmark progression and the currently exceptional district states.
+function buildLandmarkSectionRows(status) {
+  const snapshot = status && typeof status === 'object' ? status : {};
+  const entries = Array.isArray(snapshot.entries) ? snapshot.entries : [];
+  const progress = entries.filter((entry) => entry.stage > 0)
+    .map((entry) => `${entry.label} ${entry.stage}/${entry.maxStage}`)
+    .join(', ');
+  const exceptional = entries
+    .filter((entry) => ['construction', 'damaged', 'abandoned', 'restoration'].includes(entry.condition))
+    .map((entry) => `${entry.label}:${entry.condition}`)
+    .join(', ');
+  return [
+    `Landmarks: ${Math.max(0, Number(snapshot.count || 0))}/${entries.length} founded | ${Math.max(0, Number(snapshot.completed || 0))} complete`,
+    `Landmark stages: ${progress || '-'}`,
+    `District states: ${exceptional || 'stable'}`,
   ];
 }
 

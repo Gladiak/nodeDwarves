@@ -41,6 +41,12 @@ const METRICS = [
   { key: 'epicStructuresDamaged', label: 'epicDamaged', decimals: 2, path: ['epicConflicts', 'structuresDamaged'] },
   { key: 'epicStructuresRestored', label: 'epicRestored', decimals: 2, path: ['epicConflicts', 'structuresRestored'] },
   { key: 'epicStateBytes', label: 'epicBytes', decimals: 1, path: ['epicConflicts', 'stateBytes'] },
+  { key: 'landmarksFounded', label: 'landmarkFounded', decimals: 2, path: ['landmarks', 'founded'] },
+  { key: 'landmarksCompleted', label: 'landmarkDone', decimals: 2, path: ['landmarks', 'completed'] },
+  { key: 'landmarkStagesBuilt', label: 'landmarkStages', decimals: 2, path: ['landmarks', 'stagesBuilt'] },
+  { key: 'landmarkDamaged', label: 'landmarkDamaged', decimals: 2, path: ['landmarks', 'damaged'] },
+  { key: 'landmarkRestored', label: 'landmarkRestored', decimals: 2, path: ['landmarks', 'restored'] },
+  { key: 'landmarkStateBytes', label: 'landmarkBytes', decimals: 1, path: ['landmarks', 'stateBytes'] },
 ];
 
 // Print CLI usage with examples.

@@ -510,6 +510,9 @@ E7 adds the dedicated `nemesis_events.js` boundary for promotion, cross-cycle re
 surface-siege stage, committed battle resolution, and aftermath. Nemesis events supply an explicit
 stable saga ID, compact threat/faction/hero actors, historical location, threshold/event causes, and
 typed consequences; they remain descriptive facts and never replay siege effects.
+E8 adds the dedicated `landmark_events.js` adapter over the shared secondary boundary for committed
+construction stages and damage, abandonment, or restoration condition changes. Landmark events
+retain the stable institution and place IDs and never schedule jobs, spend resources, or alter sites.
 
 ## 11) Current-system audit
 
@@ -548,6 +551,9 @@ E0.2 reviewed the existing event path before choosing this contract:
   siege, battle-resolution, and aftermath facts after authoritative E7 state commits. Each event
   keeps the nemesis saga explicit and carries bounded threat, faction, defender, place, cause, and
   consequence evidence without participating in battle scoring or RNG.
+- `src/simulation/landmark_events.js` emits deterministic construction-stage and condition facts
+  through the shared secondary boundary after E8 state commits. It snapshots institution/place
+  identity without participating in placement, resource spending, siege repair, or RNG.
 - `scripts/audit_narrative_producers.js` reports direct `pushEvent` call sites outside the approved
   structured boundaries and fails `npm test` when any legacy-only simulation producer remains.
 - `src/render/event_log_panel.js` reads tick/message/category plus optional importance, actor,

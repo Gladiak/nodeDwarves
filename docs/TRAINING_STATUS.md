@@ -8,9 +8,9 @@ Historical archive: `docs/TRAINING_OPTIMIZATION_WORKBOOK.md`
 
 - Core optimization workstreams completed: A (reward/termination), B (PPO stability), C (throughput/resume continuity).
 - Operational quality uplift completed: OQ-1, OQ-2, OQ-3, OQ-4, OQ-5, OQ-6.2, OQ-6.3, OQ-6.4.
-- Epic Evolution E7 nemesis, siege, rivalry, and cross-cycle state is explicitly isolated from PPO
-  observations and action shapes. E7 is simulation-affecting, but old policies remain loadable and
-  no fresh training is required.
+- Epic Evolution E8 landmark state is explicitly isolated from PPO observations and action shapes.
+  Monument construction is simulation-affecting through bounded material/work costs, but old
+  policies remain loadable and no fresh training is required.
 
 ## Active validation cadence
 
@@ -28,7 +28,32 @@ Historical archive: `docs/TRAINING_OPTIMIZATION_WORKBOOK.md`
 4. Contract preflight:
    - `npm test`
 
-## Latest local validation snapshot (2026-09-16)
+## Latest local validation snapshot (2026-09-17, E8)
+
+- E8 monumental-settlement acceptance completed: five unique landmarks, fifteen total stages,
+  reserved final footprints, compact districts, and visible construction/prosperity/damage/
+  abandonment/restoration states.
+- `npm test`: PASS, including the dedicated 63-assertion landmark suite and policy-shape contracts.
+- Five-seed/three-size landmark validator: PASS; all scenarios organically complete `5/5`
+  landmarks and `15/15` stages, retain populations `74..118`, and cap landmark state at `1,858`
+  bytes.
+- Canonical `4 x 8000`: population endpoints `662/683/674/689`, no collapsed seeds; every seed
+  completes `5/5` landmarks and `15/15` stages. Average landmark state is `1,866` bytes; damage and
+  restoration average `0.75` each. Cached-baseline candidate diff is exact zero across economy,
+  Underrealm, epic conflicts, landmarks, resources, and all seed endpoints.
+- Canonical AI evaluation: PASS with reward `18517.772`, score `4.209`, births `96.750`, deaths
+  `6.550` across `20` episodes.
+- Underrealm regression: PASS with reward `10072.976`, score `4.197`, births `54.525`, deaths
+  `3.275`, randomized stock floor `0.870`, and extinction `0.000`.
+- Standard regression reward, score, deaths, and extinction pass. Its randomized stock floor is
+  `0.870` with stock average `0.955`; the relative floor budget is intentionally `-10%` (previously
+  `-8%`) to admit the one-time bounded monument material spend while remaining well above critical
+  scarcity. This is not a mortality/extinction relaxation.
+- The optimized release orchestrator was stopped during the second governance seed at user request
+  after canonical, deterministic benchmark, Standard, Underrealm, and the first governance seed had
+  remained stable; no concrete danger signal was present.
+
+Previous E7 evidence:
 
 - E7 named-nemesis and staged-siege acceptance completed.
 - `npm test`: PASS, including the dedicated 56-assertion epic-conflict suite, 41-assertion

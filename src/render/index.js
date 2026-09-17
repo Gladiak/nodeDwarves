@@ -11,6 +11,7 @@ const { buildStoryRibbon, applyStoryRibbon } = require('./story_ribbon');
 const { buildStoryFocusOverlay, applyStoryFocusOverlay } = require('./story_focus_overlay');
 const { renderWorldLegacyEchoes } = require('./world_legacy');
 const { renderEpicConflicts } = require('./epic_conflicts');
+const { renderLandmarks } = require('./landmarks');
 const { getColorConfig, applyColor } = require('./colors');
 const { formatMapLine } = require('./format');
 const { buildInspectPanel, applyInspectPanel } = require('./inspect');
@@ -698,6 +699,8 @@ function renderFrame(state, config, runtime, options = {}) {
       grid[tile.y][tile.x] = applyColor(tile.symbol, tile.colorKey || 'temple_of_ancestors', colors);
       structurePositions.add(`${tile.x},${tile.y}`);
     }
+
+    renderLandmarks(grid, state, config, runtime, colors, structurePositions);
 
     const underrealmGate = getUnderrealmGateRenderData(state, config);
     if (underrealmGate && grid[underrealmGate.y] && grid[underrealmGate.y][underrealmGate.x] !== undefined) {

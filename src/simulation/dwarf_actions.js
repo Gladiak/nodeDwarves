@@ -37,6 +37,7 @@ const {
 const { getAlchemyMultiplier } = require('./alchemy');
 const { findHerdById } = require('./wildlife');
 const { completeTempleStageBuild } = require('./temple');
+const { completeLandmarkStageBuild } = require('./landmarks');
 const { buildPlaceLocation, resolvePlace } = require('../place_identity');
 
 // Process the dwarf's per-tick action (panic, job, or idle).
@@ -233,7 +234,8 @@ function processDwarfJob(dwarf, state, config, runtime) {
 
   if (job.type === 'build') {
     const isTempleBuild = job.structureType === 'temple_of_ancestors';
-    if (!isTempleBuild && !isBuildableCell(state, runtime, targetX, targetY)) {
+    const isLandmarkBuild = Boolean(job.landmarkId);
+    if (!isTempleBuild && !isLandmarkBuild && !isBuildableCell(state, runtime, targetX, targetY)) {
       removeJob(state, job.id);
       dwarf.job = null;
       return;
@@ -462,6 +464,13 @@ function processDwarfJob(dwarf, state, config, runtime) {
   }
   if (job.type === 'build') {
     const type = job.structureType || 'house';
+    if (job.landmarkId) {
+      completeLandmarkStageBuild(state, config, job, dwarf);
+      applyClanBuildCostPenalty(dwarf, state, config, job);
+      removeJob(state, job.id);
+      dwarf.job = null;
+      return;
+    }
     if (type === 'temple_of_ancestors') {
       const result = completeTempleStageBuild(state, config, job);
       if (result && result.completed) {

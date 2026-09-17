@@ -598,6 +598,22 @@ function collectEpicConflictMetrics(state) {
   };
 }
 
+// Capture bounded E8 landmark progression and district-condition metrics.
+function collectLandmarkMetrics(state) {
+  const owner = state && state.landmarks && typeof state.landmarks === 'object' ? state.landmarks : {};
+  const entries = Object.values(owner.byId && typeof owner.byId === 'object' ? owner.byId : {});
+  const stats = owner.stats && typeof owner.stats === 'object' ? owner.stats : {};
+  return {
+    founded: entries.filter((entry) => Number(entry && entry.stage || 0) > 0).length,
+    completed: entries.filter((entry) => Number(entry && entry.completedAtTick || 0) > 0).length,
+    stagesBuilt: Math.max(0, Number(stats.stagesBuilt || 0)),
+    damaged: Math.max(0, Number(stats.damaged || 0)),
+    abandoned: Math.max(0, Number(stats.abandoned || 0)),
+    restored: Math.max(0, Number(stats.restored || 0)),
+    stateBytes: Buffer.byteLength(JSON.stringify(owner)),
+  };
+}
+
 // Increment one string-keyed counter map.
 function incrementCounter(counterMap, keyRaw, amountRaw) {
   if (!counterMap || typeof counterMap !== 'object') {
@@ -705,6 +721,7 @@ function collectRow(state, resources, seed, decreeTracker, storyTracker) {
   const underrealm = collectUnderrealmMetrics(state);
   const worldLegacy = collectWorldLegacyMetrics(state);
   const epicConflicts = collectEpicConflictMetrics(state);
+  const landmarks = collectLandmarkMetrics(state);
   const decree = decreeTracker && typeof decreeTracker === 'object'
     ? decreeTracker
     : createSchismDecreeTracker();
@@ -737,6 +754,7 @@ function collectRow(state, resources, seed, decreeTracker, storyTracker) {
     storyDirector: getStoryDirectorCounterReport(storyTracker),
     worldLegacy,
     epicConflicts,
+    landmarks,
     deaths: Math.max(0, Number(state.deathsCount || 0)),
     resources: resourceValues,
   };
@@ -792,6 +810,15 @@ function summarizeRows(rows, resources) {
     recoveryTicks: average(rows, (row) => row.epicConflicts && row.epicConflicts.recoveryTicks),
     stateBytes: average(rows, (row) => row.epicConflicts && row.epicConflicts.stateBytes),
   };
+  const landmarks = {
+    founded: average(rows, (row) => row.landmarks && row.landmarks.founded),
+    completed: average(rows, (row) => row.landmarks && row.landmarks.completed),
+    stagesBuilt: average(rows, (row) => row.landmarks && row.landmarks.stagesBuilt),
+    damaged: average(rows, (row) => row.landmarks && row.landmarks.damaged),
+    abandoned: average(rows, (row) => row.landmarks && row.landmarks.abandoned),
+    restored: average(rows, (row) => row.landmarks && row.landmarks.restored),
+    stateBytes: average(rows, (row) => row.landmarks && row.landmarks.stateBytes),
+  };
   return {
     population: average(rows, (row) => row.population),
     morale: average(rows, (row) => row.morale),
@@ -821,6 +848,7 @@ function summarizeRows(rows, resources) {
     storyDirector,
     worldLegacy,
     epicConflicts,
+    landmarks,
     deaths: average(rows, (row) => row.deaths),
     resources: resourceAverages,
   };
@@ -1316,6 +1344,17 @@ function buildMarkdownReport(report) {
     );
   }
   lines.push('');
+  lines.push('## Landmark Summary');
+  lines.push('');
+  lines.push('| Variant | Founded | Completed | Stages built | Damaged | Abandoned | Restored | State bytes |');
+  lines.push('| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |');
+  for (const variant of report.variants) {
+    const landmarks = variant.summary.landmarks || {};
+    lines.push(
+      `| ${variant.label} | ${formatNumber(landmarks.founded, 2)} | ${formatNumber(landmarks.completed, 2)} | ${formatNumber(landmarks.stagesBuilt, 2)} | ${formatNumber(landmarks.damaged, 2)} | ${formatNumber(landmarks.abandoned, 2)} | ${formatNumber(landmarks.restored, 2)} | ${formatNumber(landmarks.stateBytes, 1)} |`,
+    );
+  }
+  lines.push('');
   lines.push('## Underrealm Summary');
   lines.push('');
   lines.push('| Variant | Depth | Champions | Failed Expeditions | Blocked Dispatches | Frontier Contested | Readiness Score | Hero Prom | Hero Loss | Hero Active | Hero Surv |');
@@ -1479,6 +1518,11 @@ function printTable(report) {
       `underHeroSurv ${formatNumber(variant.summary.underrealmHeroSurvivals, 2)}, ` +
       formatResources(variant.summary.resources, report.meta.resources);
     process.stdout.write(`${summaryLine}\n`);
+
+    const landmarkSummary = variant.summary.landmarks || {};
+    process.stdout.write(
+      `landmarks: founded ${formatNumber(landmarkSummary.founded, 2)}, completed ${formatNumber(landmarkSummary.completed, 2)}, stages ${formatNumber(landmarkSummary.stagesBuilt, 2)}, damaged ${formatNumber(landmarkSummary.damaged, 2)}, restored ${formatNumber(landmarkSummary.restored, 2)}, bytes ${formatNumber(landmarkSummary.stateBytes, 1)}\n`,
+    );
 
     const story = variant && variant.summary && variant.summary.storyDirector || {};
     process.stdout.write(

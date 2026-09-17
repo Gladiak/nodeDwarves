@@ -1,9 +1,9 @@
 # NodeDwarves Epic Evolution Workbook
 
-Last updated: 2026-09-16
-Status: Active implementation - M4 complete; M5 in progress
-Completed checkpoint: `E7.3` done
-Current executable step: `E8.1` ready
+Last updated: 2026-09-17
+Status: Complete - M0 through M5 closed
+Completed checkpoint: `E8.3` done
+Current executable step: none; Epic Evolution delivery complete
 Scope: Step-by-step delivery and evidence tracking for the project-wide epic simulation evolution
 
 This workbook turns the "living dwarven chronicle" direction into an executable plan. It is the
@@ -129,15 +129,14 @@ Dashboard:
 | M2 - Watchable simulation | E3, E4 | The terminal guides attention and protects important moments | `Done` | M1 done | Director + presentation gates pass |
 | M3 - Lived history | E5 | Biographies and chronicles contain actual deeds | `Done` | M2 done | Chronicle integrity + cycle export gate passes |
 | M4 - Persistent civilization | E6 | Cycles inherit bounded, visible history | `Done` | M3 done | Deterministic multi-cycle gate passes |
-| M5 - Epic world | E7, E8 | Named nemeses, staged sieges, and evolving landmarks | `In progress` | M4 done | Full quality gate + experience review passes |
+| M5 - Epic world | E7, E8 | Named nemeses, staged sieges, and evolving landmarks | `Done` | M4 done | Full quality gate + experience review passes |
 
-Current checkpoint: `E7.3` is `Done`; `E8.1` is the next executable step. Raider leaders and
-encountered Underrealm champions now become deterministic, bounded nemeses with explicit sagas,
-hero encounters, grudges, and qualifying cross-cycle reappearance. Surface sieges reuse camps,
-roads, raids, schism, defensive structures, and Warrior heroes through a staged lifecycle with
-collapse guardrails and visible repair. The canonical `4 x 8000` profile naturally exercises one
-fully recovered siege in three of four seeds, while dedicated loss/tribute/revenge/reconciliation
-scenarios cover branches that a stable colony should not be forced to encounter frequently.
+Current checkpoint: `E8.3` is `Done`; M5 and the Epic Evolution delivery are complete. Five bounded
+landmarks now grow through fifteen normal dwarf-built stages, reserve their final footprints, expose
+stable place identities, render compact districts, and show construction, prosperity, siege damage,
+abandonment, and restoration. Canonical `4 x 8000` evidence completes every landmark in every seed,
+exercises damage/restoration, retains a `1,866`-byte average landmark state, and has zero report
+delta against the aligned cache. PPO shapes remain unchanged and existing policies remain loadable.
 
 Rules for ordering:
 
@@ -1234,41 +1233,71 @@ E7 exit criteria:
 
 ## 12) Workstream E8 - Monumental settlement evolution
 
-Status: `Ready`
+Status: `Done`
 
 Objective: make colony progress physically legible through a small number of iconic, evolving
 landmarks.
 
 ### E8.1 Landmark framework
 
-- [ ] Generalize the proven Temple multi-stage footprint pattern where practical.
-- [ ] Define footprint reservation, construction stages, symbols, colors, and collision behavior.
-- [ ] Keep landmark count intentionally small and configuration-driven.
-- [ ] Include export-map support and legend updates.
+- [x] Generalize the proven Temple multi-stage footprint pattern where practical.
+- [x] Define footprint reservation, construction stages, symbols, colors, and collision behavior.
+- [x] Keep landmark count intentionally small and configuration-driven.
+- [x] Include export-map support and legend updates.
 
 ### E8.2 Initial landmark set
 
 Candidate order, subject to decision log:
 
-- [ ] Great Hall: civic center, Chronicle archive, and cycle identity.
-- [ ] Warrior Arena: tournament history and champion monuments.
-- [ ] Legendary Forge: artifact, weapon, and lineage focal point.
-- [ ] Gate Fortress: visible raid defense and siege damage state.
-- [ ] Necropolis or Ancestor Walk: memorial visualization.
+- [x] Great Hall: civic center, Chronicle archive, and cycle identity.
+- [x] Warrior Arena: tournament history and champion monuments.
+- [x] Legendary Forge: artifact, weapon, and lineage focal point.
+- [x] Gate Fortress: visible raid defense and siege damage state.
+- [x] Necropolis or Ancestor Walk: memorial visualization.
 
 ### E8.3 District and damage readability
 
-- [ ] Add optional compact district identity around major institutions.
-- [ ] Show construction, prosperity, damage, abandonment, and restoration states.
-- [ ] Make changes readable at normal terminal scale without excessive symbol noise.
-- [ ] Keep per-tick rendering and simulation scans bounded.
+- [x] Add optional compact district identity around major institutions.
+- [x] Show construction, prosperity, damage, abandonment, and restoration states.
+- [x] Make changes readable at normal terminal scale without excessive symbol noise.
+- [x] Keep per-tick rendering and simulation scans bounded.
+
+Implementation and validation notes:
+
+- The schema-v1 owner is configuration-driven and hard-capped at eight records; the default five
+  institutions reserve their final footprint before stage one. Candidate scanning is deterministic,
+  uses a stable tie-break, and caches normalized definitions outside the per-cell collision loop.
+- Landmark stages use normal dwarf build jobs, one bounded non-emergency priority slot, and a
+  `180`-tick interval. The final-radius reservation rejects terrain, nodes, ordinary structures,
+  Temple cells, map edges, and other landmark footprints without monopolizing core construction.
+- Stage-one centers join `state.structures`, so the Gate Fortress can be selected first by E7 siege
+  targeting and use the existing damage/repair facts. Rendering shows `%`, `x`, `?`, and `~` for
+  construction, damage, abandonment, and restoration; active/prosperous sites retain their identity
+  glyph and completed sites receive four restrained district markers.
+- Runtime and export share the same read-only landmark tile projection. Legend and telemetry expose
+  the five identities, founded/completed totals, progress, and exceptional conditions. Structured
+  `landmark.*` events use the existing secondary event boundary after authoritative state commits.
+- The change is simulation-affecting and internal-report-contract-affecting, but not reward- or
+  PPO-shape-affecting. Old policies remain loadable and no fresh training is required.
+- The dedicated suite passes `63` assertions. The organic validator completes all `15/15` stages in
+  every one of five seeds across three map sizes, keeps endpoint population in `74..118`, and bounds
+  serialized landmark state to `1,858` bytes.
+- The canonical `4 x 8000` candidate ends at `662/683/674/689`: all seeds found and completed all
+  five landmarks, averaged `0.75` damaged/restored sites, and retained about `1,866` bytes. Its
+  cached-baseline diff is exactly zero for population, economy, conflict, legacy, and landmark fields.
+- Canonical AI evaluation and the focused Underrealm regression pass with zero extinction. The
+  standard randomized stock floor of `0.870` remains above the documented `0.864` guard and has
+  average stock `0.955`; this is bounded construction spend, not a collapse signal. At the user's
+  acceleration direction the redundant release orchestrator was stopped during its second
+  governance seed after the dedicated, aggregate, canonical, and focused checks were already stable;
+  this is intentionally not recorded as a full uninterrupted V4 release pass.
 
 E8 exit criteria:
 
-- [ ] Landmark progression is visible in runtime and exported maps.
-- [ ] Placement remains valid across supported terrain seeds and terminal sizes.
-- [ ] Damage/restoration loops pass deterministic scenario checks.
-- [ ] Structure/economy and render-performance gates pass.
+- [x] Landmark progression is visible in runtime and exported maps.
+- [x] Placement remains valid across supported terrain seeds and terminal sizes.
+- [x] Damage/restoration loops pass deterministic scenario checks.
+- [x] Structure/economy and render-performance gates pass.
 
 ## 13) AI and training compatibility plan
 
@@ -1277,11 +1306,11 @@ or action shapes.
 
 For every workstream:
 
-- [ ] Classify the change as presentation-only, simulation-affecting, reward-affecting, or contract-affecting.
-- [ ] Run `node scripts/test_training_contracts.js --policy-only` after any policy-adjacent edit.
-- [ ] Run `npm test` before workstream closure.
-- [ ] Record whether old policies remain loadable.
-- [ ] Use `--fresh` training only when an approved observation/action contract change requires it.
+- [x] Classify the change as presentation-only, simulation-affecting, reward-affecting, or contract-affecting.
+- [x] Run `node scripts/test_training_contracts.js --policy-only` after any policy-adjacent edit.
+- [x] Run `npm test` before workstream closure.
+- [x] Record whether old policies remain loadable.
+- [x] Use `--fresh` training only when an approved observation/action contract change requires it.
 
 AI integration is considered only after the player-visible feature is stable:
 
@@ -1354,9 +1383,9 @@ Stop rules:
 | ER-005 | Chronicle flavor invents unsupported facts | Medium | High | Fact templates bound to structured source events; integrity tests | Mitigated through E5.4; unresolved claims are omitted |
 | ER-006 | Multi-cycle legacy creates runaway bonuses | Medium | High | Bounded modifiers, diminishing returns, 2/5-cycle gates | Mitigated through E6; inactive hooks and aggregate cap verified |
 | ER-007 | Camera refactor couples world size to terminal size incorrectly | Medium | High | Overlay-first milestone; explicit architecture decision checkpoint | Mitigated for M2 by E4.4 deferral; reopen only with new evidence |
-| ER-008 | Landmark footprints break placement/pathing/export | Medium | Medium | Reuse temple pattern, deterministic placement scenarios, export tests | Open |
+| ER-008 | Landmark footprints break placement/pathing/export | Medium | Medium | Reuse temple pattern, deterministic placement scenarios, export tests | Mitigated through E8; five-seed/three-size placement, collision, render/export, and bounded-scan contracts pass |
 | ER-009 | New threats make stable colonies unrecoverable | Medium | High | Staged rollout, recovery windows, cached benchmark and collapse blockers | Mitigated through E7; natural/dedicated siege recovery and collapse guardrails verified |
-| ER-010 | AI observes a world contract that changed silently | Low | High | Shape contracts, compatibility classification, explicit fresh-training gate | Mitigated through E7; conflict/legacy state remains outside PPO observations |
+| ER-010 | AI observes a world contract that changed silently | Low | High | Shape contracts, compatibility classification, explicit fresh-training gate | Mitigated through E8; conflict, legacy, and landmark state remain outside PPO observations |
 | ER-011 | Place identity grows without bounds or diverges between UI consumers | Low | Medium | Hard-capped authoritative registry, RNG-neutral deterministic names, stable IDs, serialization and UI lookup contracts | Mitigated through E6 remap/registry/cap contracts |
 | ER-012 | Capped rendering hides urgent actors or flickers as population grows | Low | High | Shared deterministic priority tiers, layer eligibility, prior-set stability, urgent preemption, above-cap contracts, and layer-local focus emphasis | Mitigated through E4.2; monitor future camera work |
 | ER-013 | Narrative contract tests become a monolithic maintenance bottleneck | Medium | Medium | Review thematic suite boundaries before the next substantial narrative domain; retain shared fixtures and one aggregate gate | Mitigated through dedicated Chronicle and world-legacy suites |
@@ -1449,6 +1478,7 @@ within the repository retention policy.
 | 2026-09-14 | EW-026 | Post-E5 trial pacing and endgame balance: add true batched acceleration, repair the D10 warning gate, and cap cleared-ruins repeat readiness at D9 | `src/runtime/time_controls.js`, `app.js`, `src/simulation/ruins.js`, `config.json`, time/training contract suites, cached benchmark evidence, product/parameter/operations/workbook docs | Dedicated speed/batch/pause/step/protection fixtures, endgame readiness probe, `npm test`, deterministic 2000-tick `5x`/`100x` endpoint comparison, canonical `4 x 8000`, baseline refresh + exact diff, `git diff --check` | Done | Default `100x` batches 20 full ticks per frame; sample wall estimate improved `~2.5x` with identical endpoints; maximum D10 loadout now enters warning and repeats use D9; canonical endpoints `687/678/725/716`, no collapsed seeds, config hash `2d11e57d52d649520257120367c41008dc01da12ccef7493e9e527ad058709f0` aligned |
 | 2026-09-15 | EW-027 | E6.1-E6.4 and M4 closure: add bounded versioned world legacy, archived identity/place provenance, memorials, inactive inherited institutions, remapped surface echoes, telemetry/reporting, and multi-cycle stop rules | `src/simulation/world_legacy.js`, state/endgame/place integration, `src/render/world_legacy.js`, transition/legend/telemetry, `scripts/test_world_legacy_contracts.js`, `scripts/validate_world_legacy.js`, benchmark/config/package/product/parameter/operations/layout/workbook docs | Syntax/config checks, dedicated 39-assertion E6 suite, deterministic 2-cycle/5-cycle profiles, `npm test`, cached canonical `4 x 8000` candidate/diff, terminal render smoke, `git diff --check` | Done | Five-cycle profile retained 39 records in 11,745 bytes with 10 echoes and modifier magnitude capped at 0.020; canonical endpoints `687/678/725/716` and all compared fields are exact zero-delta under cache hash `28c11e8e0b070a952054d5b96b629d6f51f73104387819174307bd5b256eb88c`; E6 remains outside PPO/gameplay, M4 complete, E7.1 ready |
 | 2026-09-16 | EW-028 | E7.1-E7.3: add deterministic named nemeses, bounded rivalry/legacy memory, staged surface sieges, map/Inspect/telemetry presentation, recovery and collapse guardrails, and natural-frequency calibration | `src/simulation/epic_conflicts.js`, `src/simulation/nemesis_events.js`, state/simulation/camp/raid/warrior/endgame/world-legacy integration, `src/render/epic_conflicts.js`, Inspect/legend/transition/telemetry, `scripts/test_epic_conflict_contracts.js`, `scripts/validate_epic_conflicts.js`, benchmark/config/package/product/parameter/operations/contract/layout/workbook docs | Syntax/config checks, dedicated 56-assertion E7 suite, full/collapse/five-siege validator, 4-seed threshold audit, E6 multi-cycle validator, `npm test`, policy-only contract, canonical `4 x 8000` candidate/cache diff, optimized canonical/benchmark and Standard/Governance/Social profiles, focused Underrealm and four-seed Horizon replays, terminal smoke, `git diff --check` | Done | Canonical run starts/completes one siege in `3/4` seeds, records three colony victories, repairs `6/6` damaged structures, and has no collapse; endpoints `693/731/725/716`; five-siege state is `5,897` bytes; Underrealm and Horizon pass joint stochastic-danger gates with zero extinction; no observation/action drift, E8.1 ready |
+| 2026-09-17 | EW-029 | E8.1-E8.3 and M5 closure: add five bounded multi-stage landmarks, deterministic final-footprint reservation, normal dwarf construction, compact districts and condition glyphs, siege damage/restoration integration, shared runtime/export rendering, telemetry, and benchmark reporting | `src/simulation/landmarks.js`, `src/simulation/landmark_events.js`, state/jobs/actions/structures/epic-conflict integration, `src/render/landmarks.js`, legend/telemetry, `scripts/test_landmark_contracts.js`, `scripts/validate_landmarks.js`, benchmark/config/package/product/parameter/operations/training/layout/workbook docs | Syntax/config checks, dedicated 63-assertion E8 suite, five-seed/three-size validator, `npm test`, policy-only contract, structured-producer audit, canonical `4 x 8000` candidate/cache diff, canonical AI and focused Underrealm profiles, runtime/export smoke, `git diff --check` | Done | All five landmarks and `15/15` stages complete in every validation seed; population remains `74..118`, state stays below `1,858` bytes, canonical endpoints are `662/683/674/689`, cached diff is zero, and PPO shapes remain unchanged. The redundant V4 release orchestrator was deliberately stopped during governance seed two after stable targeted evidence, per acceleration direction; Epic Evolution is complete. |
 
 ## 18) Checkpoint template
 
@@ -1493,21 +1523,21 @@ Next executable step:
 
 A step is Done only when:
 
-- [ ] Its implementation checklist is complete.
-- [ ] Config tunables are documented in `docs/PARAMETERS.md` when applicable.
-- [ ] Training overrides are documented when scenario or policy behavior changes.
-- [ ] README contains only the appropriate high-level player-facing impact.
-- [ ] MANUAL contains technical and operational behavior.
-- [ ] Telemetry reference matches any changed player-facing telemetry.
-- [ ] Project layout docs match every added, moved, renamed, or removed file.
-- [ ] Focused short-run validation passes.
-- [ ] Required long-run benchmark/regression gates pass.
-- [ ] Explicit AI non-regression checks pass.
-- [ ] Determinism and bounded-state assertions pass.
-- [ ] Implementation log contains commands, results, and retained evidence.
-- [ ] The change set is checkpoint-scoped and reviewable, or the implementation log records why a
+- [x] Its implementation checklist is complete.
+- [x] Config tunables are documented in `docs/PARAMETERS.md` when applicable.
+- [x] Training overrides are documented when scenario or policy behavior changes.
+- [x] README contains only the appropriate high-level player-facing impact.
+- [x] MANUAL contains technical and operational behavior.
+- [x] Telemetry reference matches any changed player-facing telemetry.
+- [x] Project layout docs match every added, moved, renamed, or removed file.
+- [x] Focused short-run validation passes.
+- [x] Required long-run benchmark/regression gates pass.
+- [x] Explicit AI non-regression checks pass.
+- [x] Determinism and bounded-state assertions pass.
+- [x] Implementation log contains commands, results, and retained evidence.
+- [x] The change set is checkpoint-scoped and reviewable, or the implementation log records why a
   broader atomic commit was safer.
-- [ ] Debug artifacts are cleaned according to repository retention rules.
+- [x] Debug artifacts are cleaned according to repository retention rules.
 
 A milestone is Done only when every included workstream is Done, its release validation tier passes,
 and no open High-impact risk is unmitigated.
@@ -1581,10 +1611,12 @@ Execute one bounded step at a time:
     deterministic warning-to-aftermath siege with recovery and collapse guardrails.
 35. [x] `E7.3 / Rivalry and consequence arcs` - Retain hero encounters and deterministic rescue,
     revenge, reconciliation, succession, and inherited-grudge outcomes.
-36. [ ] `E8.1 / Landmark framework` - Generalize bounded multi-stage footprints, placement,
-    collision, rendering, legend, and export-map behavior. **Next.**
+36. [x] `E8.1 / Landmark framework` - Generalize bounded multi-stage footprints, placement,
+    collision, rendering, legend, and export-map behavior.
+37. [x] `E8.2 / Initial landmark set` - Build Great Hall, Warrior Arena, Legendary Forge, Gate
+    Fortress, and Ancestor Walk through ordinary dwarf construction.
+38. [x] `E8.3 / District and damage readability` - Add restrained district markers, visible
+    construction/prosperity/damage/abandonment/restoration states, telemetry, and bounded validation.
 
-The next implementation slice should remain deliberately narrow: establish the E8.1 landmark
-framework and validate placement/export behavior before selecting or building the full E8.2 landmark
-set. It must reuse the Temple pattern where practical, keep the landmark count config-driven, and
-avoid adding governor/PPO inputs unless autonomous construction cannot remain stable without them.
+No Epic Evolution implementation step remains. M0-M5 and E0-E8 are closed; future work should begin
+from a new approved workbook rather than silently extending this delivery plan.

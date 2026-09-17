@@ -24,7 +24,7 @@
 | underHeroProm | 0.00 | 0.00% |
 | underHeroLoss | 0.00 | n/a |
 | underHeroAct | 0.00 | 0.00% |
-| underHeroSurv | 0.00 | 0.00% |
+| underHeroSurv | 0.00 | n/a |
 | legacyRecords | 0.00 | n/a |
 | legacyNemeses | 0.00 | n/a |
 | legacyBytes | 0.0 | 0.00% |
@@ -37,6 +37,12 @@
 | epicDamaged | 0.00 | 0.00% |
 | epicRestored | 0.00 | 0.00% |
 | epicBytes | 0.0 | 0.00% |
+| landmarkFounded | 0.00 | 0.00% |
+| landmarkDone | 0.00 | 0.00% |
+| landmarkStages | 0.00 | 0.00% |
+| landmarkDamaged | 0.00 | 0.00% |
+| landmarkRestored | 0.00 | 0.00% |
+| landmarkBytes | 0.0 | 0.00% |
 | beer | 0.0 | 0.00% |
 | food | 0.0 | 0.00% |
 | water | 0.0 | 0.00% |
@@ -70,12 +76,12 @@
 | 101 | underChamp | 0.00 | 0.00% |
 | 101 | underFail | 0.00 | n/a |
 | 101 | underBlocked | 0.00 | 0.00% |
-| 101 | underContested | 0.00 | 0.00% |
+| 101 | underContested | 0.00 | n/a |
 | 101 | underReadiness | 0.000 | 0.00% |
 | 101 | underHeroProm | 0.00 | 0.00% |
 | 101 | underHeroLoss | 0.00 | n/a |
 | 101 | underHeroAct | 0.00 | 0.00% |
-| 101 | underHeroSurv | 0.00 | 0.00% |
+| 101 | underHeroSurv | 0.00 | n/a |
 | 101 | legacyRecords | 0.00 | n/a |
 | 101 | legacyNemeses | 0.00 | n/a |
 | 101 | legacyBytes | 0.0 | 0.00% |
@@ -88,6 +94,12 @@
 | 101 | epicDamaged | 0.00 | 0.00% |
 | 101 | epicRestored | 0.00 | 0.00% |
 | 101 | epicBytes | 0.0 | 0.00% |
+| 101 | landmarkFounded | 0.00 | 0.00% |
+| 101 | landmarkDone | 0.00 | 0.00% |
+| 101 | landmarkStages | 0.00 | 0.00% |
+| 101 | landmarkDamaged | 0.00 | 0.00% |
+| 101 | landmarkRestored | 0.00 | 0.00% |
+| 101 | landmarkBytes | 0.0 | 0.00% |
 | 101 | beer | 0.0 | 0.00% |
 | 101 | food | 0.0 | 0.00% |
 | 101 | water | 0.0 | 0.00% |
@@ -119,6 +131,12 @@
 | 202 | epicDamaged | 0.00 | 0.00% |
 | 202 | epicRestored | 0.00 | 0.00% |
 | 202 | epicBytes | 0.0 | 0.00% |
+| 202 | landmarkFounded | 0.00 | 0.00% |
+| 202 | landmarkDone | 0.00 | 0.00% |
+| 202 | landmarkStages | 0.00 | 0.00% |
+| 202 | landmarkDamaged | 0.00 | 0.00% |
+| 202 | landmarkRestored | 0.00 | 0.00% |
+| 202 | landmarkBytes | 0.0 | 0.00% |
 | 202 | beer | 0.0 | 0.00% |
 | 202 | food | 0.0 | 0.00% |
 | 202 | water | 0.0 | 0.00% |
@@ -142,14 +160,20 @@
 | 303 | legacyNemeses | 0.00 | n/a |
 | 303 | legacyBytes | 0.0 | 0.00% |
 | 303 | epicNemeses | 0.00 | 0.00% |
-| 303 | epicStarted | 0.00 | n/a |
-| 303 | epicCompleted | 0.00 | n/a |
-| 303 | epicHoldWins | 0.00 | n/a |
+| 303 | epicStarted | 0.00 | 0.00% |
+| 303 | epicCompleted | 0.00 | 0.00% |
+| 303 | epicHoldWins | 0.00 | 0.00% |
 | 303 | epicNemesisWins | 0.00 | n/a |
 | 303 | epicInjuries | 0.00 | n/a |
-| 303 | epicDamaged | 0.00 | n/a |
-| 303 | epicRestored | 0.00 | n/a |
+| 303 | epicDamaged | 0.00 | 0.00% |
+| 303 | epicRestored | 0.00 | 0.00% |
 | 303 | epicBytes | 0.0 | 0.00% |
+| 303 | landmarkFounded | 0.00 | 0.00% |
+| 303 | landmarkDone | 0.00 | 0.00% |
+| 303 | landmarkStages | 0.00 | 0.00% |
+| 303 | landmarkDamaged | 0.00 | 0.00% |
+| 303 | landmarkRestored | 0.00 | 0.00% |
+| 303 | landmarkBytes | 0.0 | 0.00% |
 | 303 | beer | 0.0 | 0.00% |
 | 303 | food | 0.0 | 0.00% |
 | 303 | water | 0.0 | 0.00% |
@@ -163,12 +187,12 @@
 | 404 | underChamp | 0.00 | 0.00% |
 | 404 | underFail | 0.00 | 0.00% |
 | 404 | underBlocked | 0.00 | 0.00% |
-| 404 | underContested | 0.00 | n/a |
+| 404 | underContested | 0.00 | 0.00% |
 | 404 | underReadiness | 0.000 | 0.00% |
 | 404 | underHeroProm | 0.00 | 0.00% |
 | 404 | underHeroLoss | 0.00 | n/a |
 | 404 | underHeroAct | 0.00 | 0.00% |
-| 404 | underHeroSurv | 0.00 | 0.00% |
+| 404 | underHeroSurv | 0.00 | n/a |
 | 404 | legacyRecords | 0.00 | n/a |
 | 404 | legacyNemeses | 0.00 | n/a |
 | 404 | legacyBytes | 0.0 | 0.00% |
@@ -181,6 +205,12 @@
 | 404 | epicDamaged | 0.00 | 0.00% |
 | 404 | epicRestored | 0.00 | 0.00% |
 | 404 | epicBytes | 0.0 | 0.00% |
+| 404 | landmarkFounded | 0.00 | 0.00% |
+| 404 | landmarkDone | 0.00 | 0.00% |
+| 404 | landmarkStages | 0.00 | 0.00% |
+| 404 | landmarkDamaged | 0.00 | n/a |
+| 404 | landmarkRestored | 0.00 | n/a |
+| 404 | landmarkBytes | 0.0 | 0.00% |
 | 404 | beer | 0.0 | 0.00% |
 | 404 | food | 0.0 | 0.00% |
 | 404 | water | 0.0 | 0.00% |

@@ -677,6 +677,52 @@ Epic conflicts:
 - `symbols.nemesis` / `display.colors.map.nemesis`: active surface front glyph/color.
 - `symbols.siege_damage` / `display.colors.map.siege_damage`: damaged-structure overlay glyph/color.
 
+Monumental landmarks:
+
+- `landmarks.enabled`: enable the bounded landmark registry, autonomous stage jobs, condition
+  tracking, telemetry, and surface rendering.
+- `landmarks.max_active`: maximum configured landmark definitions admitted; clamped to `0..8` by a
+  code hard cap.
+- `landmarks.restoration_ticks`: ticks for the visible restoration state after siege damage clears;
+  clamped to `1..10000`.
+- `landmarks.stage_interval_ticks`: minimum quiet interval after a completed stage before another
+  landmark stage can enter the autonomous priority slot; clamped to `0..100000`.
+- `landmarks.abandonment_population`: population below which built, undamaged landmark districts
+  become abandoned; clamped to `0..10000`.
+- `landmarks.prosperity_stockpile_ratio`: minimum food, water, wood, and stone target ratio for a
+  final-stage landmark to display prosperous status; clamped to `0..1`.
+- `landmarks.districts.enabled`: render four compact cardinal district markers around a completed
+  landmark.
+- `landmarks.districts.symbol`: one-character district marker.
+- `landmarks.condition_symbols.{construction,damaged,abandoned,restoration}`: center glyphs for
+  exceptional landmark states.
+- `landmarks.condition_color_keys.<condition>`: `display.colors.map` key for each exceptional state.
+- `landmarks.definitions.<id>.enabled`: include one unique landmark in configured order.
+- `landmarks.definitions.<id>.order`: stable autonomous construction order and deterministic tie
+  breaker.
+- `landmarks.definitions.<id>.label` / `.short_label`: full event/telemetry identity and compact
+  place-registry label.
+- `landmarks.definitions.<id>.symbol` / `.outline_symbol` / `.color_key`: center, footprint, and map
+  presentation tokens.
+- `landmarks.definitions.<id>.build_min_population`: population gate for every stage.
+- `landmarks.definitions.<id>.build_min_cycles`: completed-cycle gate for every stage.
+- `landmarks.definitions.<id>.build_min_resources.<resource>`: gather-first stockpile-ratio guard
+  checked before committing a stage cost.
+- `landmarks.definitions.<id>.target_distance`: preferred Manhattan distance from the current
+  settlement center used by deterministic site scoring.
+- `landmarks.definitions.<id>.stages[].name`: stable stage label.
+- `landmarks.definitions.<id>.stages[].radius`: visible square footprint radius; clamped to `0..3`.
+  The largest configured radius is reserved from the first site choice.
+- `landmarks.definitions.<id>.stages[].build_ticks`: normal dwarf work ticks; clamped to
+  `1..100000`.
+- `landmarks.definitions.<id>.stages[].build_cost.<resource>`: non-negative cost committed when the
+  stage job is queued.
+- Default landmark color keys are `landmark_great_hall`, `landmark_warrior_arena`,
+  `landmark_legendary_forge`, `landmark_gate_fortress`, and `landmark_ancestor_walk`; state keys are
+  `landmark_construction`, `landmark_damaged`, `landmark_abandoned`, and `landmark_restoration`.
+- The default institutions use `G`, `A`, `F`, `H`, and `N`. The renderer reads symbols from each
+  definition; matching `symbols.landmark_*` entries are available to other UI consumers.
+
 Wildlife and pastures:
 
 - `wildlife.enabled`: enable seasonal wildlife herds and hunting.

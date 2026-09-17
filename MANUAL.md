@@ -1314,6 +1314,46 @@ These modules are the simulation hot path. Keep logic explicit and complexity pr
   - Endgame reset carries prestige forward and can add `prestige.cycleResetBonus`.
   - Temple stage progress itself resets per cycle; prestige does not.
 
+### Monumental landmarks and compact districts 🏰
+
+- `landmarks.js` owns a schema-versioned, hard-capped registry of unique civic landmarks. Defaults
+  provide five institutions: Great Hall, Warrior Arena, Legendary Forge, Gate Fortress, and
+  Ancestor Walk.
+- Each institution has an ordered, config-driven stage list. A stage consumes its committed cost,
+  enters the ordinary `special` build queue, and is completed by a dwarf at the reserved center.
+  Landmark construction therefore competes with other non-emergency work instead of appearing as
+  a free map decoration. When its high stockpile/population gates pass, one landmark job receives a
+  bounded autonomous priority slot; only one can be active, and `stage_interval_ticks` returns work
+  to housing/economy/defense between monumental stages.
+- Site selection is deterministic and bounded to the surface grid. It scores valid candidates by
+  distance from the settlement, uses a stable coordinate/id tie-break, and rejects non-spawnable
+  terrain, nodes, structures, Temple cells, map edges, and every other landmark's final footprint.
+  The final radius is reserved before stage one, so normal construction cannot block later growth.
+- Stage one creates one center entry in `state.structures`. This makes the institution a factual,
+  damageable siege target without teaching generic structure automation how to replicate it.
+- Completed footprints use a restrained center/outline language; four optional cardinal district
+  markers appear only at the final stage. Center states are deliberately compact:
+  - `%` construction;
+  - the configured identity glyph for active/prosperous operation;
+  - `x` siege damage;
+  - `?` abandonment below the population floor;
+  - `~` the bounded restoration window after repairs.
+- The Gate Fortress is the first-priority monumental siege target. E7 repairs its normal
+  `siegeDamage` severity, while E8 derives the visible `damaged` and `restoration` conditions from
+  that authoritative structure fact. Repopulation likewise moves an abandoned district back to
+  active/prosperous operation without a separate repair job.
+- Landmark stage and condition transitions emit canonical `landmark.*` facts after state commit.
+  Telemetry lists founded/completed counts, per-landmark stage progress, and exceptional district
+  states. The normal frame renderer is also the export-map source, so PNG/SVG exports use identical
+  footprints, colors, and state glyphs.
+- Landmark metadata is not part of the PPO observation/action contract. Autonomous construction
+  uses the existing `specialWeight`; no new policy head or fresh training is required.
+- Operations:
+  - `npm run test:landmarks` runs deterministic contracts for progression, collision, narrow maps,
+    damage/restoration, abandonment, serialization, rendering/export, telemetry, and PPO isolation.
+  - `npm run validate:landmarks` exercises organic construction across five deterministic seeds and
+    three supported map sizes, with population and serialized-state stop rules.
+
 ### Ruins and expeditions 🗝️
 
 - `ruins.js`
@@ -2409,6 +2449,8 @@ Quick checklist:
     - `simulation/world_legacy.js` → versioned bounded cross-cycle summaries, memorials, institutions, migration, and deterministic geographic echoes
     - `simulation/epic_conflicts.js` → deterministic nemesis registry, staged sieges, rivalry memory, recovery, and legacy restoration
     - `simulation/nemesis_events.js` → canonical structured nemesis and siege event boundary
+    - `simulation/landmarks.js` → bounded staged landmarks, deterministic placement, district states, and render tiles
+    - `simulation/landmark_events.js` → canonical structured landmark progress/condition boundary
     - `simulation/alchemy.js` → alchemy rite lifecycle and modifiers
     - `simulation/contracts.js` → contract offers, reputations, and boons
     - `simulation/world_events.js` → global event lifecycle and temporary world modifiers
@@ -2431,6 +2473,7 @@ Quick checklist:
     - `render/story_focus_overlay.js` → bounded actor/location emphasis and cross-layer direction cues
     - `render/world_legacy.js` → read-only surface rendering for remapped legacy sites
     - `render/epic_conflicts.js` → active nemesis-front and siege-damage map overlays
+    - `render/landmarks.js` → evolving landmark footprints and compact district-state overlays
     - `render/map_inset_panel.js` → carved in-map Ops Snapshot component (stable counters + keyboard hints)
     - `render/warrior_panel.js` → Warrior League modal overlay (company identity/carry-over context, champion lineage, top-5 fighters, marks/legacy summary)
     - `render/event_log_panel.js` → Event Log modal overlay (scrollable real-time event history with drama-focused filter)
