@@ -39,6 +39,17 @@ This file defines how to implement new features in a consistent, stable way.
 - `scripts/test_operational_closure_contracts.js`: deterministic CI freshness, failed/skipped-phase, retained-claim, source/bounds and RNG-purity contracts (`npm run test:operational-closure`; included in `npm test`).
 - `scripts/test_legend_panel.js`: complete surface/deep symbol visibility, responsive pagination, color bounds and real arrow-dispatch contracts (`npm run test:legend`; included in `npm test`).
 - `src/config.js`: config loader.
+- `src/game_session.js`: scenario resolution, interactive session creation and resumable AI/tick cadence.
+- `src/session_random.js`: serializable scoped gameplay PRNG, isolated from exports, training and benchmarks.
+- `src/persistence.js`: versioned integrity-checked session graph saves, atomic replacement and backup recovery.
+- `src/runtime/start_menu.js`: responsive ASCII welcome screen, scenario selection and saved-colony browser.
+- `src/render/start_menu.js`: cached decorative terrain atlas sharing the first playable frame's seasonal palette and active theme, with responsive masonry, gold frame accents, pillars and uniform text backgrounds.
+- `scripts/test_save_contracts.js`: lossless graph, resume, recovery, presentation, menu and AI isolation contracts.
+- `scripts/validate_save_continuity.js`: milestone-only short/long deterministic uninterrupted-versus-resumed validation.
+- `scripts/test_scenario_contracts.js`: curated scenario, filtered test-template reuse, precedence, save pinning and standard-game/PPO isolation contracts.
+- `scripts/validate_scenarios.js`: milestone-only two-seed catalog validation, long pressure runs, checkpoint restoration and canonical-policy compatibility.
+- `debug/scenario_validation_latest.json`: latest operational scenario-catalog validation with per-case population, economy, raids and progress.
+- `saves/`: git-ignored per-colony checkpoints and previous valid backups.
 - `src/simulation/`: simulation systems split by theme.
 - `src/simulation/index.js`: simulation orchestrator.
 - `src/simulation/narrative_contract.js`: strict schema-v1 validator and deterministic event identity helpers used by narrative contract gates and the runtime event core.

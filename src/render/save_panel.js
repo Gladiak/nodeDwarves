@@ -32,7 +32,7 @@ function buildSavePanel(state, config, runtime) {
   const innerHeight = Math.max(1, height - 2);
 
   const message = String(saveState.message || 'Map saved.');
-  const lines = buildSaveLines(message, contentWidth, innerHeight);
+  const lines = buildSaveLines(message, contentWidth, innerHeight, saveState.title || TITLE_TEXT);
   const panelLines = buildPanelBox(lines, innerWidth, contentWidth);
 
   const x = Math.max(0, Math.floor((gridWidth - width) / 2));
@@ -48,11 +48,11 @@ function buildSavePanel(state, config, runtime) {
 }
 
 // Build inner lines for the save panel.
-function buildSaveLines(message, width, height) {
+function buildSaveLines(message, width, height, title) {
   const maxContent = Math.max(1, Number(height || 1));
   const content = [];
 
-  pushLine(content, TITLE_TEXT, width, 'hud_header');
+  pushLine(content, title, width, 'hud_header');
   content.push({ text: '', colorKey: null });
 
   const wrapped = wrapLine(message, width);

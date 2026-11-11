@@ -7,13 +7,16 @@ const { spawn } = require('child_process');
 
 const { loadConfig } = require('./src/config');
 const { buildRuntime, getTerminalSize, setupResizeHandler } = require('./src/runtime');
-const { createInitialState, fitStateToGrid } = require('./src/state');
-const { stepState } = require('./src/simulation');
+const { fitStateToGrid } = require('./src/state');
+const { createGameSession, advanceGameSession } = require('./src/game_session');
+const { withSessionRandom } = require('./src/session_random');
+const { getSaveSettings, saveGame, loadGame, listSavedGames } = require('./src/persistence');
+const { showStartMenu } = require('./src/runtime/start_menu');
 const { renderFrame } = require('./src/render');
 const { moveLegendPage } = require('./src/render/legend_panel');
 const { getTelemetryPanelPageCount } = require('./src/telemetry/telemetry_panel');
 const { clearScreen, moveCursorHome, hideCursor, showCursor } = require('./src/terminal');
-const { loadPolicy, selectAction, normalizeActionEnvelope } = require('./src/ai_policy');
+const { loadPolicy } = require('./src/ai_policy');
 const { getSpawnOrderedIds } = require('./src/dwarf_lore');
 const { shouldTriggerEndgameReset, runEndgameReset } = require('./src/simulation/endgame');
 const { exportChronicle } = require('./src/chronicle_export');
@@ -35,18 +38,18 @@ const {
   emitEndgameTransitionCompleted,
 } = require('./src/simulation/endgame_events');
 
-const config = loadConfig();
-let runtime = buildRuntime(config.display, getTerminalSize(config.display));
-const state = createInitialState(config, runtime);
-const policyPath = resolvePolicyPath(config);
-const policy = policyPath ? loadPolicy(policyPath) : null;
-let currentAction = null;
-let nextActionTick = 0;
-
-const tickMs = Number(config.display.tickMs || 200);
-const maxTicks = Number(config.simulation.maxTicks || 0);
-const timeControls = createTimeControls(config, tickMs);
-
+let session = null;
+let config;
+let runtime;
+let state;
+let tickMs;
+let maxTicks;
+let timeControls;
+let saveSettings;
+let lastSaveAdvance = 0;
+let lastSaveAtMs = 0;
+let saveFailure = '';
+let shuttingDown = false;
 let running = true;
 const EVENT_LOG_FILTERS = ['all', 'drama'];
 
@@ -62,35 +65,88 @@ process.on('SIGINT', () => {
   running = false;
   shutdown();
 });
-
-setupResizeHandler(config.display, () => {
-  if (!isResizeHandlingEnabled(config)) {
-    return;
-  }
-
-  const nextRuntime = buildRuntime(config.display, getTerminalSize(config.display));
-  const gridChanged = nextRuntime.gridWidth !== runtime.gridWidth
-    || nextRuntime.gridHeight !== runtime.gridHeight;
-  const shouldReflowWorld = shouldReflowWorldOnResize(config);
-
-  if (!gridChanged) {
-    runtime = nextRuntime;
-    clearScreen();
-    return;
-  }
-
-  if (shouldReflowWorld) {
-    runtime = nextRuntime;
-    fitStateToGrid(state, runtime, config);
-  }
-
-  clearScreen();
+process.on('SIGTERM', () => {
+  running = false;
+  shutdown();
 });
 
-hideCursor();
-clearScreen();
-setupInput();
-loop();
+main().catch((error) => {
+  running = false;
+  if (process.stdin.isTTY) process.stdin.setRawMode(false);
+  process.stdin.pause();
+  showCursor();
+  process.stderr.write(`\nNodeDwarves: ${error.message}\n`);
+  process.exitCode = 1;
+});
+
+// Select a colony before world generation; loaded geometry and config remain authoritative.
+async function main() {
+  const options = parseStartupOptions(process.argv.slice(2));
+  if (options.help) {
+    process.stdout.write('NodeDwarves\n  --new [--scenario ID] [--seed N]\n  --resume | --load FILE\n  --config FILE | --ai FILE\nWithout flags: ASCII colony menu (interactive terminals).\n');
+    return;
+  }
+  const baseConfig = loadConfig(options.configPath);
+  saveSettings = getSaveSettings(baseConfig);
+  let choice;
+  if (options.loadPath) choice = { loaded: loadGame(options.loadPath, saveSettings) };
+  else if (options.resume) {
+    const latest = listSavedGames(saveSettings).find((slot) => !slot.error);
+    if (!latest) throw new Error('No compatible saved colony. Use --new to found one.');
+    choice = { loaded: loadGame(latest.filePath, saveSettings) };
+  } else if (options.newGame || !process.stdin.isTTY || !process.stdout.isTTY || baseConfig.startup?.enabled === false) {
+    choice = { scenarioId: options.scenarioId || 'free' };
+  } else choice = await showStartMenu(baseConfig, saveSettings);
+  if (!choice) { shutdown(); return; }
+  if (choice.loaded) {
+    session = choice.loaded.session;
+  } else {
+    const policyPath = resolvePolicyPath(baseConfig);
+    session = createGameSession(baseConfig, buildRuntime(baseConfig.display, getTerminalSize(baseConfig.display)), {
+      scenarioId: choice.scenarioId,
+      seed: options.seed,
+      policy: policyPath ? loadPolicy(policyPath) : null,
+    });
+  }
+  config = session.config;
+  runtime = session.runtime;
+  state = session.state;
+  tickMs = Number(config.display.tickMs || 200);
+  maxTicks = Number(config.simulation.maxTicks || 0);
+  timeControls = restorePresentation(session.presentation, config, tickMs);
+  lastSaveAdvance = session.controller.advances;
+  lastSaveAtMs = Date.now();
+  setupResizeHandler(config.display, () => {
+    if (!isResizeHandlingEnabled(config)) return;
+
+    const nextRuntime = buildRuntime(config.display, getTerminalSize(config.display));
+    const gridChanged = nextRuntime.gridWidth !== runtime.gridWidth
+      || nextRuntime.gridHeight !== runtime.gridHeight;
+
+    if (!gridChanged) {
+      runtime = nextRuntime;
+      clearScreen();
+      return;
+    }
+    if (shouldReflowWorldOnResize(config)) {
+      runtime = nextRuntime;
+      withSessionRandom(session.random, () => fitStateToGrid(state, runtime, config));
+    }
+    clearScreen();
+  });
+
+  hideCursor();
+  clearScreen();
+  setupInput();
+  if (choice.loaded) {
+    // An external map-export process cannot be resumed after restarting the game.
+    ensureSaveMapState(state);
+    state.ui.saveMap.busy = false;
+    closeSaveMap(state);
+    notifyGameSave(choice.loaded.recovered ? 'Recovered the previous checkpoint from backup.' : 'Colony loaded. The story continues.');
+  } else if (saveSettings.enabled) checkpointGame('initial');
+  loop();
+}
 
 // Function: loop.
 function loop() {
@@ -103,19 +159,14 @@ function loop() {
   const nowMs = Date.now();
   const transitionState = getTransitionState(state);
   if (transitionState && transitionState.active) {
-    advanceEndgameTransition(state, config, runtime);
+    withSessionRandom(session.random, () => advanceEndgameTransition(state, config, runtime));
   } else if (consumeSimulationAdvance(timeControls, nowMs)) {
     const ticksThisFrame = getSimulationTicksPerFrame(timeControls, nowMs);
     for (let batchTick = 0; batchTick < ticksThisFrame; batchTick += 1) {
-      if (policy && state.tick >= nextActionTick) {
-        const selected = selectAction(state, config, policy);
-        currentAction = normalizeActionEnvelope(selected);
-        nextActionTick = state.tick + getActionTicks(config);
-      }
-
-      stepState(state, config, runtime, currentAction, { suppressEndgameReset: true });
+      session.runtime = runtime;
+      advanceGameSession(session);
       if (shouldTriggerEndgameReset(state, config)) {
-        startEndgameTransition(state, config, runtime);
+        withSessionRandom(session.random, () => startEndgameTransition(state, config, runtime));
         break;
       }
       if (observeStoryFocus(timeControls, state.story && state.story.currentFocus, nowMs)) {
@@ -128,6 +179,9 @@ function loop() {
   if (!activeTransition) {
     observeStoryFocus(timeControls, state.story && state.story.currentFocus, nowMs);
   }
+  if (saveSettings.enabled
+      && session.controller.advances - lastSaveAdvance >= saveSettings.intervalTicks
+      && nowMs - lastSaveAtMs >= saveSettings.minIntervalMs) checkpointGame('autosave');
 
   const frame = renderFrame(state, config, runtime, {
     timeControls: getTimeControlsSnapshot(timeControls, nowMs),
@@ -146,13 +200,92 @@ function loop() {
 
 // Function: shutdown.
 function shutdown() {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  if (session && saveSettings.enabled && saveSettings.saveOnExit) checkpointGame('exit');
   if (process.stdin.isTTY) {
     process.stdin.setRawMode(false);
     process.stdin.pause();
   }
   showCursor();
   process.stdout.write('\n');
-  process.exit(0);
+  if (saveFailure) process.stderr.write(`Game save failed: ${saveFailure}\n`);
+  process.exit(saveFailure ? 1 : 0);
+}
+
+// Parse explicit launch choices before touching any colony or save file.
+function parseStartupOptions(args) {
+  const options = {};
+  const values = { '--load': 'loadPath', '--scenario': 'scenarioId', '--seed': 'seed', '--config': 'configPath', '--ai': 'aiPath' };
+  for (let index = 0; index < args.length; index += 1) {
+    const flag = args[index];
+    if (flag === '--new') options.newGame = true;
+    else if (flag === '--resume') options.resume = true;
+    else if (flag === '--help' || flag === '-h') options.help = true;
+    else if (values[flag]) {
+      const value = args[++index];
+      if (!value || value.startsWith('--')) throw new Error(`Missing value for ${flag}.`);
+      options[values[flag]] = flag === '--seed' ? Number(value) : value;
+    } else throw new Error(`Unknown option: ${flag}`);
+  }
+  if (options.seed !== undefined && (!Number.isInteger(options.seed) || options.seed < 0 || options.seed > 0xffffffff)) {
+    throw new Error('Seed must be an integer between 0 and 4294967295.');
+  }
+  if (options.scenarioId || options.seed !== undefined) options.newGame = true;
+  if ([options.newGame, options.resume, Boolean(options.loadPath)].filter(Boolean).length > 1) {
+    throw new Error('Choose one of --new, --resume or --load.');
+  }
+  return options;
+}
+
+// Store wall-clock protection as remaining time; downtime must not consume a story beat.
+function capturePresentation(controls, nowMs = Date.now()) {
+  const snapshot = structuredClone(controls);
+  if (snapshot.autoProtection) {
+    snapshot.autoProtection.untilMs = Math.max(0, snapshot.autoProtection.untilMs - nowMs);
+    snapshot.autoProtection.startedAtMs = Math.max(0, nowMs - snapshot.autoProtection.startedAtMs);
+  }
+  return snapshot;
+}
+
+// Rebase presentation timers while retaining selected speed, pause and pending single-step.
+function restorePresentation(snapshot, savedConfig, baseTickMs, nowMs = Date.now()) {
+  const controls = createTimeControls(savedConfig, baseTickMs);
+  if (!snapshot) return controls;
+  const restored = structuredClone(snapshot);
+  Object.assign(controls, restored, { settings: controls.settings });
+  if (controls.autoProtection) {
+    controls.autoProtection.untilMs += nowMs;
+    controls.autoProtection.startedAtMs = nowMs - controls.autoProtection.startedAtMs;
+    if (controls.autoProtection.untilMs <= nowMs) controls.autoProtection = null;
+  }
+  return controls;
+}
+
+// Save only at frame boundaries, without advancing simulation or its random stream.
+function checkpointGame(reason) {
+  lastSaveAtMs = Date.now();
+  try {
+    session.runtime = runtime;
+    session.presentation = capturePresentation(timeControls);
+    const filePath = saveGame(session, saveSettings, reason);
+    lastSaveAdvance = session.controller.advances;
+    saveFailure = '';
+    if (reason === 'manual') notifyGameSave(`Colony saved: ${path.basename(filePath)}`);
+    return true;
+  } catch (error) {
+    saveFailure = error.message;
+    if (reason !== 'exit') notifyGameSave(`Save failed: ${error.message}`);
+    return false;
+  }
+}
+
+// Reuse the transient archive confirmation panel without covering the map on autosave.
+function notifyGameSave(message) {
+  ensureSaveMapState(state);
+  Object.assign(state.ui.saveMap, {
+    title: 'COLONY ARCHIVE', open: true, message, closeAtMs: Date.now() + 2800,
+  });
 }
 
 // Function: resolvePolicyPath.
@@ -507,6 +640,7 @@ function openSaveMap(state, config, message, options = {}) {
   const uiConfig = (config.display && config.display.save_panel) || {};
   const autoCloseMs = Math.max(0, Number(uiConfig.autoCloseMs || 3000));
   const holdOpen = options.holdOpen === true;
+  state.ui.saveMap.title = '';
   state.ui.saveMap.message = String(message || 'Map saved.');
   state.ui.saveMap.open = true;
   state.ui.saveMap.closeAtMs = holdOpen ? 0 : Date.now() + autoCloseMs;
@@ -854,8 +988,8 @@ function pickTransitionMessage(messages, state) {
 function startEndgameTransition(state, config, runtime) {
   const transitionConfig = getTransitionConfig(config);
   if (transitionConfig.enabled === false) {
-    currentAction = null;
-    nextActionTick = 0;
+    session.controller.currentAction = null;
+    session.controller.nextActionTick = 0;
     runEndgameReset(state, config, runtime);
     return;
   }
@@ -886,8 +1020,8 @@ function startEndgameTransition(state, config, runtime) {
   state.ui.warriorPanel.open = false;
   state.ui.eventLog.open = false;
   closeSaveMap(state);
-  currentAction = null;
-  nextActionTick = 0;
+  session.controller.currentAction = null;
+  session.controller.nextActionTick = 0;
   resetTimeControlsForTransition(timeControls);
   emitEndgameTransitionStarted(state, config, {
     sourceCycle: transition.sourceCycle,
@@ -1013,6 +1147,11 @@ function handleInput(text) {
       running = false;
       shutdown();
       return;
+    }
+    if (char === 's' || char === 'S') {
+      checkpointGame('manual');
+      i += 1;
+      continue;
     }
     if (transitionActive) {
       i += 1;

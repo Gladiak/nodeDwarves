@@ -1,4 +1,301 @@
 {
+  "startup": {
+    "enabled": true,
+    "background_seed": 707,
+    "scenarios": [
+      {
+        "id": "free",
+        "name": "Free colony",
+        "difficulty": "Standard",
+        "focus": "Open-ended colony",
+        "description": "A fresh mountain, a random seed, and the standard colony rules.",
+        "seed": null,
+        "overrides": {}
+      },
+      {
+        "id": "green_valley",
+        "name": "Green Valley",
+        "difficulty": "Gentle start",
+        "focus": "Founding supplies",
+        "description": "Seed 101. Extra food, water, wood and stone for the founding caravan.",
+        "seed": 101,
+        "overrides": {
+          "resources.stockpile.food": 88,
+          "resources.stockpile.water": 112,
+          "resources.stockpile.wood": 16,
+          "resources.stockpile.stone": 12
+        }
+      },
+      {
+        "id": "lean_provisions",
+        "name": "Lean Provisions",
+        "difficulty": "Challenging start",
+        "focus": "Scarce reserves",
+        "description": "Seed 303. Reduced starting reserves put early gathering to the test.",
+        "seed": 303,
+        "overrides": {
+          "resources.stockpile.food": 33,
+          "resources.stockpile.water": 42,
+          "resources.stockpile.wood": 6,
+          "resources.stockpile.stone": 4
+        }
+      },
+      {
+        "id": "dry_stone",
+        "name": "Dry Stone",
+        "difficulty": "Challenging",
+        "focus": "Water and drought",
+        "description": "Thirst rises faster, drought is more common, and water gathering yields less.",
+        "seed": 202,
+        "test_template": {
+          "scenario": "compound_crisis",
+          "paths": [
+            "needs.decayPerTick.thirst",
+            "weather.states.clear.weight",
+            "weather.states.drought.weight"
+          ]
+        },
+        "overrides": {
+          "resources.stockpile.water": 42,
+          "resources.terrainCooldownTicks.water": 75,
+          "jobs.gatherYield.water": 2.5
+        }
+      },
+      {
+        "id": "hungry_hills",
+        "name": "Hungry Hills",
+        "difficulty": "Challenging",
+        "focus": "Food and winter",
+        "description": "Hungrier dwarves, colder weather and leaner harvests make a steady food supply essential.",
+        "seed": 404,
+        "test_template": {
+          "scenario": "compound_crisis",
+          "paths": [
+            "needs.decayPerTick.hunger",
+            "weather.states.clear.weight",
+            "weather.states.cold.weight"
+          ]
+        },
+        "overrides": {
+          "resources.stockpile.food": 33,
+          "resources.terrainCooldownTicks.food": 55,
+          "resources.terrainAllowed.food": ["food"],
+          "jobs.gatherYield.food": 2.3
+        }
+      },
+      {
+        "id": "crowded_hearth",
+        "name": "Crowded Hearth",
+        "difficulty": "Challenging",
+        "focus": "Housing and growth",
+        "description": "Twenty settlers arrive together. Costlier, slower houses test the building economy.",
+        "seed": 505,
+        "test_template": {
+          "scenario": "housing_pressure",
+          "paths": [
+            "dwarves.count",
+            "population.housing.buildTargetRatio",
+            "structures.house.buildTicks",
+            "structures.house.buildCost"
+          ]
+        },
+        "overrides": {
+          "resources.stockpile.food": 64,
+          "resources.stockpile.water": 80,
+          "resources.stockpile.wood": 16,
+          "resources.stockpile.stone": 12
+        }
+      },
+      {
+        "id": "raider_frontier",
+        "name": "Raider Frontier",
+        "difficulty": "Hard",
+        "focus": "Defense and recovery",
+        "description": "Earlier, more frequent raids threaten reserves. Recover between attacks and protect the hold.",
+        "seed": 606,
+        "test_template": {
+          "scenario": "compound_crisis",
+          "paths": ["raids.resourceLoss.min", "raids.resourceLoss.max"]
+        },
+        "overrides": {
+          "dwarves.count": 16,
+          "resources.stockpile.food": 60,
+          "resources.stockpile.water": 70,
+          "resources.stockpile.wood": 12,
+          "resources.stockpile.stone": 10,
+          "raids.minTick": 360,
+          "raids.chance.min": 0.22,
+          "raids.chance.max": 0.36,
+          "raids.seasonNames": ["spring", "summer", "autumn"]
+        }
+      },
+      {
+        "id": "border_council",
+        "name": "Border Council",
+        "difficulty": "Hard",
+        "focus": "Diplomacy and politics",
+        "description": "More camps, tighter opportunities and a restless council put diplomacy under pressure.",
+        "seed": 707,
+        "test_template": {
+          "scenario": "governance_pressure",
+          "paths": [
+            "worldEvents.spawnRangeTicks",
+            "worldEvents.globalCooldownTicks",
+            "worldEvents.limited_opportunities.cooldownTicks",
+            "worldEvents.limited_opportunities.expiryTicks",
+            "externalCamps.spawnRangeTicks",
+            "externalCamps.maxActive",
+            "externalCamps.globalCooldownTicks",
+            "externalCamps.raider.demandIntervalTicks",
+            "externalCamps.raider.hostilityInitial",
+            "externalCamps.raider.hostilityGainOnReject",
+            "externalCamps.factions.ashen_marauders.weight",
+            "schism.start_pressure",
+            "schism.start_legitimacy",
+            "schism.pressure.drift_per_tick"
+          ]
+        },
+        "overrides": {
+          "resources.stockpile.food": 56,
+          "resources.stockpile.water": 70
+        }
+      },
+      {
+        "id": "divided_halls",
+        "name": "Divided Halls",
+        "difficulty": "Hard",
+        "focus": "Social bonds",
+        "description": "More frequent rivalries and grudges test the cohesion of a larger founding colony.",
+        "seed": 808,
+        "test_template": {
+          "scenario": "social_tension_pressure",
+          "paths": [
+            "dwarves.count",
+            "population.socialDrama.tickInterval",
+            "population.socialDrama.pairSamplesPerUpdate",
+            "population.socialDrama.incidents.intervalTicks",
+            "population.socialDrama.incidents.baseChancePerRoll",
+            "population.socialDrama.incidents.weights.rivalry_clash",
+            "population.socialDrama.incidents.weights.grudge_escalation",
+            "population.socialDrama.incidents.weights.reconciliation",
+            "schism.start_pressure",
+            "schism.start_legitimacy",
+            "schism.pressure.drift_per_tick"
+          ]
+        },
+        "overrides": {
+          "resources.stockpile.food": 88,
+          "resources.stockpile.water": 112,
+          "resources.stockpile.wood": 16,
+          "resources.stockpile.stone": 12
+        }
+      },
+      {
+        "id": "below_the_gate",
+        "name": "Below the Gate",
+        "difficulty": "Hard",
+        "focus": "Underrealm frontier",
+        "description": "Discover the Deep Gate early and balance the surface economy with a faster mining frontier.",
+        "seed": 909,
+        "test_template": {
+          "scenario": "underrealm_push",
+          "paths": [
+            "dwarves.count",
+            "structures.armory.kitTicks",
+            "structures.armory.kitOutput",
+            "structures.armory.kitMax",
+            "underrealm.discovery.min_tick",
+            "underrealm.discovery.max_tick",
+            "underrealm.discovery.population_min_for_timer",
+            "underrealm.discovery.population_max_for_timer",
+            "underrealm.progression.min_frontier_miners",
+            "underrealm.progression.build_ticks_base",
+            "underrealm.progression.build_ticks_per_depth",
+            "underrealm.progression.stockpile_cost_base",
+            "underrealm.progression.stockpile_cost_per_depth",
+            "underrealm.progression.mined_cost_base",
+            "underrealm.progression.mined_cost_per_depth",
+            "underrealm.crew.surface_reserve_ratio",
+            "underrealm.crew.max_underrealm_ratio",
+            "underrealm.crew.roles"
+          ]
+        },
+        "overrides": {
+          "resources.stockpile.food": 80,
+          "resources.stockpile.water": 100,
+          "resources.stockpile.wood": 14,
+          "resources.stockpile.stone": 12
+        }
+      },
+      {
+        "id": "arena_of_stone",
+        "name": "Arena of Stone",
+        "difficulty": "Hard",
+        "focus": "Champions and injuries",
+        "description": "Larger tournaments, harder injuries and faster training test fighter rotation and recovery.",
+        "seed": 1010,
+        "test_template": {
+          "scenario": "warrior_realism_pressure",
+          "paths": [
+            "dwarves.count",
+            "warriors.tournaments.max_participants",
+            "warriors.tournaments.consequences.injury_base_chance",
+            "warriors.tournaments.consequences.injury_score_gap_scale",
+            "warriors.training.tick_interval",
+            "warriors.training.base_participants",
+            "warriors.training.max_participants",
+            "warriors.training.rotation_window_ticks",
+            "ruins.expedition.cooldownTicks",
+            "ruins.expedition.failureCooldownTicks"
+          ]
+        },
+        "overrides": {
+          "resources.stockpile.food": 88,
+          "resources.stockpile.water": 112,
+          "resources.stockpile.wood": 16,
+          "resources.stockpile.stone": 12
+        }
+      },
+      {
+        "id": "compound_crisis",
+        "name": "The Long Emergency",
+        "difficulty": "Expert",
+        "focus": "Overlapping crises",
+        "description": "Rising needs, harsh weather, slower housing and heavier raid losses strain several systems at once.",
+        "seed": 1111,
+        "test_template": {
+          "scenario": "compound_crisis",
+          "paths": [
+            "needs.decayPerTick",
+            "structures.house.buildTicks",
+            "structures.house.buildCost",
+            "population.housing.buildTargetRatio",
+            "weather.states.clear.weight",
+            "weather.states.storm.weight",
+            "weather.states.drought.weight",
+            "weather.states.cold.weight",
+            "raids.resourceLoss.min",
+            "raids.resourceLoss.max"
+          ]
+        },
+        "overrides": {
+          "resources.stockpile.food": 40,
+          "resources.stockpile.water": 48,
+          "resources.stockpile.wood": 11,
+          "resources.stockpile.stone": 11
+        }
+      }
+    ]
+  },
+  "persistence": {
+    "enabled": true,
+    "directory": "saves",
+    "autosave_interval_ticks": 600,
+    "autosave_min_interval_ms": 30000,
+    "save_on_exit": true,
+    "keep_backup": true,
+    "max_save_bytes": 67108864
+  },
   "display": {
     "autoSize": true,
     "width": 190,
@@ -520,6 +817,14 @@
       "reset": "\u001b[0m",
       "map": {
         "frame": "\u001b[90m",
+        "menu_background": "\u001b[49m",
+        "menu_text": "\u001b[38;2;152;181;191m",
+        "menu_muted": "\u001b[38;2;104;135;148m",
+        "menu_border": "\u001b[1m\u001b[38;2;214;176;82m",
+        "menu_texture": "\u001b[38;2;73;102;116m",
+        "menu_pillar": "\u001b[38;2;145;124;103m",
+        "menu_selected": "\u001b[1m\u001b[93m",
+        "menu_selected_background": "\u001b[49m",
         "terrain_river": "\u001b[34m",
         "terrain_river_winter_ice": "\u001b[38;2;99;131;148m",
         "terrain_lake": "\u001b[36m",

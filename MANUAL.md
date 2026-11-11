@@ -2,7 +2,7 @@
 
 ## 0) Scope and navigation 🧭
 
-A concise guide to playing, configuring and operating NodeDwarves v2.4.0.
+A concise guide to playing, configuring and operating NodeDwarves v2.5.0.
 See [README.md](README.md) for the product overview and [AGENTS.md](AGENTS.md) for contributor guidelines.
 
 ## 1) Operations and workflows 🛠️
@@ -13,6 +13,32 @@ Install dependencies and start the colony:
 npm ci
 npm start
 ```
+
+The welcome screen uses the game's terrain generator, symbols and palette for a decorative atlas,
+including the first playable frame's seasonal colors and active theme, also on decorative fields,
+with a carved gatehouse for New colony, Load colony and Continue latest. Text keeps the map's slate
+and icy-blue tones; a bold gold frame, bronze pillars and yellow selected option add contrast. The panel
+and text share the map's terminal background. The palette follows `display.colors.map.menu_*`. Use Up/Down and
+Enter, or `n`/`l`/`c` shortcuts; Esc returns to the welcome screen and `q` exits the menu.
+The free colony uses standard settings and a fresh random seed. Eleven additional presets change
+supplies, world pressure and selected system settings. Their focus and difficulty are shown in the
+scrollable scenario menu; the complete catalog is listed under State generation.
+
+Direct launch and resume:
+
+```bash
+npm start -- --new --seed 101
+npm start -- --scenario green_valley
+npm start -- --scenario below_the_gate
+npm start -- --resume
+npm start -- --load saves/COLONY_ID.json
+npm start -- --config /path/to/config.json --new
+```
+
+`--seed` and `--scenario` imply a new colony. `--resume` selects the latest compatible checkpoint;
+`--load` selects a specific file. Non-interactive launches skip the menu and start a free colony
+unless a launch choice is supplied. `--ai` selects a policy for a new colony; loaded games always
+restore their embedded policy and inference cadence.
 
 Run the existing trained policy:
 
@@ -25,6 +51,7 @@ npm run ai:play
 | Space | Pause or resume |
 | `[` / `]` | Decrease or increase speed |
 | `.` | Advance one tick while paused |
+| `s` | Save the colony, including during a cycle transition |
 | `l` | Open or close Legend; arrow keys browse its pages |
 | `i` | Inspect a dwarf |
 | `w` | Open Warrior League |
@@ -35,9 +62,23 @@ npm run ai:play
 | Up/down | Change map depth when no scrollable panel is open |
 | `m` / Shift+M | Export unlocked map layers, without/with structures and roads |
 | `c` | Export the latest completed or current Chronicle |
-| Ctrl+C | Exit |
+| Ctrl+C | Save and exit (when save_on_exit is enabled) |
 
 Map exports use PNG/SVG. Chronicle exports use Markdown/JSON in `chronicles/`.
+
+Each colony has an independent checkpoint in `saves/`, created when it starts, updated automatically
+after 600 simulation ticks and at least 30 seconds since the previous save, and saved on clean exit
+(Ctrl+C or SIGTERM). `s` saves immediately. Autosave is silent; failures appear in the archive panel.
+The previous valid checkpoint is kept as `.json.bak`; loading automatically recovers it if the
+primary is damaged and reports that recovery. Invalid saves remain untouched. Forced termination
+(SIGKILL or power loss) can lose progress since the last completed checkpoint.
+
+Saves retain world geometry, resolved config, scenario/seed, random cursor, jobs, history, AI policy,
+speed/pause and cycle-transition progress. Use the same game build and Node.js major version to
+resume deterministically. Incompatible or unsupported saves are rejected rather than reinterpreted.
+Retain the original version when archiving a long-running colony. Config edits affect new games;
+the current `persistence` settings control save storage and cadence. Restore the original terminal
+size for a full view of a loaded world. In-flight external map exports are not resumed.
 
 ## 2) Mental model 🧠
 
@@ -62,6 +103,38 @@ when the symbols need more space than the popup can display at once.
 
 World size, terrain and seed are configured in `config.json`. Use a fixed seed and identical
 settings when comparing simulation changes. The benchmark commands provide repeatable seed sets.
+Interactive `--seed` controls the complete gameplay random stream. Scenario presets are in
+`startup.scenarios`; each has an ID, name, difficulty label, description, optional seed and explicit
+dotted config overrides. Add presets there without changing the free colony defaults. Reproducible
+comparisons also require identical world dimensions. Training/benchmark launches ignore the menu,
+scenario presets and save storage unless their own configuration is explicitly overridden.
+
+| Scenario ID | Difficulty | Focus | Default seed |
+| --- | --- | --- | --- |
+| `free` | Standard | Unrestricted colony | Random |
+| `green_valley` | Gentle start | Double founding supplies | 101 |
+| `lean_provisions` | Challenging start | Reduced reserves | 303 |
+| `dry_stone` | Challenging | Thirst, drought and water gathering | 202 |
+| `hungry_hills` | Challenging | Hunger, cold and leaner harvests | 404 |
+| `crowded_hearth` | Challenging | Twenty settlers and costlier housing | 505 |
+| `raider_frontier` | Hard | Earlier raids, more attack seasons and heavier looting | 606 |
+| `border_council` | Hard | Camps, diplomacy and political pressure | 707 |
+| `divided_halls` | Hard | Rivalries, grudges and colony cohesion | 808 |
+| `below_the_gate` | Hard | Earlier Deep Gate and faster mining frontier | 909 |
+| `arena_of_stone` | Hard | Larger tournaments, injuries and training | 1010 |
+| `compound_crisis` | Expert | The Long Emergency: needs, weather, housing and raid losses | 1111 |
+
+Use `--seed` to replay a preset on a different mountain. Presets still use the complete simulation,
+including social memory, combat readiness and full cycle progression. Larger founding caravans
+receive extra supplies so their challenge comes from the featured systems.
+
+Several presets reuse selected settings from `housing_pressure`, `governance_pressure`,
+`social_tension_pressure`, `underrealm_push`, `warrior_realism_pressure` and `compound_crisis` in
+the test catalog. Scarcity is adapted to terrain gathering instead of adding explicit test nodes.
+`test_template.scenario` selects a source and `test_template.paths` lists the settings to copy.
+Unmentioned defaults remain active; local dotted `overrides` are applied afterward. Training
+shortcuts, termination limits and policy settings are not imported. Template edits affect new
+colonies; saved colonies retain their resolved settings and source identity.
 
 ## 6) Simulation systems ⚙️
 
@@ -112,6 +185,13 @@ rotating Horizon check. CI artifacts identify their run and commit and mark miss
 Keep valid JSON and change a small, understood set of values at a time. Use benchmark overrides
 for comparisons before accepting a new default.
 
+`startup.enabled` controls the interactive welcome menu; `startup.background_seed` selects its
+decorative terrain independently of gameplay seeds. `persistence.enabled`, `directory`,
+`autosave_interval_ticks`, `autosave_min_interval_ms`, `save_on_exit`, `keep_backup` and
+`max_save_bytes` control local checkpoints; defaults are enabled, `saves/`, 600 ticks, 30000 ms,
+enabled exit saves/backups and a 64 MiB file limit. Custom save directories should also be ignored
+by Git when they live inside the repository.
+
 ```bash
 npm run bench:ensure-baseline
 npm run bench:candidate -- --set path=value
@@ -135,6 +215,16 @@ Run the contract suite:
 npm test
 ```
 
+`npm run test:saves` checks lossless saves, recovery, the menu and policy continuity.
+`npm run test:scenarios` checks template provenance, standard-game and policy isolation.
+At a save-system milestone, `npm run validate:saves` compares uninterrupted and resumed worlds
+over 8,000 advances with and without the canonical policy, plus shorter scenario checks.
+At a scenario milestone, `npm run validate:scenarios` checks every preset with two seeds, extends
+four pressure scenarios to 8,000 advances, and checks The Long Emergency with the canonical policy.
+It also restores a checkpoint in every case. To recheck one changed preset, use
+`npm run validate:scenarios -- --only dry_stone`; current results go to
+`debug/scenario_validation_latest.json`.
+
 Review a captured Chronicle without rerunning the simulation:
 
 ```bash
@@ -157,10 +247,12 @@ implementation workbooks and technical completion reports are not part of the us
 
 - `app.js`, `config.json`: entrypoint and settings.
 - `src/simulation/`, `src/state/`: simulation systems and world creation.
+- `src/game_session.js`, `src/session_random.js`, `src/persistence.js`: sessions, random state and saves.
 - `src/render/`, `src/runtime/`, `src/telemetry/`: terminal views, controls and diagnostics.
 - `src/ai/`, `ai_server.js`, `python/`: policy inference, training bridge and PPO tooling.
 - `scripts/`: tests, benchmarks, validation, exports and CI utilities.
 - `models/`, `regression/baselines/`: policies and model-quality references.
 - `benchmark_cache/`, `debug/`: shared simulation baseline and current operational results.
 - `chronicles/`: generated history exports.
+- `saves/`: local colony checkpoints and recovery backups.
 - `.github/workflows/quality_gates.yml`: remote quality-check workflow.

@@ -1,6 +1,6 @@
 {
   "name": "nodedwarves",
-  "version": "2.4.0",
+  "version": "2.5.0",
   "main": "app.js",
   "scripts": {
     "start": "node app.js",
@@ -25,7 +25,7 @@
     "validate:epic-conflicts": "node scripts/validate_epic_conflicts.js",
     "test:landmarks": "node scripts/test_landmark_contracts.js",
     "validate:landmarks": "node scripts/validate_landmarks.js",
-    "test": "node scripts/audit_narrative_producers.js && node scripts/test_narrative_contracts.js && node scripts/test_time_controls.js && node scripts/test_chronicle_contracts.js && node scripts/test_world_legacy_contracts.js && node scripts/test_epic_conflict_contracts.js && node scripts/test_landmark_contracts.js && node scripts/test_core_simulation_contracts.js && node scripts/test_social_memory_contracts.js && node scripts/test_saga_refinement_contracts.js && node scripts/test_legacy_effect_contracts.js && node scripts/test_road_routing_contracts.js && node scripts/test_legend_panel.js && node scripts/test_operational_closure_contracts.js && node scripts/test_training_contracts.js",
+    "test": "node scripts/audit_narrative_producers.js && node scripts/test_narrative_contracts.js && node scripts/test_time_controls.js && node scripts/test_chronicle_contracts.js && node scripts/test_world_legacy_contracts.js && node scripts/test_epic_conflict_contracts.js && node scripts/test_landmark_contracts.js && node scripts/test_core_simulation_contracts.js && node scripts/test_social_memory_contracts.js && node scripts/test_saga_refinement_contracts.js && node scripts/test_legacy_effect_contracts.js && node scripts/test_road_routing_contracts.js && node scripts/test_legend_panel.js && node scripts/test_operational_closure_contracts.js && node scripts/test_training_contracts.js && node scripts/test_save_contracts.js && node scripts/test_scenario_contracts.js",
     "test:core-simulation": "node scripts/test_core_simulation_contracts.js",
     "test:social-memory": "node scripts/test_social_memory_contracts.js",
     "test:saga-refinement": "node scripts/test_saga_refinement_contracts.js",
@@ -34,7 +34,11 @@
     "validate:road-routing": "node scripts/validate_road_routing.js",
     "review:chronicle-retention": "node scripts/review_chronicle_retention.js",
     "test:operational-closure": "node scripts/test_operational_closure_contracts.js",
-    "test:legend": "node scripts/test_legend_panel.js"
+    "test:legend": "node scripts/test_legend_panel.js",
+    "test:saves": "node scripts/test_save_contracts.js",
+    "validate:saves": "node scripts/validate_save_continuity.js",
+    "test:scenarios": "node scripts/test_scenario_contracts.js",
+    "validate:scenarios": "node scripts/validate_scenarios.js"
   },
   "dependencies": {
     "puppeteer": "^24.36.1"

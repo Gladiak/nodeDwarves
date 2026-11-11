@@ -4,7 +4,7 @@ NodeDwarves is an autonomous ASCII dwarf-colony simulator that runs entirely in 
 Start a run, watch the settlement react to shortages and crises, and tune the system like a tiny living lab. 🍺⛏️
 Chaos, strategy, and tiny bearded logistics experts included. 🧔🧱
 
-Current release: **v2.4.0 - Relaxed Pace and Clearer Map**. 🍺🗺️
+Current release: **v2.5.0 - Saved Holds and Scenario Challenges**. 🍺🗺️
 
 ## Screenshots 📸
 
@@ -15,6 +15,10 @@ Current release: **v2.4.0 - Relaxed Pace and Clearer Map**. 🍺🗺️
 ## Highlights ✨
 
 - 🧠 Fully autonomous colony sim: no micromanagement after launch.
+- 🏔️ A carved ASCII gatehouse shares the world map's theme and seasonal palette and opens new colonies, configured scenarios and saved holds.
+- 🎲 Twelve colony templates range from generous supplies to drought, hunger, overcrowding, raids,
+  diplomacy, social strife, early Underrealm exploration, warrior injuries and overlapping crises.
+- 💾 Per-colony autosaves, manual saves and backup recovery preserve the colony, its history and its random stream.
 - ⛏️ Multi-layer economy with gathering, structures, shortages, and recovery loops.
 - 🌦️ Seasons, weather, festivals, raids, and world events that shift priorities.
 - 🤝 External camps, diplomacy pressure, contracts, and faction trade opportunities.
@@ -81,6 +85,14 @@ npm install
 npm start
 ```
 
+Choose **New colony**, **Load colony** or **Continue latest** in the opening menu.
+Try the free colony or choose among eleven themed presets, from Green Valley's generous supplies
+to The Long Emergency's overlapping crises. Each preset shows its focus and difficulty in the menu.
+Press `s` to save; autosave and a final save on Ctrl+C keep each colony in `saves/`.
+
+Skip the menu with `npm start -- --new`, `--scenario green_valley`, or `--resume`.
+See the [manual](MANUAL.md) for reproducible seeds and save compatibility.
+
 Run with the best trained policy (if available):
 
 ```bash
@@ -92,6 +104,7 @@ npm run ai:play
 - ⏯️ `Space`: pause/resume
 - 🐢 `[` / `]` 🐇: decrease/increase visible simulation speed (`0.5x`, `1x`, `2x`, `4x`, `5x`, `25x`, `100x`; default `1x` runs five ticks per second)
 - 👣 `.`: advance exactly one tick and remain paused
+- 💾 `s`: save the current colony
 - 🗺️ `l`: legend; arrow keys browse pages when needed
 - 🔍 `i`: dwarf inspect panel
 - ⚔️ `w`: Warrior League modal
@@ -173,6 +186,7 @@ npm run debug:clean
 - `config.json`: gameplay, rendering and training settings.
 - `src/simulation/`: colony economy, population, stories, roads and world systems.
 - `src/state/`: state creation and terrain generation.
+- `src/game_session.js`, `src/session_random.js`, `src/persistence.js`: resumable sessions and save storage.
 - `src/render/`, `src/runtime/`, `src/telemetry/`: terminal views, controls and diagnostics.
 - `src/ai/` and `ai_server.js`: policy inference and training bridge.
 - `scripts/`: benchmarks, validation, map export, CI artifacts and cleanup tools.
@@ -182,6 +196,7 @@ npm run debug:clean
 - `benchmark_cache/`: shared deterministic benchmark baseline.
 - `debug/`: current operational validation and comparison reports.
 - `chronicles/`: generated Chronicle exports (git-ignored).
+- `saves/`: local colony checkpoints and previous-generation backups (git-ignored).
 - `.github/workflows/quality_gates.yml`: extended and weekly quality checks.
 
 ## Contributing 🤝
