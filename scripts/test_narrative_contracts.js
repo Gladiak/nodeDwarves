@@ -3403,6 +3403,7 @@ function validateMapExportIsolationContract() {
 // Validate the E4.1 ribbon layout, structured-fact fallbacks, and read-only boundary.
 function validateStoryRibbonContract() {
   const config = loadConfig();
+  config.display.storyRibbon.enabled = true;
   const event = buildValidEvent({
     tick: 500,
     sequence: 0,
@@ -3536,6 +3537,7 @@ function validateStoryRibbonContract() {
 // Validate the E4.2 overlay budget, layer cues, deterministic pulse, and symbol preservation.
 function validateStoryFocusOverlayContract() {
   const config = loadConfig();
+  config.display.storyRibbon.enabled = true;
   const event = buildValidEvent({
     tick: 640,
     sequence: 0,

@@ -2,7 +2,7 @@
 
 ## 0) Scope and navigation 🧭
 
-A concise guide to playing, configuring and operating NodeDwarves v2.3.0.
+A concise guide to playing, configuring and operating NodeDwarves v2.4.0.
 See [README.md](README.md) for the product overview and [AGENTS.md](AGENTS.md) for contributor guidelines.
 
 ## 1) Operations and workflows 🛠️
@@ -47,6 +47,7 @@ Watch trends in population, food, water, morale and housing rather than individu
 
 ## 3) Tick flow ⏱️
 
+The game starts at `1x`: five full simulation ticks per second (one every 200 ms). Use `[` / `]` to change the pace.
 Each tick advances the full simulation. Faster speeds batch complete ticks; they do not skip
 systems. Pause and single-step are useful for watching a crisis or inspecting a busy settlement.
 Critical story beats may briefly slow or hold presentation; manual controls take precedence.
@@ -78,7 +79,8 @@ settings when comparing simulation changes. The benchmark commands provide repea
 Legend explains surface or active Underrealm symbols. Inspect shows a dwarf's identity and
 witnessed deeds. Event Log provides current events and a drama filter. Data Center shows economy,
 progression and policy information; its reference text explains the displayed metrics.
-The Story Ribbon highlights the current event without requiring you to follow every log entry.
+Story context is available in Event Log and Data Center. The bottom Story Ribbon is disabled by
+default to keep the map unobstructed.
 
 ## 8) AI and training 🤖
 

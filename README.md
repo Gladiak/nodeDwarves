@@ -4,7 +4,7 @@ NodeDwarves is an autonomous ASCII dwarf-colony simulator that runs entirely in 
 Start a run, watch the settlement react to shortages and crises, and tune the system like a tiny living lab. 🍺⛏️
 Chaos, strategy, and tiny bearded logistics experts included. 🧔🧱
 
-Current release: **v2.3.0 - Living Chronicles and Simulation Refinement**. 📖🛣️
+Current release: **v2.4.0 - Relaxed Pace and Clearer Map**. 🍺🗺️
 
 ## Screenshots 📸
 
@@ -55,11 +55,8 @@ Current release: **v2.3.0 - Living Chronicles and Simulation Refinement**. 📖�
   events that actually happened. The Data Center and headless reports expose the current focus,
   current saga, cooldowns, selection reasons, priority coverage, suppression counts, and saga
   outcomes.
-- 🎞️ A compact in-map Story Ribbon turns the Director's active focus into an immediate
-  actor → action → place → consequence beat, with deterministic narrow-terminal fallbacks and clean
-  modal/Operations Snapshot collision rules. A restrained focus overlay recolors at most two
-  involved dwarves and marks locations only for critical or legendary beats; off-layer action is
-  reported in the ribbon instead of cluttering the current map.
+- 🎞️ A restrained story-focus overlay highlights involved dwarves and critical locations.
+  Follow event and saga context in the Event Log and Data Center.
 - ⏱️ Explicit controls from `0.5x` through batched `100x`, plus exact single-step, support both close
   observation and rapid endgame trials. Critical beats temporarily slow the visible loop, legendary
   beats briefly hold it, and every accelerated tick still runs the full simulation, AI cadence, and
@@ -93,7 +90,7 @@ npm run ai:play
 ## Controls 🎮
 
 - ⏯️ `Space`: pause/resume
-- 🐢 `[` / `]` 🐇: decrease/increase visible simulation speed (`0.5x`, `1x`, `2x`, `4x`, `5x`, `25x`, `100x`; default `1x`, with faster levels available for endgame trials)
+- 🐢 `[` / `]` 🐇: decrease/increase visible simulation speed (`0.5x`, `1x`, `2x`, `4x`, `5x`, `25x`, `100x`; default `1x` runs five ticks per second)
 - 👣 `.`: advance exactly one tick and remain paused
 - 🗺️ `l`: legend; arrow keys browse pages when needed
 - 🔍 `i`: dwarf inspect panel
