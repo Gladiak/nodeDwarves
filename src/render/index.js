@@ -2,6 +2,8 @@
 
 const { clamp } = require('../utils');
 const { buildGridBase } = require('./grid');
+const { getTerrainColors, getStructureColorKey } = require('./map_readability');
+const { applyMapFlows } = require('./map_flows');
 const { buildHeaderLines } = require('./header');
 const { buildFooterLines, getBeastSymbol } = require('./legend');
 const { buildLegendPanel, applyLegendPanel } = require('./legend_panel');
@@ -665,13 +667,14 @@ function renderFrame(state, config, runtime, options = {}) {
 
   const headerLines = buildHeaderLines(config, runtime);
   const footerLines = buildFooterLines(config, runtime);
-  const grid = buildGridBase(state, config, runtime, colors, emptySymbol);
+  const grid = buildGridBase(state, config, runtime, getTerrainColors(config, colors), emptySymbol);
   const structurePositions = new Set();
   const dwarfPositions = new Set();
   let storyActorPositions = new Map();
   const activeUnderrealmDepth = getActiveUnderrealmDepth(state);
   const underrealmViewActive = activeUnderrealmDepth > 0;
   if (!underrealmViewActive) {
+    applyMapFlows(grid, options.mapFlows, runtime, colors);
     for (const node of state.nodes) {
       if (grid[node.y] && grid[node.y][node.x] !== undefined) {
         grid[node.y][node.x] = applyColor(node.symbol, node.id, colors);
@@ -686,7 +689,7 @@ function renderFrame(state, config, runtime, options = {}) {
           symbol = symbols.house || symbol;
           colorKey = 'house';
         }
-        grid[structure.y][structure.x] = applyColor(symbol, colorKey, colors);
+        grid[structure.y][structure.x] = applyColor(symbol, getStructureColorKey(config, colors, colorKey), colors);
         structurePositions.add(`${structure.x},${structure.y}`);
       }
     }
@@ -798,6 +801,7 @@ function renderFrame(state, config, runtime, options = {}) {
   applyTransitionMask(grid, state.ui ? state.ui.transition : null, runtime);
   applyMapInsetPanel(grid, state, config, runtime, colors, frameSymbols, {
     timeControls: options.timeControls,
+    mapFlows: options.mapFlows,
   });
 
   const storyRibbon = buildStoryRibbon(state, config, runtime, {

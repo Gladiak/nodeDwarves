@@ -2,6 +2,10 @@
   "startup": {
     "enabled": true,
     "background_seed": 707,
+    "preview": {
+      "enabled": true,
+      "cache_entries": 4
+    },
     "scenarios": [
       {
         "id": "free",
@@ -17,7 +21,7 @@
         "name": "Green Valley",
         "difficulty": "Gentle start",
         "focus": "Founding supplies",
-        "description": "Seed 101. Extra food, water, wood and stone for the founding caravan.",
+        "description": "Extra food, water, wood and stone for the founding caravan.",
         "seed": 101,
         "overrides": {
           "resources.stockpile.food": 88,
@@ -31,7 +35,7 @@
         "name": "Lean Provisions",
         "difficulty": "Challenging start",
         "focus": "Scarce reserves",
-        "description": "Seed 303. Reduced starting reserves put early gathering to the test.",
+        "description": "Reduced starting reserves put early gathering to the test.",
         "seed": 303,
         "overrides": {
           "resources.stockpile.food": 33,
@@ -303,6 +307,20 @@
     "maxWidth": 0,
     "maxHeight": 0,
     "tickMs": 200,
+    "map_readability": {
+      "enabled": true,
+      "terrain_strength": 0.82,
+      "minimum_brightness": 72,
+      "structure_color_key": "terrain_mountain_medium"
+    },
+    "map_flows": {
+      "enabled": true,
+      "default_mode": "off",
+      "retention_ticks": 120,
+      "max_actors": 1024,
+      "max_segments": 4096,
+      "max_cells": 180
+    },
     "time_controls": {
       "enabled": true,
       "default_level": "normal",
@@ -825,6 +843,9 @@
         "menu_pillar": "\u001b[38;2;145;124;103m",
         "menu_selected": "\u001b[1m\u001b[93m",
         "menu_selected_background": "\u001b[49m",
+        "flow_gather": "\u001b[38;2;164;186;151m",
+        "flow_work": "\u001b[38;2;214;176;82m",
+        "flow_trade": "\u001b[96m",
         "terrain_river": "\u001b[34m",
         "terrain_river_winter_ice": "\u001b[38;2;99;131;148m",
         "terrain_lake": "\u001b[36m",

@@ -1,0 +1,31 @@
+{
+  "completed": true,
+  "passed": true,
+  "modelHash": "9168d821b3994923e91d1f34d961a739e86ffc9f288325759d91bd4388446689",
+  "cases": [
+    {
+      "seed": 101,
+      "policy": "autonomous",
+      "ticks": 8000,
+      "maxSegments": 4096,
+      "maxActors": 492,
+      "maxOverlayCells": 180,
+      "renderedFrames": 80,
+      "passed": true,
+      "finalPopulation": 667
+    },
+    {
+      "seed": 303,
+      "policy": "canonical",
+      "ticks": 8000,
+      "maxSegments": 4096,
+      "maxActors": 505,
+      "maxOverlayCells": 180,
+      "renderedFrames": 80,
+      "passed": true,
+      "finalPopulation": 692
+    }
+  ],
+  "elapsedMs": 840774,
+  "configHash": "e3bdddcac7a774106882094fbc6c8f765ba18a84fc7a500b50b1c70f84dc6c43"
+}

@@ -20,6 +20,11 @@ with a carved gatehouse for New colony, Load colony and Continue latest. Text ke
 and icy-blue tones; a bold gold frame, bronze pillars and yellow selected option add contrast. The panel
 and text share the map's terminal background. The palette follows `display.colors.map.menu_*`. Use Up/Down and
 Enter, or `n`/`l`/`c` shortcuts; Esc returns to the welcome screen and `q` exits the menu.
+Scenario selection includes an actual terrain preview, seed and world dimensions. Large terminals
+show it beside the menu; smaller ones place it below. Press `p` for the expanded map and `r` for a
+new gameplay seed. Confirmation starts that displayed seed and geometry. A fixed terrain seed in a
+custom config still takes precedence over randomized terrain generation. Previewing never advances
+the colony. Set `startup.preview.enabled` to false to hide previews; `cache_entries` bounds cached maps.
 The free colony uses standard settings and a fresh random seed. Eleven additional presets change
 supplies, world pressure and selected system settings. Their focus and difficulty are shown in the
 scrollable scenario menu; the complete catalog is listed under State generation.
@@ -52,6 +57,7 @@ npm run ai:play
 | `[` / `]` | Decrease or increase speed |
 | `.` | Advance one tick while paused |
 | `s` | Save the colony, including during a cycle transition |
+| `v` | Cycle observed surface flows: off, all, gathering, work, trade |
 | `l` | Open or close Legend; arrow keys browse its pages |
 | `i` | Inspect a dwarf |
 | `w` | Open Warrior League |
@@ -74,9 +80,10 @@ primary is damaged and reports that recovery. Invalid saves remain untouched. Fo
 (SIGKILL or power loss) can lose progress since the last completed checkpoint.
 
 Saves retain world geometry, resolved config, scenario/seed, random cursor, jobs, history, AI policy,
-speed/pause and cycle-transition progress. Use the same game build and Node.js major version to
-resume deterministically. Incompatible or unsupported saves are rejected rather than reinterpreted.
-Retain the original version when archiving a long-running colony. Config edits affect new games;
+speed/pause and cycle-transition progress. Use the same gameplay engine and Node.js major version to
+resume deterministically. Presentation-only compatible builds also accept v2.5.0 saves. Changes to
+the gameplay engine still reject unsupported saves rather than reinterpret them. Retain the original
+version when archiving a long-running colony. Config edits affect new games;
 the current `persistence` settings control save storage and cadence. Restore the original terminal
 size for a full view of a loaded world. In-flight external map exports are not resumed.
 
@@ -155,6 +162,19 @@ progression and policy information; its reference text explains the displayed me
 Story context is available in Event Log and Data Center. The bottom Story Ribbon is disabled by
 default to keep the map unobstructed.
 
+Background terrain is softened while roads, deep corridors, magma, shrines, actors and urgent
+markers keep their normal colors. Dark structure symbols use a brighter map tone. Legend follows
+the structure colors, and the home/preview terrain shares the same hierarchy and seasonal palette.
+
+Press `v` to show recent surface movement with directional arrows: green for gathering, gold for
+other colony work, cyan for merchants and caravans. The Ops view line identifies the selected
+filter. Traces come from consecutive, adjacent observed positions, including ticks batched at high
+speeds; they are not planned routes, carried-resource quantities or transport predictions. Actors,
+structures, threats and panels draw above traces. Marks expire after 120 simulation ticks.
+Underrealm views show `Surface only`: their decorative actor positions are not physical logistics.
+Flow history is bounded, outside simulation/save state and rebuilt after load. It is disabled by
+default until selected; pausing also pauses trace aging.
+
 ## 8) AI and training 🤖
 
 Python training is optional. Bootstrap its environment before training:
@@ -192,6 +212,12 @@ decorative terrain independently of gameplay seeds. `persistence.enabled`, `dire
 enabled exit saves/backups and a 64 MiB file limit. Custom save directories should also be ignored
 by Git when they live inside the repository.
 
+`display.map_readability` enables the hierarchy, controls `terrain_strength` (default 0.82),
+`minimum_brightness` (72) and the brighter `structure_color_key`. `display.map_flows` enables the
+observer and selects `default_mode`; `retention_ticks`, `max_actors`, `max_segments` and `max_cells`
+bound trace retention, tracked actors, movement records and drawn cells (120/1024/4096/180).
+Flow colors use `display.colors.map.flow_gather`, `flow_work` and `flow_trade`.
+
 ```bash
 npm run bench:ensure-baseline
 npm run bench:candidate -- --set path=value
@@ -217,6 +243,8 @@ npm test
 
 `npm run test:saves` checks lossless saves, recovery, the menu and policy continuity.
 `npm run test:scenarios` checks template provenance, standard-game and policy isolation.
+`npm run test:map-presentation` checks hierarchy, real flow samples, bounds, collision protection,
+exact terrain previews, selected-seed launch and presentation-compatible saves.
 At a save-system milestone, `npm run validate:saves` compares uninterrupted and resumed worlds
 over 8,000 advances with and without the canonical policy, plus shorter scenario checks.
 At a scenario milestone, `npm run validate:scenarios` checks every preset with two seeds, extends
@@ -224,6 +252,9 @@ four pressure scenarios to 8,000 advances, and checks The Long Emergency with th
 It also restores a checkpoint in every case. To recheck one changed preset, use
 `npm run validate:scenarios -- --only dry_stone`; current results go to
 `debug/scenario_validation_latest.json`.
+`npm run validate:map-presentation` compares the new and original presentation at 1,000 and
+8,000 ticks, both autonomous and with the canonical policy; it checks exact state, RNG, AI and
+observer bounds. Current results go to `debug/map_presentation_latest.json`.
 
 Review a captured Chronicle without rerunning the simulation:
 
@@ -249,6 +280,8 @@ implementation workbooks and technical completion reports are not part of the us
 - `src/simulation/`, `src/state/`: simulation systems and world creation.
 - `src/game_session.js`, `src/session_random.js`, `src/persistence.js`: sessions, random state and saves.
 - `src/render/`, `src/runtime/`, `src/telemetry/`: terminal views, controls and diagnostics.
+- `src/render/map_readability.js`, `map_flows.js`, `scenario_preview.js`: map hierarchy, flow marks
+  and exact initial terrain previews; `src/runtime/map_flows.js`: bounded read-only surface observer.
 - `src/ai/`, `ai_server.js`, `python/`: policy inference, training bridge and PPO tooling.
 - `scripts/`: tests, benchmarks, validation, exports and CI utilities.
 - `models/`, `regression/baselines/`: policies and model-quality references.

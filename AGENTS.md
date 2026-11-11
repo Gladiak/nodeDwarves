@@ -48,6 +48,13 @@ This file defines how to implement new features in a consistent, stable way.
 - `scripts/validate_save_continuity.js`: milestone-only short/long deterministic uninterrupted-versus-resumed validation.
 - `scripts/test_scenario_contracts.js`: curated scenario, filtered test-template reuse, precedence, save pinning and standard-game/PPO isolation contracts.
 - `scripts/validate_scenarios.js`: milestone-only two-seed catalog validation, long pressure runs, checkpoint restoration and canonical-policy compatibility.
+- `src/render/map_readability.js`: presentation-only terrain hierarchy and structure contrast, preserving wayfinding and danger colors.
+- `src/runtime/map_flows.js`: bounded ephemeral observer of actual consecutive surface movement, isolated from gameplay and saves.
+- `src/render/map_flows.js`: flow-arrow projection beneath entities and reserved panels.
+- `src/render/scenario_preview.js`: bounded exact initial-terrain preview generation and aspect-preserving downsampling.
+- `scripts/test_map_presentation.js`: hierarchy, flow accuracy/bounds, exact previews, selection and save/PPO/RNG isolation contracts.
+- `scripts/validate_map_presentation.js`: milestone-only short/long exact-world comparison between original and new presentation at an identical render cadence.
+- `debug/map_presentation_latest.json`: latest operational map-presentation state, RNG, policy and observer-bound evidence.
 - `debug/scenario_validation_latest.json`: latest operational scenario-catalog validation with per-case population, economy, raids and progress.
 - `saves/`: git-ignored per-colony checkpoints and previous valid backups.
 - `src/simulation/`: simulation systems split by theme.

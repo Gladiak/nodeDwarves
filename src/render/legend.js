@@ -1,5 +1,7 @@
 "use strict";
 
+const { getStructureColorKey } = require('./map_readability');
+
 const { padRight } = require("../utils");
 const { getColorConfig, colorizeLegend, applyColor } = require("./colors");
 const { wrapLine, fitLine } = require("./format");
@@ -52,6 +54,7 @@ function buildLegendSections(config, options = {}) {
     typeof terrainSymbols === "object";
 
   const formatEntry = (symbol, label, key) => {
+    if (config.structures?.[key]) key = getStructureColorKey(config, colors, key);
     const text = `${symbol} ${toPascalCase(label)}`;
     if (detailed) {
       return { text, colorKey: key || null };
@@ -60,6 +63,11 @@ function buildLegendSections(config, options = {}) {
   };
 
   const legendParts = [];
+  if (!underrealmActive && config.display?.map_flows?.enabled !== false) {
+    legendParts.push(formatEntry('>', 'gather flow', 'flow_gather'));
+    legendParts.push(formatEntry('>', 'work flow', 'flow_work'));
+    legendParts.push(formatEntry('>', 'trade flow', 'flow_trade'));
+  }
   if (underrealmActive) {
     const delverColorKey =
       colors.map && colors.map.underrealm_delver

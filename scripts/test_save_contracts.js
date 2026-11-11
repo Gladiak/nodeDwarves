@@ -23,6 +23,7 @@ const { createTerrain } = require('../src/state/terrain');
 const { updateSeason } = require('../src/simulation/season');
 const { buildGridBase } = require('../src/render/grid');
 const { getColorConfig } = require('../src/render/colors');
+const { getTerrainColors } = require('../src/render/map_readability');
 
 const runtime = { gridWidth: 60, gridHeight: 30, playableArea: 1800,
   totalWidth: 60, totalHeight: 30, frameEnabled: false, mapInset: null };
@@ -102,7 +103,7 @@ function homeTerrainPaletteContracts() {
     const terrain = withSessionRandom(createSessionRandom(707), () => createTerrain(config, mapRuntime));
     const gameState = { terrain, tick: 1, roads: null };
     updateSeason(gameState, config);
-    const gameplay = buildGridBase(gameState, config, mapRuntime, getColorConfig(config), '.');
+    const gameplay = buildGridBase(gameState, config, mapRuntime, getTerrainColors(config, getColorConfig(config)), '.');
     const expected = readBackgroundCells(gameplay.map((row) => row.join('')).join('\n'));
     const actual = readBackgroundCells(renderStartMenu(model, width, height, config));
     // These rows are above the gatehouse, villages and decorative road network.

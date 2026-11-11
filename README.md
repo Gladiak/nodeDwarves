@@ -19,6 +19,9 @@ Current release: **v2.5.0 - Saved Holds and Scenario Challenges**. 🍺🗺️
 - 🎲 Twelve colony templates range from generous supplies to drought, hunger, overcrowding, raids,
   diplomacy, social strife, early Underrealm exploration, warrior injuries and overlapping crises.
 - 💾 Per-colony autosaves, manual saves and backup recovery preserve the colony, its history and its random stream.
+- 🔎 Scenario selection previews the actual starting terrain and seed; expand the map with `p` or reroll with `r`.
+- 🗺️ Restrained terrain colors keep structures and actors readable. Press `v` for recent, observed
+  surface flows, with gathering, work and trade filters.
 - ⛏️ Multi-layer economy with gathering, structures, shortages, and recovery loops.
 - 🌦️ Seasons, weather, festivals, raids, and world events that shift priorities.
 - 🤝 External camps, diplomacy pressure, contracts, and faction trade opportunities.
@@ -105,6 +108,7 @@ npm run ai:play
 - 🐢 `[` / `]` 🐇: decrease/increase visible simulation speed (`0.5x`, `1x`, `2x`, `4x`, `5x`, `25x`, `100x`; default `1x` runs five ticks per second)
 - 👣 `.`: advance exactly one tick and remain paused
 - 💾 `s`: save the current colony
+- 🧭 `v`: cycle surface flow views (off, all, gathering, work, trade)
 - 🗺️ `l`: legend; arrow keys browse pages when needed
 - 🔍 `i`: dwarf inspect panel
 - ⚔️ `w`: Warrior League modal
@@ -188,6 +192,8 @@ npm run debug:clean
 - `src/state/`: state creation and terrain generation.
 - `src/game_session.js`, `src/session_random.js`, `src/persistence.js`: resumable sessions and save storage.
 - `src/render/`, `src/runtime/`, `src/telemetry/`: terminal views, controls and diagnostics.
+- `src/render/map_readability.js`, `src/render/map_flows.js`, `src/render/scenario_preview.js`:
+  map hierarchy, observed traffic and scenario previews; `src/runtime/map_flows.js` tracks visible activity.
 - `src/ai/` and `ai_server.js`: policy inference and training bridge.
 - `scripts/`: benchmarks, validation, map export, CI artifacts and cleanup tools.
 - `python/`: PPO training and regression rollout tools.

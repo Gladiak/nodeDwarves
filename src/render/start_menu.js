@@ -7,6 +7,8 @@ const { updateSeason } = require('../simulation/season');
 const { buildGridBase } = require('./grid');
 const { applyColor, getColorConfig } = require('./colors');
 const { buildSeasonalColorContext, resolveSeasonalTerrainColorKey } = require('./seasonal_colors');
+const { getTerrainColors } = require('./map_readability');
+const { fitScenarioPreview } = require('./scenario_preview');
 
 const LOGO = [
   ' _   _           _      ____                                  ',
@@ -31,7 +33,7 @@ function buildAtlas(config, width, height, colors) {
   const atlasState = { terrain, tick: 1, roads: null };
   updateSeason(atlasState, atlasConfig);
   const seasonal = buildSeasonalColorContext(atlasState, atlasConfig, terrain, colors);
-  const grid = buildGridBase(atlasState, atlasConfig, runtime, colors, '.');
+  const grid = buildGridBase(atlasState, atlasConfig, runtime, getTerrainColors(atlasConfig, colors), '.');
   const tile = (x, y, symbol, key) => {
     if (x > 0 && y > 0 && x < width - 1 && y < height - 1) grid[y][x] = applyColor(symbol, key, colors);
   };
@@ -123,6 +125,23 @@ function renderStartMenu(model, width, height, suppliedConfig) {
       }
     }
   };
+  const previewBox = (left, top, previewWidth, previewHeight, expanded = false) => {
+    box(left, top, previewWidth, previewHeight);
+    const label = `Seed:${model.preview.seed} ${model.preview.width}x${model.preview.height}`;
+    panelPut(left + 2, top + 1, label.slice(0, previewWidth - 4), 'menu_text');
+    const map = fitScenarioPreview(model.preview, previewWidth - 4, previewHeight - 5);
+    const mapLeft = left + Math.floor((previewWidth - (map[0]?.length || 0)) / 2);
+    const mapTop = top + 2 + Math.floor((previewHeight - 5 - map.length) / 2);
+    for (let y = 0; y < map.length; y += 1) {
+      for (let x = 0; x < map[y].length; x += 1) if (rows[mapTop + y]?.[mapLeft + x] !== undefined) rows[mapTop + y][mapLeft + x] = map[y][x];
+    }
+    panelPut(left + 2, top + previewHeight - 2,
+      (expanded ? 'P/Esc: back  R: seed  Enter: start' : 'P: full map  R: new seed').slice(0, previewWidth - 4), 'menu_muted');
+  };
+  if (model.preview && model.previewExpanded) {
+    previewBox(1, 1, width - 2, height - 2, true);
+    return rows.map((rowCells) => rowCells.join('')).join('\n');
+  }
   if (width >= 30 && height >= 16) {
     put(0, 0, (frame.topLeft || '+') + (frame.horizontal || '-').repeat(width - 2) + (frame.topRight || '+'), 'frame');
     put(0, height - 1, (frame.bottomLeft || '+') + (frame.horizontal || '-').repeat(width - 2) + (frame.bottomRight || '+'), 'frame');
@@ -131,14 +150,16 @@ function renderStartMenu(model, width, height, suppliedConfig) {
   }
   const compact = height < 24;
   const tiny = height < 12;
-  const panelWidth = Math.max(4, Math.min(86, width - (width >= 100 ? 16 : width >= 76 ? 4 : 2)));
+  const sidePreview = Boolean(model.preview && width >= 142 && height >= 28);
+  const stackedPreview = Boolean(model.preview && !sidePreview && width >= 40 && height >= 28);
+  const panelWidth = sidePreview ? 66 : Math.max(4, Math.min(86, width - (width >= 100 ? 16 : width >= 76 ? 4 : 2)));
   const panelHeight = Math.min(33, height - (compact ? 2 : 4));
-  const left = Math.max(0, Math.floor((width - panelWidth) / 2));
+  const left = sidePreview ? 2 : Math.max(0, Math.floor((width - panelWidth) / 2));
   const top = Math.max(0, Math.floor((height - panelHeight) / 2));
   const pillars = panelWidth >= 44 && height >= 16;
   const inset = pillars ? 5 : 3;
   const innerWidth = Math.max(1, panelWidth - inset * 2);
-  const large = innerWidth >= LOGO_WIDTH && panelHeight >= 26;
+  const large = !model.preview && innerWidth >= LOGO_WIDTH && panelHeight >= 26;
   box(left, top, panelWidth, panelHeight);
   if (pillars) {
     for (let y = top + 1; y < top + panelHeight - 1; y += 1) {
@@ -169,7 +190,8 @@ function renderStartMenu(model, width, height, suppliedConfig) {
   }
   if (!tiny) line(row++, model.title, 'menu_text');
   if (!compact) row += 1;
-  const availableRows = Math.max(1, top + panelHeight - row - (compact ? 3 : 8));
+  const previewRows = stackedPreview ? Math.min(11, Math.max(7, panelHeight - 18)) : 0;
+  const availableRows = Math.max(1, top + panelHeight - row - (compact ? 3 : 8) - previewRows);
   const spacing = !compact && model.items.length <= 4 && availableRows >= model.items.length * 2 - 1 ? 2 : 1;
   const itemBudget = Math.max(1, Math.min(7, Math.floor((availableRows + spacing - 1) / spacing)));
   const offset = Math.max(0, Math.min(model.selected - Math.floor(itemBudget / 2), model.items.length - itemBudget));
@@ -180,13 +202,16 @@ function renderStartMenu(model, width, height, suppliedConfig) {
     row += spacing;
   }
   if (!compact) {
-    line(top + panelHeight - 7, `\u2500\u2500\u2500 < + > \u2500\u2500\u2500`, 'menu_pillar');
+    const detailBase = top + panelHeight - previewRows - 7;
+    line(detailBase, `\u2500\u2500\u2500 < + > \u2500\u2500\u2500`, 'menu_pillar');
     const selected = model.items[model.selected];
     const detail = wrapText(model.message || selected?.detail || '', innerWidth);
-    detail.slice(0, 2).forEach((entry, index) => line(top + panelHeight - 6 + index, entry, model.message ? 'alert_warning' : 'menu_muted'));
+    detail.slice(0, 2).forEach((entry, index) => line(detailBase + 1 + index, entry, model.message ? 'alert_warning' : 'menu_muted'));
     if (model.items.length > itemBudget) line(top + panelHeight - 3, `${model.selected + 1}/${model.items.length} - Up/Down to browse`, 'menu_border');
   }
-  line(top + panelHeight - 2, compact ? 'Arrows Enter Esc Q' : 'Up/Down: choose | Enter: confirm | Esc: back | Q: quit', 'menu_muted');
+  if (stackedPreview) previewBox(left + inset, top + panelHeight - previewRows - 4, innerWidth, previewRows);
+  if (sidePreview) previewBox(left + panelWidth + 3, top, width - left - panelWidth - 5, panelHeight);
+  line(top + panelHeight - 2, model.preview ? 'Arrows Enter Esc | P: map R: seed' : compact ? 'Arrows Enter Esc Q' : 'Up/Down: choose | Enter: confirm | Esc: back | Q: quit', 'menu_muted');
   if (height >= 32) put(Math.max(2, width - 38), height - 1, ' A MOUNTAIN KEEPS ITS STORIES ', 'world_legacy_echo');
   return rows.map((rowCells) => rowCells.join('')).join('\n');
 }

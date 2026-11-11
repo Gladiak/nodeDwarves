@@ -10,21 +10,30 @@ const ROOT = path.join(__dirname, '..');
 const FORMAT = 'nodedwarves-game';
 const VERSION = 1;
 let engineFingerprint;
+const LEGACY_V250_ENGINE = '8060cbc9b1f391ff3462d5fe392574233d796eb2f0f1fc70796bbcd6959cbc52';
+const LEGACY_V250_GAMEPLAY = '87bac4b5ad6337c40a548da40904ce589c52ac26365124554deb09b650ecde9f';
 
-// Fingerprint executable session behavior, excluding config (embedded in each save).
+// Fingerprint gameplay behavior; presentation-only changes must not invalidate an identical colony engine.
 function getEngineFingerprint() {
   if (engineFingerprint) return engineFingerprint;
-  const files = ['app.js'];
+  const files = [];
   const visit = (directory) => {
     for (const entry of fs.readdirSync(path.join(ROOT, directory), { withFileTypes: true })) {
       const relative = path.join(directory, entry.name);
-      if (entry.isDirectory()) visit(relative);
-      else if (entry.name.endsWith('.js')) files.push(relative);
+      if (entry.isDirectory()) {
+        if (!['src/render', 'src/runtime', 'src/telemetry'].includes(relative)) visit(relative);
+      } else if (entry.name.endsWith('.js') && !['src/persistence.js', 'src/chronicle_export.js',
+        'src/render.js', 'src/runtime.js', 'src/terminal.js'].includes(relative)) files.push(relative);
     }
   };
   visit('src');
   const hash = crypto.createHash('sha256');
   for (const file of files.sort()) hash.update(file).update('\0').update(fs.readFileSync(path.join(ROOT, file)));
+  const appSource = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
+  const start = appSource.indexOf('function getTransitionState(');
+  const end = appSource.indexOf('// Function: buildFailureMessage.');
+  if (start < 0 || end <= start) throw new Error('Cannot identify the cycle lifecycle for save compatibility.');
+  hash.update('app-cycle-lifecycle\0').update(appSource.slice(start, end));
   engineFingerprint = hash.digest('hex');
   return engineFingerprint;
 }
@@ -67,6 +76,7 @@ function encodeSave(session, reason = 'manual') {
     format: FORMAT,
     version: VERSION,
     engine: getEngineFingerprint(),
+    compatibility: 'gameplay-v1',
     nodeMajor: Number(process.versions.node.split('.')[0]),
     savedAt: new Date().toISOString(),
     summary: summarizeSession(session, reason),
@@ -85,9 +95,11 @@ function decodeSave(text, options = {}) {
   const { checksum, ...body } = envelope;
   const expected = crypto.createHash('sha256').update(JSON.stringify(body)).digest('hex');
   if (typeof checksum !== 'string' || checksum !== expected) throw new Error('Saved-game checksum mismatch.');
-  if (body.engine !== getEngineFingerprint()
-      || body.nodeMajor !== Number(process.versions.node.split('.')[0])) {
-    throw new Error('This save requires its original game build and Node.js major version.');
+  const engine = getEngineFingerprint();
+  const legacyCompatible = body.compatibility === undefined && body.engine === LEGACY_V250_ENGINE && engine === LEGACY_V250_GAMEPLAY;
+  const currentCompatible = body.compatibility === 'gameplay-v1' && body.engine === engine;
+  if ((!legacyCompatible && !currentCompatible) || body.nodeMajor !== Number(process.versions.node.split('.')[0])) {
+    throw new Error('This save requires its original game build or a compatible gameplay engine and Node.js major version.');
   }
   if (typeof body.data !== 'string' || !body.summary || !Number.isFinite(Date.parse(body.savedAt))) {
     throw new Error('Invalid saved-game envelope.');

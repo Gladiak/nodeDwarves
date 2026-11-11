@@ -1,6 +1,10 @@
 'use strict';
 
 const { listSavedGames, loadGame } = require('../persistence');
+const crypto = require('crypto');
+const { buildRuntime, getTerminalSize } = require('../runtime');
+const { resolveScenario } = require('../game_session');
+const { getScenarioPreview } = require('../render/scenario_preview');
 
 const { renderStartMenu } = require('../render/start_menu');
 
@@ -15,6 +19,10 @@ function showStartMenu(config, settings, options = {}) {
   let pending = '';
   let escapeTimer;
   let finished = false;
+  let expandedPreview = false;
+  const launchSeeds = new Map();
+  let launchRuntime = null;
+  let preview = null;
   let items;
   const model = () => {
     let title;
@@ -43,7 +51,15 @@ function showStartMenu(config, settings, options = {}) {
         { label: '[Q] Quit', action: 'quit', detail: 'The mountain can wait.' },
       ];
     }
-    return { title, items, selected, message };
+    preview = null;
+    if (screen === 'new' && items[selected]) {
+      const id = items[selected].scenarioId;
+      const resolved = resolveScenario(config, id);
+      if (!launchSeeds.has(id)) launchSeeds.set(id, resolved.scenario.seed ?? crypto.randomBytes(4).readUInt32LE());
+      launchRuntime = buildRuntime(resolved.config.display, getTerminalSize(resolved.config.display));
+      if (config.startup?.preview?.enabled !== false) preview = getScenarioPreview(config, launchRuntime, id, launchSeeds.get(id));
+    }
+    return { title, items, selected, message, preview, previewExpanded: expandedPreview };
   };
   const draw = () => {
     output.write('\x1b[H' + renderStartMenu(model(), output.columns || 80, (output.rows || 30) - 1, config));
@@ -66,7 +82,9 @@ function showStartMenu(config, settings, options = {}) {
       const item = items[selected];
       if (!item) return;
       message = '';
-      if (screen === 'new') { finish({ scenarioId: item.scenarioId }); return; }
+      if (screen === 'new') {
+        finish({ scenarioId: item.scenarioId, seed: launchSeeds.get(item.scenarioId), runtime: launchRuntime }); return;
+      }
       if (screen === 'load') { openSlot(item.slot); return; }
       if (item.action === 'quit') { finish(null); return; }
       if (item.action === 'continue') { openSlot(slots.find((slot) => !slot.error)); return; }
@@ -74,7 +92,11 @@ function showStartMenu(config, settings, options = {}) {
       screen = item.action;
       selected = 0;
     };
-    const back = () => { screen = 'main'; selected = 0; message = ''; draw(); };
+    const back = () => {
+      if (expandedPreview) expandedPreview = false;
+      else { screen = 'main'; selected = 0; message = ''; }
+      draw();
+    };
     const onData = (chunk) => {
       if (finished) return;
       clearTimeout(escapeTimer);
@@ -95,6 +117,10 @@ function showStartMenu(config, settings, options = {}) {
           message = '';
         } else if (key === '\r' || key === '\n') activate();
         else if (key === '\x1b') back();
+        else if (screen === 'new' && key.toLowerCase() === 'p' && preview) expandedPreview = !expandedPreview;
+        else if (screen === 'new' && key.toLowerCase() === 'r') {
+          launchSeeds.set(items[selected].scenarioId, crypto.randomBytes(4).readUInt32LE()); message = '';
+        }
         else if (screen === 'main' && ['n', 'l', 'c'].includes(key.toLowerCase())) {
           selected = { n: 0, l: 1, c: 2 }[key.toLowerCase()];
           activate();

@@ -12,6 +12,7 @@ const { createGameSession, advanceGameSession } = require('./src/game_session');
 const { withSessionRandom } = require('./src/session_random');
 const { getSaveSettings, saveGame, loadGame, listSavedGames } = require('./src/persistence');
 const { showStartMenu } = require('./src/runtime/start_menu');
+const { createMapFlows, cycleMapFlows, observeMapFlows, getMapFlowOverlay } = require('./src/runtime/map_flows');
 const { renderFrame } = require('./src/render');
 const { moveLegendPage } = require('./src/render/legend_panel');
 const { getTelemetryPanelPageCount } = require('./src/telemetry/telemetry_panel');
@@ -45,6 +46,7 @@ let state;
 let tickMs;
 let maxTicks;
 let timeControls;
+let mapFlows;
 let saveSettings;
 let lastSaveAdvance = 0;
 let lastSaveAtMs = 0;
@@ -102,9 +104,9 @@ async function main() {
     session = choice.loaded.session;
   } else {
     const policyPath = resolvePolicyPath(baseConfig);
-    session = createGameSession(baseConfig, buildRuntime(baseConfig.display, getTerminalSize(baseConfig.display)), {
+    session = createGameSession(baseConfig, choice.runtime || buildRuntime(baseConfig.display, getTerminalSize(baseConfig.display)), {
       scenarioId: choice.scenarioId,
-      seed: options.seed,
+      seed: options.seed ?? choice.seed,
       policy: policyPath ? loadPolicy(policyPath) : null,
     });
   }
@@ -114,6 +116,8 @@ async function main() {
   tickMs = Number(config.display.tickMs || 200);
   maxTicks = Number(config.simulation.maxTicks || 0);
   timeControls = restorePresentation(session.presentation, config, tickMs);
+  mapFlows = createMapFlows(config);
+  observeMapFlows(mapFlows, state, runtime);
   lastSaveAdvance = session.controller.advances;
   lastSaveAtMs = Date.now();
   setupResizeHandler(config.display, () => {
@@ -132,6 +136,7 @@ async function main() {
       runtime = nextRuntime;
       withSessionRandom(session.random, () => fitStateToGrid(state, runtime, config));
     }
+    observeMapFlows(mapFlows, state, runtime);
     clearScreen();
   });
 
@@ -160,11 +165,13 @@ function loop() {
   const transitionState = getTransitionState(state);
   if (transitionState && transitionState.active) {
     withSessionRandom(session.random, () => advanceEndgameTransition(state, config, runtime));
+    observeMapFlows(mapFlows, state, runtime);
   } else if (consumeSimulationAdvance(timeControls, nowMs)) {
     const ticksThisFrame = getSimulationTicksPerFrame(timeControls, nowMs);
     for (let batchTick = 0; batchTick < ticksThisFrame; batchTick += 1) {
       session.runtime = runtime;
       advanceGameSession(session);
+      observeMapFlows(mapFlows, state, runtime);
       if (shouldTriggerEndgameReset(state, config)) {
         withSessionRandom(session.random, () => startEndgameTransition(state, config, runtime));
         break;
@@ -185,6 +192,7 @@ function loop() {
 
   const frame = renderFrame(state, config, runtime, {
     timeControls: getTimeControlsSnapshot(timeControls, nowMs),
+    mapFlows: getMapFlowOverlay(mapFlows, state),
   });
   moveCursorHome();
   process.stdout.write(frame);
@@ -1154,6 +1162,12 @@ function handleInput(text) {
       continue;
     }
     if (transitionActive) {
+      i += 1;
+      continue;
+    }
+    if (char === 'v' || char === 'V') {
+      cycleMapFlows(mapFlows);
+      observeMapFlows(mapFlows, state, runtime);
       i += 1;
       continue;
     }

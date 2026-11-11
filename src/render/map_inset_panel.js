@@ -690,6 +690,9 @@ function buildInsetDefaultMetricLines(meta, alertState, width) {
   ));
   metrics.push(buildInsetTextLine(pickFittingInsetText(
     [
+      ...(meta.mapFlows?.mode && meta.mapFlows.mode !== 'off'
+        ? [`View ${meta.viewLabel} ${meta.depthToken} | Flow:${meta.mapFlows.label}`,
+          `${meta.depthToken} Flow:${meta.mapFlows.label}`] : []),
       `View ${meta.viewLabel} ${meta.depthToken}`,
       `View: ${meta.viewLabel} ${meta.depthToken}`,
       `${meta.viewLabel} ${meta.depthToken}`,
@@ -718,6 +721,7 @@ function buildInsetFocusMetricLines(meta, alertState, width) {
   metrics.push(buildPopulationMetricLine(meta.population, meta.moralePct, alertState, width));
   metrics.push(buildInsetTextLine(pickFittingInsetText(
     [
+      ...(meta.mapFlows?.mode && meta.mapFlows.mode !== 'off' ? [`${meta.depthToken} Flow:${meta.mapFlows.label}`] : []),
       `View ${meta.depthToken}  Unlock ${meta.unlockToken}`,
       `V:${meta.depthToken} U:${meta.unlockToken}`,
       `${meta.depthToken} ${meta.unlockToken}`,
@@ -794,6 +798,7 @@ function buildMapInsetLines(state, config, width, height, themeState, options = 
     unlockToken,
     combatTokens: resolveInsetUnderrealmCombatTokens(state),
     timeControls: options.timeControls || null,
+    mapFlows: options.mapFlows || null,
   };
 
   const focus = themeState && themeState.focus ? themeState.focus : DEFAULT_FOCUS;
@@ -814,10 +819,10 @@ function buildMapInsetLines(state, config, width, height, themeState, options = 
       {
         text: pickFittingInsetText(
           [
-            '[␠]⏯ [[]− []]+ [.]› [s]Save [h]▦ [w]⚔ [i]◎ [l]≡ [e]✎ [c]ᛞ [⇆] [⇅]',
-            '␠⏯ [−][+] .› sSave h▦ w⚔ i◎ l≡ e✎ cᛞ ⇆ ⇅',
-            'Sp⏯ [−][+] .› sSave h w i l e c LR UD',
-            'Sp [-][+] . sSave h w i l e c LR UD',
+            '[␠]⏯ [[]− []]+ [.]› [s]Save [v]Flows [h]▦ [w]⚔ [i]◎ [l]≡ [e]✎ [c]ᛞ [⇆] [⇅]',
+            '␠⏯ [−][+] .› sSave vFlow h▦ w⚔ i◎ l≡ e✎ cᛞ ⇆ ⇅',
+            '␠⏯ [−][+] .› s v h w i l e c ⇆ ⇅',
+            'Sp [-][+] . s v h w i l e c LR UD',
           ],
           width,
         ),
