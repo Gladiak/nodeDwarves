@@ -10,6 +10,7 @@ const { buildRuntime, getTerminalSize, setupResizeHandler } = require('./src/run
 const { createInitialState, fitStateToGrid } = require('./src/state');
 const { stepState } = require('./src/simulation');
 const { renderFrame } = require('./src/render');
+const { moveLegendPage } = require('./src/render/legend_panel');
 const { getTelemetryPanelPageCount } = require('./src/telemetry/telemetry_panel');
 const { clearScreen, moveCursorHome, hideCursor, showCursor } = require('./src/terminal');
 const { loadPolicy, selectAction, normalizeActionEnvelope } = require('./src/ai_policy');
@@ -227,7 +228,7 @@ function ensureLegendState(state) {
     state.ui = {};
   }
   if (!state.ui.legend) {
-    state.ui.legend = { open: false };
+    state.ui.legend = { open: false, page: 0 };
   }
 }
 
@@ -333,6 +334,7 @@ function toggleLegend(state) {
   const next = !state.ui.legend.open;
   state.ui.legend.open = next;
   if (next) {
+    state.ui.legend.page = 0;
     state.ui.inspect.open = false;
     state.ui.telemetryPanel.open = false;
     state.ui.warriorPanel.open = false;
@@ -1087,6 +1089,7 @@ function handleInput(text) {
     if (char === '\u001b') {
       const seq = text.slice(i, i + 3);
       if (seq === '\u001b[A') {
+        if (moveLegendPage(state, config, runtime, -1)) { i += 3; continue; }
         ensureEventLogState(state);
         if (state.ui.eventLog.open) {
           moveEventLogOffset(state, 1);
@@ -1098,6 +1101,7 @@ function handleInput(text) {
         continue;
       }
       if (seq === '\u001b[B') {
+        if (moveLegendPage(state, config, runtime, 1)) { i += 3; continue; }
         ensureEventLogState(state);
         if (state.ui.eventLog.open) {
           moveEventLogOffset(state, -1);
@@ -1109,6 +1113,7 @@ function handleInput(text) {
         continue;
       }
       if (seq === '\u001b[C') {
+        if (moveLegendPage(state, config, runtime, 1)) { i += 3; continue; }
         ensureEventLogState(state);
         if (state.ui.eventLog.open) {
           cycleEventLogFilter(state, 1);
@@ -1129,6 +1134,7 @@ function handleInput(text) {
         continue;
       }
       if (seq === '\u001b[D') {
+        if (moveLegendPage(state, config, runtime, -1)) { i += 3; continue; }
         ensureEventLogState(state);
         if (state.ui.eventLog.open) {
           cycleEventLogFilter(state, -1);

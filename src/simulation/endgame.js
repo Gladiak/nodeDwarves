@@ -8,6 +8,7 @@ const { restoreLegacyNemeses } = require('./epic_conflicts');
 const { carryMythsAcrossCycle } = require('./myths');
 const { carryTemplePrestigeAcrossCycle } = require('./temple');
 const { carryWarriorCompanyAcrossCycle } = require('./warriors');
+const { carryRefinementTracker } = require('../telemetry/refinement');
 const {
   emitEndgameArtifactCollectionCompleted,
   emitEndgameCycleClosed,
@@ -176,6 +177,7 @@ function runEndgameReset(state, config, runtime, options = {}) {
   const configOverride = buildResetConfig(config);
   const completedChronicle = finalizeCycleChronicle(state, config, { completedTicks });
   const nextState = createInitialState(configOverride, runtime);
+  carryRefinementTracker(state, nextState);
   carryMythsAcrossCycle(state, nextState, config);
   carryTemplePrestigeAcrossCycle(state, nextState, config);
   const warriorCarryover = carryWarriorCompanyAcrossCycle(state, nextState, config);

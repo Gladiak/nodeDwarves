@@ -39,9 +39,12 @@ const { findHerdById } = require('./wildlife');
 const { completeTempleStageBuild } = require('./temple');
 const { completeLandmarkStageBuild } = require('./landmarks');
 const { buildPlaceLocation, resolvePlace } = require('../place_identity');
+const { recordGatherCompletion, recordConstructionCompletion } = require('../telemetry/refinement');
+const { resolveLegacyEffects } = require('./legacy_effects');
+const { getCostGuardedRoadConfig, isRoadTravelCell, isProtectedRoadGather } = require('./road_routing');
 
 // Process the dwarf's per-tick action (panic, job, or idle).
-function processDwarfAction(dwarf, state, config, runtime) {
+function processDwarfAction(dwarf, state, config, runtime, legacyEffects) {
   if (dwarf && dwarf.underrealmDuty && dwarf.underrealmDuty.active !== false) {
     if (dwarf.job && dwarf.job.id) {
       removeJob(state, dwarf.job.id);
@@ -53,7 +56,7 @@ function processDwarfAction(dwarf, state, config, runtime) {
     return;
   }
   if (dwarf.job) {
-    processDwarfJob(dwarf, state, config, runtime);
+    processDwarfJob(dwarf, state, config, runtime, legacyEffects);
     return;
   }
 
@@ -212,7 +215,7 @@ function resetIdleWanderState(dwarf) {
 }
 
 // Process the dwarf's current job, including movement and completion.
-function processDwarfJob(dwarf, state, config, runtime) {
+function processDwarfJob(dwarf, state, config, runtime, legacyEffects) {
   const job = dwarf.job;
   if (!job || !job.target) {
     if (job) {
@@ -257,7 +260,12 @@ function processDwarfJob(dwarf, state, config, runtime) {
       const ignoreCooldown = shouldIgnoreTerrainCooldown(state, config, job.resource);
       if (!isTerrainResourceTile(state, config, job.resource, targetX, targetY, { ignoreCooldown })) {
         const home = getDwarfHomePosition(dwarf, state);
-        const anchor = home || dwarf || null;
+        const routing = getCostGuardedRoadConfig(config);
+        const anchor = routing?.retarget_from_current_position === true
+          && !isProtectedRoadGather(dwarf, routing.protected_gather_resources)
+          && (routing.whole_trip_protection === true || isRoadTravelCell(state, dwarf.x, dwarf.y))
+          && dwarf.roadRoute && dwarf.roadRoute.targetKey === dwarf.pathTargetKey && dwarf.roadRoute.jobId === job.id
+          ? dwarf : home || dwarf || null;
         const newTarget = pickTerrainResourceTarget(state, config, job.resource, anchor, { ignoreCooldown });
         if (!newTarget) {
           removeJob(state, job.id);
@@ -443,7 +451,9 @@ function processDwarfJob(dwarf, state, config, runtime) {
     return;
   }
 
-  job.workRemaining -= 1;
+  const constructionSpeed = job.type === 'build'
+    ? (legacyEffects || resolveLegacyEffects(state, config)).constructionSpeed : 0;
+  job.workRemaining -= 1 + constructionSpeed;
   if (job.workRemaining > 0) {
     return;
   }
@@ -465,7 +475,8 @@ function processDwarfJob(dwarf, state, config, runtime) {
   if (job.type === 'build') {
     const type = job.structureType || 'house';
     if (job.landmarkId) {
-      completeLandmarkStageBuild(state, config, job, dwarf);
+      const result = completeLandmarkStageBuild(state, config, job, dwarf);
+      if (result && result.completed) recordConstructionCompletion(state);
       applyClanBuildCostPenalty(dwarf, state, config, job);
       removeJob(state, job.id);
       dwarf.job = null;
@@ -474,6 +485,7 @@ function processDwarfJob(dwarf, state, config, runtime) {
     if (type === 'temple_of_ancestors') {
       const result = completeTempleStageBuild(state, config, job);
       if (result && result.completed) {
+        recordConstructionCompletion(state);
         const stageLabel = result.stageName
           ? `Temple: Stage ${result.stage}/${result.maxStage} ${result.stageName}`
           : `Temple: Stage ${result.stage}/${result.maxStage}`;
@@ -524,6 +536,7 @@ function processDwarfJob(dwarf, state, config, runtime) {
     }
     const structure = createStructure(state, config, type, targetX, targetY);
     state.structures.push(structure);
+    recordConstructionCompletion(state);
     if (type === 'well' || type === 'field') {
       const structureConfig = (config.structures && config.structures[type]) || {};
       const resourceId = type === 'well' ? 'water' : 'food';
@@ -724,6 +737,7 @@ function processDwarfJob(dwarf, state, config, runtime) {
     }
   }
   state.stockpile[job.resource] = Number(state.stockpile[job.resource] || 0) + amount;
+  recordGatherCompletion(state, job.resource, amount);
   if (targetNode) {
     const resourceConfig = config.resources || {};
     const regenConfig = resourceConfig.nodeRegen || {};

@@ -33,7 +33,7 @@ function buildLegendPanel(state, config, runtime) {
 
   const gridWidth = Math.max(0, Number(runtime.gridWidth || 0));
   const gridHeight = Math.max(0, Number(runtime.gridHeight || 0));
-  if (gridWidth <= 0 || gridHeight <= 0) {
+  if (gridWidth < 8 || gridHeight < 4) {
     return null;
   }
 
@@ -49,7 +49,14 @@ function buildLegendPanel(state, config, runtime) {
     detailed: true,
     underrealmActive: getActiveUnderrealmDepth(state) > 0,
   });
-  const lines = buildLegendLines(legendParts, terrainParts, contentWidth, innerHeight);
+  const content = [];
+  pushSection(content, 'LEGEND', contentWidth, buildColumns(legendParts, contentWidth, 3, 2));
+  pushSection(content, 'MAP', contentWidth, buildColumns(terrainParts, contentWidth, 3, 2));
+  const pageCapacity = Math.max(1, innerHeight - 1);
+  const pageCount = Math.max(1, Math.ceil(content.length / pageCapacity));
+  const requestedPage = Number(legendState.page);
+  const page = clamp(Number.isFinite(requestedPage) ? Math.floor(requestedPage) : 0, 0, pageCount - 1);
+  const lines = buildLegendLines(content, contentWidth, innerHeight, page, pageCount);
   const panelLines = buildPanelBox(lines, innerWidth, contentWidth);
 
   const x = Math.max(0, Math.floor((gridWidth - width) / 2));
@@ -61,30 +68,23 @@ function buildLegendPanel(state, config, runtime) {
     y,
     width,
     height,
+    page,
+    pageCount,
   };
 }
 
 // Build inner lines for the legend panel.
-function buildLegendLines(legendParts, terrainParts, width, height) {
-  const controlsLine = '[l] Close legend';
+function buildLegendLines(entries, width, height, page, pageCount) {
   const maxContent = Math.max(0, height - 1);
-  const content = [];
-
-  const legendLines = buildColumns(legendParts, width, 2, 2);
-  const sectionSlots = Math.max(0, maxContent - 1);
-  const sectionHeight = Math.floor(sectionSlots / 2);
-  const entriesPerSection = Math.max(0, sectionHeight - 2);
-  const legendEntries = fitSectionEntries(legendLines, entriesPerSection);
-
-  const terrainLines = buildColumns(terrainParts, width, 2, 2);
-  const terrainEntries = fitSectionEntries(terrainLines, entriesPerSection);
-  pushSection(content, 'LEGEND', width, legendEntries);
-  pushSection(content, 'MAP', width, terrainEntries);
-
-  const trimmed = content.slice(0, maxContent);
+  const trimmed = entries.slice(page * maxContent, (page + 1) * maxContent);
   while (trimmed.length < maxContent) {
     trimmed.push({ text: '', spans: [] });
   }
+  const suffix = `${page + 1}/${pageCount}`;
+  const hints = pageCount > 1
+    ? [`[l] Close  [arrows] Page ${suffix}`, `[l] Close [arrows] ${suffix}`, `[l] [<>] ${suffix}`]
+    : ['[l] Close legend'];
+  const controlsLine = hints.find((hint) => hint.length <= width) || hints[hints.length - 1];
   trimmed.push({ text: fitLine(controlsLine, width), spans: [] });
   return trimmed.map((entry) => {
     const text = fitLine(entry.text, width);
@@ -98,27 +98,13 @@ function buildLegendLines(legendParts, terrainParts, width, height) {
   });
 }
 
-// Fit legend/map entries to a fixed section height (excluding header + spacer).
-function fitSectionEntries(entries, slots) {
-  const limit = Math.max(0, Number(slots || 0));
-  if (limit === 0) {
-    return [];
-  }
-  const list = Array.isArray(entries) ? entries.filter((entry) => entry) : [];
-  const result = [];
-  if (list.length === 0) {
-    result.push({ text: 'None', spans: [] });
-  }
-  for (const entry of list) {
-    if (result.length >= limit) {
-      break;
-    }
-    result.push(entry);
-  }
-  while (result.length < limit) {
-    result.push({ text: '', spans: [] });
-  }
-  return result;
+// Browse only the legend's UI page, leaving map depth and simulation state untouched.
+function moveLegendPage(state, config, runtime, direction) {
+  const panel = buildLegendPanel(state, config, runtime);
+  if (!panel) return false;
+  const delta = Number.isFinite(Number(direction)) ? Math.trunc(Number(direction)) : 0;
+  state.ui.legend.page = ((panel.page + delta) % panel.pageCount + panel.pageCount) % panel.pageCount;
+  return true;
 }
 
 // Push a section with a colored header and separator.
@@ -161,15 +147,20 @@ function buildColumns(items, width, columnCount, gap) {
     }
     return { text: String(entry), colorKey: null };
   });
-  const columns = Math.max(1, Number(columnCount || 1));
   const gapWidth = Math.max(0, Number(gap || 0));
+  const longest = Math.max(1, ...normalized.map((entry) => entry.text.length));
+  const columns = Math.max(1, Math.min(Number(columnCount || 1),
+    Math.floor((width + gapWidth) / (longest + gapWidth))));
   const usable = Math.max(0, width - gapWidth * (columns - 1));
   const colWidth = Math.floor(usable / columns);
   if (columns === 1 || colWidth < 12) {
-    return normalized.map((entry) => {
-      const text = fitLine(entry.text, width);
-      const spans = entry.colorKey ? [{ start: 0, end: text.length, colorKey: entry.colorKey }] : [];
-      return { text, spans };
+    return normalized.flatMap((entry) => {
+      const lines = [];
+      for (let offset = 0; offset < Math.max(1, entry.text.length); offset += width) {
+        const text = entry.text.slice(offset, offset + width);
+        lines.push({ text, spans: entry.colorKey ? [{ start: 0, end: text.length, colorKey: entry.colorKey }] : [] });
+      }
+      return lines;
     });
   }
 
@@ -288,4 +279,4 @@ function clampSpans(spans, maxLength) {
   return result;
 }
 
-module.exports = { buildLegendPanel, applyLegendPanel };
+module.exports = { buildLegendPanel, applyLegendPanel, moveLegendPage };

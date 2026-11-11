@@ -871,6 +871,8 @@
     },
     "sagas": {
       "minimum_importance": "major",
+      "group_political_arc": true,
+      "unresolved_archive_grace_ticks": 1200,
       "inactivity_timeout_ticks": 2400,
       "archive_timeout_ticks": 7200,
       "max_entries": 24,
@@ -883,12 +885,14 @@
       "matching": {
         "minimum_score": 30,
         "actor_weight": 30,
+        "require_family_for_actor": true,
         "location_weight": 20,
         "place_weight": 40,
         "faction_weight": 80,
         "threat_weight": 100
       },
       "lifecycle": {
+        "terminal_retention_ticks": 1200,
         "activation_event_count": 2,
         "activation_minimum_importance": "critical",
         "resolved_type_suffixes": [
@@ -975,6 +979,12 @@
       "memorial_minimum_importance": "critical"
     },
     "institutions": {
+      "effects": {
+        "enabled": true,
+        "minimum_construction_facts": 3,
+        "decay_per_cycle": 0.5,
+        "per_institution_cap": 0.02
+      },
       "modifiers": {
         "per_cycle": 0.005,
         "total_cap": 0.02
@@ -4801,9 +4811,7 @@
           "chance": 0.002,
           "amount": 1
         }
-      },
-      "preciousChanceMin": 0.01,
-      "preciousChanceMax": 0.1
+      }
     },
     "ruins": {
       "count": 1,
@@ -4838,7 +4846,6 @@
       "raid": {
         "range": 6,
         "hitChance": 0.35,
-        "damagePerTick": 1,
         "maxKillsPerTick": 1,
         "defensePerTower": 0.02,
         "defenseMax": 0.2
@@ -5653,9 +5660,9 @@
       "grudgeRivalryScale": 0.02,
       "grudgeDecayPerTick": 0.0012,
       "longArc": {
-        "enabled": false,
+        "enabled": true,
         "memoryDecayPerTick": 0.0022,
-        "memoryGainPerUpdate": 0.12,
+        "memoryGainPerUpdate": 0.00075,
         "friendSupportWeight": 0.035,
         "mentorshipSupportWeight": 0.07,
         "rivalBurdenWeight": 0.028,
@@ -5669,7 +5676,7 @@
         "fatigueSupportReliefScale": 0.0015,
         "fatigueBurdenScale": 0.002,
         "settlementMemoryDecayPerTick": 0.0032,
-        "settlementMemoryGainPerUpdate": 0.11,
+        "settlementMemoryGainPerUpdate": 0.0008,
         "affinityHarmonyScale": 0.1,
         "affinityStrifePenaltyScale": 0.05,
         "rivalryStrifeScale": 0.03,
@@ -5776,13 +5783,25 @@
         "inertiaWeight": 0.28,
         "stayPenalty": 0.25,
         "roadAffinity": {
-          "enabled": false,
-          "profile": "scenic",
-          "minTargetDistance": 7,
-          "onRoadBonus": 0.28,
-          "offRoadPenalty": 0.09,
-          "offRoadGraceDistance": 1,
-          "maxDistancePenalty": 4
+          "enabled": true,
+          "profile": "pragmatic",
+          "routing_mode": "cost_guarded",
+          "minTargetDistance": 24,
+          "minimum_road_steps": 6,
+          "target_crowd_exemption": false,
+          "retarget_from_current_position": false,
+          "whole_trip_protection": false,
+          "completed_connections_only": true,
+          "destination_radius": 3,
+          "regional_network_only": true,
+          "protected_gather_resources": [
+            "food",
+            "water",
+            "beer"
+          ],
+          "minimum_cost_improvement": 0.05,
+          "road_continuation_only": true,
+          "preserve_progressing_steps": true
         }
       }
     },
@@ -7095,6 +7114,7 @@
     "hungerTarget": 0.24,
     "thirstTarget": 0.15,
     "maxUnitsPerTick": 1,
+    "mealRelief": 0.5,
     "rawFoodRelief": 0.37,
     "waterRelief": 0.4,
     "beerRelief": 0.5,

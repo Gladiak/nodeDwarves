@@ -81,7 +81,9 @@ function getStoryDirectorConfig(config) {
       },
     },
     sagas: {
+      groupPoliticalArc: sagasRaw.group_political_arc === true,
       minimumImportance: normalizeImportance(sagasRaw.minimum_importance, 'major'),
+      unresolvedArchiveGraceTicks: clampInteger(sagasRaw.unresolved_archive_grace_ticks, 0, 0, 10000000),
       inactivityTimeoutTicks: clampInteger(sagasRaw.inactivity_timeout_ticks, 2400, 1, 10000000),
       archiveTimeoutTicks: clampInteger(sagasRaw.archive_timeout_ticks, 7200, 1, 10000000),
       maxEntries: clampInteger(sagasRaw.max_entries, 24, 0, HARD_MAX_SAGAS),
@@ -122,12 +124,14 @@ function getStoryDirectorConfig(config) {
       matching: {
         minimumScore: clampInteger(sagaMatchingRaw.minimum_score, 30, 1, 1000000),
         actor: clampInteger(sagaMatchingRaw.actor_weight, 30, 0, 1000000),
+        requireFamilyForActor: sagaMatchingRaw.require_family_for_actor === true,
         location: clampInteger(sagaMatchingRaw.location_weight, 20, 0, 1000000),
         place: clampInteger(sagaMatchingRaw.place_weight, 40, 0, 1000000),
         faction: clampInteger(sagaMatchingRaw.faction_weight, 80, 0, 1000000),
         threat: clampInteger(sagaMatchingRaw.threat_weight, 100, 0, 1000000),
       },
       lifecycle: {
+        terminalRetentionTicks: clampInteger(sagaLifecycleRaw.terminal_retention_ticks, 0, 0, 10000000),
         activationEventCount: clampInteger(
           sagaLifecycleRaw.activation_event_count,
           2,

@@ -1,0 +1,520 @@
+{
+  "meta": {
+    "generatedAt": "2026-11-11T18:23:55.220Z",
+    "allProfiles": false,
+    "allOk": true,
+    "averageProfileScore": 100,
+    "options": {
+      "seeds": [
+        12345,
+        22222
+      ],
+      "evalEpisodes": 20,
+      "evalMaxSteps": 1200,
+      "randomEpisodes": 40,
+      "randomMaxSteps": 520,
+      "seedPack": null,
+      "seedPackRequest": null,
+      "seedWeek": null
+    }
+  },
+  "sections": [
+    {
+      "profile": "governance",
+      "config": {
+        "seeds": [
+          12345,
+          22222
+        ],
+        "seedPack": null,
+        "evalEpisodes": 20,
+        "evalMaxSteps": 1200,
+        "randomEpisodes": 40,
+        "randomMaxSteps": 520,
+        "evalScenarios": [
+          "baseline",
+          "governance_pressure",
+          "compound_crisis"
+        ]
+      },
+      "evalOk": true,
+      "randomOk": true,
+      "evalRows": [
+        {
+          "metric": "avg_reward",
+          "current": 10298.456058579792,
+          "baseline": 9338.205071194596,
+          "deltaAbs": 960.2509873851959,
+          "deltaRel": 0.10283035980300603,
+          "threshold": 8871.294817634865,
+          "status": "ok"
+        },
+        {
+          "metric": "avg_steps",
+          "current": 1200,
+          "baseline": 1200,
+          "deltaAbs": 0,
+          "deltaRel": 0,
+          "threshold": null,
+          "status": "n/a"
+        },
+        {
+          "metric": "avg_births",
+          "current": 46.325,
+          "baseline": 48.825,
+          "deltaAbs": -2.5,
+          "deltaRel": -0.05120327700972862,
+          "threshold": null,
+          "status": "n/a"
+        },
+        {
+          "metric": "avg_deaths",
+          "current": 2.45,
+          "baseline": 2.2249999999999996,
+          "deltaAbs": 0.22500000000000053,
+          "deltaRel": 0.10112359550561824,
+          "threshold": 2.5587499999999994,
+          "status": "ok"
+        },
+        {
+          "metric": "score",
+          "current": 4.2910233577415795,
+          "baseline": 3.8909187796644154,
+          "deltaAbs": 0.40010457807716415,
+          "deltaRel": 0.10283035980300582,
+          "threshold": 3.696372840681194,
+          "status": "ok"
+        }
+      ],
+      "randomRows": [
+        {
+          "metric": "avg_reward",
+          "current": 4003.02,
+          "baseline": 3970.35,
+          "deltaAbs": 32.67000000000007,
+          "deltaRel": 0.008228493709622597,
+          "threshold": 3652.722,
+          "status": "ok"
+        },
+        {
+          "metric": "avg_steps",
+          "current": 520,
+          "baseline": 520,
+          "deltaAbs": 0,
+          "deltaRel": 0,
+          "threshold": null,
+          "status": "n/a"
+        },
+        {
+          "metric": "avg_births",
+          "current": 11.31,
+          "baseline": 13.66,
+          "deltaAbs": -2.3499999999999996,
+          "deltaRel": -0.17203513909224008,
+          "threshold": null,
+          "status": "n/a"
+        },
+        {
+          "metric": "avg_deaths",
+          "current": 0.685,
+          "baseline": 0.575,
+          "deltaAbs": 0.1100000000000001,
+          "deltaRel": 0.19130434782608713,
+          "threshold": null,
+          "status": "n/a"
+        },
+        {
+          "metric": "death_starvation",
+          "current": 0,
+          "deltaAbs": null,
+          "deltaRel": null,
+          "threshold": null,
+          "status": "n/a"
+        },
+        {
+          "metric": "death_oldAge",
+          "current": 0,
+          "deltaAbs": null,
+          "deltaRel": null,
+          "threshold": null,
+          "status": "n/a"
+        },
+        {
+          "metric": "death_raid",
+          "current": 0.475,
+          "deltaAbs": null,
+          "deltaRel": null,
+          "threshold": null,
+          "status": "n/a"
+        },
+        {
+          "metric": "death_deepRaid",
+          "current": 0,
+          "deltaAbs": null,
+          "deltaRel": null,
+          "threshold": null,
+          "status": "n/a"
+        },
+        {
+          "metric": "death_ruins",
+          "current": 0,
+          "deltaAbs": null,
+          "deltaRel": null,
+          "threshold": null,
+          "status": "n/a"
+        },
+        {
+          "metric": "death_hunt",
+          "current": 0.21500000000000002,
+          "deltaAbs": null,
+          "deltaRel": null,
+          "threshold": null,
+          "status": "n/a"
+        },
+        {
+          "metric": "death_warriorLeague",
+          "current": 0,
+          "deltaAbs": null,
+          "deltaRel": null,
+          "threshold": null,
+          "status": "n/a"
+        },
+        {
+          "metric": "stock_min",
+          "current": 0.865,
+          "baseline": 0.91,
+          "deltaAbs": -0.04500000000000004,
+          "deltaRel": -0.04945054945054949,
+          "threshold": 0.8372,
+          "status": "ok"
+        },
+        {
+          "metric": "stock_avg",
+          "current": 0.955,
+          "baseline": 0.97,
+          "deltaAbs": -0.015000000000000013,
+          "deltaRel": -0.01546391752577321,
+          "threshold": null,
+          "status": "n/a"
+        },
+        {
+          "metric": "crit",
+          "current": 0.09,
+          "baseline": 0,
+          "deltaAbs": 0.09,
+          "deltaRel": null,
+          "threshold": null,
+          "status": "n/a"
+        },
+        {
+          "metric": "idle",
+          "current": 0.09,
+          "baseline": 0.095,
+          "deltaAbs": -0.0050000000000000044,
+          "deltaRel": -0.05263157894736847,
+          "threshold": null,
+          "status": "n/a"
+        },
+        {
+          "metric": "raid_count",
+          "current": 0.375,
+          "baseline": 0.35,
+          "deltaAbs": 0.025000000000000022,
+          "deltaRel": 0.0714285714285715,
+          "threshold": null,
+          "status": "n/a"
+        },
+        {
+          "metric": "raid_deaths",
+          "current": 0.475,
+          "baseline": 0.42500000000000004,
+          "deltaAbs": 0.04999999999999993,
+          "deltaRel": 0.11764705882352924,
+          "threshold": null,
+          "status": "n/a"
+        },
+        {
+          "metric": "raid_exposed",
+          "current": 0.8999999999999999,
+          "baseline": 0.835,
+          "deltaAbs": 0.06499999999999995,
+          "deltaRel": 0.07784431137724544,
+          "threshold": null,
+          "status": "n/a"
+        },
+        {
+          "metric": "raid_defense",
+          "current": 0.6,
+          "baseline": 0.6,
+          "deltaAbs": 0,
+          "deltaRel": 0,
+          "threshold": null,
+          "status": "n/a"
+        },
+        {
+          "metric": "under_depthProgress",
+          "current": 0,
+          "baseline": 0,
+          "deltaAbs": 0,
+          "deltaRel": null,
+          "threshold": null,
+          "status": "n/a"
+        },
+        {
+          "metric": "under_championProgress",
+          "current": 0,
+          "baseline": 0,
+          "deltaAbs": 0,
+          "deltaRel": null,
+          "threshold": null,
+          "status": "n/a"
+        },
+        {
+          "metric": "under_frontierContested",
+          "current": 0,
+          "baseline": 0,
+          "deltaAbs": 0,
+          "deltaRel": null,
+          "threshold": null,
+          "status": "n/a"
+        },
+        {
+          "metric": "under_championCooldown",
+          "current": 0,
+          "baseline": 0,
+          "deltaAbs": 0,
+          "deltaRel": null,
+          "threshold": null,
+          "status": "n/a"
+        },
+        {
+          "metric": "under_readinessScore",
+          "current": 0.5549999999999999,
+          "baseline": 0.61,
+          "deltaAbs": -0.05500000000000005,
+          "deltaRel": -0.0901639344262296,
+          "threshold": null,
+          "status": "n/a"
+        },
+        {
+          "metric": "under_readinessGap",
+          "current": 0.445,
+          "baseline": 0.39,
+          "deltaAbs": 0.05499999999999999,
+          "deltaRel": 0.141025641025641,
+          "threshold": null,
+          "status": "n/a"
+        },
+        {
+          "metric": "under_readinessBlocked",
+          "current": 0.425,
+          "baseline": 0.525,
+          "deltaAbs": -0.10000000000000003,
+          "deltaRel": -0.19047619047619052,
+          "threshold": null,
+          "status": "n/a"
+        },
+        {
+          "metric": "under_readinessWarning",
+          "current": 0.435,
+          "baseline": 0.475,
+          "deltaAbs": -0.03999999999999998,
+          "deltaRel": -0.08421052631578943,
+          "threshold": null,
+          "status": "n/a"
+        },
+        {
+          "metric": "under_combatPressure",
+          "current": 0.195,
+          "baseline": 0.235,
+          "deltaAbs": -0.03999999999999998,
+          "deltaRel": -0.17021276595744672,
+          "threshold": null,
+          "status": "n/a"
+        },
+        {
+          "metric": "node_food",
+          "current": 0.14500000000000002,
+          "baseline": 0.16,
+          "deltaAbs": -0.014999999999999986,
+          "deltaRel": -0.0937499999999999,
+          "threshold": null,
+          "status": "n/a"
+        },
+        {
+          "metric": "node_water",
+          "current": 0.055,
+          "baseline": 0.060000000000000005,
+          "deltaAbs": -0.0050000000000000044,
+          "deltaRel": -0.0833333333333334,
+          "threshold": null,
+          "status": "n/a"
+        },
+        {
+          "metric": "node_wood",
+          "current": 0.165,
+          "baseline": 0.165,
+          "deltaAbs": 0,
+          "deltaRel": 0,
+          "threshold": null,
+          "status": "n/a"
+        },
+        {
+          "metric": "node_stone",
+          "current": 0.07500000000000001,
+          "baseline": 0.07500000000000001,
+          "deltaAbs": 0,
+          "deltaRel": 0,
+          "threshold": null,
+          "status": "n/a"
+        },
+        {
+          "metric": "short_food",
+          "current": 0.08499999999999999,
+          "baseline": 0.04,
+          "deltaAbs": 0.04499999999999999,
+          "deltaRel": 1.1249999999999998,
+          "threshold": null,
+          "status": "n/a"
+        },
+        {
+          "metric": "short_water",
+          "current": 0.005,
+          "baseline": 0.005,
+          "deltaAbs": 0,
+          "deltaRel": 0,
+          "threshold": null,
+          "status": "n/a"
+        },
+        {
+          "metric": "short_wood",
+          "current": 0.22999999999999998,
+          "baseline": 0.22,
+          "deltaAbs": 0.009999999999999981,
+          "deltaRel": 0.045454545454545366,
+          "threshold": null,
+          "status": "n/a"
+        },
+        {
+          "metric": "short_stone",
+          "current": 0.08,
+          "baseline": 0.06,
+          "deltaAbs": 0.020000000000000004,
+          "deltaRel": 0.3333333333333334,
+          "threshold": null,
+          "status": "n/a"
+        },
+        {
+          "metric": "extinction_rate",
+          "current": 0,
+          "baseline": 0,
+          "deltaAbs": 0,
+          "deltaRel": null,
+          "threshold": 0.05,
+          "status": "ok"
+        }
+      ],
+      "profileScore": 100,
+      "evalSeedMetrics": [
+        {
+          "seed": 12345,
+          "avg_reward": 10261.294918489239,
+          "avg_steps": 1200,
+          "avg_births": 44.95,
+          "avg_deaths": 2.25,
+          "score": 4.275539549370516
+        },
+        {
+          "seed": 22222,
+          "avg_reward": 10335.617198670345,
+          "avg_steps": 1200,
+          "avg_births": 47.7,
+          "avg_deaths": 2.65,
+          "score": 4.3065071661126435
+        }
+      ],
+      "randomSeedMetrics": [
+        {
+          "seed": 12345,
+          "avg_reward": 3973.1,
+          "avg_steps": 520,
+          "avg_births": 10.82,
+          "avg_deaths": 0.8,
+          "death_starvation": 0,
+          "death_oldAge": 0,
+          "death_raid": 0.6,
+          "death_deepRaid": 0,
+          "death_ruins": 0,
+          "death_hunt": 0.2,
+          "death_warriorLeague": 0,
+          "stock_min": 0.87,
+          "stock_avg": 0.96,
+          "crit": 0.09,
+          "idle": 0.09,
+          "raid_count": 0.42,
+          "raid_deaths": 0.6,
+          "raid_exposed": 0.94,
+          "raid_defense": 0.6,
+          "under_depthProgress": 0,
+          "under_championProgress": 0,
+          "under_frontierContested": 0,
+          "under_championCooldown": 0,
+          "under_readinessScore": 0.57,
+          "under_readinessGap": 0.43,
+          "under_readinessBlocked": 0.5,
+          "under_readinessWarning": 0.4,
+          "under_combatPressure": 0.21,
+          "node_food": 0.15,
+          "node_water": 0.05,
+          "node_wood": 0.17,
+          "node_stone": 0.07,
+          "short_food": 0.08,
+          "short_water": 0.01,
+          "short_wood": 0.22,
+          "short_stone": 0.08,
+          "extinction_rate": 0
+        },
+        {
+          "seed": 22222,
+          "avg_reward": 4032.94,
+          "avg_steps": 520,
+          "avg_births": 11.8,
+          "avg_deaths": 0.57,
+          "death_starvation": 0,
+          "death_oldAge": 0,
+          "death_raid": 0.35,
+          "death_deepRaid": 0,
+          "death_ruins": 0,
+          "death_hunt": 0.23,
+          "death_warriorLeague": 0,
+          "stock_min": 0.86,
+          "stock_avg": 0.95,
+          "crit": 0.09,
+          "idle": 0.09,
+          "raid_count": 0.33,
+          "raid_deaths": 0.35,
+          "raid_exposed": 0.86,
+          "raid_defense": 0.6,
+          "under_depthProgress": 0,
+          "under_championProgress": 0,
+          "under_frontierContested": 0,
+          "under_championCooldown": 0,
+          "under_readinessScore": 0.54,
+          "under_readinessGap": 0.46,
+          "under_readinessBlocked": 0.35,
+          "under_readinessWarning": 0.47,
+          "under_combatPressure": 0.18,
+          "node_food": 0.14,
+          "node_water": 0.06,
+          "node_wood": 0.16,
+          "node_stone": 0.08,
+          "short_food": 0.09,
+          "short_water": 0,
+          "short_wood": 0.24,
+          "short_stone": 0.08,
+          "extinction_rate": 0
+        }
+      ]
+    }
+  ]
+}

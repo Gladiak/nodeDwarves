@@ -6,6 +6,14 @@ const COUNCIL_ID = 'nine_braziers_council';
 const COUNCIL_LABEL = 'Council of the Nine Braziers';
 const SCHISM_ARC_ID = 'schism_arc';
 
+// Keep the run-scale political arc together without grouping unrelated institutions.
+function pushPoliticalEvent(state, config, draft) {
+  if (config?.story_director?.sagas?.group_political_arc !== true) return pushEvent(state, config, draft);
+  const rawCycle = Number(state?.cycleStats?.count || 0);
+  const cycle = Number.isSafeInteger(rawCycle) && rawCycle >= 0 ? rawCycle : 0;
+  return pushEvent(state, config, { ...draft, sagaId: `saga_schism_c${cycle}` });
+}
+
 // Build the shared political institution actor.
 function buildCouncilActor(role = 'primary') {
   return {
@@ -37,7 +45,7 @@ function buildSchismStateCauses(schism) {
 // Emit a doctrine change after doctrine, cooldown, and statistics commit.
 function emitSchismDoctrineShifted(state, config, schism, details) {
   const doctrine = String(details && details.doctrine || 'austerity');
-  return pushEvent(state, config, {
+  return pushPoliticalEvent(state, config, {
     type: 'schism.doctrine_shifted',
     category: 'schism',
     message: details.message,
@@ -68,7 +76,7 @@ function emitSchismDoctrineShifted(state, config, schism, details) {
 // Emit a pressure-driven political phase transition after phase state commits.
 function emitSchismPhaseShifted(state, config, schism, details) {
   const phase = String(details && details.phase || 'concord');
-  return pushEvent(state, config, {
+  return pushPoliticalEvent(state, config, {
     type: 'schism.phase_shifted',
     category: 'schism',
     message: details.message,
@@ -99,7 +107,7 @@ function emitSchismPhaseShifted(state, config, schism, details) {
 // Emit the opening of a bounded seasonal ritual window.
 function emitSchismRitualWindowOpened(state, config, schism, details) {
   const seasonName = String(details && details.seasonName || 'season');
-  return pushEvent(state, config, {
+  return pushPoliticalEvent(state, config, {
     type: 'schism.ritual_window_opened',
     category: 'schism',
     message: details.message,
@@ -126,7 +134,7 @@ function emitSchismRitualWindowOpened(state, config, schism, details) {
 
 // Emit the council festival trigger after its cooldown and counters commit.
 function emitSchismCouncilRitualLit(state, config, schism, message) {
-  return pushEvent(state, config, {
+  return pushPoliticalEvent(state, config, {
     type: 'schism.council_ritual_lit',
     category: 'schism',
     message,
@@ -173,7 +181,7 @@ function emitSchismRitualChanged(state, config, schism, phase, ritual, message) 
       }
     }
   }
-  return pushEvent(state, config, {
+  return pushPoliticalEvent(state, config, {
     type: invoked ? 'schism.ritual_invoked' : 'schism.ritual_expired',
     category: 'schism',
     message,
@@ -204,7 +212,7 @@ function emitSchismRitualChanged(state, config, schism, phase, ritual, message) 
 // Emit the deterministic council option slate after candidate selection.
 function emitSchismDecreeProposed(state, config, schism, options, message) {
   const safeOptions = (Array.isArray(options) ? options : []).slice(0, 3);
-  return pushEvent(state, config, {
+  return pushPoliticalEvent(state, config, {
     type: 'schism.decree_proposed',
     category: 'schism',
     message,
@@ -259,7 +267,7 @@ function emitSchismDecreeChanged(state, config, schism, phase, decree, message) 
       }
     }
   }
-  return pushEvent(state, config, {
+  return pushPoliticalEvent(state, config, {
     type: enacted ? 'schism.decree_enacted' : 'schism.decree_expired',
     category: 'schism',
     message,
@@ -319,7 +327,7 @@ function emitSchismClimaxChanged(state, config, schism, phase, details) {
       },
     );
   }
-  return pushEvent(state, config, {
+  return pushPoliticalEvent(state, config, {
     type: started ? 'schism.climax_started' : 'schism.climax_resolved',
     category: 'schism',
     message: details.message,

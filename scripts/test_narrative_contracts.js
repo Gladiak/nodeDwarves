@@ -2842,6 +2842,9 @@ function validateStoryDirectorSelectionContract() {
 // Validate E3.3 causal grouping, deterministic IDs, saga lifecycle, and fact-backed chapters.
 function validateStorySagaAggregationContract() {
   const config = clone(loadConfig());
+  config.story_director.sagas.matching.require_family_for_actor = false;
+  config.story_director.sagas.unresolved_archive_grace_ticks = 0;
+  config.story_director.sagas.lifecycle.terminal_retention_ticks = 0;
   config.story_director.focus.minimum_importance = 'legendary';
   config.story_director.sagas.inactivity_timeout_ticks = 10;
   config.story_director.sagas.archive_timeout_ticks = 30;

@@ -364,6 +364,7 @@ function createRoadState(width, height) {
     width,
     height,
     version: 0,
+    connectionVersion: 0,
     types: Array.from({ length: height }, () => new Array(width).fill(null)),
     queue: [],
     queueIndex: 0,
@@ -667,6 +668,7 @@ function planRoadLink(state, roads, roadsConfig, runtime, config, linkKey, kind,
     pending,
     completed: pending === 0,
   };
+  roads.connectionVersion = Number(roads.connectionVersion || 0) + 1;
 
   if (pending === 0) {
     finalizeRoadLink(state, roads, config, linkKey);
@@ -1722,6 +1724,7 @@ function finalizeRoadLink(state, roads, config, linkKey) {
     return;
   }
   link.completed = true;
+  roads.connectionVersion = Number(roads.connectionVersion || 0) + 1;
   const roadId = `road_${String(linkKey).toLowerCase().replace(/[^a-z0-9._-]+/g, '_')}`;
   const road = registerPlace(state, config, {
     id: roadId,

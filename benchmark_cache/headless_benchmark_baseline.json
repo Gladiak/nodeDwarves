@@ -1,6 +1,6 @@
 {
   "meta": {
-    "reportSchemaVersion": 2,
+    "reportSchemaVersion": 3,
     "ticks": 8000,
     "seeds": [
       101,
@@ -8,8 +8,8 @@
       303,
       404
     ],
-    "configPath": "/Users/filippoverni/ProgettiLavoro/nodeDwarves/config.json",
-    "configHash": "291ce4691486ffb7e48b8fe045461b6c999b8b87682ed57b69bd74b086a09c17",
+    "configPath": "/Users/gladiak/ProgettiLavoro/nodeDwarves/config.json",
+    "configHash": "cb322d475bccb958b7113cc95af2f671c9c67488316991c5e776927a4b3161ca",
     "resources": [
       "beer",
       "food",
@@ -17,12 +17,46 @@
     ],
     "width": 120,
     "height": 40,
-    "generatedAt": "2026-09-16T14:14:35.021Z"
+    "generatedAt": "2026-11-11T18:06:59.505Z",
+    "sourceProfile": {
+      "reportSchemaVersion": 3,
+      "ticks": 8000,
+      "seeds": [
+        101,
+        202,
+        303,
+        404
+      ],
+      "configPath": "/Users/gladiak/ProgettiLavoro/nodeDwarves/config.json",
+      "configHash": "52b9d5244f3ba45d9a037428c4d7a58ce12725ff278887a2863d7119b56139ad",
+      "resources": [
+        "beer",
+        "food",
+        "water"
+      ],
+      "width": 120,
+      "height": 40,
+      "generatedAt": "2026-11-11T18:06:59.505Z"
+    },
+    "configurationAlignment": {
+      "method": "Measured configuration already equals production defaults; normalized effective hash verified",
+      "sourceConfigHash": "52b9d5244f3ba45d9a037428c4d7a58ce12725ff278887a2863d7119b56139ad",
+      "sourceAssignments": [],
+      "effectiveConfigHash": "f61c0051a7922fd7ff2f51c0ceddc5488bfbaae0e3b1f7d6c3342e749125881d",
+      "sourceReport": "/tmp/nodedwarves_p33_continuity_24.json",
+      "formatting": {
+        "sourceConfigHash": "52b9d5244f3ba45d9a037428c4d7a58ce12725ff278887a2863d7119b56139ad",
+        "currentConfigHash": "cb322d475bccb958b7113cc95af2f671c9c67488316991c5e776927a4b3161ca",
+        "effectiveConfigUnchanged": true,
+        "method": "Restore original non-policy JSON formatting; normalized configuration equality verified"
+      }
+    }
   },
   "variants": [
     {
       "label": "baseline",
       "assignments": [],
+      "effectiveConfigHash": "f61c0051a7922fd7ff2f51c0ceddc5488bfbaae0e3b1f7d6c3342e749125881d",
       "rows": [
         {
           "seed": 101,
@@ -71,13 +105,13 @@
             "legendarySelected": 2,
             "legendarySuppressed": 5,
             "legendaryContextCovered": 7,
-            "sagasOpened": 325,
+            "sagasOpened": 76,
             "sagasResolved": 35,
             "sagasFailed": 1,
-            "sagasArchived": 301,
-            "sagasEvicted": 301,
-            "chaptersOpened": 352,
-            "chaptersCompacted": 3,
+            "sagasArchived": 52,
+            "sagasEvicted": 52,
+            "chaptersOpened": 398,
+            "chaptersCompacted": 288,
             "focusCoverage": 0.013032758013384995,
             "criticalFocusCoverage": 0.8461538461538461,
             "legendaryFocusCoverage": 0.2857142857142857,
@@ -89,7 +123,7 @@
             "priorityContextCovered": 20,
             "priorityContextCoverage": 1,
             "sagaTerminal": 36,
-            "sagaResolutionRate": 0.11076923076923077
+            "sagaResolutionRate": 0.47368421052631576
           },
           "worldLegacy": {
             "completedCycles": 0,
@@ -102,6 +136,8 @@
             "echoes": 0,
             "nemeses": 0,
             "modifierMagnitude": 0,
+            "effectiveMagnitude": 0,
+            "activeModifiers": 0,
             "evictedRecords": 0,
             "stateBytes": 224
           },
@@ -134,16 +170,818 @@
             "beer": 33466.595115063195,
             "food": 718.1323480566483,
             "water": 694.557219685658
+          },
+          "refinement": {
+            "schemaVersion": 1,
+            "samples": 8000,
+            "economy": {
+              "population": 662,
+              "births": 716,
+              "deaths": 66,
+              "idleAdultRatio": 0.20793681547245935,
+              "invalidStockpiles": 0,
+              "resources": {
+                "food": {
+                  "floor": 19.62112891368379,
+                  "average": 421.08752474174327
+                },
+                "water": {
+                  "floor": 47.67926256248559,
+                  "average": 414.06124543831845
+                },
+                "beer": {
+                  "floor": 0,
+                  "average": 11261.601674033
+                }
+              }
+            },
+            "social": {
+              "enabled": true,
+              "longArcEnabled": true,
+              "invalidMoodMemory": 0,
+              "invalidAggregateSamples": 0,
+              "average": {
+                "cohesion": 0.24341503282642002,
+                "conflictPressure": 0.14628780456950186,
+                "mentorshipCoverage": 0.0038220186449654057,
+                "grudgeLoad": 0.032507688418167945,
+                "support": 0.002008782095559502,
+                "burden": 0.00035417919111533193,
+                "harmony": 0.012602637431662258,
+                "strife": 0.0044086844324837384
+              },
+              "peak": {
+                "cohesion": 0.4987808880655388,
+                "conflictPressure": 0.2994632897180138,
+                "mentorshipCoverage": 0.0625,
+                "grudgeLoad": 0.1425506365022316,
+                "support": 0.003626502425007268,
+                "burden": 0.000985160066635936,
+                "harmony": 0.016615928912481596,
+                "strife": 0.009062751418642226
+              },
+              "saturatedTickShare": {
+                "cohesion": 0,
+                "conflictPressure": 0,
+                "mentorshipCoverage": 0,
+                "grudgeLoad": 0,
+                "support": 0,
+                "burden": 0,
+                "harmony": 0,
+                "strife": 0
+              },
+              "incidents": 215,
+              "incidentsByType": {
+                "mentorship_breakthrough": 147,
+                "rivalry_clash": 24,
+                "grudge_escalation": 13,
+                "reconciliation": 31
+              }
+            },
+            "narrative": {
+              "opened": 76,
+              "assignedEvents": 501,
+              "resolved": 35,
+              "failed": 1,
+              "archived": 0,
+              "evicted": 52,
+              "retired": 52,
+              "singleEventRetired": 41,
+              "retiredEvents": 79,
+              "skippedEvents": 2338,
+              "priorityAssigned": 20,
+              "priorityUnowned": 0,
+              "merged": 0,
+              "mergeStatus": "no_registry_merge_operation",
+              "diagnostics": {
+                "openingsByType": {
+                  "combat.deep_raid_started": 11,
+                  "combat.ruins_expedition_succeeded": 3,
+                  "combat.surface_raid_resolved": 4,
+                  "combat.surface_raid_started": 1,
+                  "combat.underrealm_champion_defeated": 2,
+                  "external_camp.skirmish": 1,
+                  "lifecycle.death": 9,
+                  "lifecycle.settlement_founded": 1,
+                  "myth.awakened": 11,
+                  "myth.tradition_formed": 3,
+                  "nemesis.promoted": 3,
+                  "schism.ritual_window_opened": 1,
+                  "siege.warning": 2,
+                  "social.grudge_escalation": 4,
+                  "temple.stage_completed": 2,
+                  "underrealm.gate_discovered": 1,
+                  "village.founded": 2,
+                  "warrior.retired": 1,
+                  "warrior.tournament_champion_crowned": 1,
+                  "wildlife.hunt_death": 3,
+                  "world.limited_opportunities_completed": 9,
+                  "world.limited_opportunities_expired": 1
+                },
+                "openingsByFamily": {
+                  "combat": 21,
+                  "external_camp": 1,
+                  "lifecycle": 10,
+                  "myth": 14,
+                  "nemesis": 3,
+                  "schism": 1,
+                  "siege": 2,
+                  "social": 4,
+                  "temple": 2,
+                  "underrealm": 1,
+                  "village": 2,
+                  "warrior": 2,
+                  "wildlife": 3,
+                  "world": 10
+                },
+                "openingsByReason": {
+                  "explicit_id_new": 6,
+                  "no_active_saga": 1,
+                  "no_shared_evidence": 69
+                },
+                "matchesByPath": {
+                  "actor": 47,
+                  "antagonist": 3,
+                  "explicit_id": 323,
+                  "faction": 24,
+                  "place": 28
+                },
+                "skippedByType": {
+                  "alchemy.rite_ended": 10,
+                  "alchemy.rite_started": 10,
+                  "caravan.arrived": 15,
+                  "combat.ruins_expedition_started": 4,
+                  "construction.house_upgraded": 104,
+                  "construction.structure_completed": 45,
+                  "construction.structure_upgraded": 72,
+                  "construction.tools_upgraded": 12,
+                  "contract.buff_granted": 41,
+                  "contract.completed": 41,
+                  "contract.mineral_rewarded": 29,
+                  "contract.offered": 41,
+                  "external_camp.activated": 18,
+                  "external_camp.arrived": 18,
+                  "external_camp.caravan_dispatched": 15,
+                  "external_camp.departed": 16,
+                  "external_camp.militia_support_renewed": 31,
+                  "external_camp.militia_support_skipped": 1,
+                  "external_camp.trade_completed": 78,
+                  "external_camp.tribute_paid": 43,
+                  "external_camp.withdrawing": 16,
+                  "festival.ended": 9,
+                  "festival.started": 9,
+                  "landmark.damaged": 1,
+                  "landmark.restoration": 1,
+                  "landmark.stage_completed": 15,
+                  "lifecycle.birth": 716,
+                  "lifecycle.partnership_formed": 322,
+                  "merchant.arrived": 40,
+                  "merchant.departed": 39,
+                  "merchant.trade_summary": 14,
+                  "myth.faded": 10,
+                  "road.completed": 4,
+                  "ruins.readiness_blocked_deep_guard": 1,
+                  "ruins.readiness_blocked_score": 2,
+                  "ruins.warning_dispatch": 4,
+                  "social.mentorship_breakthrough": 147,
+                  "social.reconciliation": 31,
+                  "social.rivalry_clash": 24,
+                  "underrealm.delver_oath_failed": 1,
+                  "underrealm.delver_oath_sealed": 4,
+                  "underrealm.gate_rumors_awakened": 1,
+                  "underrealm.lift_blocked_by_champion": 2,
+                  "underrealm.lift_started": 3,
+                  "underrealm.prospection_resource_found": 21,
+                  "underrealm.rare_resource_found": 1,
+                  "warrior.company_doctrine_active": 40,
+                  "warrior.title_earned": 3,
+                  "warrior.tournament_injury": 115,
+                  "weather.changed": 36,
+                  "wildlife.herds_spawned": 20,
+                  "world.limited_opportunities_started": 10,
+                  "world.rival_caravans_contest_lose": 1,
+                  "world.rival_caravans_contest_win": 5,
+                  "world.rival_caravans_ended": 6,
+                  "world.rival_caravans_started": 6,
+                  "world.traveling_bards_ended": 7,
+                  "world.traveling_bards_started": 7
+                },
+                "exitsByReasonAndStatus": {
+                  "capacity:dormant": 15,
+                  "capacity:open": 13,
+                  "capacity:resolved": 24,
+                  "outcome:active": 4,
+                  "outcome:open": 32
+                },
+                "exits": {
+                  "resolved": {
+                    "count": 35,
+                    "events": 73,
+                    "lifetime": 4099,
+                    "meanEvents": 2.085714285714286,
+                    "meanLifetimeTicks": 117.11428571428571
+                  },
+                  "evicted": {
+                    "count": 52,
+                    "events": 79,
+                    "lifetime": 109395,
+                    "meanEvents": 1.5192307692307692,
+                    "meanLifetimeTicks": 2103.75
+                  },
+                  "failed": {
+                    "count": 1,
+                    "events": 1,
+                    "lifetime": 0,
+                    "meanEvents": 1,
+                    "meanLifetimeTicks": 0
+                  }
+                },
+                "samples": [
+                  {
+                    "id": "saga_c0000_0000",
+                    "openingType": "lifecycle.settlement_founded",
+                    "openingReason": "no_active_saga",
+                    "timeline": [
+                      {
+                        "eventId": "evt:v1:c0000:t0000000000:s0000",
+                        "tick": 0,
+                        "type": "lifecycle.settlement_founded",
+                        "fact": "Founding: 12 dwarves established First Hold"
+                      }
+                    ],
+                    "finalStatus": "dormant",
+                    "exitReason": "capacity"
+                  },
+                  {
+                    "id": "saga_c0000_0001",
+                    "openingType": "warrior.tournament_champion_crowned",
+                    "openingReason": "no_shared_evidence",
+                    "timeline": [
+                      {
+                        "eventId": "evt:v1:c0000:t0000000001:s0003",
+                        "tick": 1,
+                        "type": "warrior.tournament_champion_crowned",
+                        "fact": "Warrior League Harnvorn Swiftspire Conclave S0: champion Yorthram Emberdrum (threshold_wardens)"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000006601:s0002",
+                        "tick": 6601,
+                        "type": "warrior.tournament_champion_crowned",
+                        "fact": "Warrior League Farlak Emberhold Conclave S33: champion Skarrin Trueroot (deep_lantern)"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000006801:s0001",
+                        "tick": 6801,
+                        "type": "warrior.tournament_champion_crowned",
+                        "fact": "Warrior League Rimgrim Frostclaw Crown S34: champion Skarrin Trueroot (deep_lantern)"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007001:s0002",
+                        "tick": 7001,
+                        "type": "warrior.tournament_champion_crowned",
+                        "fact": "Warrior League Lornrann Bouldermantle Conclave S35: champion Skarrin Trueroot (deep_lantern)"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007201:s0002",
+                        "tick": 7201,
+                        "type": "warrior.tournament_champion_crowned",
+                        "fact": "Warrior League Norborn Ironrootcleaver Dominion S36: champion Skarrin Trueroot (deep_lantern)"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007401:s0001",
+                        "tick": 7401,
+                        "type": "warrior.tournament_champion_crowned",
+                        "fact": "Warrior League Farthul Highcarver Gauntlet S37: champion Skarrin Trueroot (deep_lantern)"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007601:s0002",
+                        "tick": 7601,
+                        "type": "warrior.tournament_champion_crowned",
+                        "fact": "Warrior League Gimvik Steelbeard Crucible S38: champion Skarrin Trueroot (deep_lantern)"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007801:s0002",
+                        "tick": 7801,
+                        "type": "warrior.tournament_champion_crowned",
+                        "fact": "Warrior League Galdgrom Deepdelver Conclave S39: champion Skarrin Trueroot (deep_lantern)"
+                      }
+                    ],
+                    "finalStatus": "active"
+                  },
+                  {
+                    "id": "saga_schism_c0",
+                    "openingType": "schism.ritual_window_opened",
+                    "openingReason": "explicit_id_new",
+                    "timeline": [
+                      {
+                        "eventId": "evt:v1:c0000:t0000000001:s0007",
+                        "tick": 1,
+                        "type": "schism.ritual_window_opened",
+                        "fact": "Ritual window opened: spring council rites"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000006801:s0004",
+                        "tick": 6801,
+                        "type": "schism.ritual_window_opened",
+                        "fact": "Ritual window opened: autumn council rites"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007001:s0004",
+                        "tick": 7001,
+                        "type": "schism.doctrine_shifted",
+                        "fact": "Schism doctrine: Austerity Mandate"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007201:s0004",
+                        "tick": 7201,
+                        "type": "schism.ritual_window_opened",
+                        "fact": "Ritual window opened: spring council rites"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007201:s0005",
+                        "tick": 7201,
+                        "type": "schism.doctrine_shifted",
+                        "fact": "Schism doctrine: Revelry Ascendant"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007601:s0004",
+                        "tick": 7601,
+                        "type": "schism.ritual_window_opened",
+                        "fact": "Ritual window opened: autumn council rites"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007828:s0000",
+                        "tick": 7828,
+                        "type": "schism.phase_shifted",
+                        "fact": "Schism phase: the halls fracture"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007841:s0000",
+                        "tick": 7841,
+                        "type": "schism.phase_shifted",
+                        "fact": "Schism phase: reckoning of the Nine Braziers"
+                      }
+                    ],
+                    "finalStatus": "resolved",
+                    "exitReason": "outcome",
+                    "outcome": {
+                      "eventId": "evt:v1:c0000:t0000001104:s0000",
+                      "tick": 1104,
+                      "type": "schism.climax_resolved",
+                      "fact": "Schism resolved: austerity covenant reforges the ancestral law"
+                    }
+                  },
+                  {
+                    "id": "saga_c0000_0002",
+                    "openingType": "wildlife.hunt_death",
+                    "openingReason": "no_shared_evidence",
+                    "timeline": [
+                      {
+                        "eventId": "evt:v1:c0000:t0000000101:s0000",
+                        "tick": 101,
+                        "type": "wildlife.hunt_death",
+                        "fact": "Hunt failed: dwarf_10 fell"
+                      }
+                    ],
+                    "finalStatus": "dormant",
+                    "exitReason": "capacity"
+                  },
+                  {
+                    "id": "saga_c0000_0003",
+                    "openingType": "world.limited_opportunities_completed",
+                    "openingReason": "no_shared_evidence",
+                    "timeline": [
+                      {
+                        "eventId": "evt:v1:c0000:t0000000368:s0000",
+                        "tick": 368,
+                        "type": "world.limited_opportunities_completed",
+                        "fact": "Opportunity completed: beer x30, iron x20"
+                      }
+                    ],
+                    "finalStatus": "resolved",
+                    "exitReason": "capacity",
+                    "outcome": {
+                      "eventId": "evt:v1:c0000:t0000000368:s0000",
+                      "tick": 368,
+                      "type": "world.limited_opportunities_completed",
+                      "fact": "Opportunity completed: beer x30, iron x20"
+                    }
+                  },
+                  {
+                    "id": "saga_c0000_0004",
+                    "openingType": "wildlife.hunt_death",
+                    "openingReason": "no_shared_evidence",
+                    "timeline": [
+                      {
+                        "eventId": "evt:v1:c0000:t0000000458:s0000",
+                        "tick": 458,
+                        "type": "wildlife.hunt_death",
+                        "fact": "Hunt failed: dwarf_1 fell"
+                      }
+                    ],
+                    "finalStatus": "dormant",
+                    "exitReason": "capacity"
+                  },
+                  {
+                    "id": "saga_c0000_0005",
+                    "openingType": "external_camp.skirmish",
+                    "openingReason": "no_shared_evidence",
+                    "timeline": [
+                      {
+                        "eventId": "evt:v1:c0000:t0000000586:s0000",
+                        "tick": 586,
+                        "type": "external_camp.skirmish",
+                        "fact": "Raider camp: Ashen Marauders Camp skirmish (food -1, water -1)"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000001607:s0000",
+                        "tick": 1607,
+                        "type": "external_camp.skirmish",
+                        "fact": "Raider camp: Ashen Marauders Camp skirmish (beer -55, food -2, water -2)"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000001695:s0000",
+                        "tick": 1695,
+                        "type": "external_camp.skirmish",
+                        "fact": "Raider camp: Ashen Marauders Camp skirmish (beer -54, food -2, water -2)"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000001871:s0000",
+                        "tick": 1871,
+                        "type": "external_camp.skirmish",
+                        "fact": "Raider camp: Ashen Marauders Camp skirmish (beer -58, water -3, food -2)"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000002223:s0000",
+                        "tick": 2223,
+                        "type": "external_camp.skirmish",
+                        "fact": "Raider camp: Ashen Marauders Camp skirmish (beer -59, water -2, food -1)"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000003607:s0000",
+                        "tick": 3607,
+                        "type": "external_camp.skirmish",
+                        "fact": "Raider camp: Ashen Marauders Camp skirmish (beer -140, food -7, water -6)"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000006464:s0000",
+                        "tick": 6464,
+                        "type": "external_camp.skirmish",
+                        "fact": "Raider camp: Ashen Marauders Camp skirmish (beer -200, food -10, water -8)"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000006816:s0000",
+                        "tick": 6816,
+                        "type": "external_camp.skirmish",
+                        "fact": "Raider camp: Ashen Marauders Camp skirmish (beer -255, water -9, food -8)"
+                      }
+                    ],
+                    "finalStatus": "active"
+                  },
+                  {
+                    "id": "saga_nemesis_raider_leader_ashen_marauders",
+                    "openingType": "nemesis.promoted",
+                    "openingReason": "explicit_id_new",
+                    "timeline": [
+                      {
+                        "eventId": "evt:v1:c0000:t0000000680:s0000",
+                        "tick": 680,
+                        "type": "nemesis.promoted",
+                        "fact": "Morgul the Road-Wolf, covets the deep roads, rises for Ashen Marauders Camp."
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007072:s0000",
+                        "tick": 7072,
+                        "type": "siege.approach",
+                        "fact": "Morgul the Road-Wolf advances along the frontier roads toward the hold."
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007162:s0001",
+                        "tick": 7162,
+                        "type": "siege.demand",
+                        "fact": "Morgul the Road-Wolf demands tribute and submission from the council."
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007232:s0003",
+                        "tick": 7232,
+                        "type": "siege.breach",
+                        "fact": "Morgul the Road-Wolf breaches the outer works; structures and territory are contested."
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007277:s0000",
+                        "tick": 7277,
+                        "type": "siege.battle",
+                        "fact": "Morgul the Road-Wolf meets The hold in the decisive battle."
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007337:s0000",
+                        "tick": 7337,
+                        "type": "siege.battle_resolved",
+                        "fact": "The hold turns back Morgul the Road-Wolf through grudge."
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007337:s0001",
+                        "tick": 7337,
+                        "type": "siege.retreat",
+                        "fact": "Morgul the Road-Wolf retreats from the hold after grudge."
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007387:s0000",
+                        "tick": 7387,
+                        "type": "siege.aftermath",
+                        "fact": "The hold enters recovery after Morgul the Road-Wolf's siege (colony_victory)."
+                      }
+                    ],
+                    "finalStatus": "resolved",
+                    "exitReason": "outcome",
+                    "outcome": {
+                      "eventId": "evt:v1:c0000:t0000007337:s0000",
+                      "tick": 7337,
+                      "type": "siege.battle_resolved",
+                      "fact": "The hold turns back Morgul the Road-Wolf through grudge."
+                    }
+                  }
+                ]
+              },
+              "priorityOwnership": 1,
+              "terminalRate": 0.47368421052631576,
+              "fragmentationRate": 0.6973684210526315,
+              "eventsPerSaga": 6.592105263157895
+            },
+            "movement": {
+              "attempts": 1257102,
+              "steps": 1102593,
+              "roadSteps": 116127,
+              "longSteps": 94526,
+              "longRoadSteps": 5613,
+              "stays": 154509,
+              "failedSteps": 57509,
+              "cooldowns": 97000,
+              "targetDistanceSum": 12728237,
+              "fieldRebuilds": 1160711,
+              "roadRebuilds": 0,
+              "completedTrips": 48407,
+              "travelTicks": 256102,
+              "abortedTrips": 235619,
+              "referenceLongSteps": 639216,
+              "referenceLongRoadSteps": 63226,
+              "roadEvaluations": 1151,
+              "roadSubstitutions": 0,
+              "roadProgressProtections": 0,
+              "roadTripsStarted": 0,
+              "firstRoadTripTick": null,
+              "measurementVersion": 2,
+              "meanTargetDistance": 10.125063041821587,
+              "meanTravelTicks": 5.29059846716384,
+              "p95TravelTicks": 16,
+              "p95Overflow": false,
+              "travelOverflowSamples": 2,
+              "referenceLongTripDistance": 10,
+              "referenceLongRoadStepShare": 0.09891179194513279,
+              "byJobFamily": {
+                "armory": {
+                  "attempts": 648,
+                  "steps": 629,
+                  "completedTrips": 55,
+                  "abortedTrips": 4,
+                  "meanTravelTicks": 10.8,
+                  "p95TravelTicks": 29,
+                  "travelOverflowSamples": 0
+                },
+                "brewery": {
+                  "attempts": 1744,
+                  "steps": 1334,
+                  "completedTrips": 118,
+                  "abortedTrips": 22,
+                  "meanTravelTicks": 13.830508474576272,
+                  "p95TravelTicks": 32,
+                  "travelOverflowSamples": 0
+                },
+                "build": {
+                  "attempts": 2536,
+                  "steps": 2467,
+                  "completedTrips": 78,
+                  "abortedTrips": 16,
+                  "meanTravelTicks": 27.46153846153846,
+                  "p95TravelTicks": 93,
+                  "travelOverflowSamples": 0
+                },
+                "gather_food": {
+                  "attempts": 653658,
+                  "steps": 630577,
+                  "completedTrips": 19966,
+                  "abortedTrips": 147670,
+                  "meanTravelTicks": 4.358860062105579,
+                  "p95TravelTicks": 13,
+                  "travelOverflowSamples": 0
+                },
+                "gather_stone": {
+                  "attempts": 316749,
+                  "steps": 233581,
+                  "completedTrips": 7994,
+                  "abortedTrips": 63276,
+                  "meanTravelTicks": 4.39492119089317,
+                  "p95TravelTicks": 14,
+                  "travelOverflowSamples": 0
+                },
+                "gather_water": {
+                  "attempts": 14959,
+                  "steps": 14287,
+                  "completedTrips": 384,
+                  "abortedTrips": 1212,
+                  "meanTravelTicks": 10.427083333333334,
+                  "p95TravelTicks": 27,
+                  "travelOverflowSamples": 0
+                },
+                "gather_wood": {
+                  "attempts": 67328,
+                  "steps": 60422,
+                  "completedTrips": 7914,
+                  "abortedTrips": 13450,
+                  "meanTravelTicks": 2.9787717968157694,
+                  "p95TravelTicks": 9,
+                  "travelOverflowSamples": 2
+                },
+                "home": {
+                  "attempts": 160027,
+                  "steps": 124460,
+                  "completedTrips": 6770,
+                  "abortedTrips": 6557,
+                  "meanTravelTicks": 10.387887740029543,
+                  "p95TravelTicks": 34,
+                  "travelOverflowSamples": 0
+                },
+                "hunt": {
+                  "attempts": 1046,
+                  "steps": 900,
+                  "completedTrips": 70,
+                  "abortedTrips": 315,
+                  "meanTravelTicks": 1.3,
+                  "p95TravelTicks": 3,
+                  "travelOverflowSamples": 0
+                },
+                "idle": {
+                  "attempts": 31873,
+                  "steps": 28443,
+                  "completedTrips": 4811,
+                  "abortedTrips": 2916,
+                  "meanTravelTicks": 5.361047599251715,
+                  "p95TravelTicks": 11,
+                  "travelOverflowSamples": 0
+                },
+                "mine": {
+                  "attempts": 2712,
+                  "steps": 2313,
+                  "completedTrips": 80,
+                  "abortedTrips": 159,
+                  "meanTravelTicks": 26.9,
+                  "p95TravelTicks": 52,
+                  "travelOverflowSamples": 0
+                },
+                "sawmill": {
+                  "attempts": 316,
+                  "steps": 309,
+                  "completedTrips": 18,
+                  "abortedTrips": 13,
+                  "meanTravelTicks": 13.555555555555555,
+                  "p95TravelTicks": 45,
+                  "travelOverflowSamples": 0
+                },
+                "upgrade": {
+                  "attempts": 1547,
+                  "steps": 1325,
+                  "completedTrips": 60,
+                  "abortedTrips": 3,
+                  "meanTravelTicks": 25.1,
+                  "p95TravelTicks": 68,
+                  "travelOverflowSamples": 0
+                },
+                "upgrade_structure": {
+                  "attempts": 1760,
+                  "steps": 1377,
+                  "completedTrips": 77,
+                  "abortedTrips": 4,
+                  "meanTravelTicks": 22.415584415584416,
+                  "p95TravelTicks": 56,
+                  "travelOverflowSamples": 0
+                },
+                "upgrade_tools": {
+                  "attempts": 199,
+                  "steps": 169,
+                  "completedTrips": 12,
+                  "abortedTrips": 2,
+                  "meanTravelTicks": 13.083333333333334,
+                  "p95TravelTicks": 28,
+                  "travelOverflowSamples": 0
+                }
+              },
+              "gatherUnits": {
+                "food": 19895,
+                "water": 985,
+                "beer": 0,
+                "wood": 2877,
+                "stone": 2592,
+                "iron": 0,
+                "expedition_kit": 0,
+                "weapon_tier_1": 0,
+                "weapon_tier_2": 0,
+                "weapon_tier_3": 0,
+                "weapon_tier_4": 0,
+                "weapon_tier_5": 0,
+                "weapon_tier_6": 0,
+                "weapon_tier_7": 0,
+                "weapon_tier_8": 0,
+                "weapon_tier_9": 0,
+                "weapon_tier_10": 0,
+                "armor_tier_1": 0,
+                "armor_tier_2": 0,
+                "armor_tier_3": 0,
+                "armor_tier_4": 0,
+                "armor_tier_5": 0,
+                "armor_tier_6": 0,
+                "armor_tier_7": 0,
+                "armor_tier_8": 0,
+                "armor_tier_9": 0,
+                "armor_tier_10": 0,
+                "mithril": 0,
+                "adamantio": 0,
+                "mana_crystal": 0,
+                "embersteel": 0,
+                "ironshade": 0,
+                "void_shard": 0,
+                "ember_resin": 0
+              },
+              "gatherJobs": {
+                "food": 6871,
+                "water": 308,
+                "beer": 0,
+                "wood": 2554,
+                "stone": 2149,
+                "iron": 0,
+                "expedition_kit": 0,
+                "weapon_tier_1": 0,
+                "weapon_tier_2": 0,
+                "weapon_tier_3": 0,
+                "weapon_tier_4": 0,
+                "weapon_tier_5": 0,
+                "weapon_tier_6": 0,
+                "weapon_tier_7": 0,
+                "weapon_tier_8": 0,
+                "weapon_tier_9": 0,
+                "weapon_tier_10": 0,
+                "armor_tier_1": 0,
+                "armor_tier_2": 0,
+                "armor_tier_3": 0,
+                "armor_tier_4": 0,
+                "armor_tier_5": 0,
+                "armor_tier_6": 0,
+                "armor_tier_7": 0,
+                "armor_tier_8": 0,
+                "armor_tier_9": 0,
+                "armor_tier_10": 0,
+                "mithril": 0,
+                "adamantio": 0,
+                "mana_crystal": 0,
+                "embersteel": 0,
+                "ironshade": 0,
+                "void_shard": 0,
+                "ember_resin": 0
+              },
+              "constructionJobs": 62,
+              "roadStepShare": 0.10532172796308338,
+              "longRoadStepShare": 0.05938048790808878,
+              "stayShare": 0.12290888090226569,
+              "incompleteTrips": 445
+            },
+            "legacy": {
+              "records": 0,
+              "activeModifiers": 0,
+              "activeMagnitude": 0,
+              "effectiveModifiers": {
+                "constructionSpeed": 0
+              },
+              "contributions": [],
+              "serializedBytes": 224,
+              "evictions": 0
+            },
+            "runtime": {
+              "elapsedMs": 185527,
+              "ticksPerSecond": 43.12040835026708,
+              "pathingMs": 45390.52748201036,
+              "renderMeanMs": null,
+              "renderP95Ms": null,
+              "renderStatus": "not_rendered_headless"
+            }
           }
         },
         {
           "seed": 202,
           "tick": 8000,
-          "population": 683,
-          "morale": 0.8838931141794698,
-          "beerBoost": 0.019467935578330858,
-          "hunger": 0.15466574154223928,
-          "thirst": 0.11063400199411763,
+          "population": 689,
+          "morale": 0.8754106049720854,
+          "beerBoost": 0.01399100145137882,
+          "hunger": 0.15637002475585968,
+          "thirst": 0.11752303902841556,
           "underrealmDepth": 1,
           "underrealmChampions": 0,
           "underrealmFailedExpeditions": 0,
@@ -157,21 +995,21 @@
           "schismDecreeIssued": 14,
           "schismDecreeActiveTicks": 2800,
           "schismDecreeById": {
-            "granary_compact": 5,
-            "frontier_levy": 4,
+            "granary_compact": 6,
             "forge_quota": 3,
+            "frontier_levy": 3,
             "deep_claims": 2
           },
           "schismDecreeActiveTicksById": {
-            "granary_compact": 1000,
-            "frontier_levy": 800,
+            "granary_compact": 1200,
             "forge_quota": 600,
+            "frontier_levy": 600,
             "deep_claims": 400
           },
           "storyDirector": {
-            "considered": 4146,
+            "considered": 4212,
             "selected": 33,
-            "suppressed": 4113,
+            "suppressed": 4179,
             "preempted": 8,
             "criticalConsidered": 8,
             "criticalSelected": 7,
@@ -181,14 +1019,14 @@
             "legendarySelected": 1,
             "legendarySuppressed": 4,
             "legendaryContextCovered": 5,
-            "sagasOpened": 1650,
-            "sagasResolved": 29,
+            "sagasOpened": 58,
+            "sagasResolved": 32,
             "sagasFailed": 1,
-            "sagasArchived": 1626,
-            "sagasEvicted": 1626,
-            "chaptersOpened": 1674,
-            "chaptersCompacted": 4,
-            "focusCoverage": 0.007959479015918957,
+            "sagasArchived": 34,
+            "sagasEvicted": 34,
+            "chaptersOpened": 1829,
+            "chaptersCompacted": 1740,
+            "focusCoverage": 0.007834757834757835,
             "criticalFocusCoverage": 0.875,
             "legendaryFocusCoverage": 0.2,
             "priorityConsidered": 13,
@@ -198,8 +1036,8 @@
             "legendaryContextCoverage": 1,
             "priorityContextCovered": 13,
             "priorityContextCoverage": 1,
-            "sagaTerminal": 30,
-            "sagaResolutionRate": 0.01818181818181818
+            "sagaTerminal": 33,
+            "sagaResolutionRate": 0.5689655172413793
           },
           "worldLegacy": {
             "completedCycles": 0,
@@ -212,6 +1050,8 @@
             "echoes": 0,
             "nemeses": 0,
             "modifierMagnitude": 0,
+            "effectiveMagnitude": 0,
+            "activeModifiers": 0,
             "evictedRecords": 0,
             "stateBytes": 224
           },
@@ -228,7 +1068,7 @@
             "structuresDamaged": 4,
             "structuresRestored": 4,
             "recoveryTicks": 0,
-            "stateBytes": 2405
+            "stateBytes": 2419
           },
           "landmarks": {
             "founded": 5,
@@ -239,11 +1079,850 @@
             "restored": 1,
             "stateBytes": 1865
           },
-          "deaths": 73,
+          "deaths": 60,
           "resources": {
-            "beer": 45498.93386632737,
-            "food": 801.0135492222951,
-            "water": 883.8225501351452
+            "beer": 45176.86830301925,
+            "food": 848.59060846532,
+            "water": 780.6467163125884
+          },
+          "refinement": {
+            "schemaVersion": 1,
+            "samples": 8000,
+            "economy": {
+              "population": 689,
+              "births": 737,
+              "deaths": 60,
+              "idleAdultRatio": 0.336685400967104,
+              "invalidStockpiles": 0,
+              "resources": {
+                "food": {
+                  "floor": 18.74791376187129,
+                  "average": 545.5596570602581
+                },
+                "water": {
+                  "floor": 44.717644801758865,
+                  "average": 541.8313650580891
+                },
+                "beer": {
+                  "floor": 0,
+                  "average": 17039.275723508832
+                }
+              }
+            },
+            "social": {
+              "enabled": true,
+              "longArcEnabled": true,
+              "invalidMoodMemory": 0,
+              "invalidAggregateSamples": 0,
+              "average": {
+                "cohesion": 0.26480259830215225,
+                "conflictPressure": 0.10692948133608628,
+                "mentorshipCoverage": 0.01069034760942672,
+                "grudgeLoad": 0.011548370159657708,
+                "support": 0.002188614363971575,
+                "burden": 0.00012629622341760942,
+                "harmony": 0.015054801739712364,
+                "strife": 0.001040198681357225
+              },
+              "peak": {
+                "cohesion": 0.5100083389371004,
+                "conflictPressure": 0.20261734936170314,
+                "mentorshipCoverage": 0.08333333333333333,
+                "grudgeLoad": 0.06634835169590084,
+                "support": 0.004163439952120426,
+                "burden": 0.0004857135819048049,
+                "harmony": 0.01984777231639963,
+                "strife": 0.002860701023307138
+              },
+              "saturatedTickShare": {
+                "cohesion": 0,
+                "conflictPressure": 0,
+                "mentorshipCoverage": 0,
+                "grudgeLoad": 0,
+                "support": 0,
+                "burden": 0,
+                "harmony": 0,
+                "strife": 0
+              },
+              "incidents": 199,
+              "incidentsByType": {
+                "mentorship_breakthrough": 157,
+                "rivalry_clash": 14,
+                "grudge_escalation": 12,
+                "reconciliation": 16
+              }
+            },
+            "narrative": {
+              "opened": 58,
+              "assignedEvents": 1925,
+              "resolved": 32,
+              "failed": 1,
+              "archived": 0,
+              "evicted": 34,
+              "retired": 34,
+              "singleEventRetired": 24,
+              "retiredEvents": 58,
+              "skippedEvents": 2287,
+              "priorityAssigned": 13,
+              "priorityUnowned": 0,
+              "merged": 0,
+              "mergeStatus": "no_registry_merge_operation",
+              "diagnostics": {
+                "openingsByType": {
+                  "combat.deep_raid_started": 9,
+                  "combat.ruins_expedition_succeeded": 1,
+                  "combat.surface_raid_resolved": 2,
+                  "combat.surface_raid_started": 1,
+                  "external_camp.skirmish": 1,
+                  "lifecycle.death": 7,
+                  "lifecycle.settlement_founded": 1,
+                  "myth.awakened": 5,
+                  "myth.tradition_formed": 2,
+                  "nemesis.promoted": 1,
+                  "schism.ritual_window_opened": 1,
+                  "siege.warning": 1,
+                  "social.grudge_escalation": 4,
+                  "temple.stage_completed": 3,
+                  "underrealm.gate_discovered": 1,
+                  "village.founded": 2,
+                  "warrior.tournament_champion_crowned": 1,
+                  "world.limited_opportunities_completed": 14,
+                  "world.limited_opportunities_expired": 1
+                },
+                "openingsByFamily": {
+                  "combat": 13,
+                  "external_camp": 1,
+                  "lifecycle": 8,
+                  "myth": 7,
+                  "nemesis": 1,
+                  "schism": 1,
+                  "siege": 1,
+                  "social": 4,
+                  "temple": 3,
+                  "underrealm": 1,
+                  "village": 2,
+                  "warrior": 1,
+                  "world": 15
+                },
+                "openingsByReason": {
+                  "explicit_id_new": 3,
+                  "no_active_saga": 1,
+                  "no_shared_evidence": 54
+                },
+                "matchesByPath": {
+                  "actor": 48,
+                  "antagonist": 1,
+                  "explicit_id": 1762,
+                  "faction": 11,
+                  "place": 45
+                },
+                "skippedByType": {
+                  "alchemy.rite_ended": 9,
+                  "alchemy.rite_started": 9,
+                  "caravan.arrived": 22,
+                  "combat.ruins_expedition_started": 1,
+                  "construction.house_upgraded": 109,
+                  "construction.structure_completed": 42,
+                  "construction.structure_upgraded": 97,
+                  "construction.tools_upgraded": 13,
+                  "contract.buff_granted": 41,
+                  "contract.completed": 41,
+                  "contract.mineral_rewarded": 29,
+                  "contract.offered": 41,
+                  "external_camp.activated": 17,
+                  "external_camp.arrived": 17,
+                  "external_camp.caravan_dispatched": 22,
+                  "external_camp.departed": 15,
+                  "external_camp.militia_support_renewed": 29,
+                  "external_camp.trade_completed": 89,
+                  "external_camp.tribute_paid": 48,
+                  "external_camp.withdrawing": 15,
+                  "festival.ended": 14,
+                  "festival.started": 14,
+                  "landmark.damaged": 1,
+                  "landmark.restoration": 1,
+                  "landmark.stage_completed": 15,
+                  "lifecycle.birth": 737,
+                  "lifecycle.partnership_formed": 340,
+                  "merchant.arrived": 3,
+                  "merchant.departed": 2,
+                  "merchant.trade_summary": 2,
+                  "myth.faded": 5,
+                  "road.completed": 4,
+                  "ruins.readiness_blocked_score": 2,
+                  "ruins.warning_dispatch": 1,
+                  "social.mentorship_breakthrough": 157,
+                  "social.reconciliation": 16,
+                  "social.rivalry_clash": 14,
+                  "underrealm.gate_rumors_awakened": 1,
+                  "underrealm.lift_blocked_by_champion": 1,
+                  "underrealm.lift_started": 1,
+                  "warrior.company_doctrine_active": 40,
+                  "warrior.title_earned": 4,
+                  "warrior.tournament_injury": 112,
+                  "weather.changed": 38,
+                  "wildlife.herds_spawned": 20,
+                  "world.limited_opportunities_started": 15,
+                  "world.rival_caravans_contest_lose": 1,
+                  "world.rival_caravans_contest_win": 2,
+                  "world.rival_caravans_ended": 3,
+                  "world.rival_caravans_started": 3,
+                  "world.traveling_bards_ended": 6,
+                  "world.traveling_bards_started": 6
+                },
+                "exitsByReasonAndStatus": {
+                  "capacity:dormant": 9,
+                  "capacity:failed": 1,
+                  "capacity:resolved": 24,
+                  "outcome:active": 3,
+                  "outcome:open": 30
+                },
+                "exits": {
+                  "failed": {
+                    "count": 1,
+                    "events": 1,
+                    "lifetime": 0,
+                    "meanEvents": 1,
+                    "meanLifetimeTicks": 0
+                  },
+                  "resolved": {
+                    "count": 32,
+                    "events": 59,
+                    "lifetime": 3397,
+                    "meanEvents": 1.84375,
+                    "meanLifetimeTicks": 106.15625
+                  },
+                  "evicted": {
+                    "count": 34,
+                    "events": 58,
+                    "lifetime": 97706,
+                    "meanEvents": 1.7058823529411764,
+                    "meanLifetimeTicks": 2873.705882352941
+                  }
+                },
+                "samples": [
+                  {
+                    "id": "saga_c0000_0000",
+                    "openingType": "lifecycle.settlement_founded",
+                    "openingReason": "no_active_saga",
+                    "timeline": [
+                      {
+                        "eventId": "evt:v1:c0000:t0000000000:s0000",
+                        "tick": 0,
+                        "type": "lifecycle.settlement_founded",
+                        "fact": "Founding: 12 dwarves established First Hold"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000006132:s0001",
+                        "tick": 6132,
+                        "type": "lifecycle.death",
+                        "fact": "Death: Vorngald Brightward (old age)"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000006133:s0002",
+                        "tick": 6133,
+                        "type": "social.grudge_escalation",
+                        "fact": "Social incident: grudge escalation between Ulfward Stoneveilspire and Fornthar Truetrail"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000006345:s0001",
+                        "tick": 6345,
+                        "type": "lifecycle.death",
+                        "fact": "Death: Rimthul Oakspear (old age)"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007158:s0000",
+                        "tick": 7158,
+                        "type": "lifecycle.death",
+                        "fact": "Death: Mornthir Runestone (old age)"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007226:s0000",
+                        "tick": 7226,
+                        "type": "lifecycle.death",
+                        "fact": "Death: Ebrvik Deepenbrow (old age)"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007255:s0000",
+                        "tick": 7255,
+                        "type": "lifecycle.death",
+                        "fact": "Death: Brandthul Boulderdelver (old age)"
+                      }
+                    ],
+                    "finalStatus": "active"
+                  },
+                  {
+                    "id": "saga_c0000_0001",
+                    "openingType": "warrior.tournament_champion_crowned",
+                    "openingReason": "no_shared_evidence",
+                    "timeline": [
+                      {
+                        "eventId": "evt:v1:c0000:t0000000001:s0003",
+                        "tick": 1,
+                        "type": "warrior.tournament_champion_crowned",
+                        "fact": "Warrior League Skarain Flintpath Conclave S0: champion Lornrann Swiftedge (abyssborn)"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000006601:s0003",
+                        "tick": 6601,
+                        "type": "warrior.underrealm_command_synced",
+                        "fact": "Warrior League: Thommorn Cavetorch synced to Underrealm Dwarf Champion command"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000006801:s0003",
+                        "tick": 6801,
+                        "type": "warrior.tournament_champion_crowned",
+                        "fact": "Warrior League Durdin Cindertrail Crown S34: champion Thommorn Cavetorch (deep_lantern)"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007001:s0005",
+                        "tick": 7001,
+                        "type": "warrior.tournament_champion_crowned",
+                        "fact": "Warrior League Lodwin Darktrace Gauntlet S35: champion Thommorn Cavetorch (deep_lantern)"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007201:s0003",
+                        "tick": 7201,
+                        "type": "warrior.tournament_champion_crowned",
+                        "fact": "Warrior League Mornwin Duskhold Crucible S36: champion Thommorn Cavetorch (deep_lantern)"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007401:s0003",
+                        "tick": 7401,
+                        "type": "warrior.tournament_champion_crowned",
+                        "fact": "Warrior League Mornrak Steelrunner Arena S37: champion Thommorn Cavetorch (deep_lantern)"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007601:s0002",
+                        "tick": 7601,
+                        "type": "warrior.tournament_champion_crowned",
+                        "fact": "Warrior League Skalmir Darkring Gauntlet S38: champion Thommorn Cavetorch (deep_lantern)"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007801:s0005",
+                        "tick": 7801,
+                        "type": "warrior.tournament_champion_crowned",
+                        "fact": "Warrior League Brandgath Lowseeker Conclave S39: champion Thommorn Cavetorch (deep_lantern)"
+                      }
+                    ],
+                    "finalStatus": "active"
+                  },
+                  {
+                    "id": "saga_schism_c0",
+                    "openingType": "schism.ritual_window_opened",
+                    "openingReason": "explicit_id_new",
+                    "timeline": [
+                      {
+                        "eventId": "evt:v1:c0000:t0000000001:s0007",
+                        "tick": 1,
+                        "type": "schism.ritual_window_opened",
+                        "fact": "Ritual window opened: spring council rites"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007601:s0005",
+                        "tick": 7601,
+                        "type": "schism.decree_proposed",
+                        "fact": "Council decrees proposed: Granary Compact | Frontier Levy Charter | Forge Quota Mandate"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007601:s0006",
+                        "tick": 7601,
+                        "type": "schism.decree_enacted",
+                        "fact": "Council decree enacted: Granary Compact (200 ticks, pressure -3.0pp, legitimacy +2.0pp)"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007601:s0007",
+                        "tick": 7601,
+                        "type": "schism.council_ritual_lit",
+                        "fact": "Council ritual: the Nine Braziers are lit"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007601:s0008",
+                        "tick": 7601,
+                        "type": "schism.ritual_invoked",
+                        "fact": "Ritual invoked: Rite of Prosperity (200 ticks)"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007602:s0000",
+                        "tick": 7602,
+                        "type": "schism.phase_shifted",
+                        "fact": "Schism phase: concord restored"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007801:s0007",
+                        "tick": 7801,
+                        "type": "schism.ritual_expired",
+                        "fact": "Ritual faded: Rite of Prosperity"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007801:s0008",
+                        "tick": 7801,
+                        "type": "schism.decree_expired",
+                        "fact": "Council decree expired: Granary Compact"
+                      }
+                    ],
+                    "finalStatus": "resolved",
+                    "exitReason": "outcome",
+                    "outcome": {
+                      "eventId": "evt:v1:c0000:t0000000883:s0000",
+                      "tick": 883,
+                      "type": "schism.climax_resolved",
+                      "fact": "Schism resolved: austerity covenant reforges the ancestral law"
+                    }
+                  },
+                  {
+                    "id": "saga_c0000_0002",
+                    "openingType": "social.grudge_escalation",
+                    "openingReason": "no_shared_evidence",
+                    "timeline": [
+                      {
+                        "eventId": "evt:v1:c0000:t0000000349:s0000",
+                        "tick": 349,
+                        "type": "social.grudge_escalation",
+                        "fact": "Social incident: grudge escalation between Kromdan Longcarver and Baldar Cragcleaver"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007849:s0000",
+                        "tick": 7849,
+                        "type": "lifecycle.death",
+                        "fact": "Death: Baldthir Frostbearer (old age)"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007853:s0000",
+                        "tick": 7853,
+                        "type": "lifecycle.death",
+                        "fact": "Death: Morgoth Brightbreaker (old age)"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007880:s0000",
+                        "tick": 7880,
+                        "type": "lifecycle.death",
+                        "fact": "Death: Skarthul Dawnmantle (old age)"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007953:s0000",
+                        "tick": 7953,
+                        "type": "lifecycle.death",
+                        "fact": "Death: Zanzorn Flintpath (old age)"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007969:s0000",
+                        "tick": 7969,
+                        "type": "lifecycle.death",
+                        "fact": "Death: Durhelm Whitebearer (old age)"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007975:s0000",
+                        "tick": 7975,
+                        "type": "lifecycle.death",
+                        "fact": "Death: Yarngath Embertorch (old age)"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007986:s0000",
+                        "tick": 7986,
+                        "type": "lifecycle.death",
+                        "fact": "Death: Brandlak Redoath (old age)"
+                      }
+                    ],
+                    "finalStatus": "active"
+                  },
+                  {
+                    "id": "saga_c0000_0003",
+                    "openingType": "world.limited_opportunities_expired",
+                    "openingReason": "no_shared_evidence",
+                    "timeline": [
+                      {
+                        "eventId": "evt:v1:c0000:t0000000406:s0000",
+                        "tick": 406,
+                        "type": "world.limited_opportunities_expired",
+                        "fact": "Opportunity expired: losses food x4, water x3, wood x1"
+                      }
+                    ],
+                    "finalStatus": "failed",
+                    "exitReason": "capacity",
+                    "outcome": {
+                      "eventId": "evt:v1:c0000:t0000000406:s0000",
+                      "tick": 406,
+                      "type": "world.limited_opportunities_expired",
+                      "fact": "Opportunity expired: losses food x4, water x3, wood x1"
+                    }
+                  },
+                  {
+                    "id": "saga_c0000_0004",
+                    "openingType": "external_camp.skirmish",
+                    "openingReason": "no_shared_evidence",
+                    "timeline": [
+                      {
+                        "eventId": "evt:v1:c0000:t0000000563:s0000",
+                        "tick": 563,
+                        "type": "external_camp.skirmish",
+                        "fact": "Raider camp: Ashen Marauders Camp skirmish (beer -19, food -1, water -1)"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000000651:s0000",
+                        "tick": 651,
+                        "type": "external_camp.skirmish",
+                        "fact": "Raider camp: Ashen Marauders Camp skirmish (beer -22, food -1, water -1)"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000001003:s0000",
+                        "tick": 1003,
+                        "type": "external_camp.skirmish",
+                        "fact": "Raider camp: Ashen Marauders Camp skirmish (beer -25, food -1, water -1)"
+                      }
+                    ],
+                    "finalStatus": "dormant",
+                    "exitReason": "capacity"
+                  },
+                  {
+                    "id": "saga_c0000_0005",
+                    "openingType": "myth.awakened",
+                    "openingReason": "no_shared_evidence",
+                    "timeline": [
+                      {
+                        "eventId": "evt:v1:c0000:t0000000601:s0005",
+                        "tick": 601,
+                        "type": "myth.awakened",
+                        "fact": "Myth awakened: Dry Wells"
+                      }
+                    ],
+                    "finalStatus": "dormant",
+                    "exitReason": "capacity"
+                  },
+                  {
+                    "id": "saga_nemesis_raider_leader_ashen_marauders",
+                    "openingType": "nemesis.promoted",
+                    "openingReason": "explicit_id_new",
+                    "timeline": [
+                      {
+                        "eventId": "evt:v1:c0000:t0000000660:s0000",
+                        "tick": 660,
+                        "type": "nemesis.promoted",
+                        "fact": "Morgul the Road-Wolf, covets the deep roads, rises for Ashen Marauders Camp."
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000005609:s0001",
+                        "tick": 5609,
+                        "type": "siege.approach",
+                        "fact": "Morgul the Road-Wolf advances along the frontier roads toward the hold."
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000005699:s0000",
+                        "tick": 5699,
+                        "type": "siege.demand",
+                        "fact": "Morgul the Road-Wolf demands tribute and submission from the council."
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000005769:s0001",
+                        "tick": 5769,
+                        "type": "siege.breach",
+                        "fact": "Morgul the Road-Wolf breaches the outer works; structures and territory are contested."
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000005814:s0001",
+                        "tick": 5814,
+                        "type": "siege.battle",
+                        "fact": "Morgul the Road-Wolf meets Lornrann Swiftedge <dwarf_8> in the decisive battle."
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000005874:s0001",
+                        "tick": 5874,
+                        "type": "siege.battle_resolved",
+                        "fact": "Lornrann Swiftedge <dwarf_8> turns back Morgul the Road-Wolf through grudge."
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000005874:s0002",
+                        "tick": 5874,
+                        "type": "siege.retreat",
+                        "fact": "Morgul the Road-Wolf retreats from the hold after grudge."
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000005924:s0002",
+                        "tick": 5924,
+                        "type": "siege.aftermath",
+                        "fact": "The hold enters recovery after Morgul the Road-Wolf's siege (colony_victory)."
+                      }
+                    ],
+                    "finalStatus": "resolved",
+                    "exitReason": "capacity",
+                    "outcome": {
+                      "eventId": "evt:v1:c0000:t0000005874:s0001",
+                      "tick": 5874,
+                      "type": "siege.battle_resolved",
+                      "fact": "Lornrann Swiftedge <dwarf_8> turns back Morgul the Road-Wolf through grudge."
+                    }
+                  }
+                ]
+              },
+              "priorityOwnership": 1,
+              "terminalRate": 0.5689655172413793,
+              "fragmentationRate": 0.6379310344827587,
+              "eventsPerSaga": 33.189655172413794
+            },
+            "movement": {
+              "attempts": 1313970,
+              "steps": 1141791,
+              "roadSteps": 120948,
+              "longSteps": 245440,
+              "longRoadSteps": 16099,
+              "stays": 172179,
+              "failedSteps": 103289,
+              "cooldowns": 68890,
+              "targetDistanceSum": 20440746,
+              "fieldRebuilds": 1245698,
+              "roadRebuilds": 0,
+              "completedTrips": 52459,
+              "travelTicks": 331085,
+              "abortedTrips": 197772,
+              "referenceLongSteps": 676478,
+              "referenceLongRoadSteps": 55048,
+              "roadEvaluations": 2445,
+              "roadSubstitutions": 1,
+              "roadProgressProtections": 0,
+              "roadTripsStarted": 1,
+              "firstRoadTripTick": 4843,
+              "measurementVersion": 2,
+              "meanTargetDistance": 15.556478458412293,
+              "meanTravelTicks": 6.311309784784307,
+              "p95TravelTicks": 23,
+              "p95Overflow": false,
+              "travelOverflowSamples": 0,
+              "referenceLongTripDistance": 10,
+              "referenceLongRoadStepShare": 0.08137441276730359,
+              "byJobFamily": {
+                "armory": {
+                  "attempts": 117,
+                  "steps": 117,
+                  "completedTrips": 11,
+                  "abortedTrips": 0,
+                  "meanTravelTicks": 10.636363636363637,
+                  "p95TravelTicks": 14,
+                  "travelOverflowSamples": 0
+                },
+                "brewery": {
+                  "attempts": 888,
+                  "steps": 695,
+                  "completedTrips": 68,
+                  "abortedTrips": 0,
+                  "meanTravelTicks": 13.058823529411764,
+                  "p95TravelTicks": 42,
+                  "travelOverflowSamples": 0
+                },
+                "build": {
+                  "attempts": 2843,
+                  "steps": 2638,
+                  "completedTrips": 67,
+                  "abortedTrips": 9,
+                  "meanTravelTicks": 37.940298507462686,
+                  "p95TravelTicks": 103,
+                  "travelOverflowSamples": 0
+                },
+                "gather_food": {
+                  "attempts": 512400,
+                  "steps": 491801,
+                  "completedTrips": 18150,
+                  "abortedTrips": 109799,
+                  "meanTravelTicks": 3.568099173553719,
+                  "p95TravelTicks": 12,
+                  "travelOverflowSamples": 0
+                },
+                "gather_stone": {
+                  "attempts": 309758,
+                  "steps": 251827,
+                  "completedTrips": 8921,
+                  "abortedTrips": 46940,
+                  "meanTravelTicks": 5.043268691850689,
+                  "p95TravelTicks": 17,
+                  "travelOverflowSamples": 0
+                },
+                "gather_water": {
+                  "attempts": 57582,
+                  "steps": 56390,
+                  "completedTrips": 1121,
+                  "abortedTrips": 9317,
+                  "meanTravelTicks": 4.784121320249777,
+                  "p95TravelTicks": 31,
+                  "travelOverflowSamples": 0
+                },
+                "gather_wood": {
+                  "attempts": 65037,
+                  "steps": 60339,
+                  "completedTrips": 6327,
+                  "abortedTrips": 18329,
+                  "meanTravelTicks": 2.8952110004741582,
+                  "p95TravelTicks": 8,
+                  "travelOverflowSamples": 0
+                },
+                "home": {
+                  "attempts": 315151,
+                  "steps": 232570,
+                  "completedTrips": 10289,
+                  "abortedTrips": 7871,
+                  "meanTravelTicks": 14.788803576635242,
+                  "p95TravelTicks": 53,
+                  "travelOverflowSamples": 0
+                },
+                "hunt": {
+                  "attempts": 236,
+                  "steps": 206,
+                  "completedTrips": 24,
+                  "abortedTrips": 45,
+                  "meanTravelTicks": 1.7916666666666667,
+                  "p95TravelTicks": 5,
+                  "travelOverflowSamples": 0
+                },
+                "idle": {
+                  "attempts": 45088,
+                  "steps": 40996,
+                  "completedTrips": 7280,
+                  "abortedTrips": 5457,
+                  "meanTravelTicks": 5.092307692307692,
+                  "p95TravelTicks": 10,
+                  "travelOverflowSamples": 0
+                },
+                "mine": {
+                  "attempts": 1233,
+                  "steps": 1030,
+                  "completedTrips": 55,
+                  "abortedTrips": 0,
+                  "meanTravelTicks": 22.418181818181818,
+                  "p95TravelTicks": 62,
+                  "travelOverflowSamples": 0
+                },
+                "sawmill": {
+                  "attempts": 101,
+                  "steps": 99,
+                  "completedTrips": 12,
+                  "abortedTrips": 0,
+                  "meanTravelTicks": 8.416666666666666,
+                  "p95TravelTicks": 14,
+                  "travelOverflowSamples": 0
+                },
+                "upgrade": {
+                  "attempts": 1942,
+                  "steps": 1758,
+                  "completedTrips": 48,
+                  "abortedTrips": 3,
+                  "meanTravelTicks": 39.6875,
+                  "p95TravelTicks": 123,
+                  "travelOverflowSamples": 0
+                },
+                "upgrade_structure": {
+                  "attempts": 1489,
+                  "steps": 1223,
+                  "completedTrips": 75,
+                  "abortedTrips": 2,
+                  "meanTravelTicks": 19.786666666666665,
+                  "p95TravelTicks": 82,
+                  "travelOverflowSamples": 0
+                },
+                "upgrade_tools": {
+                  "attempts": 105,
+                  "steps": 102,
+                  "completedTrips": 11,
+                  "abortedTrips": 0,
+                  "meanTravelTicks": 9.545454545454545,
+                  "p95TravelTicks": 34,
+                  "travelOverflowSamples": 0
+                }
+              },
+              "gatherUnits": {
+                "food": 21127,
+                "water": 1214,
+                "beer": 0,
+                "wood": 3161,
+                "stone": 3920,
+                "iron": 0,
+                "expedition_kit": 0,
+                "weapon_tier_1": 0,
+                "weapon_tier_2": 0,
+                "weapon_tier_3": 0,
+                "weapon_tier_4": 0,
+                "weapon_tier_5": 0,
+                "weapon_tier_6": 0,
+                "weapon_tier_7": 0,
+                "weapon_tier_8": 0,
+                "weapon_tier_9": 0,
+                "weapon_tier_10": 0,
+                "armor_tier_1": 0,
+                "armor_tier_2": 0,
+                "armor_tier_3": 0,
+                "armor_tier_4": 0,
+                "armor_tier_5": 0,
+                "armor_tier_6": 0,
+                "armor_tier_7": 0,
+                "armor_tier_8": 0,
+                "armor_tier_9": 0,
+                "armor_tier_10": 0,
+                "mithril": 0,
+                "adamantio": 0,
+                "mana_crystal": 0,
+                "embersteel": 0,
+                "ironshade": 0,
+                "void_shard": 0,
+                "ember_resin": 0
+              },
+              "gatherJobs": {
+                "food": 6788,
+                "water": 342,
+                "beer": 0,
+                "wood": 1992,
+                "stone": 2650,
+                "iron": 0,
+                "expedition_kit": 0,
+                "weapon_tier_1": 0,
+                "weapon_tier_2": 0,
+                "weapon_tier_3": 0,
+                "weapon_tier_4": 0,
+                "weapon_tier_5": 0,
+                "weapon_tier_6": 0,
+                "weapon_tier_7": 0,
+                "weapon_tier_8": 0,
+                "weapon_tier_9": 0,
+                "weapon_tier_10": 0,
+                "armor_tier_1": 0,
+                "armor_tier_2": 0,
+                "armor_tier_3": 0,
+                "armor_tier_4": 0,
+                "armor_tier_5": 0,
+                "armor_tier_6": 0,
+                "armor_tier_7": 0,
+                "armor_tier_8": 0,
+                "armor_tier_9": 0,
+                "armor_tier_10": 0,
+                "mithril": 0,
+                "adamantio": 0,
+                "mana_crystal": 0,
+                "embersteel": 0,
+                "ironshade": 0,
+                "void_shard": 0,
+                "ember_resin": 0
+              },
+              "constructionJobs": 60,
+              "roadStepShare": 0.10592831787954188,
+              "longRoadStepShare": 0.06559240547588005,
+              "stayShare": 0.1310372382931117,
+              "incompleteTrips": 381
+            },
+            "legacy": {
+              "records": 0,
+              "activeModifiers": 0,
+              "activeMagnitude": 0,
+              "effectiveModifiers": {
+                "constructionSpeed": 0
+              },
+              "contributions": [],
+              "serializedBytes": 224,
+              "evictions": 0
+            },
+            "runtime": {
+              "elapsedMs": 206269,
+              "ticksPerSecond": 38.78430593060518,
+              "pathingMs": 53449.895103994,
+              "renderMeanMs": null,
+              "renderP95Ms": null,
+              "renderStatus": "not_rendered_headless"
+            }
           }
         },
         {
@@ -286,8 +1965,8 @@
             "sagasFailed": 1,
             "sagasArchived": 49,
             "sagasEvicted": 49,
-            "chaptersOpened": 100,
-            "chaptersCompacted": 12,
+            "chaptersOpened": 120,
+            "chaptersCompacted": 20,
             "focusCoverage": 0.011769172361427487,
             "criticalFocusCoverage": 0.5714285714285714,
             "legendaryFocusCoverage": 0.6666666666666666,
@@ -312,6 +1991,8 @@
             "echoes": 0,
             "nemeses": 0,
             "modifierMagnitude": 0,
+            "effectiveMagnitude": 0,
+            "activeModifiers": 0,
             "evictedRecords": 0,
             "stateBytes": 224
           },
@@ -344,6 +2025,780 @@
             "beer": 27598.91126611456,
             "food": 728.2443133184443,
             "water": 955.99317389241
+          },
+          "refinement": {
+            "schemaVersion": 1,
+            "samples": 8000,
+            "economy": {
+              "population": 674,
+              "births": 761,
+              "deaths": 99,
+              "idleAdultRatio": 0.16630461906727528,
+              "invalidStockpiles": 0,
+              "resources": {
+                "food": {
+                  "floor": 39.98600209982501,
+                  "average": 510.9772050611503
+                },
+                "water": {
+                  "floor": 37.925075652405404,
+                  "average": 641.0563844157349
+                },
+                "beer": {
+                  "floor": 0,
+                  "average": 9460.04105347069
+                }
+              }
+            },
+            "social": {
+              "enabled": true,
+              "longArcEnabled": true,
+              "invalidMoodMemory": 0,
+              "invalidAggregateSamples": 0,
+              "average": {
+                "cohesion": 0.26306829919134017,
+                "conflictPressure": 0.10996009302733128,
+                "mentorshipCoverage": 0.000021567509952714095,
+                "grudgeLoad": 0.010433111566620005,
+                "support": 0.002152443763180086,
+                "burden": 0.00013000623973812776,
+                "harmony": 0.015059504493238405,
+                "strife": 0.0009073857019517576
+              },
+              "peak": {
+                "cohesion": 0.5100117222847573,
+                "conflictPressure": 0.21573744431826639,
+                "mentorshipCoverage": 0.0014947683109118087,
+                "grudgeLoad": 0.06272779414462443,
+                "support": 0.004219939069982697,
+                "burden": 0.0006473910623409733,
+                "harmony": 0.019595783991089025,
+                "strife": 0.004169286132964122
+              },
+              "saturatedTickShare": {
+                "cohesion": 0,
+                "conflictPressure": 0,
+                "mentorshipCoverage": 0,
+                "grudgeLoad": 0,
+                "support": 0,
+                "burden": 0,
+                "harmony": 0,
+                "strife": 0
+              },
+              "incidents": 214,
+              "incidentsByType": {
+                "mentorship_breakthrough": 167,
+                "rivalry_clash": 13,
+                "grudge_escalation": 6,
+                "reconciliation": 28
+              }
+            },
+            "narrative": {
+              "opened": 73,
+              "assignedEvents": 225,
+              "resolved": 33,
+              "failed": 1,
+              "archived": 0,
+              "evicted": 49,
+              "retired": 49,
+              "singleEventRetired": 37,
+              "retiredEvents": 76,
+              "skippedEvents": 2409,
+              "priorityAssigned": 10,
+              "priorityUnowned": 0,
+              "merged": 0,
+              "mergeStatus": "no_registry_merge_operation",
+              "diagnostics": {
+                "openingsByType": {
+                  "combat.deep_raid_started": 17,
+                  "combat.ruins_expedition_succeeded": 2,
+                  "combat.surface_raid_resolved": 5,
+                  "combat.surface_raid_started": 2,
+                  "combat.underrealm_champion_defeated": 1,
+                  "endgame.artifact_recovered": 1,
+                  "external_camp.skirmish": 1,
+                  "lifecycle.death": 10,
+                  "lifecycle.settlement_founded": 1,
+                  "myth.awakened": 10,
+                  "myth.tradition_formed": 5,
+                  "nemesis.promoted": 2,
+                  "schism.ritual_window_opened": 1,
+                  "social.grudge_escalation": 3,
+                  "temple.stage_completed": 1,
+                  "underrealm.gate_discovered": 1,
+                  "village.founded": 2,
+                  "warrior.retired": 1,
+                  "warrior.tournament_champion_crowned": 1,
+                  "world.limited_opportunities_completed": 5,
+                  "world.limited_opportunities_expired": 1
+                },
+                "openingsByFamily": {
+                  "combat": 27,
+                  "endgame": 1,
+                  "external_camp": 1,
+                  "lifecycle": 11,
+                  "myth": 15,
+                  "nemesis": 2,
+                  "schism": 1,
+                  "social": 3,
+                  "temple": 1,
+                  "underrealm": 1,
+                  "village": 2,
+                  "warrior": 2,
+                  "world": 6
+                },
+                "openingsByReason": {
+                  "explicit_id_new": 3,
+                  "no_active_saga": 1,
+                  "no_shared_evidence": 69
+                },
+                "matchesByPath": {
+                  "actor": 44,
+                  "antagonist": 3,
+                  "explicit_id": 35,
+                  "faction": 24,
+                  "place": 46
+                },
+                "skippedByType": {
+                  "caravan.arrived": 16,
+                  "combat.ruins_expedition_started": 2,
+                  "construction.house_upgraded": 107,
+                  "construction.structure_completed": 40,
+                  "construction.structure_upgraded": 84,
+                  "construction.tools_upgraded": 12,
+                  "contract.buff_granted": 41,
+                  "contract.completed": 41,
+                  "contract.mineral_rewarded": 29,
+                  "contract.offered": 41,
+                  "external_camp.activated": 17,
+                  "external_camp.arrived": 17,
+                  "external_camp.caravan_dispatched": 17,
+                  "external_camp.departed": 15,
+                  "external_camp.militia_support_renewed": 39,
+                  "external_camp.militia_support_skipped": 1,
+                  "external_camp.trade_completed": 72,
+                  "external_camp.tribute_paid": 19,
+                  "external_camp.withdrawing": 15,
+                  "landmark.damaged": 3,
+                  "landmark.restoration": 1,
+                  "landmark.stage_completed": 15,
+                  "lifecycle.birth": 761,
+                  "lifecycle.partnership_formed": 359,
+                  "merchant.arrived": 20,
+                  "merchant.departed": 19,
+                  "merchant.trade_summary": 7,
+                  "myth.faded": 10,
+                  "road.completed": 3,
+                  "ruins.readiness_blocked_deep_guard": 2,
+                  "ruins.readiness_blocked_score": 3,
+                  "ruins.warning_dispatch": 2,
+                  "social.mentorship_breakthrough": 167,
+                  "social.reconciliation": 28,
+                  "social.rivalry_clash": 13,
+                  "underrealm.delver_oath_failed": 1,
+                  "underrealm.delver_oath_sealed": 19,
+                  "underrealm.gate_rumors_awakened": 1,
+                  "underrealm.lift_blocked_by_champion": 2,
+                  "underrealm.lift_started": 2,
+                  "underrealm.prospection_resource_found": 72,
+                  "underrealm.rare_resource_found": 3,
+                  "warrior.company_doctrine_active": 40,
+                  "warrior.title_earned": 5,
+                  "warrior.tournament_injury": 122,
+                  "weather.changed": 37,
+                  "wildlife.herds_spawned": 20,
+                  "world.limited_opportunities_started": 6,
+                  "world.rival_caravans_contest_lose": 2,
+                  "world.rival_caravans_contest_win": 5,
+                  "world.rival_caravans_ended": 7,
+                  "world.rival_caravans_started": 7,
+                  "world.traveling_bards_ended": 10,
+                  "world.traveling_bards_started": 10
+                },
+                "exitsByReasonAndStatus": {
+                  "capacity:dormant": 15,
+                  "capacity:failed": 1,
+                  "capacity:open": 13,
+                  "capacity:resolved": 20,
+                  "outcome:active": 3,
+                  "outcome:open": 31
+                },
+                "exits": {
+                  "failed": {
+                    "count": 1,
+                    "events": 1,
+                    "lifetime": 0,
+                    "meanEvents": 1,
+                    "meanLifetimeTicks": 0
+                  },
+                  "resolved": {
+                    "count": 33,
+                    "events": 69,
+                    "lifetime": 5128,
+                    "meanEvents": 2.090909090909091,
+                    "meanLifetimeTicks": 155.3939393939394
+                  },
+                  "evicted": {
+                    "count": 49,
+                    "events": 76,
+                    "lifetime": 108187,
+                    "meanEvents": 1.5510204081632653,
+                    "meanLifetimeTicks": 2207.8979591836733
+                  }
+                },
+                "samples": [
+                  {
+                    "id": "saga_c0000_0000",
+                    "openingType": "lifecycle.settlement_founded",
+                    "openingReason": "no_active_saga",
+                    "timeline": [
+                      {
+                        "eventId": "evt:v1:c0000:t0000000000:s0000",
+                        "tick": 0,
+                        "type": "lifecycle.settlement_founded",
+                        "fact": "Founding: 12 dwarves established First Hold"
+                      }
+                    ],
+                    "finalStatus": "dormant",
+                    "exitReason": "capacity"
+                  },
+                  {
+                    "id": "saga_c0000_0001",
+                    "openingType": "warrior.tournament_champion_crowned",
+                    "openingReason": "no_shared_evidence",
+                    "timeline": [
+                      {
+                        "eventId": "evt:v1:c0000:t0000000001:s0004",
+                        "tick": 1,
+                        "type": "warrior.tournament_champion_crowned",
+                        "fact": "Warrior League Normorn Gloomfist Aegis S0: champion Lodwin Ironspire (deep_lantern)"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000006801:s0002",
+                        "tick": 6801,
+                        "type": "warrior.tournament_champion_crowned",
+                        "fact": "Warrior League Ulfgoth Forgebearer Gauntlet S34: champion Belddur Runeward (threshold_wardens)"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007001:s0003",
+                        "tick": 7001,
+                        "type": "warrior.tournament_champion_crowned",
+                        "fact": "Warrior League Jordir Longseeker Tribunal S35: champion Belddur Runeward (threshold_wardens)"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007201:s0004",
+                        "tick": 7201,
+                        "type": "warrior.tournament_champion_crowned",
+                        "fact": "Warrior League Rimfast Duskroot Tribunal S36: champion Belddur Runeward (threshold_wardens)"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007401:s0003",
+                        "tick": 7401,
+                        "type": "warrior.tournament_champion_crowned",
+                        "fact": "Warrior League Kromlarn Silenthammer Tribunal S37: champion Belddur Runeward (threshold_wardens)"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007601:s0002",
+                        "tick": 7601,
+                        "type": "warrior.tournament_champion_crowned",
+                        "fact": "Warrior League Zanthar Frostrunner Aegis S38: champion Belddur Runeward (threshold_wardens)"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007801:s0002",
+                        "tick": 7801,
+                        "type": "warrior.tournament_champion_crowned",
+                        "fact": "Warrior League Orindir Ashtorch Aegis S39: champion Morkar Ridgeclaw (deep_lantern)"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007801:s0004",
+                        "tick": 7801,
+                        "type": "warrior.underrealm_command_synced",
+                        "fact": "Warrior League: Morkar Ridgeclaw synced to Underrealm Dwarf Champion command"
+                      }
+                    ],
+                    "finalStatus": "active"
+                  },
+                  {
+                    "id": "saga_schism_c0",
+                    "openingType": "schism.ritual_window_opened",
+                    "openingReason": "explicit_id_new",
+                    "timeline": [
+                      {
+                        "eventId": "evt:v1:c0000:t0000000001:s0008",
+                        "tick": 1,
+                        "type": "schism.ritual_window_opened",
+                        "fact": "Ritual window opened: spring council rites"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000005201:s0005",
+                        "tick": 5201,
+                        "type": "schism.ritual_window_opened",
+                        "fact": "Ritual window opened: autumn council rites"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000005601:s0006",
+                        "tick": 5601,
+                        "type": "schism.ritual_window_opened",
+                        "fact": "Ritual window opened: spring council rites"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000006001:s0005",
+                        "tick": 6001,
+                        "type": "schism.ritual_window_opened",
+                        "fact": "Ritual window opened: autumn council rites"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000006401:s0008",
+                        "tick": 6401,
+                        "type": "schism.ritual_window_opened",
+                        "fact": "Ritual window opened: spring council rites"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000006801:s0005",
+                        "tick": 6801,
+                        "type": "schism.ritual_window_opened",
+                        "fact": "Ritual window opened: autumn council rites"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007201:s0006",
+                        "tick": 7201,
+                        "type": "schism.ritual_window_opened",
+                        "fact": "Ritual window opened: spring council rites"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007601:s0004",
+                        "tick": 7601,
+                        "type": "schism.ritual_window_opened",
+                        "fact": "Ritual window opened: autumn council rites"
+                      }
+                    ],
+                    "finalStatus": "resolved",
+                    "exitReason": "outcome",
+                    "outcome": {
+                      "eventId": "evt:v1:c0000:t0000000578:s0000",
+                      "tick": 578,
+                      "type": "schism.climax_resolved",
+                      "fact": "Schism resolved: austerity covenant reforges the ancestral law"
+                    }
+                  },
+                  {
+                    "id": "saga_c0000_0002",
+                    "openingType": "world.limited_opportunities_expired",
+                    "openingReason": "no_shared_evidence",
+                    "timeline": [
+                      {
+                        "eventId": "evt:v1:c0000:t0000000488:s0000",
+                        "tick": 488,
+                        "type": "world.limited_opportunities_expired",
+                        "fact": "Opportunity expired: losses food x3, water x3, wood x1"
+                      }
+                    ],
+                    "finalStatus": "failed",
+                    "exitReason": "capacity",
+                    "outcome": {
+                      "eventId": "evt:v1:c0000:t0000000488:s0000",
+                      "tick": 488,
+                      "type": "world.limited_opportunities_expired",
+                      "fact": "Opportunity expired: losses food x3, water x3, wood x1"
+                    }
+                  },
+                  {
+                    "id": "saga_nemesis_raider_leader_ashen_marauders",
+                    "openingType": "nemesis.promoted",
+                    "openingReason": "explicit_id_new",
+                    "timeline": [
+                      {
+                        "eventId": "evt:v1:c0000:t0000000680:s0000",
+                        "tick": 680,
+                        "type": "nemesis.promoted",
+                        "fact": "Morgul the Road-Wolf, covets the deep roads, rises for Ashen Marauders Camp."
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000004384:s0000",
+                        "tick": 4384,
+                        "type": "siege.approach",
+                        "fact": "Morgul the Road-Wolf advances along the frontier roads toward the hold."
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000004474:s0000",
+                        "tick": 4474,
+                        "type": "siege.demand",
+                        "fact": "Morgul the Road-Wolf demands tribute and submission from the council."
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000004544:s0000",
+                        "tick": 4544,
+                        "type": "siege.breach",
+                        "fact": "Morgul the Road-Wolf breaches the outer works; structures and territory are contested."
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000004589:s0000",
+                        "tick": 4589,
+                        "type": "siege.battle",
+                        "fact": "Morgul the Road-Wolf meets Lodwin Ironspire <dwarf_4> in the decisive battle."
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000004649:s0000",
+                        "tick": 4649,
+                        "type": "siege.battle_resolved",
+                        "fact": "Lodwin Ironspire <dwarf_4> turns back Morgul the Road-Wolf through champion."
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000004649:s0001",
+                        "tick": 4649,
+                        "type": "siege.retreat",
+                        "fact": "Morgul the Road-Wolf retreats from the hold after champion."
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000004699:s0000",
+                        "tick": 4699,
+                        "type": "siege.aftermath",
+                        "fact": "The hold enters recovery after Morgul the Road-Wolf's siege (colony_victory)."
+                      }
+                    ],
+                    "finalStatus": "resolved",
+                    "exitReason": "capacity",
+                    "outcome": {
+                      "eventId": "evt:v1:c0000:t0000004649:s0000",
+                      "tick": 4649,
+                      "type": "siege.battle_resolved",
+                      "fact": "Lodwin Ironspire <dwarf_4> turns back Morgul the Road-Wolf through champion."
+                    }
+                  },
+                  {
+                    "id": "saga_c0000_0003",
+                    "openingType": "combat.surface_raid_started",
+                    "openingReason": "no_shared_evidence",
+                    "timeline": [
+                      {
+                        "eventId": "evt:v1:c0000:t0000000801:s0004",
+                        "tick": 801,
+                        "type": "combat.surface_raid_started",
+                        "fact": "Raid: beasts enter the valley"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000001601:s0006",
+                        "tick": 1601,
+                        "type": "combat.surface_raid_started",
+                        "fact": "Raid: beasts enter the valley"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000003201:s0008",
+                        "tick": 3201,
+                        "type": "combat.surface_raid_started",
+                        "fact": "Raid: beasts enter the valley"
+                      }
+                    ],
+                    "finalStatus": "dormant",
+                    "exitReason": "capacity"
+                  },
+                  {
+                    "id": "saga_c0000_0004",
+                    "openingType": "combat.surface_raid_resolved",
+                    "openingReason": "no_shared_evidence",
+                    "timeline": [
+                      {
+                        "eventId": "evt:v1:c0000:t0000000900:s0000",
+                        "tick": 900,
+                        "type": "combat.surface_raid_resolved",
+                        "fact": "Raid ended: 1 slain, loot food=2 water=3 beer=14"
+                      }
+                    ],
+                    "finalStatus": "resolved",
+                    "exitReason": "capacity",
+                    "outcome": {
+                      "eventId": "evt:v1:c0000:t0000000900:s0000",
+                      "tick": 900,
+                      "type": "combat.surface_raid_resolved",
+                      "fact": "Raid ended: 1 slain, loot food=2 water=3 beer=14"
+                    }
+                  },
+                  {
+                    "id": "saga_c0000_0005",
+                    "openingType": "myth.awakened",
+                    "openingReason": "no_shared_evidence",
+                    "timeline": [
+                      {
+                        "eventId": "evt:v1:c0000:t0000001201:s0009",
+                        "tick": 1201,
+                        "type": "myth.awakened",
+                        "fact": "Myth awakened: Dry Wells"
+                      }
+                    ],
+                    "finalStatus": "dormant",
+                    "exitReason": "capacity"
+                  }
+                ]
+              },
+              "priorityOwnership": 1,
+              "terminalRate": 0.4657534246575342,
+              "fragmentationRate": 0.6301369863013698,
+              "eventsPerSaga": 3.0821917808219177
+            },
+            "movement": {
+              "attempts": 1575367,
+              "steps": 1401322,
+              "roadSteps": 126591,
+              "longSteps": 243371,
+              "longRoadSteps": 9268,
+              "stays": 174045,
+              "failedSteps": 48728,
+              "cooldowns": 125317,
+              "targetDistanceSum": 22321454,
+              "fieldRebuilds": 1450735,
+              "roadRebuilds": 0,
+              "completedTrips": 59997,
+              "travelTicks": 298193,
+              "abortedTrips": 272658,
+              "referenceLongSteps": 934632,
+              "referenceLongRoadSteps": 67932,
+              "roadEvaluations": 910,
+              "roadSubstitutions": 1,
+              "roadProgressProtections": 0,
+              "roadTripsStarted": 1,
+              "firstRoadTripTick": 6101,
+              "measurementVersion": 2,
+              "meanTargetDistance": 14.169050132445328,
+              "meanTravelTicks": 4.97013183992533,
+              "p95TravelTicks": 16,
+              "p95Overflow": false,
+              "travelOverflowSamples": 0,
+              "referenceLongTripDistance": 10,
+              "referenceLongRoadStepShare": 0.07268315229951468,
+              "byJobFamily": {
+                "armory": {
+                  "attempts": 927,
+                  "steps": 894,
+                  "completedTrips": 67,
+                  "abortedTrips": 2,
+                  "meanTravelTicks": 13.671641791044776,
+                  "p95TravelTicks": 38,
+                  "travelOverflowSamples": 0
+                },
+                "brewery": {
+                  "attempts": 2047,
+                  "steps": 1426,
+                  "completedTrips": 97,
+                  "abortedTrips": 2,
+                  "meanTravelTicks": 20.65979381443299,
+                  "p95TravelTicks": 53,
+                  "travelOverflowSamples": 0
+                },
+                "build": {
+                  "attempts": 2467,
+                  "steps": 2270,
+                  "completedTrips": 62,
+                  "abortedTrips": 6,
+                  "meanTravelTicks": 34.403225806451616,
+                  "p95TravelTicks": 120,
+                  "travelOverflowSamples": 0
+                },
+                "gather_food": {
+                  "attempts": 641769,
+                  "steps": 623240,
+                  "completedTrips": 22514,
+                  "abortedTrips": 127946,
+                  "meanTravelTicks": 4.0226969885404635,
+                  "p95TravelTicks": 11,
+                  "travelOverflowSamples": 0
+                },
+                "gather_stone": {
+                  "attempts": 650426,
+                  "steps": 537680,
+                  "completedTrips": 15542,
+                  "abortedTrips": 120231,
+                  "meanTravelTicks": 4.665229700167289,
+                  "p95TravelTicks": 19,
+                  "travelOverflowSamples": 0
+                },
+                "gather_water": {
+                  "attempts": 49183,
+                  "steps": 41093,
+                  "completedTrips": 1312,
+                  "abortedTrips": 5658,
+                  "meanTravelTicks": 4.5754573170731705,
+                  "p95TravelTicks": 17,
+                  "travelOverflowSamples": 0
+                },
+                "gather_wood": {
+                  "attempts": 63135,
+                  "steps": 59605,
+                  "completedTrips": 9011,
+                  "abortedTrips": 10782,
+                  "meanTravelTicks": 3.150038841416047,
+                  "p95TravelTicks": 10,
+                  "travelOverflowSamples": 0
+                },
+                "home": {
+                  "attempts": 126879,
+                  "steps": 101089,
+                  "completedTrips": 6367,
+                  "abortedTrips": 5032,
+                  "meanTravelTicks": 10.002512957436783,
+                  "p95TravelTicks": 33,
+                  "travelOverflowSamples": 0
+                },
+                "hunt": {
+                  "attempts": 346,
+                  "steps": 327,
+                  "completedTrips": 34,
+                  "abortedTrips": 93,
+                  "meanTravelTicks": 1.3529411764705883,
+                  "p95TravelTicks": 3,
+                  "travelOverflowSamples": 0
+                },
+                "idle": {
+                  "attempts": 32751,
+                  "steps": 29049,
+                  "completedTrips": 4767,
+                  "abortedTrips": 2904,
+                  "meanTravelTicks": 5.5668135095447875,
+                  "p95TravelTicks": 11,
+                  "travelOverflowSamples": 0
+                },
+                "mine": {
+                  "attempts": 2006,
+                  "steps": 1619,
+                  "completedTrips": 41,
+                  "abortedTrips": 0,
+                  "meanTravelTicks": 48.926829268292686,
+                  "p95TravelTicks": 122,
+                  "travelOverflowSamples": 0
+                },
+                "sawmill": {
+                  "attempts": 353,
+                  "steps": 333,
+                  "completedTrips": 24,
+                  "abortedTrips": 1,
+                  "meanTravelTicks": 14.541666666666666,
+                  "p95TravelTicks": 34,
+                  "travelOverflowSamples": 0
+                },
+                "upgrade": {
+                  "attempts": 1424,
+                  "steps": 1330,
+                  "completedTrips": 63,
+                  "abortedTrips": 1,
+                  "meanTravelTicks": 22.523809523809526,
+                  "p95TravelTicks": 61,
+                  "travelOverflowSamples": 0
+                },
+                "upgrade_structure": {
+                  "attempts": 1487,
+                  "steps": 1202,
+                  "completedTrips": 85,
+                  "abortedTrips": 0,
+                  "meanTravelTicks": 17.270588235294117,
+                  "p95TravelTicks": 51,
+                  "travelOverflowSamples": 0
+                },
+                "upgrade_tools": {
+                  "attempts": 167,
+                  "steps": 165,
+                  "completedTrips": 11,
+                  "abortedTrips": 0,
+                  "meanTravelTicks": 15.181818181818182,
+                  "p95TravelTicks": 26,
+                  "travelOverflowSamples": 0
+                }
+              },
+              "gatherUnits": {
+                "food": 22091,
+                "water": 1770,
+                "beer": 0,
+                "wood": 3356,
+                "stone": 4278,
+                "iron": 0,
+                "expedition_kit": 0,
+                "weapon_tier_1": 0,
+                "weapon_tier_2": 0,
+                "weapon_tier_3": 0,
+                "weapon_tier_4": 0,
+                "weapon_tier_5": 0,
+                "weapon_tier_6": 0,
+                "weapon_tier_7": 0,
+                "weapon_tier_8": 0,
+                "weapon_tier_9": 0,
+                "weapon_tier_10": 0,
+                "armor_tier_1": 0,
+                "armor_tier_2": 0,
+                "armor_tier_3": 0,
+                "armor_tier_4": 0,
+                "armor_tier_5": 0,
+                "armor_tier_6": 0,
+                "armor_tier_7": 0,
+                "armor_tier_8": 0,
+                "armor_tier_9": 0,
+                "armor_tier_10": 0,
+                "mithril": 0,
+                "adamantio": 0,
+                "mana_crystal": 0,
+                "embersteel": 0,
+                "ironshade": 0,
+                "void_shard": 0,
+                "ember_resin": 0
+              },
+              "gatherJobs": {
+                "food": 7943,
+                "water": 589,
+                "beer": 0,
+                "wood": 3353,
+                "stone": 4264,
+                "iron": 0,
+                "expedition_kit": 0,
+                "weapon_tier_1": 0,
+                "weapon_tier_2": 0,
+                "weapon_tier_3": 0,
+                "weapon_tier_4": 0,
+                "weapon_tier_5": 0,
+                "weapon_tier_6": 0,
+                "weapon_tier_7": 0,
+                "weapon_tier_8": 0,
+                "weapon_tier_9": 0,
+                "weapon_tier_10": 0,
+                "armor_tier_1": 0,
+                "armor_tier_2": 0,
+                "armor_tier_3": 0,
+                "armor_tier_4": 0,
+                "armor_tier_5": 0,
+                "armor_tier_6": 0,
+                "armor_tier_7": 0,
+                "armor_tier_8": 0,
+                "armor_tier_9": 0,
+                "armor_tier_10": 0,
+                "mithril": 0,
+                "adamantio": 0,
+                "mana_crystal": 0,
+                "embersteel": 0,
+                "ironshade": 0,
+                "void_shard": 0,
+                "ember_resin": 0
+              },
+              "constructionJobs": 56,
+              "roadStepShare": 0.09033683907053483,
+              "longRoadStepShare": 0.03808177638255996,
+              "stayShare": 0.11047901853980692,
+              "incompleteTrips": 441
+            },
+            "legacy": {
+              "records": 0,
+              "activeModifiers": 0,
+              "activeMagnitude": 0,
+              "effectiveModifiers": {
+                "constructionSpeed": 0
+              },
+              "contributions": [],
+              "serializedBytes": 224,
+              "evictions": 0
+            },
+            "runtime": {
+              "elapsedMs": 270354,
+              "ticksPerSecond": 29.590832760010947,
+              "pathingMs": 63227.12166199542,
+              "renderMeanMs": null,
+              "renderP95Ms": null,
+              "renderStatus": "not_rendered_headless"
+            }
           }
         },
         {
@@ -393,13 +2848,13 @@
             "legendarySelected": 0,
             "legendarySuppressed": 2,
             "legendaryContextCovered": 2,
-            "sagasOpened": 129,
+            "sagasOpened": 91,
             "sagasResolved": 40,
             "sagasFailed": 3,
-            "sagasArchived": 105,
-            "sagasEvicted": 105,
-            "chaptersOpened": 158,
-            "chaptersCompacted": 6,
+            "sagasArchived": 67,
+            "sagasEvicted": 67,
+            "chaptersOpened": 139,
+            "chaptersCompacted": 20,
             "focusCoverage": 0.011444921316165951,
             "criticalFocusCoverage": 1,
             "legendaryFocusCoverage": 0,
@@ -411,7 +2866,7 @@
             "priorityContextCovered": 9,
             "priorityContextCoverage": 1,
             "sagaTerminal": 43,
-            "sagaResolutionRate": 0.3333333333333333
+            "sagaResolutionRate": 0.4725274725274725
           },
           "worldLegacy": {
             "completedCycles": 0,
@@ -424,6 +2879,8 @@
             "echoes": 0,
             "nemeses": 0,
             "modifierMagnitude": 0,
+            "effectiveMagnitude": 0,
+            "activeModifiers": 0,
             "evictedRecords": 0,
             "stateBytes": 224
           },
@@ -456,15 +2913,780 @@
             "beer": 50528.55872158848,
             "food": 749.3856096277842,
             "water": 731.6124937361238
+          },
+          "refinement": {
+            "schemaVersion": 1,
+            "samples": 8000,
+            "economy": {
+              "population": 689,
+              "births": 764,
+              "deaths": 87,
+              "idleAdultRatio": 0.15611297785056494,
+              "invalidStockpiles": 0,
+              "resources": {
+                "food": {
+                  "floor": 39.98600209982501,
+                  "average": 475.92677962466513
+                },
+                "water": {
+                  "floor": 49.990000749975,
+                  "average": 509.11718222144884
+                },
+                "beer": {
+                  "floor": 0,
+                  "average": 15327.521712736603
+                }
+              }
+            },
+            "social": {
+              "enabled": true,
+              "longArcEnabled": true,
+              "invalidMoodMemory": 0,
+              "invalidAggregateSamples": 0,
+              "average": {
+                "cohesion": 0.25149502628683545,
+                "conflictPressure": 0.13261106050934351,
+                "mentorshipCoverage": 0.0003899559329550155,
+                "grudgeLoad": 0.025710633669665577,
+                "support": 0.0021933334721755404,
+                "burden": 0.000294055935841098,
+                "harmony": 0.013719494449315207,
+                "strife": 0.0026986706705280383
+              },
+              "peak": {
+                "cohesion": 0.6233834197996477,
+                "conflictPressure": 0.29042657999357274,
+                "mentorshipCoverage": 0.0029585798816568047,
+                "grudgeLoad": 0.10493157113415197,
+                "support": 0.004180018692321166,
+                "burden": 0.0012946831667773908,
+                "harmony": 0.018428102639401398,
+                "strife": 0.009238018100394102
+              },
+              "saturatedTickShare": {
+                "cohesion": 0,
+                "conflictPressure": 0,
+                "mentorshipCoverage": 0,
+                "grudgeLoad": 0,
+                "support": 0,
+                "burden": 0,
+                "harmony": 0,
+                "strife": 0
+              },
+              "incidents": 206,
+              "incidentsByType": {
+                "mentorship_breakthrough": 138,
+                "rivalry_clash": 18,
+                "grudge_escalation": 15,
+                "reconciliation": 35
+              }
+            },
+            "narrative": {
+              "opened": 91,
+              "assignedEvents": 301,
+              "resolved": 40,
+              "failed": 3,
+              "archived": 0,
+              "evicted": 67,
+              "retired": 67,
+              "singleEventRetired": 53,
+              "retiredEvents": 89,
+              "skippedEvents": 2495,
+              "priorityAssigned": 9,
+              "priorityUnowned": 0,
+              "merged": 0,
+              "mergeStatus": "no_registry_merge_operation",
+              "diagnostics": {
+                "openingsByType": {
+                  "combat.deep_raid_resolved": 4,
+                  "combat.deep_raid_started": 19,
+                  "combat.ruins_expedition_failed": 1,
+                  "combat.ruins_expedition_succeeded": 4,
+                  "combat.surface_raid_resolved": 3,
+                  "combat.surface_raid_started": 1,
+                  "combat.underrealm_champion_defeated": 2,
+                  "endgame.artifact_recovered": 1,
+                  "lifecycle.death": 11,
+                  "lifecycle.settlement_founded": 1,
+                  "myth.awakened": 9,
+                  "myth.tradition_formed": 3,
+                  "nemesis.promoted": 4,
+                  "schism.ritual_window_opened": 1,
+                  "social.grudge_escalation": 10,
+                  "temple.stage_completed": 3,
+                  "underrealm.gate_discovered": 1,
+                  "village.founded": 2,
+                  "warrior.retired": 1,
+                  "warrior.tournament_champion_crowned": 1,
+                  "world.limited_opportunities_completed": 7,
+                  "world.limited_opportunities_expired": 2
+                },
+                "openingsByFamily": {
+                  "combat": 34,
+                  "endgame": 1,
+                  "lifecycle": 12,
+                  "myth": 12,
+                  "nemesis": 4,
+                  "schism": 1,
+                  "social": 10,
+                  "temple": 3,
+                  "underrealm": 1,
+                  "village": 2,
+                  "warrior": 2,
+                  "world": 9
+                },
+                "openingsByReason": {
+                  "explicit_id_new": 5,
+                  "no_active_saga": 1,
+                  "no_shared_evidence": 85
+                },
+                "matchesByPath": {
+                  "actor": 45,
+                  "antagonist": 2,
+                  "explicit_id": 94,
+                  "faction": 15,
+                  "place": 54
+                },
+                "skippedByType": {
+                  "alchemy.rite_ended": 5,
+                  "alchemy.rite_started": 5,
+                  "caravan.arrived": 14,
+                  "combat.ruins_expedition_started": 5,
+                  "construction.house_upgraded": 109,
+                  "construction.structure_completed": 42,
+                  "construction.structure_upgraded": 78,
+                  "construction.tools_upgraded": 13,
+                  "contract.buff_granted": 42,
+                  "contract.completed": 42,
+                  "contract.mineral_rewarded": 30,
+                  "contract.offered": 42,
+                  "external_camp.activated": 17,
+                  "external_camp.arrived": 17,
+                  "external_camp.caravan_dispatched": 14,
+                  "external_camp.departed": 14,
+                  "external_camp.militia_support_renewed": 52,
+                  "external_camp.militia_support_skipped": 2,
+                  "external_camp.trade_completed": 59,
+                  "external_camp.tribute_paid": 28,
+                  "external_camp.withdrawing": 15,
+                  "festival.ended": 5,
+                  "festival.started": 5,
+                  "landmark.stage_completed": 15,
+                  "lifecycle.birth": 764,
+                  "lifecycle.partnership_formed": 360,
+                  "merchant.arrived": 12,
+                  "merchant.departed": 11,
+                  "merchant.trade_summary": 5,
+                  "myth.faded": 9,
+                  "road.completed": 3,
+                  "ruins.readiness_blocked_deep_guard": 7,
+                  "ruins.readiness_blocked_score": 7,
+                  "ruins.warning_dispatch": 5,
+                  "social.mentorship_breakthrough": 138,
+                  "social.reconciliation": 35,
+                  "social.rivalry_clash": 18,
+                  "underrealm.delver_oath_failed": 1,
+                  "underrealm.delver_oath_sealed": 29,
+                  "underrealm.gate_rumors_awakened": 1,
+                  "underrealm.lift_blocked_by_champion": 4,
+                  "underrealm.lift_started": 4,
+                  "underrealm.prospection_resource_found": 138,
+                  "underrealm.rare_resource_found": 5,
+                  "warrior.company_doctrine_active": 40,
+                  "warrior.scar_earned": 3,
+                  "warrior.title_earned": 5,
+                  "warrior.tournament_injury": 119,
+                  "weather.changed": 36,
+                  "wildlife.herds_spawned": 20,
+                  "world.limited_opportunities_started": 9,
+                  "world.rival_caravans_contest_lose": 2,
+                  "world.rival_caravans_contest_win": 6,
+                  "world.rival_caravans_ended": 8,
+                  "world.rival_caravans_started": 8,
+                  "world.traveling_bards_ended": 6,
+                  "world.traveling_bards_started": 7
+                },
+                "exitsByReasonAndStatus": {
+                  "capacity:active": 3,
+                  "capacity:dormant": 13,
+                  "capacity:failed": 3,
+                  "capacity:open": 22,
+                  "capacity:resolved": 26,
+                  "outcome:active": 1,
+                  "outcome:open": 42
+                },
+                "exits": {
+                  "resolved": {
+                    "count": 40,
+                    "events": 62,
+                    "lifetime": 3965,
+                    "meanEvents": 1.55,
+                    "meanLifetimeTicks": 99.125
+                  },
+                  "failed": {
+                    "count": 3,
+                    "events": 3,
+                    "lifetime": 0,
+                    "meanEvents": 1,
+                    "meanLifetimeTicks": 0
+                  },
+                  "evicted": {
+                    "count": 67,
+                    "events": 89,
+                    "lifetime": 105543,
+                    "meanEvents": 1.328358208955224,
+                    "meanLifetimeTicks": 1575.2686567164178
+                  }
+                },
+                "samples": [
+                  {
+                    "id": "saga_c0000_0000",
+                    "openingType": "lifecycle.settlement_founded",
+                    "openingReason": "no_active_saga",
+                    "timeline": [
+                      {
+                        "eventId": "evt:v1:c0000:t0000000000:s0000",
+                        "tick": 0,
+                        "type": "lifecycle.settlement_founded",
+                        "fact": "Founding: 12 dwarves established First Hold"
+                      }
+                    ],
+                    "finalStatus": "dormant",
+                    "exitReason": "capacity"
+                  },
+                  {
+                    "id": "saga_c0000_0001",
+                    "openingType": "warrior.tournament_champion_crowned",
+                    "openingReason": "no_shared_evidence",
+                    "timeline": [
+                      {
+                        "eventId": "evt:v1:c0000:t0000000001:s0005",
+                        "tick": 1,
+                        "type": "warrior.tournament_champion_crowned",
+                        "fact": "Warrior League Gimsund Ironhelm Tribunal S0: champion Urdrak Trueward (threshold_wardens)"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000006601:s0002",
+                        "tick": 6601,
+                        "type": "warrior.tournament_champion_crowned",
+                        "fact": "Warrior League Ragzor Ashstride Tribunal S33: champion Kraggoth Highhold (abyssborn)"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000006801:s0003",
+                        "tick": 6801,
+                        "type": "warrior.tournament_champion_crowned",
+                        "fact": "Warrior League Yarndrun Caveedge Gauntlet S34: champion Kraggoth Highhold (abyssborn)"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007001:s0001",
+                        "tick": 7001,
+                        "type": "warrior.tournament_champion_crowned",
+                        "fact": "Warrior League Kromstor Lowmantle Dominion S35: champion Kraggoth Highhold (abyssborn)"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007201:s0003",
+                        "tick": 7201,
+                        "type": "warrior.tournament_champion_crowned",
+                        "fact": "Warrior League Morngrim Brightgrip Arena S36: champion Kraggoth Highhold (abyssborn)"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007401:s0006",
+                        "tick": 7401,
+                        "type": "warrior.tournament_champion_crowned",
+                        "fact": "Warrior League Orindain Grimbeard Crown S37: champion Kraggoth Highhold (abyssborn)"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007601:s0004",
+                        "tick": 7601,
+                        "type": "warrior.tournament_champion_crowned",
+                        "fact": "Warrior League Bormir Frostanvil Aegis S38: champion Kraggoth Highhold (abyssborn)"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007801:s0002",
+                        "tick": 7801,
+                        "type": "warrior.tournament_champion_crowned",
+                        "fact": "Warrior League Ebrthir Darkbrow Tribunal S39: champion Kraggoth Highhold (abyssborn)"
+                      }
+                    ],
+                    "finalStatus": "active"
+                  },
+                  {
+                    "id": "saga_schism_c0",
+                    "openingType": "schism.ritual_window_opened",
+                    "openingReason": "explicit_id_new",
+                    "timeline": [
+                      {
+                        "eventId": "evt:v1:c0000:t0000000001:s0009",
+                        "tick": 1,
+                        "type": "schism.ritual_window_opened",
+                        "fact": "Ritual window opened: spring council rites"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007638:s0000",
+                        "tick": 7638,
+                        "type": "schism.phase_shifted",
+                        "fact": "Schism phase: murmurs rise in the halls"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007761:s0000",
+                        "tick": 7761,
+                        "type": "schism.phase_shifted",
+                        "fact": "Schism phase: the halls fracture"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007801:s0004",
+                        "tick": 7801,
+                        "type": "schism.ritual_expired",
+                        "fact": "Ritual faded: Rite of Prosperity"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007801:s0005",
+                        "tick": 7801,
+                        "type": "schism.decree_expired",
+                        "fact": "Council decree expired: Granary Compact"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007828:s0000",
+                        "tick": 7828,
+                        "type": "schism.phase_shifted",
+                        "fact": "Schism phase: murmurs rise in the halls"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007873:s0000",
+                        "tick": 7873,
+                        "type": "schism.phase_shifted",
+                        "fact": "Schism phase: the halls fracture"
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000007939:s0000",
+                        "tick": 7939,
+                        "type": "schism.phase_shifted",
+                        "fact": "Schism phase: reckoning of the Nine Braziers"
+                      }
+                    ],
+                    "finalStatus": "active"
+                  },
+                  {
+                    "id": "saga_c0000_0002",
+                    "openingType": "social.grudge_escalation",
+                    "openingReason": "no_shared_evidence",
+                    "timeline": [
+                      {
+                        "eventId": "evt:v1:c0000:t0000000661:s0000",
+                        "tick": 661,
+                        "type": "social.grudge_escalation",
+                        "fact": "Social incident: grudge escalation between Mornson Anviltread and Normorn Whiteforge"
+                      }
+                    ],
+                    "finalStatus": "dormant",
+                    "exitReason": "capacity"
+                  },
+                  {
+                    "id": "saga_nemesis_raider_leader_ashen_marauders",
+                    "openingType": "nemesis.promoted",
+                    "openingReason": "explicit_id_new",
+                    "timeline": [
+                      {
+                        "eventId": "evt:v1:c0000:t0000000780:s0000",
+                        "tick": 780,
+                        "type": "nemesis.promoted",
+                        "fact": "Morgul the Road-Wolf, covets the deep roads, rises for Ashen Marauders Camp."
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000003940:s0000",
+                        "tick": 3940,
+                        "type": "siege.approach",
+                        "fact": "Morgul the Road-Wolf advances along the frontier roads toward the hold."
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000004030:s0000",
+                        "tick": 4030,
+                        "type": "siege.demand",
+                        "fact": "Morgul the Road-Wolf demands tribute and submission from the council."
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000004100:s0000",
+                        "tick": 4100,
+                        "type": "siege.breach",
+                        "fact": "Morgul the Road-Wolf breaches the outer works; structures and territory are contested."
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000004145:s0000",
+                        "tick": 4145,
+                        "type": "siege.battle",
+                        "fact": "Morgul the Road-Wolf meets Urdrak Trueward <dwarf_12> in the decisive battle."
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000004205:s0000",
+                        "tick": 4205,
+                        "type": "siege.battle_resolved",
+                        "fact": "Urdrak Trueward <dwarf_12> turns back Morgul the Road-Wolf through champion."
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000004205:s0001",
+                        "tick": 4205,
+                        "type": "siege.retreat",
+                        "fact": "Morgul the Road-Wolf retreats from the hold after champion."
+                      },
+                      {
+                        "eventId": "evt:v1:c0000:t0000004255:s0000",
+                        "tick": 4255,
+                        "type": "siege.aftermath",
+                        "fact": "The hold enters recovery after Morgul the Road-Wolf's siege (colony_victory)."
+                      }
+                    ],
+                    "finalStatus": "resolved",
+                    "exitReason": "capacity",
+                    "outcome": {
+                      "eventId": "evt:v1:c0000:t0000004205:s0000",
+                      "tick": 4205,
+                      "type": "siege.battle_resolved",
+                      "fact": "Urdrak Trueward <dwarf_12> turns back Morgul the Road-Wolf through champion."
+                    }
+                  },
+                  {
+                    "id": "saga_c0000_0003",
+                    "openingType": "world.limited_opportunities_completed",
+                    "openingReason": "no_shared_evidence",
+                    "timeline": [
+                      {
+                        "eventId": "evt:v1:c0000:t0000001036:s0000",
+                        "tick": 1036,
+                        "type": "world.limited_opportunities_completed",
+                        "fact": "Opportunity completed: stone x35, iron x12"
+                      }
+                    ],
+                    "finalStatus": "resolved",
+                    "exitReason": "capacity",
+                    "outcome": {
+                      "eventId": "evt:v1:c0000:t0000001036:s0000",
+                      "tick": 1036,
+                      "type": "world.limited_opportunities_completed",
+                      "fact": "Opportunity completed: stone x35, iron x12"
+                    }
+                  },
+                  {
+                    "id": "saga_c0000_0004",
+                    "openingType": "combat.ruins_expedition_succeeded",
+                    "openingReason": "no_shared_evidence",
+                    "timeline": [
+                      {
+                        "eventId": "evt:v1:c0000:t0000001350:s0000",
+                        "tick": 1350,
+                        "type": "combat.ruins_expedition_succeeded",
+                        "fact": "Ruins: room 1 cleared"
+                      }
+                    ],
+                    "finalStatus": "resolved",
+                    "exitReason": "capacity",
+                    "outcome": {
+                      "eventId": "evt:v1:c0000:t0000001350:s0000",
+                      "tick": 1350,
+                      "type": "combat.ruins_expedition_succeeded",
+                      "fact": "Ruins: room 1 cleared"
+                    }
+                  },
+                  {
+                    "id": "saga_c0000_0005",
+                    "openingType": "world.limited_opportunities_expired",
+                    "openingReason": "no_shared_evidence",
+                    "timeline": [
+                      {
+                        "eventId": "evt:v1:c0000:t0000001762:s0000",
+                        "tick": 1762,
+                        "type": "world.limited_opportunities_expired",
+                        "fact": "Opportunity expired: losses food x7, water x6, wood x2"
+                      }
+                    ],
+                    "finalStatus": "failed",
+                    "exitReason": "capacity",
+                    "outcome": {
+                      "eventId": "evt:v1:c0000:t0000001762:s0000",
+                      "tick": 1762,
+                      "type": "world.limited_opportunities_expired",
+                      "fact": "Opportunity expired: losses food x7, water x6, wood x2"
+                    }
+                  }
+                ]
+              },
+              "priorityOwnership": 1,
+              "terminalRate": 0.4725274725274725,
+              "fragmentationRate": 0.7032967032967034,
+              "eventsPerSaga": 3.3076923076923075
+            },
+            "movement": {
+              "attempts": 1641882,
+              "steps": 1483645,
+              "roadSteps": 121087,
+              "longSteps": 111793,
+              "longRoadSteps": 11446,
+              "stays": 158237,
+              "failedSteps": 52989,
+              "cooldowns": 105248,
+              "targetDistanceSum": 16716087,
+              "fieldRebuilds": 1537311,
+              "roadRebuilds": 0,
+              "completedTrips": 61441,
+              "travelTicks": 300289,
+              "abortedTrips": 347195,
+              "referenceLongSteps": 870379,
+              "referenceLongRoadSteps": 69627,
+              "roadEvaluations": 866,
+              "roadSubstitutions": 1,
+              "roadProgressProtections": 0,
+              "roadTripsStarted": 1,
+              "firstRoadTripTick": 7859,
+              "measurementVersion": 2,
+              "meanTargetDistance": 10.181052596958855,
+              "meanTravelTicks": 4.88743672791784,
+              "p95TravelTicks": 15,
+              "p95Overflow": false,
+              "travelOverflowSamples": 1,
+              "referenceLongTripDistance": 10,
+              "referenceLongRoadStepShare": 0.07999618556973456,
+              "byJobFamily": {
+                "armory": {
+                  "attempts": 536,
+                  "steps": 521,
+                  "completedTrips": 51,
+                  "abortedTrips": 0,
+                  "meanTravelTicks": 10.509803921568627,
+                  "p95TravelTicks": 29,
+                  "travelOverflowSamples": 0
+                },
+                "brewery": {
+                  "attempts": 748,
+                  "steps": 602,
+                  "completedTrips": 61,
+                  "abortedTrips": 0,
+                  "meanTravelTicks": 12.098360655737705,
+                  "p95TravelTicks": 34,
+                  "travelOverflowSamples": 0
+                },
+                "build": {
+                  "attempts": 2025,
+                  "steps": 1932,
+                  "completedTrips": 68,
+                  "abortedTrips": 2,
+                  "meanTravelTicks": 29,
+                  "p95TravelTicks": 86,
+                  "travelOverflowSamples": 0
+                },
+                "gather_food": {
+                  "attempts": 1061427,
+                  "steps": 1025857,
+                  "completedTrips": 29967,
+                  "abortedTrips": 260864,
+                  "meanTravelTicks": 3.94737544632429,
+                  "p95TravelTicks": 12,
+                  "travelOverflowSamples": 1
+                },
+                "gather_stone": {
+                  "attempts": 371977,
+                  "steps": 281475,
+                  "completedTrips": 12736,
+                  "abortedTrips": 72441,
+                  "meanTravelTicks": 4.400832286432161,
+                  "p95TravelTicks": 13,
+                  "travelOverflowSamples": 0
+                },
+                "gather_water": {
+                  "attempts": 12340,
+                  "steps": 11674,
+                  "completedTrips": 1055,
+                  "abortedTrips": 1967,
+                  "meanTravelTicks": 4.41611374407583,
+                  "p95TravelTicks": 17,
+                  "travelOverflowSamples": 0
+                },
+                "gather_wood": {
+                  "attempts": 25813,
+                  "steps": 24034,
+                  "completedTrips": 4796,
+                  "abortedTrips": 2919,
+                  "meanTravelTicks": 3.208924103419516,
+                  "p95TravelTicks": 8,
+                  "travelOverflowSamples": 0
+                },
+                "home": {
+                  "attempts": 132994,
+                  "steps": 106656,
+                  "completedTrips": 8406,
+                  "abortedTrips": 5754,
+                  "meanTravelTicks": 8.900071377587437,
+                  "p95TravelTicks": 22,
+                  "travelOverflowSamples": 0
+                },
+                "hunt": {
+                  "attempts": 902,
+                  "steps": 813,
+                  "completedTrips": 14,
+                  "abortedTrips": 234,
+                  "meanTravelTicks": 1.9285714285714286,
+                  "p95TravelTicks": 6,
+                  "travelOverflowSamples": 0
+                },
+                "idle": {
+                  "attempts": 26207,
+                  "steps": 24051,
+                  "completedTrips": 4109,
+                  "abortedTrips": 3009,
+                  "meanTravelTicks": 5.1375030421027015,
+                  "p95TravelTicks": 10,
+                  "travelOverflowSamples": 0
+                },
+                "mine": {
+                  "attempts": 2948,
+                  "steps": 2460,
+                  "completedTrips": 25,
+                  "abortedTrips": 3,
+                  "meanTravelTicks": 110.12,
+                  "p95TravelTicks": 135,
+                  "travelOverflowSamples": 0
+                },
+                "sawmill": {
+                  "attempts": 165,
+                  "steps": 163,
+                  "completedTrips": 12,
+                  "abortedTrips": 0,
+                  "meanTravelTicks": 13.75,
+                  "p95TravelTicks": 31,
+                  "travelOverflowSamples": 0
+                },
+                "upgrade": {
+                  "attempts": 1131,
+                  "steps": 1046,
+                  "completedTrips": 58,
+                  "abortedTrips": 2,
+                  "meanTravelTicks": 19.24137931034483,
+                  "p95TravelTicks": 40,
+                  "travelOverflowSamples": 0
+                },
+                "upgrade_structure": {
+                  "attempts": 2370,
+                  "steps": 2090,
+                  "completedTrips": 72,
+                  "abortedTrips": 0,
+                  "meanTravelTicks": 32.916666666666664,
+                  "p95TravelTicks": 115,
+                  "travelOverflowSamples": 0
+                },
+                "upgrade_tools": {
+                  "attempts": 299,
+                  "steps": 271,
+                  "completedTrips": 11,
+                  "abortedTrips": 0,
+                  "meanTravelTicks": 27.181818181818183,
+                  "p95TravelTicks": 112,
+                  "travelOverflowSamples": 0
+                }
+              },
+              "gatherUnits": {
+                "food": 23016,
+                "water": 1374,
+                "beer": 0,
+                "wood": 2599,
+                "stone": 4469,
+                "iron": 0,
+                "expedition_kit": 0,
+                "weapon_tier_1": 0,
+                "weapon_tier_2": 0,
+                "weapon_tier_3": 0,
+                "weapon_tier_4": 0,
+                "weapon_tier_5": 0,
+                "weapon_tier_6": 0,
+                "weapon_tier_7": 0,
+                "weapon_tier_8": 0,
+                "weapon_tier_9": 0,
+                "weapon_tier_10": 0,
+                "armor_tier_1": 0,
+                "armor_tier_2": 0,
+                "armor_tier_3": 0,
+                "armor_tier_4": 0,
+                "armor_tier_5": 0,
+                "armor_tier_6": 0,
+                "armor_tier_7": 0,
+                "armor_tier_8": 0,
+                "armor_tier_9": 0,
+                "armor_tier_10": 0,
+                "mithril": 0,
+                "adamantio": 0,
+                "mana_crystal": 0,
+                "embersteel": 0,
+                "ironshade": 0,
+                "void_shard": 0,
+                "ember_resin": 0
+              },
+              "gatherJobs": {
+                "food": 9642,
+                "water": 458,
+                "beer": 0,
+                "wood": 2250,
+                "stone": 3525,
+                "iron": 0,
+                "expedition_kit": 0,
+                "weapon_tier_1": 0,
+                "weapon_tier_2": 0,
+                "weapon_tier_3": 0,
+                "weapon_tier_4": 0,
+                "weapon_tier_5": 0,
+                "weapon_tier_6": 0,
+                "weapon_tier_7": 0,
+                "weapon_tier_8": 0,
+                "weapon_tier_9": 0,
+                "weapon_tier_10": 0,
+                "armor_tier_1": 0,
+                "armor_tier_2": 0,
+                "armor_tier_3": 0,
+                "armor_tier_4": 0,
+                "armor_tier_5": 0,
+                "armor_tier_6": 0,
+                "armor_tier_7": 0,
+                "armor_tier_8": 0,
+                "armor_tier_9": 0,
+                "armor_tier_10": 0,
+                "mithril": 0,
+                "adamantio": 0,
+                "mana_crystal": 0,
+                "embersteel": 0,
+                "ironshade": 0,
+                "void_shard": 0,
+                "ember_resin": 0
+              },
+              "constructionJobs": 60,
+              "roadStepShare": 0.08161453717027996,
+              "longRoadStepShare": 0.10238565920943171,
+              "stayShare": 0.09637537898582237,
+              "incompleteTrips": 448
+            },
+            "legacy": {
+              "records": 0,
+              "activeModifiers": 0,
+              "activeMagnitude": 0,
+              "effectiveModifiers": {
+                "constructionSpeed": 0
+              },
+              "contributions": [],
+              "serializedBytes": 224,
+              "evictions": 0
+            },
+            "runtime": {
+              "elapsedMs": 286096,
+              "ticksPerSecond": 27.962641910407694,
+              "pathingMs": 75231.22010592918,
+              "renderMeanMs": null,
+              "renderP95Ms": null,
+              "renderStatus": "not_rendered_headless"
+            }
           }
         }
       ],
       "summary": {
-        "population": 677,
-        "morale": 0.8862308041492107,
-        "beerBoost": 0.020644538876938456,
-        "hunger": 0.15558076247077918,
-        "thirst": 0.10794992511448648,
+        "population": 678.5,
+        "morale": 0.8841101768473646,
+        "beerBoost": 0.01927530534520045,
+        "hunger": 0.1560068332741843,
+        "thirst": 0.10967218437306095,
         "underrealmDepth": 2.5,
         "underrealmChampions": 1.5,
         "underrealmFailedExpeditions": 0.25,
@@ -481,38 +3703,38 @@
           "activeTicksTotal": 6400,
           "activeTicksPerSeedAvg": 1600,
           "byId": {
-            "granary_compact": 11,
-            "frontier_levy": 8,
+            "granary_compact": 12,
+            "frontier_levy": 7,
             "forge_quota": 6,
             "deep_claims": 5,
             "hearth_festivity": 2
           },
           "byIdShare": {
-            "granary_compact": 0.34375,
-            "frontier_levy": 0.25,
+            "granary_compact": 0.375,
+            "frontier_levy": 0.21875,
             "forge_quota": 0.1875,
             "deep_claims": 0.15625,
             "hearth_festivity": 0.0625
           },
           "activeTicksById": {
-            "granary_compact": 2200,
-            "frontier_levy": 1600,
+            "granary_compact": 2400,
+            "frontier_levy": 1400,
             "forge_quota": 1200,
             "deep_claims": 1000,
             "hearth_festivity": 400
           },
           "activeTicksByIdShare": {
-            "granary_compact": 0.34375,
-            "frontier_levy": 0.25,
+            "granary_compact": 0.375,
+            "frontier_levy": 0.21875,
             "forge_quota": 0.1875,
             "deep_claims": 0.15625,
             "hearth_festivity": 0.0625
           }
         },
         "storyDirector": {
-          "considered": 12415,
+          "considered": 12481,
           "selected": 133,
-          "suppressed": 12282,
+          "suppressed": 12348,
           "preempted": 32,
           "criticalConsidered": 35,
           "criticalSelected": 29,
@@ -522,14 +3744,14 @@
           "legendarySelected": 5,
           "legendarySuppressed": 12,
           "legendaryContextCovered": 17,
-          "sagasOpened": 2177,
-          "sagasResolved": 137,
+          "sagasOpened": 298,
+          "sagasResolved": 140,
           "sagasFailed": 6,
-          "sagasArchived": 2081,
-          "sagasEvicted": 2081,
-          "chaptersOpened": 2284,
-          "chaptersCompacted": 25,
-          "focusCoverage": 0.010712847362062022,
+          "sagasArchived": 202,
+          "sagasEvicted": 202,
+          "chaptersOpened": 2486,
+          "chaptersCompacted": 2068,
+          "focusCoverage": 0.01065619742007852,
           "criticalFocusCoverage": 0.8285714285714286,
           "legendaryFocusCoverage": 0.29411764705882354,
           "priorityConsidered": 52,
@@ -539,8 +3761,512 @@
           "legendaryContextCoverage": 1,
           "priorityContextCovered": 52,
           "priorityContextCoverage": 1,
-          "sagaTerminal": 143,
-          "sagaResolutionRate": 0.06568672485071199
+          "sagaTerminal": 146,
+          "sagaResolutionRate": 0.4899328859060403
+        },
+        "refinement": {
+          "schemaVersion": 1,
+          "samples": 8000,
+          "economy": {
+            "population": 678.5,
+            "births": 744.5,
+            "deaths": 78,
+            "idleAdultRatio": 0.21675995333935089,
+            "invalidStockpiles": 0,
+            "resources": {
+              "food": {
+                "floor": 29.585261718801277,
+                "average": 488.3877916219542
+              },
+              "water": {
+                "floor": 45.07799594165621,
+                "average": 526.5165442833978
+              },
+              "beer": {
+                "floor": 0,
+                "average": 13272.110040937281
+              }
+            }
+          },
+          "social": {
+            "enabled": true,
+            "longArcEnabled": true,
+            "invalidMoodMemory": 0,
+            "invalidAggregateSamples": 0,
+            "average": {
+              "cohesion": 0.25569523915168696,
+              "conflictPressure": 0.12394710986056573,
+              "mentorshipCoverage": 0.003730972424324964,
+              "grudgeLoad": 0.02004995095352781,
+              "support": 0.0021357934237216758,
+              "burden": 0.0002261343975280418,
+              "harmony": 0.014109109528482058,
+              "strife": 0.00226373487158019
+            },
+            "peak": {
+              "cohesion": 0.535546092271761,
+              "conflictPressure": 0.252061165847889,
+              "mentorshipCoverage": 0.03757167038147548,
+              "grudgeLoad": 0.0941395883692272,
+              "support": 0.004047475034857889,
+              "burden": 0.0008532369694147764,
+              "harmony": 0.01862189696484291,
+              "strife": 0.006332689168826898
+            },
+            "saturatedTickShare": {
+              "cohesion": 0,
+              "conflictPressure": 0,
+              "mentorshipCoverage": 0,
+              "grudgeLoad": 0,
+              "support": 0,
+              "burden": 0,
+              "harmony": 0,
+              "strife": 0
+            },
+            "incidents": 208.5,
+            "incidentsByType": {
+              "mentorship_breakthrough": 152.25,
+              "rivalry_clash": 17.25,
+              "grudge_escalation": 11.5,
+              "reconciliation": 27.5
+            }
+          },
+          "narrative": {
+            "opened": 74.5,
+            "assignedEvents": 738,
+            "resolved": 35,
+            "failed": 1.5,
+            "archived": 0,
+            "evicted": 50.5,
+            "retired": 50.5,
+            "singleEventRetired": 38.75,
+            "retiredEvents": 75.5,
+            "skippedEvents": 2382.25,
+            "priorityAssigned": 13,
+            "priorityUnowned": 0,
+            "merged": 0,
+            "mergeStatus": "no_registry_merge_operation",
+            "diagnostics": {
+              "openingsByType": {
+                "combat.deep_raid_started": 14,
+                "combat.ruins_expedition_succeeded": 2.5,
+                "combat.surface_raid_resolved": 3.5,
+                "combat.surface_raid_started": 1.25,
+                "combat.underrealm_champion_defeated": null,
+                "external_camp.skirmish": null,
+                "lifecycle.death": 9.25,
+                "lifecycle.settlement_founded": 1,
+                "myth.awakened": 8.75,
+                "myth.tradition_formed": 3.25,
+                "nemesis.promoted": 2.5,
+                "schism.ritual_window_opened": 1,
+                "siege.warning": null,
+                "social.grudge_escalation": 5.25,
+                "temple.stage_completed": 2.25,
+                "underrealm.gate_discovered": 1,
+                "village.founded": 2,
+                "warrior.retired": null,
+                "warrior.tournament_champion_crowned": 1,
+                "wildlife.hunt_death": null,
+                "world.limited_opportunities_completed": 8.75,
+                "world.limited_opportunities_expired": 1.25,
+                "endgame.artifact_recovered": null,
+                "combat.deep_raid_resolved": null,
+                "combat.ruins_expedition_failed": null
+              },
+              "openingsByFamily": {
+                "combat": 23.75,
+                "external_camp": null,
+                "lifecycle": 10.25,
+                "myth": 12,
+                "nemesis": 2.5,
+                "schism": 1,
+                "siege": null,
+                "social": 5.25,
+                "temple": 2.25,
+                "underrealm": 1,
+                "village": 2,
+                "warrior": 1.75,
+                "wildlife": null,
+                "world": 10,
+                "endgame": null
+              },
+              "openingsByReason": {
+                "explicit_id_new": 4.25,
+                "no_active_saga": 1,
+                "no_shared_evidence": 69.25
+              },
+              "matchesByPath": {
+                "actor": 46,
+                "antagonist": 2.25,
+                "explicit_id": 553.5,
+                "faction": 18.5,
+                "place": 43.25
+              },
+              "skippedByType": {
+                "alchemy.rite_ended": null,
+                "alchemy.rite_started": null,
+                "caravan.arrived": 16.75,
+                "combat.ruins_expedition_started": 3,
+                "construction.house_upgraded": 107.25,
+                "construction.structure_completed": 42.25,
+                "construction.structure_upgraded": 82.75,
+                "construction.tools_upgraded": 12.5,
+                "contract.buff_granted": 41.25,
+                "contract.completed": 41.25,
+                "contract.mineral_rewarded": 29.25,
+                "contract.offered": 41.25,
+                "external_camp.activated": 17.25,
+                "external_camp.arrived": 17.25,
+                "external_camp.caravan_dispatched": 17,
+                "external_camp.departed": 15,
+                "external_camp.militia_support_renewed": 37.75,
+                "external_camp.militia_support_skipped": null,
+                "external_camp.trade_completed": 74.5,
+                "external_camp.tribute_paid": 34.5,
+                "external_camp.withdrawing": 15.25,
+                "festival.ended": null,
+                "festival.started": null,
+                "landmark.damaged": null,
+                "landmark.restoration": null,
+                "landmark.stage_completed": 15,
+                "lifecycle.birth": 744.5,
+                "lifecycle.partnership_formed": 345.25,
+                "merchant.arrived": 18.75,
+                "merchant.departed": 17.75,
+                "merchant.trade_summary": 7,
+                "myth.faded": 8.5,
+                "road.completed": 3.5,
+                "ruins.readiness_blocked_deep_guard": null,
+                "ruins.readiness_blocked_score": 3.5,
+                "ruins.warning_dispatch": 3,
+                "social.mentorship_breakthrough": 152.25,
+                "social.reconciliation": 27.5,
+                "social.rivalry_clash": 17.25,
+                "underrealm.delver_oath_failed": null,
+                "underrealm.delver_oath_sealed": null,
+                "underrealm.gate_rumors_awakened": 1,
+                "underrealm.lift_blocked_by_champion": 2.25,
+                "underrealm.lift_started": 2.5,
+                "underrealm.prospection_resource_found": null,
+                "underrealm.rare_resource_found": null,
+                "warrior.company_doctrine_active": 40,
+                "warrior.title_earned": 4.25,
+                "warrior.tournament_injury": 117,
+                "weather.changed": 36.75,
+                "wildlife.herds_spawned": 20,
+                "world.limited_opportunities_started": 10,
+                "world.rival_caravans_contest_lose": 1.5,
+                "world.rival_caravans_contest_win": 4.5,
+                "world.rival_caravans_ended": 6,
+                "world.rival_caravans_started": 6,
+                "world.traveling_bards_ended": 7.25,
+                "world.traveling_bards_started": 7.5,
+                "warrior.scar_earned": null
+              },
+              "exitsByReasonAndStatus": {
+                "capacity:dormant": 13,
+                "capacity:open": null,
+                "capacity:resolved": 23.5,
+                "outcome:active": 2.75,
+                "outcome:open": 33.75,
+                "capacity:failed": null,
+                "capacity:active": null
+              },
+              "exits": {
+                "resolved": {
+                  "count": 35,
+                  "events": 65.75,
+                  "lifetime": 4147.25,
+                  "meanEvents": 1.8925933441558442,
+                  "meanLifetimeTicks": 119.44736877705628
+                },
+                "evicted": {
+                  "count": 50.5,
+                  "events": 75.5,
+                  "lifetime": 105207.75,
+                  "meanEvents": 1.5261229348226086,
+                  "meanLifetimeTicks": 2190.155624563258
+                },
+                "failed": {
+                  "count": 1.5,
+                  "events": 1.5,
+                  "lifetime": 0,
+                  "meanEvents": 1,
+                  "meanLifetimeTicks": 0
+                }
+              },
+              "samples": null
+            },
+            "priorityOwnership": 1,
+            "terminalRate": 0.4952326562381755,
+            "fragmentationRate": 0.6671832862833659,
+            "eventsPerSaga": 11.542911131021478
+          },
+          "movement": {
+            "attempts": 1447080.25,
+            "steps": 1282337.75,
+            "roadSteps": 121188.25,
+            "longSteps": 173782.5,
+            "longRoadSteps": 10606.5,
+            "stays": 164742.5,
+            "failedSteps": 65628.75,
+            "cooldowns": 99113.75,
+            "targetDistanceSum": 18051631,
+            "fieldRebuilds": 1348613.75,
+            "roadRebuilds": 0,
+            "completedTrips": 55576,
+            "travelTicks": 296417.25,
+            "abortedTrips": 263311,
+            "referenceLongSteps": 780176.25,
+            "referenceLongRoadSteps": 63958.25,
+            "roadEvaluations": 1343,
+            "roadSubstitutions": 0.75,
+            "roadProgressProtections": 0,
+            "roadTripsStarted": 0.75,
+            "firstRoadTripTick": null,
+            "measurementVersion": 2,
+            "meanTargetDistance": 12.507911057409517,
+            "meanTravelTicks": 5.364869204947829,
+            "p95TravelTicks": 17.5,
+            "p95Overflow": false,
+            "travelOverflowSamples": 0.75,
+            "referenceLongTripDistance": 10,
+            "referenceLongRoadStepShare": 0.08324138564542141,
+            "byJobFamily": {
+              "armory": {
+                "attempts": 557,
+                "steps": 540.25,
+                "completedTrips": 46,
+                "abortedTrips": 1.5,
+                "meanTravelTicks": 11.40445233724426,
+                "p95TravelTicks": 27.5,
+                "travelOverflowSamples": 0
+              },
+              "brewery": {
+                "attempts": 1356.75,
+                "steps": 1014.25,
+                "completedTrips": 86,
+                "abortedTrips": 6,
+                "meanTravelTicks": 14.911871618539685,
+                "p95TravelTicks": 40.25,
+                "travelOverflowSamples": 0
+              },
+              "build": {
+                "attempts": 2467.75,
+                "steps": 2326.75,
+                "completedTrips": 68.75,
+                "abortedTrips": 8.25,
+                "meanTravelTicks": 32.20126569386319,
+                "p95TravelTicks": 100.5,
+                "travelOverflowSamples": 0
+              },
+              "gather_food": {
+                "attempts": 717313.5,
+                "steps": 692868.75,
+                "completedTrips": 22649.25,
+                "abortedTrips": 161569.75,
+                "meanTravelTicks": 3.974257917631013,
+                "p95TravelTicks": 12,
+                "travelOverflowSamples": 0.25
+              },
+              "gather_stone": {
+                "attempts": 412227.5,
+                "steps": 326140.75,
+                "completedTrips": 11298.25,
+                "abortedTrips": 75722,
+                "meanTravelTicks": 4.626062967335827,
+                "p95TravelTicks": 15.75,
+                "travelOverflowSamples": 0
+              },
+              "gather_water": {
+                "attempts": 33516,
+                "steps": 30861,
+                "completedTrips": 968,
+                "abortedTrips": 4538.5,
+                "meanTravelTicks": 6.050693928683027,
+                "p95TravelTicks": 23,
+                "travelOverflowSamples": 0
+              },
+              "gather_wood": {
+                "attempts": 55328.25,
+                "steps": 51100,
+                "completedTrips": 7012,
+                "abortedTrips": 11370,
+                "meanTravelTicks": 3.0582364355313727,
+                "p95TravelTicks": 8.75,
+                "travelOverflowSamples": 0.5
+              },
+              "home": {
+                "attempts": 183762.75,
+                "steps": 141193.75,
+                "completedTrips": 7958,
+                "abortedTrips": 6303.5,
+                "meanTravelTicks": 11.019818912922252,
+                "p95TravelTicks": 35.5,
+                "travelOverflowSamples": 0
+              },
+              "hunt": {
+                "attempts": 632.5,
+                "steps": 561.5,
+                "completedTrips": 35.5,
+                "abortedTrips": 171.75,
+                "meanTravelTicks": 1.593294817927171,
+                "p95TravelTicks": 4.25,
+                "travelOverflowSamples": 0
+              },
+              "idle": {
+                "attempts": 33979.75,
+                "steps": 30634.75,
+                "completedTrips": 5241.75,
+                "abortedTrips": 3571.5,
+                "meanTravelTicks": 5.289417960801724,
+                "p95TravelTicks": 10.5,
+                "travelOverflowSamples": 0
+              },
+              "mine": {
+                "attempts": 2224.75,
+                "steps": 1855.5,
+                "completedTrips": 50.25,
+                "abortedTrips": 40.5,
+                "meanTravelTicks": 52.09125277161863,
+                "p95TravelTicks": 92.75,
+                "travelOverflowSamples": 0
+              },
+              "sawmill": {
+                "attempts": 233.75,
+                "steps": 226,
+                "completedTrips": 16.5,
+                "abortedTrips": 3.5,
+                "meanTravelTicks": 12.565972222222221,
+                "p95TravelTicks": 31,
+                "travelOverflowSamples": 0
+              },
+              "upgrade": {
+                "attempts": 1511,
+                "steps": 1364.75,
+                "completedTrips": 57.25,
+                "abortedTrips": 2.25,
+                "meanTravelTicks": 26.638172208538585,
+                "p95TravelTicks": 73,
+                "travelOverflowSamples": 0
+              },
+              "upgrade_structure": {
+                "attempts": 1776.5,
+                "steps": 1473,
+                "completedTrips": 77.25,
+                "abortedTrips": 1.5,
+                "meanTravelTicks": 23.097376496052966,
+                "p95TravelTicks": 76,
+                "travelOverflowSamples": 0
+              },
+              "upgrade_tools": {
+                "attempts": 192.5,
+                "steps": 176.75,
+                "completedTrips": 11.25,
+                "abortedTrips": 0.5,
+                "meanTravelTicks": 16.248106060606062,
+                "p95TravelTicks": 50,
+                "travelOverflowSamples": 0
+              }
+            },
+            "gatherUnits": {
+              "food": 21532.25,
+              "water": 1335.75,
+              "beer": 0,
+              "wood": 2998.25,
+              "stone": 3814.75,
+              "iron": 0,
+              "expedition_kit": 0,
+              "weapon_tier_1": 0,
+              "weapon_tier_2": 0,
+              "weapon_tier_3": 0,
+              "weapon_tier_4": 0,
+              "weapon_tier_5": 0,
+              "weapon_tier_6": 0,
+              "weapon_tier_7": 0,
+              "weapon_tier_8": 0,
+              "weapon_tier_9": 0,
+              "weapon_tier_10": 0,
+              "armor_tier_1": 0,
+              "armor_tier_2": 0,
+              "armor_tier_3": 0,
+              "armor_tier_4": 0,
+              "armor_tier_5": 0,
+              "armor_tier_6": 0,
+              "armor_tier_7": 0,
+              "armor_tier_8": 0,
+              "armor_tier_9": 0,
+              "armor_tier_10": 0,
+              "mithril": 0,
+              "adamantio": 0,
+              "mana_crystal": 0,
+              "embersteel": 0,
+              "ironshade": 0,
+              "void_shard": 0,
+              "ember_resin": 0
+            },
+            "gatherJobs": {
+              "food": 7811,
+              "water": 424.25,
+              "beer": 0,
+              "wood": 2537.25,
+              "stone": 3147,
+              "iron": 0,
+              "expedition_kit": 0,
+              "weapon_tier_1": 0,
+              "weapon_tier_2": 0,
+              "weapon_tier_3": 0,
+              "weapon_tier_4": 0,
+              "weapon_tier_5": 0,
+              "weapon_tier_6": 0,
+              "weapon_tier_7": 0,
+              "weapon_tier_8": 0,
+              "weapon_tier_9": 0,
+              "weapon_tier_10": 0,
+              "armor_tier_1": 0,
+              "armor_tier_2": 0,
+              "armor_tier_3": 0,
+              "armor_tier_4": 0,
+              "armor_tier_5": 0,
+              "armor_tier_6": 0,
+              "armor_tier_7": 0,
+              "armor_tier_8": 0,
+              "armor_tier_9": 0,
+              "armor_tier_10": 0,
+              "mithril": 0,
+              "adamantio": 0,
+              "mana_crystal": 0,
+              "embersteel": 0,
+              "ironshade": 0,
+              "void_shard": 0,
+              "ember_resin": 0
+            },
+            "constructionJobs": 59.5,
+            "roadStepShare": 0.09580035552086001,
+            "longRoadStepShare": 0.06636008224399012,
+            "stayShare": 0.11520012918025167,
+            "incompleteTrips": 428.75
+          },
+          "legacy": {
+            "records": 0,
+            "activeModifiers": 0,
+            "activeMagnitude": 0,
+            "effectiveModifiers": {
+              "constructionSpeed": 0
+            },
+            "contributions": null,
+            "serializedBytes": 224,
+            "evictions": 0
+          },
+          "runtime": {
+            "elapsedMs": 237061.5,
+            "ticksPerSecond": 34.86454723782272,
+            "pathingMs": 59324.69108848224,
+            "renderMeanMs": null,
+            "renderP95Ms": null,
+            "renderStatus": "not_rendered_headless"
+          }
         },
         "worldLegacy": {
           "completedCycles": 0,
@@ -553,6 +4279,8 @@
           "echoes": 0,
           "nemeses": 0,
           "modifierMagnitude": 0,
+          "effectiveMagnitude": 0,
+          "activeModifiers": 0,
           "evictedRecords": 0,
           "stateBytes": 224
         },
@@ -568,7 +4296,7 @@
           "structuresDamaged": 3.5,
           "structuresRestored": 3.5,
           "recoveryTicks": 21.75,
-          "stateBytes": 4112.25
+          "stateBytes": 4115.75
         },
         "landmarks": {
           "founded": 5,
@@ -579,13 +4307,14 @@
           "restored": 0.75,
           "stateBytes": 1866
         },
-        "deaths": 81.25,
+        "deaths": 78,
         "resources": {
-          "beer": 39273.2497422734,
-          "food": 749.1939550562929,
-          "water": 816.4963593623343
+          "beer": 39192.733351446375,
+          "food": 761.0882198670491,
+          "water": 790.7024009066951
         }
-      }
+      },
+      "sourceAssignments": []
     }
   ],
   "deltas": [],

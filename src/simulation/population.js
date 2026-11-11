@@ -985,7 +985,14 @@ function averageValue(dwarves, selector) {
   return total / dwarves.length;
 }
 
-// Consume stockpiled resources to reduce hunger and thirst.
+// Remove only the available portion within the remaining consumption budget.
+function consumePortion(stockpile, resource, remainingUnits) {
+  const portion = Math.min(1, remainingUnits, Math.max(0, Number(stockpile[resource] || 0)));
+  stockpile[resource] = Math.max(0, Number(stockpile[resource] || 0) - portion);
+  return portion;
+}
+
+// Consume food and drink with relief proportional to the available units.
 function consumeResources(dwarf, state, config) {
   const stockpile = state && state.stockpile ? state.stockpile : null;
   const consumption = config && config.consumption ? config.consumption : {};
@@ -1020,18 +1027,20 @@ function consumeResources(dwarf, state, config) {
   if (hunger >= hungerThreshold) {
     let units = 0;
     while (units < maxUnitsPerTick && hunger > hungerTarget) {
+      let portion = 0;
       if (Number(stockpile.meal || 0) > 0) {
-        stockpile.meal -= 1;
-        hunger = clamp(hunger - mealRelief, 0, 1);
+        portion = consumePortion(stockpile, 'meal', maxUnitsPerTick - units);
+        hunger = clamp(hunger - mealRelief * portion, 0, 1);
         dwarf.needs.hunger = hunger;
       } else if (Number(stockpile.food || 0) > 0) {
-        stockpile.food -= 1;
-        hunger = clamp(hunger - rawFoodRelief, 0, 1);
+        portion = consumePortion(stockpile, 'food', maxUnitsPerTick - units);
+        hunger = clamp(hunger - rawFoodRelief * portion, 0, 1);
         dwarf.needs.hunger = hunger;
       } else {
         break;
       }
-      units += 1;
+      if (portion <= 0) break;
+      units += portion;
     }
   }
 
@@ -1039,32 +1048,34 @@ function consumeResources(dwarf, state, config) {
   if (thirst >= thirstThreshold) {
     let units = 0;
     while (units < maxUnitsPerTick && thirst > thirstTarget) {
+      let portion = 0;
       const beerRatio = beerReserveTarget > 0
         ? Number(stockpile.beer || 0) / beerReserveTarget
         : 1;
       const preferBeer = beerMinReserveRatio <= 0 || beerRatio >= beerMinReserveRatio;
       if (preferBeer && Number(stockpile.beer || 0) > 0) {
-        stockpile.beer -= 1;
-        thirst = clamp(thirst - beerRelief, 0, 1);
+        portion = consumePortion(stockpile, 'beer', maxUnitsPerTick - units);
+        thirst = clamp(thirst - beerRelief * portion, 0, 1);
         dwarf.needs.thirst = thirst;
         if (beerMoraleGain > 0 && beerMoraleMax > 0) {
-          moraleBoost = Math.min(beerMoraleMax, moraleBoost + beerMoraleGain);
+          moraleBoost = Math.min(beerMoraleMax, moraleBoost + beerMoraleGain * portion);
         }
       } else if (Number(stockpile.water || 0) > 0) {
-        stockpile.water -= 1;
-        thirst = clamp(thirst - waterRelief, 0, 1);
+        portion = consumePortion(stockpile, 'water', maxUnitsPerTick - units);
+        thirst = clamp(thirst - waterRelief * portion, 0, 1);
         dwarf.needs.thirst = thirst;
       } else if (Number(stockpile.beer || 0) > 0) {
-        stockpile.beer -= 1;
-        thirst = clamp(thirst - beerRelief, 0, 1);
+        portion = consumePortion(stockpile, 'beer', maxUnitsPerTick - units);
+        thirst = clamp(thirst - beerRelief * portion, 0, 1);
         dwarf.needs.thirst = thirst;
         if (beerMoraleGain > 0 && beerMoraleMax > 0) {
-          moraleBoost = Math.min(beerMoraleMax, moraleBoost + beerMoraleGain);
+          moraleBoost = Math.min(beerMoraleMax, moraleBoost + beerMoraleGain * portion);
         }
       } else {
         break;
       }
-      units += 1;
+      if (portion <= 0) break;
+      units += portion;
     }
   }
 

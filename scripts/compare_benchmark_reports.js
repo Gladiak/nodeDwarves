@@ -32,6 +32,8 @@ const METRICS = [
   { key: 'legacyRecords', label: 'legacyRecords', decimals: 2, path: ['worldLegacy', 'records'] },
   { key: 'legacyNemeses', label: 'legacyNemeses', decimals: 2, path: ['worldLegacy', 'nemeses'] },
   { key: 'legacyStateBytes', label: 'legacyBytes', decimals: 1, path: ['worldLegacy', 'stateBytes'] },
+  { key: 'legacyActiveModifiers', label: 'legacyActive', decimals: 2, path: ['worldLegacy', 'activeModifiers'] },
+  { key: 'legacyEffectiveMagnitude', label: 'legacyEffect', decimals: 5, path: ['worldLegacy', 'effectiveMagnitude'] },
   { key: 'epicNemeses', label: 'epicNemeses', decimals: 2, path: ['epicConflicts', 'nemeses'] },
   { key: 'epicSiegesStarted', label: 'epicStarted', decimals: 2, path: ['epicConflicts', 'siegesStarted'] },
   { key: 'epicSiegesCompleted', label: 'epicCompleted', decimals: 2, path: ['epicConflicts', 'siegesCompleted'] },

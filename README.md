@@ -4,6 +4,8 @@ NodeDwarves is an autonomous ASCII dwarf-colony simulator that runs entirely in 
 Start a run, watch the settlement react to shortages and crises, and tune the system like a tiny living lab. 🍺⛏️
 Chaos, strategy, and tiny bearded logistics experts included. 🧔🧱
 
+Current release: **v2.3.0 - Living Chronicles and Simulation Refinement**. 📖🛣️
+
 ## Screenshots 📸
 
 ![NodeDwarves simulation 1](assets/NodeDwarves_1.png)
@@ -16,7 +18,8 @@ Chaos, strategy, and tiny bearded logistics experts included. 🧔🧱
 - ⛏️ Multi-layer economy with gathering, structures, shortages, and recovery loops.
 - 🌦️ Seasons, weather, festivals, raids, and world events that shift priorities.
 - 🤝 External camps, diplomacy pressure, contracts, and faction trade opportunities.
-- 🎭 Social drama + schism systems for long-horizon political and morale instability.
+- 🎭 Social drama + schism systems for long-horizon political and morale instability. Friendships,
+  mentorships, rivalries, and grudges leave slow, bounded memories that shape mood and colony climate.
 - 🕳️ Underrealm exploration with depth progression, combat pressure, and endgame cadence.
 - 🏅 Warrior League with hero progression, tournaments, injuries, and lineage memory.
 - 📜 Deterministic structured events preserve who/where/why facts behind the compact terminal log,
@@ -66,10 +69,13 @@ Chaos, strategy, and tiny bearded logistics experts included. 🧔🧱
 - 📖 Major lived deeds now follow each dwarf as a bounded, source-backed biography. Inspect separates
   witnessed history from inherited lore, while cycle transitions distill seven factual Chronicle
   chapters. Press `c` to export deterministic Markdown and JSON records with source-event trails.
+- 🛣️ Completed regional roads guide longer trips toward useful connections, while the starter colony keeps its familiar local routes.
+- 🏛️ Witnessed construction can found an inherited Builders' Guild, giving later colonies a small, fading boost to their works.
+- 📚 Political sagas follow one bounded arc through local rituals to their witnessed outcome.
 - 🌤️ In-map Ops Snapshot shows a live weather token (`Wx:*`, e.g. `Clear`, `Rain`, `Storm`) for at-a-glance climate context.
 - 📊 In-game Data Center (`h`) with dashboard, deep economy views, Story Director visibility, and AI explainability.
 - 🤖 PPO training pipeline in Python with JS runtime inference (`models/*.json`).
-- 🧪 Deterministic benchmark/regression tooling with cached baseline comparison.
+- 🧪 Deterministic benchmark/regression tooling with cached baseline comparison and milestone measurements for colony habits, travel, and saga coherence.
 
 ## Quick Start 🚀
 
@@ -89,7 +95,7 @@ npm run ai:play
 - ⏯️ `Space`: pause/resume
 - 🐢 `[` / `]` 🐇: decrease/increase visible simulation speed (`0.5x`, `1x`, `2x`, `4x`, `5x`, `25x`, `100x`; default `1x`, with faster levels available for endgame trials)
 - 👣 `.`: advance exactly one tick and remain paused
-- 🗺️ `l`: legend
+- 🗺️ `l`: legend; arrow keys browse pages when needed
 - 🔍 `i`: dwarf inspect panel
 - ⚔️ `w`: Warrior League modal
 - 📡 `h`: telemetry Data Center
@@ -126,6 +132,8 @@ npm test
 structured-event contract gate in isolation. `npm test` runs the audit plus narrative and
 training/validation contract suites.
 
+CI bundles identify their run and commit, keep fresh evidence, and show skipped phases explicitly.
+
 `ai:train:m4` is the direct shortcut for the `m4-balanced` profile. The generic
 `ai:train` command accepts the wrapper profile after `--`: `fast` (default), `quality`,
 `quality-mixed`, `m4-balanced`, `full`, `endgame`, or `benchmark`. The
@@ -135,10 +143,7 @@ endgame specialization phase, `5→4→3` workers, sparse intermediate evaluatio
 and one guarded final canonical check. Add `--fresh` after the profile when
 observation or action contracts change.
 
-For full profiles, continuous training cadence, and override strategy, use:
-- 📘 `MANUAL.md`
-- 🧩 `docs/TRAINING_OVERRIDES.md`
-- ✅ `docs/TRAINING_STATUS.md`
+For training profiles, validation and everyday operations, see [MANUAL.md](MANUAL.md).
 
 ## Balance & Benchmark Workflow ⚖️
 
@@ -161,70 +166,26 @@ npm run debug:clean
 
 ## Documentation 📚
 
-- 📘 `MANUAL.md`: technical runbook (systems, runtime flow, operations).
-- ⚙️ `docs/PARAMETERS.md`: complete config parameter reference.
-- 🧩 `docs/TRAINING_OVERRIDES.md`: training override guide.
-- ✅ `docs/TRAINING_STATUS.md`: current quality status and validation cadence.
-- 🧪 `docs/TRAINING_OPTIMIZATION_WORKBOOK.md`: optimization timeline and decisions.
-- 🧭 `docs/SIMULATION_REFINEMENT_WORKBOOK.md`: active ordered roadmap for social depth, saga coherence, spatial behavior, legacy effects, validation, and implementation evidence.
-- 🧬 `docs/NARRATIVE_EVENT_CONTRACT.md`: versioned facts, deterministic event identity, and bounded-history rules for the living chronicle.
-- 📡 `docs/TELEMETRY.md`: telemetry operator guide.
-- 🤖 `AGENTS.md`: contributor implementation guidelines.
+- [MANUAL.md](MANUAL.md): concise user and operator guide.
+- [AGENTS.md](AGENTS.md): contributor and agent guidelines.
+- `config.json`: authoritative configuration and tunable defaults.
 
 ## Project Layout (High Level) 🧱
 
-- 🚀 `app.js`: simulation entrypoint and loop.
-- 🎛️ `config.json`: single source of truth for tuning knobs.
-- 🌉 `ai_server.js`: JS inference bridge used by training/eval tooling.
-- 🧭 `src/config.js`: config loader.
-- ⚙️ `src/simulation/`: core simulation systems (economy, events, underrealm, schism, social drama, warriors, temple).
-- 🧬 `src/simulation/narrative_contract.js`: strict narrative-event validation and deterministic identity helpers.
-- 🧹 `src/simulation/narrative_normalizer.js`: bounded event normalization and deterministic payload compaction.
-- 🧭 `src/simulation/secondary_events.js`: shared structured facts for world, culture, environment, economy, and development events.
-- 👥 `src/simulation/lifecycle_events.js`: structured founding, birth, death, and partnership story facts.
-- 🎭 `src/simulation/social_events.js`: structured mentorship, rivalry, grudge, and reconciliation facts.
-- ⚔️ `src/simulation/combat_events.js`: structured raid, expedition, Underrealm battle, and champion facts.
-- 🏅 `src/simulation/warrior_events.js`: structured Warrior League progression, tournament, Hall of Fame, and command facts.
-- 🔥 `src/simulation/political_events.js`: structured doctrine, phase, ritual, decree, and schism-climax facts.
-- 🔁 `src/simulation/endgame_events.js`: structured relic, cycle passage, and legacy carry-over facts.
-- 🎬 `src/simulation/story_director.js`: bounded deterministic story scoring, focus selection, and explainability state.
-- 📚 `src/simulation/story_sagas.js`: deterministic saga grouping, lifecycle, evidence, and fact-backed chapters.
-- 🧾 `src/simulation/experience_ledger.js`: bounded per-dwarf lived deeds, merge rules, and biography views.
-- 📖 `src/simulation/chronicle.js`: fact-backed cycle chapters, integrity checks, and bounded archives.
-- 🏺 `src/simulation/world_legacy.js`: versioned cross-cycle records, memorials, institutions, and deterministic new-world echoes.
-- ⚑ `src/simulation/epic_conflicts.js`: bounded nemesis memory, deterministic promotion, staged sieges, rivalry branches, and recovery.
-- 📣 `src/simulation/nemesis_events.js`: canonical structured promotion, reappearance, siege, battle, and aftermath facts.
-- 💾 `src/chronicle_export.js`: deterministic safe-path Markdown/JSON Chronicle export.
-- 🌍 `src/state/`: world/terrain and initial state generation.
-- 🎨 `src/render/`: map, overlays, panels, and layout helpers.
-- 👁️ `src/render/dwarf_visibility.js`: stable story-priority selection for capped dwarf rendering.
-- 🎞️ `src/render/story_ribbon.js`: responsive read-only presentation of the active story focus.
-- ✨ `src/render/story_focus_overlay.js`: bounded actor/location emphasis and cross-layer focus cues.
-- 🛡️ `src/render/epic_conflicts.js`: active nemesis-front and damaged-structure map overlays.
-- 🏰 `src/render/landmarks.js`: evolving landmark footprints and compact district-state markers.
-- ⏱️ `src/runtime/time_controls.js`: presentation-only speed, pause, step, and major-event protection controller.
-- 📊 `src/telemetry/`: Data Center sections and metric builders.
-  - `src/telemetry/story_director.js`: Story Director telemetry rows and headless report counters.
-- 🧠 `src/ai/`: observation and policy helpers.
-- 🪪 `src/dwarf_identity.js`: shared cached identity and historical-fallback resolver.
-- 🗿 `src/place_identity.js`: bounded authoritative registry for deterministic world-place names.
-- 🛠️ `scripts/`: benchmarking, regression, validation orchestration, narrative contracts, export, cleanup.
-- 🧪 `scripts/test_narrative_contracts.js`: fast executable gate for the living-chronicle event contract.
-- ⏱️ `scripts/test_time_controls.js`: deterministic E4.3 timing, input precedence, rendering, and isolation gate.
-- 📖 `scripts/test_chronicle_contracts.js`: E5 ledger, biography, Chronicle, reset, export, bounds, and AI-isolation gate.
-- 🏺 `scripts/test_world_legacy_contracts.js`: E6 migration, retention, remapping, rendering, and AI-isolation gate.
-- 🔁 `scripts/validate_world_legacy.js`: deterministic two-cycle/five-cycle growth and compounding validator.
-- ⚑ `scripts/test_epic_conflict_contracts.js`: deterministic E7 identity, lifecycle, branch, legacy, rendering, bounds, and PPO-isolation gate.
-- 🛡️ `scripts/validate_epic_conflicts.js`: full-siege, collapse-guard, and repeated-siege recovery validator.
-- 🏰 `scripts/test_landmark_contracts.js`: E8 progression, placement, rendering, state, and PPO-isolation gate.
-- 🗺️ `scripts/validate_landmarks.js`: multi-seed/size landmark growth and state-bound validator.
-- 🔎 `scripts/audit_narrative_producers.js`: zero-legacy producer audit used by `npm test`.
-- 🐍 `python/`: PPO training and rollout tooling.
-- 🗂️ `benchmark_cache/`: cached deterministic benchmark baseline.
-- 🧪 `debug/headless_benchmark_{candidate,diff}.{json,md}`: latest canonical balance, legacy, epic-conflict, and landmark evidence.
-- 📦 `regression/baselines/`: durable regression reference profiles.
-- 📜 `chronicles/`: generated Chronicle exports (git-ignored).
-- 📚 `docs/`: manuals, tuning references, the active simulation-refinement workbook, and the narrative event contract.
+- `app.js`: terminal application entrypoint.
+- `config.json`: gameplay, rendering and training settings.
+- `src/simulation/`: colony economy, population, stories, roads and world systems.
+- `src/state/`: state creation and terrain generation.
+- `src/render/`, `src/runtime/`, `src/telemetry/`: terminal views, controls and diagnostics.
+- `src/ai/` and `ai_server.js`: policy inference and training bridge.
+- `scripts/`: benchmarks, validation, map export, CI artifacts and cleanup tools.
+- `python/`: PPO training and regression rollout tools.
+- `models/`: runtime policies and resumable training metadata.
+- `regression/baselines/`: durable model-quality reference profiles.
+- `benchmark_cache/`: shared deterministic benchmark baseline.
+- `debug/`: current operational validation and comparison reports.
+- `chronicles/`: generated Chronicle exports (git-ignored).
+- `.github/workflows/quality_gates.yml`: extended and weekly quality checks.
 
 ## Contributing 🤝
 

@@ -20,7 +20,7 @@ const DEFAULT_RESOURCES = ['beer', 'food', 'water'];
 const DEFAULT_WIDTH = 120;
 const DEFAULT_HEIGHT = 40;
 const DEFAULT_PROGRESS_EVERY = 2000;
-const DEFAULT_REPORT_SCHEMA_VERSION = 2;
+const DEFAULT_REPORT_SCHEMA_VERSION = 3;
 
 // Print CLI usage and examples.
 function printHelp() {

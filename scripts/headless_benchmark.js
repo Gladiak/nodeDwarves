@@ -8,6 +8,9 @@ const crypto = require('crypto');
 const { buildRuntime } = require('../src/runtime');
 const { createInitialState } = require('../src/state');
 const { stepState } = require('../src/simulation');
+const { resolveLegacyEffects } = require('../src/simulation/legacy_effects');
+const { createRefinementTracker, trackRefinementTick, getRefinementReport,
+  summarizeRefinementReports } = require('../src/telemetry/refinement');
 const {
   createStoryDirectorCounterTracker,
   getStoryDirectorCounterReport,
@@ -22,7 +25,7 @@ const DEFAULT_SEEDS = [101, 202, 303, 404];
 const DEFAULT_RESOURCES = ['beer', 'food', 'water'];
 const DEFAULT_VARIANT_LABEL = 'current';
 const DEFAULT_PROGRESS_STEPS = 8;
-const BENCHMARK_REPORT_SCHEMA_VERSION = 2;
+const BENCHMARK_REPORT_SCHEMA_VERSION = 3;
 const DEFAULT_GATE_THRESHOLDS = {
   minScore: -2,
   maxPopulationDrop: 0.08,
@@ -59,6 +62,7 @@ function printHelp() {
     '  --gate-max-resource-drop <n> Max average relative resource drop allowed (default: 0.12)',
     '  --report-json <path>      Write report JSON to file',
     '  --report-md <path>        Write report Markdown to file',
+    '  --snapshot-json <path>    Write the final seed state for routing replay (last variant wins)',
     '  --progress                Print progress updates to stderr',
     '  --progress-every <n>      Progress update interval in ticks',
     '  --help                    Show this help',
@@ -92,6 +96,7 @@ function parseArgs(argv) {
     gateThresholds: { ...DEFAULT_GATE_THRESHOLDS },
     reportJsonPath: null,
     reportMarkdownPath: null,
+    snapshotJsonPath: null,
     variants: [],
   };
 
@@ -99,6 +104,12 @@ function parseArgs(argv) {
     const arg = argv[i];
     if (arg === '--help' || arg === '-h') {
       options.help = true;
+      continue;
+    }
+    if (arg === '--snapshot-json') {
+      options.snapshotJsonPath = resolvePath(argv[i + 1], null);
+      if (!options.snapshotJsonPath) throw new Error('--snapshot-json requires a path');
+      i += 1;
       continue;
     }
     if (arg === '--config') {
@@ -550,11 +561,12 @@ function collectUnderrealmMetrics(state) {
 }
 
 // Capture bounded persistent-world growth and modifier budget metrics.
-function collectWorldLegacyMetrics(state) {
+function collectWorldLegacyMetrics(state, config) {
   const legacy = state && state.worldLegacy && typeof state.worldLegacy === 'object'
     ? state.worldLegacy : {};
   const listLength = (field) => Array.isArray(legacy[field]) ? legacy[field].length : 0;
   const institutions = Array.isArray(legacy.institutions) ? legacy.institutions : [];
+  const effects = resolveLegacyEffects(state, config);
   return {
     completedCycles: Math.max(0, Number(state?.cycleStats?.count || 0)),
     lastCycleTicks: Math.max(0, Number(state?.cycleStats?.lastTicks || 0)),
@@ -569,6 +581,8 @@ function collectWorldLegacyMetrics(state) {
     modifierMagnitude: institutions.reduce(
       (sum, entry) => sum + Math.max(0, Number(entry?.modifier?.magnitude || 0)), 0,
     ),
+    effectiveMagnitude: effects.activeMagnitude,
+    activeModifiers: effects.activeCount,
     evictedRecords: Math.max(0, Number(legacy?.stats?.evictedRecords || 0)),
     stateBytes: Buffer.byteLength(JSON.stringify(legacy)),
   };
@@ -715,11 +729,11 @@ function trackSchismDecreeTick(state, tracker) {
 }
 
 // Capture end-of-run metrics from simulation state.
-function collectRow(state, resources, seed, decreeTracker, storyTracker) {
+function collectRow(state, resources, seed, decreeTracker, storyTracker, config) {
   const dwarves = Array.isArray(state.dwarves) ? state.dwarves : [];
   const stockpile = state.stockpile || {};
   const underrealm = collectUnderrealmMetrics(state);
-  const worldLegacy = collectWorldLegacyMetrics(state);
+  const worldLegacy = collectWorldLegacyMetrics(state, config);
   const epicConflicts = collectEpicConflictMetrics(state);
   const landmarks = collectLandmarkMetrics(state);
   const decree = decreeTracker && typeof decreeTracker === 'object'
@@ -793,6 +807,8 @@ function summarizeRows(rows, resources) {
     echoes: average(rows, (row) => row.worldLegacy && row.worldLegacy.echoes),
     nemeses: average(rows, (row) => row.worldLegacy && row.worldLegacy.nemeses),
     modifierMagnitude: average(rows, (row) => row.worldLegacy && row.worldLegacy.modifierMagnitude),
+    effectiveMagnitude: average(rows, (row) => row.worldLegacy && row.worldLegacy.effectiveMagnitude),
+    activeModifiers: average(rows, (row) => row.worldLegacy && row.worldLegacy.activeModifiers),
     evictedRecords: average(rows, (row) => row.worldLegacy && row.worldLegacy.evictedRecords),
     stateBytes: average(rows, (row) => row.worldLegacy && row.worldLegacy.stateBytes),
   };
@@ -846,6 +862,7 @@ function summarizeRows(rows, resources) {
       activeTicksByIdShare: buildCounterShareMap(decreeActiveTicksById, decreeActiveTicksTotal),
     },
     storyDirector,
+    refinement: summarizeRefinementReports(rows.map((row) => row.refinement)),
     worldLegacy,
     epicConflicts,
     landmarks,
@@ -871,6 +888,7 @@ function runVariant(baseConfig, options, variant) {
       const state = createInitialState(variantConfig, runtime);
       const decreeTracker = createSchismDecreeTracker();
       const storyTracker = createStoryDirectorCounterTracker();
+      const refinementTracker = createRefinementTracker(state, variantConfig);
       const progressEvery = resolveProgressEvery(options.ticks, options.progressEvery);
       let nextProgressTick = progressEvery;
 
@@ -878,6 +896,7 @@ function runVariant(baseConfig, options, variant) {
         stepState(state, variantConfig, runtime, null);
         trackSchismDecreeTick(state, decreeTracker);
         trackStoryDirectorCounters(state, storyTracker);
+        trackRefinementTick(state, refinementTracker);
         const tick = index + 1;
         if (options.progress === true && (tick >= nextProgressTick || tick === options.ticks)) {
           const elapsedMs = Date.now() - seedStartMs;
@@ -901,7 +920,13 @@ function runVariant(baseConfig, options, variant) {
         seed,
         decreeTracker,
         storyTracker,
+        variantConfig,
       );
+      collected.refinement = getRefinementReport(state, refinementTracker, Date.now() - seedStartMs);
+      if (options.snapshotJsonPath && seed === options.seeds[options.seeds.length - 1]) {
+        fs.mkdirSync(path.dirname(options.snapshotJsonPath), { recursive: true });
+        fs.writeFileSync(options.snapshotJsonPath, `${JSON.stringify({ runtime, state, config: variantConfig })}\n`);
+      }
       writeProgress(
         options,
         `variant=${variant.label} seed=${seed} done tick=${collected.tick} pop=${collected.population} elapsed=${formatElapsedMs(Date.now() - seedStartMs)}`,
@@ -914,6 +939,8 @@ function runVariant(baseConfig, options, variant) {
   return {
     label: variant.label,
     assignments: variant.assignments,
+    effectiveConfigHash: crypto.createHash('sha256')
+      .update(JSON.stringify(buildVariantConfig(baseConfig, variant))).digest('hex'),
     rows,
     summary: summarizeRows(rows, options.resources),
   };
@@ -1320,6 +1347,39 @@ function buildMarkdownReport(report) {
     lines.push(
       `| ${variant.label} | ${formatNumber(variant.summary.population, 2)} | ${formatNumber(variant.summary.morale, 4)} | ${formatNumber(variant.summary.beerBoost, 4)} | ${formatNumber(variant.summary.hunger, 4)} | ${formatNumber(variant.summary.thirst, 4)} |`,
     );
+  }
+  lines.push('');
+  lines.push('## Refinement Measurements');
+  lines.push('');
+  lines.push('Per-tick averages/floors; travel samples cover completed surface trips. Full counters are in JSON.');
+  lines.push('Unavailable measurements are explicit nulls; runtime timings are observational, not deterministic.');
+  lines.push('');
+  lines.push('| Variant / seed | Births | Food floor / avg | Water floor / avg | Idle adults | Saga terminal | Fragmentation | Road steps | Travel mean | Field rebuilds | ticks/s |');
+  lines.push('| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |');
+  for (const variant of report.variants) {
+    for (const row of variant.rows) {
+      const r = row.refinement;
+      if (!r) continue;
+      lines.push(`| ${variant.label} / ${row.seed} | ${r.economy.births} | ${formatNumber(r.economy.resources.food.floor, 2)} / ${formatNumber(r.economy.resources.food.average, 2)} | ${formatNumber(r.economy.resources.water.floor, 2)} / ${formatNumber(r.economy.resources.water.average, 2)} | ${formatPercent(r.economy.idleAdultRatio)} | ${formatPercent(r.narrative.terminalRate)} | ${formatPercent(r.narrative.fragmentationRate)} | ${formatPercent(r.movement.roadStepShare)} | ${formatNumber(r.movement.meanTravelTicks, 2)} | ${r.movement.fieldRebuilds} | ${formatNumber(r.runtime.ticksPerSecond, 2)} |`);
+    }
+  }
+  lines.push('');
+  lines.push('## Saga Churn Diagnostics');
+  lines.push('');
+  lines.push('Matches attach events to existing sagas; registry merges are a separate, unsupported operation (measured zero).');
+  lines.push('Per-seed JSON retains bounded source-backed timelines, match paths, exit reasons/statuses, event counts and lifetimes.');
+  lines.push('');
+  lines.push('| Variant / seed | Leading opening types | Opening reasons | Match paths | Exit reasons / prior status | Priority ownership |');
+  lines.push('| --- | --- | --- | --- | --- | ---: |');
+  const describeCounters = (values) => Object.entries(values || {}).sort(([a, av], [b, bv]) =>
+    bv - av || a.localeCompare(b)).slice(0, 5).map(([key, value]) => `${key}: ${value}`).join(', ') || '-';
+  for (const variant of report.variants) {
+    for (const row of variant.rows) {
+      const narrative = row.refinement?.narrative;
+      const diagnostic = narrative?.diagnostics;
+      if (!diagnostic) continue;
+      lines.push(`| ${variant.label} / ${row.seed} | ${describeCounters(diagnostic.openingsByType)} | ${describeCounters(diagnostic.openingsByReason)} | ${describeCounters(diagnostic.matchesByPath)} | ${describeCounters(diagnostic.exitsByReasonAndStatus)} | ${narrative.priorityOwnership === null ? '-' : formatPercent(narrative.priorityOwnership)} |`);
+    }
   }
   lines.push('');
   lines.push('## World Legacy Summary');

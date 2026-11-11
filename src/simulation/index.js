@@ -42,6 +42,7 @@ const { updateEpicConflicts } = require('./epic_conflicts');
 const { updateLandmarks } = require('./landmarks');
 const { ensureSettlementFoundingEvent } = require('./lifecycle_events');
 const { advanceStoryDirector } = require('./story_director');
+const { resolveLegacyEffects } = require('./legacy_effects');
 const { clamp } = require('../utils');
 
 const BUILD_CLASS_ORDER = ['housing', 'economy', 'defense', 'special'];
@@ -126,8 +127,9 @@ function stepState(state, config, runtime, action, options = {}) {
   assignJobs(state, config, runtime, resolvedAction);
   state.lastDecisionTrace = buildDecisionTrace(state, config);
 
+  const legacyEffects = resolveLegacyEffects(state, config);
   for (const dwarf of state.dwarves) {
-    processDwarfAction(dwarf, state, config, runtime);
+    processDwarfAction(dwarf, state, config, runtime, legacyEffects);
   }
 
   updateMerchant(state, config, runtime, resolvedAction);

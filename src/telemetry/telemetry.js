@@ -8,6 +8,7 @@ const { getWorldEventStatus } = require("../simulation/world_events");
 const { getExternalCampStatus } = require("../simulation/external_camps");
 const { getSchismStatus } = require("../simulation/schism");
 const { getSocialDramaStatus } = require("../simulation/social_drama");
+const { resolveLegacyEffects } = require("../simulation/legacy_effects");
 const { getEpicConflictStatus } = require('../simulation/epic_conflicts');
 const { getLandmarkStatus } = require('../simulation/landmarks');
 const {
@@ -326,6 +327,7 @@ function buildTelemetrySectionModels(snapshot) {
         `Prestige: ${formatCompactNumber(snapshot.prestigeTotal)} (${snapshot.prestigeRank})`,
         `Weather: ${formatWeatherStatus(snapshot.state.weather, snapshot.colors)}`,
         `Housing ratio: ${snapshot.housingRatio.toFixed(2)} beds per dwarf`,
+        ...buildTrafficSectionRows(snapshot.state, snapshot.config),
         formatFestivalStatus(snapshot.festivalStatus),
         formatSchismStatus(snapshot.schismStatus),
         formatWorldEventStatus(snapshot.worldEventStatus),
@@ -984,8 +986,8 @@ function buildEndgameSectionRows(state, config, options = {}) {
     ? state.worldLegacy : {};
   const legacyCount = ["cycles", "identities", "places", "memorials", "institutions", "echoes", "nemeses"]
     .reduce((sum, field) => sum + (Array.isArray(worldLegacy[field]) ? worldLegacy[field].length : 0), 0);
-  const legacyModifier = (Array.isArray(worldLegacy.institutions) ? worldLegacy.institutions : [])
-    .reduce((sum, entry) => sum + Math.max(0, Number(entry && entry.modifier && entry.modifier.magnitude || 0)), 0);
+  const legacyEffects = resolveLegacyEffects(state, config);
+  const legacySource = legacyEffects.details.find((entry) => entry.contribution > 0);
   const structures = Array.isArray(state && state.structures)
     ? state.structures
     : [];
@@ -1073,7 +1075,11 @@ function buildEndgameSectionRows(state, config, options = {}) {
     `Cycle reset loop: ${endgameEnabled ? "enabled" : "disabled"}`,
     `Cycle history: current ${cycleCount} | last cycle length ${lastCycleLabel}`,
     `World legacy: ${legacyCount} records | ${(worldLegacy.echoes || []).length} echoes | ${(worldLegacy.memorials || []).length} memorials | ${(worldLegacy.nemeses || []).length} nemeses`,
-    `Legacy modifier hooks: ${(legacyModifier * 100).toFixed(1)}% reserved | gameplay inactive`,
+    `Inherited construction: +${(legacyEffects.constructionSpeed * 100).toFixed(2)}% | cap ${(legacyEffects.totalCap * 100).toFixed(1)}%`,
+    ...(legacySource ? [
+      `Guild source: cycle ${legacySource.sourceCycle + 1} / ${legacySource.sourceChapterId}`,
+      `Guild magnitude: raw ${(legacySource.rawMagnitude * 100).toFixed(2)}% | decayed ${(legacySource.decayedMagnitude * 100).toFixed(2)}% | applied ${(legacySource.contribution * 100).toFixed(2)}%`,
+    ] : []),
     `Ruins gateway: ${ruinsGatewayLabel}`,
     `Required path progress: ${requiredDone}/4`,
     formatChecklistStep(
@@ -1339,6 +1345,32 @@ function formatSchismStatus(status) {
   return `Schism status: ${phase}/${doctrine} | pressure ${pressure}% | legitimacy ${legitimacy}% | ${ritual}${activeRitual}${activeDecree}${climax}`;
 }
 
+// Show current surface work traffic without storing trip history in the simulation.
+function buildTrafficSectionRows(state, config) {
+  const pathing = config.population?.pathing || {};
+  const field = pathing.field || {};
+  const affinity = field.road_affinity || field.roadAffinity || {};
+  if (pathing.mode !== "field" || affinity.enabled !== true) return [];
+  const roadTypes = new Set(["road", "bridge", "ford"]);
+  const stallThreshold = Math.max(1, Number(pathing.stallThreshold || 6));
+  let trips = 0;
+  let onRoad = 0;
+  let stalled = 0;
+  let routed = 0;
+  for (const dwarf of state.dwarves || []) {
+    const target = dwarf.job?.target;
+    if (!target || (dwarf.underrealmDuty && dwarf.underrealmDuty.active !== false)
+      || (dwarf.x === target.x && dwarf.y === target.y)) continue;
+    trips += 1;
+    if (roadTypes.has(state.roads?.types?.[dwarf.y]?.[dwarf.x])) onRoad += 1;
+    const route = dwarf.roadRoute;
+    if (route && route.targetKey === dwarf.pathTargetKey && route.jobId === (dwarf.job?.id || null)) routed += 1;
+    if (Number(dwarf.pathStallTicks || 0) >= stallThreshold) stalled += 1;
+  }
+  const routeCount = affinity.routing_mode === "cost_guarded" ? `routed ${routed}` : `road ${onRoad}`;
+  return [`Traffic: trips ${trips} | ${routeCount} | stalled ${stalled}`];
+}
+
 // Resolve a compact social telemetry snapshot with safe defaults.
 function buildSocialTelemetrySnapshot(state, config) {
   const socialConfig =
@@ -1410,6 +1442,7 @@ function buildSocialTelemetrySnapshot(state, config) {
       : 0,
     grudgeLoad: enabled ? clamp(Number(social.grudgeLoad || 0), 0, 1) : 0,
     longArcHarmony: enabled ? clamp(Number(longArc.harmony || 0), 0, 1) : 0,
+    longArcEnabled: enabled && socialConfig.longArc?.enabled !== false,
     longArcStrife: enabled ? clamp(Number(longArc.strife || 0), 0, 1) : 0,
     longArcSupport: enabled ? clamp(Number(longArc.avgSupport || 0), 0, 1) : 0,
     longArcBurden: enabled ? clamp(Number(longArc.avgBurden || 0), 0, 1) : 0,
@@ -1451,8 +1484,12 @@ function buildSocialSectionRows(snapshot) {
     `Social runtime: active | updates ${social.updates} | tracked links ${social.links}`,
     `Cohesion / conflict: ${Math.round(social.cohesion * 100)}% / ${Math.round(social.conflictPressure * 100)}%`,
     `Mentorship / grudge: ${Math.round(social.mentorshipCoverage * 100)}% / ${Math.round(social.grudgeLoad * 100)}%`,
-    `Long arc climate: harmony ${Math.round(social.longArcHarmony * 100)}% | strife ${Math.round(social.longArcStrife * 100)}%`,
-    `Long arc memory: support ${Math.round(social.longArcSupport * 100)}% | burden ${Math.round(social.longArcBurden * 100)}%`,
+    social.longArcEnabled
+      ? `Long arc climate: harmony ${(social.longArcHarmony * 100).toFixed(1)}% | strife ${(social.longArcStrife * 100).toFixed(1)}%`
+      : "Long arc climate: off",
+    social.longArcEnabled
+      ? `Long arc memory: support ${(social.longArcSupport * 100).toFixed(1)}% | burden ${(social.longArcBurden * 100).toFixed(1)}%`
+      : "Long arc memory: off",
     formatSocialGovernorLine(social.governor),
     `Status counts: friends ${social.friendships}, rivals ${social.rivalries}, mentors ${social.mentorships}, grudges ${social.grudges}`,
     `Incident ledger: total ${social.incidents} | breakthrough ${social.incidentsByType.mentorshipBreakthrough} | clash ${social.incidentsByType.rivalryClash} | escalation ${social.incidentsByType.grudgeEscalation} | reconcile ${social.incidentsByType.reconciliation}`,

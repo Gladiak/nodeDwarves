@@ -3,6 +3,11 @@
 const { clamp } = require('../utils');
 const { randomBetween } = require('./random');
 const { getTerrainMoveDelay, isWalkableTile, isSpawnableTile } = require('./terrain');
+const { performance } = require('perf_hooks');
+const { getMovementObserver, recordMovement, recordPathRebuild } = require('../telemetry/refinement');
+const { chooseCostGuardedRoadStep, isRoadTravelCell, hasProgressingRoadContinuation,
+  chooseProtectedRoadTripStep, getRoadTargetConnections, isTargetConnectedRoadCell,
+  isProtectedRoadGather } = require('./road_routing');
 
 const DWARF_ROAD_AFFINITY_PROFILES = {
   pragmatic: {
@@ -101,10 +106,19 @@ function moveTowardsStep(entity, target, runtime, state, config) {
 function moveWithDetour(entity, targetX, targetY, runtime, state, config, pathKey) {
   const pathing = (config.population && config.population.pathing) || {};
   const mode = String(pathing.mode || 'detour');
-  if (mode === 'field') {
-    return moveWithField(entity, targetX, targetY, runtime, state, config, pathKey, pathing);
+  const observer = getMovementObserver(state);
+  const beforeX = entity.x;
+  const beforeY = entity.y;
+  const cooldown = Number(entity.moveCooldown || 0);
+  const started = observer ? performance.now() : 0;
+  const moved = mode === 'field'
+    ? moveWithField(entity, targetX, targetY, runtime, state, config, pathKey, pathing)
+    : moveWithDetourLegacy(entity, targetX, targetY, runtime, state, config, pathKey);
+  if (observer) {
+    observer.pathingMs += performance.now() - started;
+    recordMovement(observer, state, entity, targetX, targetY, beforeX, beforeY, cooldown, pathKey);
   }
-  return moveWithDetourLegacy(entity, targetX, targetY, runtime, state, config, pathKey);
+  return moved;
 }
 
 // Move toward a target using a detour when stalled.
@@ -179,6 +193,8 @@ function moveWithField(entity, targetX, targetY, runtime, state, config, pathKey
   }
 
   const key = pathKey || `${targetX},${targetY}`;
+  if (entity.roadRoute && (entity.roadRoute.targetKey !== key
+    || entity.roadRoute.jobId !== (entity.job?.id || null))) delete entity.roadRoute;
   if (entity.pathTargetKey !== key) {
     entity.pathTargetKey = key;
     entity.pathStallTicks = 0;
@@ -211,7 +227,7 @@ function moveWithField(entity, targetX, targetY, runtime, state, config, pathKey
   }
 
   if (!moved) {
-    moved = moveWithFieldStep(entity, targetX, targetY, runtime, state, config, field, fieldConfig);
+    moved = moveWithFieldStep(entity, targetX, targetY, runtime, state, config, field, fieldConfig, key);
   }
 
   const afterDistance = getTargetDistance(field, targetX, targetY, entity.x, entity.y);
@@ -252,7 +268,7 @@ function applyMoveWithCooldown(entity, x, y, state, config) {
 }
 
 // Choose a potential-field step toward the target.
-function moveWithFieldStep(entity, targetX, targetY, runtime, state, config, field, fieldConfig) {
+function moveWithFieldStep(entity, targetX, targetY, runtime, state, config, field, fieldConfig, pathKey) {
   const candidates = [
     { x: entity.x, y: entity.y },
     { x: entity.x + 1, y: entity.y },
@@ -270,7 +286,6 @@ function moveWithFieldStep(entity, targetX, targetY, runtime, state, config, fie
     return false;
   }
 
-  const occupancy = fieldConfig.crowdWeight > 0 ? ensureOccupancyMap(state, runtime) : null;
   const currentTargetDistance = getTargetDistance(field, targetX, targetY, entity.x, entity.y);
   const roadAffinity = fieldConfig.roadAffinity || null;
   const useRoadAffinity = Boolean(
@@ -278,22 +293,39 @@ function moveWithFieldStep(entity, targetX, targetY, runtime, state, config, fie
       && roadAffinity.enabled
       && currentTargetDistance >= roadAffinity.minTargetDistance,
   );
-  const roadDistanceMap = useRoadAffinity ? ensureRoadDistanceMap(state, runtime) : null;
+  const guardedRouting = roadAffinity && roadAffinity.enabled && roadAffinity.routingMode === 'cost_guarded'
+    && !isProtectedRoadGather(entity, roadAffinity.protectedGatherResources)
+    && !(entity.underrealmDuty && entity.underrealmDuty.active !== false);
+  const canChooseRoad = useRoadAffinity && guardedRouting;
+  const connections = guardedRouting && roadAffinity.completedConnectionsOnly
+    ? getRoadTargetConnections(state, targetX, targetY, roadAffinity.destinationRadius, roadAffinity.regionalNetworkOnly) : null;
+  const isRoutingRoad = (x, y) => connections
+    ? isTargetConnectedRoadCell(state, x, y, connections) : isRoadTravelCell(state, x, y);
+  const costGuarded = canChooseRoad
+    && (!roadAffinity.continuationOnly || isRoutingRoad(entity.x, entity.y));
+  const targetCrowdExemption = guardedRouting && roadAffinity.targetCrowdExemption
+    && (roadAffinity.wholeTripProtection || isRoadTravelCell(state, entity.x, entity.y))
+    && entity.roadRoute?.targetKey === pathKey && entity.roadRoute.jobId === (entity.job?.id || null)
+    && (entity.job || String(pathKey).startsWith('home:'));
+  const occupancy = fieldConfig.crowdWeight > 0 || guardedRouting ? ensureOccupancyMap(state, runtime) : null;
+  const roadDistanceMap = useRoadAffinity && roadAffinity.routingMode !== 'cost_guarded'
+    ? ensureRoadDistanceMap(state, runtime) : null;
   const scored = [];
   let bestCost = Infinity;
 
   for (const pos of candidates) {
     const dist = getTargetDistance(field, targetX, targetY, pos.x, pos.y);
     let cost = dist;
+    const delay = fieldConfig.terrainWeight > 0 || guardedRouting
+      ? getTerrainMoveDelay(state, config, pos.x, pos.y) : 0;
+    const crowd = occupancy ? getOccupancyCount(occupancy, pos.x, pos.y, entity) : 0;
 
     if (fieldConfig.terrainWeight > 0) {
-      const delay = getTerrainMoveDelay(state, config, pos.x, pos.y);
       cost += fieldConfig.terrainWeight * delay;
     }
 
     if (occupancy && fieldConfig.crowdWeight > 0) {
-      const crowd = getOccupancyCount(occupancy, pos.x, pos.y, entity);
-      if (crowd > 0) {
+      if (crowd > 0 && !(targetCrowdExemption && pos.x === targetX && pos.y === targetY)) {
         cost += fieldConfig.crowdWeight * crowd;
       }
     }
@@ -332,7 +364,8 @@ function moveWithFieldStep(entity, targetX, targetY, runtime, state, config, fie
     if (cost < bestCost) {
       bestCost = cost;
     }
-    scored.push({ x: pos.x, y: pos.y, cost });
+    scored.push({ x: pos.x, y: pos.y, cost, distance: dist, delay, crowd,
+      road: guardedRouting && isRoutingRoad(pos.x, pos.y) });
   }
 
   if (scored.length === 0) {
@@ -368,6 +401,40 @@ function moveWithFieldStep(entity, targetX, targetY, runtime, state, config, fie
 
   if (!pick) {
     return false;
+  }
+  if (costGuarded) {
+    const ordinary = pick;
+    const approveRoad = (candidate) =>
+      hasProgressingRoadContinuation(candidate, roadAffinity.minimumRoadSteps, (x, y) => {
+        if (x < 0 || y < 0 || x >= runtime.gridWidth || y >= runtime.gridHeight
+          || !isRoutingRoad(x, y) || !isWalkableTile(state, x, y)) return null;
+        return { road: true, distance: getTargetDistance(field, targetX, targetY, x, y),
+          delay: getTerrainMoveDelay(state, config, x, y),
+          crowd: occupancy ? getOccupancyCount(occupancy, x, y, entity) : 0 };
+      }, ordinary.delay, ordinary.crowd);
+    pick = chooseCostGuardedRoadStep(scored, ordinary, currentTargetDistance, approveRoad,
+      roadAffinity.minimumCostImprovement, roadAffinity.preserveProgressingSteps);
+    if (pick !== ordinary || (roadAffinity.wholeTripProtection && !entity.roadRoute
+      && pick.road && pick.distance < currentTargetDistance && approveRoad(pick))) {
+      const observer = getMovementObserver(state);
+      if (observer && !entity.roadRoute) {
+        observer.movement.roadTripsStarted += 1;
+        if (observer.movement.firstRoadTripTick === null) observer.movement.firstRoadTripTick = state.tick;
+      }
+      entity.roadRoute = { targetKey: pathKey, jobId: entity.job?.id || null };
+    }
+    const observer = getMovementObserver(state);
+    if (observer) {
+      observer.movement.roadEvaluations += 1;
+      if (pick !== ordinary) observer.movement.roadSubstitutions += 1;
+    }
+  }
+  if (guardedRouting && roadAffinity.wholeTripProtection
+    && entity.roadRoute?.targetKey === pathKey && entity.roadRoute.jobId === (entity.job?.id || null)) {
+    const ordinary = pick;
+    pick = chooseProtectedRoadTripStep(scored, ordinary, currentTargetDistance);
+    const observer = getMovementObserver(state);
+    if (observer && pick !== ordinary) observer.movement.roadProgressProtections += 1;
   }
   return applyMoveWithCooldown(entity, pick.x, pick.y, state, config);
 }
@@ -491,6 +558,18 @@ function getFieldConfig(pathing) {
     roadAffinity: {
       enabled: roadAffinityEnabled,
       profile: roadAffinityProfile.name,
+      routingMode: roadAffinityRaw.routing_mode === 'cost_guarded' ? 'cost_guarded' : 'attraction',
+      targetCrowdExemption: roadAffinityRaw.target_crowd_exemption === true,
+      wholeTripProtection: roadAffinityRaw.whole_trip_protection === true,
+      completedConnectionsOnly: roadAffinityRaw.completed_connections_only === true,
+      regionalNetworkOnly: roadAffinityRaw.regional_network_only === true,
+      protectedGatherResources: Array.isArray(roadAffinityRaw.protected_gather_resources)
+        ? roadAffinityRaw.protected_gather_resources : [],
+      destinationRadius: Math.max(0, Math.min(16, Math.floor(Number(roadAffinityRaw.destination_radius ?? 3)) || 0)),
+      minimumRoadSteps: Math.max(1, Math.min(8, Math.floor(Number(roadAffinityRaw.minimum_road_steps)) || 1)),
+      minimumCostImprovement: clamp(Number(roadAffinityRaw.minimum_cost_improvement) || 0, 0, 2),
+      continuationOnly: roadAffinityRaw.road_continuation_only === true,
+      preserveProgressingSteps: roadAffinityRaw.preserve_progressing_steps === true,
       minTargetDistance: roadAffinityMinTargetDistance,
       onRoadBonus: roadAffinityOnRoadBonus,
       offRoadPenalty: roadAffinityOffRoadPenalty,
@@ -575,6 +654,7 @@ function prunePathFields(fields, tick, ttlTicks) {
 
 // Build a BFS distance field centered on the target.
 function buildPathField(state, runtime, targetX, targetY, radius) {
+  recordPathRebuild(state, 'field');
   const width = runtime.gridWidth;
   const height = runtime.gridHeight;
   const safeRadius = Math.max(1, Math.floor(Number(radius || 0)));
@@ -851,6 +931,7 @@ function ensureRoadDistanceMap(state, runtime) {
     return existing;
   }
   if (!hasRoadOverlay) {
+    recordPathRebuild(state, 'road');
     const emptyRoadDistance = {
       width,
       height,
@@ -862,6 +943,7 @@ function ensureRoadDistanceMap(state, runtime) {
     return emptyRoadDistance;
   }
 
+  recordPathRebuild(state, 'road');
   const total = width * height;
   const distances = new Array(total).fill(-1);
   const queue = new Int32Array(total);

@@ -1,5 +1,7 @@
 'use strict';
 
+const { recordSagaMetric } = require('../telemetry/refinement');
+
 const HARD_MAX_SAGA_CHAPTERS = 16;
 const HARD_MAX_CHAPTER_EVENT_REFS = 8;
 const HARD_MAX_SAGA_ACTOR_REFS = 16;
@@ -61,14 +63,18 @@ function advanceSagaLifecycles(story, settings, rawTick) {
       saga.status = 'dormant';
       closeActiveChapter(saga, tick);
     }
+    const archiveGrace = saga.status === 'dormant' && saga.eventCount >= 2
+      ? Number(settings.unresolvedArchiveGraceTicks || 0) : 0;
     if (
       (saga.status === 'dormant' || TERMINAL_SAGA_STATUSES.has(saga.status))
-      && inactiveTicks >= settings.archiveTimeoutTicks
+      && inactiveTicks >= settings.archiveTimeoutTicks + archiveGrace
     ) {
+      const statusBefore = saga.status;
       saga.status = 'archived';
       saga.archivedTick = tick;
       closeActiveChapter(saga, tick);
       incrementStoryStat(story, 'sagasArchived');
+      recordSagaMetric(story, 'archived', saga, { reason: 'age_timeout', statusBefore, tick });
     }
   }
 }
@@ -80,16 +86,25 @@ function processSagaEvent(story, event, settings) {
   advanceSagaLifecycles(story, settings, tick);
   const evidence = buildEventEvidence(event);
   let saga = resolveExplicitSaga(story, event, settings, evidence);
-  if (!saga) saga = resolveParentSaga(story, evidence.parentEventIds);
+  let path = 'explicit_id';
+  if (!saga) { saga = resolveParentSaga(story, evidence.parentEventIds); path = 'parent_cause'; }
+  const trace = { candidates: 0, bestScore: 0 };
   if (!saga && isSagaEligible(event, settings)) {
-    saga = resolveMatchedSaga(story, evidence, settings);
+    saga = resolveMatchedSaga(story, evidence, settings, trace);
+    if (saga) path = getMatchPath(saga, evidence);
   }
   if (!saga && isSagaEligible(event, settings)) {
-    saga = createGeneratedSaga(story, event, settings);
+    const reason = trace.candidates === 0 ? 'no_active_saga'
+      : trace.bestScore === 0 ? 'no_shared_evidence' : 'score_below_threshold';
+    saga = createGeneratedSaga(story, event, settings, reason);
+    path = 'opened';
   }
-  if (!saga) return null;
+  if (!saga) {
+    recordSagaMetric(story, 'skippedEvents', null, { event });
+    return null;
+  }
 
-  appendSagaEvent(story, saga, event, evidence, settings);
+  appendSagaEvent(story, saga, event, evidence, settings, path);
   event.sagaId = saga.id;
   return saga;
 }
@@ -98,7 +113,7 @@ function resolveExplicitSaga(story, event, settings) {
   const explicitId = normalizeToken(event.sagaId, 96);
   if (!explicitId || !isSafeObjectKey(explicitId)) return null;
   if (story.sagas.byId[explicitId]) return story.sagas.byId[explicitId];
-  return createSaga(story, event, settings, explicitId);
+  return createSaga(story, event, settings, explicitId, 'explicit_id_new');
 }
 
 function resolveParentSaga(story, parentEventIds) {
@@ -111,12 +126,14 @@ function resolveParentSaga(story, parentEventIds) {
   return null;
 }
 
-function resolveMatchedSaga(story, evidence, settings) {
+function resolveMatchedSaga(story, evidence, settings, trace) {
   const candidates = [];
   for (const sagaId of story.sagas.order) {
     const saga = story.sagas.byId[sagaId];
     if (!saga || !ACTIVE_SAGA_STATUSES.has(saga.status)) continue;
     const score = scoreSagaMatch(saga, evidence, settings.matching);
+    trace.candidates += 1;
+    trace.bestScore = Math.max(trace.bestScore, score);
     if (score < settings.matching.minimumScore) continue;
     candidates.push({ saga, score });
   }
@@ -130,12 +147,22 @@ function resolveMatchedSaga(story, evidence, settings) {
   return candidates.length > 0 ? candidates[0].saga : null;
 }
 
+// Explain the strongest authoritative evidence path without changing match scoring.
+function getMatchPath(saga, evidence) {
+  for (const [field, path] of [['threatIds', 'antagonist'], ['factionIds', 'faction'],
+    ['placeIds', 'place'], ['locationKeys', 'location'], ['actorKeys', 'actor']]) {
+    if (countOverlap(saga[field], evidence[field]) > 0) return path;
+  }
+  return 'retained_evidence';
+}
+
 function scoreSagaMatch(saga, evidence, weights) {
+  const actorWeight = weights.requireFamilyForActor && saga.family !== evidence.family ? 0 : weights.actor;
   return countOverlap(saga.threatIds, evidence.threatIds) * weights.threat
     + countOverlap(saga.factionIds, evidence.factionIds) * weights.faction
     + countOverlap(saga.placeIds, evidence.placeIds) * weights.place
     + countOverlap(saga.locationKeys, evidence.locationKeys) * weights.location
-    + countOverlap(saga.actorKeys, evidence.actorKeys) * weights.actor;
+    + countOverlap(saga.actorKeys, evidence.actorKeys) * actorWeight;
 }
 
 function countOverlap(left, right) {
@@ -154,7 +181,7 @@ function isSagaEligible(event, settings) {
   return rank >= minimumRank;
 }
 
-function createGeneratedSaga(story, event, settings) {
+function createGeneratedSaga(story, event, settings, reason) {
   const cycle = normalizeTick(event.cycle, 0);
   let id = null;
   while (!id || story.sagas.byId[id]) {
@@ -162,16 +189,17 @@ function createGeneratedSaga(story, event, settings) {
     story.sagas.nextSequence = Math.min(Number.MAX_SAFE_INTEGER, sequence + 1);
     id = `saga_c${String(cycle).padStart(4, '0')}_${String(sequence).padStart(4, '0')}`;
   }
-  return createSaga(story, event, settings, id);
+  return createSaga(story, event, settings, id, reason);
 }
 
-function createSaga(story, event, settings, id) {
+function createSaga(story, event, settings, id, reason) {
   if (settings.maxEntries <= 0) return null;
-  makeSagaCapacity(story, settings);
+  makeSagaCapacity(story, settings, event.tick);
   if (story.sagas.order.length >= settings.maxEntries) return null;
   const tick = normalizeTick(event.tick, 0);
   const saga = {
     id,
+    family: normalizeToken(event.type, 96)?.split('.')[0] || null,
     status: 'open',
     openedTick: tick,
     lastEventTick: tick,
@@ -190,21 +218,23 @@ function createSaga(story, event, settings, id) {
     chaptersCompacted: 0,
     summary: '',
     resolutionEventId: null,
+    resolutionSummary: '',
   };
   story.sagas.order.push(id);
   story.sagas.byId[id] = saga;
   incrementStoryStat(story, 'sagasOpened');
+  recordSagaMetric(story, 'opened', saga, { event, reason });
   return saga;
 }
 
-function makeSagaCapacity(story, settings) {
+function makeSagaCapacity(story, settings, tick) {
   while (story.sagas.order.length >= settings.maxEntries && story.sagas.order.length > 0) {
     const candidates = story.sagas.order
       .map((id, index) => ({ saga: story.sagas.byId[id], id, index }))
       .filter((entry) => entry.saga);
     candidates.sort((left, right) => {
-      const leftRank = evictionRank(left.saga.status);
-      const rightRank = evictionRank(right.saga.status);
+      const leftRank = evictionRank(left.saga, settings, tick);
+      const rightRank = evictionRank(right.saga, settings, tick);
       if (leftRank !== rightRank) return leftRank - rightRank;
       if (left.saga.lastEventTick !== right.saga.lastEventTick) {
         return left.saga.lastEventTick - right.saga.lastEventTick;
@@ -215,24 +245,31 @@ function makeSagaCapacity(story, settings) {
     const selected = candidates[0];
     if (!selected) return;
     if (selected.saga.status !== 'archived') incrementStoryStat(story, 'sagasArchived');
+    recordSagaMetric(story, 'evicted', selected.saga, { reason: 'capacity',
+      statusBefore: selected.saga.status, tick });
     delete story.sagas.byId[selected.id];
     story.sagas.order.splice(selected.index, 1);
     incrementStoryStat(story, 'sagasEvicted');
   }
 }
 
-function evictionRank(status) {
+function evictionRank(saga, settings, tick) {
+  const status = saga.status;
   if (status === 'archived') return 0;
+  if (TERMINAL_SAGA_STATUSES.has(status)
+    && normalizeTick(tick, 0) - saga.lastEventTick < settings.lifecycle.terminalRetentionTicks) return 4;
   if (TERMINAL_SAGA_STATUSES.has(status)) return 1;
   if (status === 'dormant') return 2;
   if (status === 'open') return 3;
   return 4;
 }
 
-function appendSagaEvent(story, saga, event, evidence, settings) {
+function appendSagaEvent(story, saga, event, evidence, settings, path) {
   const tick = normalizeTick(event.tick, saga.lastEventTick);
   saga.lastEventTick = tick;
   saga.eventCount = Math.min(Number.MAX_SAFE_INTEGER, saga.eventCount + 1);
+  if (!saga.family) saga.family = evidence.family;
+  recordSagaMetric(story, 'assignedEvents', saga, { event, path });
   appendUniqueBounded(saga.eventIds, event.id, settings.maxEventRefs);
   appendManyBounded(saga.actorIds, evidence.actorIds, settings.maxActorRefs);
   appendManyBounded(saga.actorKeys, evidence.actorKeys, settings.maxActorRefs);
@@ -244,12 +281,16 @@ function appendSagaEvent(story, saga, event, evidence, settings) {
 
   const terminalStatus = resolveTerminalStatus(event, settings.lifecycle);
   if (terminalStatus) {
+    const statusBefore = saga.status;
     const changed = saga.status !== terminalStatus;
     saga.status = terminalStatus;
     saga.closedTick = tick;
     saga.resolutionEventId = event.id;
+    saga.resolutionSummary = normalizeText(event.message, settings.chapterSummaryMaxChars);
+    saga.summary = saga.resolutionSummary;
     closeActiveChapter(saga, tick);
     if (changed) incrementStoryStat(story, terminalStatus === 'resolved' ? 'sagasResolved' : 'sagasFailed');
+    if (changed) recordSagaMetric(story, terminalStatus, saga, { reason: 'outcome', statusBefore, tick, event });
     return;
   }
   if (saga.status === 'archived' || TERMINAL_SAGA_STATUSES.has(saga.status)) {
@@ -287,7 +328,8 @@ function appendChapterFact(story, saga, event, settings) {
       settings.chapterSummaryMaxChars,
     );
   }
-  saga.summary = chapter.summary;
+  saga.summary = TERMINAL_SAGA_STATUSES.has(saga.status) && saga.resolutionSummary
+    ? saga.resolutionSummary : chapter.summary;
 }
 
 function createChapter(saga, event, settings) {
@@ -325,6 +367,9 @@ function closeChapter(chapter, tick) {
 
 function resolveTerminalStatus(event, lifecycle) {
   const type = normalizeToken(event.type, 96) || '';
+  if (type.startsWith('schism.') && /^saga_schism_c\d+$/.test(String(event.sagaId || ''))) {
+    return type === 'schism.climax_resolved' ? 'resolved' : null;
+  }
   const tags = normalizeTokenList(event.tags, 32, 32);
   if (lifecycle.failedTypeSuffixes.some((suffix) => typeHasSuffix(type, suffix))
     || tags.includes('failed')) return 'failed';
@@ -375,6 +420,7 @@ function buildEventEvidence(event) {
     }
   }
   return {
+    family: normalizeToken(event.type, 96)?.split('.')[0] || null,
     actorIds,
     actorKeys,
     placeIds,
@@ -407,6 +453,7 @@ function normalizeSagaRecord(value, id, settings) {
   normalizeChapterLifecycle(chapters, status);
   return {
     id,
+    family: normalizeToken(value.family, 96),
     status,
     openedTick: normalizeTick(value.openedTick, 0),
     lastEventTick: normalizeTick(value.lastEventTick, 0),
@@ -425,6 +472,8 @@ function normalizeSagaRecord(value, id, settings) {
     chaptersCompacted: clampInteger(value.chaptersCompacted, 0, 0, Number.MAX_SAFE_INTEGER),
     summary: normalizeText(value.summary, settings.chapterSummaryMaxChars),
     resolutionEventId: normalizeToken(value.resolutionEventId, 96),
+    resolutionSummary: normalizeText(value.resolutionSummary
+      || (TERMINAL_SAGA_STATUSES.has(status) ? value.summary : ''), settings.chapterSummaryMaxChars),
   };
 }
 

@@ -19,10 +19,10 @@ This file defines how to implement new features in a consistent, stable way.
 - Always update README.md and MANUAL.md after new implementations or tweaks, if needed.
 - README.md is a general product feature overview; avoid deep implementation details, formulas, and low-level file-by-file behavior.
 - README.md tone: technical but playful (nerd-friendly). Use emojis.
-- MANUAL.md is the technical manual and operational runbook (systems, formulas, workflows, implementation behavior). Tone: technical-nerd and precise. Use emojis.
+- MANUAL.md is a concise user and operator guide. Keep commands and practical behavior; omit completed implementation plans, historical acceptance reports, formulas and low-level module walkthroughs.
 - Keep MANUAL.md section order stable for discoverability: Scope, Operations, Mental model, Tick flow, Runtime, State generation, Simulation systems, Rendering, AI/training, Configuration, Role guide, Deep dives, Project layout.
 - Always keep project structure documentation up to date: update AGENTS.md, README.md (Project layout), and MANUAL.md (Project layout cheatsheet) whenever files or folders are added, renamed, moved, or removed.
-- For substantial implementations, update documentation with a clear, high-detail explanation (README, MANUAL, and relevant docs).
+- Keep README and MANUAL current and concise. Do not recreate the removed docs directory or completed implementation reports unless explicitly requested.
 - Always write documentation in English.
 
 ## Project structure
@@ -30,14 +30,14 @@ This file defines how to implement new features in a consistent, stable way.
 - Keep this section always aligned with the real repository layout.
 - `app.js`: entrypoint and main loop.
 - `config.json`: single source of truth for tunables.
-- `docs/PARAMETERS.md`: config parameter reference.
-- `docs/TRAINING_OVERRIDES.md`: training overrides guide.
-- `docs/TRAINING_STATUS.md`: current training quality status, active validation cadence, and pending closure items.
-- `docs/TRAINING_OPTIMIZATION_WORKBOOK.md`: step-by-step implementation workbook, decision log, and timeline for training optimization workstreams.
-- `docs/SIMULATION_REFINEMENT_WORKBOOK.md`: active ordered implementation workbook, progress dashboard, decision log, validation gates, risk register, and evidence tracker for simulation refinement workstreams.
-- `docs/NARRATIVE_EVENT_CONTRACT.md`: normative versioned event envelope, deterministic identity, compatibility, retention, and serialization contract for narrative systems.
-- `docs/TELEMETRY.md`: telemetry operator manual (from zero to hero).
+- `README.md`: product overview, quick start and controls.
+- `MANUAL.md`: concise user/operator guide.
+- `AGENTS.md`: contributor and agent guidelines.
 - `.github/workflows/quality_gates.yml`: CI automation for extended/weekly training quality gates and artifact upload.
+- `scripts/assemble_quality_artifacts.js`: content-fingerprinted CI evidence assembly with commit/run provenance, stale-report exclusion and explicit missing-phase status.
+- `scripts/review_chronicle_retention.js`: read-only snapshot/replay study of Chronicle density, source integrity, saga-status coverage, bounds and deterministic export hashes.
+- `scripts/test_operational_closure_contracts.js`: deterministic CI freshness, failed/skipped-phase, retained-claim, source/bounds and RNG-purity contracts (`npm run test:operational-closure`; included in `npm test`).
+- `scripts/test_legend_panel.js`: complete surface/deep symbol visibility, responsive pagination, color bounds and real arrow-dispatch contracts (`npm run test:legend`; included in `npm test`).
 - `src/config.js`: config loader.
 - `src/simulation/`: simulation systems split by theme.
 - `src/simulation/index.js`: simulation orchestrator.
@@ -48,6 +48,8 @@ This file defines how to implement new features in a consistent, stable way.
 - `src/simulation/experience_ledger.js`: bounded source-backed per-dwarf deed ledger, deterministic merge/retention rules, and read-only biography views.
 - `src/simulation/chronicle.js`: fixed cycle chapters, compact evidence, factual-integrity verification, summaries, and bounded cross-cycle Chronicle archives.
 - `src/simulation/world_legacy.js`: versioned bounded cross-cycle summaries, archived identities/places, memorials, inherited institutions, deterministic geographic remapping, and saga hooks.
+- `src/simulation/legacy_effects.js`: typed, source-verified, capped and decaying Builders' Guild construction effects.
+- `src/simulation/road_routing.js`: pure destination-progress, terrain, crowd and ordinary-cost guards for road-step substitution.
 - `src/simulation/epic_conflicts.js`: bounded deterministic nemesis registry, staged surface sieges, hero rivalry branches, recovery, and legacy restoration.
 - `src/simulation/nemesis_events.js`: canonical structured nemesis promotion, reappearance, siege-stage, battle, and aftermath event boundary.
 - `src/simulation/landmarks.js`: bounded multi-stage monumental landmarks, deterministic final-footprint reservation, district conditions, and render-tile projection.
@@ -87,6 +89,7 @@ This file defines how to implement new features in a consistent, stable way.
   all/drama filters, importance badges, and compact actor/place/saga context.
 - `src/telemetry/`: telemetry section and Data Center panel builders.
 - `src/telemetry/telemetry.js`: telemetry section builders and formatting helpers.
+- `src/telemetry/refinement.js`: opt-in read-only headless economy/social/saga/movement/legacy counters and bounded travel histograms, isolated from saves, gameplay RNG, and PPO.
 - `src/telemetry/story_director.js`: read-only Story Director telemetry rows plus deterministic headless counter tracking and report summaries.
 - `src/telemetry/telemetry_panel.js`: in-game telemetry reference overlay panel (section and metric explanations).
 - `src/render.js`: thin wrapper for `src/render/index.js`.
@@ -121,17 +124,24 @@ This file defines how to implement new features in a consistent, stable way.
   reset, export-hash, density-bound, and AI-observation isolation suite (`npm run test:chronicle`; included in `npm test`).
 - `scripts/test_world_legacy_contracts.js`: deterministic E6 schema, migration, retention, remapping,
   rendering, multi-cycle, and AI-observation isolation suite (`npm run test:world-legacy`; included in `npm test`).
-- `scripts/validate_world_legacy.js`: deterministic two-cycle/five-cycle E6 state-growth, balance-signal, and stop-rule validator.
+- `scripts/validate_world_legacy.js`: deterministic two-/five-/ten-cycle E6 state-growth, balance-signal, and stop-rule validator.
+- `scripts/validate_road_routing.js`: fixed P3.3 per-seed/aggregate economy, travel, gathering, invalid-value and optional timing gate (`npm run validate:road-routing`).
 - `scripts/test_epic_conflict_contracts.js`: deterministic E7 identity, promotion, siege lifecycle,
   rivalry, legacy, rendering, retention, serialization, and AI-observation isolation suite (`npm run test:epic-conflicts`; included in `npm test`).
 - `scripts/validate_epic_conflicts.js`: deterministic full-siege, collapse-guard, and repeated-siege E7 validator.
 - `scripts/test_landmark_contracts.js`: deterministic E8 schema, placement, progression, collision, rendering/export, condition, serialization, and AI-observation isolation suite (`npm run test:landmarks`; included in `npm test`).
 - `scripts/validate_landmarks.js`: deterministic multi-seed/size E8 organic-construction, population, and bounded-state validator.
+- `scripts/test_saga_refinement_contracts.js`: bounded cause diagnostics, actor-family guards, political identity/outcome, dormant grace, terminal retention, serialization, RNG and observation contracts (`npm run test:saga-refinement`).
+- `scripts/test_legacy_effect_contracts.js`: inherited-effect evidence, consumer, decay, caps, migration, serialization, RNG and PPO isolation contracts (`npm run test:legacy-effects`).
+- `scripts/test_road_routing_contracts.js`: deterministic road dominance, actual-mover, RNG, work-family, cache, reload and PPO contracts (`npm run test:road-routing`).
+- `scripts/test_social_memory_contracts.js`: focused long-arc support/burden, mood, shock, decay, disabled-mode, and save contracts for M1.
+- `scripts/test_core_simulation_contracts.js`: deterministic economy, consumption, population, structure, movement, raid, save, and read-only measurement contracts (`npm run test:core-simulation`; included in `npm test`).
 - `scripts/test_training_contracts.js`: deterministic technical contract suite for training/validation schemas (included in `npm test`).
+- `debug/regression_{standard,underrealm,governance,horizon}_latest.{json,md}`: latest model non-regression evidence for each release risk profile.
 - `benchmark_cache/headless_benchmark_baseline.json`: versioned cached headless benchmark baseline used for report diffs.
 - `benchmark_cache/headless_benchmark_baseline.md`: markdown companion of the cached headless benchmark baseline.
 - `debug/headless_benchmark_candidate.json`, `debug/headless_benchmark_candidate.md`,
-  `debug/headless_benchmark_diff.json`, and `debug/headless_benchmark_diff.md`: latest canonical E8
+  `debug/headless_benchmark_diff.json`, and `debug/headless_benchmark_diff.md`: latest accepted canonical
   `4 x 8000` candidate and zero-delta cached-baseline comparison evidence.
 - `chronicles/`: git-ignored deterministic Markdown/JSON Chronicle exports created on demand.
 - `regression/baselines/regression_baseline.json`: durable regression baseline profiles used by checks.
@@ -143,10 +153,10 @@ This file defines how to implement new features in a consistent, stable way.
 ## Config-first changes
 
 - Add new parameters to `config.json` with sensible defaults.
-- Document new parameters in `docs/PARAMETERS.md`, then reflect behavior in `MANUAL.md` and only high-level impact in `README.md`.
-- Avoid comments in JSON; use docs/MANUAL/README for explanations.
+- Explain operationally relevant new parameters in `MANUAL.md`; keep only high-level player-facing impact in `README.md`. The authoritative complete parameter set is `config.json`.
+- Avoid comments in JSON; use MANUAL/README for essential explanations.
 - Keep ratios in [0, 1] where possible to simplify tuning.
-- If training overrides or scenario knobs change, update `docs/TRAINING_OVERRIDES.md`.
+- If training overrides or scenario knobs change, update the concise training instructions in `MANUAL.md`.
 
 ## Simulation rules
 
@@ -155,12 +165,12 @@ This file defines how to implement new features in a consistent, stable way.
   - `src/state/` (initial stockpile, nodes, terrain source constraints)
   - `src/simulation/` (gathering, regen, consumption, shortages/jobs)
   - `src/render/` (legend, telemetry, symbols/colors usage)
-  - `docs/PARAMETERS.md` (parameter reference) + `MANUAL.md` (operational behavior) + `README.md` (high-level player-facing mention only if relevant)
+  - `MANUAL.md` (essential operational behavior) + `README.md` (high-level player-facing mention only if relevant)
 - New structures must update:
   - `config.json` (`structures.*`, costs, build ticks, guardrails, `symbols.*`, `display.colors.map` when colors are enabled)
   - `src/simulation/` (build jobs, placement, upgrades/effects)
   - `src/render/` (symbols, legend, telemetry counts)
-  - `docs/PARAMETERS.md` (parameters) + `MANUAL.md` (operational behavior) + `README.md` (high-level player-facing mention only if relevant)
+  - `MANUAL.md` (essential operational behavior) + `README.md` (high-level player-facing mention only if relevant)
 - Guardrails should use stockpile ratios, not absolute counts.
 
 ## Modularization and refactoring
@@ -187,17 +197,17 @@ This file defines how to implement new features in a consistent, stable way.
 ## Debug housekeeping
 
 - Keep `debug/` clean and ordered after every development/optimization cycle.
-- Retain only artifacts needed for traceability and recent comparisons:
-  - latest canonical check reports (`canonical_*`)
-  - latest benchmark/regression/risk summary reports (`*.json`, `*.md`, `*.txt`)
+- Retain only current operational artifacts needed for recent comparisons:
+  - latest canonical model validation report (`canonical_master_latest.*`)
+  - latest operational benchmark/regression/risk reports (`*.json`, `*.md`, `*.txt`)
   - only the latest `2-3` `debug/run_*` folders for local history (default retention in tooling: `3`)
-  - run folders explicitly referenced in `docs/TRAINING_OPTIMIZATION_WORKBOOK.md` or `docs/TRAINING_STATUS.md`
+  - run folders explicitly needed for an active validation or comparison
 - Remove transient artifacts once summarized:
   - large smoke/runtime logs
   - per-seed regression temp folders (`debug/regression_eval_*`, `debug/regression_random_*`)
   - ad-hoc short smoke run folders not referenced by docs (`debug/run_*` mini-smokes)
-- Prefer deterministic cleanup right after validations, before finalizing docs/commits.
-- After cleanup, verify workbook/doc links still point to existing artifacts, or update notes accordingly.
+- Prefer deterministic cleanup right after validations, before finalizing documentation and commits.
+- Remove completed implementation write-ups and keep remaining guide links aligned with existing files.
 - Recommended cleanup commands (adjust to current cycle before running):
   - `npm run debug:clean` (default: keep latest 3 `run_*` folders)
   - `npm run debug:clean -- --keep-runs 2` (stricter retention)

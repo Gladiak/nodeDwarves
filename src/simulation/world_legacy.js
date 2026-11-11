@@ -2,8 +2,9 @@
 
 const { registerPlace } = require('../place_identity');
 const { resolveDwarfIdentity } = require('../dwarf_identity');
+const { buildConstructionInstitution } = require('./legacy_effects');
 
-const WORLD_LEGACY_SCHEMA_VERSION = 2;
+const WORLD_LEGACY_SCHEMA_VERSION = 3;
 const IMPORTANCE = ['ambient', 'notable', 'major', 'critical', 'legendary'];
 const RECORD_FIELDS = ['cycles', 'identities', 'places', 'memorials', 'institutions', 'echoes', 'nemeses'];
 
@@ -84,7 +85,7 @@ function carryWorldLegacyAcrossCycle(previousState, nextState, config, completed
 
   const memorials = buildMemorialRecords(completedChronicle, settings);
   mergeRecords(legacy.memorials, memorials, 'id');
-  mergeRecords(legacy.institutions, buildInstitutionRecords(previousState, completedChronicle, settings), 'id');
+  mergeRecords(legacy.institutions, buildInstitutionRecords(previousState, completedChronicle, settings, config), 'id');
   mergeRecords(legacy.echoes, buildEchoRecords(completedChronicle, memorials, settings), 'id');
   mergeRecords(legacy.nemeses, buildNemesisRecords(previousState, settings), 'id');
 
@@ -233,9 +234,11 @@ function buildMemorialRecords(chronicle, settings) {
   return results;
 }
 
-// Preserve one named institution and an inert, capped modifier hook per cycle.
-function buildInstitutionRecords(previousState, chronicle, settings) {
+// Admit one evidenced typed institution, otherwise retain the old inert memory hook.
+function buildInstitutionRecords(previousState, chronicle, settings, config) {
   if (settings.institutionsPerCycle <= 0) return [];
+  const builders = buildConstructionInstitution(chronicle, config);
+  if (builders) return [builders];
   const identity = previousState?.warriors?.company?.identity || {};
   const cycle = safeCount(chronicle.cycle);
   const name = shortText(identity.name || `Keepers of Cycle ${cycle + 1}`, 96);
@@ -493,6 +496,7 @@ function enforceInstitutionModifierCap(institutions, totalCap) {
   for (let index = institutions.length - 1; index >= 0; index -= 1) {
     const record = institutions[index];
     if (!record.modifier || typeof record.modifier !== 'object') continue;
+    if (record.modifier.schemaVersion === 1) continue;
     const requested = clampNumber(record.modifier.magnitude, 0, 0.1, 0);
     record.modifier.magnitude = Math.min(requested, remaining);
     record.modifier.cap = totalCap;
@@ -533,6 +537,7 @@ function sanitizeRecord(record, field) {
   }
   if (field === 'institutions' && record.modifier && typeof record.modifier === 'object') {
     result.modifier = {
+      schemaVersion: safeCount(record.modifier.schemaVersion),
       id: shortText(record.modifier.id || 'legacy_resolve', 48),
       magnitude: clampNumber(record.modifier.magnitude, 0, 0.1, 0),
       cap: clampNumber(record.modifier.cap, 0, 0.1, 0),

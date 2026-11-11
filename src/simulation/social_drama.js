@@ -190,18 +190,8 @@ function updateSocialDrama(state, config, action) {
     social.conflictPressure = 0;
     social.mentorshipCoverage = 0;
     social.grudgeLoad = 0;
-    social.longArc.avgSupport = 0;
-    social.longArc.avgBurden = 0;
-    social.longArc.harmony = clamp(
-      Number(social.longArc.harmony || 0) * (1 - clamp(Number(longArcConfig.settlementMemoryDecayPerTick ?? 0.004), 0, 1)),
-      0,
-      1,
-    );
-    social.longArc.strife = clamp(
-      Number(social.longArc.strife || 0) * (1 - clamp(Number(longArcConfig.settlementMemoryDecayPerTick ?? 0.004), 0, 1)),
-      0,
-      1,
-    );
+    applyLongArcConsequences(adults, social, longArcConfig, tick);
+    applyLongArcSettlementDrift(social, longArcConfig);
     social.stats.links = 0;
     social.stats.friendships = 0;
     social.stats.rivalries = 0;
@@ -1552,9 +1542,11 @@ function applyLongArcConsequences(adults, social, longArcConfig, tick) {
     let supportTarget = clamp(friendCount * friendSupportWeight + mentorshipCount * mentorshipSupportWeight, 0, 1);
     let burdenTarget = clamp(rivalCount * rivalBurdenWeight + grudgeCount * grudgeBurdenWeight, 0, 1);
     const lastIncidentTick = Math.max(0, Number(socialState.cooldowns.lastIncidentTick || 0));
-    const incidentAge = lastIncidentTick > 0 ? Math.max(0, tick - lastIncidentTick) : null;
+    const incidentAge = lastIncidentTick > 0 && tick >= lastIncidentTick ? tick - lastIncidentTick : null;
     const incidentType = String(socialState.cooldowns.lastIncidentType || '');
-    if (incidentAge !== null && incidentAge <= 1) {
+    const alreadyApplied = Number(socialState.cooldowns.lastMemoryIncidentTick || 0) === lastIncidentTick
+      && socialState.cooldowns.lastMemoryIncidentType === incidentType;
+    if (incidentAge !== null && incidentAge <= 1 && !alreadyApplied) {
       if (incidentType === 'mentorship_breakthrough' || incidentType === 'reconciliation') {
         supportTarget = clamp(supportTarget + supportFromIncident, 0, 1);
         burdenTarget = clamp(burdenTarget - supportFromIncident * 0.45, 0, 1);
@@ -1562,6 +1554,9 @@ function applyLongArcConsequences(adults, social, longArcConfig, tick) {
         burdenTarget = clamp(burdenTarget + burdenFromIncident, 0, 1);
         supportTarget = clamp(supportTarget - burdenFromIncident * 0.35, 0, 1);
       }
+      // A save/load or tickInterval=1 must not repeat the same incident shock.
+      socialState.cooldowns.lastMemoryIncidentTick = lastIncidentTick;
+      socialState.cooldowns.lastMemoryIncidentType = incidentType;
     }
 
     socialState.arc.supportMemory = clamp(
@@ -1837,4 +1832,6 @@ module.exports = {
   updateSocialDrama,
   clearDeadSocialLinks,
   getSocialDramaStatus,
+  applyLongArcConsequences,
+  applyLongArcSettlementDrift,
 };

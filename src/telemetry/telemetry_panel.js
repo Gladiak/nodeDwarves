@@ -94,7 +94,7 @@ const TELEMETRY_PANEL_PAGES = [
   {
     id: 'overview_deep',
     title: 'Overview + Deep',
-    subtitle: 'Core world, named Underrealm places, combat gates/readiness counters, population + social climate, pressure, lore, and deep signals.',
+    subtitle: 'Core world, surface work traffic and verified regional trips, named Underrealm places, combat readiness, population, slow social memory/climate, pressure, lore, and deep signals.',
     sections: ['world', 'underrealm', 'population', 'social', 'lore', 'pressure', 'deepSignals'],
     preferredColumns: 2,
     minColumnWidth: 38,
@@ -102,7 +102,7 @@ const TELEMETRY_PANEL_PAGES = [
   {
     id: 'economy',
     title: 'Economy',
-    subtitle: 'Production chain health, governor signals, explainability, diplomacy, endgame checklist, and bounded world-legacy growth.',
+    subtitle: 'Production chain health, governor signals, explainability, diplomacy, endgame checklist, bounded world legacy, and sourced inherited construction effects.',
     sections: ['stockpile', 'structures', 'operations', 'explainability', 'diplomacy', 'endgame'],
     preferredColumns: 2,
     minColumnWidth: 38,
@@ -606,6 +606,9 @@ function collectDashboardSnapshot(state, config, alertState, alertConfig) {
     conflictPressure: clampUnit(socialState && socialState.conflictPressure, 0),
     mentorshipCoverage: clampUnit(socialState && socialState.mentorshipCoverage, 0),
     grudgeLoad: clampUnit(socialState && socialState.grudgeLoad, 0),
+    longArcEnabled: safeConfig.population?.socialDrama?.longArc?.enabled !== false,
+    harmony: clampUnit(socialState?.longArc?.harmony, 0),
+    strife: clampUnit(socialState?.longArc?.strife, 0),
     incidents: Math.max(
       0,
       Number(
@@ -1810,7 +1813,9 @@ function buildContextSocialSummary(snapshot) {
   const tick = Math.max(0, Number(snapshot.tick || 0));
   const lastIncidentTick = Math.max(0, Number(social.lastIncidentTick || 0));
   const recency = lastIncidentTick > 0 ? `${Math.max(0, tick - lastIncidentTick)}t` : 'none';
-  return `c${cohesion}/f${conflict}/m${mentorship}/g${grudge} inc${incidents}@${recency}`;
+  const memory = social.longArcEnabled
+    ? `h${(social.harmony * 100).toFixed(1)}/s${(social.strife * 100).toFixed(1)}` : 'memory:off';
+  return `c${cohesion}/f${conflict}/m${mentorship}/g${grudge} ${memory} inc${incidents}@${recency}`;
 }
 
 // Build one compact festival summary token for context blocks.

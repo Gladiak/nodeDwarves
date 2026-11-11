@@ -1,7 +1,7 @@
 # Benchmark Report Diff
 
-- baseline report: `/Users/filippoverni/ProgettiLavoro/nodeDwarves/benchmark_cache/headless_benchmark_baseline.json`
-- candidate report: `/Users/filippoverni/ProgettiLavoro/nodeDwarves/debug/headless_benchmark_candidate.json`
+- baseline report: `/Users/gladiak/ProgettiLavoro/nodeDwarves/benchmark_cache/headless_benchmark_baseline.json`
+- candidate report: `/Users/gladiak/ProgettiLavoro/nodeDwarves/debug/headless_benchmark_candidate.json`
 - baseline variant: `baseline`
 - candidate variant: `candidate`
 - compared seeds: `101,202,303,404`
@@ -28,6 +28,8 @@
 | legacyRecords | 0.00 | n/a |
 | legacyNemeses | 0.00 | n/a |
 | legacyBytes | 0.0 | 0.00% |
+| legacyActive | 0.00 | n/a |
+| legacyEffect | 0.00000 | n/a |
 | epicNemeses | 0.00 | 0.00% |
 | epicStarted | 0.00 | 0.00% |
 | epicCompleted | 0.00 | 0.00% |
@@ -85,6 +87,8 @@
 | 101 | legacyRecords | 0.00 | n/a |
 | 101 | legacyNemeses | 0.00 | n/a |
 | 101 | legacyBytes | 0.0 | 0.00% |
+| 101 | legacyActive | 0.00 | n/a |
+| 101 | legacyEffect | 0.00000 | n/a |
 | 101 | epicNemeses | 0.00 | 0.00% |
 | 101 | epicStarted | 0.00 | 0.00% |
 | 101 | epicCompleted | 0.00 | 0.00% |
@@ -122,6 +126,8 @@
 | 202 | legacyRecords | 0.00 | n/a |
 | 202 | legacyNemeses | 0.00 | n/a |
 | 202 | legacyBytes | 0.0 | 0.00% |
+| 202 | legacyActive | 0.00 | n/a |
+| 202 | legacyEffect | 0.00000 | n/a |
 | 202 | epicNemeses | 0.00 | 0.00% |
 | 202 | epicStarted | 0.00 | 0.00% |
 | 202 | epicCompleted | 0.00 | 0.00% |
@@ -159,6 +165,8 @@
 | 303 | legacyRecords | 0.00 | n/a |
 | 303 | legacyNemeses | 0.00 | n/a |
 | 303 | legacyBytes | 0.0 | 0.00% |
+| 303 | legacyActive | 0.00 | n/a |
+| 303 | legacyEffect | 0.00000 | n/a |
 | 303 | epicNemeses | 0.00 | 0.00% |
 | 303 | epicStarted | 0.00 | 0.00% |
 | 303 | epicCompleted | 0.00 | 0.00% |
@@ -196,6 +204,8 @@
 | 404 | legacyRecords | 0.00 | n/a |
 | 404 | legacyNemeses | 0.00 | n/a |
 | 404 | legacyBytes | 0.0 | 0.00% |
+| 404 | legacyActive | 0.00 | n/a |
+| 404 | legacyEffect | 0.00000 | n/a |
 | 404 | epicNemeses | 0.00 | 0.00% |
 | 404 | epicStarted | 0.00 | 0.00% |
 | 404 | epicCompleted | 0.00 | 0.00% |

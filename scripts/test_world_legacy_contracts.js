@@ -23,6 +23,17 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+// Replaying legacy placement requires the population RNG as well as the terrain seed.
+function withSeed(seed, callback) {
+  const original = Math.random;
+  let value = seed >>> 0;
+  Math.random = () => {
+    value = (Math.imul(value, 1664525) + 1013904223) >>> 0;
+    return value / 4294967296;
+  };
+  try { return callback(); } finally { Math.random = original; }
+}
+
 function testConfig() {
   const config = clone(baseConfig);
   config.endgame.transition.randomizeSeed = false;
@@ -126,10 +137,13 @@ function run() {
   assert.deepEqual(buildObservation(initial, config), observation, 'world legacy remains outside PPO observations');
   initial.worldLegacy.echoes.pop();
 
-  const left = createInitialState(config, runtime);
-  const right = createInitialState(config, runtime);
-  runCycle(left, config, 0);
-  runCycle(right, config, 0);
+  const replay = () => {
+    const state = createInitialState(config, runtime);
+    runCycle(state, config, 0);
+    return state;
+  };
+  const left = withSeed(424242, replay);
+  const right = withSeed(424242, replay);
   assert.deepEqual(left.worldLegacy, right.worldLegacy, 'equal seeds remap legacy identically');
 
   const bounded = testConfig();
