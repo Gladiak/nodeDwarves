@@ -4,6 +4,11 @@ const fs = require('fs');
 const path = require('path');
 const { clamp } = require('../utils');
 const { buildObservation, buildFeatures } = require('./observation');
+const {
+  normalizeObservationLayout,
+  buildObservationPlan,
+  assembleObservationVector,
+} = require('./observation_layout');
 
 const FESTIVAL_ACTION_ID = 'festival';
 const TRADE_RESERVE_BIAS_ACTION_ID = 'gov_trade_reserve_ratio_bias';
@@ -145,11 +150,17 @@ function loadPolicy(policyPath) {
   }
 
   if (type === 'mlp') {
+    const resources = raw.resources || [];
+    const observationLayout = normalizeObservationLayout(raw.observationLayout);
     return {
       type,
       path: resolved,
-      resources: raw.resources || [],
+      resources,
       featureNames,
+      observationLayout,
+      observationPlan: resources.length > 0
+        ? buildObservationPlan(resources, featureNames, observationLayout)
+        : null,
       minWeight,
       maxWeight,
       activation: raw.activation || 'tanh',
@@ -182,7 +193,9 @@ function selectAction(state, config, policy) {
     : Object.keys(obs.stockpileRatio || {});
 
   if (policy.type === 'mlp') {
-    const rawInput = buildObservationVector(obs, resources, config, policy.featureNames);
+    const plan = policy.observationPlan
+      || buildObservationPlan(resources, policy.featureNames, policy.observationLayout);
+    const rawInput = buildObservationVector(obs, config, policy.featureNames, plan);
     const input = normalizeObservationInput(
       rawInput,
       policy.observationNormalization,
@@ -478,13 +491,12 @@ function resolveJobsWeights(action, jobsSource) {
   return null;
 }
 
-// Build a flattened observation vector for all resources.
-function buildObservationVector(obs, resources, config, featureNames) {
-  const vector = [];
-  for (const resource of resources) {
-    vector.push(...buildFeatures(obs, resource, config, featureNames));
-  }
-  return vector;
+// Build a flattened observation vector following the policy's observation layout plan.
+function buildObservationVector(obs, config, featureNames, plan) {
+  return assembleObservationVector(
+    plan,
+    (resource) => buildFeatures(obs, resource, config, featureNames),
+  );
 }
 
 // Apply policy-side observation normalization when metadata is available.

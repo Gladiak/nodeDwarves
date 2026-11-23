@@ -270,6 +270,8 @@ def init_ppo_window():
         "early_stops": 0,
         "update_seconds": 0.0,
         "batches": 0,
+        "explained_variance": 0.0,
+        "ev_batches": 0,
     }
 
 
@@ -291,6 +293,11 @@ def update_ppo_window(window, ppo_stats, update_seconds):
     if stats_updates > 0:
         window["update_seconds"] += max(0.0, float(update_seconds or 0.0))
         window["batches"] += 1
+    if ppo_stats.get("explained_variance") is not None:
+        window["explained_variance"] = float(window.get("explained_variance", 0.0) or 0.0) + float(
+            ppo_stats["explained_variance"]
+        )
+        window["ev_batches"] = int(window.get("ev_batches", 0) or 0) + 1
 
 
 def ppo_update_ms(window):
@@ -315,8 +322,19 @@ def format_ppo_label(window):
         f"pg={window['policy_loss'] / denom:.4f} "
         f"ent={window['entropy'] / denom:.4f} "
         f"upd_ms={ppo_update_ms(window):.2f} "
-        f"stop={int(window.get('early_stops', 0) or 0)}]"
+        f"stop={int(window.get('early_stops', 0) or 0)} "
+        f"ev={ppo_explained_variance(window):.3f}]"
     )
+
+
+# Average pre-update critic explained variance across the batches in one window.
+def ppo_explained_variance(window):
+    if not isinstance(window, dict):
+        return 0.0
+    batches = int(window.get("ev_batches", 0) or 0)
+    if batches <= 0:
+        return 0.0
+    return float(window.get("explained_variance", 0.0) or 0.0) / batches
 
 
 def build_ai_server_command(config_path):
@@ -445,6 +463,10 @@ def update_running_stats(stats, samples):
     batch_var = tensor.var(dim=0, unbiased=False)
 
     count = max(0.0, float(stats.get("count", 0.0) or 0.0))
+    # Bounded memory: cap the historical weight so stats keep tracking a moving target.
+    max_count = max(0.0, float(stats.get("max_count", 0.0) or 0.0))
+    if max_count > 0.0:
+        count = min(count, max_count)
     if count <= 0.0:
         stats["mean"] = batch_mean.tolist()
         stats["var"] = torch.clamp(batch_var, min=1e-12).tolist()
@@ -489,21 +511,6 @@ def normalize_vector(vector, stats):
         if clip_value > 0.0:
             value = clamp(value, -clip_value, clip_value)
         normalized.append(value)
-    return normalized
-
-
-def normalize_value_tensor(values, stats):
-    if not isinstance(stats, dict) or not stats.get("enabled"):
-        return values
-    mean = stats.get("mean") or [0.0]
-    var = stats.get("var") or [1.0]
-    mu = float(mean[0] if mean else 0.0)
-    sigma2 = max(1e-12, float(var[0] if var else 1.0))
-    epsilon = max(1e-12, float(stats.get("epsilon", 1e-8) or 1e-8))
-    normalized = (values - mu) / math.sqrt(sigma2 + epsilon)
-    clip_value = max(0.0, float(stats.get("clip", 0.0) or 0.0))
-    if clip_value > 0:
-        normalized = torch.clamp(normalized, -clip_value, clip_value)
     return normalized
 
 
@@ -1672,6 +1679,87 @@ def normalize_transport_mode(value, fallback=TRANSPORT_LEGACY):
     return TRANSPORT_LEGACY
 
 
+# Observation layouts: "per_resource" (legacy) repeats every feature once per action head;
+# "factored" keeps per-resource features only for real resources and global features once.
+VALUE_HEAD_NORMALIZED = "normalized_returns"
+OBSERVATION_LAYOUT_PER_RESOURCE = "per_resource"
+OBSERVATION_LAYOUT_FACTORED = "factored"
+OBSERVATION_LAYOUTS = (OBSERVATION_LAYOUT_PER_RESOURCE, OBSERVATION_LAYOUT_FACTORED)
+PER_RESOURCE_FEATURE_NAMES = frozenset(("shortage", "nodeScarcity"))
+
+
+def normalize_observation_layout(value, fallback=OBSERVATION_LAYOUT_PER_RESOURCE):
+    text = str(value or "").strip().lower()
+    if text in OBSERVATION_LAYOUTS:
+        return text
+    return fallback
+
+
+# Real stockpile resources carry per-resource signals; festival/governor heads do not.
+def is_observed_resource_id(resource):
+    text = str(resource or "")
+    return bool(text) and text != FESTIVAL_ACTION_ID and not text.startswith("gov_")
+
+
+# Build the index plan shared by observation size checks and vector assembly.
+def build_observation_plan(resources, feature_names, observation_layout=OBSERVATION_LAYOUT_PER_RESOURCE):
+    layout = normalize_observation_layout(observation_layout)
+    resources = list(resources or [])
+    feature_names = list(feature_names or [])
+    if layout == OBSERVATION_LAYOUT_PER_RESOURCE:
+        return {
+            "layout": layout,
+            "resources": resources,
+            "per_resource_indexes": list(range(len(feature_names))),
+            "global_indexes": [],
+            "global_source": None,
+            "size": len(resources) * len(feature_names),
+        }
+    observed = [resource for resource in resources if is_observed_resource_id(resource)]
+    per_resource_indexes = [
+        idx for idx, name in enumerate(feature_names) if name in PER_RESOURCE_FEATURE_NAMES
+    ]
+    global_indexes = [
+        idx for idx, name in enumerate(feature_names) if name not in PER_RESOURCE_FEATURE_NAMES
+    ]
+    if not per_resource_indexes:
+        observed = []
+    global_source = observed[0] if observed else (resources[0] if resources else None)
+    if global_source is None:
+        global_indexes = []
+    return {
+        "layout": layout,
+        "resources": observed,
+        "per_resource_indexes": per_resource_indexes,
+        "global_indexes": global_indexes,
+        "global_source": global_source,
+        "size": len(observed) * len(per_resource_indexes) + len(global_indexes),
+    }
+
+
+def observation_size(resources, feature_names, observation_layout=OBSERVATION_LAYOUT_PER_RESOURCE):
+    return build_observation_plan(resources, feature_names, observation_layout)["size"]
+
+
+# Assemble one flat observation from full per-resource feature rows following the plan order.
+def assemble_observation_vector(plan, row_for_resource):
+    vector = []
+    rows = {}
+    for resource in plan["resources"]:
+        row = row_for_resource(resource)
+        rows[resource] = row
+        for idx in plan["per_resource_indexes"]:
+            vector.append(row[idx])
+    if plan["global_indexes"]:
+        source = plan["global_source"]
+        row = rows.get(source)
+        if row is None:
+            row = row_for_resource(source)
+        for idx in plan["global_indexes"]:
+            vector.append(row[idx])
+    return vector
+
+
 def build_reset_payload(
     seed,
     training=False,
@@ -1683,6 +1771,7 @@ def build_reset_payload(
     transport=TRANSPORT_LEGACY,
     resources=None,
     feature_names=None,
+    observation_layout=OBSERVATION_LAYOUT_PER_RESOURCE,
 ):
     payload = {"cmd": "reset", "seed": seed}
     if training:
@@ -1701,6 +1790,7 @@ def build_reset_payload(
             "mode": TRANSPORT_COMPACT,
             "resources": list(resources or []),
             "featureNames": list(feature_names or []),
+            "observationLayout": normalize_observation_layout(observation_layout),
         }
     return payload
 
@@ -1764,9 +1854,15 @@ def build_step_message(action, resources, step_ticks, transport=TRANSPORT_LEGACY
     return {"cmd": "step", "action": action_payload}
 
 
-def vector_from_response(response, resources, feature_names, transport):
+def vector_from_response(
+    response,
+    resources,
+    feature_names,
+    transport,
+    observation_layout=OBSERVATION_LAYOUT_PER_RESOURCE,
+):
     mode = normalize_transport_mode(transport)
-    expected_size = len(resources) * len(feature_names)
+    expected_size = observation_size(resources, feature_names, observation_layout)
     if mode == TRANSPORT_COMPACT:
         obs_vector = (response or {}).get("obsVector")
         if not isinstance(obs_vector, list):
@@ -1777,7 +1873,7 @@ def vector_from_response(response, resources, feature_names, transport):
             )
         return obs_vector
     obs = (response or {}).get("obs", {}) or {}
-    return build_obs_vector(obs, resources, feature_names)
+    return build_obs_vector(obs, resources, feature_names, observation_layout)
 
 
 def ratio_map_from_signal(value):
@@ -2388,7 +2484,8 @@ def worker_loop(worker_id, task_queue, result_queue, update_queue, resources, se
             torch.manual_seed(worker_seed)
 
         feature_names = settings.get("feature_names") or DEFAULT_FEATURE_NAMES
-        input_size = len(resources) * len(feature_names)
+        observation_layout = settings.get("observation_layout", OBSERVATION_LAYOUT_PER_RESOURCE)
+        input_size = observation_size(resources, feature_names, observation_layout)
         action_size = len(resources)
         obs_normalization = parse_running_stats(
             settings.get("obs_normalization"),
@@ -2443,6 +2540,7 @@ def worker_loop(worker_id, task_queue, result_queue, update_queue, resources, se
                     settings["gae_lambda"],
                     obs_normalization=obs_normalization,
                     transport=settings.get("transport", TRANSPORT_LEGACY),
+                    observation_layout=observation_layout,
                 )
             except (BrokenPipeError, EOFError, OSError, RuntimeError) as exc:
                 report_worker_error(
@@ -2678,11 +2776,12 @@ def build_features(obs, resource, feature_names):
     return values
 
 
-def build_obs_vector(obs, resources, feature_names):
-    vector = []
-    for resource in resources:
-        vector.extend(build_features(obs, resource, feature_names))
-    return vector
+def build_obs_vector(obs, resources, feature_names, observation_layout=OBSERVATION_LAYOUT_PER_RESOURCE):
+    plan = build_observation_plan(resources, feature_names, observation_layout)
+    return assemble_observation_vector(
+        plan,
+        lambda resource: build_features(obs, resource, feature_names),
+    )
 
 
 def atanh(value):
@@ -2769,8 +2868,14 @@ class ActorCritic(nn.Module):
     def __init__(self, input_size, action_size, hidden_sizes, activation, log_std_init):
         super().__init__()
         self.policy = Mlp(input_size, hidden_sizes, action_size, activation)
+        # The value head predicts normalized returns; value_mean/value_std map it back to raw scale.
         self.value = Mlp(input_size, hidden_sizes, 1, activation)
         self.log_std = nn.Parameter(torch.full((action_size,), float(log_std_init)))
+        self.register_buffer("value_mean", torch.zeros(1))
+        self.register_buffer("value_std", torch.ones(1))
+
+    def value_raw(self, obs):
+        return self.value(obs).squeeze(-1) * self.value_std + self.value_mean
 
     def act(self, obs, min_weight, max_weight, deterministic=False):
         mean = self.policy(obs)
@@ -2786,8 +2891,62 @@ class ActorCritic(nn.Module):
             action = scale_action(tanh_action, min_weight, max_weight)
             log_prob = dist.log_prob(pre_tanh) - torch.log(1 - tanh_action.pow(2) + 1e-6)
             log_prob = log_prob.sum(-1)
-        value = self.value(obs).squeeze(-1)
+        value = self.value_raw(obs)
         return action, log_prob, value
+
+
+# Resolve (mean, std) used to map normalized value predictions to raw returns.
+def value_scale_from_stats(stats):
+    if not isinstance(stats, dict) or not stats.get("enabled"):
+        return 0.0, 1.0
+    mean = stats.get("mean") or [0.0]
+    var = stats.get("var") or [1.0]
+    epsilon = max(1e-12, float(stats.get("epsilon", 1e-8) or 1e-8))
+    mu = float(mean[0] if mean else 0.0)
+    sigma2 = max(1e-12, float(var[0] if var else 1.0))
+    return mu, math.sqrt(sigma2 + epsilon)
+
+
+# Copy return-normalization scale into the model so value_raw() denormalizes consistently.
+def set_value_scale(model, mean, std):
+    model.value_mean.fill_(float(mean))
+    model.value_std.fill_(max(1e-6, float(std)))
+
+
+# PopArt-style output preservation: rescale the value output layer so raw predictions are unchanged
+# when the return-normalization statistics move from (old_mean, old_std) to (new_mean, new_std).
+def rescale_value_head(model, old_mean, old_std, new_mean, new_std):
+    new_std = max(1e-6, float(new_std))
+    old_std = max(1e-6, float(old_std))
+    output_layer = [module for module in model.value.model if isinstance(module, nn.Linear)][-1]
+    with torch.no_grad():
+        output_layer.weight.mul_(old_std / new_std)
+        output_layer.bias.mul_(old_std).add_(float(old_mean) - float(new_mean)).div_(new_std)
+    set_value_scale(model, new_mean, new_std)
+
+
+# Update return statistics from one batch and keep the critic's raw predictions continuous.
+def update_return_normalization(model, return_normalization, returns):
+    if not isinstance(return_normalization, dict) or not return_normalization.get("enabled"):
+        set_value_scale(model, 0.0, 1.0)
+        return
+    first_batch = float(return_normalization.get("count", 0.0) or 0.0) <= 0.0
+    old_mean, old_std = value_scale_from_stats(return_normalization)
+    update_running_stats(return_normalization, [[value] for value in returns])
+    new_mean, new_std = value_scale_from_stats(return_normalization)
+    if first_batch:
+        # Fresh critic: start predicting the batch mean instead of preserving an arbitrary init.
+        set_value_scale(model, new_mean, new_std)
+    else:
+        rescale_value_head(model, old_mean, old_std, new_mean, new_std)
+
+
+# Episode endings that cut an ongoing colony short; their tail must bootstrap from V(s_T).
+TRUNCATION_DONE_REASONS = {"maxTicks", "stable"}
+
+
+def is_truncation_reason(reason):
+    return str(reason or "") in TRUNCATION_DONE_REASONS
 
 
 def compute_gae(rewards, values, dones, gamma, lam, last_value):
@@ -2835,6 +2994,7 @@ def run_episode(
     gae_lambda,
     obs_normalization=None,
     transport=TRANSPORT_LEGACY,
+    observation_layout=OBSERVATION_LAYOUT_PER_RESOURCE,
 ):
     mode = normalize_transport_mode(transport)
     reset_payload = build_reset_payload(
@@ -2846,6 +3006,7 @@ def run_episode(
         transport=mode,
         resources=resources,
         feature_names=feature_names,
+        observation_layout=observation_layout,
     )
     response = send(proc, reset_payload)
     start_tick = 0
@@ -2884,7 +3045,13 @@ def run_episode(
 
     with inference_mode():
         for step in range(max_steps):
-            raw_vector = vector_from_response(response, resources, feature_names, mode)
+            raw_vector = vector_from_response(
+                response,
+                resources,
+                feature_names,
+                mode,
+                observation_layout=observation_layout,
+            )
             vector = normalize_vector(raw_vector, obs_normalization)
             obs_tensor = torch.as_tensor(vector, dtype=torch.float32).unsqueeze(0)
             action_tensor, log_prob, value = model.act(
@@ -2905,6 +3072,8 @@ def run_episode(
             response = send(proc, step_message, timing=step_timing)
             reward = float(response.get("reward", 0.0))
             done = bool(response.get("done"))
+            step_done_reason = (response.get("info") or {}).get("doneReason")
+            terminated = done and not is_truncation_reason(step_done_reason)
             signals = signals_from_response(response)
             critical_sum += float(signals.get("criticalNeedsFraction", 0.0) or 0.0)
             idle_sum += float(signals.get("idleAdultsFraction", 0.0) or 0.0)
@@ -2933,20 +3102,27 @@ def run_episode(
             rollout["log_probs"].append(float(log_prob.item()))
             rollout["values"].append(float(value.item()))
             rollout["rewards"].append(reward)
-            rollout["dones"].append(done)
+            # Only true terminal states (e.g. extinction) zero the future value; time limits bootstrap.
+            rollout["dones"].append(terminated)
             total_reward += reward
             steps = step + 1
             if done:
                 break
 
         bootstrap_value = 0.0
-        if not done and steps > 0:
+        if steps > 0 and not (done and terminated):
             vector = normalize_vector(
-                vector_from_response(response, resources, feature_names, mode),
+                vector_from_response(
+                    response,
+                    resources,
+                    feature_names,
+                    mode,
+                    observation_layout=observation_layout,
+                ),
                 obs_normalization,
             )
             obs_tensor = torch.as_tensor(vector, dtype=torch.float32).unsqueeze(0)
-            bootstrap_value = float(model.value(obs_tensor).squeeze(-1).item())
+            bootstrap_value = float(model.value_raw(obs_tensor).item())
     advantages, returns = compute_gae(
         rollout["rewards"],
         rollout["values"],
@@ -3036,6 +3212,7 @@ def evaluate(
     progress_prefix="eval",
     obs_normalization=None,
     transport=TRANSPORT_LEGACY,
+    observation_layout=OBSERVATION_LAYOUT_PER_RESOURCE,
 ):
     mode = normalize_transport_mode(transport)
     total_reward = 0.0
@@ -3090,12 +3267,19 @@ def evaluate(
                     transport=mode,
                     resources=resources,
                     feature_names=feature_names,
+                    observation_layout=observation_layout,
                 )
                 response = send(proc, reset_payload)
 
                 for step in range(max_steps):
                     vector = normalize_vector(
-                        vector_from_response(response, resources, feature_names, mode),
+                        vector_from_response(
+                            response,
+                            resources,
+                            feature_names,
+                            mode,
+                            observation_layout=observation_layout,
+                        ),
                         obs_normalization,
                     )
                     obs_tensor = torch.as_tensor(vector, dtype=torch.float32).unsqueeze(0)
@@ -3236,6 +3420,25 @@ def apply_ppo_update(
     if old_values_raw.numel() != batch_size:
         old_values_raw = torch.zeros_like(returns_raw)
 
+    # Critic health before this update: 1 - Var(R - V) / Var(R) on raw returns.
+    explained_variance = None
+    if returns_raw.numel() > 1:
+        returns_var = float(returns_raw.var(unbiased=False).item())
+        if returns_var > 1e-12:
+            residual_var = float((returns_raw - old_values_raw).var(unbiased=False).item())
+            explained_variance = 1.0 - residual_var / returns_var
+
+    # The value head predicts normalized returns directly, so only targets are clipped:
+    # clamping predictions would zero their gradients and freeze the critic.
+    value_mean, value_std = value_scale_from_stats(return_normalization)
+    target_clip = 0.0
+    if isinstance(return_normalization, dict) and return_normalization.get("enabled"):
+        target_clip = max(0.0, float(return_normalization.get("clip", 0.0) or 0.0))
+    returns_norm = (returns_raw - value_mean) / value_std
+    if target_clip > 0:
+        returns_norm = torch.clamp(returns_norm, -target_clip, target_clip)
+    old_values_norm = (old_values_raw - value_mean) / value_std
+
     mini_batch_size = max(1, int(mini_batch_size))
     value_clip_range = max(0.0, float(value_clip_range or 0.0))
     value_huber_delta = max(0.0, float(value_huber_delta or 0.0))
@@ -3251,6 +3454,7 @@ def apply_ppo_update(
         "updates": 0,
         "epochs_completed": 0,
         "early_stop": False,
+        "explained_variance": explained_variance,
     }
 
     for _ in range(epochs):
@@ -3262,8 +3466,8 @@ def apply_ppo_update(
             batch_obs = obs[idx]
             batch_actions = actions[idx]
             batch_old_log = old_log_probs[idx]
-            batch_returns_raw = returns_raw[idx]
-            batch_old_values_raw = old_values_raw[idx]
+            batch_returns = returns_norm[idx]
+            batch_old_values = old_values_norm[idx]
             batch_adv = advantages[idx]
 
             mean = model.policy(batch_obs)
@@ -3277,10 +3481,7 @@ def apply_ppo_update(
             clipped = torch.clamp(ratio, 1 - clip_range, 1 + clip_range) * batch_adv
             policy_loss = -torch.min(unclipped, clipped).mean()
 
-            value_pred_raw = model.value(batch_obs).squeeze(-1)
-            value_pred = normalize_value_tensor(value_pred_raw, return_normalization)
-            batch_returns = normalize_value_tensor(batch_returns_raw, return_normalization)
-            batch_old_values = normalize_value_tensor(batch_old_values_raw, return_normalization)
+            value_pred = model.value(batch_obs).squeeze(-1)
             value_loss_unclipped = value_loss_elements(
                 value_pred,
                 batch_returns,
@@ -3469,6 +3670,11 @@ def build_training_defaults(config):
         "return_norm": to_bool(trainer.get("returnNorm"), True),
         "return_norm_clip": to_float(trainer.get("returnNormClip"), 5.0),
         "return_norm_epsilon": to_float(trainer.get("returnNormEpsilon"), 1e-8),
+        "return_norm_max_count": to_float(trainer.get("returnNormMaxCount"), 0.0),
+        "observation_layout": normalize_observation_layout(
+            trainer.get("observationLayout"),
+            OBSERVATION_LAYOUT_PER_RESOURCE,
+        ),
         "lr": to_float(trainer.get("lr"), 0.0003),
         "lr_final": to_float(trainer.get("lrFinal"), 0.0001),
         "epochs": to_int(trainer.get("epochs"), 4),
@@ -3587,6 +3793,18 @@ def parse_args():
     )
     parser.add_argument("--return-norm-clip", type=float, default=defaults["return_norm_clip"])
     parser.add_argument("--return-norm-epsilon", type=float, default=defaults["return_norm_epsilon"])
+    parser.add_argument(
+        "--return-norm-max-count",
+        type=float,
+        default=defaults["return_norm_max_count"],
+        help="Cap on historical return-stat weight (0 = unbounded) so the critic scale tracks policy improvement.",
+    )
+    parser.add_argument(
+        "--observation-layout",
+        choices=list(OBSERVATION_LAYOUTS),
+        default=defaults["observation_layout"],
+        help="Observation vector layout; changing it requires --fresh training.",
+    )
     parser.add_argument("--lr", type=float, default=defaults["lr"])
     parser.add_argument("--lr-final", type=float, default=defaults["lr_final"])
     parser.add_argument("--epochs", type=int, default=defaults["epochs"])
@@ -3779,6 +3997,7 @@ def save_policy(
     log_std,
     obs_normalization=None,
     return_normalization=None,
+    observation_layout=OBSERVATION_LAYOUT_PER_RESOURCE,
 ):
     normalization = {
         "version": 1,
@@ -3790,6 +4009,7 @@ def save_policy(
         "type": "mlp",
         "resources": resources,
         "featureNames": feature_names,
+        "observationLayout": normalize_observation_layout(observation_layout),
         "minWeight": min_weight,
         "maxWeight": max_weight,
         "activation": activation,
@@ -3797,6 +4017,7 @@ def save_policy(
         "hiddenSizes": getattr(model.policy, "hidden_sizes", []),
         "layers": model.policy.export_layers(),
         "valueLayers": model.value.export_layers(),
+        "valueHead": VALUE_HEAD_NORMALIZED,
         "logStd": log_std.detach().cpu().tolist(),
         "trainedAt": int(time.time()),
     }
@@ -3867,6 +4088,13 @@ def load_policy(path, model, obs_fallback=None, return_fallback=None):
         clip_fallback=ret_clip,
         epsilon_fallback=ret_epsilon,
     )
+    # Map the critic onto the saved return scale. Legacy checkpoints stored a raw-scale value
+    # head, so convert it in an output-preserving way before training continues.
+    value_mean, value_std = value_scale_from_stats(return_state)
+    if value_layers and payload.get("valueHead") != VALUE_HEAD_NORMALIZED:
+        rescale_value_head(model, 0.0, 1.0, value_mean, value_std)
+    else:
+        set_value_scale(model, value_mean, value_std)
     return {
         "payload": payload,
         "normalization_version": normalization_version,
@@ -3875,6 +4103,18 @@ def load_policy(path, model, obs_fallback=None, return_fallback=None):
         "obs_normalization": obs_state,
         "return_normalization": return_state,
     }
+
+
+# Read the observation layout of a saved policy; payloads without the field are legacy.
+def load_policy_observation_layout(path):
+    if not path or not os.path.exists(path):
+        return None
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+    except (OSError, json.JSONDecodeError):
+        return None
+    return normalize_observation_layout(payload.get("observationLayout"))
 
 
 def load_policy_feature_names(path):
@@ -3973,7 +4213,7 @@ def main():
     resources = append_governor_actions(resources, config)
 
     feature_names = args.feature_names or list(DEFAULT_FEATURE_NAMES)
-    input_size = len(resources) * len(feature_names)
+    input_size = observation_size(resources, feature_names, args.observation_layout)
     action_size = len(resources)
     model = ActorCritic(
         input_size,
@@ -4014,6 +4254,13 @@ def main():
                 resume_path = args.best_model_path
 
     if resume_path:
+        resume_layout = load_policy_observation_layout(resume_path)
+        if resume_layout and resume_layout != args.observation_layout:
+            raise SystemExit(
+                f"Observation layout mismatch with resume policy ({resume_layout} vs "
+                f"{args.observation_layout}). Run with --fresh or pass "
+                f"--observation-layout {resume_layout}."
+            )
         resume_features = load_policy_feature_names(resume_path)
         if resume_features and resume_features != feature_names:
             raise SystemExit(
@@ -4059,6 +4306,9 @@ def main():
         obs_normalization["enabled"] = False
     if not args.return_norm:
         return_normalization["enabled"] = False
+    return_normalization["max_count"] = max(0.0, float(args.return_norm_max_count or 0.0))
+    value_mean, value_std = value_scale_from_stats(return_normalization)
+    set_value_scale(model, value_mean, value_std)
 
     resume_state_path = None
     if not args.fresh:
@@ -4163,6 +4413,7 @@ def main():
         "debug_mode": args.debug_mode,
         "obs_normalization": copy_running_stats(obs_normalization),
         "transport": args.transport,
+        "observation_layout": args.observation_layout,
         "seed": args.seed,
     }
 
@@ -4238,6 +4489,8 @@ def main():
                 "advantages": batch_values,
                 "values": batch_old_values,
             }
+            # Refresh return statistics first (output-preserving) so value targets use current scale.
+            update_return_normalization(model, return_normalization, batch_rewards)
             ppo_start_time = time.perf_counter()
             ppo_stats = apply_ppo_update(
                 model,
@@ -4259,8 +4512,6 @@ def main():
             ppo_elapsed = time.perf_counter() - ppo_start_time
             if obs_normalization.get("enabled"):
                 update_running_stats(obs_normalization, batch_obs_raw)
-            if return_normalization.get("enabled"):
-                update_running_stats(return_normalization, [[value] for value in batch_rewards])
             update_ppo_window(ppo_window, ppo_stats, ppo_elapsed)
             update_ppo_window(file_ppo_window, ppo_stats, ppo_elapsed)
             batch_obs.clear()
@@ -4428,6 +4679,7 @@ def main():
                         model.log_std,
                         obs_normalization=obs_normalization,
                         return_normalization=return_normalization,
+                        observation_layout=args.observation_layout,
                     )
                     save_training_state(
                         args.model_state_path,
@@ -4566,6 +4818,7 @@ def main():
                         eval_scenarios,
                         obs_normalization=obs_normalization,
                         transport=args.transport,
+                        observation_layout=args.observation_layout,
                     )
                     eval_score = compute_score(
                         stats["avg_reward"],
@@ -4603,6 +4856,7 @@ def main():
                                 model.log_std,
                                 obs_normalization=obs_normalization,
                                 return_normalization=return_normalization,
+                                observation_layout=args.observation_layout,
                             )
                             save_training_state(
                                 args.best_model_state_path,
@@ -4644,6 +4898,7 @@ def main():
                 model.log_std,
                 obs_normalization=obs_normalization,
                 return_normalization=return_normalization,
+                observation_layout=args.observation_layout,
             )
             save_training_state(
                 args.model_state_path,

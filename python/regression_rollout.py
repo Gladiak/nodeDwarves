@@ -132,7 +132,8 @@ def build_model_and_policy_settings(args, config, defaults):
     if max_weight < min_weight:
         min_weight, max_weight = max_weight, min_weight
 
-    input_size = len(resources) * len(feature_names)
+    observation_layout = train.normalize_observation_layout(payload.get("observationLayout"))
+    input_size = train.observation_size(resources, feature_names, observation_layout)
     action_size = len(resources)
     model = train.ActorCritic(
         input_size,
@@ -172,7 +173,15 @@ def build_model_and_policy_settings(args, config, defaults):
     if load_meta.get("normalization_version") not in (None, 1):
         raise SystemExit("Unsupported policy normalization metadata version.")
     obs_normalization = load_meta.get("obs_normalization") or obs_fallback
-    return model, resources, feature_names, min_weight, max_weight, obs_normalization
+    return (
+        model,
+        resources,
+        feature_names,
+        min_weight,
+        max_weight,
+        obs_normalization,
+        observation_layout,
+    )
 
 
 # Function: run_rollouts.
@@ -185,6 +194,7 @@ def run_rollouts(
     min_weight,
     max_weight,
     obs_normalization,
+    observation_layout=train.OBSERVATION_LAYOUT_PER_RESOURCE,
 ):
     scenario_defs = train.get_scenario_definitions(config)
     training_scenarios = train.get_training_scenarios(scenario_defs)
@@ -243,6 +253,7 @@ def run_rollouts(
                     args.gae_lambda,
                     obs_normalization=obs_normalization,
                     transport=args.transport,
+                    observation_layout=observation_layout,
                 )
                 total_reward += reward
                 total_steps += float(steps)
@@ -317,9 +328,15 @@ def main():
         args.transport,
         defaults.get("transport", train.TRANSPORT_LEGACY),
     )
-    model, resources, feature_names, min_weight, max_weight, obs_normalization = build_model_and_policy_settings(
-        args, config, defaults
-    )
+    (
+        model,
+        resources,
+        feature_names,
+        min_weight,
+        max_weight,
+        obs_normalization,
+        observation_layout,
+    ) = build_model_and_policy_settings(args, config, defaults)
     metrics = run_rollouts(
         args,
         config,
@@ -329,6 +346,7 @@ def main():
         min_weight,
         max_weight,
         obs_normalization,
+        observation_layout=observation_layout,
     )
     write_summary(args.summary_path, metrics["summary_line"], args.config)
     print(

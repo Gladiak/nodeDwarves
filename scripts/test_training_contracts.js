@@ -19,6 +19,12 @@ const { updateWarriors, applyWarriorExpeditionOutcome } = require('../src/simula
 const { handleReproduction } = require('../src/simulation/population');
 const { buildTelemetrySections } = require('../src/telemetry/telemetry');
 const { getTelemetryPanelPageCount } = require('../src/telemetry/telemetry_panel');
+const { loadPolicy, selectAction } = require('../src/ai/policy');
+const {
+  buildObservationPlan,
+  assembleObservationVector,
+  normalizeObservationLayout,
+} = require('../src/ai/observation_layout');
 const {
   PROFILE_M4_BALANCED,
   buildPhases: buildTrainingPhases,
@@ -72,7 +78,11 @@ function validateObservationContract(policy) {
   assert(resources.length > 0, 'Policy contract: resources list is empty.');
   assert(featureNames.length > 0, 'Policy contract: featureNames list is empty.');
 
-  const expected = resources.length * featureNames.length;
+  const expected = buildObservationPlan(
+    resources,
+    featureNames,
+    normalizeObservationLayout(policy && policy.observationLayout),
+  ).size;
   const observation = policy
     && policy.normalization
     && policy.normalization.observation
@@ -2902,6 +2912,175 @@ function validateSocialDramaSlice5Contract() {
 }
 
 // Execute the full contract suite in one deterministic temporary workspace.
+// Resolve the trainer's action heads exactly like python/train.py does for the active config.
+function resolveTrainerResources(config) {
+  const output = runCommand(PYTHON, ['-c', [
+    'import json, sys',
+    "sys.path.insert(0, 'python')",
+    'import train as T',
+    "cfg = T.load_config('config.json')",
+    'd = T.build_training_defaults(cfg)',
+    'res = T.append_governor_actions(T.append_festival_action(T.get_resources_from_config(cfg), cfg), cfg)',
+    'F = d["feature_names"]',
+    'print(json.dumps({"resources": res, "featureNames": F, "layout": d["observation_layout"],',
+    '  "sizes": {k: T.observation_size(res, F, k) for k in T.OBSERVATION_LAYOUTS}}))',
+  ].join('\n')], { label: 'python observation plan' });
+  return JSON.parse(String(output.stdout || '').trim().split('\n').pop());
+}
+
+// Validate factored observation layout: size parity, server projection parity, and in-game inference.
+function validateObservationLayoutContract(tmpDir) {
+  const config = loadConfig(path.join(ROOT, 'config.json'));
+  const trainer = resolveTrainerResources(config);
+  const { resources, featureNames } = trainer;
+  assert(trainer.layout === 'factored', 'Observation layout contract: trainer default layout is not factored.');
+  for (const layout of ['per_resource', 'factored']) {
+    const jsSize = buildObservationPlan(resources, featureNames, layout).size;
+    assert(
+      jsSize === trainer.sizes[layout],
+      `Observation layout contract: JS/Python size mismatch for ${layout} (js=${jsSize}, py=${trainer.sizes[layout]}).`,
+    );
+  }
+  const factoredPlan = buildObservationPlan(resources, featureNames, 'factored');
+  const globalCount = featureNames.filter((name) => name !== 'shortage' && name !== 'nodeScarcity').length;
+  assert(
+    factoredPlan.size === factoredPlan.resources.length * 2 + globalCount,
+    'Observation layout contract: factored size must be observed resources x per-resource features + globals.',
+  );
+  assert(
+    factoredPlan.resources.every((resource) => resource !== 'festival' && !resource.startsWith('gov_')),
+    'Observation layout contract: factored layout must not observe festival/governor heads.',
+  );
+
+  const configPath = path.join(ROOT, 'config.json');
+  const sessions = {};
+  for (const layout of ['per_resource', 'factored']) {
+    sessions[layout] = runAiServerSession(configPath, [
+      {
+        cmd: 'reset',
+        seed: 17,
+        training: true,
+        transport: { mode: 'compact', resources, featureNames, observationLayout: layout },
+      },
+      { cmd: 'step', actionValues: resources.map(() => 1), ticks: 4 },
+      { cmd: 'step', actionValues: resources.map(() => 0.5), ticks: 4 },
+      { cmd: 'close' },
+    ]);
+  }
+  const featureCount = featureNames.length;
+  for (let index = 0; index < 3; index += 1) {
+    const full = sessions.per_resource[index].obsVector;
+    const factored = sessions.factored[index].obsVector;
+    assert(
+      Array.isArray(full) && full.length === resources.length * featureCount,
+      'Observation layout contract: legacy compact vector has unexpected length.',
+    );
+    assert(
+      Array.isArray(factored) && factored.length === factoredPlan.size,
+      'Observation layout contract: factored compact vector has unexpected length.',
+    );
+    const projected = assembleObservationVector(factoredPlan, (resource) => {
+      const offset = resources.indexOf(resource) * featureCount;
+      return full.slice(offset, offset + featureCount);
+    });
+    for (let slot = 0; slot < projected.length; slot += 1) {
+      assert(
+        Math.abs(projected[slot] - factored[slot]) <= 1e-12,
+        `Observation layout contract: factored slot ${slot} differs from the legacy projection.`,
+      );
+    }
+  }
+
+  // A factored policy must drive in-game inference without shape warnings.
+  const hidden = 8;
+  const layer = (rows, cols) => ({
+    weights: Array.from({ length: rows }, (_, r) => Array.from({ length: cols }, (_, c) => ((r + c) % 5 - 2) * 0.01)),
+    biases: Array.from({ length: rows }, () => 0),
+  });
+  const policyPath = path.join(tmpDir, 'factored_policy.json');
+  fs.writeFileSync(policyPath, JSON.stringify({
+    version: 3,
+    type: 'mlp',
+    resources,
+    featureNames,
+    observationLayout: 'factored',
+    minWeight: 0,
+    maxWeight: 2,
+    activation: 'tanh',
+    outputActivation: 'tanh',
+    hiddenSizes: [hidden],
+    layers: [layer(hidden, factoredPlan.size), layer(resources.length, hidden)],
+    normalization: {
+      version: 1,
+      observation: {
+        enabled: true,
+        count: 1,
+        mean: new Array(factoredPlan.size).fill(0),
+        var: new Array(factoredPlan.size).fill(1),
+        clip: 5,
+        epsilon: 1e-8,
+      },
+    },
+  }));
+  const policy = loadPolicy(policyPath);
+  assert(policy.observationLayout === 'factored', 'Observation layout contract: loader dropped the factored layout.');
+  const runtime = buildRuntime(config.display, { columns: 120, rows: 45 });
+  const state = createInitialState(config, runtime);
+  const action = selectAction(state, config, policy);
+  assert(action && action.weights, 'Observation layout contract: factored policy did not produce an action.');
+
+  const legacy = loadPolicy(POLICY_BEST);
+  if (legacy && !legacy.observationLayout) {
+    throw new Error('Observation layout contract: legacy policy layout was not resolved.');
+  }
+  assert(selectAction(state, config, legacy), 'Observation layout contract: legacy policy no longer produces an action.');
+}
+
+// Validate critic normalization, PopArt preservation, legacy conversion, and truncation bootstrap.
+function validateCriticNormalizationContract(tmpDir) {
+  const script = [
+    'import json, os, sys, torch',
+    "sys.path.insert(0, 'python')",
+    'import train as T',
+    'torch.manual_seed(0)',
+    'res = ["food", "water", "gov_trade_contest_intent"]',
+    'F = ["shortage", "nodeScarcity", "criticalNeeds"]',
+    'size = T.observation_size(res, F, "factored")',
+    'assert size == 5, size',
+    'x = torch.randn(32, size)',
+    'm = T.ActorCritic(size, len(res), [16, 16], "tanh", -0.8)',
+    'T.set_value_scale(m, 100.0, 20.0)',
+    'before = m.value_raw(x).detach().clone()',
+    'T.rescale_value_head(m, 100.0, 20.0, 1500.0, 300.0)',
+    'assert float((before - m.value_raw(x).detach()).abs().max()) < 1e-2, "popart drift"',
+    'fresh = T.ActorCritic(size, len(res), [16, 16], "tanh", -0.8)',
+    'stats = T.create_running_stats(1, enabled=True, clip=5.0)',
+    'T.update_return_normalization(fresh, stats, [1400.0 + i for i in range(100)])',
+    'assert abs(float(fresh.value_raw(x).detach().mean()) - 1449.5) < 50.0, "fresh critic not centered"',
+    'stats["max_count"] = 1000.0',
+    'for _ in range(5): T.update_running_stats(stats, [[3000.0]] * 1000)',
+    'assert stats["count"] <= 2000.0 and stats["mean"][0] > 2900.0, "return stats cap"',
+    'legacy = T.ActorCritic(size, len(res), [16, 16], "tanh", -0.8)',
+    'ret = T.create_running_stats(1, enabled=True); ret["mean"] = [250.0]; ret["var"] = [2500.0]; ret["count"] = 10.0',
+    `path = os.path.join(${JSON.stringify(tmpDir)}, "legacy_critic.json")`,
+    'T.save_policy(path, legacy, res, F, 0, 2, "tanh", legacy.log_std, return_normalization=ret, observation_layout="factored")',
+    'payload = json.load(open(path)); assert payload["valueHead"] == T.VALUE_HEAD_NORMALIZED',
+    'assert payload["observationLayout"] == "factored"',
+    'payload.pop("valueHead"); json.dump(payload, open(path, "w"))',
+    'loaded = T.ActorCritic(size, len(res), [16, 16], "tanh", -0.8); T.load_policy(path, loaded)',
+    'assert float((legacy.value(x).squeeze(-1) - loaded.value_raw(x)).abs().max()) < 1e-2, "legacy conversion"',
+    'assert T.is_truncation_reason("maxTicks") and T.is_truncation_reason("stable")',
+    'assert not T.is_truncation_reason("extinction") and not T.is_truncation_reason(None)',
+    'adv, ret_t = T.compute_gae([1.0, 1.0], [10.0, 10.0], [False, False], 0.9, 1.0, 10.0)',
+    'assert abs(ret_t[-1] - 10.0) < 1e-9, "truncated tail must bootstrap"',
+    'adv, ret_t = T.compute_gae([1.0, 1.0], [10.0, 10.0], [False, True], 0.9, 1.0, 0.0)',
+    'assert abs(ret_t[-1] - 1.0) < 1e-9, "terminal tail must not bootstrap"',
+    'print("ok")',
+  ].join('\n');
+  const result = runCommand(PYTHON, ['-c', script], { label: 'critic normalization contract' });
+  assert(String(result.stdout || '').includes('ok'), 'Critic normalization contract: python checks did not complete.');
+}
+
 function main() {
   const args = process.argv.slice(2);
   if (args.length > 1 || (args.length === 1 && args[0] !== '--policy-only')) {
@@ -2933,10 +3112,12 @@ function main() {
     validateSocialGovernorContract();
     validateSocialDramaAiSlice4Contract(tmpDir);
     validateSocialDramaSlice5Contract();
+    validateObservationLayoutContract(tmpDir);
+    validateCriticNormalizationContract(tmpDir);
     validateRegressionReportSchema(tmpDir);
     validateRegressionSeedPackDefaultModeContract(tmpDir);
     validatePromoteReportSchema(tmpDir);
-    console.log('[test:contracts] PASS policy_shape m4_balanced_wrapper external_camps_governor contracts_governor ruins_governor endgame_ruins_balance underrealm_governor warriors_disabled warriors_bootstrap warriors_phase1 warriors_thresholds warriors_phase2 warriors_phase3 warriors_phase4 warriors_phase5 warriors_phase6 social_governor social_slice4 social_slice5 regression_schema regression_seedpack_default promote_schema');
+    console.log('[test:contracts] PASS policy_shape m4_balanced_wrapper external_camps_governor contracts_governor ruins_governor endgame_ruins_balance underrealm_governor warriors_disabled warriors_bootstrap warriors_phase1 warriors_thresholds warriors_phase2 warriors_phase3 warriors_phase4 warriors_phase5 warriors_phase6 social_governor social_slice4 social_slice5 observation_layout critic_normalization regression_schema regression_seedpack_default promote_schema');
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }

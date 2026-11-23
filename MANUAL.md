@@ -169,6 +169,18 @@ and `benchmark`. `npm run ai:train:m4` selects the M4 preset directly.
 Training resumes from the best available checkpoint. Use `--fresh` only when intentionally
 starting over or when observation/action shapes change.
 
+New policies use the compact `factored` observation layout (`ai.training.trainer.observationLayout`):
+per-resource signals only for real stockpile resources, colony-wide signals once. Older policies
+without a layout field keep the legacy `per_resource` layout and still run in game, regression and
+promotion. A layout switch refuses to resume: start a new policy with `--fresh`, or keep extending a
+legacy checkpoint with `--observation-layout per_resource`.
+
+The critic learns normalized returns, and its raw scale follows the latest return statistics
+(`returnNormMaxCount` caps how much history they keep). Runs that hit the tick limit are treated as
+cut short rather than as a colony ending. The `ppo[...]` log ends with `ev=`, the critic's explained
+variance before each update: values near `0` mean the critic is not learning, healthy runs climb toward
+`1`.
+
 ```bash
 npm run ai:train:continuous
 npm run ai:validate

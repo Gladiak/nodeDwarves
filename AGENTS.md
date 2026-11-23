@@ -114,6 +114,7 @@ This file defines how to implement new features in a consistent, stable way.
 - `src/place_identity.js`: bounded authoritative registry for deterministic place names, compact
   labels, coordinates, and event/UI location lookup.
 - `src/ai/`: AI modules (policy and observation).
+- `src/ai/observation_layout.js`: shared legacy/factored observation layout plans used by the training server and in-game policy inference.
 - `src/ai_policy.js`: thin wrapper for `src/ai/policy.js`.
 - `src/clans.js`: clan helpers and weighted clan distribution.
 - `src/dwarf_lore.js`: deterministic lore seed and generation for identity, inspect, and narrative consumers.
@@ -196,6 +197,8 @@ This file defines how to implement new features in a consistent, stable way.
 - PPO only (2x128 MLP). Keep JSON weights for JS inference.
 - Training must be resumable from the best-eval snapshot (default `models/policy_best.json`).
 - If observation/action shapes change, require `--fresh` training.
+- Keep the observation layout identical across `ai_server.js`, `src/ai/policy.js` and `python/train.py` (shared plan in `src/ai/observation_layout.js`).
+- The critic predicts normalized returns with output-preserving rescaling; only true terminal states (extinction) cut bootstrap, time limits bootstrap.
 - Keep logs low-noise: `diag` should be averaged per log window.
 - Track model quality over time and prefer steady, incremental improvements over sudden unstable jumps.
 

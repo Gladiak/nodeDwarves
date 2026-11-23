@@ -134,7 +134,8 @@ def resolve_policy_settings(payload, config, defaults, resources):
         defaults["feature_names"],
     )
     resolved_resources = resolve_policy_list(payload.get("resources"), resources)
-    input_size = len(resolved_resources) * len(feature_names)
+    observation_layout = train.normalize_observation_layout(payload.get("observationLayout"))
+    input_size = train.observation_size(resolved_resources, feature_names, observation_layout)
     ai_config = (config.get("ai", {}) or {}) if isinstance(config, dict) else {}
     min_weight = resolve_weight_limit(payload.get("minWeight"), ai_config.get("minWeight", 0.0))
     max_weight = resolve_weight_limit(payload.get("maxWeight"), ai_config.get("maxWeight", 2.0))
@@ -177,6 +178,7 @@ def resolve_policy_settings(payload, config, defaults, resources):
     return {
         "resources": resolved_resources,
         "feature_names": feature_names,
+        "observation_layout": observation_layout,
         "invalid_features": invalid,
         "hidden_sizes": resolve_hidden_sizes(payload.get("hiddenSizes"), defaults["hidden_sizes"]),
         "activation": str(payload.get("activation") or defaults["activation"] or "tanh").lower(),
@@ -191,8 +193,15 @@ def resolve_policy_settings(payload, config, defaults, resources):
 
 
 # Function: build_model_from_policy.
-def build_model_from_policy(payload, resources, feature_names, hidden_sizes, activation):
-    input_size = len(resources) * len(feature_names)
+def build_model_from_policy(
+    payload,
+    resources,
+    feature_names,
+    hidden_sizes,
+    activation,
+    observation_layout=train.OBSERVATION_LAYOUT_PER_RESOURCE,
+):
+    input_size = train.observation_size(resources, feature_names, observation_layout)
     action_size = len(resources)
     model = train.ActorCritic(input_size, action_size, hidden_sizes, activation, -0.5)
     train.load_policy(payload["__path"], model)
@@ -222,8 +231,16 @@ def evaluate_policy(
     progress_prefix="eval",
     obs_normalization=None,
     transport=train.TRANSPORT_LEGACY,
+    observation_layout=train.OBSERVATION_LAYOUT_PER_RESOURCE,
 ):
-    model = build_model_from_policy(payload, resources, feature_names, hidden_sizes, activation)
+    model = build_model_from_policy(
+        payload,
+        resources,
+        feature_names,
+        hidden_sizes,
+        activation,
+        observation_layout=observation_layout,
+    )
     stats = train.evaluate(
         proc,
         model,
@@ -244,6 +261,7 @@ def evaluate_policy(
         progress_prefix=progress_prefix,
         obs_normalization=obs_normalization,
         transport=transport,
+        observation_layout=observation_layout,
     )
     score = train.compute_score(
         stats["avg_reward"],
@@ -870,6 +888,7 @@ def main():
             progress_prefix="eval_latest",
             obs_normalization=model_settings["obs_normalization"],
             transport=args.transport,
+            observation_layout=model_settings["observation_layout"],
         )
 
         if args.eval_only:
@@ -917,6 +936,7 @@ def main():
                 progress_prefix="eval_best",
                 obs_normalization=best_settings["obs_normalization"],
                 transport=args.transport,
+                observation_layout=best_settings["observation_layout"],
             )
 
         if best_score is None:

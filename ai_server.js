@@ -6,6 +6,11 @@ const { buildRuntime } = require('./src/runtime');
 const { createInitialState } = require('./src/state');
 const { stepState } = require('./src/simulation');
 const { buildObservation: buildAiObservation } = require('./src/ai/observation');
+const {
+  normalizeObservationLayout,
+  buildObservationPlan,
+  assembleObservationVector,
+} = require('./src/ai/observation_layout');
 const { getTerrainResourceRatio } = require('./src/simulation/terrain');
 const { getFestivalObservation } = require('./src/simulation/festivals');
 const { clamp } = require('./src/utils');
@@ -494,21 +499,22 @@ function compileFeatureSpecs(featureNames) {
       continue;
     }
     if (name === FEATURE_KIND_SHORTAGE) {
-      specs.push({ kind: FEATURE_KIND_SHORTAGE });
+      specs.push({ kind: FEATURE_KIND_SHORTAGE, name });
       continue;
     }
     if (name === FEATURE_KIND_NODE_SCARCITY) {
-      specs.push({ kind: FEATURE_KIND_NODE_SCARCITY });
+      specs.push({ kind: FEATURE_KIND_NODE_SCARCITY, name });
       continue;
     }
     if (STATIC_FEATURE_NAMES.has(name)) {
-      specs.push({ kind: FEATURE_KIND_STATIC, key: name });
+      specs.push({ kind: FEATURE_KIND_STATIC, key: name, name });
       continue;
     }
     if (name.startsWith(MYTH_FLAG_PREFIX)) {
       specs.push({
         kind: FEATURE_KIND_MYTH_FLAG,
         key: name.slice(MYTH_FLAG_PREFIX.length),
+        name,
       });
       continue;
     }
@@ -516,10 +522,11 @@ function compileFeatureSpecs(featureNames) {
       specs.push({
         kind: FEATURE_KIND_CLAN_SHARE,
         key: name.slice(CLAN_SHARE_PREFIX.length),
+        name,
       });
       continue;
     }
-    specs.push({ kind: FEATURE_KIND_ZERO });
+    specs.push({ kind: FEATURE_KIND_ZERO, name });
   }
   return specs;
 }
@@ -545,11 +552,19 @@ function configureTransport(rawTransport, config) {
     ? parseStringList(rawTransport.featureNames)
     : [];
   const bounds = getActionClampBounds(config);
+  const featureSpecs = compileFeatureSpecs(featureNames);
+  const observationLayout = normalizeObservationLayout(
+    rawTransport && typeof rawTransport === 'object' ? rawTransport.observationLayout : null,
+  );
   transportState = {
     mode,
     resources,
     featureNames,
-    featureSpecs: compileFeatureSpecs(featureNames),
+    featureSpecs,
+    observationLayout,
+    observationPlan: resources.length > 0
+      ? buildObservationPlan(resources, featureSpecs.map((spec) => spec.name), observationLayout)
+      : null,
     actionSlots: compileActionSlots(resources),
     actionClampLow: bounds.low,
     actionClampHigh: bounds.high,
@@ -1688,31 +1703,40 @@ function buildCompactObservationVector(metrics, config) {
     warriorHeroTurnoverPressure: clamp(Number(warriors.heroTurnoverPressure || 0), 0, 1),
   };
 
-  const vector = new Array(resources.length * featureCount);
-  let cursor = 0;
-
-  for (const resource of resources) {
+  // Fill one full feature row for a resource; the observation plan picks the needed slots.
+  const buildRow = (resource) => {
     const ratio = Number(ratios[resource] ?? 1);
     const nodeRatio = Number(nodeRatios[resource] ?? 1);
     const shortage = clamp(1 - ratio, 0, 1);
     const nodeScarcity = clamp(1 - nodeRatio, 0, 1);
-    for (const spec of featureSpecs) {
+    const row = new Array(featureCount);
+    for (let index = 0; index < featureCount; index += 1) {
+      const spec = featureSpecs[index];
       if (spec.kind === FEATURE_KIND_SHORTAGE) {
-        vector[cursor] = shortage;
+        row[index] = shortage;
       } else if (spec.kind === FEATURE_KIND_NODE_SCARCITY) {
-        vector[cursor] = nodeScarcity;
+        row[index] = nodeScarcity;
       } else if (spec.kind === FEATURE_KIND_STATIC) {
-        vector[cursor] = Number(staticValues[spec.key] || 0);
+        row[index] = Number(staticValues[spec.key] || 0);
       } else if (spec.kind === FEATURE_KIND_MYTH_FLAG) {
-        vector[cursor] = clamp(Number(mythFlags[spec.key] || 0), 0, 1);
+        row[index] = clamp(Number(mythFlags[spec.key] || 0), 0, 1);
       } else if (spec.kind === FEATURE_KIND_CLAN_SHARE) {
-        vector[cursor] = clamp(Number(clanShares[spec.key] || 0), 0, 1);
+        row[index] = clamp(Number(clanShares[spec.key] || 0), 0, 1);
       } else {
-        vector[cursor] = 0;
+        row[index] = 0;
       }
-      cursor += 1;
     }
-  }
+    return row;
+  };
+
+  const plan = transportState && transportState.observationPlan
+    ? transportState.observationPlan
+    : buildObservationPlan(
+      resources,
+      featureSpecs.map((spec) => spec.name),
+      transportState && transportState.observationLayout,
+    );
+  const vector = assembleObservationVector(plan, buildRow);
 
   return vector;
 }

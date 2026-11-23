@@ -75,7 +75,8 @@ Current release: **v2.5.0 - Saved Holds and Scenario Challenges**. 🍺🗺️
 - 📚 Political sagas follow one bounded arc through local rituals to their witnessed outcome.
 - 🌤️ In-map Ops Snapshot shows a live weather token (`Wx:*`, e.g. `Clear`, `Rain`, `Storm`) for at-a-glance climate context.
 - 📊 In-game Data Center (`h`) with dashboard, deep economy views, Story Director visibility, and AI explainability.
-- 🤖 PPO training pipeline in Python with JS runtime inference (`models/*.json`).
+- 🤖 PPO training pipeline in Python with JS runtime inference (`models/*.json`), a lean ~80-signal
+  colony observation, and a self-scaling critic that reports its own health (`ev=`) in the logs.
 - 🧪 Deterministic benchmark/regression tooling with cached baseline comparison and milestone measurements for colony habits, travel, and saga coherence.
 
 ## Quick Start 🚀
