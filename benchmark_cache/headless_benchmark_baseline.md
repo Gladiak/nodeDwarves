@@ -1,6 +1,6 @@
 # NodeDwarves Balance Report
 
-Generated: 2026-11-11T18:06:59.505Z
+Generated: 2026-11-23T18:42:51.362Z
 Ticks: 8000
 Seeds: 101, 202, 303, 404
 Resources: beer, food, water
@@ -18,10 +18,10 @@ Unavailable measurements are explicit nulls; runtime timings are observational, 
 
 | Variant / seed | Births | Food floor / avg | Water floor / avg | Idle adults | Saga terminal | Fragmentation | Road steps | Travel mean | Field rebuilds | ticks/s |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| baseline / 101 | 716 | 19.62 / 421.09 | 47.68 / 414.06 | 20.79% | 47.37% | 69.74% | 10.53% | 5.29 | 1160711 | 43.12 |
-| baseline / 202 | 737 | 18.75 / 545.56 | 44.72 / 541.83 | 33.67% | 56.90% | 63.79% | 10.59% | 6.31 | 1245698 | 38.78 |
-| baseline / 303 | 761 | 39.99 / 510.98 | 37.93 / 641.06 | 16.63% | 46.58% | 63.01% | 9.03% | 4.97 | 1450735 | 29.59 |
-| baseline / 404 | 764 | 39.99 / 475.93 | 49.99 / 509.12 | 15.61% | 47.25% | 70.33% | 8.16% | 4.89 | 1537311 | 27.96 |
+| baseline / 101 | 716 | 19.62 / 421.09 | 47.68 / 414.06 | 20.79% | 47.37% | 69.74% | 10.53% | 5.29 | 1160711 | 114.06 |
+| baseline / 202 | 737 | 18.75 / 545.56 | 44.72 / 541.83 | 33.67% | 56.90% | 63.79% | 10.59% | 6.31 | 1245698 | 107.77 |
+| baseline / 303 | 761 | 39.99 / 510.98 | 37.93 / 641.06 | 16.63% | 46.58% | 63.01% | 9.03% | 4.97 | 1450735 | 94.18 |
+| baseline / 404 | 764 | 39.99 / 475.93 | 49.99 / 509.12 | 15.61% | 47.25% | 70.33% | 8.16% | 4.89 | 1537311 | 85.80 |
 
 ## Saga Churn Diagnostics
 
@@ -80,10 +80,3 @@ Per-seed JSON retains bounded source-backed timelines, match paths, exit reasons
 | forge_quota | 6 | 18.8% | 1200 | 18.8% |
 | deep_claims | 5 | 15.6% | 1000 | 15.6% |
 | hearth_festivity | 2 | 6.3% | 400 | 6.3% |
-
-Profile alignment: the measured configuration already matches production defaults; no source override was applied.
-Normalized effective configuration SHA-256: `f61c0051a7922fd7ff2f51c0ceddc5488bfbaae0e3b1f7d6c3342e749125881d`.
-Source configuration SHA-256: `cb322d475bccb958b7113cc95af2f671c9c67488316991c5e776927a4b3161ca`.
-The unmodified source report and assignments are retained in canonical_road_refinement.json.
-
-Existing non-policy JSON formatting restored; normalized effective configuration remains unchanged.

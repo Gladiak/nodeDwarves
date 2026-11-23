@@ -247,8 +247,10 @@ rl.on('line', (line) => {
   }
 
   if (cmd === 'close') {
-    writeResponse({ ok: true });
-    process.exit(0);
+    // Exit only after stdout drains: pipes are asynchronous on macOS and an immediate
+    // process.exit() can truncate buffered responses.
+    rl.close();
+    process.stdout.write(`${JSON.stringify({ ok: true })}\n`, () => process.exit(0));
     return;
   }
 

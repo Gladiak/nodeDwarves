@@ -8,6 +8,7 @@
     "ai:play": "node app.js --ai models/policy_best.json",
     "ai:train": "node scripts/train_wrapper.js",
     "ai:train:m4": "node scripts/train_wrapper.js m4-balanced",
+    "ai:train:m4pro": "node scripts/train_wrapper.js m4-pro",
     "ai:train:continuous": "node scripts/train_continuous.js --low-write --auto-clean-debug",
     "ai:validate": "node scripts/validate_extended_optimized.js",
     "ai:validate:weekly": "node scripts/regression.js --profile horizon --seed-pack weekly --report-json debug/regression_horizon_weekly_latest.json --report-md debug/regression_horizon_weekly_latest.md",

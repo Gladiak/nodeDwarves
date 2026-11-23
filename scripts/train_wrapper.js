@@ -11,6 +11,7 @@ const PROFILE_FAST = "fast";
 const PROFILE_QUALITY = "quality";
 const PROFILE_QUALITY_MIXED = "quality-mixed";
 const PROFILE_M4_BALANCED = "m4-balanced";
+const PROFILE_M4_PRO = "m4-pro";
 const PROFILE_FULL = "full";
 const PROFILE_ENDGAME = "endgame";
 const PROFILE_BENCHMARK = "benchmark";
@@ -63,6 +64,12 @@ const M4_BALANCED_CANONICAL_EVAL_EPISODES = 12;
 const M4_BALANCED_CANONICAL_EVAL_MAX_STEPS = 1800;
 const M4_BALANCED_PROMOTE_PROGRESS_EVERY = 2;
 const M4_BALANCED_ENDGAME_RESULT_WAIT_TIMEOUT_SECONDS = 1200;
+// M4 Pro (8 performance + 4 efficiency cores): measured env throughput saturates around
+// 7 parallel simulations (4:875, 6:1148, 8:1230, 10:1276 steps/s), and 7 scales to
+// 7->5->4 phase workers so the endgame phase matches its 4-episode PPO batch.
+const M4_PRO_WORKERS_AUTO_MIN = 6;
+const M4_PRO_WORKERS_AUTO_MAX = 7;
+const M4_PRO_WORKERS_RESERVE = 5;
 const M4_BALANCED_TRAIN_EXTRAS = [
   "--eval-every", "40",
   "--eval-episodes", "2",
@@ -74,6 +81,7 @@ const VALID_PROFILES = new Set([
   PROFILE_QUALITY,
   PROFILE_QUALITY_MIXED,
   PROFILE_M4_BALANCED,
+  PROFILE_M4_PRO,
   PROFILE_FULL,
   PROFILE_ENDGAME,
   PROFILE_BENCHMARK,
@@ -256,6 +264,18 @@ function applyM4BalancedPreset(args) {
   args.promoteEvalProgress = true;
   args.promoteEvalProgressEvery = M4_BALANCED_PROMOTE_PROGRESS_EVERY;
   args.trainExtraArgs.push(...M4_BALANCED_TRAIN_EXTRAS);
+}
+
+// Apply the M4-balanced phases with a worker budget sized for a 12-core M4 Pro.
+function applyM4ProPreset(args) {
+  if (!args || typeof args !== "object") {
+    return;
+  }
+  applyM4BalancedPreset(args);
+  args.m4Pro = true;
+  args.workersAutoMin = M4_PRO_WORKERS_AUTO_MIN;
+  args.workersAutoMax = M4_PRO_WORKERS_AUTO_MAX;
+  args.workersReserve = M4_PRO_WORKERS_RESERVE;
 }
 
 // Apply run-time canonical promotion overrides on top of config defaults.
@@ -691,6 +711,7 @@ function parseArgs(argv) {
     skipPhasePromotes: false,
     lowLoad: false,
     m4Balanced: false,
+    m4Pro: false,
   };
   const args = Array.isArray(argv) ? [...argv] : [];
   if (args.length > 0 && !String(args[0]).startsWith("-")) {
@@ -698,6 +719,8 @@ function parseArgs(argv) {
   }
   if (result.profile === PROFILE_M4_BALANCED) {
     applyM4BalancedPreset(result);
+  } else if (result.profile === PROFILE_M4_PRO) {
+    applyM4ProPreset(result);
   }
   for (let index = 0; index < args.length; index += 1) {
     const arg = String(args[index] || "").trim();
@@ -963,6 +986,7 @@ function printHelp() {
     "  quality",
     "  quality-mixed",
     "  m4-balanced",
+    "  m4-pro",
     "  full",
     "  endgame",
     "  benchmark",
@@ -1008,6 +1032,7 @@ function printHelp() {
     "  - --low-write keeps one latest checkpoint write per phase; promotion checks still run unchanged.",
     "  - Low-load preset defaults: canonical-final-only, 8x1600 canonical eval, no paired-LCB, progress every 2 episodes.",
     "  - M4-balanced preset defaults: quality-mixed phases, 5->4 workers, sparse train eval, no phase promotes, final 12x1800 canonical eval with paired-LCB.",
+    "  - M4-pro preset: M4-balanced phases with 7->5->4 workers for a 12-core M4 Pro; promotion evals run in parallel.",
     "  - Promotion reports are written per phase plus one run summary in the run directory.",
   ];
   process.stdout.write(`${lines.join("\n")}\n`);
@@ -1286,6 +1311,7 @@ function prepareRunFiles(rootDir, profile, runOptions = {}, dryRun = false) {
     || profile === PROFILE_QUALITY
     || profile === PROFILE_QUALITY_MIXED
     || profile === PROFILE_M4_BALANCED
+    || profile === PROFILE_M4_PRO
     || profile === PROFILE_FULL
   ) {
     files.fast = path.join(runDir, "config_fast.json");
@@ -1296,6 +1322,7 @@ function prepareRunFiles(rootDir, profile, runOptions = {}, dryRun = false) {
     profile === PROFILE_QUALITY
     || profile === PROFILE_QUALITY_MIXED
     || profile === PROFILE_M4_BALANCED
+    || profile === PROFILE_M4_PRO
     || profile === PROFILE_FULL
   ) {
     files.finetune = path.join(runDir, "config_finetune.json");
@@ -1304,6 +1331,7 @@ function prepareRunFiles(rootDir, profile, runOptions = {}, dryRun = false) {
   }
   if (
     profile === PROFILE_M4_BALANCED
+    || profile === PROFILE_M4_PRO
     || profile === PROFILE_ENDGAME
     || profile === PROFILE_FULL
   ) {
@@ -1332,6 +1360,12 @@ function prepareRunFiles(rootDir, profile, runOptions = {}, dryRun = false) {
 
 // Build the training/promote phase list for the selected profile.
 function buildPhases(profile, runDir, files) {
+  if (profile === PROFILE_M4_PRO) {
+    return buildPhases(PROFILE_M4_BALANCED, runDir, files).map((phase) => ({
+      ...phase,
+      name: String(phase.name || "m4-balanced").replace("m4-balanced", "m4-pro"),
+    }));
+  }
   if (profile === PROFILE_M4_BALANCED) {
     const mixedPhases = buildPhases(PROFILE_QUALITY_MIXED, runDir, files).map((phase) => ({
       ...phase,
@@ -1978,7 +2012,13 @@ function runProfile(rootDir, profile, trainExtraArgs, dryRun, workerOptions = {}
   if (workerOptions.lowLoad === true) {
     printStatus("profile", "low-load preset enabled", ANSI_CYAN);
   }
-  if (workerOptions.m4Balanced === true) {
+  if (workerOptions.m4Pro === true) {
+    printStatus(
+      "profile",
+      "M4-pro preset enabled (M4-balanced phases, 7->5->4 rollout workers, parallel promotion eval)",
+      ANSI_CYAN,
+    );
+  } else if (workerOptions.m4Balanced === true) {
     printStatus(
       "profile",
       "M4-balanced preset enabled (quality-mixed + long-horizon endgame, sustainable workers, final canonical)",
@@ -2004,6 +2044,10 @@ function runProfile(rootDir, profile, trainExtraArgs, dryRun, workerOptions = {}
       promoteArgsResolved = applyPhasePromoteLcbOptions(promoteArgsResolved, workerOptions);
     }
     promoteArgsResolved = applyPromoteProgressOptions(promoteArgsResolved, workerOptions);
+    // Promotion evals run between training phases, so they can use the full rollout worker budget.
+    if (findOptionValue(promoteArgsResolved, "--eval-workers") === null) {
+      promoteArgsResolved.push("--eval-workers", String(Math.max(1, Number(workerPlan.workers || 1))));
+    }
     const phaseToken = toPathToken(safePhaseName, `phase_${reportIndex}`);
     const phaseReportJsonPath = path.join(
       runDir,
@@ -2194,6 +2238,7 @@ function main() {
     debugKeepRegressionReports: args.debugKeepRegressionReports,
     lowLoad: args.lowLoad,
     m4Balanced: args.m4Balanced,
+    m4Pro: args.m4Pro,
   });
 }
 
@@ -2203,7 +2248,9 @@ if (require.main === module) {
 
 module.exports = {
   PROFILE_M4_BALANCED,
+  PROFILE_M4_PRO,
   applyM4BalancedPreset,
+  applyM4ProPreset,
   buildPhases,
   parseArgs,
   resolvePhaseWorkers,

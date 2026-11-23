@@ -1,6 +1,7 @@
 'use strict';
 
 const { clamp } = require('../utils');
+const { memoizeTickConfig } = require('./tick_config_cache');
 const { registerPlace } = require('../place_identity');
 const { isSpawnableTile } = require('./terrain');
 const { getStockpileRatio, hasInputs, consumeInputs } = require('./resources');
@@ -328,7 +329,13 @@ function resolveSettlementCenter(state, runtime) {
   return { x: Math.floor(runtime.gridWidth / 2), y: Math.floor(runtime.gridHeight / 2) };
 }
 
+// Resolve normalized landmark settings (memoized per tick).
 function getSettings(config) {
+  return memoizeTickConfig('landmarks', config, config && config.landmarks, () => computeSettings(config));
+}
+
+// Normalize landmark settings and definitions.
+function computeSettings(config) {
   const raw = config && config.landmarks || {};
   const definitions = Object.entries(raw.definitions || {})
     .filter(([, value]) => value && value.enabled !== false)

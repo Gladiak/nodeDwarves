@@ -1,6 +1,7 @@
 'use strict';
 
 const { clamp } = require('../utils');
+const { memoizeTickConfig } = require('./tick_config_cache');
 const { canTempleAdvanceByLegitimacy, getSchismDoctrine } = require('./schism');
 const { registerPlace } = require('../place_identity');
 
@@ -198,9 +199,14 @@ function normalizeTempleStage(stage, index) {
   };
 }
 
-// Resolve and normalize all temple stages.
+// Resolve and normalize all temple stages (memoized per tick).
 function getTempleStages(config) {
   const temple = getTempleConfig(config);
+  return memoizeTickConfig('templeStages', config, temple, () => computeTempleStages(temple));
+}
+
+// Normalize all temple stages from the raw temple config.
+function computeTempleStages(temple) {
   const raw = Array.isArray(temple.stages) ? temple.stages : [];
   return raw.map((stage, index) => normalizeTempleStage(stage, index));
 }

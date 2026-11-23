@@ -136,8 +136,24 @@ function getTerrainCooldownTicks(config, resourceId) {
   return Math.max(0, Math.floor(Number(fallback || 0)));
 }
 
+const terrainCooldownKeyRows = [];
+
+// Build (and memoize for integer coordinates) the cooldown map key for a tile.
 function getTerrainCooldownKey(x, y) {
-  return `${x},${y}`;
+  if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || y < 0 || x > 4095 || y > 4095) {
+    return `${x},${y}`;
+  }
+  let row = terrainCooldownKeyRows[y];
+  if (!row) {
+    row = [];
+    terrainCooldownKeyRows[y] = row;
+  }
+  let key = row[x];
+  if (key === undefined) {
+    key = `${x},${y}`;
+    row[x] = key;
+  }
+  return key;
 }
 
 function isPastureDepleted(state, x, y) {

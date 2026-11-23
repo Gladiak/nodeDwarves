@@ -132,6 +132,7 @@ Quality-oriented loop and acceptance gate:
 
 ```bash
 npm run ai:train:m4
+npm run ai:train:m4pro
 npm run ai:train -- quality
 npm run ai:validate
 npm run audit:narrative-producers
@@ -147,12 +148,14 @@ CI bundles identify their run and commit, keep fresh evidence, and show skipped 
 
 `ai:train:m4` is the direct shortcut for the `m4-balanced` profile. The generic
 `ai:train` command accepts the wrapper profile after `--`: `fast` (default), `quality`,
-`quality-mixed`, `m4-balanced`, `full`, `endgame`, or `benchmark`. The
+`quality-mixed`, `m4-balanced`, `m4-pro`, `full`, `endgame`, or `benchmark`. The
 `m4-balanced` profile is the sustainable speed/quality preset for a 10-core,
 16 GB Apple M4: quality-mixed foundation/finetune, a dedicated 20,000-tick
 endgame specialization phase, `5→4→3` workers, sparse intermediate evaluation,
-and one guarded final canonical check. Add `--fresh` after the profile when
-observation or action contracts change.
+and one guarded final canonical check. 🚀 `ai:train:m4pro` runs the same recipe on a
+12-core M4 Pro with more rollout workers (`7→5→4`, the measured throughput sweet spot)
+and promotion evals fanned out across cores — same scores, much less waiting. Add `--fresh` after
+the profile when observation or action contracts change.
 
 For training profiles, validation and everyday operations, see [MANUAL.md](MANUAL.md).
 

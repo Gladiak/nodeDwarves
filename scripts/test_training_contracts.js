@@ -27,6 +27,7 @@ const {
 } = require('../src/ai/observation_layout');
 const {
   PROFILE_M4_BALANCED,
+  PROFILE_M4_PRO,
   buildPhases: buildTrainingPhases,
   parseArgs: parseTrainingWrapperArgs,
   resolvePhaseWorkers,
@@ -216,6 +217,32 @@ function validateM4BalancedWrapperContract() {
     resolvePhaseWorkers(workerPlan, phases[2], true).workers === 3,
     'M4 wrapper contract: endgame worker count mismatch.',
   );
+
+  const pro = parseTrainingWrapperArgs([PROFILE_M4_PRO]);
+  assert(pro.profile === PROFILE_M4_PRO && pro.m4Pro === true, 'M4 Pro wrapper contract: profile mismatch.');
+  assert(pro.canonicalMode === 'final-only' && pro.skipPhasePromotes === true, 'M4 Pro wrapper contract: should inherit M4-balanced promotion policy.');
+  const proPhases = buildTrainingPhases(PROFILE_M4_PRO, '/tmp/m4-wrapper-contract', {
+    fast: '/tmp/m4-wrapper-contract/config_fast.json',
+    finetune: '/tmp/m4-wrapper-contract/config_finetune.json',
+    endgame: '/tmp/m4-wrapper-contract/config_endgame.json',
+  });
+  assert(
+    proPhases.map((phase) => phase.name).join(',') === 'm4-pro-foundation,m4-pro-finetune,m4-pro-endgame',
+    'M4 Pro wrapper contract: phase names mismatch.',
+  );
+  assert(
+    JSON.stringify(proPhases.map((phase) => phase.trainArgs.filter((arg) => !String(arg).includes('m4_balanced'))))
+      === JSON.stringify(phases.map((phase) => phase.trainArgs.filter((arg) => !String(arg).includes('m4_balanced')))),
+    'M4 Pro wrapper contract: training recipe should match M4-balanced.',
+  );
+  const proPlan = resolveWorkerPlan(pro.trainExtraArgs, {
+    cpuCount: 12,
+    workersAutoMin: pro.workersAutoMin,
+    workersAutoMax: pro.workersAutoMax,
+    workersReserve: pro.workersReserve,
+  });
+  const proWorkers = proPhases.map((phase) => resolvePhaseWorkers(proPlan, phase, true).workers).join(',');
+  assert(proWorkers === '7,5,4', `M4 Pro wrapper contract: worker plan mismatch (${proWorkers}).`);
 }
 
 // Execute one subprocess and enforce expected exit codes.

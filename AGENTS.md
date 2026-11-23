@@ -52,6 +52,7 @@ This file defines how to implement new features in a consistent, stable way.
 - `saves/`: git-ignored per-colony checkpoints and previous valid backups.
 - `src/simulation/`: simulation systems split by theme.
 - `src/simulation/index.js`: simulation orchestrator.
+- `src/simulation/tick_config_cache.js`: per-tick, deep-frozen memo for pure config normalizers (warriors, landmarks, temple stages); active only inside `stepState`.
 - `src/simulation/narrative_contract.js`: strict schema-v1 validator and deterministic event identity helpers used by narrative contract gates and the runtime event core.
 - `src/simulation/narrative_normalizer.js`: bounded structured-event draft normalization, config-driven importance resolution, and deterministic optional-payload reduction.
 - `src/simulation/story_director.js`: bounded per-cycle Story Director state, deterministic event scoring/focus selection, cooldown/escalation budgets, reason traces, serialization repair, and hard-cap enforcement.

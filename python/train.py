@@ -3192,6 +3192,204 @@ def run_episode(
     return rollout, total_reward, steps, info
 
 
+# Build the deterministic (seed, scenario) episode plan shared by sequential and parallel eval.
+def build_eval_plan(episodes, scenarios, seed_base):
+    scenario_plan = []
+    if scenarios:
+        scenario_count = max(1, len(scenarios))
+        per_scenario = episodes // scenario_count
+        remainder = episodes % scenario_count
+        for idx, name in enumerate(scenarios):
+            count = per_scenario + (1 if idx < remainder else 0)
+            if count > 0:
+                scenario_plan.append((name, count))
+    else:
+        scenario_plan.append((None, episodes))
+    plan = []
+    episode_idx = 0
+    for scenario_name, scenario_episodes in scenario_plan:
+        for _ in range(scenario_episodes):
+            seed = seed_base + episode_idx if seed_base is not None else None
+            episode_idx += 1
+            plan.append((seed, scenario_name))
+    return plan
+
+
+# Run one deterministic evaluation episode and return its raw per-step rewards.
+def run_eval_episode(
+    proc,
+    model,
+    resources,
+    feature_names,
+    max_steps,
+    step_ticks,
+    seed,
+    scenario_name,
+    difficulty,
+    min_weight,
+    max_weight,
+    obs_normalization=None,
+    transport=TRANSPORT_LEGACY,
+    observation_layout=OBSERVATION_LAYOUT_PER_RESOURCE,
+):
+    mode = normalize_transport_mode(transport)
+    rewards = []
+    reset_payload = build_reset_payload(
+        seed,
+        training=True,
+        eval_mode=True,
+        randomize=False,
+        difficulty=difficulty,
+        scenario=scenario_name,
+        transport=mode,
+        resources=resources,
+        feature_names=feature_names,
+        observation_layout=observation_layout,
+    )
+    with inference_mode():
+        response = send(proc, reset_payload)
+        for step in range(max_steps):
+            vector = normalize_vector(
+                vector_from_response(
+                    response,
+                    resources,
+                    feature_names,
+                    mode,
+                    observation_layout=observation_layout,
+                ),
+                obs_normalization,
+            )
+            obs_tensor = torch.as_tensor(vector, dtype=torch.float32).unsqueeze(0)
+            action_tensor, _, _ = model.act(
+                obs_tensor,
+                min_weight,
+                max_weight,
+                deterministic=True,
+            )
+            action = action_tensor.squeeze(0).tolist()
+            step_message = build_step_message(
+                action,
+                resources,
+                step_ticks,
+                transport=mode,
+            )
+            response = send(proc, step_message)
+            rewards.append(float(response.get("reward", 0.0)))
+            if response.get("done"):
+                break
+    info = response.get("info", {})
+    return {
+        "rewards": rewards,
+        "births": int(info.get("births", 0)),
+        "deaths": int(info.get("deaths", 0)),
+        "underrealm": underrealm_eval_signals_from_info(info),
+    }
+
+
+_EVAL_WORKER_STATE = {}
+
+
+# Close the per-worker ai_server process when an eval worker exits.
+def _close_eval_worker_proc():
+    proc = _EVAL_WORKER_STATE.get("proc")
+    if proc is None:
+        return
+    try:
+        send(proc, {"cmd": "close"})
+    except Exception:
+        pass
+    try:
+        proc.terminate()
+    except Exception:
+        pass
+
+
+# Initialize one eval worker: single-threaded torch, own model copy and own ai_server.
+def _init_eval_worker(model, config_path, debug_mode, settings):
+    import atexit
+
+    torch.set_num_threads(1)
+    env = os.environ.copy()
+    if debug_mode:
+        env["NODEDWARVES_DEBUG_MODE"] = str(debug_mode)
+    proc = subprocess.Popen(
+        build_ai_server_command(config_path),
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        text=True,
+        bufsize=1,
+        env=env,
+    )
+    model.eval()
+    _EVAL_WORKER_STATE.update({"proc": proc, "model": model, "settings": settings})
+    atexit.register(_close_eval_worker_proc)
+
+
+# Evaluate one planned episode inside an eval worker.
+def _run_eval_worker_episode(task):
+    seed, scenario_name = task
+    state = _EVAL_WORKER_STATE
+    settings = state["settings"]
+    return run_eval_episode(
+        state["proc"],
+        state["model"],
+        settings["resources"],
+        settings["feature_names"],
+        settings["max_steps"],
+        settings["step_ticks"],
+        seed,
+        scenario_name,
+        settings["difficulty"],
+        settings["min_weight"],
+        settings["max_weight"],
+        obs_normalization=settings["obs_normalization"],
+        transport=settings["transport"],
+        observation_layout=settings["observation_layout"],
+    )
+
+
+# Yield episode results in plan order, running them on a worker pool when requested.
+def iter_eval_episode_results(proc, model, plan, settings, parallel=None):
+    workers = 1
+    if isinstance(parallel, dict):
+        try:
+            workers = int(parallel.get("workers") or 1)
+        except (TypeError, ValueError):
+            workers = 1
+    workers = max(1, min(workers, len(plan)))
+    if workers <= 1:
+        for seed, scenario_name in plan:
+            yield run_eval_episode(
+                proc,
+                model,
+                settings["resources"],
+                settings["feature_names"],
+                settings["max_steps"],
+                settings["step_ticks"],
+                seed,
+                scenario_name,
+                settings["difficulty"],
+                settings["min_weight"],
+                settings["max_weight"],
+                obs_normalization=settings["obs_normalization"],
+                transport=settings["transport"],
+                observation_layout=settings["observation_layout"],
+            )
+        return
+    from concurrent.futures import ProcessPoolExecutor
+
+    ctx = mp.get_context("spawn")
+    with ProcessPoolExecutor(
+        max_workers=workers,
+        mp_context=ctx,
+        initializer=_init_eval_worker,
+        initargs=(model, parallel.get("config_path"), parallel.get("debug_mode"), settings),
+    ) as executor:
+        # map() preserves plan order, so aggregation below stays bit-identical to sequential eval.
+        for result in executor.map(_run_eval_worker_episode, plan):
+            yield result
+
+
 def evaluate(
     proc,
     model,
@@ -3213,6 +3411,7 @@ def evaluate(
     obs_normalization=None,
     transport=TRANSPORT_LEGACY,
     observation_layout=OBSERVATION_LAYOUT_PER_RESOURCE,
+    parallel=None,
 ):
     mode = normalize_transport_mode(transport)
     total_reward = 0.0
@@ -3225,17 +3424,19 @@ def evaluate(
     total_underrealm_readiness_score = 0.0
     total_underrealm_combat_pressure = 0.0
     episode_scores = [] if collect_episode_scores else None
-    scenario_plan = []
-    if scenarios:
-        scenario_count = max(1, len(scenarios))
-        per_scenario = episodes // scenario_count
-        remainder = episodes % scenario_count
-        for idx, name in enumerate(scenarios):
-            count = per_scenario + (1 if idx < remainder else 0)
-            if count > 0:
-                scenario_plan.append((name, count))
-    else:
-        scenario_plan.append((None, episodes))
+    plan = build_eval_plan(episodes, scenarios, seed_base)
+    settings = {
+        "resources": resources,
+        "feature_names": feature_names,
+        "max_steps": max_steps,
+        "step_ticks": step_ticks,
+        "difficulty": difficulty,
+        "min_weight": min_weight,
+        "max_weight": max_weight,
+        "obs_normalization": obs_normalization,
+        "transport": mode,
+        "observation_layout": observation_layout,
+    }
 
     progress_enabled = bool(progress)
     try:
@@ -3249,105 +3450,61 @@ def evaluate(
     progress_score_total = 0.0
 
     episode_idx = 0
-    with inference_mode():
-        for scenario_name, scenario_episodes in scenario_plan:
-            for _ in range(scenario_episodes):
-                seed = seed_base + episode_idx if seed_base is not None else None
-                episode_idx += 1
-                episode_reward = 0.0
-                episode_steps = 0.0
-                episode_ticks = 0.0
-                reset_payload = build_reset_payload(
-                    seed,
-                    training=True,
-                    eval_mode=True,
-                    randomize=False,
-                    difficulty=difficulty,
-                    scenario=scenario_name,
-                    transport=mode,
-                    resources=resources,
-                    feature_names=feature_names,
-                    observation_layout=observation_layout,
+    results = iter_eval_episode_results(proc, model, plan, settings, parallel=parallel)
+    for (seed, scenario_name), episode in zip(plan, results):
+        episode_idx += 1
+        episode_reward = 0.0
+        episode_steps = 0.0
+        episode_ticks = 0.0
+        # Replay step rewards in order so float accumulation matches the sequential loop exactly.
+        for reward in episode["rewards"]:
+            total_reward += reward
+            total_steps += 1
+            total_ticks += float(step_ticks)
+            episode_reward += reward
+            episode_steps += 1
+            episode_ticks += float(step_ticks)
+
+        total_births += episode["births"]
+        total_deaths += episode["deaths"]
+        underrealm_signals = episode["underrealm"]
+        total_underrealm_depth_progress += underrealm_signals["depthProgress"]
+        total_underrealm_champion_progress += underrealm_signals["championProgress"]
+        total_underrealm_readiness_score += underrealm_signals["readinessScore"]
+        total_underrealm_combat_pressure += underrealm_signals["combatPressure"]
+        episode_score = None
+        if collect_episode_scores or progress_enabled:
+            episode_score = compute_score(
+                episode_reward,
+                episode_steps,
+                episode_ticks,
+                score_mode,
+            )
+        if collect_episode_scores and episode_score is not None:
+            episode_scores.append(episode_score)
+        if progress_enabled and episode_score is not None:
+            progress_score_total += episode_score
+            episodes_done = episode_idx
+            should_log_progress = (
+                episodes_done == episodes
+                or episodes_done % progress_every_value == 0
+            )
+            if should_log_progress:
+                elapsed = time.perf_counter() - progress_start_time
+                avg_seconds = elapsed / max(1, episodes_done)
+                eta_seconds = max(0.0, (episodes - episodes_done) * avg_seconds)
+                scenario_label = str(scenario_name or "default")
+                avg_reward_so_far = total_reward / max(1, episodes_done)
+                avg_score_so_far = progress_score_total / max(1, episodes_done)
+                print(
+                    f"[{progress_label}] episode={episodes_done}/{episodes} "
+                    f"scenario={scenario_label} "
+                    f"ep_reward={episode_reward:.2f} ep_steps={episode_steps:.0f} "
+                    f"ep_ticks={episode_ticks:.0f} avg_reward={avg_reward_so_far:.2f} "
+                    f"avg_score={avg_score_so_far:.4f} elapsed={elapsed:.1f}s "
+                    f"eta={eta_seconds:.1f}s",
+                    flush=True,
                 )
-                response = send(proc, reset_payload)
-
-                for step in range(max_steps):
-                    vector = normalize_vector(
-                        vector_from_response(
-                            response,
-                            resources,
-                            feature_names,
-                            mode,
-                            observation_layout=observation_layout,
-                        ),
-                        obs_normalization,
-                    )
-                    obs_tensor = torch.as_tensor(vector, dtype=torch.float32).unsqueeze(0)
-                    action_tensor, _, _ = model.act(
-                        obs_tensor,
-                        min_weight,
-                        max_weight,
-                        deterministic=True,
-                    )
-                    action = action_tensor.squeeze(0).tolist()
-                    step_message = build_step_message(
-                        action,
-                        resources,
-                        step_ticks,
-                        transport=mode,
-                    )
-                    response = send(proc, step_message)
-                    reward = float(response.get("reward", 0.0))
-                    total_reward += reward
-                    total_steps += 1
-                    total_ticks += float(step_ticks)
-                    episode_reward += reward
-                    episode_steps += 1
-                    episode_ticks += float(step_ticks)
-                    if response.get("done"):
-                        break
-
-                info = response.get("info", {})
-                total_births += int(info.get("births", 0))
-                total_deaths += int(info.get("deaths", 0))
-                underrealm_signals = underrealm_eval_signals_from_info(info)
-                total_underrealm_depth_progress += underrealm_signals["depthProgress"]
-                total_underrealm_champion_progress += underrealm_signals["championProgress"]
-                total_underrealm_readiness_score += underrealm_signals["readinessScore"]
-                total_underrealm_combat_pressure += underrealm_signals["combatPressure"]
-                episode_score = None
-                if collect_episode_scores or progress_enabled:
-                    episode_score = compute_score(
-                        episode_reward,
-                        episode_steps,
-                        episode_ticks,
-                        score_mode,
-                    )
-                if collect_episode_scores and episode_score is not None:
-                    episode_scores.append(episode_score)
-                if progress_enabled and episode_score is not None:
-                    progress_score_total += episode_score
-                    episodes_done = episode_idx
-                    should_log_progress = (
-                        episodes_done == episodes
-                        or episodes_done % progress_every_value == 0
-                    )
-                    if should_log_progress:
-                        elapsed = time.perf_counter() - progress_start_time
-                        avg_seconds = elapsed / max(1, episodes_done)
-                        eta_seconds = max(0.0, (episodes - episodes_done) * avg_seconds)
-                        scenario_label = str(scenario_name or "default")
-                        avg_reward_so_far = total_reward / max(1, episodes_done)
-                        avg_score_so_far = progress_score_total / max(1, episodes_done)
-                        print(
-                            f"[{progress_label}] episode={episodes_done}/{episodes} "
-                            f"scenario={scenario_label} "
-                            f"ep_reward={episode_reward:.2f} ep_steps={episode_steps:.0f} "
-                            f"ep_ticks={episode_ticks:.0f} avg_reward={avg_reward_so_far:.2f} "
-                            f"avg_score={avg_score_so_far:.4f} elapsed={elapsed:.1f}s "
-                            f"eta={eta_seconds:.1f}s",
-                            flush=True,
-                        )
 
     result = {
         "avg_reward": total_reward / max(1, episodes),

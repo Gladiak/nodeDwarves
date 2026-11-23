@@ -680,42 +680,46 @@ function buildPathField(state, runtime, targetX, targetY, radius) {
   }
 
   const distances = new Array(total).fill(-1);
-  const queue = new Array(total);
+  const queue = new Int32Array(total);
   let head = 0;
   let tail = 0;
 
-  const toIndex = (x, y) => (y - minY) * localWidth + (x - minX);
-  const targetIndex = toIndex(anchorX, anchorY);
+  const targetIndex = (anchorY - minY) * localWidth + (anchorX - minX);
   distances[targetIndex] = 0;
   queue[tail++] = targetIndex;
+
+  // Allocation-free BFS; neighbor order (+x, -x, +y, -y) is kept for determinism.
+  const walkable = state && state.terrain && state.terrain.walkable;
+  const canWalk = walkable
+    ? (x, y) => {
+      const row = walkable[y];
+      return !row || Boolean(row[x]);
+    }
+    : (x, y) => isWalkableTile(state, x, y);
+  const visit = (nx, ny, nextDist) => {
+    if (nx < minX || nx > maxX || ny < minY || ny > maxY) {
+      return;
+    }
+    if (!canWalk(nx, ny)) {
+      return;
+    }
+    const nextIndex = (ny - minY) * localWidth + (nx - minX);
+    if (distances[nextIndex] !== -1) {
+      return;
+    }
+    distances[nextIndex] = nextDist;
+    queue[tail++] = nextIndex;
+  };
 
   while (head < tail) {
     const index = queue[head++];
     const x = (index % localWidth) + minX;
     const y = Math.floor(index / localWidth) + minY;
-    const dist = distances[index];
-    const nextDist = dist + 1;
-
-    const neighbors = [
-      { x: x + 1, y },
-      { x: x - 1, y },
-      { x, y: y + 1 },
-      { x, y: y - 1 },
-    ];
-    for (const next of neighbors) {
-      if (next.x < minX || next.x > maxX || next.y < minY || next.y > maxY) {
-        continue;
-      }
-      if (!isWalkableTile(state, next.x, next.y)) {
-        continue;
-      }
-      const nextIndex = toIndex(next.x, next.y);
-      if (distances[nextIndex] !== -1) {
-        continue;
-      }
-      distances[nextIndex] = nextDist;
-      queue[tail++] = nextIndex;
-    }
+    const nextDist = distances[index] + 1;
+    visit(x + 1, y, nextDist);
+    visit(x - 1, y, nextDist);
+    visit(x, y + 1, nextDist);
+    visit(x, y - 1, nextDist);
   }
 
   return {

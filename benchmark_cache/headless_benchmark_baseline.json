@@ -9,7 +9,7 @@
       404
     ],
     "configPath": "/Users/gladiak/ProgettiLavoro/nodeDwarves/config.json",
-    "configHash": "cb322d475bccb958b7113cc95af2f671c9c67488316991c5e776927a4b3161ca",
+    "configHash": "24f0e0852ea938c057cb0920b00500a085873c90aaae6b74e59c5724c8c9ea37",
     "resources": [
       "beer",
       "food",
@@ -17,46 +17,13 @@
     ],
     "width": 120,
     "height": 40,
-    "generatedAt": "2026-11-11T18:06:59.505Z",
-    "sourceProfile": {
-      "reportSchemaVersion": 3,
-      "ticks": 8000,
-      "seeds": [
-        101,
-        202,
-        303,
-        404
-      ],
-      "configPath": "/Users/gladiak/ProgettiLavoro/nodeDwarves/config.json",
-      "configHash": "52b9d5244f3ba45d9a037428c4d7a58ce12725ff278887a2863d7119b56139ad",
-      "resources": [
-        "beer",
-        "food",
-        "water"
-      ],
-      "width": 120,
-      "height": 40,
-      "generatedAt": "2026-11-11T18:06:59.505Z"
-    },
-    "configurationAlignment": {
-      "method": "Measured configuration already equals production defaults; normalized effective hash verified",
-      "sourceConfigHash": "52b9d5244f3ba45d9a037428c4d7a58ce12725ff278887a2863d7119b56139ad",
-      "sourceAssignments": [],
-      "effectiveConfigHash": "f61c0051a7922fd7ff2f51c0ceddc5488bfbaae0e3b1f7d6c3342e749125881d",
-      "sourceReport": "/tmp/nodedwarves_p33_continuity_24.json",
-      "formatting": {
-        "sourceConfigHash": "52b9d5244f3ba45d9a037428c4d7a58ce12725ff278887a2863d7119b56139ad",
-        "currentConfigHash": "cb322d475bccb958b7113cc95af2f671c9c67488316991c5e776927a4b3161ca",
-        "effectiveConfigUnchanged": true,
-        "method": "Restore original non-policy JSON formatting; normalized configuration equality verified"
-      }
-    }
+    "generatedAt": "2026-11-23T18:42:51.362Z"
   },
   "variants": [
     {
       "label": "baseline",
       "assignments": [],
-      "effectiveConfigHash": "f61c0051a7922fd7ff2f51c0ceddc5488bfbaae0e3b1f7d6c3342e749125881d",
+      "effectiveConfigHash": "f713b1925cf5a05568bca92bc882334d8ca6f447bfe47023d08769c69999d398",
       "rows": [
         {
           "seed": 101,
@@ -965,9 +932,9 @@
               "evictions": 0
             },
             "runtime": {
-              "elapsedMs": 185527,
-              "ticksPerSecond": 43.12040835026708,
-              "pathingMs": 45390.52748201036,
+              "elapsedMs": 70137,
+              "ticksPerSecond": 114.06247772217232,
+              "pathingMs": 25975.736465004833,
               "renderMeanMs": null,
               "renderP95Ms": null,
               "renderStatus": "not_rendered_headless"
@@ -1916,9 +1883,9 @@
               "evictions": 0
             },
             "runtime": {
-              "elapsedMs": 206269,
-              "ticksPerSecond": 38.78430593060518,
-              "pathingMs": 53449.895103994,
+              "elapsedMs": 74235,
+              "ticksPerSecond": 107.76587862867919,
+              "pathingMs": 25030.85676899593,
               "renderMeanMs": null,
               "renderP95Ms": null,
               "renderStatus": "not_rendered_headless"
@@ -2792,9 +2759,9 @@
               "evictions": 0
             },
             "runtime": {
-              "elapsedMs": 270354,
-              "ticksPerSecond": 29.590832760010947,
-              "pathingMs": 63227.12166199542,
+              "elapsedMs": 84948,
+              "ticksPerSecond": 94.1752601591562,
+              "pathingMs": 29410.956650978187,
               "renderMeanMs": null,
               "renderP95Ms": null,
               "renderStatus": "not_rendered_headless"
@@ -3671,9 +3638,9 @@
               "evictions": 0
             },
             "runtime": {
-              "elapsedMs": 286096,
-              "ticksPerSecond": 27.962641910407694,
-              "pathingMs": 75231.22010592918,
+              "elapsedMs": 93235,
+              "ticksPerSecond": 85.8046870810318,
+              "pathingMs": 36170.34842602594,
               "renderMeanMs": null,
               "renderP95Ms": null,
               "renderStatus": "not_rendered_headless"
@@ -4260,9 +4227,9 @@
             "evictions": 0
           },
           "runtime": {
-            "elapsedMs": 237061.5,
-            "ticksPerSecond": 34.86454723782272,
-            "pathingMs": 59324.69108848224,
+            "elapsedMs": 80638.75,
+            "ticksPerSecond": 100.45207589775987,
+            "pathingMs": 29146.97457775122,
             "renderMeanMs": null,
             "renderP95Ms": null,
             "renderStatus": "not_rendered_headless"
@@ -4313,8 +4280,7 @@
           "food": 761.0882198670491,
           "water": 790.7024009066951
         }
-      },
-      "sourceAssignments": []
+      }
     }
   ],
   "deltas": [],

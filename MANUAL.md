@@ -164,8 +164,11 @@ npm run ai:bootstrap
 npm run ai:train -- quality
 ```
 
-Available wrapper profiles: `fast`, `quality`, `quality-mixed`, `m4-balanced`, `full`, `endgame`,
-and `benchmark`. `npm run ai:train:m4` selects the M4 preset directly.
+Available wrapper profiles: `fast`, `quality`, `quality-mixed`, `m4-balanced`, `m4-pro`, `full`,
+`endgame`, and `benchmark`. `npm run ai:train:m4` selects the M4 preset directly;
+`npm run ai:train:m4pro` runs the same phases on a 12-core M4 Pro with `7→5→4` rollout workers.
+Promotion checks evaluate episodes in parallel (`promote_best.py --eval-workers`, set by the wrapper
+to the run's worker count); scores and promotion decisions are identical to a sequential eval.
 Training resumes from the best available checkpoint. Use `--fresh` only when intentionally
 starting over or when observation/action shapes change.
 

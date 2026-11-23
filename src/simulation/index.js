@@ -44,11 +44,17 @@ const { ensureSettlementFoundingEvent } = require('./lifecycle_events');
 const { advanceStoryDirector } = require('./story_director');
 const { resolveLegacyEffects } = require('./legacy_effects');
 const { clamp } = require('../utils');
+const { withTickConfigScope } = require('./tick_config_cache');
 
 const BUILD_CLASS_ORDER = ['housing', 'economy', 'defense', 'special'];
 
-// Advance the simulation by one tick.
+// Advance the simulation by one tick inside a per-tick config-normalizer cache scope.
 function stepState(state, config, runtime, action, options = {}) {
+  return withTickConfigScope(() => stepStateInner(state, config, runtime, action, options));
+}
+
+// Advance the simulation by one tick.
+function stepStateInner(state, config, runtime, action, options = {}) {
   ensureSettlementFoundingEvent(state, config);
   const resolvedAction = normalizeActionEnvelope(action);
   state.lastGovernorSignals = buildGovernorSignals(config, resolvedAction);

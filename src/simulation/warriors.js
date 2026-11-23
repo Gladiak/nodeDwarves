@@ -1,6 +1,7 @@
 'use strict';
 
 const { clamp } = require('../utils');
+const { memoizeTickConfig } = require('./tick_config_cache');
 const { getClanEffects } = require('../clans');
 const { buildDwarfLore } = require('../dwarf_lore');
 const {
@@ -409,8 +410,13 @@ function normalizeVowRules(raw, fallback = []) {
   return rules;
 }
 
-// Resolve warrior configuration with strict defaults.
+// Resolve warrior configuration with strict defaults (memoized per tick).
 function getWarriorsConfig(config) {
+  return memoizeTickConfig('warriors', config, config && config.warriors, () => computeWarriorsConfig(config));
+}
+
+// Normalize warrior configuration with strict defaults.
+function computeWarriorsConfig(config) {
   const raw = config && config.warriors && typeof config.warriors === 'object'
     ? config.warriors
     : {};

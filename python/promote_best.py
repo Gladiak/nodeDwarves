@@ -232,6 +232,7 @@ def evaluate_policy(
     obs_normalization=None,
     transport=train.TRANSPORT_LEGACY,
     observation_layout=train.OBSERVATION_LAYOUT_PER_RESOURCE,
+    parallel=None,
 ):
     model = build_model_from_policy(
         payload,
@@ -262,6 +263,7 @@ def evaluate_policy(
         obs_normalization=obs_normalization,
         transport=transport,
         observation_layout=observation_layout,
+        parallel=parallel,
     )
     score = train.compute_score(
         stats["avg_reward"],
@@ -657,6 +659,12 @@ def parse_args():
         default=defaults["eval_progress_every"],
         help="Emit partial eval logs every N episodes when progress logs are enabled.",
     )
+    parser.add_argument(
+        "--eval-workers",
+        type=int,
+        default=1,
+        help="Parallel eval processes (each with its own ai_server); results are identical to 1.",
+    )
     parser.add_argument("--eval-only", action="store_true", default=False)
     parser.add_argument("--report-json", type=str, default=None)
     parser.add_argument("--report-md", type=str, default=None)
@@ -856,6 +864,12 @@ def main():
         env["NODEDWARVES_DEBUG_MODE"] = str(args.debug_mode)
     server_command = build_ai_server_command(args.config)
 
+    eval_parallel = {
+        "workers": max(1, int(args.eval_workers or 1)),
+        "config_path": args.config,
+        "debug_mode": args.debug_mode,
+    }
+
     proc = subprocess.Popen(
         server_command,
         stdin=subprocess.PIPE,
@@ -889,6 +903,7 @@ def main():
             obs_normalization=model_settings["obs_normalization"],
             transport=args.transport,
             observation_layout=model_settings["observation_layout"],
+            parallel=eval_parallel,
         )
 
         if args.eval_only:
@@ -937,6 +952,7 @@ def main():
                 obs_normalization=best_settings["obs_normalization"],
                 transport=args.transport,
                 observation_layout=best_settings["observation_layout"],
+                parallel=eval_parallel,
             )
 
         if best_score is None:
