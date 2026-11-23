@@ -176,7 +176,7 @@ Finetune: KL 0.006-0.007, clip fraction 0.07-0.10, explained variance 0.95-0.99.
 ## 5. Test backlog (priority order)
 
 Budget estimates assume an idle machine: foundation ~0.5 s per episode at 7 workers, finetune
-~45 s, canonical eval ~30 s, long eval ~3 min.
+~45 s, canonical eval ~30 s, long eval ~3 min. Run order: T1 -> T2 -> T3 -> T4.1 ... T4.5 -> T5/T6.
 
 ### T1. Scaling curve beyond 640 (H1)
 - Variants: `f640` (reference), `f1280`, `f2560`; 3 replicates each.
@@ -214,20 +214,116 @@ Budget estimates assume an idle machine: foundation ~0.5 s per episode at 7 work
 | fL (+T2) | | | - |
 | fL_cap480 | | | |
 
-### T4. Equal wall-clock: one long run vs chained runs (H2)
-- Budget: ~30 min of training per variant, with the T2/T3 winners applied to all.
-- Variants: `long1` = `--foundation-episodes 3000`; `long2` = `--foundation-episodes 1500 --chain 2`;
-  `short5` = `--foundation-episodes 640 --chain 5` (today's habit).
-- Budget: 3 replicates x 3 variants x ~32 min = ~4.8 h (run overnight).
-- Read-out: pooled delta vs start, long-horizon delta, total wall time including evals.
-- Decision: pick the variant with the best delta per wall-clock minute; prefer `long2` on ties
-  (one intermediate checkpoint protects against a mid-run collapse).
+### T4. Equal wall-clock: one long run vs chained runs (H2), in five steps
+Question: with ~30 min of training, is it better to chain 640-episode runs (today's habit), run two
+1,500-episode runs, or one 3,000-episode run? T4 is split so that every step is useful on its own,
+can run on a different day, and can stop the test early.
 
-| Variant | Rep deltas | Pooled delta (z) | Long delta | Wall min | Gain/min |
-|---|---|---|---|---|---|
-| long1 | | | | | |
-| long2 | | | | | |
-| short5 | | | | | |
+How the steps fit together:
+- All steps use the **same session folder** (the frozen `start.json` keeps them comparable even if
+  `models/` changes between days). Create it as in section 1 if it does not exist yet.
+- Chained variants save a snapshot after every link (`p_after_c<link>_1.json`, link 0-based, `1` =
+  finetune phase). Evaluating each snapshot as `eval_link<k>.json` (k 1-based) turns every chained
+  replicate into a learning curve; `analyze.py` prints it with cumulative training minutes and an
+  estimated production wall time (+1 min per link for promote and start-up, `--link-overhead-min`).
+- Comparisons are made at **matched production minutes** (about 14 and 28 min), not at matched
+  episode counts.
+- Append the T2/T3 winning flags (for example `--entropy-ramp run --entropy-final 0.002
+  --difficulty-ramp 480`) to every `exp_run.js` command of every step; never change them mid-T4.
+- Each step may start with replicate 1 only (pilot) and add replicates 2-3 later.
+
+Timing assumptions (idle machine, 7 workers): foundation ~0.5 s per episode, finetune ~0.7 min,
+canonical eval ~0.5 min, long eval ~3 min.
+
+#### T4.1 Chained short runs: `short5` (baseline curve)
+- Recipe: `--foundation-episodes 640 --chain 5`. Curve points at ~7, 14, 21, 28, 35 production min.
+- Cost: ~33 min per replicate (30 train + 5 evals); 3 replicates ~1.7 h.
+- Standalone value: shows whether chaining keeps gaining linearly, where the curve bends, and how
+  often a single link would pass the promotion gate.
+
+```bash
+for r in 1 2 3; do node experiments/training_workbook/exp_run.js --out experiments/training_workbook/runs/2026-12-01 --name short5 --rep $r --foundation-episodes 640 --chain 5; done
+```
+
+```bash
+for r in 1 2 3; do for k in 1 2 3 4 5; do .venv/bin/python experiments/training_workbook/eval_paired.py --policy experiments/training_workbook/runs/2026-12-01/short5_r$r/p_after_c$((k-1))_1.json --config experiments/training_workbook/runs/2026-12-01/configs/config_canonical_promote.json --out experiments/training_workbook/runs/2026-12-01/short5_r$r/eval_link$k.json; done; done
+```
+
+| Link | Prod min | Pooled delta (z) | Gain/prod min | Links passing gate (of 3) |
+|---|---|---|---|---|
+| 1 | ~7 | | | |
+| 2 | ~14 | | | |
+| 3 | ~21 | | | |
+| 4 | ~28 | | | |
+| 5 | ~35 | | | |
+
+#### T4.2 Two medium runs: `long2` (first head-to-head)
+- Recipe: `--foundation-episodes 1500 --chain 2`. Curve points at ~14 and ~28 production min.
+- Cost: ~28 min per replicate; 3 replicates ~1.4 h.
+- Read-out: `long2` link 1 vs `short5` link 2 (~14 min), `long2` link 2 vs `short5` link 4 (~28 min).
+
+```bash
+for r in 1 2 3; do node experiments/training_workbook/exp_run.js --out experiments/training_workbook/runs/2026-12-01 --name long2 --rep $r --foundation-episodes 1500 --chain 2; done
+```
+
+```bash
+for r in 1 2 3; do for k in 1 2; do .venv/bin/python experiments/training_workbook/eval_paired.py --policy experiments/training_workbook/runs/2026-12-01/long2_r$r/p_after_c$((k-1))_1.json --config experiments/training_workbook/runs/2026-12-01/configs/config_canonical_promote.json --out experiments/training_workbook/runs/2026-12-01/long2_r$r/eval_link$k.json; done; done
+```
+
+Stop rules after T4.2:
+- `long2` worse than `short5` at both matched points (z <= -1): **stop T4**, keep chaining 640-episode
+  runs, skip T4.3 and go to T4.4 with `short5` only.
+- `long2` better at both points (z >= 1.4): longer runs confirmed; T4.3 decides between 1 and 2 runs.
+- Anything else: add 2 replicates to T4.1 and T4.2 before deciding.
+
+| Matched point | short5 pooled (z) | long2 pooled (z) | long2 - short5 (z) |
+|---|---|---|---|
+| ~14 min | | | |
+| ~28 min | | | |
+
+#### T4.3 One long run: `long1` (only if T4.2 favors longer runs)
+- Recipe: `--foundation-episodes 3000` (single link). Point at ~27 production min.
+- Cost: ~26 min per replicate; 3 replicates ~1.3 h.
+- Read-out: `long1` vs `long2` link 2 and vs `short5` link 4 at ~28 min.
+- Decision: choose `long1` only if it beats `long2` with z >= 1.4; otherwise prefer `long2`, whose
+  intermediate checkpoint protects against a mid-run collapse.
+
+```bash
+for r in 1 2 3; do node experiments/training_workbook/exp_run.js --out experiments/training_workbook/runs/2026-12-01 --name long1 --rep $r --foundation-episodes 3000; done
+```
+
+```bash
+for r in 1 2 3; do .venv/bin/python experiments/training_workbook/eval_paired.py --policy experiments/training_workbook/runs/2026-12-01/long1_r$r/p.json --config experiments/training_workbook/runs/2026-12-01/configs/config_canonical_promote.json --out experiments/training_workbook/runs/2026-12-01/long1_r$r/eval_link1.json; done
+```
+
+| Variant at ~28 min | Pooled delta (z) | vs long2 (z) | vs short5 (z) |
+|---|---|---|---|
+| long1 | | | |
+| long2 (link 2) | | - | |
+| short5 (link 4) | | | - |
+
+#### T4.4 Long-horizon guard on the finalists
+- Long eval (20,000 ticks) of the final policy of the winner and the runner-up, every replicate.
+- Cost: ~3 min per policy; up to ~20 min.
+- Feeds T5: a finalist whose long delta is <= -0.05 vs start cannot win on canonical score alone.
+
+```bash
+for r in 1 2 3; do .venv/bin/python experiments/training_workbook/eval_paired.py --policy experiments/training_workbook/runs/2026-12-01/long2_r$r/p.json --config experiments/training_workbook/runs/2026-12-01/configs/config_endgame.json --max-steps 10000 --episodes 12 --out experiments/training_workbook/runs/2026-12-01/long2_r$r/long_final.json; done
+```
+
+(Repeat with `short5` or `long1` in place of `long2` for the other finalist.)
+
+| Finalist | Long delta per replicate | Pooled long delta (z) |
+|---|---|---|
+| | | |
+| | | |
+
+#### T4.5 Decide and apply
+- Summarize with `python3 experiments/training_workbook/analyze.py --out experiments/training_workbook/runs/2026-12-01 --ref short5`.
+- Winner = best gain per production minute at ~28 min that also passes T4.4.
+- Apply: set `M4_PRO_FOUNDATION_EPISODES` (and the matching ramp) in `scripts/train_wrapper.js`,
+  update its contract in `scripts/test_training_contracts.js`, README/MANUAL, and the decision log.
+- If the winner is a chain of runs, document the recommended number of consecutive runs per session.
 
 ### T5. Long-horizon guard for the winning recipe (H5)
 - Long eval (20,000 ticks) of the T4 winner vs start.
