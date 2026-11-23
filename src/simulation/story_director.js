@@ -15,6 +15,7 @@ const {
   normalizeSagaRegistry: normalizeSagaRegistryV3,
   processSagaEvent,
 } = require('./story_sagas');
+const { isTickConfigScopeActive, memoizeTickConfig } = require('./tick_config_cache');
 
 const STORY_SCHEMA_VERSION = 3;
 const HARD_MAX_SAGAS = 64;
@@ -24,6 +25,14 @@ const HARD_MAX_REASON_TRACE = 512;
 const HARD_MAX_FREQUENCY_TYPES = 256;
 const HARD_MAX_SCORE = 50000000;
 const MAX_FOCUS_ACTORS = 8;
+// Story objects already normalized by ensureStoryDirectorState, keyed to the settings fingerprint used.
+const normalizedStories = new WeakMap();
+
+// Fingerprint the raw Story Director config (settings are a pure function of it), memoized per tick.
+function getStorySettingsFingerprint(config) {
+  const raw = config && config.story_director;
+  return memoizeTickConfig('storyDirectorFingerprint', config, raw, () => JSON.stringify(raw || null));
+}
 
 // Resolve and clamp the Story Director configuration without mutating source config.
 function getStoryDirectorConfig(config) {
@@ -246,6 +255,13 @@ function ensureStoryDirectorState(state, config) {
     return state.story;
   }
   const story = state.story;
+  // Internal mutators keep the normalized form (verified over long runs), so inside a tick the
+  // full repair is only needed for story objects not yet normalized under the current settings.
+  // Calls outside stepState (tests, tools, loaders) always run the full repair.
+  const fingerprint = getStorySettingsFingerprint(config);
+  if (isTickConfigScopeActive() && normalizedStories.get(story) === fingerprint) {
+    return story;
+  }
   story.schemaVersion = STORY_SCHEMA_VERSION;
   story.enabled = settings.enabled;
   story.currentFocus = normalizeFocusRecord(story.currentFocus);
@@ -287,6 +303,7 @@ function ensureStoryDirectorState(state, config) {
     lastSequence: normalizeSignedTick(story.cursor && story.cursor.lastSequence, -1),
   };
   story.stats = normalizeStoryStats(story.stats);
+  normalizedStories.set(story, fingerprint);
   return story;
 }
 
@@ -482,7 +499,6 @@ function appendReasonTrace(story, settings, event, score, tick, decision, reason
   appendBoundedRecord(story.reasonTrace, {
     tick,
     eventId: event.id,
-    sagaId: event.sagaId || null,
     decision,
     reasonCode,
     score: score.total,
@@ -492,6 +508,8 @@ function appendReasonTrace(story, settings, event, score, tick, decision, reason
     consequenceScore: score.consequenceScore,
     currentSagaScore: score.currentSagaScore,
     visibilityScore: score.visibilityScore,
+    // Kept last to match normalizeReasonTraceRecord key order.
+    sagaId: event.sagaId || null,
   }, settings.history.reasonTraceMaxEntries);
 }
 

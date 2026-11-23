@@ -70,6 +70,15 @@ const M4_BALANCED_ENDGAME_RESULT_WAIT_TIMEOUT_SECONDS = 1200;
 const M4_PRO_WORKERS_AUTO_MIN = 6;
 const M4_PRO_WORKERS_AUTO_MAX = 7;
 const M4_PRO_WORKERS_RESERVE = 5;
+// Paired A/B runs (3 replicates, 24-episode canonical eval) showed the 20,000-tick endgame phase
+// used ~60% of training time without improving short or long-horizon scores, while re-spending that
+// time on foundation episodes scored higher. Gains then scaled with foundation length
+// (160: +0.005, 320: +0.031, 640: +0.058 rpt over 3 replicates), while lower entropy or 5 PPO epochs
+// did not help. M4-pro therefore runs a 640-episode foundation + finetune, no endgame.
+const M4_PRO_FOUNDATION_EPISODES = 640;
+const M4_PRO_FOUNDATION_DIFFICULTY_RAMP = 480;
+// Two canonical episodes per eval scenario; parallel promotion eval keeps this around 30 seconds.
+const M4_PRO_CANONICAL_EVAL_EPISODES = 24;
 const M4_BALANCED_TRAIN_EXTRAS = [
   "--eval-every", "40",
   "--eval-episodes", "2",
@@ -276,6 +285,9 @@ function applyM4ProPreset(args) {
   args.workersAutoMin = M4_PRO_WORKERS_AUTO_MIN;
   args.workersAutoMax = M4_PRO_WORKERS_AUTO_MAX;
   args.workersReserve = M4_PRO_WORKERS_RESERVE;
+  args.canonicalEvalEpisodes = M4_PRO_CANONICAL_EVAL_EPISODES;
+  // Both remaining phases use 8-episode PPO batches, so all 7 workers keep policy lag <= 1 update.
+  args.workersProfileAware = false;
 }
 
 // Apply run-time canonical promotion overrides on top of config defaults.
@@ -1032,7 +1044,7 @@ function printHelp() {
     "  - --low-write keeps one latest checkpoint write per phase; promotion checks still run unchanged.",
     "  - Low-load preset defaults: canonical-final-only, 8x1600 canonical eval, no paired-LCB, progress every 2 episodes.",
     "  - M4-balanced preset defaults: quality-mixed phases, 5->4 workers, sparse train eval, no phase promotes, final 12x1800 canonical eval with paired-LCB.",
-    "  - M4-pro preset: M4-balanced phases with 7->5->4 workers for a 12-core M4 Pro; promotion evals run in parallel.",
+    "  - M4-pro preset: 12-core M4 Pro; foundation x4 (640 episodes) + finetune, no endgame phase, 7 workers per phase, final 24-episode parallel canonical eval (best-policy eval cached).",
     "  - Promotion reports are written per phase plus one run summary in the run directory.",
   ];
   process.stdout.write(`${lines.join("\n")}\n`);
@@ -1331,7 +1343,6 @@ function prepareRunFiles(rootDir, profile, runOptions = {}, dryRun = false) {
   }
   if (
     profile === PROFILE_M4_BALANCED
-    || profile === PROFILE_M4_PRO
     || profile === PROFILE_ENDGAME
     || profile === PROFILE_FULL
   ) {
@@ -1361,10 +1372,18 @@ function prepareRunFiles(rootDir, profile, runOptions = {}, dryRun = false) {
 // Build the training/promote phase list for the selected profile.
 function buildPhases(profile, runDir, files) {
   if (profile === PROFILE_M4_PRO) {
-    return buildPhases(PROFILE_M4_BALANCED, runDir, files).map((phase) => ({
-      ...phase,
-      name: String(phase.name || "m4-balanced").replace("m4-balanced", "m4-pro"),
-    }));
+    // Foundation (x4) + finetune from the M4-balanced recipe; no endgame phase.
+    return buildPhases(PROFILE_M4_BALANCED, runDir, files)
+      .filter((phase) => !String(phase.name || "").includes("endgame"))
+      .map((phase) => {
+        const name = String(phase.name || "m4-balanced").replace("m4-balanced", "m4-pro");
+        if (!name.includes("foundation")) {
+          return { ...phase, name };
+        }
+        let trainArgs = upsertCliOption(phase.trainArgs, "--episodes", M4_PRO_FOUNDATION_EPISODES);
+        trainArgs = upsertCliOption(trainArgs, "--difficulty-ramp", M4_PRO_FOUNDATION_DIFFICULTY_RAMP);
+        return { ...phase, name, trainArgs };
+      });
   }
   if (profile === PROFILE_M4_BALANCED) {
     const mixedPhases = buildPhases(PROFILE_QUALITY_MIXED, runDir, files).map((phase) => ({
@@ -2015,7 +2034,7 @@ function runProfile(rootDir, profile, trainExtraArgs, dryRun, workerOptions = {}
   if (workerOptions.m4Pro === true) {
     printStatus(
       "profile",
-      "M4-pro preset enabled (M4-balanced phases, 7->5->4 rollout workers, parallel promotion eval)",
+      "M4-pro preset enabled (foundation x4 + finetune, 7 rollout workers, 24-episode parallel canonical eval)",
       ANSI_CYAN,
     );
   } else if (workerOptions.m4Balanced === true) {
@@ -2252,6 +2271,7 @@ module.exports = {
   applyM4BalancedPreset,
   applyM4ProPreset,
   buildPhases,
+  prepareRunFiles,
   parseArgs,
   resolvePhaseWorkers,
   resolveWorkerPlan,

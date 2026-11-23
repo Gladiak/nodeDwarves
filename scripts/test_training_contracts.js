@@ -221,19 +221,24 @@ function validateM4BalancedWrapperContract() {
   const pro = parseTrainingWrapperArgs([PROFILE_M4_PRO]);
   assert(pro.profile === PROFILE_M4_PRO && pro.m4Pro === true, 'M4 Pro wrapper contract: profile mismatch.');
   assert(pro.canonicalMode === 'final-only' && pro.skipPhasePromotes === true, 'M4 Pro wrapper contract: should inherit M4-balanced promotion policy.');
+  assert(pro.canonicalEvalEpisodes === 24, 'M4 Pro wrapper contract: canonical eval should use 24 episodes.');
   const proPhases = buildTrainingPhases(PROFILE_M4_PRO, '/tmp/m4-wrapper-contract', {
     fast: '/tmp/m4-wrapper-contract/config_fast.json',
     finetune: '/tmp/m4-wrapper-contract/config_finetune.json',
-    endgame: '/tmp/m4-wrapper-contract/config_endgame.json',
   });
   assert(
-    proPhases.map((phase) => phase.name).join(',') === 'm4-pro-foundation,m4-pro-finetune,m4-pro-endgame',
-    'M4 Pro wrapper contract: phase names mismatch.',
+    proPhases.map((phase) => phase.name).join(',') === 'm4-pro-foundation,m4-pro-finetune',
+    'M4 Pro wrapper contract: expected foundation and finetune only (no endgame).',
+  );
+  const proFoundation = proPhases[0].trainArgs;
+  const optionValue = (args, key) => args[args.lastIndexOf(key) + 1];
+  assert(
+    optionValue(proFoundation, '--episodes') === '640' && optionValue(proFoundation, '--difficulty-ramp') === '480',
+    'M4 Pro wrapper contract: foundation should be x4 with a matching difficulty ramp.',
   );
   assert(
-    JSON.stringify(proPhases.map((phase) => phase.trainArgs.filter((arg) => !String(arg).includes('m4_balanced'))))
-      === JSON.stringify(phases.map((phase) => phase.trainArgs.filter((arg) => !String(arg).includes('m4_balanced')))),
-    'M4 Pro wrapper contract: training recipe should match M4-balanced.',
+    JSON.stringify(proPhases[1].trainArgs) === JSON.stringify(phases[1].trainArgs),
+    'M4 Pro wrapper contract: finetune recipe should match M4-balanced.',
   );
   const proPlan = resolveWorkerPlan(pro.trainExtraArgs, {
     cpuCount: 12,
@@ -241,8 +246,9 @@ function validateM4BalancedWrapperContract() {
     workersAutoMax: pro.workersAutoMax,
     workersReserve: pro.workersReserve,
   });
-  const proWorkers = proPhases.map((phase) => resolvePhaseWorkers(proPlan, phase, true).workers).join(',');
-  assert(proWorkers === '7,5,4', `M4 Pro wrapper contract: worker plan mismatch (${proWorkers}).`);
+  assert(pro.workersProfileAware === false, 'M4 Pro wrapper contract: phases should use the flat worker budget.');
+  const proWorkers = proPhases.map((phase) => resolvePhaseWorkers(proPlan, phase, pro.workersProfileAware).workers).join(',');
+  assert(proWorkers === '7,7', `M4 Pro wrapper contract: worker plan mismatch (${proWorkers}).`);
 }
 
 // Execute one subprocess and enforce expected exit codes.

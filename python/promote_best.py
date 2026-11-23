@@ -1,4 +1,6 @@
 import argparse
+import glob
+import hashlib
 from datetime import datetime, timezone
 import json
 import math
@@ -272,6 +274,53 @@ def evaluate_policy(
         eval_score_mode,
     )
     return stats, score
+
+
+EVAL_CACHE_MAX_ENTRIES = 16
+
+
+# Hash everything that determines an evaluation result: simulation/bridge/evaluator sources,
+# the eval config content, the policy file and the eval parameters. Any change misses the cache.
+def compute_eval_cache_key(policy_path, config_path, eval_params):
+    root = train.get_project_root()
+    digest = hashlib.sha256()
+    sources = sorted(glob.glob(os.path.join(root, "src", "**", "*.js"), recursive=True))
+    sources += [
+        os.path.join(root, "ai_server.js"),
+        os.path.join(root, "python", "train.py"),
+        os.path.join(root, "python", "promote_best.py"),
+    ]
+    for path in sources + [config_path, policy_path]:
+        digest.update(os.path.relpath(os.path.abspath(path), root).encode("utf-8") if path in sources else b"input")
+        with open(path, "rb") as handle:
+            digest.update(handle.read())
+    digest.update(json.dumps(eval_params, sort_keys=True, default=str).encode("utf-8"))
+    return digest.hexdigest()
+
+
+# Load the bounded eval cache (missing or corrupt files behave as an empty cache).
+def load_eval_cache(path):
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+        return payload if isinstance(payload, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+# Store one eval result and keep only the newest EVAL_CACHE_MAX_ENTRIES entries.
+def store_eval_cache(path, key, stats, score):
+    cache = load_eval_cache(path)
+    cache[key] = {"stats": stats, "score": score, "savedAt": datetime.now(timezone.utc).isoformat()}
+    newest = sorted(cache.items(), key=lambda item: str(item[1].get("savedAt", "")), reverse=True)
+    cache = dict(newest[:EVAL_CACHE_MAX_ENTRIES])
+    directory = os.path.dirname(path)
+    if directory:
+        os.makedirs(directory, exist_ok=True)
+    temp_path = f"{path}.tmp"
+    with open(temp_path, "w", encoding="utf-8") as handle:
+        json.dump(cache, handle)
+    os.replace(temp_path, path)
 
 
 # Function: compute_paired_delta_stats.
@@ -665,6 +714,13 @@ def parse_args():
         default=1,
         help="Parallel eval processes (each with its own ai_server); results are identical to 1.",
     )
+    parser.add_argument(
+        "--eval-cache",
+        type=str,
+        default=os.path.join(train.get_project_root(), ".cache", "promote_eval_cache.json"),
+        help="Cache for deterministic best-policy evals (keyed by sources, config, policy and eval params).",
+    )
+    parser.add_argument("--no-eval-cache", dest="eval_cache", action="store_const", const=None)
     parser.add_argument("--eval-only", action="store_true", default=False)
     parser.add_argument("--report-json", type=str, default=None)
     parser.add_argument("--report-md", type=str, default=None)
@@ -929,6 +985,28 @@ def main():
         best_score = None
         paired_stats = None
         if best_payload and args.best_model_path != args.model_path:
+            best_cache_key = None
+            if args.eval_cache:
+                best_cache_key = compute_eval_cache_key(
+                    args.best_model_path,
+                    args.config,
+                    {
+                        "evalSteps": eval_steps,
+                        "stepTicks": args.step_ticks,
+                        "episodes": eval_episodes,
+                        "seedBase": seed_base,
+                        "difficulty": eval_difficulty,
+                        "score": eval_score_mode,
+                        "scenarios": eval_scenarios,
+                        "transport": args.transport,
+                        "episodeScores": bool(args.require_positive_lcb),
+                    },
+                )
+                cached = load_eval_cache(args.eval_cache).get(best_cache_key)
+                if isinstance(cached, dict) and isinstance(cached.get("stats"), dict):
+                    best_stats, best_score = cached["stats"], cached.get("score")
+                    print(f"[eval_best] cache hit ({best_cache_key[:12]}): score={best_score:.4f}", flush=True)
+        if best_payload and args.best_model_path != args.model_path and best_stats is None:
             best_stats, best_score = evaluate_policy(
                 proc,
                 best_payload,
@@ -954,6 +1032,11 @@ def main():
                 observation_layout=best_settings["observation_layout"],
                 parallel=eval_parallel,
             )
+            if best_cache_key:
+                try:
+                    store_eval_cache(args.eval_cache, best_cache_key, best_stats, best_score)
+                except OSError as exc:
+                    print(f"[eval_best] cache write skipped: {exc}", flush=True)
 
         if best_score is None:
             promote_latest_to_best(

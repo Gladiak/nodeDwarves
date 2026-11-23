@@ -36,8 +36,8 @@ This file defines how to implement new features in a consistent, stable way.
 - `.github/workflows/quality_gates.yml`: CI automation for extended/weekly training quality gates and artifact upload.
 - `scripts/assemble_quality_artifacts.js`: content-fingerprinted CI evidence assembly with commit/run provenance, stale-report exclusion and explicit missing-phase status.
 - `scripts/review_chronicle_retention.js`: read-only snapshot/replay study of Chronicle density, source integrity, saga-status coverage, bounds and deterministic export hashes.
-- `scripts/test_operational_closure_contracts.js`: deterministic CI freshness, failed/skipped-phase, retained-claim, source/bounds and RNG-purity contracts (`npm run test:operational-closure`; included in `npm test`).
-- `scripts/test_legend_panel.js`: complete surface/deep symbol visibility, responsive pagination, color bounds and real arrow-dispatch contracts (`npm run test:legend`; included in `npm test`).
+- `scripts/test_operational_closure_contracts.js`: deterministic CI freshness, failed/skipped-phase, retained-claim, source/bounds and RNG-purity contracts (included in `npm test`).
+- `scripts/test_legend_panel.js`: complete surface/deep symbol visibility, responsive pagination, color bounds and real arrow-dispatch contracts (included in `npm test`).
 - `src/config.js`: config loader.
 - `src/game_session.js`: scenario resolution, interactive session creation and resumable AI/tick cadence.
 - `src/session_random.js`: serializable scoped gameplay PRNG, isolated from exports, training and benchmarks.
@@ -50,9 +50,10 @@ This file defines how to implement new features in a consistent, stable way.
 - `scripts/validate_scenarios.js`: milestone-only two-seed catalog validation, long pressure runs, checkpoint restoration and canonical-policy compatibility.
 - `debug/scenario_validation_latest.json`: latest operational scenario-catalog validation with per-case population, economy, raids and progress.
 - `saves/`: git-ignored per-colony checkpoints and previous valid backups.
+- `.cache/promote_eval_cache.json`: git-ignored, bounded cache of deterministic best-policy promotion evals, keyed by simulation/evaluator sources, eval config, policy file and eval parameters.
 - `src/simulation/`: simulation systems split by theme.
 - `src/simulation/index.js`: simulation orchestrator.
-- `src/simulation/tick_config_cache.js`: per-tick, deep-frozen memo for pure config normalizers (warriors, landmarks, temple stages); active only inside `stepState`.
+- `src/simulation/tick_config_cache.js`: per-tick, deep-frozen memo for pure config normalizers (warriors, landmarks, temple stages) and the tick-scope flag that lets the Story Director skip re-repairing an already normalized story; active only inside `stepState`.
 - `src/simulation/narrative_contract.js`: strict schema-v1 validator and deterministic event identity helpers used by narrative contract gates and the runtime event core.
 - `src/simulation/narrative_normalizer.js`: bounded structured-event draft normalization, config-driven importance resolution, and deterministic optional-payload reduction.
 - `src/simulation/story_director.js`: bounded per-cycle Story Director state, deterministic event scoring/focus selection, cooldown/escalation budgets, reason traces, serialization repair, and hard-cap enforcement.
@@ -130,25 +131,25 @@ This file defines how to implement new features in a consistent, stable way.
 - `scripts/compare_benchmark_reports.js`: report-to-report benchmark diff CLI for cached baseline/candidate economy, Underrealm, legacy, and epic-conflict comparisons.
 - `scripts/clean_debug.js`: debug artifact housekeeping utility (transient cleanup + run retention).
 - `scripts/audit_narrative_producers.js`: deterministic source audit that reports direct legacy-only `pushEvent` producers outside approved structured boundaries.
-- `scripts/test_narrative_contracts.js`: deterministic structured-event, identity, legacy, retention, serialization, renderer, and isolation contract suite (`npm run test:narrative`; included in `npm test`).
+- `scripts/test_narrative_contracts.js`: deterministic structured-event, identity, legacy, retention, serialization, renderer, and isolation contract suite (included in `npm test`).
 - `scripts/test_time_controls.js`: deterministic E4.3 speed, pause, single-step, auto-protection,
-  supported-width rendering, manual precedence, and AI/headless isolation suite (`npm run test:time-controls`; included in `npm test`).
+  supported-width rendering, manual precedence, and AI/headless isolation suite (included in `npm test`).
 - `scripts/test_chronicle_contracts.js`: deterministic E5 ledger, biography, Chronicle integrity,
-  reset, export-hash, density-bound, and AI-observation isolation suite (`npm run test:chronicle`; included in `npm test`).
+  reset, export-hash, density-bound, and AI-observation isolation suite (included in `npm test`).
 - `scripts/test_world_legacy_contracts.js`: deterministic E6 schema, migration, retention, remapping,
-  rendering, multi-cycle, and AI-observation isolation suite (`npm run test:world-legacy`; included in `npm test`).
+  rendering, multi-cycle, and AI-observation isolation suite (included in `npm test`).
 - `scripts/validate_world_legacy.js`: deterministic two-/five-/ten-cycle E6 state-growth, balance-signal, and stop-rule validator.
-- `scripts/validate_road_routing.js`: fixed P3.3 per-seed/aggregate economy, travel, gathering, invalid-value and optional timing gate (`npm run validate:road-routing`).
+- `scripts/validate_road_routing.js`: fixed P3.3 per-seed/aggregate economy, travel, gathering, invalid-value and optional timing gate (`node scripts/validate_road_routing.js`).
 - `scripts/test_epic_conflict_contracts.js`: deterministic E7 identity, promotion, siege lifecycle,
-  rivalry, legacy, rendering, retention, serialization, and AI-observation isolation suite (`npm run test:epic-conflicts`; included in `npm test`).
+  rivalry, legacy, rendering, retention, serialization, and AI-observation isolation suite (included in `npm test`).
 - `scripts/validate_epic_conflicts.js`: deterministic full-siege, collapse-guard, and repeated-siege E7 validator.
-- `scripts/test_landmark_contracts.js`: deterministic E8 schema, placement, progression, collision, rendering/export, condition, serialization, and AI-observation isolation suite (`npm run test:landmarks`; included in `npm test`).
+- `scripts/test_landmark_contracts.js`: deterministic E8 schema, placement, progression, collision, rendering/export, condition, serialization, and AI-observation isolation suite (included in `npm test`).
 - `scripts/validate_landmarks.js`: deterministic multi-seed/size E8 organic-construction, population, and bounded-state validator.
-- `scripts/test_saga_refinement_contracts.js`: bounded cause diagnostics, actor-family guards, political identity/outcome, dormant grace, terminal retention, serialization, RNG and observation contracts (`npm run test:saga-refinement`).
-- `scripts/test_legacy_effect_contracts.js`: inherited-effect evidence, consumer, decay, caps, migration, serialization, RNG and PPO isolation contracts (`npm run test:legacy-effects`).
-- `scripts/test_road_routing_contracts.js`: deterministic road dominance, actual-mover, RNG, work-family, cache, reload and PPO contracts (`npm run test:road-routing`).
+- `scripts/test_saga_refinement_contracts.js`: bounded cause diagnostics, actor-family guards, political identity/outcome, dormant grace, terminal retention, serialization, RNG and observation contracts (included in `npm test`).
+- `scripts/test_legacy_effect_contracts.js`: inherited-effect evidence, consumer, decay, caps, migration, serialization, RNG and PPO isolation contracts (included in `npm test`).
+- `scripts/test_road_routing_contracts.js`: deterministic road dominance, actual-mover, RNG, work-family, cache, reload and PPO contracts (included in `npm test`).
 - `scripts/test_social_memory_contracts.js`: focused long-arc support/burden, mood, shock, decay, disabled-mode, and save contracts for M1.
-- `scripts/test_core_simulation_contracts.js`: deterministic economy, consumption, population, structure, movement, raid, save, and read-only measurement contracts (`npm run test:core-simulation`; included in `npm test`).
+- `scripts/test_core_simulation_contracts.js`: deterministic economy, consumption, population, structure, movement, raid, save, and read-only measurement contracts (included in `npm test`).
 - `scripts/test_training_contracts.js`: deterministic technical contract suite for training/validation schemas (included in `npm test`).
 - `debug/regression_{standard,underrealm,governance,horizon}_latest.{json,md}`: latest model non-regression evidence for each release risk profile.
 - `benchmark_cache/headless_benchmark_baseline.json`: versioned cached headless benchmark baseline used for report diffs.
@@ -162,6 +163,13 @@ This file defines how to implement new features in a consistent, stable way.
 - `python/train.py`: PPO training loop and logging.
 - `python/regression_rollout.py`: rollout-only randomized regression runner (no PPO updates, no checkpoint writes).
 - `python/agent.py`: example Python agent.
+- `experiments/training_workbook/`: training-process experiment notebook.
+  - `WORKBOOK.md`: measured evidence, decision rules, prioritized test backlog and decision log.
+  - `evidence/`: raw per-episode results behind the recorded evidence.
+  - `exp_run.js`: isolated m4-pro variant runner (never writes `models/`, verifies it by hash).
+  - `eval_paired.py`: paired canonical/long-horizon/decision-cadence evaluation.
+  - `analyze.py`: paired-delta summary per variant.
+  - `runs/`: git-ignored experiment session outputs.
 
 ## Config-first changes
 
@@ -244,8 +252,8 @@ This file defines how to implement new features in a consistent, stable way.
 - Run `npm start` and confirm the telemetry/legend renders.
 - Run deterministic headless benchmark before finalizing balance defaults:
   `node scripts/headless_benchmark.js --ticks 8000 --seeds 101,202,303,404 --progress --progress-every 2000`.
-- Ensure cached baseline is aligned with the active candidate profile:
-  `npm run bench:ensure-baseline`.
+- The cached baseline is realigned with the active candidate profile automatically by
+  `npm run bench:diff` (via `scripts/ensure_benchmark_baseline.js`).
 - For A/B tuning, run candidate-only benchmark and diff against cached baseline:
   `npm run bench:candidate -- --set path=value && npm run bench:diff`.
 - Always compare against `benchmark_cache/headless_benchmark_baseline.json` instead of writing ad-hoc baseline copies in `debug/`.

@@ -689,37 +689,51 @@ function buildPathField(state, runtime, targetX, targetY, radius) {
   queue[tail++] = targetIndex;
 
   // Allocation-free BFS; neighbor order (+x, -x, +y, -y) is kept for determinism.
+  // Walkability is precomputed once per local window (1 = walkable) to keep the hot loop branch-light.
   const walkable = state && state.terrain && state.terrain.walkable;
-  const canWalk = walkable
-    ? (x, y) => {
-      const row = walkable[y];
-      return !row || Boolean(row[x]);
+  const open = new Uint8Array(total);
+  for (let y = minY; y <= maxY; y += 1) {
+    const row = walkable ? walkable[y] : null;
+    const base = (y - minY) * localWidth - minX;
+    for (let x = minX; x <= maxX; x += 1) {
+      const isOpen = walkable ? (!row || Boolean(row[x])) : isWalkableTile(state, x, y);
+      open[base + x] = isOpen ? 1 : 0;
     }
-    : (x, y) => isWalkableTile(state, x, y);
-  const visit = (nx, ny, nextDist) => {
-    if (nx < minX || nx > maxX || ny < minY || ny > maxY) {
-      return;
-    }
-    if (!canWalk(nx, ny)) {
-      return;
-    }
-    const nextIndex = (ny - minY) * localWidth + (nx - minX);
-    if (distances[nextIndex] !== -1) {
-      return;
-    }
-    distances[nextIndex] = nextDist;
-    queue[tail++] = nextIndex;
-  };
+  }
 
   while (head < tail) {
     const index = queue[head++];
-    const x = (index % localWidth) + minX;
-    const y = Math.floor(index / localWidth) + minY;
+    const lx = index % localWidth;
+    const ly = (index - lx) / localWidth;
     const nextDist = distances[index] + 1;
-    visit(x + 1, y, nextDist);
-    visit(x - 1, y, nextDist);
-    visit(x, y + 1, nextDist);
-    visit(x, y - 1, nextDist);
+    if (lx + 1 < localWidth) {
+      const next = index + 1;
+      if (open[next] === 1 && distances[next] === -1) {
+        distances[next] = nextDist;
+        queue[tail++] = next;
+      }
+    }
+    if (lx > 0) {
+      const next = index - 1;
+      if (open[next] === 1 && distances[next] === -1) {
+        distances[next] = nextDist;
+        queue[tail++] = next;
+      }
+    }
+    if (ly + 1 < localHeight) {
+      const next = index + localWidth;
+      if (open[next] === 1 && distances[next] === -1) {
+        distances[next] = nextDist;
+        queue[tail++] = next;
+      }
+    }
+    if (ly > 0) {
+      const next = index - localWidth;
+      if (open[next] === 1 && distances[next] === -1) {
+        distances[next] = nextDist;
+        queue[tail++] = next;
+      }
+    }
   }
 
   return {

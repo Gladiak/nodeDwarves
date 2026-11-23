@@ -165,10 +165,16 @@ npm run ai:train -- quality
 ```
 
 Available wrapper profiles: `fast`, `quality`, `quality-mixed`, `m4-balanced`, `m4-pro`, `full`,
-`endgame`, and `benchmark`. `npm run ai:train:m4` selects the M4 preset directly;
-`npm run ai:train:m4pro` runs the same phases on a 12-core M4 Pro with `7→5→4` rollout workers.
+`endgame`, and `benchmark` (for example `npm run ai:train -- m4-balanced`).
+`npm run ai:train:m4pro` targets a 12-core M4 Pro: foundation (640 episodes) + finetune with 7
+rollout workers per phase and a 24-episode canonical check, without the long endgame phase (it cost ~60% of
+the run without a measurable gain). Run `npm run ai:train -- endgame` separately when endgame
+specialization is wanted.
 Promotion checks evaluate episodes in parallel (`promote_best.py --eval-workers`, set by the wrapper
 to the run's worker count); scores and promotion decisions are identical to a sequential eval.
+The best policy's canonical result is cached in `.cache/promote_eval_cache.json`; any change to the
+simulation sources, eval config, policy file or eval settings misses the cache (`--no-eval-cache`
+forces a fresh eval).
 Training resumes from the best available checkpoint. Use `--fresh` only when intentionally
 starting over or when observation/action shapes change.
 
@@ -208,10 +214,11 @@ enabled exit saves/backups and a 64 MiB file limit. Custom save directories shou
 by Git when they live inside the repository.
 
 ```bash
-npm run bench:ensure-baseline
 npm run bench:candidate -- --set path=value
 npm run bench:diff
 ```
+
+`bench:diff` first refreshes the cached baseline when the benchmark profile changed.
 
 Use the shared cache in `benchmark_cache/` for report comparisons. Preserve the previous control
 until a gameplay candidate is accepted. Current results are written to `debug/`.
@@ -230,22 +237,23 @@ Run the contract suite:
 npm test
 ```
 
-`npm run test:saves` checks lossless saves, recovery, the menu and policy continuity.
-`npm run test:scenarios` checks template provenance, standard-game and policy isolation.
-At a save-system milestone, `npm run validate:saves` compares uninterrupted and resumed worlds
+`npm test` runs every contract suite; run one alone with `node scripts/<suite>.js` (for example
+`node scripts/test_save_contracts.js` for saves, recovery, the menu and policy continuity, or
+`node scripts/test_scenario_contracts.js` for scenario provenance and isolation).
+At a save-system milestone, `node scripts/validate_save_continuity.js` compares uninterrupted and resumed worlds
 over 8,000 advances with and without the canonical policy, plus shorter scenario checks.
-At a scenario milestone, `npm run validate:scenarios` checks every preset with two seeds, extends
+At a scenario milestone, `node scripts/validate_scenarios.js` checks every preset with two seeds, extends
 four pressure scenarios to 8,000 advances, and checks The Long Emergency with the canonical policy.
 It also restores a checkpoint in every case. To recheck one changed preset, use
-`npm run validate:scenarios -- --only dry_stone`; current results go to
+`node scripts/validate_scenarios.js --only dry_stone`; current results go to
 `debug/scenario_validation_latest.json`.
 
 Review a captured Chronicle without rerunning the simulation:
 
 ```bash
 npm run bench:candidate -- --snapshot-json /tmp/colony.json
-npm run review:chronicle-retention -- --snapshot-json /tmp/colony.json --report-json /tmp/retention.json
-npm run review:chronicle-retention -- --replay-json /tmp/retention.json
+node scripts/review_chronicle_retention.js --snapshot-json /tmp/colony.json --report-json /tmp/retention.json
+node scripts/review_chronicle_retention.js --replay-json /tmp/retention.json
 ```
 
 Preview and clean temporary debug files after validation:
@@ -266,8 +274,11 @@ implementation workbooks and technical completion reports are not part of the us
 - `src/render/`, `src/runtime/`, `src/telemetry/`: terminal views, controls and diagnostics.
 - `src/ai/`, `ai_server.js`, `python/`: policy inference, training bridge and PPO tooling.
 - `scripts/`: tests, benchmarks, validation, exports and CI utilities.
+- `experiments/training_workbook/`: training-process evidence, pending tests and isolated experiment tools
+  (see its `WORKBOOK.md`; outputs go to the git-ignored `runs/`).
 - `models/`, `regression/baselines/`: policies and model-quality references.
 - `benchmark_cache/`, `debug/`: shared simulation baseline and current operational results.
 - `chronicles/`: generated history exports.
 - `saves/`: local colony checkpoints and recovery backups.
+- `.cache/`: local promotion-eval cache (git-ignored, safe to delete).
 - `.github/workflows/quality_gates.yml`: remote quality-check workflow.

@@ -17,3 +17,9 @@ debug/*.log
 debug/regression_report_*.txt
 debug/ci_artifacts/
 debug/ci_pre_debug_files.json
+
+# Deterministic promotion-eval cache
+.cache/
+
+# Training workbook experiment sessions (local outputs)
+experiments/training_workbook/runs/

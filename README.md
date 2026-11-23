@@ -131,31 +131,27 @@ npm run ai:play
 Quality-oriented loop and acceptance gate:
 
 ```bash
-npm run ai:train:m4
 npm run ai:train:m4pro
 npm run ai:train -- quality
 npm run ai:validate
-npm run audit:narrative-producers
-npm run test:narrative
 npm test
 ```
 
-`audit:narrative-producers` reports direct legacy-only event writers. `test:narrative` runs the fast
-structured-event contract gate in isolation. `npm test` runs the audit plus narrative and
-training/validation contract suites.
+`npm test` runs the narrative-producer audit and every contract suite; any single suite can also be
+run directly with `node scripts/<suite>.js`.
 
 CI bundles identify their run and commit, keep fresh evidence, and show skipped phases explicitly.
 
-`ai:train:m4` is the direct shortcut for the `m4-balanced` profile. The generic
-`ai:train` command accepts the wrapper profile after `--`: `fast` (default), `quality`,
+The generic `ai:train` command accepts the wrapper profile after `--`: `fast` (default), `quality`,
 `quality-mixed`, `m4-balanced`, `m4-pro`, `full`, `endgame`, or `benchmark`. The
 `m4-balanced` profile is the sustainable speed/quality preset for a 10-core,
 16 GB Apple M4: quality-mixed foundation/finetune, a dedicated 20,000-tick
 endgame specialization phase, `5→4→3` workers, sparse intermediate evaluation,
-and one guarded final canonical check. 🚀 `ai:train:m4pro` runs the same recipe on a
-12-core M4 Pro with more rollout workers (`7→5→4`, the measured throughput sweet spot)
-and promotion evals fanned out across cores — same scores, much less waiting. Add `--fresh` after
-the profile when observation or action contracts change.
+and one guarded final canonical check (`npm run ai:train -- m4-balanced`). 🚀 `ai:train:m4pro` is the faster lane for a 12-core
+M4 Pro: A/B runs showed the long endgame phase ate ~60% of the clock without paying off, so it
+spends that time on a 4x longer foundation phase instead (gains kept scaling with episodes), with 7 rollout workers per phase and a
+24-episode canonical check fanned out across cores (the unchanged best policy's score is cached). Add `--fresh` after the profile when
+observation or action contracts change.
 
 For training profiles, validation and everyday operations, see [MANUAL.md](MANUAL.md).
 
@@ -164,10 +160,11 @@ For training profiles, validation and everyday operations, see [MANUAL.md](MANUA
 Keep tuning deterministic and comparable:
 
 ```bash
-npm run bench:ensure-baseline
 npm run bench:candidate -- --set path=value
 npm run bench:diff
 ```
+
+`bench:diff` refreshes the cached baseline automatically when the benchmark profile changed.
 
 Long-running and weekly checks:
 
@@ -195,12 +192,14 @@ npm run debug:clean
 - `src/ai/` and `ai_server.js`: policy inference and training bridge.
 - `scripts/`: benchmarks, validation, map export, CI artifacts and cleanup tools.
 - `python/`: PPO training and regression rollout tools.
+- `experiments/training_workbook/`: training-process lab notebook 🧪 (evidence, test backlog, isolated runners).
 - `models/`: runtime policies and resumable training metadata.
 - `regression/baselines/`: durable model-quality reference profiles.
 - `benchmark_cache/`: shared deterministic benchmark baseline.
 - `debug/`: current operational validation and comparison reports.
 - `chronicles/`: generated Chronicle exports (git-ignored).
 - `saves/`: local colony checkpoints and previous-generation backups (git-ignored).
+- `.cache/`: local promotion-eval cache, rebuilt on demand (git-ignored).
 - `.github/workflows/quality_gates.yml`: extended and weekly quality checks.
 
 ## Contributing 🤝

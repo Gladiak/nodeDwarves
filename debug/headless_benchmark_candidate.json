@@ -17,7 +17,7 @@
     ],
     "width": 120,
     "height": 40,
-    "generatedAt": "2026-11-23T18:37:28.551Z"
+    "generatedAt": "2026-11-23T19:09:00.592Z"
   },
   "variants": [
     {
@@ -932,9 +932,9 @@
               "evictions": 0
             },
             "runtime": {
-              "elapsedMs": 70401,
-              "ticksPerSecond": 113.63474950639906,
-              "pathingMs": 25879.380346998885,
+              "elapsedMs": 54274,
+              "ticksPerSecond": 147.40022847035414,
+              "pathingMs": 14185.186871001326,
               "renderMeanMs": null,
               "renderP95Ms": null,
               "renderStatus": "not_rendered_headless"
@@ -1883,9 +1883,9 @@
               "evictions": 0
             },
             "runtime": {
-              "elapsedMs": 70635,
-              "ticksPerSecond": 113.25829970977561,
-              "pathingMs": 24510.928219999027,
+              "elapsedMs": 57882,
+              "ticksPerSecond": 138.21222487128986,
+              "pathingMs": 13720.907435994872,
               "renderMeanMs": null,
               "renderP95Ms": null,
               "renderStatus": "not_rendered_headless"
@@ -2759,9 +2759,9 @@
               "evictions": 0
             },
             "runtime": {
-              "elapsedMs": 83656,
-              "ticksPerSecond": 95.6297217175098,
-              "pathingMs": 29243.16487301601,
+              "elapsedMs": 66990,
+              "ticksPerSecond": 119.4208090759815,
+              "pathingMs": 15922.946717007013,
               "renderMeanMs": null,
               "renderP95Ms": null,
               "renderStatus": "not_rendered_headless"
@@ -3638,9 +3638,9 @@
               "evictions": 0
             },
             "runtime": {
-              "elapsedMs": 92278,
-              "ticksPerSecond": 86.69455341468172,
-              "pathingMs": 35211.97099000783,
+              "elapsedMs": 73027,
+              "ticksPerSecond": 109.5485231489723,
+              "pathingMs": 18913.381339007785,
               "renderMeanMs": null,
               "renderP95Ms": null,
               "renderStatus": "not_rendered_headless"
@@ -4227,9 +4227,9 @@
             "evictions": 0
           },
           "runtime": {
-            "elapsedMs": 79242.5,
-            "ticksPerSecond": 102.30433108709154,
-            "pathingMs": 28711.361107505436,
+            "elapsedMs": 63043.25,
+            "ticksPerSecond": 128.64544639164944,
+            "pathingMs": 15685.605590752748,
             "renderMeanMs": null,
             "renderP95Ms": null,
             "renderStatus": "not_rendered_headless"

@@ -33,6 +33,11 @@ function withTickConfigScope(fn) {
   }
 }
 
+// True while a stepState tick scope is open.
+function isTickConfigScopeActive() {
+  return scopeDepth > 0;
+}
+
 // Recursively freeze plain objects and arrays.
 function deepFreeze(value) {
   if (!value || typeof value !== 'object' || Object.isFrozen(value)) {
@@ -68,5 +73,6 @@ module.exports = {
   enterTickConfigScope,
   exitTickConfigScope,
   withTickConfigScope,
+  isTickConfigScopeActive,
   memoizeTickConfig,
 };
