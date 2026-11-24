@@ -28,6 +28,7 @@ const {
 const {
   PROFILE_M4_BALANCED,
   PROFILE_M4_PRO,
+  PROFILE_M4,
   buildPhases: buildTrainingPhases,
   parseArgs: parseTrainingWrapperArgs,
   resolvePhaseWorkers,
@@ -249,6 +250,34 @@ function validateM4BalancedWrapperContract() {
   assert(pro.workersProfileAware === false, 'M4 Pro wrapper contract: phases should use the flat worker budget.');
   const proWorkers = proPhases.map((phase) => resolvePhaseWorkers(proPlan, phase, pro.workersProfileAware).workers).join(',');
   assert(proWorkers === '7,7', `M4 Pro wrapper contract: worker plan mismatch (${proWorkers}).`);
+
+  const m4 = parseTrainingWrapperArgs([PROFILE_M4]);
+  assert(m4.profile === PROFILE_M4 && m4.m4 === true && m4.m4Pro === false, 'M4 wrapper contract: m4 profile mismatch.');
+  assert(
+    m4.canonicalMode === 'final-only' && m4.skipPhasePromotes === true && m4.canonicalEvalEpisodes === 24,
+    'M4 wrapper contract: m4 should inherit the M4-pro promotion policy.',
+  );
+  const m4Phases = buildTrainingPhases(PROFILE_M4, '/tmp/m4-wrapper-contract', {
+    fast: '/tmp/m4-wrapper-contract/config_fast.json',
+    finetune: '/tmp/m4-wrapper-contract/config_finetune.json',
+  });
+  assert(
+    m4Phases.map((phase) => phase.name).join(',') === 'm4-foundation,m4-finetune',
+    'M4 wrapper contract: m4 should run foundation and finetune only (no endgame).',
+  );
+  assert(
+    m4Phases.every((phase, index) => JSON.stringify(phase.trainArgs) === JSON.stringify(proPhases[index].trainArgs)),
+    'M4 wrapper contract: m4 recipe should match M4-pro.',
+  );
+  const m4Plan = resolveWorkerPlan(m4.trainExtraArgs, {
+    cpuCount: 10,
+    workersAutoMin: m4.workersAutoMin,
+    workersAutoMax: m4.workersAutoMax,
+    workersReserve: m4.workersReserve,
+  });
+  assert(m4.workersProfileAware === false, 'M4 wrapper contract: m4 phases should use the flat worker budget.');
+  const m4Workers = m4Phases.map((phase) => resolvePhaseWorkers(m4Plan, phase, m4.workersProfileAware).workers).join(',');
+  assert(m4Workers === '7,7', `M4 wrapper contract: m4 worker plan on 10 cores mismatch (${m4Workers}).`);
 }
 
 // Execute one subprocess and enforce expected exit codes.

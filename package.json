@@ -8,6 +8,7 @@
     "ai:bootstrap": "python3 python/bootstrap.py",
     "ai:play": "node app.js --ai models/policy_best.json",
     "ai:train": "node scripts/train_wrapper.js",
+    "ai:train:m4": "node scripts/train_wrapper.js m4",
     "ai:train:m4pro": "node scripts/train_wrapper.js m4-pro",
     "ai:train:continuous": "node scripts/train_continuous.js --low-write --auto-clean-debug",
     "ai:validate": "node scripts/validate_extended_optimized.js",

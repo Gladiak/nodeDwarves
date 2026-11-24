@@ -131,7 +131,8 @@ npm run ai:play
 Quality-oriented loop and acceptance gate:
 
 ```bash
-npm run ai:train:m4pro
+npm run ai:train:m4       # 10-core Apple M4
+npm run ai:train:m4pro    # 12-core Apple M4 Pro
 npm run ai:train -- quality
 npm run ai:validate
 npm test
@@ -143,14 +144,16 @@ run directly with `node scripts/<suite>.js`.
 CI bundles identify their run and commit, keep fresh evidence, and show skipped phases explicitly.
 
 The generic `ai:train` command accepts the wrapper profile after `--`: `fast` (default), `quality`,
-`quality-mixed`, `m4-balanced`, `m4-pro`, `full`, `endgame`, or `benchmark`. The
+`quality-mixed`, `m4-balanced`, `m4`, `m4-pro`, `full`, `endgame`, or `benchmark`. The
 `m4-balanced` profile is the sustainable speed/quality preset for a 10-core,
 16 GB Apple M4: quality-mixed foundation/finetune, a dedicated 20,000-tick
 endgame specialization phase, `5→4→3` workers, sparse intermediate evaluation,
 and one guarded final canonical check (`npm run ai:train -- m4-balanced`). 🚀 `ai:train:m4pro` is the faster lane for a 12-core
 M4 Pro: A/B runs showed the long endgame phase ate ~60% of the clock without paying off, so it
 spends that time on a 4x longer foundation phase instead (gains kept scaling with episodes), with 7 rollout workers per phase and a
-24-episode canonical check fanned out across cores (the unchanged best policy's score is cached). Add `--fresh` after the profile when
+24-episode canonical check fanned out across cores (the unchanged best policy's score is cached). 🧪 `ai:train:m4` runs the same
+recipe on a 10-core, 16 GB M4: a real PPO worker sweep found the knee at 7 rollout workers too (~15% faster than
+4-5, while 8-10 only add policy lag), so it pins 7 instead of the 6 that `m4-pro` would pick on 10 cores. Add `--fresh` after the profile when
 observation or action contracts change.
 
 For training profiles, validation and everyday operations, see [MANUAL.md](MANUAL.md).

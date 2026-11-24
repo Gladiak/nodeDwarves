@@ -164,11 +164,13 @@ npm run ai:bootstrap
 npm run ai:train -- quality
 ```
 
-Available wrapper profiles: `fast`, `quality`, `quality-mixed`, `m4-balanced`, `m4-pro`, `full`,
+Available wrapper profiles: `fast`, `quality`, `quality-mixed`, `m4-balanced`, `m4`, `m4-pro`, `full`,
 `endgame`, and `benchmark` (for example `npm run ai:train -- m4-balanced`).
 `npm run ai:train:m4pro` targets a 12-core M4 Pro: foundation (640 episodes) + finetune with 7
 rollout workers per phase and a 24-episode canonical check, without the long endgame phase (it cost ~60% of
-the run without a measurable gain). Run `npm run ai:train -- endgame` separately when endgame
+the run without a measurable gain). `npm run ai:train:m4` runs the same recipe on a 10-core, 16 GB
+M4 with 7 rollout workers pinned (measured PPO knee; `m4-pro` would resolve to 6 workers there).
+Close heavy apps first: all 10 cores stay busy for the run. Run `npm run ai:train -- endgame` separately when endgame
 specialization is wanted.
 Promotion checks evaluate episodes in parallel (`promote_best.py --eval-workers`, set by the wrapper
 to the run's worker count); scores and promotion decisions are identical to a sequential eval.

@@ -1,4 +1,4 @@
-# Training Workbook: quality per minute on Apple M4 Pro
+# Training Workbook: quality per minute on Apple M4 Pro and M4
 
 Living notebook for PPO training-process experiments. It records what was measured on
 2026-11-23 and the prioritized tests that remain to raise the quality gained per minute of
@@ -153,6 +153,23 @@ finetune ~0.7 min, promote ~0.5-1 min).
   (~+0.077 needed at this SE). Training continues from `models/policy.json` on the next run.
 - First best-policy eval populated `.cache/promote_eval_cache.json`; later runs reuse it while the
   best policy, sources and eval settings are unchanged.
+
+### E13. Worker budget on a base Apple M4 (`m4` profile, 2026-11-24)
+Machine: 10 cores (4 performance + 6 efficiency), 16 GB, desktop apps open (not idle).
+Raw data: [`evidence/2026-11-24_m4_workers.json`](evidence/2026-11-24_m4_workers.json).
+- Env-only sweep (parallel `ai_server.js`, no Python): 1: 645, 2: 1,220, 3: 1,708, 4: 1,968,
+  5: 1,913, 6: 1,927, 7: 2,058, 8: 1,937, 10: 1,909 steps/s. Saturates at the 4 P-cores.
+- Real PPO foundation (192 episodes, same seeds): 4: 170 s, 5: 167 s, 6: 152 s, 7: 143/146 s,
+  8: 158 s, 10: 146 s. Training keeps scaling past 4 because each Node env idles while its Python
+  worker runs inference and IPC; extra workers fill that gap on the E-cores. Above 7 there is no
+  gain, only more policy lag (clip fraction 0.14 at 4, 0.19 at 7, 0.23 at 8-10) and slower updates.
+- Lesson: size worker budgets from real PPO runs, not from env-only throughput.
+- `m4-pro` on 10 cores resolves to 6 workers (reserve 5), `m4-balanced` to 5->4->3. The new `m4`
+  profile is the `m4-pro` recipe with 7 workers pinned.
+- Full `m4` recipe (foundation 640 + finetune 50, 7 workers): foundation 479 s (~80 episodes/min,
+  env 3.55 ms/step), finetune 61 s, 24-episode canonical eval 38 s; ~9.5 min end to end.
+  Paired delta vs start +0.055 (SE 0.035, z 1.55, 15/24 positive), in line with E7 and E12.
+- Running workbook sessions on this machine: `exp_run.js --workers 7` (the default) is correct.
 
 ### PPO health snapshot (typical end of phase)
 Foundation: KL 0.013-0.017, clip fraction 0.19-0.24, explained variance 0.89-0.98.
@@ -360,4 +377,5 @@ When the policy is clearly stronger than today, repeat the hold test (`eval_pair
 | 2026-11-23 | E7 | 160/320/640 episodes: +0.005/+0.031/+0.059 | `m4-pro` foundation = 640 | |
 | 2026-11-23 | E8, E9 | Lower entropy, 5 epochs: no gain | Not adopted | |
 | 2026-11-23 | E12 | First real `m4-pro` run: +0.049, gate retained best | Keep chaining runs; see T4/T7 | |
+| 2026-11-24 | E13 | M4 PPO knee at 7 workers (~15% faster than 4-5); full run +0.055 | New `m4` profile = `m4-pro` recipe, 7 workers | |
 | | | | | |

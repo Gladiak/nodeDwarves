@@ -12,6 +12,7 @@ const PROFILE_QUALITY = "quality";
 const PROFILE_QUALITY_MIXED = "quality-mixed";
 const PROFILE_M4_BALANCED = "m4-balanced";
 const PROFILE_M4_PRO = "m4-pro";
+const PROFILE_M4 = "m4";
 const PROFILE_FULL = "full";
 const PROFILE_ENDGAME = "endgame";
 const PROFILE_BENCHMARK = "benchmark";
@@ -79,6 +80,13 @@ const M4_PRO_FOUNDATION_EPISODES = 640;
 const M4_PRO_FOUNDATION_DIFFICULTY_RAMP = 480;
 // Two canonical episodes per eval scenario; parallel promotion eval keeps this around 30 seconds.
 const M4_PRO_CANONICAL_EVAL_EPISODES = 24;
+// M4 (4 performance + 6 efficiency cores, 16 GB): env-only throughput saturates at 4 simulations,
+// but real PPO foundation runs keep scaling while Python inference/IPC leaves Node idle
+// (192 episodes: 4:170s, 5:167s, 6:152s, 7:143-146s, 8:158s, 10:146s). m4-pro's reserve of 5
+// resolves to 6 workers on 10 cores, so the M4 profile pins the measured optimum of 7.
+const M4_WORKERS_AUTO_MIN = 7;
+const M4_WORKERS_AUTO_MAX = 7;
+const M4_WORKERS_RESERVE = 3;
 const M4_BALANCED_TRAIN_EXTRAS = [
   "--eval-every", "40",
   "--eval-episodes", "2",
@@ -91,6 +99,7 @@ const VALID_PROFILES = new Set([
   PROFILE_QUALITY_MIXED,
   PROFILE_M4_BALANCED,
   PROFILE_M4_PRO,
+  PROFILE_M4,
   PROFILE_FULL,
   PROFILE_ENDGAME,
   PROFILE_BENCHMARK,
@@ -288,6 +297,19 @@ function applyM4ProPreset(args) {
   args.canonicalEvalEpisodes = M4_PRO_CANONICAL_EVAL_EPISODES;
   // Both remaining phases use 8-episode PPO batches, so all 7 workers keep policy lag <= 1 update.
   args.workersProfileAware = false;
+}
+
+// Apply the m4-pro recipe with the worker budget measured on a 10-core Apple M4.
+function applyM4Preset(args) {
+  if (!args || typeof args !== "object") {
+    return;
+  }
+  applyM4ProPreset(args);
+  args.m4Pro = false;
+  args.m4 = true;
+  args.workersAutoMin = M4_WORKERS_AUTO_MIN;
+  args.workersAutoMax = M4_WORKERS_AUTO_MAX;
+  args.workersReserve = M4_WORKERS_RESERVE;
 }
 
 // Apply run-time canonical promotion overrides on top of config defaults.
@@ -724,6 +746,7 @@ function parseArgs(argv) {
     lowLoad: false,
     m4Balanced: false,
     m4Pro: false,
+    m4: false,
   };
   const args = Array.isArray(argv) ? [...argv] : [];
   if (args.length > 0 && !String(args[0]).startsWith("-")) {
@@ -733,6 +756,8 @@ function parseArgs(argv) {
     applyM4BalancedPreset(result);
   } else if (result.profile === PROFILE_M4_PRO) {
     applyM4ProPreset(result);
+  } else if (result.profile === PROFILE_M4) {
+    applyM4Preset(result);
   }
   for (let index = 0; index < args.length; index += 1) {
     const arg = String(args[index] || "").trim();
@@ -999,6 +1024,7 @@ function printHelp() {
     "  quality-mixed",
     "  m4-balanced",
     "  m4-pro",
+    "  m4",
     "  full",
     "  endgame",
     "  benchmark",
@@ -1045,6 +1071,7 @@ function printHelp() {
     "  - Low-load preset defaults: canonical-final-only, 8x1600 canonical eval, no paired-LCB, progress every 2 episodes.",
     "  - M4-balanced preset defaults: quality-mixed phases, 5->4 workers, sparse train eval, no phase promotes, final 12x1800 canonical eval with paired-LCB.",
     "  - M4-pro preset: 12-core M4 Pro; foundation x4 (640 episodes) + finetune, no endgame phase, 7 workers per phase, final 24-episode parallel canonical eval (best-policy eval cached).",
+    "  - M4 preset: 10-core M4; foundation x4 (640 episodes) + finetune, no endgame phase, 7 workers per phase (measured knee), final 24-episode parallel canonical eval.",
     "  - Promotion reports are written per phase plus one run summary in the run directory.",
   ];
   process.stdout.write(`${lines.join("\n")}\n`);
@@ -1324,6 +1351,7 @@ function prepareRunFiles(rootDir, profile, runOptions = {}, dryRun = false) {
     || profile === PROFILE_QUALITY_MIXED
     || profile === PROFILE_M4_BALANCED
     || profile === PROFILE_M4_PRO
+    || profile === PROFILE_M4
     || profile === PROFILE_FULL
   ) {
     files.fast = path.join(runDir, "config_fast.json");
@@ -1335,6 +1363,7 @@ function prepareRunFiles(rootDir, profile, runOptions = {}, dryRun = false) {
     || profile === PROFILE_QUALITY_MIXED
     || profile === PROFILE_M4_BALANCED
     || profile === PROFILE_M4_PRO
+    || profile === PROFILE_M4
     || profile === PROFILE_FULL
   ) {
     files.finetune = path.join(runDir, "config_finetune.json");
@@ -1371,6 +1400,13 @@ function prepareRunFiles(rootDir, profile, runOptions = {}, dryRun = false) {
 
 // Build the training/promote phase list for the selected profile.
 function buildPhases(profile, runDir, files) {
+  if (profile === PROFILE_M4) {
+    // Same phases as m4-pro; only the worker budget differs.
+    return buildPhases(PROFILE_M4_PRO, runDir, files).map((phase) => ({
+      ...phase,
+      name: String(phase.name).replace("m4-pro", "m4"),
+    }));
+  }
   if (profile === PROFILE_M4_PRO) {
     // Foundation (x4) + finetune from the M4-balanced recipe; no endgame phase.
     return buildPhases(PROFILE_M4_BALANCED, runDir, files)
@@ -2031,7 +2067,13 @@ function runProfile(rootDir, profile, trainExtraArgs, dryRun, workerOptions = {}
   if (workerOptions.lowLoad === true) {
     printStatus("profile", "low-load preset enabled", ANSI_CYAN);
   }
-  if (workerOptions.m4Pro === true) {
+  if (workerOptions.m4 === true) {
+    printStatus(
+      "profile",
+      "M4 preset enabled (foundation x4 + finetune, 7 rollout workers, 24-episode parallel canonical eval)",
+      ANSI_CYAN,
+    );
+  } else if (workerOptions.m4Pro === true) {
     printStatus(
       "profile",
       "M4-pro preset enabled (foundation x4 + finetune, 7 rollout workers, 24-episode parallel canonical eval)",
@@ -2258,6 +2300,7 @@ function main() {
     lowLoad: args.lowLoad,
     m4Balanced: args.m4Balanced,
     m4Pro: args.m4Pro,
+    m4: args.m4,
   });
 }
 
@@ -2268,8 +2311,10 @@ if (require.main === module) {
 module.exports = {
   PROFILE_M4_BALANCED,
   PROFILE_M4_PRO,
+  PROFILE_M4,
   applyM4BalancedPreset,
   applyM4ProPreset,
+  applyM4Preset,
   buildPhases,
   prepareRunFiles,
   parseArgs,
