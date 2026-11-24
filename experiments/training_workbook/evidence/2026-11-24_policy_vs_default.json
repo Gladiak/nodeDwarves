@@ -1,0 +1,1019 @@
+{
+ "date": "2026-11-24",
+ "question": "Does the trained policy beat the game's built-in ai.defaultWeights (no policy)?",
+ "policies": {
+  "best": "models/policy_best.json sha1 d4634eb6",
+  "latest": "models/policy.json sha1 d4f33448",
+  "default": "no action fields (ai.defaultWeights + governor defaults)"
+ },
+ "protocol": {
+  "canonical": "24 episodes, 1800 steps x 2 ticks, seed base 100000, config_canonical_promote",
+  "long": "12 episodes, 10000 steps x 2 ticks, config_endgame"
+ },
+ "results": {
+  "canonical": {
+   "best": {
+    "mean_score": 4.298685350621642,
+    "pop": 94.83333333333333,
+    "births": 78.20833333333333,
+    "deaths": 4.375,
+    "extinctions": 0,
+    "deaths_by_cause": {
+     "starvation": 0,
+     "oldAge": 0,
+     "raid": 80,
+     "deepRaid": 4,
+     "ruins": 15,
+     "hunt": 6,
+     "warriorLeague": 0
+    },
+    "episodes": [
+     {
+      "seed": 100000,
+      "scenario": "baseline",
+      "score": 4.180975385796909,
+      "pop": 120,
+      "deaths": 1,
+      "stock_min": 1
+     },
+     {
+      "seed": 100001,
+      "scenario": "baseline",
+      "score": 4.253515086598536,
+      "pop": 96,
+      "deaths": 0,
+      "stock_min": 1
+     },
+     {
+      "seed": 100002,
+      "scenario": "full_sim",
+      "score": 4.356207821907541,
+      "pop": 88,
+      "deaths": 6,
+      "stock_min": 1
+     },
+     {
+      "seed": 100003,
+      "scenario": "full_sim",
+      "score": 4.4845312142890705,
+      "pop": 88,
+      "deaths": 3,
+      "stock_min": 1
+     },
+     {
+      "seed": 100004,
+      "scenario": "wildlife_raid",
+      "score": 4.373822847633805,
+      "pop": 70,
+      "deaths": 10,
+      "stock_min": 1
+     },
+     {
+      "seed": 100005,
+      "scenario": "wildlife_raid",
+      "score": 4.3989996029303615,
+      "pop": 95,
+      "deaths": 4,
+      "stock_min": 1
+     },
+     {
+      "seed": 100006,
+      "scenario": "water_scarce",
+      "score": 4.570324667403243,
+      "pop": 80,
+      "deaths": 4,
+      "stock_min": 1
+     },
+     {
+      "seed": 100007,
+      "scenario": "water_scarce",
+      "score": 4.475753477907755,
+      "pop": 98,
+      "deaths": 3,
+      "stock_min": 1
+     },
+     {
+      "seed": 100008,
+      "scenario": "food_scarce",
+      "score": 4.421801828816776,
+      "pop": 82,
+      "deaths": 3,
+      "stock_min": 1
+     },
+     {
+      "seed": 100009,
+      "scenario": "food_scarce",
+      "score": 4.587471217875584,
+      "pop": 93,
+      "deaths": 2,
+      "stock_min": 1
+     },
+     {
+      "seed": 100010,
+      "scenario": "ruins_focus",
+      "score": 4.47101944717135,
+      "pop": 85,
+      "deaths": 2,
+      "stock_min": 1
+     },
+     {
+      "seed": 100011,
+      "scenario": "ruins_focus",
+      "score": 4.536911348584277,
+      "pop": 85,
+      "deaths": 2,
+      "stock_min": 1
+     },
+     {
+      "seed": 100012,
+      "scenario": "underrealm_push",
+      "score": 3.7891697179308674,
+      "pop": 116,
+      "deaths": 7,
+      "stock_min": 1
+     },
+     {
+      "seed": 100013,
+      "scenario": "underrealm_push",
+      "score": 4.090846626238699,
+      "pop": 101,
+      "deaths": 8,
+      "stock_min": 1
+     },
+     {
+      "seed": 100014,
+      "scenario": "underrealm_late_gauntlet",
+      "score": 3.828666764198216,
+      "pop": 121,
+      "deaths": 11,
+      "stock_min": 0.8807264013113368
+     },
+     {
+      "seed": 100015,
+      "scenario": "underrealm_late_gauntlet",
+      "score": 3.9545250226833812,
+      "pop": 111,
+      "deaths": 14,
+      "stock_min": 1
+     },
+     {
+      "seed": 100016,
+      "scenario": "compound_crisis",
+      "score": 4.330340129742511,
+      "pop": 52,
+      "deaths": 4,
+      "stock_min": 0.20872421254161339
+     },
+     {
+      "seed": 100017,
+      "scenario": "compound_crisis",
+      "score": 4.0544309193970545,
+      "pop": 106,
+      "deaths": 1,
+      "stock_min": 1
+     },
+     {
+      "seed": 100018,
+      "scenario": "governance_pressure",
+      "score": 4.498779544002852,
+      "pop": 88,
+      "deaths": 2,
+      "stock_min": 1
+     },
+     {
+      "seed": 100019,
+      "scenario": "governance_pressure",
+      "score": 4.3370006372568,
+      "pop": 96,
+      "deaths": 2,
+      "stock_min": 1
+     },
+     {
+      "seed": 100020,
+      "scenario": "social_tension_pressure",
+      "score": 4.0057385659042195,
+      "pop": 98,
+      "deaths": 5,
+      "stock_min": 1
+     },
+     {
+      "seed": 100021,
+      "scenario": "social_tension_pressure",
+      "score": 4.4174496119283715,
+      "pop": 91,
+      "deaths": 7,
+      "stock_min": 1
+     },
+     {
+      "seed": 100022,
+      "scenario": "warrior_realism_pressure",
+      "score": 4.461795252490554,
+      "pop": 102,
+      "deaths": 1,
+      "stock_min": 1
+     },
+     {
+      "seed": 100023,
+      "scenario": "warrior_realism_pressure",
+      "score": 4.2883716762306605,
+      "pop": 114,
+      "deaths": 3,
+      "stock_min": 1
+     }
+    ],
+    "paired_vs_default": {
+     "delta": -0.044288542405411545,
+     "se": 0.038340057958760665,
+     "z": -1.1551506378276524,
+     "wins": 11,
+     "n": 24
+    }
+   },
+   "latest": {
+    "mean_score": 4.347792184154191,
+    "pop": 92.41666666666667,
+    "births": 75.70833333333333,
+    "deaths": 4.291666666666667,
+    "extinctions": 0,
+    "deaths_by_cause": {
+     "starvation": 0,
+     "oldAge": 0,
+     "raid": 79,
+     "deepRaid": 4,
+     "ruins": 14,
+     "hunt": 6,
+     "warriorLeague": 0
+    },
+    "episodes": [
+     {
+      "seed": 100000,
+      "scenario": "baseline",
+      "score": 4.605257738854084,
+      "pop": 82,
+      "deaths": 3,
+      "stock_min": 1
+     },
+     {
+      "seed": 100001,
+      "scenario": "baseline",
+      "score": 4.255697403514393,
+      "pop": 98,
+      "deaths": 2,
+      "stock_min": 1
+     },
+     {
+      "seed": 100002,
+      "scenario": "full_sim",
+      "score": 4.320345412240711,
+      "pop": 89,
+      "deaths": 4,
+      "stock_min": 1
+     },
+     {
+      "seed": 100003,
+      "scenario": "full_sim",
+      "score": 4.319360112225441,
+      "pop": 94,
+      "deaths": 8,
+      "stock_min": 1
+     },
+     {
+      "seed": 100004,
+      "scenario": "wildlife_raid",
+      "score": 4.421680804658793,
+      "pop": 86,
+      "deaths": 5,
+      "stock_min": 1
+     },
+     {
+      "seed": 100005,
+      "scenario": "wildlife_raid",
+      "score": 4.394463100620277,
+      "pop": 97,
+      "deaths": 0,
+      "stock_min": 1
+     },
+     {
+      "seed": 100006,
+      "scenario": "water_scarce",
+      "score": 4.3913852419583685,
+      "pop": 96,
+      "deaths": 4,
+      "stock_min": 1
+     },
+     {
+      "seed": 100007,
+      "scenario": "water_scarce",
+      "score": 4.308725092570066,
+      "pop": 98,
+      "deaths": 5,
+      "stock_min": 1
+     },
+     {
+      "seed": 100008,
+      "scenario": "food_scarce",
+      "score": 4.175608830068561,
+      "pop": 97,
+      "deaths": 6,
+      "stock_min": 1
+     },
+     {
+      "seed": 100009,
+      "scenario": "food_scarce",
+      "score": 4.574925468579532,
+      "pop": 90,
+      "deaths": 1,
+      "stock_min": 1
+     },
+     {
+      "seed": 100010,
+      "scenario": "ruins_focus",
+      "score": 4.486146936275057,
+      "pop": 95,
+      "deaths": 2,
+      "stock_min": 1
+     },
+     {
+      "seed": 100011,
+      "scenario": "ruins_focus",
+      "score": 4.582266052421123,
+      "pop": 83,
+      "deaths": 3,
+      "stock_min": 1
+     },
+     {
+      "seed": 100012,
+      "scenario": "underrealm_push",
+      "score": 3.8881643333110936,
+      "pop": 110,
+      "deaths": 11,
+      "stock_min": 1
+     },
+     {
+      "seed": 100013,
+      "scenario": "underrealm_push",
+      "score": 4.054671481868495,
+      "pop": 104,
+      "deaths": 13,
+      "stock_min": 1
+     },
+     {
+      "seed": 100014,
+      "scenario": "underrealm_late_gauntlet",
+      "score": 4.191266239281602,
+      "pop": 89,
+      "deaths": 9,
+      "stock_min": 0.6429380755806726
+     },
+     {
+      "seed": 100015,
+      "scenario": "underrealm_late_gauntlet",
+      "score": 3.799372714398883,
+      "pop": 109,
+      "deaths": 6,
+      "stock_min": 1
+     },
+     {
+      "seed": 100016,
+      "scenario": "compound_crisis",
+      "score": 4.4597973287901675,
+      "pop": 53,
+      "deaths": 2,
+      "stock_min": 0.2174544943311989
+     },
+     {
+      "seed": 100017,
+      "scenario": "compound_crisis",
+      "score": 4.510343272364389,
+      "pop": 80,
+      "deaths": 6,
+      "stock_min": 1
+     },
+     {
+      "seed": 100018,
+      "scenario": "governance_pressure",
+      "score": 4.417345520792628,
+      "pop": 86,
+      "deaths": 3,
+      "stock_min": 1
+     },
+     {
+      "seed": 100019,
+      "scenario": "governance_pressure",
+      "score": 4.462306583522832,
+      "pop": 105,
+      "deaths": 2,
+      "stock_min": 1
+     },
+     {
+      "seed": 100020,
+      "scenario": "social_tension_pressure",
+      "score": 4.365778142492872,
+      "pop": 93,
+      "deaths": 0,
+      "stock_min": 1
+     },
+     {
+      "seed": 100021,
+      "scenario": "social_tension_pressure",
+      "score": 4.462183721578564,
+      "pop": 85,
+      "deaths": 4,
+      "stock_min": 1
+     },
+     {
+      "seed": 100022,
+      "scenario": "warrior_realism_pressure",
+      "score": 4.450487544168515,
+      "pop": 109,
+      "deaths": 1,
+      "stock_min": 1
+     },
+     {
+      "seed": 100023,
+      "scenario": "warrior_realism_pressure",
+      "score": 4.449433343144122,
+      "pop": 90,
+      "deaths": 3,
+      "stock_min": 1
+     }
+    ],
+    "paired_vs_default": {
+     "delta": 0.0048182911271374045,
+     "se": 0.028812843319189936,
+     "z": 0.16722720051472065,
+     "wins": 11,
+     "n": 24
+    }
+   },
+   "default": {
+    "mean_score": 4.342973893027053,
+    "pop": 97.125,
+    "births": 80.70833333333333,
+    "deaths": 4.583333333333333,
+    "extinctions": 0,
+    "deaths_by_cause": {
+     "starvation": 0,
+     "oldAge": 0,
+     "raid": 79,
+     "deepRaid": 3,
+     "ruins": 22,
+     "hunt": 6,
+     "warriorLeague": 0
+    },
+    "episodes": [
+     {
+      "seed": 100000,
+      "scenario": "baseline",
+      "score": 4.355183525134908,
+      "pop": 96,
+      "deaths": 2,
+      "stock_min": 1
+     },
+     {
+      "seed": 100001,
+      "scenario": "baseline",
+      "score": 4.420452162412551,
+      "pop": 89,
+      "deaths": 3,
+      "stock_min": 1
+     },
+     {
+      "seed": 100002,
+      "scenario": "full_sim",
+      "score": 4.383457031961398,
+      "pop": 87,
+      "deaths": 6,
+      "stock_min": 1
+     },
+     {
+      "seed": 100003,
+      "scenario": "full_sim",
+      "score": 4.4728183328608475,
+      "pop": 98,
+      "deaths": 3,
+      "stock_min": 1
+     },
+     {
+      "seed": 100004,
+      "scenario": "wildlife_raid",
+      "score": 4.2845147893014754,
+      "pop": 103,
+      "deaths": 4,
+      "stock_min": 1
+     },
+     {
+      "seed": 100005,
+      "scenario": "wildlife_raid",
+      "score": 4.49930315555808,
+      "pop": 101,
+      "deaths": 4,
+      "stock_min": 0.9136692548979702
+     },
+     {
+      "seed": 100006,
+      "scenario": "water_scarce",
+      "score": 4.416800654896286,
+      "pop": 94,
+      "deaths": 0,
+      "stock_min": 1
+     },
+     {
+      "seed": 100007,
+      "scenario": "water_scarce",
+      "score": 4.357947029674998,
+      "pop": 98,
+      "deaths": 6,
+      "stock_min": 0.5070556095604104
+     },
+     {
+      "seed": 100008,
+      "scenario": "food_scarce",
+      "score": 4.291332117695458,
+      "pop": 112,
+      "deaths": 1,
+      "stock_min": 1
+     },
+     {
+      "seed": 100009,
+      "scenario": "food_scarce",
+      "score": 4.3945339409685005,
+      "pop": 92,
+      "deaths": 3,
+      "stock_min": 1
+     },
+     {
+      "seed": 100010,
+      "scenario": "ruins_focus",
+      "score": 4.488133999399233,
+      "pop": 86,
+      "deaths": 5,
+      "stock_min": 0.7223707677408275
+     },
+     {
+      "seed": 100011,
+      "scenario": "ruins_focus",
+      "score": 4.435920050039193,
+      "pop": 95,
+      "deaths": 1,
+      "stock_min": 1
+     },
+     {
+      "seed": 100012,
+      "scenario": "underrealm_push",
+      "score": 3.851827734961981,
+      "pop": 130,
+      "deaths": 8,
+      "stock_min": 1
+     },
+     {
+      "seed": 100013,
+      "scenario": "underrealm_push",
+      "score": 3.992319895561195,
+      "pop": 117,
+      "deaths": 12,
+      "stock_min": 1
+     },
+     {
+      "seed": 100014,
+      "scenario": "underrealm_late_gauntlet",
+      "score": 3.9756100408353983,
+      "pop": 106,
+      "deaths": 15,
+      "stock_min": 1
+     },
+     {
+      "seed": 100015,
+      "scenario": "underrealm_late_gauntlet",
+      "score": 3.892160680155453,
+      "pop": 132,
+      "deaths": 18,
+      "stock_min": 1
+     },
+     {
+      "seed": 100016,
+      "scenario": "compound_crisis",
+      "score": 4.521177051602687,
+      "pop": 55,
+      "deaths": 3,
+      "stock_min": 0.9624937687460378
+     },
+     {
+      "seed": 100017,
+      "scenario": "compound_crisis",
+      "score": 4.312814098893043,
+      "pop": 98,
+      "deaths": 2,
+      "stock_min": 1
+     },
+     {
+      "seed": 100018,
+      "scenario": "governance_pressure",
+      "score": 4.409069623567698,
+      "pop": 88,
+      "deaths": 1,
+      "stock_min": 1
+     },
+     {
+      "seed": 100019,
+      "scenario": "governance_pressure",
+      "score": 4.533359150589082,
+      "pop": 73,
+      "deaths": 2,
+      "stock_min": 0.8283729281282016
+     },
+     {
+      "seed": 100020,
+      "scenario": "social_tension_pressure",
+      "score": 4.692269666774496,
+      "pop": 76,
+      "deaths": 3,
+      "stock_min": 1
+     },
+     {
+      "seed": 100021,
+      "scenario": "social_tension_pressure",
+      "score": 4.340253801693113,
+      "pop": 96,
+      "deaths": 2,
+      "stock_min": 1
+     },
+     {
+      "seed": 100022,
+      "scenario": "warrior_realism_pressure",
+      "score": 4.531843753242397,
+      "pop": 100,
+      "deaths": 2,
+      "stock_min": 1
+     },
+     {
+      "seed": 100023,
+      "scenario": "warrior_realism_pressure",
+      "score": 4.378271144869801,
+      "pop": 109,
+      "deaths": 4,
+      "stock_min": 1
+     }
+    ]
+   }
+  },
+  "long": {
+   "best": {
+    "mean_score": 3.619426669094334,
+    "pop": 564.5,
+    "births": 1075.0833333333333,
+    "deaths": 531.5833333333334,
+    "extinctions": 0,
+    "deaths_by_cause": {
+     "starvation": 0,
+     "oldAge": 5384,
+     "raid": 439,
+     "deepRaid": 541,
+     "ruins": 2,
+     "hunt": 13,
+     "warriorLeague": 0
+    },
+    "episodes": [
+     {
+      "seed": 100000,
+      "scenario": "baseline",
+      "score": 3.589244867175802,
+      "pop": 560,
+      "deaths": 568,
+      "stock_min": 1
+     },
+     {
+      "seed": 100001,
+      "scenario": "full_sim",
+      "score": 3.5888530803082634,
+      "pop": 507,
+      "deaths": 521,
+      "stock_min": 1
+     },
+     {
+      "seed": 100002,
+      "scenario": "wildlife_raid",
+      "score": 3.6078215018325865,
+      "pop": 564,
+      "deaths": 520,
+      "stock_min": 1
+     },
+     {
+      "seed": 100003,
+      "scenario": "water_scarce",
+      "score": 3.7169725633586705,
+      "pop": 545,
+      "deaths": 508,
+      "stock_min": 1
+     },
+     {
+      "seed": 100004,
+      "scenario": "food_scarce",
+      "score": 3.699256158270372,
+      "pop": 563,
+      "deaths": 476,
+      "stock_min": 1
+     },
+     {
+      "seed": 100005,
+      "scenario": "ruins_focus",
+      "score": 3.6210141392630533,
+      "pop": 456,
+      "deaths": 471,
+      "stock_min": 1
+     },
+     {
+      "seed": 100006,
+      "scenario": "underrealm_push",
+      "score": 3.5011239970656787,
+      "pop": 1002,
+      "deaths": 795,
+      "stock_min": 1
+     },
+     {
+      "seed": 100007,
+      "scenario": "underrealm_late_gauntlet",
+      "score": 3.573780204123087,
+      "pop": 516,
+      "deaths": 479,
+      "stock_min": 0.6228726526596952
+     },
+     {
+      "seed": 100008,
+      "scenario": "compound_crisis",
+      "score": 3.646882953137566,
+      "pop": 468,
+      "deaths": 510,
+      "stock_min": 1
+     },
+     {
+      "seed": 100009,
+      "scenario": "governance_pressure",
+      "score": 3.6816241360198694,
+      "pop": 525,
+      "deaths": 434,
+      "stock_min": 1
+     },
+     {
+      "seed": 100010,
+      "scenario": "social_tension_pressure",
+      "score": 3.609296787676827,
+      "pop": 630,
+      "deaths": 572,
+      "stock_min": 1
+     },
+     {
+      "seed": 100011,
+      "scenario": "warrior_realism_pressure",
+      "score": 3.5972496409002312,
+      "pop": 438,
+      "deaths": 525,
+      "stock_min": 1
+     }
+    ],
+    "paired_vs_default": {
+     "delta": 0.052924496881052975,
+     "se": 0.02306105151332037,
+     "z": 2.2949732734642683,
+     "wins": 9,
+     "n": 12
+    }
+   },
+   "latest": {
+    "mean_score": 3.5968192131429335,
+    "pop": 412,
+    "births": 932.0833333333334,
+    "deaths": 541.0833333333334,
+    "extinctions": 0,
+    "deaths_by_cause": {
+     "starvation": 338,
+     "oldAge": 4761,
+     "raid": 430,
+     "deepRaid": 929,
+     "ruins": 17,
+     "hunt": 18,
+     "warriorLeague": 0
+    },
+    "episodes": [
+     {
+      "seed": 100000,
+      "scenario": "baseline",
+      "score": 3.5847153099681264,
+      "pop": 99,
+      "deaths": 528,
+      "stock_min": 1
+     },
+     {
+      "seed": 100001,
+      "scenario": "full_sim",
+      "score": 3.584269311563066,
+      "pop": 398,
+      "deaths": 475,
+      "stock_min": 1
+     },
+     {
+      "seed": 100002,
+      "scenario": "wildlife_raid",
+      "score": 3.6330297208071616,
+      "pop": 519,
+      "deaths": 471,
+      "stock_min": 1
+     },
+     {
+      "seed": 100003,
+      "scenario": "water_scarce",
+      "score": 3.632052489433365,
+      "pop": 210,
+      "deaths": 521,
+      "stock_min": 1
+     },
+     {
+      "seed": 100004,
+      "scenario": "food_scarce",
+      "score": 3.5948983086736725,
+      "pop": 632,
+      "deaths": 596,
+      "stock_min": 1
+     },
+     {
+      "seed": 100005,
+      "scenario": "ruins_focus",
+      "score": 3.486278761043994,
+      "pop": 32,
+      "deaths": 706,
+      "stock_min": 0.38914438080644764
+     },
+     {
+      "seed": 100006,
+      "scenario": "underrealm_push",
+      "score": 3.502494413745034,
+      "pop": 537,
+      "deaths": 569,
+      "stock_min": 1
+     },
+     {
+      "seed": 100007,
+      "scenario": "underrealm_late_gauntlet",
+      "score": 3.58416378535043,
+      "pop": 494,
+      "deaths": 494,
+      "stock_min": 1
+     },
+     {
+      "seed": 100008,
+      "scenario": "compound_crisis",
+      "score": 3.663892416145756,
+      "pop": 490,
+      "deaths": 543,
+      "stock_min": 1
+     },
+     {
+      "seed": 100009,
+      "scenario": "governance_pressure",
+      "score": 3.615190277662492,
+      "pop": 583,
+      "deaths": 527,
+      "stock_min": 1
+     },
+     {
+      "seed": 100010,
+      "scenario": "social_tension_pressure",
+      "score": 3.647996017134945,
+      "pop": 407,
+      "deaths": 484,
+      "stock_min": 1
+     },
+     {
+      "seed": 100011,
+      "scenario": "warrior_realism_pressure",
+      "score": 3.632849746187162,
+      "pop": 543,
+      "deaths": 579,
+      "stock_min": 1
+     }
+    ],
+    "paired_vs_default": {
+     "delta": 0.030317040929652667,
+     "se": 0.022638519480222365,
+     "z": 1.3391794881347463,
+     "wins": 8,
+     "n": 12
+    }
+   },
+   "default": {
+    "mean_score": 3.566502172213281,
+    "pop": 449.5833333333333,
+    "births": 973.5,
+    "deaths": 545.5833333333334,
+    "extinctions": 0,
+    "deaths_by_cause": {
+     "starvation": 0,
+     "oldAge": 4827,
+     "raid": 337,
+     "deepRaid": 1363,
+     "ruins": 8,
+     "hunt": 12,
+     "warriorLeague": 0
+    },
+    "episodes": [
+     {
+      "seed": 100000,
+      "scenario": "baseline",
+      "score": 3.605699096706231,
+      "pop": 404,
+      "deaths": 577,
+      "stock_min": 1
+     },
+     {
+      "seed": 100001,
+      "scenario": "full_sim",
+      "score": 3.6375310260181926,
+      "pop": 315,
+      "deaths": 485,
+      "stock_min": 1
+     },
+     {
+      "seed": 100002,
+      "scenario": "wildlife_raid",
+      "score": 3.5982880423453296,
+      "pop": 497,
+      "deaths": 532,
+      "stock_min": 1
+     },
+     {
+      "seed": 100003,
+      "scenario": "water_scarce",
+      "score": 3.6296550181634126,
+      "pop": 285,
+      "deaths": 571,
+      "stock_min": 1
+     },
+     {
+      "seed": 100004,
+      "scenario": "food_scarce",
+      "score": 3.5542745769181927,
+      "pop": 455,
+      "deaths": 592,
+      "stock_min": 1
+     },
+     {
+      "seed": 100005,
+      "scenario": "ruins_focus",
+      "score": 3.6090528316965553,
+      "pop": 47,
+      "deaths": 0,
+      "stock_min": 0.6574531354073783
+     },
+     {
+      "seed": 100006,
+      "scenario": "underrealm_push",
+      "score": 3.515583735682581,
+      "pop": 572,
+      "deaths": 617,
+      "stock_min": 1
+     },
+     {
+      "seed": 100007,
+      "scenario": "underrealm_late_gauntlet",
+      "score": 3.4977071607463435,
+      "pop": 347,
+      "deaths": 522,
+      "stock_min": 1
+     },
+     {
+      "seed": 100008,
+      "scenario": "compound_crisis",
+      "score": 3.560303463023529,
+      "pop": 960,
+      "deaths": 721,
+      "stock_min": 1
+     },
+     {
+      "seed": 100009,
+      "scenario": "governance_pressure",
+      "score": 3.44558226983329,
+      "pop": 505,
+      "deaths": 676,
+      "stock_min": 1
+     },
+     {
+      "seed": 100010,
+      "scenario": "social_tension_pressure",
+      "score": 3.602184830612208,
+      "pop": 629,
+      "deaths": 655,
+      "stock_min": 1
+     },
+     {
+      "seed": 100011,
+      "scenario": "warrior_realism_pressure",
+      "score": 3.542164014813506,
+      "pop": 379,
+      "deaths": 599,
+      "stock_min": 1
+     }
+    ]
+   }
+  }
+ }
+}

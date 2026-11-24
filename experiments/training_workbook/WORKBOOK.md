@@ -50,6 +50,13 @@ node experiments/training_workbook/exp_run.js --out experiments/training_workboo
 python3 experiments/training_workbook/analyze.py --out experiments/training_workbook/runs/2026-12-01 --ref f640
 ```
 
+No-policy reference (E14): `--policy default` plays the same plan with the game's built-in default
+weights; `--outcomes` adds per-episode population, deaths by cause and stockpile ratios to any policy.
+
+```bash
+.venv/bin/python experiments/training_workbook/eval_paired.py --policy default --config experiments/training_workbook/runs/2026-12-01/configs/config_endgame.json --max-steps 10000 --episodes 12 --out experiments/training_workbook/runs/2026-12-01/long_default.json
+```
+
 `exp_run.js` options: `--foundation-episodes`, `--difficulty-ramp` (default 0.75 x episodes),
 `--entropy-ramp <n|run>`, `--entropy-final`, `--chain k` (repeat the recipe k times, resuming),
 `--no-finetune`, `--set <foundation|finetune|all>:--flag=value`, `--workers` (default 7).
@@ -170,6 +177,57 @@ Raw data: [`evidence/2026-11-24_m4_workers.json`](evidence/2026-11-24_m4_workers
   env 3.55 ms/step), finetune 61 s, 24-episode canonical eval 38 s; ~9.5 min end to end.
   Paired delta vs start +0.055 (SE 0.035, z 1.55, 15/24 positive), in line with E7 and E12.
 - Running workbook sessions on this machine: `exp_run.js --workers 7` (the default) is correct.
+
+### E14. Trained policy vs the game's built-in default weights (2026-11-24)
+Question: does the policy beat a colony run with no policy at all (`ai.defaultWeights` plus governor
+defaults, what `npm start` plays unless `--ai FILE` or `ai.runtime.enabled` is set)? Until now every
+measurement compared the policy only with earlier versions of itself.
+Raw data: [`evidence/2026-11-24_policy_vs_default.json`](evidence/2026-11-24_policy_vs_default.json).
+Tool: `eval_paired.py --policy default` (same plan and seeds, no action fields) and `--outcomes`
+(per-episode population, deaths by cause, stockpile ratios). `--outcomes` reproduces the canonical
+score exactly (4.298685 for `policy_best.json`).
+- Canonical (24 episodes, 3,600 ticks): default 4.343; best -0.044 (SE 0.038, z -1.16, 11/24 wins);
+  latest +0.005 (z 0.17). No difference in outcomes either: stocks ~0.99 of target for everyone,
+  no extinctions, population 92-97. The canonical scenarios are saturated: at this horizon the
+  built-in priorities already keep every colony comfortable, so the policy has nothing to win.
+- Long horizon (12 episodes, 20,000 ticks): default 3.567; best +0.053 (SE 0.023, z 2.29, 9/12 wins),
+  final population 565 vs 450 (+26%), deep-raid deaths 541 vs 1,363; latest +0.030 (z 1.34) but
+  final population 412 and 338 starvation deaths (baseline and ruins_focus episodes) vs 0 for default.
+- The reward is not a neutral yardstick: the festival-intent bonus is earned only by an explicit
+  action, so default weights start with a small reward handicap. Outcomes confirm the reading anyway.
+- Lessons: (1) the policy's real value shows only over long horizons, exactly where training and the
+  promotion gate do not look (E10); (2) the canonical gate cannot separate a good policy from no
+  policy, so a +0.05 canonical gain says little about play quality; (3) `models/policy.json`
+  (latest) is worse than `policy_best.json` on long play and starves colonies, which matters if a
+  game is started with `--ai models/policy.json` or `ai.runtime.policyPath` keeps pointing at it.
+
+### E15. Action leverage: trivial policies match the trained one (2026-11-24)
+Probes with `eval_paired.py --policy const:X|random` on the same plans as E14.
+Raw data: [`evidence/2026-11-24_action_leverage.json`](evidence/2026-11-24_action_leverage.json).
+
+| Policy | Canonical delta vs default (z) | Long delta (z) | Long pop | Long deep-raid deaths | Long starvation |
+|---|---|---|---|---|---|
+| default | - | - | 450 | 114 | 0 |
+| best (trained) | -0.044 (-1.16) | +0.053 (2.29) | 565 | 45 | 0 |
+| latest (trained) | +0.005 (0.17) | +0.030 (1.34) | 412 | 77 | 28 |
+| const 0 | +0.046 (2.03) | **+0.065 (3.68)** | 549 | 39 | 0 |
+| const 1 | +0.032 (0.99) | - | - | - | - |
+| const 2 | -0.030 (-0.83) | +0.058 (1.59) | 433 | 94 | 0 |
+| random | -0.037 (-1.19) | +0.044 (1.48) | 515 | 46 | 0 |
+
+- A constant "all zero" action beats the trained best policy on both horizons; uniform random
+  actions are on par with it. Training has not yet learned anything a constant cannot do.
+- Most of the long-horizon gain over default comes from avoiding the default governor settings,
+  which cost ~2.5x more deep-raid deaths; almost any non-default setting avoids that.
+- Root causes in `computeShortages`/job assignment (`src/simulation/jobs.js`):
+  (1) job weights only reorder the shortage list, and idle dwarves are assigned round-robin over it,
+  so every missing resource gets roughly the same workers whatever its weight;
+  (2) `Number(weightRaw || 1)` turns an explicit weight of 0 into 1.
+- The reward is loosely tied to outcomes: across the six long-horizon players, score vs final
+  population correlates at only 0.52 (const 2 outscores the trained best with 23% fewer dwarves).
+  Stock-ratio terms are saturated (~0.99) for every player, including random.
+- Consequence: tuning PPO (T1-T9) cannot produce large gains until the action space has real
+  leverage and the reward measures what "playing well" means.
 
 ### PPO health snapshot (typical end of phase)
 Foundation: KL 0.013-0.017, clip fraction 0.19-0.24, explained variance 0.89-0.98.
@@ -378,4 +436,46 @@ When the policy is clearly stronger than today, repeat the hold test (`eval_pair
 | 2026-11-23 | E8, E9 | Lower entropy, 5 epochs: no gain | Not adopted | |
 | 2026-11-23 | E12 | First real `m4-pro` run: +0.049, gate retained best | Keep chaining runs; see T4/T7 | |
 | 2026-11-24 | E13 | M4 PPO knee at 7 workers (~15% faster than 4-5); full run +0.055 | New `m4` profile = `m4-pro` recipe, 7 workers | |
+| 2026-11-24 | E14 | vs no-policy default: canonical tie (best -0.044, z -1.16); 20k ticks best +0.053 (z 2.29), latest starves colonies | Report policy-vs-default in every evaluation; canonical gate alone is not evidence of play quality | |
+| 2026-11-24 | E15 | const 0 beats trained best (long +0.065 vs +0.053); random on par; weights only reorder a round-robin | Pause recipe tuning (T1-T9) until leverage and reward are redesigned | |
 | | | | | |
+
+---
+
+## 7. Redesign R1: leverage, reward and evaluation (started 2026-11-24)
+
+Why: E14-E15 show the trained policy is no better than a constant action. PPO recipe tuning
+(T1-T9) is paused until R1 lands.
+
+### Decisions (owner, 2026-11-24)
+- Objective: **prosperity + progress**. Sustainable population, few avoidable deaths (starvation,
+  thirst, raids, deep raids), no collapse, and long-term milestones (Underrealm depth, landmarks,
+  prestige).
+- Job leverage: **proportional allocation**. Idle dwarves split across shortages in proportion to
+  weight x severity instead of round-robin; fix `weight || 1` so 0 means "ignore". The no-AI game
+  changes too, so default weights are retuned to keep the cached benchmark baseline on par.
+- Reward: **compact rewrite**, ~8-10 outcome-tied terms with explainable weights, replacing the ~70
+  current ones. Requires a fresh training run.
+- Evaluation: **8,000-tick gate** as the promotion criterion; 20,000-tick check as periodic guard.
+
+### Findings that shape the design
+- Per-tick reward is ~4.3 for every player: stock terms are saturated (~0.99 of target for all, even
+  random) and `survival` saturates once population reaches the soft cap.
+- `populationBalance` = 1 - |pop - softCap| / softCap: populations above the soft cap (scenario caps
+  32-48, while colonies reach 90-560) earn nothing or less, so growth is not rewarded.
+- `gamma` 0.995 at 2 ticks per decision = ~400-tick credit horizon; deaths and progress unfold over
+  thousands of ticks.
+- Some scenarios end before 8,000 ticks (`ai.maxTicks` 7,000 and 5,600 overrides): the new gate must
+  raise or respect them explicitly.
+
+### Pending measurement: per-group leverage (run when the machine is free, ~1 h)
+Which governor groups actually move outcomes? This decides which action heads stay, which get more
+range, and which are dropped. Resumable: stop with Ctrl+C and relaunch the same command.
+
+```bash
+.venv/bin/python experiments/training_workbook/leverage_probe.py --out experiments/training_workbook/runs/2026-11-24_vs_default
+```
+
+Read-out: a group has leverage if either extreme moves population, avoidable deaths or score versus
+default by |z| >= 2. `jobs:inv` (food/water 0.4, wood/stone 2) measures today's job-weight leverage,
+the baseline for the proportional-allocation change.

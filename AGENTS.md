@@ -169,7 +169,8 @@ This file defines how to implement new features in a consistent, stable way.
   - `WORKBOOK.md`: measured evidence, decision rules, prioritized test backlog and decision log.
   - `evidence/`: raw per-episode results behind the recorded evidence.
   - `exp_run.js`: isolated m4-pro variant runner (never writes `models/`, verifies it by hash).
-  - `eval_paired.py`: paired canonical/long-horizon/decision-cadence evaluation.
+  - `eval_paired.py`: paired canonical/long-horizon/decision-cadence evaluation, no-policy default, constant/random/per-group probes and per-episode outcomes.
+  - `leverage_probe.py`: resumable per-governor-group long-horizon leverage probe with paired report.
   - `analyze.py`: paired-delta summary per variant.
   - `runs/`: git-ignored experiment session outputs.
 
