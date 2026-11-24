@@ -12,7 +12,6 @@ const VENV_PYTHON = process.platform === 'win32'
   ? path.join(ROOT, '.venv', 'Scripts', 'python.exe')
   : path.join(ROOT, '.venv', 'bin', 'python');
 const DEFAULT_REPORT_JSON_PATH = path.join(ROOT, 'debug', 'extended_gate_runtime_optimized_latest.json');
-const DEFAULT_REPORT_MD_PATH = path.join(ROOT, 'debug', 'extended_gate_runtime_optimized_latest.md');
 const DEFAULT_BASELINE_SECONDS = 2728.58;
 
 const STEPS = [
@@ -32,17 +31,16 @@ const STEPS = [
       '--eval-only',
       '--model-path', 'models/policy_best.json',
       '--best-model-path', 'models/policy_best.json',
-      '--eval-episodes', '20',
-      '--eval-max-steps', '2200',
-      '--eval-score', 'rpt',
+      '--eval-episodes', '24',
+      '--eval-max-steps', '4000',
+      '--eval-score', 'rpp',
       '--transport', 'compact',
       '--report-tag', 'canonical-master',
       '--report-json', 'debug/canonical_master_latest.json',
-      '--report-md', 'debug/canonical_master_latest.md',
       '--eval-progress',
       '--eval-progress-every', '10',
     ],
-    note: 'Fixed canonical contract (20x2200, rpt, compact).',
+    note: 'Fixed canonical contract (24x4000 steps = 8,000 ticks, rpp, compact).',
   },
   {
     id: 'benchmark',
@@ -79,7 +77,6 @@ const STEPS = [
       'scripts/regression.js',
       '--profile', 'horizon',
       '--report-json', 'debug/regression_horizon_latest.json',
-      '--report-md', 'debug/regression_horizon_latest.md',
     ],
     note: 'Multi-horizon deep/governance guardrails.',
   },
@@ -89,7 +86,7 @@ const STEPS = [
 function parseArgs(argv) {
   const options = {
     reportJsonPath: DEFAULT_REPORT_JSON_PATH,
-    reportMarkdownPath: DEFAULT_REPORT_MD_PATH,
+    reportMarkdownPath: null,
     baselineSeconds: DEFAULT_BASELINE_SECONDS,
   };
   for (let i = 0; i < argv.length; i += 1) {
@@ -100,7 +97,7 @@ function parseArgs(argv) {
       continue;
     }
     if (arg === '--report-md') {
-      options.reportMarkdownPath = resolveOutputPath(argv[i + 1], DEFAULT_REPORT_MD_PATH);
+      options.reportMarkdownPath = resolveOutputPath(argv[i + 1], null);
       i += 1;
       continue;
     }
@@ -232,12 +229,13 @@ function main() {
   };
 
   ensureParentDir(options.reportJsonPath);
-  ensureParentDir(options.reportMarkdownPath);
   fs.writeFileSync(options.reportJsonPath, `${JSON.stringify(report, null, 2)}\n`);
-  fs.writeFileSync(options.reportMarkdownPath, buildMarkdownReport(report));
-
   process.stdout.write(`\n[oq64] runtime report json: ${options.reportJsonPath}\n`);
-  process.stdout.write(`[oq64] runtime report md: ${options.reportMarkdownPath}\n`);
+  if (options.reportMarkdownPath) {
+    ensureParentDir(options.reportMarkdownPath);
+    fs.writeFileSync(options.reportMarkdownPath, buildMarkdownReport(report));
+    process.stdout.write(`[oq64] runtime report md: ${options.reportMarkdownPath}\n`);
+  }
   process.stdout.write(`[oq64] total=${formatSeconds(totalSeconds)} baseline=${formatSeconds(baselineSeconds)} delta=${formatSeconds(deltaSeconds)} (${deltaPercent.toFixed(2)}%)\n`);
 
   if (!allOk) {

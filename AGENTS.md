@@ -16,13 +16,15 @@ This file defines how to implement new features in a consistent, stable way.
 - Validate every substantial change with dedicated short-run and long-run checks, and include explicit model non-regression tests before considering the change complete.
 - Prefer reliability over speed: there is no rush to finish runs quickly when quality evidence is still missing.
 - When implementation details are unclear, ask for clarifications before coding changes.
-- Always update README.md and MANUAL.md after new implementations or tweaks, if needed.
-- README.md is a general product feature overview; avoid deep implementation details, formulas, and low-level file-by-file behavior.
-- README.md tone: technical but playful (nerd-friendly). Use emojis.
-- MANUAL.md is a concise user and operator guide. Keep commands and practical behavior; omit completed implementation plans, historical acceptance reports, formulas and low-level module walkthroughs.
-- Keep MANUAL.md section order stable for discoverability: Scope, Operations, Mental model, Tick flow, Runtime, State generation, Simulation systems, Rendering, AI/training, Configuration, Role guide, Deep dives, Project layout.
-- Always keep project structure documentation up to date: update AGENTS.md, README.md (Project layout), and MANUAL.md (Project layout cheatsheet) whenever files or folders are added, renamed, moved, or removed.
-- Keep README and MANUAL current and concise. Do not recreate the removed docs directory or completed implementation reports unless explicitly requested.
+- The repository keeps exactly three Markdown files: `README.md` (product overview, quick start,
+  controls, essential commands; technical but playful, with emojis), `AGENTS.md` (these rules) and
+  `STRATEGY.md` (state of the art, evidence, measurement protocol, step plan and decision log).
+  Do not add other Markdown files, manuals, workbooks or completion reports; scripts write JSON reports.
+- Every simulation, reward, action/observation or training-recipe change is measured with the
+  `STRATEGY.md` protocol and recorded there (evidence row + decision log) in the same change set.
+- Update `README.md` only for player-facing or command changes; keep formulas and numbers in `STRATEGY.md`.
+- Keep the project structure below, README's Project layout and the files on disk aligned whenever
+  files or folders are added, renamed, moved or removed.
 - Always write documentation in English.
 
 ## Project structure
@@ -30,9 +32,9 @@ This file defines how to implement new features in a consistent, stable way.
 - Keep this section always aligned with the real repository layout.
 - `app.js`: entrypoint and main loop.
 - `config.json`: single source of truth for tunables.
-- `README.md`: product overview, quick start and controls.
-- `MANUAL.md`: concise user/operator guide.
+- `README.md`: product overview, quick start, controls and essential commands.
 - `AGENTS.md`: contributor and agent guidelines.
+- `STRATEGY.md`: state of the art, evidence, measurement protocol, step plan and decision log.
 - `.github/workflows/quality_gates.yml`: CI automation for extended/weekly training quality gates and artifact upload.
 - `scripts/assemble_quality_artifacts.js`: content-fingerprinted CI evidence assembly with commit/run provenance, stale-report exclusion and explicit missing-phase status.
 - `scripts/review_chronicle_retention.js`: read-only snapshot/replay study of Chronicle density, source integrity, saga-status coverage, bounds and deterministic export hashes.
@@ -49,7 +51,7 @@ This file defines how to implement new features in a consistent, stable way.
 - `scripts/validate_save_continuity.js`: milestone-only short/long deterministic uninterrupted-versus-resumed validation.
 - `scripts/test_scenario_contracts.js`: curated scenario, filtered test-template reuse, precedence, save pinning and standard-game/PPO isolation contracts.
 - `scripts/validate_scenarios.js`: milestone-only two-seed catalog validation, long pressure runs, checkpoint restoration and canonical-policy compatibility.
-- `debug/scenario_validation_latest.json`: latest operational scenario-catalog validation with per-case population, economy, raids and progress.
+- `debug/scenario_validation_latest.json` (written by `scripts/validate_scenarios.js`): latest scenario-catalog validation.
 - `saves/`: git-ignored per-colony checkpoints and previous valid backups.
 - `.cache/promote_eval_cache.json`: git-ignored, bounded cache of deterministic best-policy promotion evals, keyed by simulation/evaluator sources, eval config, policy file and eval parameters.
 - `src/simulation/`: simulation systems split by theme.
@@ -119,6 +121,7 @@ This file defines how to implement new features in a consistent, stable way.
   labels, coordinates, and event/UI location lookup.
 - `src/ai/`: AI modules (policy and observation).
 - `src/ai/observation_layout.js`: shared legacy/factored observation layout plans used by the training server and in-game policy inference.
+- `src/ai/outcome_reward.js`: compact outcome-tied training reward (population, avoidable deaths, distress, reserves, progress, extinction) used by `ai_server.js` when `ai.reward.mode` is `outcome`.
 - `src/ai_policy.js`: thin wrapper for `src/ai/policy.js`.
 - `src/clans.js`: clan helpers and weighted clan distribution.
 - `src/dwarf_lore.js`: deterministic lore seed and generation for identity, inspect, and narrative consumers.
@@ -153,34 +156,30 @@ This file defines how to implement new features in a consistent, stable way.
 - `scripts/test_social_memory_contracts.js`: focused long-arc support/burden, mood, shock, decay, disabled-mode, and save contracts for M1.
 - `scripts/test_core_simulation_contracts.js`: deterministic economy, consumption, population, structure, movement, raid, save, and read-only measurement contracts (included in `npm test`).
 - `scripts/test_training_contracts.js`: deterministic technical contract suite for training/validation schemas (included in `npm test`).
-- `debug/regression_{standard,underrealm,governance,horizon}_latest.{json,md}`: latest model non-regression evidence for each release risk profile.
+- `debug/regression_*_latest.json`, `debug/canonical_master_latest.json` (written by `npm run ai:validate`): latest model non-regression evidence; regenerate after promoting a policy.
 - `benchmark_cache/headless_benchmark_baseline.json`: versioned cached headless benchmark baseline used for report diffs.
-- `benchmark_cache/headless_benchmark_baseline.md`: markdown companion of the cached headless benchmark baseline.
-- `debug/headless_benchmark_candidate.json`, `debug/headless_benchmark_candidate.md`,
-  `debug/headless_benchmark_diff.json`, and `debug/headless_benchmark_diff.md`: latest accepted canonical
-  `4 x 8000` candidate and zero-delta cached-baseline comparison evidence.
+- `debug/headless_benchmark_candidate.json`, `debug/headless_benchmark_diff.json`: latest canonical `4 x 8000` candidate and its cached-baseline comparison.
 - `chronicles/`: git-ignored deterministic Markdown/JSON Chronicle exports created on demand.
 - `regression/baselines/regression_baseline.json`: durable regression baseline profiles used by checks.
 - `python/bootstrap.py`: venv bootstrap.
 - `python/train.py`: PPO training loop and logging.
 - `python/regression_rollout.py`: rollout-only randomized regression runner (no PPO updates, no checkpoint writes).
 - `python/agent.py`: example Python agent.
-- `experiments/training_workbook/`: training-process experiment notebook.
-  - `WORKBOOK.md`: measured evidence, decision rules, prioritized test backlog and decision log.
-  - `evidence/`: raw per-episode results behind the recorded evidence.
-  - `exp_run.js`: isolated m4-pro variant runner (never writes `models/`, verifies it by hash).
-  - `eval_paired.py`: paired canonical/long-horizon/decision-cadence evaluation, no-policy default, constant/random/per-group probes and per-episode outcomes.
-  - `leverage_probe.py`: resumable per-governor-group long-horizon leverage probe with paired report.
-  - `analyze.py`: paired-delta summary per variant.
-  - `runs/`: git-ignored experiment session outputs.
+- `experiments/`: measurement tools used by the `STRATEGY.md` protocol.
+  - `challenge_probe.js`: in-process scorecard for synthetic players (stock flows, reserve autonomy, labor mix, deaths, outcome-reward score) on the eval plan or the `npm start` game, with `--set` A/B overrides.
+  - `eval_paired.py`: paired evaluation of real policies through `ai_server.js` (`--outcomes`, `rpp`), plus default/constant/random/per-group probes.
+  - `exp_run.js`: isolated m4-pro training variants (`--fresh-start`, `--chain`, `--set`, `--freeze-only`); never writes `models/`, verifies it by hash.
+  - `leverage_probe.py`: resumable per-governor-group leverage probe with paired report.
+  - `analyze.py`: paired-delta summary of `exp_run.js` variants.
+  - `runs/`: git-ignored session outputs.
 
 ## Config-first changes
 
 - Add new parameters to `config.json` with sensible defaults.
-- Explain operationally relevant new parameters in `MANUAL.md`; keep only high-level player-facing impact in `README.md`. The authoritative complete parameter set is `config.json`.
-- Avoid comments in JSON; use MANUAL/README for essential explanations.
+- Record difficulty, reward, gate and trainer knobs in the `STRATEGY.md` tuning surface; keep only player-facing impact in `README.md`. The authoritative complete parameter set is `config.json`.
+- Avoid comments in JSON.
 - Keep ratios in [0, 1] where possible to simplify tuning.
-- If training overrides or scenario knobs change, update the concise training instructions in `MANUAL.md`.
+- Keep `ai.training.configOverrides` and `evalOverrides` aligned with the base economy so training plays the same game as `npm start`.
 
 ## Simulation rules
 
@@ -189,12 +188,12 @@ This file defines how to implement new features in a consistent, stable way.
   - `src/state/` (initial stockpile, nodes, terrain source constraints)
   - `src/simulation/` (gathering, regen, consumption, shortages/jobs)
   - `src/render/` (legend, telemetry, symbols/colors usage)
-  - `MANUAL.md` (essential operational behavior) + `README.md` (high-level player-facing mention only if relevant)
+  - `STRATEGY.md` (measured effect) + `README.md` (high-level player-facing mention only if relevant)
 - New structures must update:
   - `config.json` (`structures.*`, costs, build ticks, guardrails, `symbols.*`, `display.colors.map` when colors are enabled)
   - `src/simulation/` (build jobs, placement, upgrades/effects)
   - `src/render/` (symbols, legend, telemetry counts)
-  - `MANUAL.md` (essential operational behavior) + `README.md` (high-level player-facing mention only if relevant)
+  - `STRATEGY.md` (measured effect) + `README.md` (high-level player-facing mention only if relevant)
 - Guardrails should use stockpile ratios, not absolute counts.
 
 ## Modularization and refactoring
@@ -211,6 +210,8 @@ This file defines how to implement new features in a consistent, stable way.
 - If observation/action shapes change, require `--fresh` training.
 - Keep the observation layout identical across `ai_server.js`, `src/ai/policy.js` and `python/train.py` (shared plan in `src/ai/observation_layout.js`).
 - The critic predicts normalized returns with output-preserving rescaling; only true terminal states (extinction) cut bootstrap, time limits bootstrap.
+- The reward is the compact outcome reward (`src/ai/outcome_reward.js`, weights in `ai.reward`); keep it short and tied to colony outcomes. Check new terms with `experiments/challenge_probe.js` (score vs final population and avoidable deaths) before training.
+- Promotion compares policies over 8,000 ticks with `rpp` (reward per planned tick), so an early extinction scores zero for the ticks it did not live.
 - Keep logs low-noise: `diag` should be averaged per log window.
 - Track model quality over time and prefer steady, incremental improvements over sudden unstable jumps.
 
@@ -223,24 +224,13 @@ This file defines how to implement new features in a consistent, stable way.
 ## Debug housekeeping
 
 - Keep `debug/` clean and ordered after every development/optimization cycle.
-- Retain only current operational artifacts needed for recent comparisons:
-  - latest canonical model validation report (`canonical_master_latest.*`)
-  - latest operational benchmark/regression/risk reports (`*.json`, `*.md`, `*.txt`)
-  - only the latest `2-3` `debug/run_*` folders for local history (default retention in tooling: `3`)
-  - run folders explicitly needed for an active validation or comparison
-- Remove transient artifacts once summarized:
-  - large smoke/runtime logs
-  - per-seed regression temp folders (`debug/regression_eval_*`, `debug/regression_random_*`)
-  - ad-hoc short smoke run folders not referenced by docs (`debug/run_*` mini-smokes)
-- Prefer deterministic cleanup right after validations, before finalizing documentation and commits.
-- Remove completed implementation write-ups and keep remaining guide links aligned with existing files.
-- Recommended cleanup commands (adjust to current cycle before running):
-  - `npm run debug:clean` (default: keep latest 3 `run_*` folders)
-  - `npm run debug:clean -- --keep-runs 2` (stricter retention)
-  - `npm run debug:clean -- --dry-run` (preview without deleting)
-  - `rm -rf debug/regression_eval_* debug/regression_random_*`
-  - `rm -f debug/*smoke*.log debug/*canonical*_smoke*.json debug/*canonical*_smoke*.md`
-  - `du -sh debug && find debug -maxdepth 1 -type f | sort`
+- Retain only current JSON reports (benchmark, canonical, regression, scenario validation) and at
+  most the latest 2-3 `debug/run_*` folders; delete reports that describe a superseded game or policy.
+- Remove transient artifacts once their numbers are in `STRATEGY.md`: smoke logs, per-seed
+  regression folders (`debug/regression_eval_*`, `debug/regression_random_*`), finished
+  `experiments/runs/` sessions.
+- Cleanup commands: `npm run debug:clean` (keeps 3 runs; `--keep-runs 2`, `--dry-run`),
+  `rm -rf debug/regression_eval_* debug/regression_random_*`, `du -sh debug experiments/runs`.
 
 ## Performance and UX
 
@@ -261,7 +251,8 @@ This file defines how to implement new features in a consistent, stable way.
   `npm run bench:candidate -- --set path=value && npm run bench:diff`.
 - Always compare against `benchmark_cache/headless_benchmark_baseline.json` instead of writing ad-hoc baseline copies in `debug/`.
 - Do not stop long-running validations early just because they take longer than expected; keep them running when they are making progress so results remain statistically reliable over wide horizons.
-- Treat seed collapses (population crashes) and strong stockpile regressions as tuning blockers unless intentional and documented.
+- Colonies may shrink or die out after bad play by design; judge collapses against the `STRATEGY.md`
+  scorecard targets (default, steward and trained play) rather than treating every collapse as a bug.
 - Confirm no crashes on resize and no negative stockpile values.
 - Check that shortages drive gathering priorities as expected.
 

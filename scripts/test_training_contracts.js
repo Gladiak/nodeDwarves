@@ -139,7 +139,7 @@ function validateM4BalancedWrapperContract() {
   assert(preset.autoCleanDebug === true, 'M4 wrapper contract: auto-clean should be enabled.');
   assert(preset.canonicalMode === 'final-only', 'M4 wrapper contract: canonical mode mismatch.');
   assert(preset.canonicalEvalEpisodes === 12, 'M4 wrapper contract: canonical episodes mismatch.');
-  assert(preset.canonicalEvalMaxSteps === 1800, 'M4 wrapper contract: canonical steps mismatch.');
+  assert(preset.canonicalEvalMaxSteps === 4000, 'M4 wrapper contract: canonical steps mismatch (R1 8,000-tick gate).');
   assert(preset.canonicalRequirePositiveLcb === true, 'M4 wrapper contract: canonical LCB should be enabled.');
   assert(preset.skipPhasePromotes === true, 'M4 wrapper contract: phase promotes should be skipped.');
 

@@ -6,9 +6,9 @@ a paired table against the no-policy default. Resumable: probes whose output alr
 skipped, so it can be stopped (Ctrl+C) and relaunched at any time. ~3.5 min per probe, ~1 h total.
 
 Example:
-  .venv/bin/python experiments/training_workbook/leverage_probe.py \
-    --out experiments/training_workbook/runs/2026-11-24_vs_default
-  .venv/bin/python experiments/training_workbook/leverage_probe.py --out <session> --report-only
+  .venv/bin/python experiments/leverage_probe.py \
+    --out experiments/runs/2026-11-24_vs_default
+  .venv/bin/python experiments/leverage_probe.py --out <session> --report-only
 """
 import argparse
 import json
@@ -18,8 +18,8 @@ import statistics as st
 import subprocess
 import sys
 
-ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-EVAL = os.path.join(ROOT, "experiments", "training_workbook", "eval_paired.py")
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+EVAL = os.path.join(ROOT, "experiments", "eval_paired.py")
 GROUPS = ["festival", "building", "trade", "contracts", "ruins", "underrealm", "externalCamps", "warriors"]
 PROBES = ["default", "jobs:inv"] + [f"group:{group}:{value}" for group in GROUPS for value in (0, 2)]
 # Extra players reported when present (written by earlier E14/E15 runs).
@@ -35,7 +35,7 @@ def output_path(out, probe):
 def run_missing(out, workers):
     config = os.path.join(out, "configs", "config_endgame.json")
     if not os.path.exists(config):
-        sys.exit(f"missing {config}: create the session first (WORKBOOK.md section 1)")
+        sys.exit(f"missing {config}: create the session first (run exp_run.js once, see STRATEGY.md)")
     pending = [probe for probe in PROBES if not os.path.exists(output_path(out, probe))]
     print(f"[leverage] {len(PROBES) - len(pending)}/{len(PROBES)} done, {len(pending)} to run (~{len(pending) * 3.5:.0f} min)")
     for index, probe in enumerate(pending, 1):
@@ -71,7 +71,7 @@ def report(out):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--out", required=True, help="workbook session folder with configs/")
+    parser.add_argument("--out", required=True, help="experiment session folder with configs/")
     parser.add_argument("--workers", type=int, default=7)
     parser.add_argument("--report-only", action="store_true")
     args = parser.parse_args()

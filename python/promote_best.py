@@ -272,6 +272,7 @@ def evaluate_policy(
         stats["avg_steps"],
         stats.get("avg_ticks", 0.0),
         eval_score_mode,
+        planned_ticks=stats.get("avg_planned_ticks"),
     )
     return stats, score
 
@@ -627,7 +628,7 @@ def render_report_markdown(payload):
         "",
         "## Metric Glossary",
         "",
-        "- `score`: aggregate promotion metric (`reward`, `rps`, or `rpt` depending on `evalScore`).",
+        "- `score`: aggregate promotion metric (`reward`, `rps`, `rpt` or `rpp` depending on `evalScore`).",
         "- `delta_score`: `latest_score - best_score_before`.",
         "- `min_improve`: minimum score delta required to allow promotion.",
         "- `lower_bound`: one-sided paired confidence lower bound for episode deltas.",

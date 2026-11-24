@@ -19,8 +19,12 @@ Current release: **v2.5.0 - Saved Holds and Scenario Challenges**. 🍺🗺️
 - 🎲 Twelve colony templates range from generous supplies to drought, hunger, overcrowding, raids,
   diplomacy, social strife, early Underrealm exploration, warrior injuries and overlapping crises.
 - 💾 Per-colony autosaves, manual saves and backup recovery preserve the colony, its history and its random stream.
-- ⛏️ Multi-layer economy with gathering, structures, shortages, and recovery loops.
-- 🌦️ Seasons, weather, festivals, raids, and world events that shift priorities.
+- ⛏️ A tight, multi-layer economy: most hands are needed just to keep food and water flowing, idle
+  dwarves go where shortages hurt most, and a colony can starve, shrink or die out after bad choices. 💀
+- 🌦️ Lean winters, weather, festivals, raids, and world events that shift priorities. Stock up before
+  the snow, or watch the larder (and the birth rate) empty out. ❄️
+- 🍺 Beer is a luxury, not a water substitute: it costs food, and breweries stop when the cellar is full.
+- 🎯 The AI is trained on what actually matters: a big, alive colony, few avoidable deaths, full larders and real progress (deeper Underrealm, landmarks, prestige). Promotion is judged over 8,000-tick games, where bad choices have time to bite.
 - 🤝 External camps, diplomacy pressure, contracts, and faction trade opportunities.
 - 🎭 Social drama + schism systems for long-horizon political and morale instability. Friendships,
   mentorships, rivalries, and grudges leave slow, bounded memories that shape mood and colony climate.
@@ -77,7 +81,7 @@ Current release: **v2.5.0 - Saved Holds and Scenario Challenges**. 🍺🗺️
 - 📊 In-game Colony Report (`h`): a GOOD / WATCH / BAD health check where every line says in plain words what it means, a "needs attention" list, Economy, People and Frontier pages, plus a Technical page for AI and Story Director internals.
 - 🤖 PPO training pipeline in Python with JS runtime inference (`models/*.json`), a lean ~80-signal
   colony observation, and a self-scaling critic that reports its own health (`ev=`) in the logs.
-- 🧪 Deterministic benchmark/regression tooling with cached baseline comparison and milestone measurements for colony habits, travel, and saga coherence.
+- 🧪 Deterministic benchmark/regression tooling with a cached baseline, plus a fast in-process scorecard that pits default, careless and trained play against each other.
 
 ## Quick Start 🚀
 
@@ -91,8 +95,28 @@ Try the free colony or choose among eleven themed presets, from Green Valley's g
 to The Long Emergency's overlapping crises. Each preset shows its focus and difficulty in the menu.
 Press `s` to save; autosave and a final save on Ctrl+C keep each colony in `saves/`.
 
-Skip the menu with `npm start -- --new`, `--scenario green_valley`, or `--resume`.
-See the [manual](MANUAL.md) for reproducible seeds and save compatibility.
+Skip the menu with `npm start -- --new`, `--seed 101`, `--scenario green_valley`, `--resume`,
+`--load saves/COLONY_ID.json` or `--config /path/to/config.json`. `--seed` and `--scenario` start a
+new colony; `--ai FILE` picks a policy for it (loaded games keep their own).
+
+| Scenario | Difficulty | Focus |
+| --- | --- | --- |
+| `free` | Standard | Unrestricted colony, random seed |
+| `green_valley` | Gentle | Double founding supplies |
+| `lean_provisions` | Challenging | Reduced reserves |
+| `dry_stone` | Challenging | Thirst, drought and water gathering |
+| `hungry_hills` | Challenging | Hunger, cold and leaner harvests |
+| `crowded_hearth` | Challenging | Twenty settlers and costlier housing |
+| `raider_frontier` | Hard | Earlier raids and heavier looting |
+| `border_council` | Hard | Camps, diplomacy and political pressure |
+| `divided_halls` | Hard | Rivalries, grudges and cohesion |
+| `below_the_gate` | Hard | Earlier Deep Gate and a faster mining frontier |
+| `arena_of_stone` | Hard | Larger tournaments, injuries and training |
+| `compound_crisis` | Expert | The Long Emergency: overlapping crises |
+
+💾 Saves live in `saves/`: one checkpoint per colony, autosaved every 600 ticks (and at least 30 s
+apart), on `s` and on Ctrl+C, with the previous valid file kept as `.json.bak` and recovered
+automatically. Resume with the same game build and Node.js major version for identical replays.
 
 Run with the best trained policy (if available):
 
@@ -120,68 +144,41 @@ npm run ai:play
 
 ## AI Training (Optional) 🤖
 
-Bootstrap once, then train/play:
+Bootstrap once, then train and play:
 
 ```bash
 npm run ai:bootstrap
-npm run ai:train
+npm run ai:train:m4pro    # 12-core Apple M4 Pro (npm run ai:train:m4 on a 10-core M4)
 npm run ai:play
 ```
 
-Quality-oriented loop and acceptance gate:
+The trainer is PPO with a compact outcome reward 🎯 (a big, living colony, few avoidable deaths, full
+larders, real progress) and promotion judged over 8,000-tick games. Add `--fresh` after the profile
+when the observation or action shape changes. Other wrapper profiles: `fast`, `quality`,
+`quality-mixed`, `m4-balanced`, `full`, `endgame`, `benchmark` (`npm run ai:train -- <profile>`).
+
+🧭 Where the simulation and the AI stand, what was measured and the step plan to improve both live in
+[STRATEGY.md](STRATEGY.md), together with the measurement tools in `experiments/`.
+
+## Checks & Benchmarks ⚖️
 
 ```bash
-npm run ai:train:m4       # 10-core Apple M4
-npm run ai:train:m4pro    # 12-core Apple M4 Pro
-npm run ai:train -- quality
-npm run ai:validate
-npm test
-```
-
-`npm test` runs the narrative-producer audit and every contract suite; any single suite can also be
-run directly with `node scripts/<suite>.js`.
-
-CI bundles identify their run and commit, keep fresh evidence, and show skipped phases explicitly.
-
-The generic `ai:train` command accepts the wrapper profile after `--`: `fast` (default), `quality`,
-`quality-mixed`, `m4-balanced`, `m4`, `m4-pro`, `full`, `endgame`, or `benchmark`. The
-`m4-balanced` profile is the sustainable speed/quality preset for a 10-core,
-16 GB Apple M4: quality-mixed foundation/finetune, a dedicated 20,000-tick
-endgame specialization phase, `5→4→3` workers, sparse intermediate evaluation,
-and one guarded final canonical check (`npm run ai:train -- m4-balanced`). 🚀 `ai:train:m4pro` is the faster lane for a 12-core
-M4 Pro: A/B runs showed the long endgame phase ate ~60% of the clock without paying off, so it
-spends that time on a 4x longer foundation phase instead (gains kept scaling with episodes), with 7 rollout workers per phase and a
-24-episode canonical check fanned out across cores (the unchanged best policy's score is cached). 🧪 `ai:train:m4` runs the same
-recipe on a 10-core, 16 GB M4: a real PPO worker sweep found the knee at 7 rollout workers too (~15% faster than
-4-5, while 8-10 only add policy lag), so it pins 7 instead of the 6 that `m4-pro` would pick on 10 cores. Add `--fresh` after the profile when
-observation or action contracts change.
-
-For training profiles, validation and everyday operations, see [MANUAL.md](MANUAL.md).
-
-## Balance & Benchmark Workflow ⚖️
-
-Keep tuning deterministic and comparable:
-
-```bash
+npm test                                   # every contract suite (or node scripts/<suite>.js)
 npm run bench:candidate -- --set path=value
-npm run bench:diff
-```
-
-`bench:diff` refreshes the cached baseline automatically when the benchmark profile changed.
-
-Long-running and weekly checks:
-
-```bash
-npm run ai:train:continuous
-npm run ai:validate
+npm run bench:diff                         # refreshes the cached baseline when the profile changed
+npm run ai:validate                        # milestone gate: canonical policy, simulation, regression
 npm run ai:validate:weekly
 npm run debug:clean
 ```
 
+Milestone checks: `node scripts/validate_save_continuity.js` (uninterrupted vs resumed worlds) and
+`node scripts/validate_scenarios.js [--only <id>]` (every preset, two seeds). Reports are JSON in
+`debug/`; CI bundles identify their run and commit and show skipped phases explicitly.
+
 ## Documentation 📚
 
-- [MANUAL.md](MANUAL.md): concise user and operator guide.
-- [AGENTS.md](AGENTS.md): contributor and agent guidelines.
+- [STRATEGY.md](STRATEGY.md): state of the art, evidence, measurement protocol and step plan.
+- [AGENTS.md](AGENTS.md): contributor and agent rules.
 - `config.json`: authoritative configuration and tunable defaults.
 
 ## Project Layout (High Level) 🧱
@@ -192,23 +189,23 @@ npm run debug:clean
 - `src/state/`: state creation and terrain generation.
 - `src/game_session.js`, `src/session_random.js`, `src/persistence.js`: resumable sessions and save storage.
 - `src/render/`, `src/runtime/`, `src/telemetry/`: terminal views, controls and diagnostics.
-- `src/ai/` and `ai_server.js`: policy inference and training bridge.
-- `scripts/`: benchmarks, validation, map export, CI artifacts and cleanup tools.
+- `src/ai/` and `ai_server.js`: policy inference, outcome reward and training bridge.
+- `scripts/`: tests, benchmarks, validation, map export, CI artifacts and cleanup tools.
 - `python/`: PPO training and regression rollout tools.
-- `experiments/training_workbook/`: training-process lab notebook 🧪 (evidence, test backlog, isolated runners).
+- `experiments/`: measurement tools for STRATEGY.md 🧪 (outputs in git-ignored `experiments/runs/`).
 - `models/`: runtime policies and resumable training metadata.
 - `regression/baselines/`: durable model-quality reference profiles.
 - `benchmark_cache/`: shared deterministic benchmark baseline.
-- `debug/`: current operational validation and comparison reports.
+- `debug/`: current JSON validation and comparison reports.
 - `chronicles/`: generated Chronicle exports (git-ignored).
-- `saves/`: local colony checkpoints and previous-generation backups (git-ignored).
+- `saves/`: local colony checkpoints and backups (git-ignored).
 - `.cache/`: local promotion-eval cache, rebuilt on demand (git-ignored).
 - `.github/workflows/quality_gates.yml`: extended and weekly quality checks.
 
 ## Contributing 🤝
 
 PRs are welcome for simulation design, AI quality, and terminal UX.
-Start with `AGENTS.md` + `MANUAL.md` for implementation standards and workflows.
+Start with `AGENTS.md` for standards and `STRATEGY.md` for the current plan and how to measure a change.
 
 ## License 📄
 

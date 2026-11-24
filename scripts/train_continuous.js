@@ -499,71 +499,14 @@ function writeJsonFile(filePath, payload) {
   fs.writeFileSync(filePath, `${JSON.stringify(payload, null, 2)}\n`);
 }
 
-// Build one markdown report for a continuous training run.
-function buildMarkdownReport(report) {
-  const cycles = Array.isArray(report.cycles) ? report.cycles : [];
-  const lines = [
-    "# Continuous Training Report",
-    "",
-    `- Started: \`${report.startedAt}\``,
-    `- Finished: \`${report.finishedAt}\``,
-    `- Status: \`${report.status}\``,
-    `- Stop reason: \`${report.stopReason || "none"}\``,
-    `- Requested cycles: \`${report.options.cycles}\``,
-    `- Completed cycles: \`${report.completedCycles}\``,
-    `- No-improve streak (final): \`${report.noImproveStreak}\``,
-    `- Gate-fail streak (final): \`${report.gateFailStreak}\``,
-    "",
-    "## Options",
-    "",
-    `- fullEvery: \`${report.options.fullEvery}\``,
-    `- highEvery: \`${report.options.highEvery}\``,
-    `- gateEvery: \`${report.options.gateEvery}\``,
-    `- maxNoImprove: \`${report.options.maxNoImprove}\``,
-    `- maxGateFail: \`${report.options.maxGateFail}\``,
-    `- improveThreshold: \`${fmtNumber(report.options.improveThreshold, 6)}\``,
-    `- improvementPolicy: \`${report.options.improvementPolicy || "strict_promotion_only"}\``,
-    `- lowWrite: \`${report.options.lowWrite === true}\``,
-    `- autoCleanDebug: \`${report.options.autoCleanDebug === true}\``,
-    `- freshFirst: \`${report.options.freshFirst === true}\``,
-    `- dryRun: \`${report.options.dryRun === true}\``,
-    "",
-    "## Cycles",
-    "",
-    "| Cycle | Train kind | Improved | Reason | Promotion aligned | Promoted | Delta | Delta>thr | Paired LCB | Gate status |",
-    "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
-  ];
 
-  cycles.forEach((cycle) => {
-    const canonical = cycle.canonical || {};
-    const gate = cycle.gate || {};
-    const gateStatus = gate.enabled ? (gate.status === 0 ? "pass" : `fail(${gate.status})`) : "skip";
-    const promoted = canonical.promoted === true;
-    const reason = String(cycle.improvedReason || "-");
-    const promotionAligned = cycle.promotionAligned === true ? "yes" : "no";
-    const deltaPositive = cycle.deltaPositive === true ? "yes" : "no";
-    lines.push(
-      `| ${cycle.index} | ${cycle.train.kind} | ${cycle.improved === true ? "yes" : "no"} `
-      + `| ${reason} | ${promotionAligned} | ${promoted ? "yes" : "no"} `
-      + `| ${fmtNumber(canonical.deltaScore)} | ${deltaPositive} | ${fmtNumber(canonical.pairedLcb)} | ${gateStatus} |`,
-    );
-  });
-
-  lines.push("");
-  return `${lines.join("\n")}\n`;
-}
-
-// Persist one continuous run report to debug JSON and markdown files.
+// Persist one continuous run report to a debug JSON file.
 function writeContinuousReport(rootDir, report) {
   const timestamp = Date.now();
   const baseName = `continuous_train_${timestamp}`;
-  const debugDir = path.join(rootDir, "debug");
-  const jsonPath = path.join(debugDir, `${baseName}.json`);
-  const mdPath = path.join(debugDir, `${baseName}.md`);
+  const jsonPath = path.join(rootDir, "debug", `${baseName}.json`);
   writeJsonFile(jsonPath, report);
-  ensureParentDir(mdPath);
-  fs.writeFileSync(mdPath, buildMarkdownReport(report), "utf8");
-  return { jsonPath, mdPath };
+  return { jsonPath };
 }
 
 // Run one final cleanup pass after the continuous report is written.
@@ -826,7 +769,6 @@ function runContinuous(rootDir, options) {
   } else {
     const reportPaths = writeContinuousReport(rootDir, report);
     printStatus("report", `json=${reportPaths.jsonPath}`, ANSI_CYAN);
-    printStatus("report", `md=${reportPaths.mdPath}`, ANSI_CYAN);
     runFinalDebugCleanup(rootDir, options);
   }
   if (!stopReason) {

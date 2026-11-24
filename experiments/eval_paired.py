@@ -1,4 +1,4 @@
-"""Paired evaluation for the training workbook.
+"""Paired policy evaluation (see STRATEGY.md, measurement protocol).
 
 Mode A (default): canonical semantics through train.evaluate (one decision every --step-ticks ticks).
 Mode B (--hold k): decide every k ticks but advance and reward one tick at a time, so the per-tick
@@ -12,10 +12,10 @@ sets one governor group (jobs, festival, trade, building, contracts, ruins, unde
 warriors) to X and leaves the others on defaults; `--policy jobs:inv` inverts the default job weights.
 
 Example:
-  .venv/bin/python experiments/training_workbook/eval_paired.py \
-    --policy experiments/training_workbook/runs/current/start.json \
-    --config experiments/training_workbook/runs/current/configs/config_canonical_promote.json \
-    --out experiments/training_workbook/runs/current/eval_start.json
+  .venv/bin/python experiments/eval_paired.py \
+    --policy experiments/runs/current/start.json \
+    --config experiments/runs/current/configs/config_canonical_promote.json \
+    --out experiments/runs/current/eval_start.json
 """
 import argparse
 import json
@@ -25,7 +25,7 @@ import subprocess
 import sys
 from concurrent.futures import ProcessPoolExecutor
 
-ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, os.path.join(ROOT, "python"))
 import train  # noqa: E402
 import promote_best as pb  # noqa: E402
@@ -153,7 +153,9 @@ def run_outcome_episode(task):
     info = response.get("info", {})
     debug = info.get("debug") or {}
     stock = debug.get("stockpile") or {}
+    # rpp = reward per planned tick, the promotion score: an early extinction counts as zero afterwards.
     return {"seed": seed, "scenario": scenario, "score": total / max(1, steps * step_ticks),
+            "rpp": total / max(1, max_steps * step_ticks),
             "ticks": info.get("tick"), "done_reason": info.get("doneReason"),
             "start_pop": start_pop, "min_pop": min_pop, "pop": info.get("population"),
             "births": info.get("births"), "deaths": info.get("deaths"),

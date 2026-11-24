@@ -12,9 +12,9 @@
     "ai:train:m4pro": "node scripts/train_wrapper.js m4-pro",
     "ai:train:continuous": "node scripts/train_continuous.js --low-write --auto-clean-debug",
     "ai:validate": "node scripts/validate_extended_optimized.js",
-    "ai:validate:weekly": "node scripts/regression.js --profile horizon --seed-pack weekly --report-json debug/regression_horizon_weekly_latest.json --report-md debug/regression_horizon_weekly_latest.md",
-    "bench:candidate": "node scripts/headless_benchmark.js --ticks 8000 --seeds 101,202,303,404 --variant candidate --output table --report-json debug/headless_benchmark_candidate.json --report-md debug/headless_benchmark_candidate.md --progress --progress-every 2000",
-    "bench:diff": "node scripts/ensure_benchmark_baseline.js --baseline-json benchmark_cache/headless_benchmark_baseline.json --candidate-report debug/headless_benchmark_candidate.json && node scripts/compare_benchmark_reports.js --baseline benchmark_cache/headless_benchmark_baseline.json --candidate debug/headless_benchmark_candidate.json --output table --report-json debug/headless_benchmark_diff.json --report-md debug/headless_benchmark_diff.md",
+    "ai:validate:weekly": "node scripts/regression.js --profile horizon --seed-pack weekly --report-json debug/regression_horizon_weekly_latest.json",
+    "bench:candidate": "node scripts/headless_benchmark.js --ticks 8000 --seeds 101,202,303,404 --variant candidate --output table --report-json debug/headless_benchmark_candidate.json --progress --progress-every 2000",
+    "bench:diff": "node scripts/ensure_benchmark_baseline.js --baseline-json benchmark_cache/headless_benchmark_baseline.json --candidate-report debug/headless_benchmark_candidate.json && node scripts/compare_benchmark_reports.js --baseline benchmark_cache/headless_benchmark_baseline.json --candidate debug/headless_benchmark_candidate.json --output table --report-json debug/headless_benchmark_diff.json",
     "debug:clean": "node scripts/clean_debug.js"
   },
   "dependencies": {

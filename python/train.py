@@ -2968,12 +2968,16 @@ def compute_gae(rewards, values, dones, gamma, lam, last_value):
     return advantages, returns
 
 
-def compute_score(total_reward, steps, ticks, mode):
+def compute_score(total_reward, steps, ticks, mode, planned_ticks=None):
     mode = str(mode or "reward").lower()
     if mode == "rps":
         return total_reward / steps if steps and steps > 0 else 0.0
     if mode == "rpt":
         return total_reward / ticks if ticks and ticks > 0 else 0.0
+    if mode == "rpp":
+        # Reward per planned tick: an early end (extinction) scores zero for the ticks it did not live.
+        denominator = planned_ticks if planned_ticks and planned_ticks > 0 else ticks
+        return total_reward / denominator if denominator and denominator > 0 else 0.0
     return total_reward
 
 
@@ -3479,6 +3483,7 @@ def evaluate(
                 episode_steps,
                 episode_ticks,
                 score_mode,
+                planned_ticks=float(max_steps) * float(step_ticks),
             )
         if collect_episode_scores and episode_score is not None:
             episode_scores.append(episode_score)
@@ -3510,6 +3515,7 @@ def evaluate(
         "avg_reward": total_reward / max(1, episodes),
         "avg_steps": total_steps / max(1, episodes),
         "avg_ticks": total_ticks / max(1, episodes),
+        "avg_planned_ticks": float(max_steps) * float(step_ticks),
         "avg_births": total_births / max(1, episodes),
         "avg_deaths": total_deaths / max(1, episodes),
         "avg_under_depthProgress": total_underrealm_depth_progress / max(1, episodes),
@@ -4982,6 +4988,7 @@ def main():
                         stats["avg_steps"],
                         stats.get("avg_ticks", 0.0),
                         args.eval_score,
+                        planned_ticks=stats.get("avg_planned_ticks"),
                     )
                     if TRAINING_LOGS_ENABLED:
                         print(

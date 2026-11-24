@@ -1459,7 +1459,16 @@ function logComparisonResults(comparisons) {
   return allOk;
 }
 
-// Resolve report output paths, defaulting JSON/Markdown next to the txt report.
+// Write the Markdown companion only when --report-md was given.
+function writeOptionalMarkdownReport(markdownPath, bundle) {
+  if (!markdownPath) {
+    return;
+  }
+  writeMarkdownReport(markdownPath, bundle);
+  console.log(`Markdown report written to ${markdownPath}`);
+}
+
+// Resolve report output paths: JSON next to the txt report; Markdown only when requested.
 function resolveReportPaths(options, txtPath) {
   const defaultBase = txtPath.endsWith('.txt') ? txtPath.slice(0, -4) : txtPath;
   return {
@@ -1467,9 +1476,7 @@ function resolveReportPaths(options, txtPath) {
     jsonPath: options && options.reportJsonPath
       ? options.reportJsonPath
       : `${defaultBase}.json`,
-    markdownPath: options && options.reportMarkdownPath
-      ? options.reportMarkdownPath
-      : `${defaultBase}.md`,
+    markdownPath: options && options.reportMarkdownPath ? options.reportMarkdownPath : null,
   };
 }
 
@@ -1543,10 +1550,9 @@ async function main() {
     const bundle = buildReportBundle(reportSections, options, allOk);
     const paths = resolveReportPaths(options, reportPath);
     writeJsonReport(paths.jsonPath, bundle);
-    writeMarkdownReport(paths.markdownPath, bundle);
+    writeOptionalMarkdownReport(paths.markdownPath, bundle);
     console.log(`Diff report written to ${paths.txtPath}`);
     console.log(`JSON report written to ${paths.jsonPath}`);
-    console.log(`Markdown report written to ${paths.markdownPath}`);
     if (!allOk) {
       process.exit(1);
     }
@@ -1616,10 +1622,9 @@ async function main() {
   const bundle = buildReportBundle([section], options, allOk);
   const paths = resolveReportPaths(options, reportPath);
   writeJsonReport(paths.jsonPath, bundle);
-  writeMarkdownReport(paths.markdownPath, bundle);
+  writeOptionalMarkdownReport(paths.markdownPath, bundle);
   console.log(`Diff report written to ${paths.txtPath}`);
   console.log(`JSON report written to ${paths.jsonPath}`);
-  console.log(`Markdown report written to ${paths.markdownPath}`);
 
   if (!allOk) {
     process.exit(1);

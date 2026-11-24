@@ -728,7 +728,7 @@ function processDwarfJob(dwarf, state, config, runtime, legacyEffects) {
     gatherPenalty > 0
     && (!penaltyResources || penaltyResources.includes(job.resource))
   ) {
-    amount = Math.max(1, Math.round(amount * (1 - gatherPenalty)));
+    amount *= 1 - gatherPenalty;
   }
   if (!targetNode && job.resource === 'food') {
     const terrainType = getTerrainTypeAt(state, targetX, targetY);

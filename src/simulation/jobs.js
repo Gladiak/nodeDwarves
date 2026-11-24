@@ -168,40 +168,22 @@ function assignJobs(state, config, runtime, action) {
     return;
   }
 
-  let offset = 0;
-
   const orderedDwarves = roleConfig.enabled
     ? orderIdleDwarves(idleDwarves)
     : idleDwarves;
   const allowCraft = !roleConfig.enabled;
-
-  for (const dwarf of orderedDwarves) {
-    let job = null;
-
-    for (let attempt = 0; attempt < shortages.length; attempt += 1) {
-      const shortage = shortages[(offset + attempt) % shortages.length];
-      job = createJobForShortage(
-        shortage.resource,
-        state,
-        config,
-        dwarf,
-        nodeResources,
-        workshops,
-        workshopUsage,
-        workshopCapacity,
-        allowCraft,
-      );
-
-      if (job) {
-        offset = (offset + attempt + 1) % shortages.length;
-        break;
-      }
-    }
-
-    if (!job) {
-      break;
-    }
-
+  const createJob = (resource, dwarf) => createJobForShortage(
+    resource,
+    state,
+    config,
+    dwarf,
+    nodeResources,
+    workshops,
+    workshopUsage,
+    workshopCapacity,
+    allowCraft,
+  );
+  const commitJob = (job, dwarf) => {
     job.dwarfId = dwarf.id;
     dwarf.job = job;
     state.jobs.push(job);
@@ -209,6 +191,52 @@ function assignJobs(state, config, runtime, action) {
       workshopUsage[job.workshopId] =
         Number(workshopUsage[job.workshopId] || 0) + 1;
     }
+  };
+
+  assignProportionalShortageJobs(state, shortages, orderedDwarves, createJob, commitJob);
+}
+
+// Count active jobs per produced resource (gather, hunt and craft jobs all carry `resource`).
+function countWorkersByResource(jobs) {
+  const counts = {};
+  for (const job of jobs || []) {
+    if (job && job.resource) {
+      counts[job.resource] = Number(counts[job.resource] || 0) + 1;
+    }
+  }
+  return counts;
+}
+
+// Assign idle dwarves so each shortage's share of workers tracks its share of shortage score
+// (weight x severity). Shortages with zero score are ignored; existing workers count toward shares.
+function assignProportionalShortageJobs(state, shortages, orderedDwarves, createJob, commitJob) {
+  const active = shortages.filter((shortage) => shortage.score > 0);
+  if (active.length === 0) {
+    return;
+  }
+  const totalScore = active.reduce((sum, shortage) => sum + shortage.score, 0);
+  const current = countWorkersByResource(state.jobs);
+  const workforce = orderedDwarves.length
+    + active.reduce((sum, shortage) => sum + Number(current[shortage.resource] || 0), 0);
+  for (const dwarf of orderedDwarves) {
+    const ranked = active
+      .map((shortage) => ({
+        shortage,
+        deficit: (shortage.score / totalScore) * workforce - Number(current[shortage.resource] || 0),
+      }))
+      .sort((a, b) => b.deficit - a.deficit || b.shortage.score - a.shortage.score);
+    let job = null;
+    for (const entry of ranked) {
+      job = createJob(entry.shortage.resource, dwarf);
+      if (job) {
+        current[entry.shortage.resource] = Number(current[entry.shortage.resource] || 0) + 1;
+        break;
+      }
+    }
+    if (!job) {
+      break;
+    }
+    commitJob(job, dwarf);
   }
 }
 
@@ -1727,7 +1755,9 @@ function computeShortages(state, targets, weights, config) {
       const stockpileRatio = clamp(current / target, 0, 1);
       const weightRaw =
         weights && weights[resource] !== undefined ? weights[resource] : 1;
-      const baseWeight = clamp(Number(weightRaw || 1), 0, Number.POSITIVE_INFINITY);
+      // An explicit 0 means "ignore this resource" (only priority boosts can still lift it).
+      const numericWeight = Number(weightRaw);
+      const baseWeight = Number.isFinite(numericWeight) ? Math.max(0, numericWeight) : 1;
       let weight = baseWeight;
       const boostConfig = priorityBoosts && priorityBoosts[resource];
       let boostApplied = false;

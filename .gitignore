@@ -21,5 +21,5 @@ debug/ci_pre_debug_files.json
 # Deterministic promotion-eval cache
 .cache/
 
-# Training workbook experiment sessions (local outputs)
-experiments/training_workbook/runs/
+# Measurement and experiment sessions (local outputs)
+experiments/runs/

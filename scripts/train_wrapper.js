@@ -62,7 +62,8 @@ const M4_BALANCED_WORKERS_AUTO_MIN = 4;
 const M4_BALANCED_WORKERS_AUTO_MAX = 5;
 const M4_BALANCED_WORKERS_RESERVE = 5;
 const M4_BALANCED_CANONICAL_EVAL_EPISODES = 12;
-const M4_BALANCED_CANONICAL_EVAL_MAX_STEPS = 1800;
+// R1: promotion compares policies over 8,000 ticks, where avoidable deaths and famines show up.
+const M4_BALANCED_CANONICAL_EVAL_MAX_STEPS = 4000;
 const M4_BALANCED_PROMOTE_PROGRESS_EVERY = 2;
 const M4_BALANCED_ENDGAME_RESULT_WAIT_TIMEOUT_SECONDS = 1200;
 // M4 Pro (8 performance + 4 efficiency cores): measured env throughput saturates around
@@ -209,7 +210,7 @@ function resolveCanonicalPromotion(baseConfig) {
   const minImprove = toFiniteNumber(canonical.minImprove, CANONICAL_PROMOTE_MIN_IMPROVE);
   const lcbZ = toFiniteNumber(canonical.lcbZ, 1.96);
   const evalScoreRaw = String(canonical.evalScore || "rpt").toLowerCase();
-  const evalScore = ["reward", "rps", "rpt"].includes(evalScoreRaw) ? evalScoreRaw : "rpt";
+  const evalScore = ["reward", "rps", "rpt", "rpp"].includes(evalScoreRaw) ? evalScoreRaw : "rpt";
   const seedRaw = Number(canonical.seed);
   const seed = Number.isFinite(seedRaw) ? Math.floor(seedRaw) : 0;
 
@@ -1154,7 +1155,7 @@ function writeJsonFile(filePath, payload) {
   fs.writeFileSync(filePath, `${JSON.stringify(payload, null, 2)}\n`);
 }
 
-// Format one numeric value for markdown reports.
+// Format one numeric value for status lines.
 function fmtNumber(value, digits = 4) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) {
@@ -1180,7 +1181,6 @@ function buildRunPromotionSummary(profile, runDir, canonicalPromote, phaseReport
       paired_lcb: Number(paired.lower_bound),
       paired_mean_delta: Number(paired.mean_delta),
       report_json: String(entry.reportJsonPath || ""),
-      report_md: String(entry.reportMarkdownPath || ""),
     };
   }) : [];
 
@@ -1210,69 +1210,11 @@ function buildRunPromotionSummary(profile, runDir, canonicalPromote, phaseReport
   };
 }
 
-// Render one markdown run-level promotion summary with metric glossary.
-function renderRunPromotionSummaryMarkdown(summary) {
-  const canonical = summary.canonicalPromotion || {};
-  const lines = [
-    "# Training Promotion Summary",
-    "",
-    `- Generated at: \`${summary.generatedAt}\``,
-    `- Profile: \`${summary.profile}\``,
-    `- Run dir: \`${summary.runDir}\``,
-    "",
-    "## Canonical Benchmark",
-    "",
-    `- Enabled: \`${canonical.enabled === true}\``,
-    `- Eval episodes: \`${canonical.evalEpisodes ?? "-"}\``,
-    `- Eval max steps: \`${canonical.evalMaxSteps ?? "-"}\``,
-    `- Score mode: \`${canonical.evalScore ?? "-"}\``,
-    `- Min improve: \`${fmtNumber(canonical.minImprove)}\``,
-    `- Require positive LCB: \`${canonical.requirePositiveLcb === true}\``,
-    `- LCB z: \`${fmtNumber(canonical.lcbZ)}\``,
-    "",
-    "## Totals",
-    "",
-    `- Phases: \`${summary.totals.phases}\``,
-    `- Promoted: \`${summary.totals.promoted}\``,
-    `- Retained: \`${summary.totals.retained}\``,
-    `- Avg delta score: \`${fmtNumber(summary.totals.avgDeltaScore)}\``,
-    `- Final best score: \`${fmtNumber(summary.totals.finalBestScore)}\``,
-    "",
-    "## Phase Results",
-    "",
-    "| # | Phase | Promoted | Reason | Latest | Best before | Best after | Delta | Paired LCB |",
-    "|---|---|---:|---|---:|---:|---:|---:|---:|",
-  ];
-  summary.phases.forEach((phase) => {
-    lines.push(
-      `| ${phase.index} | ${phase.phase} | ${phase.promoted ? "yes" : "no"} | ${phase.reason} | `
-      + `${fmtNumber(phase.latest_score)} | ${fmtNumber(phase.best_score_before)} | `
-      + `${fmtNumber(phase.best_score_after)} | ${fmtNumber(phase.delta_score)} | ${fmtNumber(phase.paired_lcb)} |`,
-    );
-  });
-  lines.push(
-    "",
-    "## Metric Glossary",
-    "",
-    "- `Latest`: canonical benchmark score for `models/policy.json`.",
-    "- `Best before`: canonical benchmark score for `models/policy_best.json` before the check.",
-    "- `Best after`: best score tracked after this phase check.",
-    "- `Delta`: `latest - best_before` on the same canonical benchmark.",
-    "- `Paired LCB`: lower confidence bound of paired episode deltas (`latest_i - best_i`).",
-    "- `Promoted`: checkpoint replacement decision for this phase.",
-    "",
-  );
-  return `${lines.join("\n")}\n`;
-}
-
-// Write one run-level promotion summary (JSON + Markdown) into the run directory.
+// Write one run-level promotion summary (JSON) into the run directory.
 function writeRunPromotionSummary(runDir, summary) {
   const jsonPath = path.join(runDir, "report_training_promotion_summary.json");
-  const mdPath = path.join(runDir, "report_training_promotion_summary.md");
   writeJsonFile(jsonPath, summary);
-  ensureParentDir(mdPath);
-  fs.writeFileSync(mdPath, renderRunPromotionSummaryMarkdown(summary));
-  return { jsonPath, mdPath };
+  return { jsonPath };
 }
 
 // Deep-clone plain JSON-like objects.
@@ -1469,7 +1411,7 @@ function buildPhases(profile, runDir, files) {
           "--eval-episodes", "4",
           "--eval-max-steps", String(ENDGAME_MAX_STEPS),
           "--eval-difficulty", "1.0",
-          "--eval-score", "rpt",
+          "--eval-score", "rpp",
           "--min-improve", "0.000",
           "--max-steps", String(ENDGAME_MAX_STEPS),
           "--step-ticks", String(ENDGAME_STEP_TICKS),
@@ -1513,7 +1455,7 @@ function buildPhases(profile, runDir, files) {
           "--eval-episodes", "8",
           "--eval-max-steps", "1600",
           "--eval-difficulty", "1.0",
-          "--eval-score", "rpt",
+          "--eval-score", "rpp",
           "--min-improve", "0.010",
           "--max-steps", "1600",
           "--step-ticks", "2",
@@ -1558,7 +1500,7 @@ function buildPhases(profile, runDir, files) {
           "--eval-episodes", "10",
           "--eval-max-steps", "1600",
           "--eval-difficulty", "1.0",
-          "--eval-score", "rpt",
+          "--eval-score", "rpp",
           "--min-improve", "0.007",
           "--max-steps", "1600",
           "--step-ticks", "2",
@@ -1604,7 +1546,7 @@ function buildPhases(profile, runDir, files) {
           "--eval-episodes", "12",
           "--eval-max-steps", "1800",
           "--eval-difficulty", "1.0",
-          "--eval-score", "rpt",
+          "--eval-score", "rpp",
           "--min-improve", "0.009",
           "--max-steps", "1800",
           "--step-ticks", "2",
@@ -1649,7 +1591,7 @@ function buildPhases(profile, runDir, files) {
           "--eval-episodes", "10",
           "--eval-max-steps", "1400",
           "--eval-difficulty", "1.0",
-          "--eval-score", "rpt",
+          "--eval-score", "rpp",
           "--min-improve", "0.010",
           "--max-steps", "1400",
           "--step-ticks", "2",
@@ -1695,7 +1637,7 @@ function buildPhases(profile, runDir, files) {
           "--eval-episodes", "12",
           "--eval-max-steps", "1800",
           "--eval-difficulty", "1.0",
-          "--eval-score", "rpt",
+          "--eval-score", "rpp",
           "--min-improve", "0.012",
           "--max-steps", "1800",
           "--step-ticks", "2",
@@ -1740,7 +1682,7 @@ function buildPhases(profile, runDir, files) {
           "--eval-episodes", "6",
           "--eval-max-steps", "1700",
           "--eval-difficulty", "1.0",
-          "--eval-score", "rpt",
+          "--eval-score", "rpp",
           "--min-improve", "0.010",
           "--max-steps", "1700",
           "--step-ticks", "2",
@@ -1786,7 +1728,7 @@ function buildPhases(profile, runDir, files) {
           "--eval-episodes", "8",
           "--eval-max-steps", "2100",
           "--eval-difficulty", "1.0",
-          "--eval-score", "rpt",
+          "--eval-score", "rpp",
           "--min-improve", "0.012",
           "--max-steps", "2100",
           "--step-ticks", "2",
@@ -1832,7 +1774,7 @@ function buildPhases(profile, runDir, files) {
           "--eval-episodes", "10",
           "--eval-max-steps", "2800",
           "--eval-difficulty", "1.0",
-          "--eval-score", "rpt",
+          "--eval-score", "rpp",
           "--min-improve", "0.015",
           "--max-steps", "2800",
           "--step-ticks", "2",
@@ -1878,7 +1820,7 @@ function buildPhases(profile, runDir, files) {
           "--eval-episodes", "12",
           "--eval-max-steps", "2200",
           "--eval-difficulty", "1.0",
-          "--eval-score", "rpt",
+          "--eval-score", "rpp",
           "--min-improve", "0.015",
           "--max-steps", "2200",
           "--step-ticks", "2",
@@ -1922,7 +1864,7 @@ function buildPhases(profile, runDir, files) {
           "--eval-episodes", "4",
           "--eval-max-steps", String(ENDGAME_MAX_STEPS),
           "--eval-difficulty", "1.0",
-          "--eval-score", "rpt",
+          "--eval-score", "rpp",
           "--min-improve", "0.000",
           "--max-steps", String(ENDGAME_MAX_STEPS),
           "--step-ticks", String(ENDGAME_STEP_TICKS),
@@ -1965,7 +1907,7 @@ function buildPhases(profile, runDir, files) {
           "--eval-episodes", "2",
           "--eval-max-steps", "1200",
           "--eval-difficulty", "1.0",
-          "--eval-score", "rpt",
+          "--eval-score", "rpp",
           "--min-improve", "0.030",
           "--max-steps", "1200",
           "--step-ticks", "2",
@@ -2114,14 +2056,9 @@ function runProfile(rootDir, profile, trainExtraArgs, dryRun, workerOptions = {}
       runDir,
       `report_promote_${String(reportIndex).padStart(2, "0")}_${phaseToken}.json`,
     );
-    const phaseReportMdPath = path.join(
-      runDir,
-      `report_promote_${String(reportIndex).padStart(2, "0")}_${phaseToken}.md`,
-    );
     const promoteArgsWithReport = [
       ...promoteArgsResolved,
       "--report-json", phaseReportJsonPath,
-      "--report-md", phaseReportMdPath,
       "--report-tag", safePhaseName,
     ];
     runCommand(
@@ -2136,7 +2073,6 @@ function runProfile(rootDir, profile, trainExtraArgs, dryRun, workerOptions = {}
           index: reportIndex,
           phase: safePhaseName,
           reportJsonPath: phaseReportJsonPath,
-          reportMarkdownPath: phaseReportMdPath,
           report: reportPayload,
         });
         const deltaLabel = fmtNumber(reportPayload.delta_score);
@@ -2251,7 +2187,6 @@ function runProfile(rootDir, profile, trainExtraArgs, dryRun, workerOptions = {}
     const summary = buildRunPromotionSummary(profile, runDir, canonicalPromote, phaseReports);
     const summaryPaths = writeRunPromotionSummary(runDir, summary);
     printStatus("report", `summary json=${summaryPaths.jsonPath}`, ANSI_CYAN);
-    printStatus("report", `summary md=${summaryPaths.mdPath}`, ANSI_CYAN);
   }
   runAutoDebugCleanup(rootDir, workerOptions, dryRun);
   process.stdout.write("\n");

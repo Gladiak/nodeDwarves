@@ -1,15 +1,15 @@
 #!/usr/bin/env node
 "use strict";
 
-// Run one training-process variant in isolation for the training workbook.
+// Run one training-process variant in isolation (see STRATEGY.md, measurement protocol).
 // It replays the m4-pro phases from scripts/train_wrapper.js with per-variant overrides,
 // writes every artifact under --out, and refuses to finish if models/ changed.
 //
 // Example:
-//   node experiments/training_workbook/exp_run.js --name f1280 --rep 1 --foundation-episodes 1280
+//   node experiments/exp_run.js --name f1280 --rep 1 --foundation-episodes 1280
 //
 // Options:
-//   --out <dir>                  Experiment session folder (default: experiments/training_workbook/runs/current)
+//   --out <dir>                  Experiment session folder (default: experiments/runs/current)
 //   --name <id>                  Variant name (folder <name>_r<rep>)
 //   --rep <n>                    Replicate number; drives training seeds (default 1)
 //   --foundation-episodes <n>    Foundation episodes (default: m4-pro value)
@@ -20,13 +20,15 @@
 //   --no-finetune                Skip the finetune phase
 //   --set <phase>:<flag>=<value> Extra train.py override, phase = foundation|finetune|all (repeatable)
 //   --workers <n>                Rollout workers per phase (default 7)
+//   --fresh-start                Start from a new random policy instead of the session start.json
+//   --freeze-only                Only freeze the session configs and start policy, then exit
 
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const { spawnSync } = require("child_process");
 
-const ROOT = path.resolve(__dirname, "..", "..");
+const ROOT = path.resolve(__dirname, "..");
 const wrapper = require(path.join(ROOT, "scripts", "train_wrapper"));
 
 // Parse CLI options into a plain object.
@@ -46,9 +48,11 @@ function parseOptions(argv) {
     else if (arg === "--no-finetune") options.finetune = false;
     else if (arg === "--set") options.sets.push(next());
     else if (arg === "--workers") options.workers = Number(next());
+    else if (arg === "--fresh-start") options.freshStart = true;
+    else if (arg === "--freeze-only") options.freezeOnly = true;
     else throw new Error(`Unknown option: ${arg}`);
   }
-  if (!options.name) throw new Error("--name is required");
+  if (!options.name && !options.freezeOnly) throw new Error("--name is required");
   return options;
 }
 
@@ -136,11 +140,17 @@ function main() {
   const options = parseOptions(process.argv.slice(2));
   const modelsBefore = hashModels();
   const files = ensureSession(options.out);
+  if (options.freezeOnly) {
+    console.log(`[session] frozen in ${options.out}`);
+    return;
+  }
   const runDir = path.join(options.out, `${options.name}_r${options.rep}`);
   fs.rmSync(runDir, { recursive: true, force: true });
   fs.mkdirSync(runDir, { recursive: true });
-  fs.copyFileSync(path.join(options.out, "start.json"), path.join(runDir, "p.json"));
-  fs.copyFileSync(path.join(options.out, "start.state.pt"), path.join(runDir, "p.state.pt"));
+  if (!options.freshStart) {
+    fs.copyFileSync(path.join(options.out, "start.json"), path.join(runDir, "p.json"));
+    fs.copyFileSync(path.join(options.out, "start.state.pt"), path.join(runDir, "p.state.pt"));
+  }
   const python = path.join(ROOT, ".venv", "bin", "python");
   const timing = [];
   for (let link = 0; link < options.chain; link += 1) {
@@ -148,6 +158,7 @@ function main() {
     phases.forEach((phase, index) => {
       const seed = 7000 + options.rep * 1000 + index * 101 + link * 37;
       const args = isolateArgs(phase.trainArgs, runDir, options.workers, seed);
+      if (options.freshStart && link === 0 && index === 0) args.push("--fresh");
       const started = Date.now();
       const result = spawnSync(python, ["python/train.py", ...args], { cwd: ROOT, encoding: "utf8", maxBuffer: 1 << 28 });
       const seconds = (Date.now() - started) / 1000;

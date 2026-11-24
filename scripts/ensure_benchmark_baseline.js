@@ -32,7 +32,7 @@ function printHelp() {
     '',
     'Options:',
     `  --baseline-json <path>    Baseline cache JSON path (default: ${DEFAULT_BASELINE_JSON_PATH})`,
-    '  --baseline-md <path>      Baseline cache Markdown path (default: derived from JSON path)',
+    '  --baseline-md <path>      Optional baseline Markdown companion (default: none, JSON only)',
     `  --candidate-report <path> Candidate report used to infer profile (default: ${DEFAULT_CANDIDATE_REPORT_PATH})`,
     `  --config <path>           Config path (default: ${DEFAULT_CONFIG_PATH})`,
     `  --ticks <n>               Tick count (default: ${DEFAULT_TICKS})`,
@@ -82,14 +82,6 @@ function resolvePath(rawValue, fallback) {
   const value = String(rawValue || '').trim();
   const effective = value || fallback;
   return path.resolve(process.cwd(), effective);
-}
-
-// Derive baseline markdown path from baseline JSON path.
-function deriveMarkdownPath(jsonPath) {
-  if (jsonPath.endsWith('.json')) {
-    return `${jsonPath.slice(0, -5)}.md`;
-  }
-  return `${jsonPath}.md`;
 }
 
 // Parse CLI options.
@@ -178,10 +170,6 @@ function parseArgs(argv) {
       continue;
     }
     throw new Error(`Unknown argument: ${arg}`);
-  }
-
-  if (!options.baselineMarkdownPath) {
-    options.baselineMarkdownPath = deriveMarkdownPath(options.baselineJsonPath);
   }
 
   return options;
@@ -389,8 +377,7 @@ function buildRefreshArgs(options, target) {
     'table',
     '--report-json',
     options.baselineJsonPath,
-    '--report-md',
-    options.baselineMarkdownPath,
+    ...(options.baselineMarkdownPath ? ['--report-md', options.baselineMarkdownPath] : []),
     '--progress',
     '--progress-every',
     String(options.progressEvery),

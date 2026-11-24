@@ -1,4 +1,4 @@
-"""Summarize workbook experiments: paired deltas vs the frozen start policy and vs a reference variant.
+"""Summarize exp_run.js experiments: paired deltas vs the frozen start policy and vs a reference variant.
 
 Each run folder <name>_r<rep> may hold eval_final.json (canonical) and long_final.json (long horizon).
 Chained runs (--chain k) may also hold eval_link<k>.json: the canonical eval of the snapshot taken
@@ -8,7 +8,7 @@ process start-up, which exp_run.js does not run).
 Deltas are paired by eval seed; "pooled" averages replicates episode-by-episode before pairing.
 
 Example:
-  python3 experiments/training_workbook/analyze.py --out experiments/training_workbook/runs/current --ref f640
+  python3 experiments/analyze.py --out experiments/runs/current --ref f640
 """
 import argparse
 import glob

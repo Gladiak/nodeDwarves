@@ -14,6 +14,7 @@ const { computeShortages, assignJobs } = require('../src/simulation/jobs');
 const { moveWithDetour } = require('../src/simulation/movement');
 const { updateRaidStart, updateRaidTick } = require('../src/simulation/raids');
 const { buildObservation } = require('../src/ai/observation');
+const { computeOutcomeSignals, computeOutcomeReward } = require('../src/ai/outcome_reward');
 const { createRefinementTracker, trackRefinementTick, getRefinementReport,
   summarizeRefinementReports } = require('../src/telemetry/refinement');
 
@@ -110,6 +111,84 @@ test('shortages favor critical gathering before optional spending', (config, sta
   assert(state.jobs.some((job) => job.type === 'gather'));
   assert(!state.jobs.some((job) => job.type === 'build' || job.type === 'upgrade'));
   assert.deepEqual(state.stockpile, before);
+});
+
+test('proportional allocation follows weights and an explicit zero ignores a resource', (config, state) => {
+  config.resources.targets = { food: 100, water: 100, wood: 100, stone: 100 };
+  config.resources.targetsPerCapita = {};
+  config.jobs.gatherTriggerRatio = 1;
+  config.ai.priorityBoosts = {};
+  const assign = (weights) => {
+    state.stockpile = { ...state.stockpile, food: 0, water: 0, wood: 0, stone: 0 };
+    for (const dwarf of state.dwarves) { dwarf.job = null; dwarf.role = 'gatherer'; }
+    state.jobs = [];
+    assignJobs(state, config, runtime, { weights });
+    const counts = {};
+    for (const job of state.jobs) counts[job.resource] = (counts[job.resource] || 0) + 1;
+    return counts;
+  };
+  const weighted = assign({ food: 2, water: 2, wood: 0.4, stone: 0.4 });
+  const essentials = (weighted.food || 0) + (weighted.water || 0);
+  const materials = (weighted.wood || 0) + (weighted.stone || 0);
+  assert(essentials >= 3 * Math.max(1, materials), `proportional split ${JSON.stringify(weighted)}`);
+  const zeroed = assign({ food: 1, water: 1, wood: 0, stone: 0 });
+  assert.equal((zeroed.wood || 0) + (zeroed.stone || 0), 0, 'weight 0 ignores the resource');
+  assert(computeShortages(state, config.resources.targets, { wood: 0 }, config)
+    .find((entry) => entry.resource === 'wood').score === 0);
+});
+
+test('outcome reward counts avoidable deaths, progress and extinction once', (config, state) => {
+  config.ai.reward = { population: 1, populationScale: 10, deaths: 2, distress: 1,
+    distressThreshold: 0.6, reserves: 0.5, reservePerCapita: 1, depth: 3, landmarkStage: 1,
+    prestige: 0.5, extinction: 7 };
+  state.dwarves = state.dwarves.slice(0, 4);
+  for (const dwarf of state.dwarves) dwarf.needs = { hunger: 0.1, thirst: 0.1 };
+  state.dwarves[0].needs.thirst = 0.7;
+  state.stockpile.food = 2;
+  state.stockpile.water = 8;
+  state.deathsByCause = { oldAge: 5, raid: 1 };
+  state.underrealm = { ...(state.underrealm || {}), maxUnlockedDepth: 1 };
+  state.landmarks = { ...(state.landmarks || {}), stats: { stagesBuilt: 2 } };
+  state.prestige = { ...(state.prestige || {}), total: 4 };
+  const before = computeOutcomeSignals(state, config);
+  assert.equal(before.distressShare, 0.25);
+  assert.equal(before.reserve, 0.5);
+  state.deathsByCause = { oldAge: 9, raid: 2, starvation: 1 };
+  state.underrealm.maxUnlockedDepth = 2;
+  state.landmarks.stats.stagesBuilt = 3;
+  state.prestige.total = 6;
+  const after = computeOutcomeSignals(state, config);
+  const step = computeOutcomeReward(before, after, config);
+  assert.equal(step.terms.population, 0.4);
+  assert.equal(step.terms.deaths, -4, 'old age is not an avoidable death');
+  assert.equal(step.terms.distress, -0.25);
+  assert.equal(step.terms.reserves, 0.25);
+  assert.equal(step.terms.progress, 3 + 1 + 1);
+  assert.equal(step.terms.extinction, 0);
+  state.dwarves = [];
+  const empty = computeOutcomeSignals(state, config);
+  assert.equal(computeOutcomeReward(after, empty, config).terms.extinction, -7);
+  assert.equal(computeOutcomeReward(empty, empty, config).terms.extinction, 0, 'extinction counts once');
+  const reset = { ...after, avoidableDeaths: 1, depth: 0 };
+  assert.equal(computeOutcomeReward(after, reset, config).terms.deaths, -2, 'cycle reset counts from zero');
+  finite(step);
+});
+
+test('fractional yields scale below one unit and full beer reserves pause brewing', (config, state) => {
+  config.jobs.gatherYield = { ...config.jobs.gatherYield, food: 0.6 };
+  const fractional = resources.getGatherYield(config, 'food', null, state);
+  assert(fractional > 0 && fractional < 1, `fractional yield ${fractional}`);
+  config.structures.brewery.pauseWhenFoodRatioBelow = 0;
+  config.structures.brewery.stopWhenBeerReserveRatioAbove = 1.5;
+  const reserve = config.consumption.beerReserveBase
+    + config.consumption.beerReservePerCapita * state.dwarves.length;
+  state.stockpile.beer = reserve * 1.6;
+  assert.equal(resources.shouldPauseBrewing(state, config), true);
+  state.stockpile.beer = reserve * 1.2;
+  assert.equal(resources.shouldPauseBrewing(state, config), false);
+  config.structures.brewery.stopWhenBeerReserveRatioAbove = 0;
+  state.stockpile.beer = reserve * 10;
+  assert.equal(resources.shouldPauseBrewing(state, config), false);
 });
 
 test('structure ratio, costs, capacity and queued reservations', (config, state) => {

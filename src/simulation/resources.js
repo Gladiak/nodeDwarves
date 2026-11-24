@@ -127,11 +127,26 @@ function shouldPauseBrewing(state, config) {
     return false;
   }
   const threshold = clamp(Number(breweryConfig.pauseWhenFoodRatioBelow ?? 0), 0, 1);
-  if (threshold <= 0) {
+  if (threshold > 0 && getStockpileRatio(state, config, 'food') < threshold) {
+    return true;
+  }
+  return isBeerReserveFull(state, config, breweryConfig);
+}
+
+// Check whether beer stocks exceed the configured multiple of the drinking reserve target.
+function isBeerReserveFull(state, config, breweryConfig) {
+  const stopRatio = Math.max(0, Number(breweryConfig.stopWhenBeerReserveRatioAbove ?? 0));
+  if (stopRatio <= 0) {
     return false;
   }
-  const ratio = getStockpileRatio(state, config, 'food');
-  return ratio < threshold;
+  const consumption = config.consumption || {};
+  const population = Array.isArray(state && state.dwarves) ? state.dwarves.length : 0;
+  const reserveTarget = Math.max(0, Number(consumption.beerReserveBase ?? 0))
+    + Math.max(0, Number(consumption.beerReservePerCapita ?? 0)) * population;
+  if (reserveTarget <= 0) {
+    return false;
+  }
+  return Number(state.stockpile.beer || 0) >= reserveTarget * stopRatio;
 }
 
 // Compute the current stockpile ratio against the configured target.
@@ -465,7 +480,7 @@ function getGatherYield(config, resourceId, node, state) {
   const jobs = config.jobs || {};
   const specific = jobs.gatherYield && jobs.gatherYield[resourceId];
   const value = specific !== undefined ? specific : jobs.defaultGatherYield;
-  const baseYield = Math.max(1, Number(value || 1));
+  const baseYield = Math.max(0, Number(value ?? 1));
   const multiplier = getSeasonModifier(state, 'gatherYield', 1)
     * getWeatherModifier(state, config, 'gatherYield', 1)
     * getMythMultiplier(state, config, 'gatherYield', 1)
@@ -477,18 +492,15 @@ function getGatherYield(config, resourceId, node, state) {
   const beerMultiplier = getBeerProductionMultiplier(state, config, resourceId);
   const contractMultiplier = 1 + getContractProductionBonus(state);
   const templeMultiplier = getTempleOutputMultiplier(state, config, resourceId);
-  const scaledYield = Math.max(
-    1,
-    Math.round(
-      baseYield
-      * multiplier
-      * toolMultiplier
-      * forgeMultiplier
-      * beerMultiplier
-      * contractMultiplier
-      * templeMultiplier,
-    ),
-  );
+  const product = baseYield
+    * multiplier
+    * toolMultiplier
+    * forgeMultiplier
+    * beerMultiplier
+    * contractMultiplier
+    * templeMultiplier;
+  // Yields are fractional so seasons, weather and bonuses scale every trip proportionally.
+  const scaledYield = Math.max(0, Math.round(product * 1000) / 1000);
   if (!node) {
     return scaledYield;
   }
