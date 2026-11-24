@@ -38,6 +38,7 @@ This file defines how to implement new features in a consistent, stable way.
 - `scripts/review_chronicle_retention.js`: read-only snapshot/replay study of Chronicle density, source integrity, saga-status coverage, bounds and deterministic export hashes.
 - `scripts/test_operational_closure_contracts.js`: deterministic CI freshness, failed/skipped-phase, retained-claim, source/bounds and RNG-purity contracts (included in `npm test`).
 - `scripts/test_legend_panel.js`: complete surface/deep symbol visibility, responsive pagination, color bounds and real arrow-dispatch contracts (included in `npm test`).
+- `scripts/test_telemetry_report_contracts.js`: Colony Report bounded pages, read-only/no-RNG rendering, verdict rules, config thresholds, history bounds and lossless wrapping (included in `npm test`).
 - `src/config.js`: config loader.
 - `src/game_session.js`: scenario resolution, interactive session creation and resumable AI/tick cadence.
 - `src/session_random.js`: serializable scoped gameplay PRNG, isolated from exports, training and benchmarks.
@@ -100,11 +101,12 @@ This file defines how to implement new features in a consistent, stable way.
 - `src/render/warrior_panel.js`: Warrior League analytics modal overlay (champion lineage, top-5 fighters, marks/legacy summary).
 - `src/render/event_log_panel.js`: Event Log modal overlay with scrollable real-time events,
   all/drama filters, importance badges, and compact actor/place/saga context.
-- `src/telemetry/`: telemetry section and Data Center panel builders.
+- `src/telemetry/`: telemetry section and Colony Report panel builders.
 - `src/telemetry/telemetry.js`: telemetry section builders and formatting helpers.
 - `src/telemetry/refinement.js`: opt-in read-only headless economy/social/saga/movement/legacy counters and bounded travel histograms, isolated from saves, gameplay RNG, and PPO.
 - `src/telemetry/story_director.js`: read-only Story Director telemetry rows plus deterministic headless counter tracking and report summaries.
-- `src/telemetry/telemetry_panel.js`: in-game telemetry reference overlay panel (section and metric explanations).
+- `src/telemetry/colony_report.js`: read-only plain-language colony report (GOOD/WATCH/BAD rows with explanations, attention list, config-driven thresholds, yearly trends).
+- `src/telemetry/telemetry_panel.js`: in-game Colony Report overlay ([h]): Status, Economy, People, Frontier & Defense and Technical pages, render-only trend history.
 - `src/render.js`: thin wrapper for `src/render/index.js`.
 - `src/runtime.js`: terminal sizing and layout.
 - `src/runtime/time_controls.js`: ephemeral interactive speed, pause, single-step, and
@@ -244,7 +246,7 @@ This file defines how to implement new features in a consistent, stable way.
 - Avoid O(n^2) scans in per-tick logic when possible.
 - Prefer early exits and precomputed counts.
 - Keep telemetry lines short enough for the configured width.
-- Every time telemetry sections, labels, or metrics are changed, verify `src/telemetry/telemetry_panel.js` is coherent with the current telemetry and update it in the same change set.
+- Every time telemetry sections, labels, or metrics are changed, verify the Colony Report (`src/telemetry/colony_report.js`, `src/telemetry/telemetry_panel.js`) is coherent with the current telemetry and update it in the same change set. Keep its rows plain-language: a status, a value and one sentence on what it means.
 - Update the ASCII legend when new entities are added.
 
 ## Validation checklist

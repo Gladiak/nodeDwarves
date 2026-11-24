@@ -432,6 +432,15 @@
       "dashboard": {
         "history_points": 32,
         "snapshot_interval_ticks": 120
+      },
+      "status_thresholds": {
+        "runway_watch_ticks": 800,
+        "housing_watch_ratio": 1.0,
+        "housing_bad_ratio": 0.8,
+        "population_decline_watch": 0.03,
+        "population_decline_bad": 0.1,
+        "conflict_watch": 0.3,
+        "conflict_bad": 0.5
       }
     },
     "warrior_panel": {

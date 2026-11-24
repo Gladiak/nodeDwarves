@@ -56,11 +56,11 @@ Current release: **v2.5.0 - Saved Holds and Scenario Challenges**. 🍺🗺️
   consequences, saga continuity, and visible map layer. Cooldowns and interruption budgets keep the
   spotlight readable while critical events can preempt weaker focus—with every decision explained.
   Related facts become stable sagas with explicit lifecycles and compact chapters derived only from
-  events that actually happened. The Data Center and headless reports expose the current focus,
+  events that actually happened. The Colony Report's Technical page and headless reports expose the current focus,
   current saga, cooldowns, selection reasons, priority coverage, suppression counts, and saga
   outcomes.
 - 🎞️ A restrained story-focus overlay highlights involved dwarves and critical locations.
-  Follow event and saga context in the Event Log and Data Center.
+  Follow event and saga context in the Event Log and the Colony Report.
 - ⏱️ Explicit controls from `0.5x` through batched `100x`, plus exact single-step, support both close
   observation and rapid endgame trials. Critical beats temporarily slow the visible loop, legendary
   beats briefly hold it, and every accelerated tick still runs the full simulation, AI cadence, and
@@ -74,7 +74,7 @@ Current release: **v2.5.0 - Saved Holds and Scenario Challenges**. 🍺🗺️
 - 🏛️ Witnessed construction can found an inherited Builders' Guild, giving later colonies a small, fading boost to their works.
 - 📚 Political sagas follow one bounded arc through local rituals to their witnessed outcome.
 - 🌤️ In-map Ops Snapshot shows a live weather token (`Wx:*`, e.g. `Clear`, `Rain`, `Storm`) for at-a-glance climate context.
-- 📊 In-game Data Center (`h`) with dashboard, deep economy views, Story Director visibility, and AI explainability.
+- 📊 In-game Colony Report (`h`): a GOOD / WATCH / BAD health check where every line says in plain words what it means, a "needs attention" list, Economy, People and Frontier pages, plus a Technical page for AI and Story Director internals.
 - 🤖 PPO training pipeline in Python with JS runtime inference (`models/*.json`), a lean ~80-signal
   colony observation, and a self-scaling critic that reports its own health (`ev=`) in the logs.
 - 🧪 Deterministic benchmark/regression tooling with cached baseline comparison and milestone measurements for colony habits, travel, and saga coherence.
@@ -109,7 +109,7 @@ npm run ai:play
 - 🗺️ `l`: legend; arrow keys browse pages when needed
 - 🔍 `i`: dwarf inspect panel
 - ⚔️ `w`: Warrior League modal
-- 📡 `h`: telemetry Data Center
+- 📡 `h`: Colony Report (telemetry)
 - 🧾 `e`: Event Log modal
 - 🔁 `f`: switch Event Log filter
 - 📖 `c`: export the latest completed (or current) Chronicle as Markdown + JSON

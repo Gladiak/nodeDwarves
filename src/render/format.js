@@ -44,7 +44,8 @@ function wrapLine(value, width) {
       remaining = remaining.slice(slice.length).trimStart();
       continue;
     }
-    lines.push(remaining.slice(0, splitIndex));
+    // splitIndex is the last character of the word before the break: keep it.
+    lines.push(remaining.slice(0, splitIndex + 1));
     remaining = remaining.slice(splitIndex + 1).trimStart();
   }
 

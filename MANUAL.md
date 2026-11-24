@@ -55,7 +55,7 @@ npm run ai:play
 | `l` | Open or close Legend; arrow keys browse its pages |
 | `i` | Inspect a dwarf |
 | `w` | Open Warrior League |
-| `h` | Open Data Center; left/right changes pages |
+| `h` | Open the Colony Report; left/right changes pages |
 | `e` | Open Event Log; up/down scrolls |
 | `f` | Change the open Event Log filter |
 | Left/right | Browse the active panel, inspect selection or log filter |
@@ -142,7 +142,7 @@ colonies; saved colonies retain their resolved settings and source identity.
 - Villages, roads, trade and external camps shape the surface economy.
 - Regional roads help eligible long trips while primary resource gathering keeps its normal routes.
 - Social relationships leave bounded memories that influence mood and colony climate.
-- Underrealm crews explore deeper resources and threats; progression is visible in Data Center.
+- Underrealm crews explore deeper resources and threats; progression is visible in the Colony Report.
 - Warrior League, named rivals, sieges and landmarks provide longer-running challenges.
 - Completed cycles preserve selected historical facts and places. An inherited Builders' Guild
   can provide a small, fading construction benefit.
@@ -150,10 +150,21 @@ colonies; saved colonies retain their resolved settings and source identity.
 ## 7) Rendering and telemetry 🎨
 
 Legend explains surface or active Underrealm symbols. Inspect shows a dwarf's identity and
-witnessed deeds. Event Log provides current events and a drama filter. Data Center shows economy,
-progression and policy information; its reference text explains the displayed metrics.
-Story context is available in Event Log and Data Center. The bottom Story Ribbon is disabled by
-default to keep the map unobstructed.
+witnessed deeds. Event Log provides current events and a drama filter.
+
+The Colony Report (`h`) is the telemetry view. Every row shows a status, a value and one sentence
+on what it means: GOOD = fine, WATCH = slipping, BAD = act now, `-` = information only.
+- Colony Status: overall verdict, vitals (food, water, beer, morale, population, housing, safety,
+  workforce), a "needs attention" list ordered by urgency, and long-term progress.
+- Economy: stocks against colony targets with yearly trends, work and jobs, trade, buildings.
+- People: mood, births and deaths by cause, housing, relations and the schism.
+- Frontier & Defense: raids, nemeses, Underrealm, ruins expeditions, warriors, world events.
+- Technical: AI governor decisions and Story Director counters, for debugging and training.
+
+Trends compare with one in-game year ago and appear after about a year of play. Stock and morale
+thresholds follow the active color theme alerts; the other thresholds are in
+`display.telemetry_panel.status_thresholds`. Story context is available in Event Log and on the
+Technical page. The bottom Story Ribbon is disabled by default to keep the map unobstructed.
 
 ## 8) AI and training 🤖
 
@@ -227,7 +238,7 @@ until a gameplay candidate is accepted. Current results are written to `debug/`.
 
 ## 10) Role guide 🧭
 
-- Players: start the simulation, use Legend/Inspect/Data Center, and follow colony trends.
+- Players: start the simulation, use Legend/Inspect/Colony Report, and follow colony trends.
 - Operators: run repeatable benchmarks and quality checks at milestones.
 - Contributors: follow [AGENTS.md](AGENTS.md), keep settings explicit and preserve determinism.
 

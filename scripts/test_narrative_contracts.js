@@ -3223,8 +3223,9 @@ function validateStoryDirectorTelemetryContract() {
   state.ui = { telemetryPanel: { open: true, page: 4 } };
   const panel = buildTelemetryPanel(state, config, { gridWidth: 120, gridHeight: 40 });
   const panelText = panel.lines.map((line) => String(line.text || '')).join('\n');
-  assert(getTelemetryPanelPageCount() >= 5, 'Story Director Data Center page was not registered.');
-  assert(panelText.includes('STORY DIRECTOR'), 'Story Director Data Center page did not render.');
+  assert(getTelemetryPanelPageCount() >= 5, 'Technical telemetry page was not registered.');
+  assert(panelText.includes('TECHNICAL') && panelText.includes('[Story Director]'), 'Story Director block did not render on the Technical page.');
+  assert(panelText.includes('Current focus:'), 'Technical page omitted the Story Director focus.');
   assert(panel.lines.every((line) => String(line.text || '').length <= 120), 'Story telemetry panel overflowed.');
 
   const tracker = createStoryDirectorCounterTracker();
