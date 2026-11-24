@@ -22,8 +22,10 @@ Two axes, both measurable:
    first one.
 
 North-star scorecard (8,000-tick eval plan, section 6): final population and avoidable deaths for
-`neglect` < `default` < `steward` (S3) < trained policy, with the trained-minus-steward gap
-growing run after run.
+`neglect` < `default` < `steward` (S2) < trained policy, with the trained-minus-steward gap
+growing run after run. Companion metric, the **AI control share**: per scenario, the spread of final
+population between the best and the worst player on the same seeds (trained or steward vs neglect),
+relative to default. It measures how much of the outcome decisions control and must grow with S2-S4.
 
 ---
 
@@ -75,7 +77,7 @@ growing run after run.
 
 | Tool | Purpose | Cost |
 |---|---|---|
-| `challenge_probe.js` | In-process scorecard: synthetic players (`default`, `const:X`, `random`, `neglect`, `gov:X`), stock flows, reserve autonomy, labor mix, deaths, outcome-reward score; `--set path=value` A/B on the effective config; `--plan eval` or `standard` | 48 games x 8,000 ticks in ~3 min |
+| `challenge_probe.js` | In-process scorecard: synthetic players (`default`, `const:X`, `random`, `neglect`, `gov:X`), stock flows, reserve autonomy, labor mix, deaths, outcome-reward score, progress (max Underrealm depth, landmark stages, prestige); `--set path=value` A/B on the effective config; `--plan eval` or `standard` | 48 games x 8,000 ticks in ~3 min |
 | `eval_paired.py` | Paired evaluation of real policies through `ai_server.js` (`--outcomes` adds population, deaths by cause, `rpp`) | 24 games x 8,000 ticks in ~3 min |
 | `exp_run.js` | Isolated training variants (`--fresh-start`, `--chain k`, `--set phase:--flag=value`, `--freeze-only`); never writes `models/` | ~6 min per run |
 | `leverage_probe.py` | One governor group at an extreme vs default | ~1 h |
@@ -139,6 +141,11 @@ Ranked by expected impact.
   leverage. Most governor intents are on/off thresholds whose default is "on", while a continuous
   Gaussian head starts near the middle of the range. The policy beats the no-AI game by ~45% but not
   the trivial "all governors off" rule (83 vs 96 dwarves): it has not learned the main switches.
+  Worse, the decisions that shape a game are fixed config thresholds the policy neither sees nor
+  controls: growth (births unlock above 60% stock and 2 units per dwarf), seasonal reserves (gather
+  to 128% of target in every season), workforce split (22% builders, 12% managers), housing (build
+  below 1.7 beds per dwarf), Underrealm crew size (fixed surface reserve) and defense (24 adults for
+  full defense). The AI tunes details while the steering wheel is hard-coded.
 - **D2. Weak reference strategy.** The no-AI posture (every governor on) is worse than random under
   scarcity (default 57 vs gov:0 96). Gains are measured against a strawman, and `npm start` players
   watch a needlessly poor colony.
@@ -158,15 +165,36 @@ Ranked by expected impact.
   inference path used by the game is not used for evaluation.
 - **D8. Stale production state.** Production policy, regression baselines and model reports refer to
   the old game.
+- **D9. The game corrects itself.** Hard-coded reflexes act exactly when decisions matter most:
+  emergency gathering reassigns dwarves below 52% food or water (`population.roles.emergencyMinRatio`),
+  water gets an automatic x3 priority below 85% (`ai.priorityBoosts`), breweries pause on emergencies.
+  They flatten the gap between good and bad play and leave the AI little to decide in a crisis.
+- **D10. Levers with tiny ranges.** Several governor biases are capped at +/-0.1 (trade reserve ratio,
+  Underrealm surface reserve, depth allocation and role mix), so even their extremes barely move the
+  colony; part of the "no leverage" verdict in E16 may be a range problem, not a design problem.
+- **D11. Games are too alike.** Training randomization spans only +/-5-10% of stocks, nodes and
+  needs, and evaluation uses fixed parameters. When games resemble each other a fixed rule wins (gov:0);
+  the value of adaptive play only appears when conditions differ from game to game.
+- **D12. AI decisions are invisible.** Players cannot see what the AI (or the default posture)
+  decided or why, so a better policy does not make a more readable game, and wrong decisions are hard
+  to spot while debugging.
 
 ---
 
 ## 5. Step plan
 
-Order: measure (S0-S1), settle the game (S2) because every simulation change invalidates trained
-policies, define "good" with a strong rule (S3), then rebuild the learning stack (S4-S6), scale
-(S7) and ship (S8). Each step changes one thing, uses the protocol in section 6, and is accepted
-only when its pass criteria hold. If a step fails its criteria twice, revert it and record why.
+Order: measure (S0-S1), define "good" with a strong hand-written strategy (S2), settle the game
+(S3), then rebuild the learning stack (S4-S6), scale (S7) and ship (S8). The steward comes first
+because it improves the `npm start` game at once, needs no training, and gives every later step a
+serious opponent: if reinforcement learning cannot beat it, that shows early and cheaply. Simulation
+changes (S3) follow it and precede any heavy training, because each one invalidates trained policies.
+Within these steps, the structural items that set the ceiling on how much the AI can matter come
+first: per-game variety (S3d) and moving reflexes into the steward (S2), then the cheapest strong
+levers (rationing and trade in S4a), then visibility (S2, extended to the trained policy in S8).
+Each step changes one thing, uses the protocol in section 6, and is accepted only when its pass
+criteria hold. If a step fails its criteria twice, revert it and record why. Before and after every
+step that changes what players see (S2, S3, S8), watch at least 10 minutes of an `npm start` game and
+note whether the colony reads as challenging or merely frustrating.
 
 ### S0. Freeze scorecard v1 (measurement only, ~1 h)
 - Freeze a session from the current config; run the scorecard for `default`, `gov:0`, `random`,
@@ -182,38 +210,83 @@ only when its pass criteria hold. If a step fails its criteria twice, revert it 
   win/loss sign vs default in >= 80% of games; >= 3x faster. Afterwards every decision uses 48 games
   (seeds 100000-100047), cutting SE by ~30%.
 
-### S2. Simulation fairness and earned progress (D6)
+### S2. Steward reference strategy (D2)
+- A config-driven, state-aware no-AI posture: risky governors (ruins dispatch, Underrealm push,
+  external camps, trade contests) switch on only when food and water autonomy and population pass
+  thresholds; job weights lean toward stockpiling before winter.
+- Reflexes move into the steward (D9): emergency gathering, the water priority boost and the brewery
+  emergency pause become steward rules; the engine keeps only a last-resort guard (for example,
+  gathering forced when a stock is about to hit zero). Measure the move alone first: with the steward
+  off, the default player must get worse and neglect much worse, proving the reflexes were hiding
+  decisions.
+- Visibility (D12): every steward (later AI) decision that changes posture is announced as a council
+  decree in the Event Log, and the Colony Report shows the active posture and its reason.
+- Pass: on the eval plan (48 games, 8,000 ticks) steward >= gov:0 on final population and avoidable
+  deaths, with no extinctions; on the standard game steward >= gov:0 at 8,000 ticks and >= default at
+  20,000 ticks (S0: no fixed posture wins both horizons). It becomes the `npm start` default and the
+  reference every trained policy must beat.
+
+### S3. Simulation fairness and earned progress (D6)
 One sub-change at a time, each A/B'd with `--set` before it becomes a default:
-- S2a founders: spread founding ages and fertility windows (config-driven jitter) so the colony
+- S3a founders: spread founding ages and fertility windows (config-driven jitter) so the colony
   ages continuously.
-- S2b progress pacing: Underrealm depth and landmark stages reachable by good play in the tight
+- S3b progress pacing: Underrealm depth and landmark stages reachable by good play in the tight
   economy (requirements scaled to the colony, not to 600-dwarf settlements).
-- S2c deep-raid counterplay: a defense or guard decision with measurable effect on deep-raid deaths.
+- S3c deep-raid counterplay: a defense or guard decision with measurable effect on deep-raid deaths.
+- S3d per-game variety (D11): each game draws its own parameters from wide, config-driven ranges
+  (winter severity, gather yields, raid frequency and strength, map resources), deterministic per seed
+  and applied in the game, training and evaluation alike; part of them is visible in the observation,
+  the rest must be inferred. Pass for S3d: the best fixed posture (default, gov:0, steward variants)
+  differs between at least a third of the games, and no fixed posture wins more than 60% of paired
+  games against the others.
 - Pass (scorecard, 48 games): default median drawdown between 4,000 and 8,000 ticks <= 25%
   (today ~37%); default extinctions <= 1/48 at 8,000 ticks and <= 3/48 at 20,000; neglect at least
   50% below default; good play (gov:0 or steward) reaches median Underrealm depth >= 1 by 8,000
   ticks; the leverage probe shows the new defense decision moving deep-raid deaths with |z| >= 2.
 
-### S3. Steward reference strategy (D2)
-- A config-driven, state-aware no-AI posture: risky governors (ruins dispatch, Underrealm push,
-  external camps, trade contests) switch on only when food and water autonomy and population pass
-  thresholds; job weights lean toward stockpiling before winter.
-- Pass: steward >= gov:0 on final population and avoidable deaths (paired, 48 games), no extinctions
-  at 8,000 ticks, standard game not worse than today's default. It becomes the `npm start` default
-  and the reference every trained policy must beat.
+### S4. Strategic levers and action space v2 (D1, fresh training)
+Give the AI 6-8 high-level decisions with a real trade-off and hand everything else to the steward.
 
-### S4. Action space v2 (D1, fresh training)
-- Keep only heads with leverage: 4 job weights, Underrealm allocation, ruins dispatch, external
-  camps, trade. Delegate festival, building, contracts, warriors and social to steward rules.
-- Make on/off intents discrete (Bernoulli heads) initialized to the steward posture; optionally act
-  as a residual on top of the steward so the untrained policy already plays well.
-- Pass: every kept head moves an outcome with |z| >= 2 in the leverage probe; trained policy beats
-  steward by >= 10% final population with z >= 2 (48 games, 3 replicates); worse than steward in at
-  most 3 of 12 scenarios.
+S4a lever audit (no AI change, ~3 minutes per candidate). First widen capped governor ranges (D10)
+so existing levers are judged at a meaningful extreme. For each candidate, move the underlying
+config threshold to a low and a high setting with `challenge_probe.js --set` (players `default`,
+steward and `neglect`, 48 games, 8,000 ticks; 20,000 ticks for growth and reserves) and record the
+paired effect on final population, avoidable deaths and progress:
+
+| Candidate lever | Trade-off | Config it replaces today |
+|---|---|---|
+| Growth | more dwarves now vs famine after overshoot | `population.reproduction.minStockpileRatio`, `resourcePerCapita` |
+| Seasonal reserves | safety in winter vs growth and building | `jobs.gatherTriggerRatio` (same in every season) |
+| Workforce budget | essentials vs building vs Underrealm vs defense | `population.roles.builderRatio`, `managerRatio`, Underrealm crew ratios |
+| Build priority | houses vs fields/wells vs towers vs brewery | `population.housing.buildTargetRatio`, structure guardrails |
+| Risk posture | expeditions, Underrealm push and camp deals vs safety | ruins, Underrealm and external-camp intents (binary today) |
+| Defense | guards against deep raids vs labor | `raids.defenseAdults`, Underrealm guard mix |
+| Rationing | smaller meals in lean seasons (morale and productivity cost) vs starvation | fixed `consumption.*Threshold` and `*Target` |
+| Merchant trade | sell materials to buy food before winter vs keeping building stock | automatic merchant trades with a fixed `merchant.reserveRatio` |
+| Event choices | accept or refuse caravans, pay tribute or fight, which decree to issue | threshold-based resolution of world events, camps and schism decrees |
+| Scouting | spend labor to learn raid timing and winter severity in advance | none (no forecast exists) |
+
+Event choices are rare discrete decisions: expose them as masked heads that act only when an offer is
+open. Scouting only becomes useful after S3d makes games differ.
+
+A candidate becomes an AI lever only if one direction moves an outcome with |z| >= 2 and the
+best setting differs between scenarios or seasons (otherwise a fixed steward rule is enough).
+
+S4b action space v2. Expose the levers that pass S4a as a handful of heads at strategic cadence
+(S5), discrete where the decision is discrete (Bernoulli or ordinal heads) and initialized to the
+steward posture; the policy may act as a residual on top of the steward. Remove the heads that are
+not levers (festival, building weights, contracts, warriors, social and the inert governor biases).
+
+Pass: every exposed lever moves an outcome with |z| >= 2 in the leverage probe; trained policy beats
+steward by >= 10% final population with z >= 2 (48 games, 3 replicates); worse than steward in at
+most 3 of 12 scenarios; fewer action heads than today (29).
 
 ### S5. Decision cadence and full-horizon training (D3, D4, fresh training)
 - One cadence for training, gate and game; sweep 10, 20 and 40 ticks per decision; foundation
   episodes of 8,000 ticks; gamma per decision set for a ~1,000-1,500-tick horizon.
+- Try a two-level policy: a seasonal plan chosen at the start of each season (growth, reserves, risk,
+  workforce) plus small adjustments at the regular cadence; it shortens credit assignment to a few
+  decisions per year. Adopt it only if it beats the flat policy under the same pass criteria.
 - Pass: Node env time per simulated tick down >= 40% (from ~1.15 ms); equal or better result at equal
   wall-clock; improvement per run: 3 chained runs where each run is >= the previous minus one SE and
   run 3 beats run 1 by >= 5% population with z >= 2.
@@ -247,6 +320,7 @@ Rules:
 - Training changes: 3 fresh replicates, each evaluated on the same games; adopt when the pooled delta
   on final population (primary) or `rpp` has z >= 2, avoidable deaths and extinctions do not worsen
   beyond one SE, and wall-clock per unit of gain does not grow.
+- Report the AI control share (section 1) for every scorecard; S2-S4 must increase it.
 - Treat |z| < 1 as no effect. Keep the machine otherwise idle during training and evaluation.
 - A new start policy or config means a new session folder; compare only within a session.
 
@@ -308,4 +382,32 @@ Deterministic regression of the no-AI game: `npm run bench:candidate` then `npm 
 | 2026-11-24 | E17-E18 | Tight economy: fractional yields 1.0, lean winter, costly capped beer, proportional jobs, births need 2 stock per dwarf |
 | 2026-11-24 | E19 | Six-term outcome reward, 8,000-tick `rpp` gate, gamma 0.998 |
 | 2026-11-24 | - | Cleanup: legacy 71-term reward, round-robin allocation and integer yields removed (games bit-identical); Markdown reports replaced by JSON; workbook, manual and evidence files folded into this document |
-| next | S0 | Freeze scorecard v1 |
+| 2026-11-24 | S0 (partial) | Synthetic scorecard v1 recorded below; training replicates still to run |
+| 2026-11-24 | S0 | Plan reordered: steward (now S2) before simulation changes (now S3) |
+| 2026-11-25 | D1 | S4 rewritten around a lever audit: expose growth, reserves, workforce, build priority, risk and defense only if they measurably move outcomes |
+| 2026-11-25 | D9-D12 | Added: reflexes move into the steward, widened lever ranges, per-game variety (S3d), rationing/trade/event/scouting levers, seasonal two-level policy, council decrees, AI control share metric |
+| next | S0 | Finish the 3 training replicates, then S1 |
+
+### S0 progress (session `experiments/runs/2026-11-24_s0`, commit a5e3998, git-ignored)
+
+Eval plan, 24 games x 8,000 ticks (`challenge_probe.js`, paired with default):
+
+| Player | Pop (SD) | vs default (z) | Wins | Ext. | Avoidable | Starvation | Drawdown | rpp | Depth >= 1 | Landmark stages | Idle | Food autonomy |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| default | 57.0 (35) | - | - | 0 | 8.2 | 1.9 | 0.46 | 0.478 | 10/24 | 11.2 | 4% | 31 ticks |
+| gov:0 | 96.0 (40) | +39.0 (5.44) | 23/24 | 0 | 11.0 | 1.5 | 0.23 | 0.566 | 15/24 | 13.8 | 10% | 154 |
+| random | 66.4 (36) | +9.4 (1.52) | 15/24 | 0 | 7.3 | 0.0 | 0.36 | 0.488 | 11/24 | 10.9 | 6% | 60 |
+| neglect | 22.2 (38) | -34.8 (-4.40) | 4/24 | 11 | 28.2 | 23.9 | 0.71 | 0.259 | 6/24 | 5.4 | 4% | 55 |
+
+Standard game, 4 seeds: at 8,000 ticks default 111, gov:0 189 (4/4 wins), neglect 58 (1 extinction);
+at 20,000 ticks default 84 (0 extinctions), gov:0 69 (1 extinction, 39 avoidable deaths), neglect
+30 (3 extinctions). Turning every governor off wins short games but loses long ones: no fixed
+posture is best, which is the room the steward (S2) and the trained policy must fill.
+`eval_paired.py --policy default` on the same 24 games matches the probe (pop 57.0, rpp 0.478).
+
+Resume S0 (about 30 minutes, machine idle): train and evaluate 3 fresh replicates, then record the
+replicate mean and SD here.
+
+```bash
+for r in 1 2 3; do node experiments/exp_run.js --out experiments/runs/2026-11-24_s0 --name recipe --rep $r --fresh-start && .venv/bin/python experiments/eval_paired.py --policy experiments/runs/2026-11-24_s0/recipe_r$r/p.json --outcomes --config experiments/runs/2026-11-24_s0/configs/config_endgame.json --max-steps 4000 --episodes 24 --workers 8 --out experiments/runs/2026-11-24_s0/eval_rep$r.json; done
+```

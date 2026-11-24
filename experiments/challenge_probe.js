@@ -246,6 +246,9 @@ function runEpisode(task, options) {
     // Outcome reward (src/ai/outcome_reward.js), accumulated per decision step like ai_server.
     let signals = computeOutcomeSignals(state, config);
     const reward = { total: 0, terms: {} };
+    // Progress milestones (cycle-safe: counters that reset count from zero).
+    const progress = { maxDepth: signals.depth, landmarkStages: 0, prestige: 0 };
+    const gain = (current, previous) => (current >= previous ? current - previous : current);
     for (let tick = 1; tick <= options.ticks; tick += 1) {
       if ((tick - 1) % options.stepTicks === 0) action = buildAction(task.player, config, actionRng);
       watchStockpile(state, flows);
@@ -270,6 +273,9 @@ function runEpisode(task, options) {
         const step = computeOutcomeReward(signals, next, config);
         reward.total += step.total;
         for (const [key, value] of Object.entries(step.terms)) reward.terms[key] = (reward.terms[key] || 0) + value;
+        progress.maxDepth = Math.max(progress.maxDepth, next.depth);
+        progress.landmarkStages += gain(next.landmarkStages, signals.landmarkStages);
+        progress.prestige += gain(next.prestige, signals.prestige);
         signals = next;
       }
       if (tick % options.sampleEvery === 0 || tick === options.ticks || pop === 0) {
@@ -289,7 +295,7 @@ function runEpisode(task, options) {
     }
     const scored = { score: reward.total / options.ticks,
       terms: Object.fromEntries(Object.entries(reward.terms).map(([k, v]) => [k, v / options.ticks])) };
-    return { ...task, startPop, extinctionTick, targets, flows, deaths, births, samples, reward: scored };
+    return { ...task, startPop, extinctionTick, targets, flows, deaths, births, samples, reward: scored, progress };
   } finally {
     Math.random = previousRandom;
   }
@@ -342,6 +348,7 @@ function summarize(episode) {
     extinction_tick: episode.extinctionTick, births: episode.births, deaths: episode.deaths,
     avoidable_deaths: avoidable,
     outcome_score: episode.reward ? episode.reward.score : null,
+    progress: episode.progress || null,
     outcome_terms: episode.reward ? episode.reward.terms : null,
     labor_second_half: {
       idle: laborShare((l) => l.idle), essentials: laborShare((l) => (l.gather.food || 0) + (l.gather.water || 0)),
