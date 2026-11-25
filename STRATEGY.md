@@ -187,13 +187,24 @@ Ranked by expected impact.
 - **D12. AI decisions are invisible.** Players cannot see what the AI (or the default posture)
   decided or why, so a better policy does not make a more readable game, and wrong decisions are hard
   to spot while debugging.
+- **D13. Stratification.** The game has grown by layers: 4,926 config values (structures 841, AI and
+  training 784, display 556, schism 337, Underrealm 320, warriors 251), ~120 key names never read by
+  name in code, 19 training scenarios (381 values) and 12 game scenarios on top of base, training and
+  eval overrides; ~70,000 lines in `src/`, 53 simulation modules, 35 systems per tick. Narrative
+  systems all feed the same few quantities through hidden multiplier stacks (gather yield is a product
+  of ~16 factors, need decay of ~17), and the same decision is taken in up to five places (defaults,
+  governors, engine reflexes, steward, policy, scenario overrides). Most defects found so far are
+  symptoms: yields floored to one unit (E18), weight 0 read as 1 (E15), the emergency reflex doing
+  two opposite jobs (E22), inert governor heads (E16), duplicated observation code (E20), yields
+  restated in three override layers. Consequences: tuning is not identifiable, the AI cannot assign
+  credit to choices that other layers overrule, and nobody can see why a colony fails.
 
 ---
 
 ## 5. Step plan
 
-Order: measure (S0-S1), define "good" with a strong hand-written strategy (S2), settle the game
-(S3), then rebuild the learning stack (S4-S6), scale (S7) and ship (S8). The steward comes first
+Order: measure (S0-S1), define "good" with a strong hand-written strategy (S2), rationalize the
+model (R) so the next changes land on a small, visible core, settle the game (S3), then rebuild the learning stack (S4-S6), scale (S7) and ship (S8). The steward comes first
 because it improves the `npm start` game at once, needs no training, and gives every later step a
 serious opponent: if reinforcement learning cannot beat it, that shows early and cheaply. Simulation
 changes (S3) follow it and precede any heavy training, because each one invalidates trained policies.
@@ -243,6 +254,33 @@ note whether the colony reads as challenging or merely frustrating.
 - Side effects: `neglect` now inherits the steward posture (59.5 pop, 1 extinction, -38% vs default;
   S3 asks for <= -50%); trained policies inherit it for the groups they do not send (today only
   `social`), so S0 replicate numbers predate the steward.
+
+### R. Rationalization: a small visible core, narrative attached through explicit channels (D13)
+Narrative systems stay (they make every game a story); what changes is how they couple to the
+economy and where decisions are taken. One sub-step at a time:
+- R1 system ablation (measurement only, ~15 runs x 40 s): disable one system at a time (schism, myths,
+  alchemy, warriors, social drama, world events, external camps, contracts, festivals, ruins,
+  Underrealm, epic conflicts, landmarks, world legacy, merchant) on the 24-game plan and record the
+  effect on final population, avoidable deaths, progress and event count. Output: each system
+  labelled economic (moves outcomes, |z| >= 2) or narrative (does not).
+- R2 key classification and dead-key report: a script labels every config key core (tuned, in the
+  tuning surface), narrative (flavor, fixed), presentation or infrastructure, and lists keys never
+  read. Delete dead keys; target <= ~50 core keys.
+- R3 modifier ledger: gather yield, need decay, birth chance and death risk are computed through one
+  registry where each system enters a named factor; first bit-identical, then the product is
+  bounded (e.g. [0.5, 1.5]) and the Colony Report shows the active factors ("food yield x0.62:
+  winter x0.45, festival x1.1 ...").
+- R4 one decision chain: policy, then steward, then a single engine safety guard. Reflexes that
+  duplicate decisions (emergency gathering, water priority boost, brewery pause) become steward rules
+  or levers; the emergency reflex moves once growth is controlled (S3-0).
+- R5 three-level config: base, then scenario, then training profile; economic values are never
+  restated in override layers, enforced by a contract test that flags restated core keys.
+- R6 sensitivity screen (Morris elementary effects) on the remaining core keys with the 24-game plan;
+  keys without measurable effect are frozen and leave the tuning surface.
+- Pass: R3-R5 refactors bit-identical before any behavior change; <= ~50 core keys, each with a
+  measured effect; no restated economic values across layers (test green); one documented decision
+  chain; the Colony Report explains active modifiers; scorecard unchanged within noise after the
+  bounded ledger.
 
 ### S3. Simulation fairness and earned progress (D6)
 One sub-change at a time, each A/B'd with `--set` before it becomes a default:
@@ -412,7 +450,8 @@ Deterministic regression of the no-AI game: `npm run bench:candidate` then `npm 
 | 2026-11-25 | D9-D12 | Added: reflexes move into the steward, widened lever ranges, per-game variety (S3d), rationing/trade/event/scouting levers, seasonal two-level policy, council decrees, AI control share metric |
 | 2026-11-25 | S1 | Train/serve skew fixed (E20); speed hypothesis withdrawn (E21); `eval_paired.py` stays the reference evaluator |
 | 2026-11-25 | S2 | Steward on by default with every venture group restrained (E23); emergency reflex kept (E22); council decrees and Colony Report row added |
-| next | S3 | Simulation fairness, growth control first (E22 makes it the blocker) |
+| 2026-11-25 | D13 | Rationalization step R inserted before S3: system ablation, key classification, modifier ledger, one decision chain, three-level config, sensitivity screen |
+| next | R1 | System ablation, then S3 growth control on the rationalized core |
 
 ### Scorecard v1 (S0, session `experiments/runs/2026-11-24_s0`, commit a5e3998, git-ignored)
 
