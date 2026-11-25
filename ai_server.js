@@ -5,13 +5,12 @@ const { loadConfig } = require('./src/config');
 const { buildRuntime } = require('./src/runtime');
 const { createInitialState } = require('./src/state');
 const { stepState } = require('./src/simulation');
-const { buildObservation: buildAiObservation } = require('./src/ai/observation');
+const { buildObservation: buildAiObservation, getObservationNodeRatio } = require('./src/ai/observation');
 const {
   normalizeObservationLayout,
   buildObservationPlan,
   assembleObservationVector,
 } = require('./src/ai/observation_layout');
-const { getTerrainResourceRatio } = require('./src/simulation/terrain');
 const { getFestivalObservation } = require('./src/simulation/festivals');
 const { clamp } = require('./src/utils');
 const { computeOutcomeSignals, computeOutcomeReward } = require('./src/ai/outcome_reward');
@@ -1787,16 +1786,7 @@ function computeMetrics(state, config) {
   const criticalNeedsFraction = getCriticalNeedsFraction(state.dwarves, config);
   const idleAdultsFraction = getIdleAdultsFraction(state.dwarves, config);
   const populationBalance = getPopulationBalance(state, config);
-  const nodeRatio = getNodeRatio(state.nodes);
-  const resources = config.resources || {};
-  if (resources.useTerrainTiles === true) {
-    const terrainAllowed = resources.terrainAllowed || {};
-    for (const resourceId of Object.keys(terrainAllowed)) {
-      const terrainRatio = getTerrainResourceRatio(state, config, resourceId);
-      const current = nodeRatio[resourceId] !== undefined ? nodeRatio[resourceId] : 0;
-      nodeRatio[resourceId] = Math.max(current, terrainRatio);
-    }
-  }
+  const nodeRatio = getObservationNodeRatio(state, config);
   const housingStats = getHousingStats(state, config);
   const raidObservation = getRaidObservation(state, config, housingStats);
   const ruinsStats = state && state.ruins ? state.ruins.stats || {} : {};
@@ -2128,27 +2118,6 @@ function getPopulationBalance(state, config) {
   }
   const ratio = 1 - Math.abs(state.dwarves.length - softCap) / softCap;
   return clamp(ratio, 0, 1);
-}
-
-// Function: getNodeRatio.
-function getNodeRatio(nodes) {
-  const totals = {};
-  const counts = {};
-
-  for (const node of nodes) {
-    const capacity = Math.max(0, Number(node.capacity || 0));
-    const remaining = Math.max(0, Number(node.remaining || 0));
-    totals[node.id] = (totals[node.id] || 0) + remaining;
-    counts[node.id] = (counts[node.id] || 0) + capacity;
-  }
-
-  const ratios = {};
-  for (const [resource, totalCapacity] of Object.entries(counts)) {
-    const totalRemaining = totals[resource] || 0;
-    ratios[resource] = totalCapacity > 0 ? clamp(totalRemaining / totalCapacity, 0, 1) : 0;
-  }
-
-  return ratios;
 }
 
 // Function: buildScenarioConfig.

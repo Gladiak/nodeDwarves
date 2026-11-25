@@ -14,7 +14,8 @@ Two plans:
 
 Players: default (no action fields), const:X, random (uniform [min,max] per decision),
 neglect (food/water weights 0.05, wood/stone 2, governors on defaults), gov:X (default job weights,
-every festival/governor head set to X).
+every festival/governor head set to X), policy:<file> (a trained policy JSON run with the game's own
+JS inference, src/ai/policy.js, deterministic mean action).
 
 Example:
   node experiments/challenge_probe.js --plan eval \
@@ -211,6 +212,9 @@ function runEpisode(task, options) {
   const { createInitialState } = require(path.join(ROOT, 'src', 'state'));
   const { stepState } = require(path.join(ROOT, 'src', 'simulation'));
   const { computeOutcomeSignals, computeOutcomeReward } = require(path.join(ROOT, 'src', 'ai', 'outcome_reward'));
+  const { loadPolicy, selectAction } = require(path.join(ROOT, 'src', 'ai', 'policy'));
+  const policy = task.player.startsWith('policy:') ? loadPolicy(path.resolve(ROOT, task.player.slice(7))) : null;
+  if (task.player.startsWith('policy:') && !policy) throw new Error(`cannot load ${task.player}`);
   const base = loadConfig(options.config ? path.resolve(ROOT, options.config) : undefined);
   const previousRandom = Math.random;
   Math.random = mulberry32(task.seed);
@@ -250,7 +254,9 @@ function runEpisode(task, options) {
     const progress = { maxDepth: signals.depth, landmarkStages: 0, prestige: 0 };
     const gain = (current, previous) => (current >= previous ? current - previous : current);
     for (let tick = 1; tick <= options.ticks; tick += 1) {
-      if ((tick - 1) % options.stepTicks === 0) action = buildAction(task.player, config, actionRng);
+      if ((tick - 1) % options.stepTicks === 0) {
+        action = policy ? selectAction(state, config, policy) : buildAction(task.player, config, actionRng);
+      }
       watchStockpile(state, flows);
       // Eval actions carry `ticks` like ai_server step payloads; the standard game passes null.
       const stepAction = options.plan === 'standard' && task.player === 'default'

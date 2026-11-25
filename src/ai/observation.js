@@ -7,6 +7,7 @@ const { getWorldEventObservation } = require('../simulation/world_events');
 const { getExternalCampStatus } = require('../simulation/external_camps');
 const { getSchismStatus } = require('../simulation/schism');
 const { getClanList, getClanShare } = require('../clans');
+const { getTerrainResourceRatio } = require('../simulation/terrain');
 
 // Build a full observation object from the current state.
 function buildObservation(state, config) {
@@ -40,7 +41,7 @@ function buildObservation(state, config) {
     season: state.season || null,
     weather: buildWeatherObservation(state, config),
     stockpileRatio,
-    nodeRatio: getNodeRatio(state.nodes || []),
+    nodeRatio: getObservationNodeRatio(state, config),
     criticalNeedsFraction: getCriticalNeedsFraction(state.dwarves || [], config),
     idleAdultsFraction: getIdleAdultsFraction(state.dwarves || []),
     populationBalance: getPopulationBalance(state, config),
@@ -1170,4 +1171,20 @@ function getNodeRatio(nodes) {
   return ratios;
 }
 
-module.exports = { buildObservation, buildFeatures };
+// Node availability per resource as the policy sees it. With terrain gathering the terrain ratio
+// counts too; ai_server.js uses this same helper so training and in-game inference stay identical.
+function getObservationNodeRatio(state, config) {
+  const ratios = getNodeRatio((state && state.nodes) || []);
+  const resources = (config && config.resources) || {};
+  if (resources.useTerrainTiles !== true) {
+    return ratios;
+  }
+  for (const resourceId of Object.keys(resources.terrainAllowed || {})) {
+    const terrainRatio = getTerrainResourceRatio(state, config, resourceId);
+    const current = ratios[resourceId] !== undefined ? ratios[resourceId] : 0;
+    ratios[resourceId] = Math.max(current, terrainRatio);
+  }
+  return ratios;
+}
+
+module.exports = { buildObservation, buildFeatures, getObservationNodeRatio };

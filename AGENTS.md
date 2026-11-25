@@ -166,7 +166,7 @@ This file defines how to implement new features in a consistent, stable way.
 - `python/regression_rollout.py`: rollout-only randomized regression runner (no PPO updates, no checkpoint writes).
 - `python/agent.py`: example Python agent.
 - `experiments/`: measurement tools used by the `STRATEGY.md` protocol.
-  - `challenge_probe.js`: in-process scorecard for synthetic players (stock flows, reserve autonomy, labor mix, deaths, outcome-reward score) on the eval plan or the `npm start` game, with `--set` A/B overrides.
+  - `challenge_probe.js`: in-process scorecard for synthetic players and trained policies (`policy:<file>`, game JS inference): stock flows, reserve autonomy, labor mix, deaths, outcome-reward score, progress; eval plan or the `npm start` game, with `--set` A/B overrides.
   - `eval_paired.py`: paired evaluation of real policies through `ai_server.js` (`--outcomes`, `rpp`), plus default/constant/random/per-group probes.
   - `exp_run.js`: isolated m4-pro training variants (`--fresh-start`, `--chain`, `--set`, `--freeze-only`); never writes `models/`, verifies it by hash.
   - `leverage_probe.py`: resumable per-governor-group leverage probe with paired report.
@@ -209,6 +209,7 @@ This file defines how to implement new features in a consistent, stable way.
 - Training must be resumable from the best-eval snapshot (default `models/policy_best.json`).
 - If observation/action shapes change, require `--fresh` training.
 - Keep the observation layout identical across `ai_server.js`, `src/ai/policy.js` and `python/train.py` (shared plan in `src/ai/observation_layout.js`).
+- Training and in-game inference must see the same observation values: share helpers between `ai_server.js` and `src/ai/observation.js` (e.g. `getObservationNodeRatio`) and re-run the `STRATEGY.md` S1 parity check after any observation change.
 - The critic predicts normalized returns with output-preserving rescaling; only true terminal states (extinction) cut bootstrap, time limits bootstrap.
 - The reward is the compact outcome reward (`src/ai/outcome_reward.js`, weights in `ai.reward`); keep it short and tied to colony outcomes. Check new terms with `experiments/challenge_probe.js` (score vs final population and avoidable deaths) before training.
 - Promotion compares policies over 8,000 ticks with `rpp` (reward per planned tick), so an early extinction scores zero for the ticks it did not live.

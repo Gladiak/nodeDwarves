@@ -77,7 +77,7 @@ relative to default. It measures how much of the outcome decisions control and m
 
 | Tool | Purpose | Cost |
 |---|---|---|
-| `challenge_probe.js` | In-process scorecard: synthetic players (`default`, `const:X`, `random`, `neglect`, `gov:X`), stock flows, reserve autonomy, labor mix, deaths, outcome-reward score, progress (max Underrealm depth, landmark stages, prestige); `--set path=value` A/B on the effective config; `--plan eval` or `standard` | 48 games x 8,000 ticks in ~3 min |
+| `challenge_probe.js` | In-process scorecard: synthetic players (`default`, `const:X`, `random`, `neglect`, `gov:X`) and trained ones (`policy:<file>`, the game's JS inference), stock flows, reserve autonomy, labor mix, deaths, outcome-reward score, progress (max Underrealm depth, landmark stages, prestige); `--set path=value` A/B on the effective config; `--plan eval` or `standard` | 48 games x 8,000 ticks in ~3 min |
 | `eval_paired.py` | Paired evaluation of real policies through `ai_server.js` (`--outcomes` adds population, deaths by cause, `rpp`) | 24 games x 8,000 ticks in ~3 min |
 | `exp_run.js` | Isolated training variants (`--fresh-start`, `--chain k`, `--set phase:--flag=value`, `--freeze-only`); never writes `models/` | ~6 min per run |
 | `leverage_probe.py` | One governor group at an extreme vs default | ~1 h |
@@ -108,6 +108,8 @@ Paired by seed. "Pop" = final population; "avoidable" = deaths excluding old age
 | E17 | 11-24 | Old game could not be lost | 0 extinctions, 0 starvation for every player; neglect -5% pop; beer 0.028 vs water 0.0005 per dwarf-tick; idle 21-37% | Tighten economy |
 | E18 | 11-24 | Tight economy applied | 12 games: default 70, gov:0 96, random 89, neglect 23 (7 ext.), const 0 1 (11 ext.); yields were rounded to >= 1 unit (bug); stronger raids rejected (tax without counterplay); node regen inert (terrain tiles) | Current game |
 | E19 | 11-24 | Outcome reward + 8k `rpp` gate | reward vs pop r = 0.89, 93% pairs ranked like pop; table below | Training learns again |
+| E20 | 11-25 | Train/serve skew: the game fed policies different inputs than training | `nodeScarcity` (4 of 79 inputs) was ~0.85-0.98 in training (terrain tiles counted) and always 0 in game inference; first decisions differed across governor thresholds; JS vs Python on 24 games: replicate 2 84.0 vs 71.5 (z ~-2), replicate ranking reversed | Shared `getObservationNodeRatio`; after the fix first decisions match to 1e-7 and JS/Python means agree within one SE (+1.0, -7.3, +1.8) |
+| E21 | 11-25 | Evaluation speed is not the bottleneck | 24 games x 8,000 ticks: `eval_paired.py` 61 s, in-process JS 60 s; per worker ~270 ticks/s at late-game population (3.7 ms/tick) | Keep `eval_paired.py` as the reference evaluator; noise, not speed, limits decisions |
 
 E19, 24 games x 8,000 ticks (seed base 100000):
 
@@ -128,8 +130,10 @@ but loses in `baseline` (72 vs 98); `gov:0` beats it in `full_sim`, `ruins_focus
 `warrior_realism_pressure`.
 
 Throughput: inside training the Node env costs 2.2-2.4 ms per 2-tick step (~1.15 ms per simulated
-tick, 7 workers); the same simulation in-process costs ~0.48 ms per tick (8 workers). About half of
-the env time is per-decision work (metrics, observation, reward, JSON), not simulation.
+tick, 7 workers) on short 2,800-tick episodes with small colonies. Full 8,000-tick games cost ~3.7 ms
+per tick per worker (~270 ticks/s, 8 workers) because cost grows with population; in-process and
+Python-IPC evaluation run at the same speed (E21). An earlier claim that half of the env time was
+per-decision overhead came from misreading an aggregate rate as per-worker and is withdrawn.
 
 ---
 
@@ -151,7 +155,7 @@ Ranked by expected impact.
   watch a needlessly poor colony.
 - **D3. Decision cadence and credit assignment.** One decision every 2 ticks means 4,000 decisions in
   a gate game, while consequences (famines, aging, raids) unfold over hundreds to thousands of ticks.
-  The per-decision overhead also costs about half of the env time.
+  The speed cost of frequent decisions is unmeasured (E21 withdrew the earlier estimate).
 - **D4. Horizon mismatch.** Foundation episodes last 2,800 ticks; the gate judges 8,000. Founder
   infertility (from ~4,300 ticks) and old age (5,200-7,600) are never seen in training (E10).
 - **D5. Observation misses the signals that predict outcomes.** No food/water autonomy, time to
@@ -160,9 +164,10 @@ Ranked by expected impact.
 - **D6. Simulation fairness and depth.** Founders share one age window (180-700 ticks), so the
   colony hits a synchronized demographic cliff; progress systems were tuned for 600+ dwarves and
   now rarely fire; deep raids kill without a decision that can prevent them.
-- **D7. Evaluation cost and noise.** Real policies are evaluated through Python IPC; the paired SE
-  of a population delta is ~7 dwarves at 24 games, so gains below ~15% are hard to confirm. The JS
-  inference path used by the game is not used for evaluation.
+- **D7. Evaluation noise and train/serve parity.** The paired SE of a population delta is ~7 dwarves
+  at 24 games and training replicates differ by SD 9 (S0), so gains below ~15% are hard to confirm;
+  speed is not the limit (E21). The game's JS inference fed policies different inputs than training
+  until E20; parity must be re-checked whenever observations change.
 - **D8. Stale production state.** Production policy, regression baselines and model reports refer to
   the old game.
 - **D9. The game corrects itself.** Hard-coded reflexes act exactly when decisions matter most:
@@ -203,12 +208,17 @@ note whether the colony reads as challenging or merely frustrating.
 - Pass: scorecard v1 recorded in section 8 with means and replicate SD. Done 2026-11-25: replicate
   SD 9.1 dwarves, paired SE ~7 per replicate (section 8, "Scorecard v1").
 
-### S1. Fast native policy evaluation (D7)
-- Add a `policy:<file>` player to `challenge_probe.js` using `src/ai/policy.js` (the game's own
-  inference), so real policies run in-process like synthetic players.
-- Pass: on the S0 games, mean population within one paired SE of `eval_paired.py` and the same
-  win/loss sign vs default in >= 80% of games; >= 3x faster. Afterwards every decision uses 48 games
-  (seeds 100000-100047), cutting SE by ~30%.
+### S1. Native policy evaluation and train/serve parity (D7) - done 2026-11-25
+- Added a `policy:<file>` player to `challenge_probe.js` using `src/ai/policy.js` (the game's own
+  inference).
+- Outcome: no speed gain (E21: 60 s vs 61 s for 24 games), but the parity check found that the game
+  fed policies different inputs than training (E20). Fixed with one shared helper; first decisions
+  now match to 1e-7 and JS/Python means agree within one SE on all 3 replicates.
+- Games still diverge after the first decisions (0 of 24 identical; win/loss sign vs default agrees
+  in 12-19 of 24): float32 vs float64 inference plus a chaotic simulation. Use the JS player for
+  distribution-level checks of what the game plays, and `eval_paired.py` for paired decisions.
+- Standing rule: every observation change re-runs this parity check (first-decision match and mean
+  population within one SE). Decisions use 48 games (seeds 100000-100047) at ~2 minutes each.
 
 ### S2. Steward reference strategy (D2)
 - A config-driven, state-aware no-AI posture: risky governors (ruins dispatch, Underrealm push,
@@ -287,8 +297,8 @@ most 3 of 12 scenarios; fewer action heads than today (29).
 - Try a two-level policy: a seasonal plan chosen at the start of each season (growth, reserves, risk,
   workforce) plus small adjustments at the regular cadence; it shortens credit assignment to a few
   decisions per year. Adopt it only if it beats the flat policy under the same pass criteria.
-- Pass: Node env time per simulated tick down >= 40% (from ~1.15 ms); equal or better result at equal
-  wall-clock; improvement per run: 3 chained runs where each run is >= the previous minus one SE and
+- Pass: training wall-clock per simulated tick down >= 25% at equal episode length; equal or better
+  result at equal wall-clock; improvement per run: 3 chained runs where each run is >= the previous minus one SE and
   run 3 beats run 1 by >= 5% population with z >= 2.
 
 ### S6. Observation v2 (D5, fresh training)
@@ -386,7 +396,8 @@ Deterministic regression of the no-AI game: `npm run bench:candidate` then `npm 
 | 2026-11-24 | S0 | Plan reordered: steward (now S2) before simulation changes (now S3) |
 | 2026-11-25 | D1 | S4 rewritten around a lever audit: expose growth, reserves, workforce, build priority, risk and defense only if they measurably move outcomes |
 | 2026-11-25 | D9-D12 | Added: reflexes move into the steward, widened lever ranges, per-game variety (S3d), rationing/trade/event/scouting levers, seasonal two-level policy, council decrees, AI control share metric |
-| next | S1 | Fast native policy evaluation |
+| 2026-11-25 | S1 | Train/serve skew fixed (E20); speed hypothesis withdrawn (E21); `eval_paired.py` stays the reference evaluator |
+| next | S2 | Steward reference strategy |
 
 ### Scorecard v1 (S0, session `experiments/runs/2026-11-24_s0`, commit a5e3998, git-ignored)
 
