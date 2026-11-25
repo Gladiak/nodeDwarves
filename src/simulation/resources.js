@@ -1,5 +1,6 @@
 'use strict';
 
+const { composeModifiers } = require('./modifier_ledger');
 const { clamp } = require('../utils');
 const { getClanEffects } = require('../clans');
 const { getSeasonModifier } = require('./season');
@@ -481,24 +482,27 @@ function getGatherYield(config, resourceId, node, state) {
   const specific = jobs.gatherYield && jobs.gatherYield[resourceId];
   const value = specific !== undefined ? specific : jobs.defaultGatherYield;
   const baseYield = Math.max(0, Number(value ?? 1));
-  const multiplier = getSeasonModifier(state, 'gatherYield', 1)
-    * getWeatherModifier(state, config, 'gatherYield', 1)
-    * getMythMultiplier(state, config, 'gatherYield', 1)
-    * getWorldEventModifier(state, 'gatherYield', 1)
-    * getFestivalModifier(state, 'gatherYield', 1)
-    * getSchismModifier(state, 'gatherYield', 1);
-  const toolMultiplier = getToolMultiplier(state, config, resourceId);
-  const forgeMultiplier = getForgeMultiplier(state, config);
-  const beerMultiplier = getBeerProductionMultiplier(state, config, resourceId);
-  const contractMultiplier = 1 + getContractProductionBonus(state);
-  const templeMultiplier = getTempleOutputMultiplier(state, config, resourceId);
-  const product = baseYield
-    * multiplier
-    * toolMultiplier
-    * forgeMultiplier
-    * beerMultiplier
-    * contractMultiplier
-    * templeMultiplier;
+  const season = getSeasonModifier(state, 'gatherYield', 1);
+  const weather = getWeatherModifier(state, config, 'gatherYield', 1);
+  const myths = getMythMultiplier(state, config, 'gatherYield', 1);
+  const worldEvents = getWorldEventModifier(state, 'gatherYield', 1);
+  const festival = getFestivalModifier(state, 'gatherYield', 1);
+  const schism = getSchismModifier(state, 'gatherYield', 1);
+  const environment = season * weather * myths * worldEvents * festival * schism;
+  const tools = getToolMultiplier(state, config, resourceId);
+  const forge = getForgeMultiplier(state, config);
+  const beer = getBeerProductionMultiplier(state, config, resourceId);
+  const contracts = 1 + getContractProductionBonus(state);
+  const temple = getTempleOutputMultiplier(state, config, resourceId);
+  // Same multiplication order as before the ledger, so yields stay bit-identical when unbounded.
+  const product = composeModifiers(state, config, 'gatherYield', resourceId, baseYield, [
+    ['environment', environment], ['tools', tools], ['forge', forge], ['beer', beer],
+    ['contracts', contracts], ['temple', temple],
+  ], [
+    ['season', season], ['weather', weather], ['myths', myths], ['worldEvents', worldEvents],
+    ['festival', festival], ['schism', schism], ['tools', tools], ['forge', forge], ['beer', beer],
+    ['contracts', contracts], ['temple', temple],
+  ]);
   // Yields are fractional so seasons, weather and bonuses scale every trip proportionally.
   const scaledYield = Math.max(0, Math.round(product * 1000) / 1000);
   if (!node) {

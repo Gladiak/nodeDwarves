@@ -111,6 +111,11 @@ Paired by seed. "Pop" = final population; "avoidable" = deaths excluding old age
 | E20 | 11-25 | Train/serve skew: the game fed policies different inputs than training | `nodeScarcity` (4 of 79 inputs) was ~0.85-0.98 in training (terrain tiles counted) and always 0 in game inference; first decisions differed across governor thresholds; JS vs Python on 24 games: replicate 2 84.0 vs 71.5 (z ~-2), replicate ranking reversed | Shared `getObservationNodeRatio`; after the fix first decisions match to 1e-7 and JS/Python means agree within one SE (+1.0, -7.3, +1.8) |
 | E22 | 11-25 | The emergency reflex is a poverty trap and the only growth brake | eval plan 24 games: emergency off -> default 57 -> 94 (z 5.6), gov:0 96 -> 124; standard game 20k ticks, 8 seeds, emergency at 0.15: default and gov:0 4/8 extinctions (boom to 200-370 dwarves by 6k ticks, empty larder, famine, aging collapse); water x3 boost off rescues neglect (crowds out food) | Keep `emergencyMinRatio` 0.52 until a growth lever exists (S3/S4a) |
 | E23 | 11-25 | Steward: a fixed "hold every venture back" posture beats state-aware variants | eval 24 games: 96.4 (gov:0 96.0, default 57.0), avoidable 10.0, 0 extinctions; standard 8 seeds: 8k 201 (gov:0 182, default 116), 20k 128 (default 69, gov:0 73, 2/8 extinctions vs 1 and 2); opening ventures when reserves >= 3 per dwarf: 87.8 eval, 101 at 20k | Steward on by default with all governor groups restrained; the difference with gov:0 is the social group, which gov:0 leaves on defaults |
+| E24 | 11-25 | Config read trace: few keys are dead, much content is unreachable | proxy trace over `npm test`, 120 eval games (5 players incl. a trained policy), 20k-tick games, eval server and a mini training: of 4,326 values 3,959 read; dead (no code path): the whole `population.relationships.socialDrama` block (53 values, an old duplicate of `population.socialDrama`), armory `equipment_tier_max` (10), 3 house storage keys, 1 ritual context key, external-camp influence/outline symbols and colors (6); deleted, games bit-identical. Never triggered in 120 games: festivals, alchemy formulas (78 values), traveling bards, ruin set/combo bonuses, forge/armory upgrades | Dead keys removed; unreachable content listed for S3 |
+| E25 | 11-25 | System ablation (R1, 24 games, steward) | economic (|z| >= 2): raids (off: +21.6 pop, -7.9 avoidable deaths), landmarks, Underrealm and ruins (progress -75, -31, -18); narrative drags (off: +10 to +13 pop, z 1.3-1.9): schism, social drama, wildlife; schism, social drama, warriors and temple each write 14-17% of events; no effect within 8,000 ticks: endgame, festivals, prestige, villages, world legacy | Systems labelled; festivals are dead content |
+| E26 | 11-25 | Job weights had leverage only through the water boost | water priority boost applied on top of policy weights; with boosts limited to default weights (R4) neglect 59.5 -> 94.2 (z 3.5), default unchanged (24/24 identical) | Job weights are a weak AI lever (S4a); bad-play reference becomes "everything on" (gov:2) |
+| E27 | 11-25 | The AI was trained and evaluated on other economies than the game | training and eval overrides restated needs, consumption, stocks, targets, 60 explicit food nodes (game: terrain), reproduction (soft cap 32/48 vs 620, birth chance x3.6), structure caps, expedition rules and 20 founders; removed (R5). Scorecard v2 on the game economy, 24 games x 8,000 ticks: steward 181.8, gov:0 181.8 (identical), everything on 93.2 (-49%, 1 extinction, 23 starvation), random 114.2 (-37%), neglect 163.4 (-10%, z -0.6) | All earlier eval-plan numbers (S0-S2) describe the old eval economy |
+| E28 | 11-25 | Sensitivity screen (R6): water is the binding constraint, 18 of 50 core keys move outcomes | steward, eval plan, 24 games x 8,000 ticks, each key at -25% and +25% (paired high minus low; baseline pop 181.8); strongest (|z| >= 3): thirst decay (pop -157, progress -35), thirst threshold (pop +97, avoidable +37), water yield (pop +102, progress +24), hunger decay (pop -70), old-age start (+50) and max age (+38), housing build target (pop -61, progress -18), birth food reserve ratio (progress +9); marginal (2 <= |z| < 3): base birth chance (progress -14), food yield, food gather ticks, food trigger ratio, raw food relief, water relief, hunger threshold, birth water per dwarf, emergency ratio (progress -12), raid chance max (avoidable +22); inert (exactly 0): raid chance/death minimums (eval runs at difficulty 1) and the steward reserve (no cautious group); no measurable effect: beer, brewery, winter/autumn modifiers, stock targets and starting stocks, founders, wood/stone, roles, soft cap; ~7 of 150 tests are expected above |z| 2 by chance, so marginal single-metric keys are provisional | `CORE_KEYS` = the 18 sensitive keys, the other 32 move to `FROZEN_KEYS`; S3 starts from the water economy, lifespan and housing labor |
 | E21 | 11-25 | Evaluation speed is not the bottleneck | 24 games x 8,000 ticks: `eval_paired.py` 61 s, in-process JS 60 s; per worker ~270 ticks/s at late-game population (3.7 ms/tick) | Keep `eval_paired.py` as the reference evaluator; noise, not speed, limits decisions |
 
 E19, 24 games x 8,000 ticks (seed base 100000):
@@ -282,6 +287,32 @@ economy and where decisions are taken. One sub-step at a time:
   chain; the Colony Report explains active modifiers; scorecard unchanged within noise after the
   bounded ledger.
 
+Status 2026-11-25: step R done (R1-R6).
+- Dead keys (E24): trace tool `scripts/config_trace.js` + `scripts/audit_config.js`; 21 dead paths
+  (84 lines) deleted, games bit-identical.
+- R1 (E25): raids, landmarks, Underrealm and ruins are economic; schism, social drama and wildlife are
+  narrative drags; endgame, festivals, prestige, villages and world legacy never act within 8k ticks.
+- R2: 4,253 values; 298 never read because their situation never occurs; 50 core tuning keys listed in
+  `scripts/audit_config.js` (`CORE_KEYS`), everything else frozen.
+- R3: `src/simulation/modifier_ledger.js`; gather yield (11 factors), need decay (11) and birth chance
+  (5) go through it, bit-identical; bounds `simulation.modifierBounds` (yield 0.35-1.6, need decay
+  0.8-1.4) sit just outside the observed range (yield 0.40-1.34, need decay 0.86-1.25 over ~2,900
+  samples), so they never bind today but stop runaway stacks; Colony Report Economy page "What
+  drives the economy" shows the multiplier and its strongest factors.
+- R4: decision chain policy -> council (steward) -> engine defaults, with emergency gathering as the
+  single engine guard; priority boosts adjust only default weights (E26); the Council row reports who
+  decided how many groups.
+- R5 (E27): training and eval overrides keep only profile keys (`events`, `ai`, `merchant`,
+  `endgame`); a contract in `test_core_simulation_contracts.js` fails on any non-profile section or
+  core key in them.
+- R6 (E28): `experiments/sensitivity_screen.js` (100 variants, ~3.2 h); 18 keys move outcomes and form
+  the tuning surface (`CORE_KEYS`), 32 are frozen (`FROZEN_KEYS`, still protected from overrides by the
+  contract). Water dominates: thirst decay, thirst threshold and water yield move population by
+  100-160 dwarves for a +/-25% change, so the economy sits on a knife edge on the water side;
+  lifespan and housing labor come next. Inputs for S3: S3-0 growth control must reason about water
+  first; S3a founder ages touch the two lifespan keys; S3d variety ranges must stay narrow on the
+  water keys or extinction rates jump.
+
 ### S3. Simulation fairness and earned progress (D6)
 One sub-change at a time, each A/B'd with `--set` before it becomes a default:
 - S3-0 growth control (first, E22): births follow sustainable food and water production rather than
@@ -375,7 +406,7 @@ most 3 of 12 scenarios; fewer action heads than today (29).
 
 Rules:
 - Pair every comparison by seed; report mean delta, SE, z, wins and extinctions.
-- Simulation changes: 4 players (`default`, `gov:0` or steward, `random`, `neglect`), >= 24 games
+- Simulation changes: 4 players (`default` = steward, `gov:2` = everything on, `random`, `neglect`), >= 24 games
   (48 after S1), 8,000 ticks; a 20,000-tick check only when a change affects aging or long cycles.
 - Training changes: 3 fresh replicates, each evaluated on the same games; adopt when the pooled delta
   on final population (primary) or `rpp` has z >= 2, avoidable deaths and extinctions do not worsen
@@ -431,6 +462,8 @@ Deterministic regression of the no-AI game: `npm run bench:candidate` then `npm 
 | Trainer | `ai.training.trainer` | gamma 0.998, 2 ticks per step, 2x128 |
 | Steward | `ai.steward` | on; decisions every 20 ticks; all 9 governor groups restrained; safe reserve 3 per dwarf and 30 dwarves for future cautious groups |
 | Emergency reflex | `population.roles.emergencyMinRatio` | 0.52 (see E22 before lowering) |
+| Modifier bounds | `simulation.modifierBounds` | gather yield 0.35-1.6, need decay 0.8-1.4 |
+| Core keys | `scripts/audit_config.js` `CORE_KEYS` / `FROZEN_KEYS` | 18 tuned keys with a measured effect (E28); 32 screened keys frozen |
 
 ---
 
@@ -451,7 +484,9 @@ Deterministic regression of the no-AI game: `npm run bench:candidate` then `npm 
 | 2026-11-25 | S1 | Train/serve skew fixed (E20); speed hypothesis withdrawn (E21); `eval_paired.py` stays the reference evaluator |
 | 2026-11-25 | S2 | Steward on by default with every venture group restrained (E23); emergency reflex kept (E22); council decrees and Colony Report row added |
 | 2026-11-25 | D13 | Rationalization step R inserted before S3: system ablation, key classification, modifier ledger, one decision chain, three-level config, sensitivity screen |
-| next | R1 | System ablation, then S3 growth control on the rationalized core |
+| 2026-11-25 | R1-R5 | Dead keys removed; systems labelled; 50 core keys; modifier ledger with bounds; one decision chain; overrides profile-only (E24-E27) |
+| 2026-11-25 | R6 | Tuning surface cut to 18 measured keys, 32 frozen (E28); step R complete |
+| next | S3-0 | Growth control: births follow sustainable water and food production, then lower the emergency reflex |
 
 ### Scorecard v1 (S0, session `experiments/runs/2026-11-24_s0`, commit a5e3998, git-ignored)
 

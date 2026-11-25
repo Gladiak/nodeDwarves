@@ -1,6 +1,7 @@
 'use strict';
 
 const { applySteward } = require('./steward');
+const { composeModifiers } = require('./modifier_ledger');
 const { updateSeason, getSeasonModifier } = require('./season');
 const { updateWeather, getWeatherModifier, getWeatherNeedMultipliers } = require('./weather');
 const { updateRaidStart, updateRaidTick } = require('./raids');
@@ -88,6 +89,17 @@ function stepStateInner(state, config, runtime, action, options = {}) {
     ? state.weather.type === 'storm' || state.weather.type === 'cold'
     : false;
 
+  const seasonNeedMultiplier = getSeasonModifier(state, 'needDecay', 1);
+  // Need-decay factors in their historical multiplication order (bit-identical when unbounded).
+  const needFactors = (clanNeedMultiplier) => [
+    ['housing', housingPenalty.needDecay], ['weather', weatherNeedMultiplier], ['endgame', endgameDifficulty],
+    ['clan', clanNeedMultiplier], ['myths', mythNeedMultiplier], ['alchemy', alchemyNeedMultiplier],
+    ['worldEvents', worldNeedMultiplier], ['festival', festivalNeedMultiplier], ['temple', templeNeedMultiplier],
+    ['schism', schismNeedMultiplier],
+  ];
+  composeModifiers(state, config, 'needDecay', 'colony', seasonNeedMultiplier, needFactors(1),
+    [['season', seasonNeedMultiplier], ...needFactors(1).filter(([name]) => name !== 'clan')]);
+
   for (const dwarf of state.dwarves) {
     const clanEffects = getClanEffects(config, dwarf.clanId);
     const stormColdBonus = Math.max(0, Number(clanEffects.storm_cold_need_decay_bonus || 0));
@@ -98,17 +110,7 @@ function stepStateInner(state, config, runtime, action, options = {}) {
     applyNeedDecay(
       dwarf,
       config.needs.decayPerTick || {},
-      getSeasonModifier(state, 'needDecay', 1)
-        * housingPenalty.needDecay
-        * weatherNeedMultiplier
-        * endgameDifficulty
-        * clanNeedMultiplier
-        * mythNeedMultiplier
-        * alchemyNeedMultiplier
-        * worldNeedMultiplier
-        * festivalNeedMultiplier
-        * templeNeedMultiplier
-        * schismNeedMultiplier,
+      composeModifiers(null, config, 'needDecay', null, seasonNeedMultiplier, needFactors(clanNeedMultiplier)),
       weatherNeedByNeed,
     );
     consumeResources(dwarf, state, config);

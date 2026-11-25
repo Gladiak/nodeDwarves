@@ -80,6 +80,7 @@ This file defines how to implement new features in a consistent, stable way.
 - `src/simulation/underrealm.js`: underrealm crew assignment, deep economy, exploration unlocks, and hostile deep raids.
 - `src/simulation/world_events.js`: world event lifecycle, timed opportunities, and temporary world modifiers.
 - `src/simulation/external_camps.js`: long-lived external faction camps with trade, militia support, and raider pressure.
+- `src/simulation/modifier_ledger.js`: named, bounded multiplier stacks for gather yield, need decay and birth chance (STRATEGY.md R3), with the latest breakdown in `state.modifierLedger` for the Colony Report.
 - `src/simulation/steward.js`: Colony Council posture (STRATEGY.md S2): fills the action groups no policy provides, restrained/cautious governor groups from `ai.steward`, RNG-free, `council.posture_changed` decrees.
 - `src/simulation/schism.js`: run-scale social schism arc (pressure/legitimacy, doctrine shifts, ritual windows, decrees, climax lifecycle, and committed structured-event integration).
 - `src/simulation/social_drama.js`: social-drama runtime for friendship/rivalry/mentorship/grudge inference and aggregate social pressure/cohesion metrics.
@@ -128,6 +129,8 @@ This file defines how to implement new features in a consistent, stable way.
 - `src/dwarf_lore.js`: deterministic lore seed and generation for identity, inspect, and narrative consumers.
 - `src/utils.js`: shared helpers.
 - `ai_server.js`: JS inference bridge for training.
+- `scripts/config_trace.js`: preload (`NODE_OPTIONS=-r`) that records which config paths a run reads, for the config audit.
+- `scripts/audit_config.js`: config audit (trace-based never-read keys, section classes) the `CORE_KEYS` tuning surface and the screened `FROZEN_KEYS`.
 - `scripts/export_map.js`: CLI map export pipeline (PNG + SVG).
 - `scripts/train_continuous.js`: cycle orchestrator for continuous AI training cadence and periodic validation gates.
 - `scripts/regression.js`: AI regression harness and profile recording.
@@ -172,6 +175,7 @@ This file defines how to implement new features in a consistent, stable way.
   - `exp_run.js`: isolated m4-pro training variants (`--fresh-start`, `--chain`, `--set`, `--freeze-only`); never writes `models/`, verifies it by hash.
   - `leverage_probe.py`: resumable per-governor-group leverage probe with paired report.
   - `analyze.py`: paired-delta summary of `exp_run.js` variants.
+  - `sensitivity_screen.js`: resumable one-at-a-time +/-25% screen of `CORE_KEYS` (`--keys all` adds `FROZEN_KEYS`) with paired effects on population, avoidable deaths and progress.
   - `runs/`: git-ignored session outputs.
 
 ## Config-first changes
@@ -180,7 +184,10 @@ This file defines how to implement new features in a consistent, stable way.
 - Record difficulty, reward, gate and trainer knobs in the `STRATEGY.md` tuning surface; keep only player-facing impact in `README.md`. The authoritative complete parameter set is `config.json`.
 - Avoid comments in JSON.
 - Keep ratios in [0, 1] where possible to simplify tuning.
-- Keep `ai.training.configOverrides` and `evalOverrides` aligned with the base economy so training plays the same game as `npm start`.
+- `ai.training.configOverrides` and `evalOverrides` hold profile keys only (`events`, `ai`, `merchant`, `endgame`); the economy comes from the base config and scenarios (enforced by a core contract).
+- New economic effects from any system enter through `src/simulation/modifier_ledger.js` with a named factor, never as a new inline multiplier.
+- Decision chain: policy, then council (steward), then engine defaults; the engine may only add last-resort guards (today: emergency gathering), never adjust a policy's choices.
+- Before deleting config keys, trace real reads with `scripts/config_trace.js` and `scripts/audit_config.js`; a key absent from the trace may be content that never triggered.
 
 ## Simulation rules
 

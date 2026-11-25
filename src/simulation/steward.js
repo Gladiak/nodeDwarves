@@ -73,6 +73,31 @@ function applySteward(state, config, action) {
   if (!settings.enabled) {
     return action;
   }
+  const result = applyStewardGroups(state, config, action, settings);
+  recordDecisionSources(state, action, result);
+  return result;
+}
+
+// Record who decided each action group this tick: policy, council (steward) or engine default.
+function recordDecisionSources(state, action, result) {
+  const source = action && typeof action === 'object' ? action : {};
+  const merged = result && typeof result === 'object' ? result : {};
+  const counts = { policy: 0, council: 0, default: 0 };
+  for (const group of ['weights', ...GROUPS]) {
+    const fromPolicy = group === 'weights'
+      ? Boolean(source.weights || (source.jobs && source.jobs.weights))
+      : Object.prototype.hasOwnProperty.call(source, group);
+    if (fromPolicy) counts.policy += 1;
+    else if (Object.prototype.hasOwnProperty.call(merged, group)) counts.council += 1;
+    else counts.default += 1;
+  }
+  if (state.steward) {
+    state.steward.sources = counts;
+  }
+}
+
+// Decide the posture when due and merge the council groups under the caller's action.
+function applyStewardGroups(state, config, action, settings) {
   const previous = state.steward && typeof state.steward === 'object' ? state.steward : null;
   const due = !previous || !Number.isFinite(previous.decidedTick)
     || Number(state.tick || 0) - previous.decidedTick >= settings.decisionTicks;

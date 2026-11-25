@@ -16,6 +16,8 @@ const { updateRaidStart, updateRaidTick } = require('../src/simulation/raids');
 const { buildObservation } = require('../src/ai/observation');
 const { computeOutcomeSignals, computeOutcomeReward } = require('../src/ai/outcome_reward');
 const { applySteward } = require('../src/simulation/steward');
+const { composeModifiers, describeModifiers } = require('../src/simulation/modifier_ledger');
+const { CORE_KEYS, FROZEN_KEYS } = require('./audit_config');
 const { createRefinementTracker, trackRefinementTick, getRefinementReport,
   summarizeRefinementReports } = require('../src/telemetry/refinement');
 
@@ -204,6 +206,33 @@ test('steward fills only missing groups, judges posture from reserves and stays 
     assert((state.events || []).length > eventsBefore, 'posture change emits a council decree');
   } finally {
     Math.random = original;
+  }
+});
+
+test('modifier ledger keeps product order, bounds the multiplier and explains factors', (config, state) => {
+  const factors = [['season', 0.45], ['festival', 1.1], ['temple', 1.07]];
+  const inline = 2 * 0.45 * 1.1 * 1.07;
+  config.simulation = { modifierBounds: {} };
+  assert.equal(composeModifiers(state, config, 'gatherYield', 'food', 2, factors), inline, 'unbounded is bit-identical');
+  const described = describeModifiers(state, 'gatherYield', 'food');
+  assert.equal(described.movers[0][0], 'season', 'strongest factor first');
+  config.simulation.modifierBounds.gatherYield = { min: 0.6, max: 1.6 };
+  assert.equal(composeModifiers(state, config, 'gatherYield', 'food', 2, factors), 2 * 0.6, 'multiplier clamped to min');
+  assert.equal(describeModifiers(state, 'gatherYield', 'food').multiplier, 0.6);
+  assert.equal(composeModifiers(null, config, 'gatherYield', null, 2, [['boom', 5]]), 2 * 1.6, 'multiplier clamped to max');
+});
+
+test('training and eval overrides set only profile keys, never the economy', (config) => {
+  const PROFILE = ['events', 'ai', 'merchant', 'endgame'];
+  const training = config.ai.training;
+  for (const name of ['configOverrides', 'evalOverrides']) {
+    const extra = Object.keys(training[name] || {}).filter((key) => !PROFILE.includes(key));
+    assert.deepEqual(extra, [], `${name} restates non-profile sections: ${extra.join(', ')}`);
+    for (const key of [...CORE_KEYS, ...FROZEN_KEYS]) {
+      let node = training[name];
+      for (const part of key.split('.')) node = node && typeof node === 'object' ? node[part] : undefined;
+      assert.equal(node, undefined, `${name} restates core key ${key}`);
+    }
   }
 });
 

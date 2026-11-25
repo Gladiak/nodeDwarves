@@ -147,7 +147,10 @@ function assignJobs(state, config, runtime, action) {
   const resourceConfig = config.resources || {};
   const targets = resourceConfig.targets || resourceConfig.stockpile || {};
   const weights = getActionWeights(action, config);
-  const shortages = computeShortages(state, targets, weights, config);
+  // Decision chain (STRATEGY.md R4): weights chosen by a policy are final; engine priority boosts
+  // only adjust the default weights.
+  const policyWeights = getRawActionWeights(action) !== null;
+  const shortages = computeShortages(state, targets, weights, config, { priorityBoosts: !policyWeights });
   const workshops = (state.structures || []).filter(
     (structure) => structure.type === "workshop",
   );
@@ -1733,7 +1736,7 @@ function getGatherTriggerRatio(config, resourceId) {
 }
 
 // Compute shortage list sorted by urgency.
-function computeShortages(state, targets, weights, config) {
+function computeShortages(state, targets, weights, config, options = {}) {
   const shortages = [];
   const aiConfig = config && config.ai ? config.ai : {};
   const priorityBoosts = aiConfig.priorityBoosts || {};
@@ -1759,7 +1762,7 @@ function computeShortages(state, targets, weights, config) {
       const numericWeight = Number(weightRaw);
       const baseWeight = Number.isFinite(numericWeight) ? Math.max(0, numericWeight) : 1;
       let weight = baseWeight;
-      const boostConfig = priorityBoosts && priorityBoosts[resource];
+      const boostConfig = options.priorityBoosts !== false && priorityBoosts && priorityBoosts[resource];
       let boostApplied = false;
       let boostSeverity = 0;
       let boostMultiplier = 1;

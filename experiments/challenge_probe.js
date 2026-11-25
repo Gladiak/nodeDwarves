@@ -26,6 +26,8 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { Worker, isMainThread, parentPort, workerData } = require('worker_threads');
+// Optional config-read tracing for the config audit (scripts/config_trace.js); inert by default.
+const configTrace = process.env.CONFIG_TRACE_OUT ? require(path.join(__dirname, '..', 'scripts', 'config_trace.js')) : null;
 
 const ROOT = path.resolve(__dirname, '..');
 const TRACKED = ['food', 'water', 'beer', 'wood', 'stone'];
@@ -237,7 +239,7 @@ function runEpisode(task, options) {
     const state = createInitialState(config, runtime);
     const flows = Object.fromEntries(TRACKED.map((key) => [key, { inflow: 0, outflow: 0 }]));
     const actionRng = mulberry32((task.seed ^ 0x9e3779b9) >>> 0);
-    const targets = config.resources.targets || {};
+    const targets = { ...(config.resources.targets || {}) };
     const samples = [];
     const deaths = {};
     let births = 0;
@@ -253,6 +255,10 @@ function runEpisode(task, options) {
     // Progress milestones (cycle-safe: counters that reset count from zero).
     const progress = { maxDepth: signals.depth, landmarkStages: 0, prestige: 0 };
     const gain = (current, previous) => (current >= previous ? current - previous : current);
+    // Narrative output: new Event Log entries per category and how many are notable or above.
+    const narrative = { total: 0, notable: 0, byCategory: {} };
+    const NOTABLE = new Set(['notable', 'major', 'critical', 'legendary']);
+    let lastEventId = null;
     for (let tick = 1; tick <= options.ticks; tick += 1) {
       if ((tick - 1) % options.stepTicks === 0) {
         action = policy ? selectAction(state, config, policy) : buildAction(task.player, config, actionRng);
@@ -272,6 +278,14 @@ function runEpisode(task, options) {
         if (delta > 0) deaths[cause] = (deaths[cause] || 0) + delta;
       }
       lastDeaths = { ...deathsNow };
+      const log = Array.isArray(state.eventLog) ? state.eventLog : [];
+      for (const entry of log) {
+        if (!entry || entry.id === lastEventId) break;
+        narrative.total += 1;
+        if (NOTABLE.has(entry.importance)) narrative.notable += 1;
+        narrative.byCategory[entry.category] = (narrative.byCategory[entry.category] || 0) + 1;
+      }
+      if (log.length > 0 && log[0]) lastEventId = log[0].id;
       const pop = (state.dwarves || []).length;
       if (pop === 0 && extinctionTick === null) extinctionTick = tick;
       if (tick % options.stepTicks === 0 || pop === 0) {
@@ -294,14 +308,19 @@ function runEpisode(task, options) {
             autonomy: outRate > 0 ? stock / outRate : null };
         }
         lastFlows = JSON.parse(JSON.stringify(flows));
-        samples.push({ tick, pop, resources: window, labor: laborMix(state, config),
+        const ledger = state.modifierLedger || {};
+        const pick = (quantity, key) => (ledger[quantity] && ledger[quantity][key] ? ledger[quantity][key].multiplier : null);
+        const modifiers = { gatherFood: pick('gatherYield', 'food'), gatherWater: pick('gatherYield', 'water'),
+          needDecay: pick('needDecay', 'colony'), birthChance: pick('birthChance', 'colony') };
+        samples.push({ tick, pop, modifiers, resources: window, labor: laborMix(state, config),
           deaths: { ...deaths }, births });
       }
       if (pop === 0) break;
     }
     const scored = { score: reward.total / options.ticks,
       terms: Object.fromEntries(Object.entries(reward.terms).map(([k, v]) => [k, v / options.ticks])) };
-    return { ...task, startPop, extinctionTick, targets, flows, deaths, births, samples, reward: scored, progress };
+    return { ...task, startPop, extinctionTick, targets, flows, deaths, births, samples, reward: scored, progress,
+      narrative };
   } finally {
     Math.random = previousRandom;
   }
@@ -355,6 +374,7 @@ function summarize(episode) {
     avoidable_deaths: avoidable,
     outcome_score: episode.reward ? episode.reward.score : null,
     progress: episode.progress || null,
+    narrative: episode.narrative || null,
     outcome_terms: episode.reward ? episode.reward.terms : null,
     labor_second_half: {
       idle: laborShare((l) => l.idle), essentials: laborShare((l) => (l.gather.food || 0) + (l.gather.water || 0)),
@@ -439,5 +459,6 @@ if (isMainThread) {
   main().catch((error) => { console.error(error); process.exit(1); });
 } else {
   const episode = runEpisode(workerData.task, workerData.options);
+  if (configTrace) configTrace.flush();
   parentPort.postMessage({ ...episode, summary: summarize(episode) });
 }

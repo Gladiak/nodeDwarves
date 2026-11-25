@@ -4,6 +4,7 @@
 // Pure, read-only builders: they turn simulation state into short rows with a
 // GOOD / WATCH / BAD verdict and one sentence explaining what the value means.
 
+const { describeModifiers } = require('../simulation/modifier_ledger');
 const { getStockpileTarget } = require('../simulation/resources');
 const { getFestivalStatus } = require('../simulation/festivals');
 const { getWorldEventStatus } = require('../simulation/world_events');
@@ -312,6 +313,11 @@ function collectColonyFacts(state, config, context = {}) {
     deaths: Math.max(0, Number(safeState.deathsCount || 0)),
     deathsByCause: safeState.deathsByCause || {},
     council: safeState.steward && typeof safeState.steward === 'object' ? safeState.steward : null,
+    modifiers: {
+      foodYield: describeModifiers(safeState, 'gatherYield', 'food'),
+      waterYield: describeModifiers(safeState, 'gatherYield', 'water'),
+      needPace: describeModifiers(safeState, 'needDecay', 'colony'),
+    },
     housingEnabled,
     beds,
     workforce: collectWorkforce(dwarves),
@@ -617,6 +623,21 @@ function assessConflict(facts) {
   return { label: 'Relations', status: STATUS_GOOD, value, note: 'Few quarrels; friendships hold the colony together.' };
 }
 
+// Explain one modifier-ledger quantity: combined multiplier and its strongest factors.
+function describeModifierRow(label, entry, meaning) {
+  if (!entry) {
+    return null;
+  }
+  const movers = entry.movers.map(([name, value]) => `${name} x${value.toFixed(2)}`).join(', ');
+  const capped = entry.multiplier !== entry.raw ? ' (capped)' : '';
+  return {
+    label,
+    status: STATUS_INFO,
+    value: `x${entry.multiplier.toFixed(2)}${capped}`,
+    note: movers ? `${meaning}: ${movers}.` : `${meaning}: no active modifiers.`,
+  };
+}
+
 // Describe the council (steward) posture when no AI policy decides the governors.
 function assessCouncil(facts) {
   const council = facts.council;
@@ -624,7 +645,9 @@ function assessCouncil(facts) {
     return null;
   }
   const held = Number(council.restrained || 0);
-  const heldText = held > 0 ? `${held} venture group${held === 1 ? '' : 's'} held back` : 'nothing held back';
+  const sources = council.sources || null;
+  const heldText = (held > 0 ? `${held} venture group${held === 1 ? '' : 's'} held back` : 'nothing held back')
+    + (sources ? `; decided by policy ${sources.policy}, council ${sources.council}, defaults ${sources.default}` : '');
   if (council.posture === 'cautious' && Number(council.cautious || 0) > 0) {
     return {
       label: 'Council',
@@ -765,6 +788,14 @@ function buildEconomyPage(facts, config) {
     intro: '100% = the stock the colony aims to keep.',
     rows: ESSENTIAL_RESOURCES.map((id) => ({ ...assessStock(facts.stocks[id], facts, config, true), bar: facts.stocks[id].ratio })),
   });
+  const modifierRows = [
+    describeModifierRow('Food yield', facts.modifiers.foodYield, 'Per gathering trip'),
+    describeModifierRow('Water yield', facts.modifiers.waterYield, 'Per gathering trip'),
+    describeModifierRow('Need pace', facts.modifiers.needPace, 'Hunger and thirst speed'),
+  ].filter(Boolean);
+  if (modifierRows.length > 0) {
+    blocks.push({ title: 'What drives the economy', intro: 'Active multipliers, strongest first.', rows: modifierRows });
+  }
   blocks.push({
     title: 'Building materials',
     intro: 'Needed for new structures and upgrades.',

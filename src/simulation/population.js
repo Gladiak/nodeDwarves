@@ -1,5 +1,6 @@
 'use strict';
 
+const { composeModifiers } = require('./modifier_ledger');
 const { clamp } = require('../utils');
 const { getSeasonModifier } = require('./season');
 const { hasInputs, consumeInputs, getStockpileRatio } = require('./resources');
@@ -716,7 +717,10 @@ function attemptConceptions(state, config, reproduction) {
   const seasonFactor = getSeasonModifier(state, 'reproductionChance', 1);
   const mythFactor = getMythMultiplier(state, config, 'reproductionChance', 1);
   const chance = clamp(
-    baseChance * resourceFactor * crowdingFactor * moraleFactor * seasonFactor * mythFactor,
+    composeModifiers(state, config, 'birthChance', 'colony', baseChance, [
+      ['reserves', resourceFactor], ['crowding', crowdingFactor], ['morale', moraleFactor],
+      ['season', seasonFactor], ['myths', mythFactor],
+    ]),
     0,
     1,
   );

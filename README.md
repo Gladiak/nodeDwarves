@@ -80,6 +80,7 @@ Current release: **v2.5.0 - Saved Holds and Scenario Challenges**. 🍺🗺️
 - 📚 Political sagas follow one bounded arc through local rituals to their witnessed outcome.
 - 🌤️ In-map Ops Snapshot shows a live weather token (`Wx:*`, e.g. `Clear`, `Rain`, `Storm`) for at-a-glance climate context.
 - 📊 In-game Colony Report (`h`): a GOOD / WATCH / BAD health check where every line says in plain words what it means, a "needs attention" list, Economy, People and Frontier pages, plus a Technical page for AI and Story Director internals.
+- 🔬 The Economy page explains what drives the colony right now: food yield x0.44 because of winter, need pace x1.07 because of schism... every economic multiplier has a name and a ceiling.
 - 🤖 PPO training pipeline in Python with JS runtime inference (`models/*.json`), a lean ~80-signal
   colony observation, and a self-scaling critic that reports its own health (`ev=`) in the logs.
 - 🧪 Deterministic benchmark/regression tooling with a cached baseline, plus a fast in-process scorecard that pits default, careless and trained play against each other.
@@ -170,6 +171,7 @@ npm run bench:diff                         # refreshes the cached baseline when 
 npm run ai:validate                        # milestone gate: canonical policy, simulation, regression
 npm run ai:validate:weekly
 npm run debug:clean
+node scripts/audit_config.js --trace <trace.jsonl>   # config audit (see STRATEGY.md, step R)
 ```
 
 Milestone checks: `node scripts/validate_save_continuity.js` (uninterrupted vs resumed worlds) and
