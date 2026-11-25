@@ -43,11 +43,25 @@ function resolveNewbornClanId(parentA, parentB, config) {
   return pickClanId(config);
 }
 
+// Per-dwarf lifespan scale (STRATEGY.md S3a): stretches old-age start, maximum age and the end of
+// fertility so a cohort born together does not age out together. 1 when jitter is off.
+function getLifespanScale(dwarf) {
+  const scale = Number(dwarf && dwarf.lifespanScale);
+  return Number.isFinite(scale) && scale > 0 ? scale : 1;
+}
+
+// Draw a lifespan scale in [1 - jitter, 1 + jitter]; draws no random number when jitter is 0.
+function drawLifespanScale(config) {
+  const aging = (config.population && config.population.aging) || {};
+  const jitter = clamp(Number(aging.lifespanJitter || 0), 0, 0.9);
+  return jitter > 0 ? 1 + jitter * (2 * Math.random() - 1) : null;
+}
+
 // Advance dwarf age ticks and update life stage transitions.
 function advanceAge(dwarf, config) {
   const aging = (config.population && config.population.aging) || {};
   const adultAge = Number(aging.adultAge || 0);
-  const oldAgeStart = Number(aging.oldAgeStart || Infinity);
+  const oldAgeStart = Number(aging.oldAgeStart || Infinity) * getLifespanScale(dwarf);
 
   dwarf.ageTicks = Number(dwarf.ageTicks || 0) + 1;
   if (dwarf.ageTicks < adultAge) {
@@ -415,8 +429,8 @@ function handleDeaths(state, config) {
   const aging = (config.population && config.population.aging) || {};
   const starvationThreshold = Number(death.starvationThreshold ?? 0.9);
   const starvationTicks = Math.max(1, Number(death.starvationTicks ?? 50));
-  const oldAgeStart = Number(aging.oldAgeStart ?? Infinity);
-  const maxAge = Number(aging.maxAge ?? Infinity);
+  const baseOldAgeStart = Number(aging.oldAgeStart ?? Infinity);
+  const baseMaxAge = Number(aging.maxAge ?? Infinity);
   const chanceMin = Number(death.oldAgeChanceMin ?? 0.0002);
   const chanceMax = Number(death.oldAgeChanceMax ?? 0.005);
   const housingPenalty = getWinterHousingPenalty(state, config);
@@ -442,6 +456,9 @@ function handleDeaths(state, config) {
     }
 
     const ageTicks = Number(dwarf.ageTicks || 0);
+    const lifespanScale = getLifespanScale(dwarf);
+    const oldAgeStart = baseOldAgeStart * lifespanScale;
+    const maxAge = baseMaxAge * lifespanScale;
     if (Number.isFinite(maxAge) && ageTicks >= maxAge) {
       deadIds.add(dwarf.id);
       state.deathsByCause.oldAge = Number(state.deathsByCause.oldAge || 0) + 1;
@@ -688,6 +705,7 @@ function attemptConceptions(state, config, reproduction) {
     return;
   }
 
+  const growthBudget = accrueGrowthBudget(state, config, reproduction);
   const couples = collectCouples(state);
   stats.ticks = Number(stats.ticks || 0) + 1;
   stats.couples = Number(stats.couples || 0) + couples.length;
@@ -760,6 +778,11 @@ function attemptConceptions(state, config, reproduction) {
       continue;
     }
 
+    if (growthBudget && growthBudget.budget < 1) {
+      stats.blockedGrowthCap = Number(stats.blockedGrowthCap || 0) + 1;
+      continue;
+    }
+
     stats.attempts = Number(stats.attempts || 0) + 1;
     if (Math.random() >= chance) {
       stats.blockedChance = Number(stats.blockedChance || 0) + 1;
@@ -767,11 +790,35 @@ function attemptConceptions(state, config, reproduction) {
     }
 
     stats.successes = Number(stats.successes || 0) + 1;
+    if (growthBudget) {
+      growthBudget.budget -= 1;
+    }
     consumeInputs(state.stockpile, birthCost);
     const carrier = Math.random() < 0.5 ? a : b;
     const dueTick = state.tick + Math.max(1, Number(reproduction.gestationTicks ?? 80));
     carrier.pregnancy = { dueTick, partnerId: carrier === a ? b.id : a.id };
   }
+}
+
+// Growth cap (STRATEGY.md S3-0): conceptions spend a birth budget that accrues with the population
+// at `maxAnnualGrowth` per year (at least `minBirthsPerYear`, so young colonies still grow), so a colony cannot grow in one synchronized cohort that later ages
+// out together. Returns the budget record, or null when the cap is disabled. RNG-free.
+function accrueGrowthBudget(state, config, reproduction) {
+  const cap = reproduction.growthCap;
+  if (!cap || cap.enabled !== true) {
+    return null;
+  }
+  const seasons = config.seasons || {};
+  const yearTicks = Math.max(1, Number(seasons.durationTicks || 200)
+    * Math.max(1, Array.isArray(seasons.order) ? seasons.order.length : 4));
+  const rate = Math.max(0, Number(cap.maxAnnualGrowth ?? 0.5));
+  const floor = Math.max(0, Number(cap.minBirthsPerYear ?? 0));
+  const burst = Math.max(1, Number(cap.burst ?? 2));
+  const record = state.growthCap && typeof state.growthCap === 'object' ? state.growthCap : { budget: burst };
+  state.growthCap = record;
+  const perYear = Math.max(state.dwarves.length * rate, floor);
+  record.budget = Math.min(burst, Number(record.budget || 0) + perYear / yearTicks);
+  return record;
 }
 
 // Count fertile adults for reproduction stats.
@@ -905,7 +952,7 @@ function isFertileAdult(dwarf, config) {
   const aging = (config.population && config.population.aging) || {};
   const adultAge = Number(aging.adultAge ?? 0);
   const fertileStart = Number(aging.fertileStart ?? adultAge);
-  const fertileEnd = Number(aging.fertileEnd ?? Infinity);
+  const fertileEnd = Number(aging.fertileEnd ?? Infinity) * getLifespanScale(dwarf);
   const age = Number(dwarf.ageTicks || 0);
 
   if (age < adultAge) {
@@ -940,6 +987,7 @@ function spawnNewborn(state, config, parentA, parentB) {
     y: parentA ? parentA.y : 0,
     ageTicks: 0,
     lifeStage: 'child',
+    lifespanScale: drawLifespanScale(config),
     needs: { ...needsTemplate },
     state: newbornState,
     job: null,
@@ -1099,6 +1147,8 @@ function updateDerivedState(dwarf) {
 
 module.exports = {
   advanceAge,
+  drawLifespanScale,
+  getLifespanScale,
   applyNeedDecay,
   consumeResources,
   updateDerivedState,

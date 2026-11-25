@@ -2,6 +2,7 @@
 
 const { applySteward } = require('./steward');
 const { composeModifiers } = require('./modifier_ledger');
+const { getWorldFactor } = require('./world_profile');
 const { updateSeason, getSeasonModifier } = require('./season');
 const { updateWeather, getWeatherModifier, getWeatherNeedMultipliers } = require('./weather');
 const { updateRaidStart, updateRaidTick } = require('./raids');
@@ -91,11 +92,12 @@ function stepStateInner(state, config, runtime, action, options = {}) {
 
   const seasonNeedMultiplier = getSeasonModifier(state, 'needDecay', 1);
   // Need-decay factors in their historical multiplication order (bit-identical when unbounded).
+  const profileNeedMultiplier = getWorldFactor(state, 'needDecay');
   const needFactors = (clanNeedMultiplier) => [
     ['housing', housingPenalty.needDecay], ['weather', weatherNeedMultiplier], ['endgame', endgameDifficulty],
     ['clan', clanNeedMultiplier], ['myths', mythNeedMultiplier], ['alchemy', alchemyNeedMultiplier],
     ['worldEvents', worldNeedMultiplier], ['festival', festivalNeedMultiplier], ['temple', templeNeedMultiplier],
-    ['schism', schismNeedMultiplier],
+    ['schism', schismNeedMultiplier], ['world', profileNeedMultiplier],
   ];
   composeModifiers(state, config, 'needDecay', 'colony', seasonNeedMultiplier, needFactors(1),
     [['season', seasonNeedMultiplier], ...needFactors(1).filter(([name]) => name !== 'clan')]);

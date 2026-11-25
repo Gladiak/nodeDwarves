@@ -12,6 +12,7 @@ const { createChronicleState } = require('../simulation/chronicle');
 const { createWorldLegacyState } = require('../simulation/world_legacy');
 const { createEpicConflictState } = require('../simulation/epic_conflicts');
 const { createLandmarkState } = require('../simulation/landmarks');
+const { createWorldProfile } = require('../simulation/world_profile');
 const { bootstrapPlaceRegistry, createPlaceRegistry } = require('../place_identity');
 const {
   createTerrain,
@@ -361,6 +362,12 @@ function carveCorridor(types, from, to, corridorWidth, rng) {
     carveVertical();
     carveHorizontal();
   }
+}
+
+// Founder lifespan scale (STRATEGY.md S3a); mirrors drawLifespanScale in simulation/population.js.
+function drawFounderLifespanScale(aging) {
+  const jitter = clamp(Number(aging.lifespanJitter || 0), 0, 0.9);
+  return jitter > 0 ? 1 + jitter * (2 * Math.random() - 1) : null;
 }
 
 const CARDINAL_DIRECTIONS = [
@@ -1829,6 +1836,7 @@ function createInitialState(config, runtime) {
     pasture,
     wildlife,
     terrain,
+    worldProfile: createWorldProfile(config, terrain && terrain.seed),
     underrealm,
     warriors,
     social,
@@ -2544,6 +2552,7 @@ function createDwarves(config, runtime, occupied, terrain) {
       y: pos.y,
       ageTicks,
       lifeStage: getLifeStage(ageTicks, aging),
+      lifespanScale: drawFounderLifespanScale(aging),
       role,
       roleCooldown: 0,
       clanId,

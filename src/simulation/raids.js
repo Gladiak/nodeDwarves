@@ -1,5 +1,7 @@
 'use strict';
 
+const { composeModifiers } = require('./modifier_ledger');
+const { getWorldFactor } = require('./world_profile');
 const { clamp } = require('../utils');
 const { getClanEffects, getClanList, getClanShare } = require('../clans');
 const {
@@ -96,7 +98,9 @@ function updateRaidStart(state, config, runtime) {
   const chanceConfig = raidConfig.chance || {};
   const chanceMin = clamp(Number(chanceConfig.min ?? 0), 0, 1);
   const chanceMax = clamp(Number(chanceConfig.max ?? chanceMin), 0, 1);
-  const chance = lerp(chanceMin, chanceMax, difficulty);
+  const chance = clamp(composeModifiers(state, config, 'raidChance', 'colony', lerp(chanceMin, chanceMax, difficulty), [
+    ['world', getWorldFactor(state, 'raidChance')],
+  ]), 0, 1);
   if (Math.random() >= chance) {
     return;
   }

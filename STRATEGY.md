@@ -116,6 +116,10 @@ Paired by seed. "Pop" = final population; "avoidable" = deaths excluding old age
 | E26 | 11-25 | Job weights had leverage only through the water boost | water priority boost applied on top of policy weights; with boosts limited to default weights (R4) neglect 59.5 -> 94.2 (z 3.5), default unchanged (24/24 identical) | Job weights are a weak AI lever (S4a); bad-play reference becomes "everything on" (gov:2) |
 | E27 | 11-25 | The AI was trained and evaluated on other economies than the game | training and eval overrides restated needs, consumption, stocks, targets, 60 explicit food nodes (game: terrain), reproduction (soft cap 32/48 vs 620, birth chance x3.6), structure caps, expedition rules and 20 founders; removed (R5). Scorecard v2 on the game economy, 24 games x 8,000 ticks: steward 181.8, gov:0 181.8 (identical), everything on 93.2 (-49%, 1 extinction, 23 starvation), random 114.2 (-37%), neglect 163.4 (-10%, z -0.6) | All earlier eval-plan numbers (S0-S2) describe the old eval economy |
 | E28 | 11-25 | Sensitivity screen (R6): water is the binding constraint, 18 of 50 core keys move outcomes | steward, eval plan, 24 games x 8,000 ticks, each key at -25% and +25% (paired high minus low; baseline pop 181.8); strongest (|z| >= 3): thirst decay (pop -157, progress -35), thirst threshold (pop +97, avoidable +37), water yield (pop +102, progress +24), hunger decay (pop -70), old-age start (+50) and max age (+38), housing build target (pop -61, progress -18), birth food reserve ratio (progress +9); marginal (2 <= |z| < 3): base birth chance (progress -14), food yield, food gather ticks, food trigger ratio, raw food relief, water relief, hunger threshold, birth water per dwarf, emergency ratio (progress -12), raid chance max (avoidable +22); inert (exactly 0): raid chance/death minimums (eval runs at difficulty 1) and the steward reserve (no cautious group); no measurable effect: beer, brewery, winter/autumn modifiers, stock targets and starting stocks, founders, wood/stone, roles, soft cap; ~7 of 150 tests are expected above |z| 2 by chance, so marginal single-metric keys are provisional | `CORE_KEYS` = the 18 sensitive keys, the other 32 move to `FROZEN_KEYS`; S3 starts from the water economy, lifespan and housing labor |
+| E29 | 11-25 | S3-0: colonies collapse from one synchronized generation, not famine; a growth cap fixes it | standard game, steward, 20,000 ticks, 16 seeds: 4,455 of ~5,000 deaths are old age; a boom (14 -> 290 dwarves in ~3,000 ticks) fills the water limit, births stop for ~5,000 ticks and the cohort dies together at 8,000-12,000 ticks (3/16 extinctions, median drawdown 51%). Emergency reflex 0.15 alone: 3/8 vs 2/8 extinctions, avoidable deaths +82 (z 2.5). Birth budget at 25% a year: 0/16 extinctions, pop +74 (z 2.2), avoidable -47 (z -5.5), but -37% pop on the 8,000-tick eval (z -3.0); 35%, 50% and 100% a year do not help. Adopted: 25% a year with a floor of 20 births a year and emergency 0.15: eval 24 games pop 173 vs 182 (z -0.5), avoidable 12 vs 27 (z -4.5), progress 116 vs 77 (z 4.6); standard 20k 1/16 extinctions, pop 175 vs 114 (z 2.1), progress 180 vs 138 (z 3.1); floor 30: 2/16, pop 134 | `population.reproduction.growthCap` on (0.25, floor 20), `emergencyMinRatio` 0.15; the cap without floor (20k pop 209) is headroom for the S4 growth lever |
+| E30 | 11-25 | S3-0 at long horizon, S3a and S3b: the cap delays the water wall, it does not remove it | 16 harsher seeds at 20,000 ticks: old config 7/16 extinctions, adopted cap 6/16 (pop +43, progress +39, z 3.5), cap without floor 3/16; pooled 32 seeds: 10, 7 and 3 extinctions. 40,000 ticks (16 seeds): floor 20 6/16, no floor 5/16, both with lifespan jitter 0.15 4/16 and 5/16, starvation 440-680 deaths per run. Mechanism (seed 1717 trace): the colony overuses its water tiles, the stock stays below `minStockpileRatio` for ~4,000 ticks, births are blocked longer than the fertile window (101 fertile adults -> 0) and the colony ages out with stocks recovered. S3a: per-dwarf lifespan jitter 0.15 (new `population.aging.lifespanJitter`) 20k extinctions 7 -> 3 of 32 (discordant 6 vs 2, p ~0.3), 40k 5 vs 3, eval pop -8 (z -0.9); jitter 0.3 and founder ages up to 2,500 ticks: no effect. S3b: median Underrealm depth at 8,000 ticks 2 (eval), 5 at 20,000 (pass >= 1 already met); landmark stages hit the maximum (15) in 46 of 48 games | Jitter and founder spread not adopted (below z 2; jitter stays available at 0 for S3d); the long-run water trap is the decision the S4 growth lever must learn, with S5 snapshot starts; landmark stages no longer separate good from bad play (reward term `landmarkStage` is nearly constant) |
+| E31 | 11-25 | S3c guards and S3d world variety | S3c: Underrealm guard share 0.01 -> 0.25: deep-raid deaths 24.5 -> 9.0 per 20,000-tick game (z -3.6), 0.7 -> 0.2 on the eval plan (z -2.5), progress -34 (z -4.3): a real defense trade-off, already exposed as `guardMixBias` but restrained by the council. S3d: world profile drawn from the map seed (`src/simulation/world_profile.js`, `variety.ranges`), entering the ledger as `world`; off = bit-identical. On the 8,000-tick eval variety does not change which posture wins (steward beats gov:1/gov:2 in 71-79% of games with narrow or wide ranges; growth 50% a year beats 25% in 20-21 of 24 games because its cost lands later). At 20,000 ticks (16 seeds) no growth rate dominates: best per game 15%/25%/50% = 2/6/8, 25% vs 50% wins 50%; with wide variety 50% a year falls to pop 99 and 4/16 extinctions (188 and 3/16 without) | Wide variety on by default (food 0.7-1.3, water 0.8-1.2, winter 0.5-1.5, needs 0.9-1.1, raids 0.25-1.75); guards and growth rate are S4 lever candidates whose best setting depends on the game only at long horizon |
+| E32 | 11-25 | Scorecard v3 (S3 defaults: growth cap, emergency 0.15, wide variety) | eval 24 games x 8,000 ticks: steward 166.1 (avoidable 13.5, progress 112, 0 extinctions, drawdown 4-8k median 3%), gov:0 identical, everything on 147.4 (-11%, z -2.1), random 151.2 (-9%), neglect 166.0 (=); standard game 32 seeds x 20,000 ticks: steward 169.6 with 4/32 extinctions, everything on 101.8 (-40%, z -3.0, 2/32), neglect 165.2 (3/32, avoidable +19); median Underrealm depth at 8,000 ticks 2 | S3 pass: drawdown, 8k extinctions, depth and defense lever met; 20k extinctions 4/32 (target 3/48) and neglect gap (E26) not met. The growth cap also slows weak players, so skill now shows mainly at 20,000 ticks: S5 must add a 20k check to the gate |
 | E21 | 11-25 | Evaluation speed is not the bottleneck | 24 games x 8,000 ticks: `eval_paired.py` 61 s, in-process JS 60 s; per worker ~270 ticks/s at late-game population (3.7 ms/tick) | Keep `eval_paired.py` as the reference evaluator; noise, not speed, limits decisions |
 
 E19, 24 games x 8,000 ticks (seed base 100000):
@@ -335,6 +339,23 @@ One sub-change at a time, each A/B'd with `--set` before it becomes a default:
   50% below default; good play (gov:0 or steward) reaches median Underrealm depth >= 1 by 8,000
   ticks; the leverage probe shows the new defense decision moving deep-raid deaths with |z| >= 2.
 
+Status 2026-11-25: S3 done, pass partly met (E29-E32).
+- S3-0 (E29, E30): the 20k collapse was one synchronized generation aging out, not famine. Birth
+  budget `population.reproduction.growthCap` (25% a year, floor 20 births a year) with the emergency
+  reflex lowered to 0.15: eval avoidable deaths halved, progress +50%, 20k extinctions 10 -> 7 of 32
+  seeds. At 40,000 ticks every variant still loses 4-6 of 16 colonies to a water-overuse trap (births
+  blocked longer than the fertile window): the long-run growth decision is the S4 lever's job.
+- S3a (E30): founder ages and per-dwarf lifespan jitter (`population.aging.lifespanJitter`, 0) below
+  z 2; not adopted.
+- S3b (E30): depth target already met; landmark stages saturate (15/15 in 46 of 48 games), so they
+  no longer separate good from bad play.
+- S3c (E31): Underrealm guards cut deep-raid deaths (z -3.6) at a progress cost (z -4.3); no code
+  change, lever candidate for S4.
+- S3d (E31): per-map world profile on by default; game-dependent best settings appear for growth at
+  20,000 ticks, not for governor postures at 8,000.
+- Scorecard v3 (E32): steward 166 at 8k, everything-on -11% at 8k but -40% at 20k; 20k extinctions
+  4/32 and the neglect gap remain open. Session `experiments/runs/2026-11-25_s3` (git-ignored).
+
 ### S4. Strategic levers and action space v2 (D1, fresh training)
 Give the AI 6-8 high-level decisions with a real trade-off and hand everything else to the steward.
 
@@ -346,7 +367,7 @@ paired effect on final population, avoidable deaths and progress:
 
 | Candidate lever | Trade-off | Config it replaces today |
 |---|---|---|
-| Growth | more dwarves now vs famine after overshoot | `population.reproduction.minStockpileRatio`, `resourcePerCapita` |
+| Growth rate | more dwarves now vs one synchronized cohort that ages out together (S3-0) and famine after overshoot | `population.reproduction.growthCap.maxAnnualGrowth` (council default from S3-0), `minStockpileRatio`, `resourcePerCapita` |
 | Seasonal reserves | safety in winter vs growth and building | `jobs.gatherTriggerRatio` (same in every season) |
 | Workforce budget | essentials vs building vs Underrealm vs defense | `population.roles.builderRatio`, `managerRatio`, Underrealm crew ratios |
 | Build priority | houses vs fields/wells vs towers vs brewery | `population.housing.buildTargetRatio`, structure guardrails |
@@ -356,6 +377,14 @@ paired effect on final population, avoidable deaths and progress:
 | Merchant trade | sell materials to buy food before winter vs keeping building stock | automatic merchant trades with a fixed `merchant.reserveRatio` |
 | Event choices | accept or refuse caravans, pay tribute or fight, which decree to issue | threshold-based resolution of world events, camps and schism decrees |
 | Scouting | spend labor to learn raid timing and winter severity in advance | none (no forecast exists) |
+
+Growth is the lever whose cost arrives last: a boom at tick 3,000 is paid at 10,000-12,000 ticks
+when that cohort dies of old age, far beyond the ~1,000-tick discount horizon and the 8,000-tick
+gate. No dedicated birth reward (it would teach births, not judgment): the outcome reward already
+pays population over time and charges extinction. It becomes learnable only with the age structure
+in the observation (S6) and long-horizon training from mid-game snapshots (S5). Check: with the
+lever free, the policy must beat both the council default and maximum growth on 20,000-tick games;
+if it settles on maximum growth, the horizon is still too short.
 
 Event choices are rare discrete decisions: expose them as masked heads that act only when an offer is
 open. Scouting only becomes useful after S3d makes games differ.
@@ -378,13 +407,26 @@ most 3 of 12 scenarios; fewer action heads than today (29).
 - Try a two-level policy: a seasonal plan chosen at the start of each season (growth, reserves, risk,
   workforce) plus small adjustments at the regular cadence; it shortens credit assignment to a few
   decisions per year. Adopt it only if it beats the flat policy under the same pass criteria.
+- Mid-game snapshot starts, so training does not always restart from tick 0: a bank of saved
+  states (session graph saves, `src/persistence.js`) taken from games at 2,000-16,000 ticks across
+  seeds and scenarios; each training episode starts either from tick 0 or from a bank state, and
+  plays a normal-length episode from there. The critic then sees late-game consequences (cohort
+  aging, node depletion, deep raids, nemesis sieges) at the cost of a short episode, and the early
+  game stops dominating the samples. Rules: the bank mixes steward games with games of the current
+  best policy and is refreshed at the start of every chained run, so the policy also learns from the
+  states it produces itself; snapshots are deterministic per seed and kept out of `models/`;
+  evaluation and the gate still start from tick 0 (8,000 ticks) plus a 20,000-tick check.
+  A/B: fresh-start only vs 50% snapshot starts at equal wall-clock, 3 replicates, judged on
+  20,000-tick games.
 - Pass: training wall-clock per simulated tick down >= 25% at equal episode length; equal or better
-  result at equal wall-clock; improvement per run: 3 chained runs where each run is >= the previous minus one SE and
+  result at equal wall-clock; snapshot starts beat fresh-start-only on 20,000-tick games with z >= 2
+  (or are dropped); improvement per run: 3 chained runs where each run is >= the previous minus one SE and
   run 3 beats run 1 by >= 5% population with z >= 2.
 
 ### S6. Observation v2 (D5, fresh training)
 - Add food/water autonomy in ticks, ticks to the next winter, reserve per dwarf vs the birth
-  requirement, a births-blocked flag, old-age and fertile-adult shares, deep-raid threat vs defense.
+  requirement, a births-blocked flag, the age structure (child, fertile-adult and old-age shares,
+  mean age of fertile adults, births in the last year, growth budget), deep-raid threat vs defense.
   Remove features with no permutation importance; keep the vector no larger than today (79).
 - Pass: critic explained variance >= 0.95 on 8,000-tick episodes; +5% population vs S5 with z >= 2.
 
@@ -457,13 +499,16 @@ Deterministic regression of the no-AI game: `npm run bench:candidate` then `npm 
 | Seasons | `seasons.modifiers.winter`, `.autumn` | winter yield 0.45, regen 0.25, births 0.5, needs 1.12 |
 | Drink | `consumption.beerRelief`, `structures.brewery.outputPerTick`, `.foodCostPerTick`, `.stopWhenBeerReserveRatioAbove` | 0.25, beer 0.5, 0.1, 1.5 |
 | Births | `population.reproduction.resourcePerCapita` | food 2, water 2 |
+| Growth cap | `population.reproduction.growthCap` | on; 25% a year, at least 20 births a year, burst 2 (E29) |
+| World variety | `variety.ranges` | on; food 0.7-1.3, water 0.8-1.2, winter 0.5-1.5, needs 0.9-1.1, raids 0.25-1.75 (E31) |
+| Lifespan jitter | `population.aging.lifespanJitter` | 0 (E30, not adopted) |
 | Reward | `ai.reward.*` | population 1 per 100, deaths 2, distress 1 at 0.6, reserves 0.3 at 2 per dwarf, depth 20, landmark stage 5, prestige 0.2, extinction 20 |
 | Gate | `ai.training.promotion.canonical` | 24 games, 4,000 steps x 2 ticks, `rpp`, LCB z 1.96 |
 | Trainer | `ai.training.trainer` | gamma 0.998, 2 ticks per step, 2x128 |
 | Steward | `ai.steward` | on; decisions every 20 ticks; all 9 governor groups restrained; safe reserve 3 per dwarf and 30 dwarves for future cautious groups |
-| Emergency reflex | `population.roles.emergencyMinRatio` | 0.52 (see E22 before lowering) |
+| Emergency reflex | `population.roles.emergencyMinRatio` | 0.15, last resort (E29) |
 | Modifier bounds | `simulation.modifierBounds` | gather yield 0.35-1.6, need decay 0.8-1.4 |
-| Core keys | `scripts/audit_config.js` `CORE_KEYS` / `FROZEN_KEYS` | 18 tuned keys with a measured effect (E28); 32 screened keys frozen |
+| Core keys | `scripts/audit_config.js` `CORE_KEYS` / `FROZEN_KEYS` | 20 tuned keys: 18 from the R6 screen (E28) plus the growth cap rate and floor (E29); 32 screened keys frozen |
 
 ---
 
@@ -486,7 +531,9 @@ Deterministic regression of the no-AI game: `npm run bench:candidate` then `npm 
 | 2026-11-25 | D13 | Rationalization step R inserted before S3: system ablation, key classification, modifier ledger, one decision chain, three-level config, sensitivity screen |
 | 2026-11-25 | R1-R5 | Dead keys removed; systems labelled; 50 core keys; modifier ledger with bounds; one decision chain; overrides profile-only (E24-E27) |
 | 2026-11-25 | R6 | Tuning surface cut to 18 measured keys, 32 frozen (E28); step R complete |
-| next | S3-0 | Growth control: births follow sustainable water and food production, then lower the emergency reflex |
+| 2026-11-25 | S3-0 | Growth becomes an AI lever in S4 (no birth reward); S5 adds mid-game snapshot starts; S6 adds the age structure |
+| 2026-11-25 | S3 | Growth cap 25%/year + floor 20, emergency reflex 0.15, wide per-map variety on; jitter and founder spread rejected; scorecard v3 (E29-E32) |
+| next | S4a | Lever audit with growth rate and guard share first; every lever judged at 8,000 and 20,000 ticks |
 
 ### Scorecard v1 (S0, session `experiments/runs/2026-11-24_s0`, commit a5e3998, git-ignored)
 

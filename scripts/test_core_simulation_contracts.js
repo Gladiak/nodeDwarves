@@ -18,6 +18,7 @@ const { computeOutcomeSignals, computeOutcomeReward } = require('../src/ai/outco
 const { applySteward } = require('../src/simulation/steward');
 const { composeModifiers, describeModifiers } = require('../src/simulation/modifier_ledger');
 const { CORE_KEYS, FROZEN_KEYS } = require('./audit_config');
+const { createWorldProfile, getWorldYieldFactor } = require('../src/simulation/world_profile');
 const { createRefinementTracker, trackRefinementTick, getRefinementReport,
   summarizeRefinementReports } = require('../src/telemetry/refinement');
 
@@ -317,6 +318,62 @@ test('consumption bounds, preference, fractional reserves and empty stocks', (co
     - 0.8 * config.consumption.rawFoodRelief)) < 1e-12);
 });
 
+test('world profile is drawn per map seed, bounded, RNG-free and absent when disabled', (config, state) => {
+  const off = clone(config);
+  off.variety.enabled = false;
+  assert.equal(createWorldProfile(off, 7), null, 'disabled variety draws nothing');
+  assert(state.worldProfile && state.worldProfile.factors, 'new games carry their profile');
+  const varied = clone(config);
+  varied.variety.enabled = true;
+  const before = Math.random;
+  let draws = 0;
+  Math.random = () => { draws += 1; return before(); };
+  const a = createWorldProfile(varied, 12345);
+  const b = createWorldProfile(varied, 12345);
+  const c = createWorldProfile(varied, 54321);
+  Math.random = before;
+  assert.equal(draws, 0, 'profile draws never touch gameplay RNG');
+  assert.deepEqual(a, b, 'same map seed, same profile');
+  assert.notDeepEqual(a.factors, c.factors, 'different seeds differ');
+  for (const [key, value] of Object.entries(a.factors)) {
+    const [low, high] = varied.variety.ranges[key];
+    assert(value >= low && value <= high, `${key} within range`);
+  }
+  const probe = { worldProfile: a, season: { name: 'winter' } };
+  const expected = a.factors.waterYield * a.factors.winterYield;
+  assert(Math.abs(getWorldYieldFactor(probe, 'water') - expected) < 1e-12, 'winter stacks on the resource factor');
+  assert.equal(getWorldYieldFactor({ worldProfile: null }, 'food'), 1);
+});
+
+test('growth cap paces conceptions with a population-scaled birth budget', (config, state) => {
+  state.dwarves = state.dwarves.slice(0, 2);
+  const [a, b] = state.dwarves;
+  for (const dwarf of [a, b]) {
+    dwarf.ageTicks = config.population.aging.adultAge + 1;
+    dwarf.lifeStage = 'adult'; dwarf.fertilityCooldown = 0;
+    dwarf.pregnancy = null; dwarf.homeId = 'test_home';
+  }
+  a.partnerId = b.id; b.partnerId = a.id;
+  for (const key of Object.keys(state.stockpile)) state.stockpile[key] = 10000;
+  const reproduction = config.population.reproduction;
+  reproduction.baseChance = 1;
+  reproduction.growthCap = { enabled: true, maxAnnualGrowth: 0.25, minBirthsPerYear: 4, burst: 2 };
+  state.growthCap = { budget: 0 };
+  population.handleReproduction(state, config);
+  assert(!a.pregnancy && !b.pregnancy, 'empty budget blocks conception');
+  assert.equal(state.reproductionStats.blockedGrowthCap, 1);
+  const yearTicks = config.seasons.durationTicks * config.seasons.order.length;
+  assert(Math.abs(state.growthCap.budget - 4 / yearTicks) < 1e-12, 'floor accrues when the colony is small');
+  state.growthCap.budget = 1;
+  population.handleReproduction(state, config);
+  assert(a.pregnancy || b.pregnancy, 'a full unit of budget allows one conception');
+  assert(state.growthCap.budget < 1, 'conception spends one unit');
+  state.growthCap.budget = 5;
+  reproduction.growthCap.enabled = false;
+  population.handleReproduction(state, config);
+  assert.equal(state.growthCap.budget, 5, 'disabled cap leaves the budget untouched');
+});
+
 test('seeded reproduction, stock/housing/cooldown gates and lifecycle', (config, state) => {
   state.dwarves = state.dwarves.slice(0, 2);
   const [a, b] = state.dwarves;
@@ -484,6 +541,7 @@ test('surface raid start/tick/end, tower range/hit/kill limits and defense cap',
   config.raids.minTick = 0; config.raids.minPopulation = 0;
   config.raids.chance = { min: 1, max: 1 };
   config.raids.durationTicks = 3;
+  state.worldProfile = null;
   state.season = { name: config.raids.seasonNames[0], tickInSeason: 1, globalIndex: 100 };
   state.raid = { active: false, lastSeasonIndex: null, beasts: [] };
   updateRaidStart(state, config, runtime);

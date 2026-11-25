@@ -3166,6 +3166,16 @@
       }
     }
   },
+  "variety": {
+    "enabled": true,
+    "ranges": {
+      "foodYield": [0.7, 1.3],
+      "waterYield": [0.8, 1.2],
+      "winterYield": [0.5, 1.5],
+      "needDecay": [0.9, 1.1],
+      "raidChance": [0.25, 1.75]
+    }
+  },
   "simulation": {
     "maxTicks": 0,
     "modifierBounds": {
@@ -5640,6 +5650,7 @@
       "fertileStart": 150,
       "fertileEnd": 5000,
       "oldAgeStart": 5200,
+      "lifespanJitter": 0,
       "maxAge": 7600
     },
     "relationships": {
@@ -5852,11 +5863,17 @@
       "builderRatio": 0.22,
       "managerRatio": 0.12,
       "switchCooldownTicks": 200,
-      "emergencyMinRatio": 0.52,
+      "emergencyMinRatio": 0.15,
       "emergencyResources": ["food", "water"]
     },
     "reproduction": {
       "enabled": true,
+      "growthCap": {
+        "enabled": true,
+        "maxAnnualGrowth": 0.25,
+        "minBirthsPerYear": 20,
+        "burst": 2
+      },
       "gestationTicks": 50,
       "baseChance": 0.005,
       "cooldownTicks": 70,

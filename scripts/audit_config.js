@@ -19,7 +19,7 @@ const SECTION_CLASS = {
   resources: 'core', jobs: 'core', consumption: 'core', needs: 'core', population: 'core',
   seasons: 'core', weather: 'core', raids: 'core', structures: 'core', morale: 'core', dwarves: 'core',
   tools: 'core', merchant: 'core', pasture: 'core', wildlife: 'core', underrealm: 'core',
-  ai: 'core', simulation: 'core',
+  ai: 'core', simulation: 'core', variety: 'core',
   schism: 'narrative', warriors: 'narrative', myths: 'narrative', alchemy: 'narrative',
   landmarks: 'narrative', epic_conflicts: 'narrative', world_legacy: 'narrative',
   experience_ledger: 'narrative', chronicle: 'narrative', story_director: 'narrative', clans: 'narrative',
@@ -38,6 +38,8 @@ const CORE_KEYS = [
   'population.reproduction.baseChance', 'population.reproduction.resourcePerCapita.water',
   'population.reproduction.minStockpileRatio.food', 'population.aging.oldAgeStart', 'population.aging.maxAge',
   'population.housing.buildTargetRatio', 'population.roles.emergencyMinRatio', 'raids.chance.max',
+  // S3-0 growth cap (E29/E30): measured when added.
+  'population.reproduction.growthCap.maxAnnualGrowth', 'population.reproduction.growthCap.minBirthsPerYear',
 ];
 // Economic keys screened in R6 without a measurable effect at +/-25%: frozen at their values.
 // The raid minimums act only below difficulty 1 (training curriculum); the steward reserve acts only

@@ -80,7 +80,8 @@ This file defines how to implement new features in a consistent, stable way.
 - `src/simulation/underrealm.js`: underrealm crew assignment, deep economy, exploration unlocks, and hostile deep raids.
 - `src/simulation/world_events.js`: world event lifecycle, timed opportunities, and temporary world modifiers.
 - `src/simulation/external_camps.js`: long-lived external faction camps with trade, militia support, and raider pressure.
-- `src/simulation/modifier_ledger.js`: named, bounded multiplier stacks for gather yield, need decay and birth chance (STRATEGY.md R3), with the latest breakdown in `state.modifierLedger` for the Colony Report.
+- `src/simulation/modifier_ledger.js`: named, bounded multiplier stacks for gather yield, need decay, birth chance and raid chance (STRATEGY.md R3), with the latest breakdown in `state.modifierLedger` for the Colony Report.
+- `src/simulation/world_profile.js`: per-game world character (STRATEGY.md S3d) drawn from `variety.ranges` with a private PRNG seeded by the map seed; enters the ledger as the `world` factor.
 - `src/simulation/steward.js`: Colony Council posture (STRATEGY.md S2): fills the action groups no policy provides, restrained/cautious governor groups from `ai.steward`, RNG-free, `council.posture_changed` decrees.
 - `src/simulation/schism.js`: run-scale social schism arc (pressure/legitimacy, doctrine shifts, ritual windows, decrees, climax lifecycle, and committed structured-event integration).
 - `src/simulation/social_drama.js`: social-drama runtime for friendship/rivalry/mentorship/grudge inference and aggregate social pressure/cohesion metrics.

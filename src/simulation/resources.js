@@ -1,6 +1,7 @@
 'use strict';
 
 const { composeModifiers } = require('./modifier_ledger');
+const { getWorldYieldFactor } = require('./world_profile');
 const { clamp } = require('../utils');
 const { getClanEffects } = require('../clans');
 const { getSeasonModifier } = require('./season');
@@ -494,14 +495,15 @@ function getGatherYield(config, resourceId, node, state) {
   const beer = getBeerProductionMultiplier(state, config, resourceId);
   const contracts = 1 + getContractProductionBonus(state);
   const temple = getTempleOutputMultiplier(state, config, resourceId);
+  const world = getWorldYieldFactor(state, resourceId);
   // Same multiplication order as before the ledger, so yields stay bit-identical when unbounded.
   const product = composeModifiers(state, config, 'gatherYield', resourceId, baseYield, [
     ['environment', environment], ['tools', tools], ['forge', forge], ['beer', beer],
-    ['contracts', contracts], ['temple', temple],
+    ['contracts', contracts], ['temple', temple], ['world', world],
   ], [
     ['season', season], ['weather', weather], ['myths', myths], ['worldEvents', worldEvents],
     ['festival', festival], ['schism', schism], ['tools', tools], ['forge', forge], ['beer', beer],
-    ['contracts', contracts], ['temple', temple],
+    ['contracts', contracts], ['temple', temple], ['world', world],
   ]);
   // Yields are fractional so seasons, weather and bonuses scale every trip proportionally.
   const scaledYield = Math.max(0, Math.round(product * 1000) / 1000);

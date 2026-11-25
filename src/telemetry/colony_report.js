@@ -310,6 +310,7 @@ function collectColonyFacts(state, config, context = {}) {
     populationTrend: readHistoryTrend(history, 'population', yearTicks),
     stages: countLifeStages(dwarves),
     births: Math.max(0, Number(safeState.birthsCount || 0)),
+    birthsPaced: Boolean(safeState.growthCap && Number(safeState.growthCap.budget) < 1),
     deaths: Math.max(0, Number(safeState.deathsCount || 0)),
     deathsByCause: safeState.deathsByCause || {},
     council: safeState.steward && typeof safeState.steward === 'object' ? safeState.steward : null,
@@ -513,7 +514,10 @@ function assessPopulation(facts) {
     return { label: 'Population', status: STATUS_WATCH, value, note: 'Slowly shrinking: more deaths than births.' };
   }
   if (change > 0) {
-    return { label: 'Population', status: STATUS_GOOD, value, note: 'Growing.' };
+    const note = facts.birthsPaced
+      ? 'Growing at a paced rate, so generations do not age out all at once.'
+      : 'Growing.';
+    return { label: 'Population', status: STATUS_GOOD, value, note };
   }
   return { label: 'Population', status: STATUS_GOOD, value, note: trend.known ? 'Stable.' : 'Trend appears after a while.' };
 }
