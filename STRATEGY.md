@@ -200,8 +200,8 @@ note whether the colony reads as challenging or merely frustrating.
 - Freeze a session from the current config; run the scorecard for `default`, `gov:0`, `random`,
   `neglect` on 24 games x 8,000 ticks, the standard game (4 seeds x 8,000 and x 20,000 ticks), and
   3 fresh training replicates of the current recipe, each evaluated on the same 24 games.
-- Pass: scorecard v1 recorded in section 8 with means and replicate SD (current guess: replicate
-  spread ~4 dwarves, paired SE ~7).
+- Pass: scorecard v1 recorded in section 8 with means and replicate SD. Done 2026-11-25: replicate
+  SD 9.1 dwarves, paired SE ~7 per replicate (section 8, "Scorecard v1").
 
 ### S1. Fast native policy evaluation (D7)
 - Add a `policy:<file>` player to `challenge_probe.js` using `src/ai/policy.js` (the game's own
@@ -382,13 +382,13 @@ Deterministic regression of the no-AI game: `npm run bench:candidate` then `npm 
 | 2026-11-24 | E17-E18 | Tight economy: fractional yields 1.0, lean winter, costly capped beer, proportional jobs, births need 2 stock per dwarf |
 | 2026-11-24 | E19 | Six-term outcome reward, 8,000-tick `rpp` gate, gamma 0.998 |
 | 2026-11-24 | - | Cleanup: legacy 71-term reward, round-robin allocation and integer yields removed (games bit-identical); Markdown reports replaced by JSON; workbook, manual and evidence files folded into this document |
-| 2026-11-24 | S0 (partial) | Synthetic scorecard v1 recorded below; training replicates still to run |
+| 2026-11-25 | S0 | Scorecard v1 complete: 3 fresh replicates average 74.6 pop (SD 9.1), +31% vs default, all below gov:0; training changes need >= 3 replicates |
 | 2026-11-24 | S0 | Plan reordered: steward (now S2) before simulation changes (now S3) |
 | 2026-11-25 | D1 | S4 rewritten around a lever audit: expose growth, reserves, workforce, build priority, risk and defense only if they measurably move outcomes |
 | 2026-11-25 | D9-D12 | Added: reflexes move into the steward, widened lever ranges, per-game variety (S3d), rationing/trade/event/scouting levers, seasonal two-level policy, council decrees, AI control share metric |
-| next | S0 | Finish the 3 training replicates, then S1 |
+| next | S1 | Fast native policy evaluation |
 
-### S0 progress (session `experiments/runs/2026-11-24_s0`, commit a5e3998, git-ignored)
+### Scorecard v1 (S0, session `experiments/runs/2026-11-24_s0`, commit a5e3998, git-ignored)
 
 Eval plan, 24 games x 8,000 ticks (`challenge_probe.js`, paired with default):
 
@@ -405,9 +405,30 @@ at 20,000 ticks default 84 (0 extinctions), gov:0 69 (1 extinction, 39 avoidable
 posture is best, which is the room the steward (S2) and the trained policy must fill.
 `eval_paired.py --policy default` on the same 24 games matches the probe (pop 57.0, rpp 0.478).
 
-Resume S0 (about 30 minutes, machine idle): train and evaluate 3 fresh replicates, then record the
-replicate mean and SD here.
+Current recipe (`m4-pro`, gamma 0.998), 3 fresh replicates, each on the same 24 games
+(`eval_paired.py --outcomes`, paired with default and with gov:0 from the probe):
 
-```bash
-for r in 1 2 3; do node experiments/exp_run.js --out experiments/runs/2026-11-24_s0 --name recipe --rep $r --fresh-start && .venv/bin/python experiments/eval_paired.py --policy experiments/runs/2026-11-24_s0/recipe_r$r/p.json --outcomes --config experiments/runs/2026-11-24_s0/configs/config_endgame.json --max-steps 4000 --episodes 24 --workers 8 --out experiments/runs/2026-11-24_s0/eval_rep$r.json; done
-```
+| Replicate | Pop | vs default (z) | Wins vs default | vs gov:0 (z) | Wins vs gov:0 | rpp | Avoidable | Starvation |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 73.8 | +16.8 (2.52) | 16/24 | -22.2 (-3.80) | 5/24 | 0.509 | 9.9 | 0.5 |
+| 2 | 84.0 | +27.0 (3.94) | 19/24 | -12.0 (-1.88) | 9/24 | 0.529 | 12.6 | 0.0 |
+| 3 | 65.9 | +8.9 (1.27) | 14/24 | -30.1 (-4.84) | 5/24 | 0.496 | 10.3 | 0.0 |
+| mean (SD) | 74.6 (9.1) | +17.6 | - | -21.4 | - | 0.512 (0.017) | 10.9 | 0.2 |
+
+No extinctions in any replicate. Training each took ~5.6 minutes; foundation critic explained
+variance 0.94-0.96, finetune 0.95-0.99.
+
+Per scenario (mean pop over 2 games; trained = mean of the 3 replicates): the trained policy beats
+default clearly in `full_sim` (113 vs 80), `food_scarce` (114 vs 63), `ruins_focus` (99 vs 72) and
+`social_tension_pressure` (58 vs 25), roughly ties in `baseline` (90 vs 98), `underrealm_push` and
+`governance_pressure`, and loses in `compound_crisis` (23 vs 34). gov:0 beats the trained mean in 11
+of 12 scenarios (all but `baseline`).
+
+What S0 teaches:
+- Training outcome varies a lot with the seed: the same recipe and budget give 66-84 dwarves. One
+  run proves little; the protocol's 3-replicate rule is necessary, and the mean of 3 still carries
+  an SE of ~5 dwarves. Reducing this variance (more episodes, better action design) is itself a goal.
+- The recipe reliably beats the no-AI game (+31% pooled) but reliably loses to the fixed gov:0 rule
+  (-21 dwarves on average): the trained policy has not learned the governor switches (D1).
+- The weakest scenario is `compound_crisis`, where the trained policy is worse than default.
+
