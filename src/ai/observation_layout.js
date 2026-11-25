@@ -9,6 +9,7 @@ const OBSERVATION_LAYOUTS = new Set([OBSERVATION_LAYOUT_PER_RESOURCE, OBSERVATIO
 const PER_RESOURCE_FEATURE_NAMES = new Set(['shortage', 'nodeScarcity']);
 const FESTIVAL_ACTION_ID = 'festival';
 const GOVERNOR_ACTION_PREFIX = 'gov_';
+const LEVER_ACTION_PREFIX = 'lever_';
 
 // Resolve a layout id, falling back to the legacy layout for missing or unknown values.
 function normalizeObservationLayout(value, fallback = OBSERVATION_LAYOUT_PER_RESOURCE) {
@@ -16,10 +17,11 @@ function normalizeObservationLayout(value, fallback = OBSERVATION_LAYOUT_PER_RES
   return OBSERVATION_LAYOUTS.has(text) ? text : fallback;
 }
 
-// Real stockpile resources carry per-resource signals; festival/governor heads do not.
+// Real stockpile resources carry per-resource signals; festival, governor and lever heads do not.
 function isObservedResourceId(resource) {
   const text = String(resource || '');
-  return text.length > 0 && text !== FESTIVAL_ACTION_ID && !text.startsWith(GOVERNOR_ACTION_PREFIX);
+  return text.length > 0 && text !== FESTIVAL_ACTION_ID && !text.startsWith(GOVERNOR_ACTION_PREFIX)
+    && !text.startsWith(LEVER_ACTION_PREFIX);
 }
 
 // Build the index plan shared by size checks and vector assembly.

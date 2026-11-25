@@ -120,6 +120,9 @@ Paired by seed. "Pop" = final population; "avoidable" = deaths excluding old age
 | E30 | 11-25 | S3-0 at long horizon, S3a and S3b: the cap delays the water wall, it does not remove it | 16 harsher seeds at 20,000 ticks: old config 7/16 extinctions, adopted cap 6/16 (pop +43, progress +39, z 3.5), cap without floor 3/16; pooled 32 seeds: 10, 7 and 3 extinctions. 40,000 ticks (16 seeds): floor 20 6/16, no floor 5/16, both with lifespan jitter 0.15 4/16 and 5/16, starvation 440-680 deaths per run. Mechanism (seed 1717 trace): the colony overuses its water tiles, the stock stays below `minStockpileRatio` for ~4,000 ticks, births are blocked longer than the fertile window (101 fertile adults -> 0) and the colony ages out with stocks recovered. S3a: per-dwarf lifespan jitter 0.15 (new `population.aging.lifespanJitter`) 20k extinctions 7 -> 3 of 32 (discordant 6 vs 2, p ~0.3), 40k 5 vs 3, eval pop -8 (z -0.9); jitter 0.3 and founder ages up to 2,500 ticks: no effect. S3b: median Underrealm depth at 8,000 ticks 2 (eval), 5 at 20,000 (pass >= 1 already met); landmark stages hit the maximum (15) in 46 of 48 games | Jitter and founder spread not adopted (below z 2; jitter stays available at 0 for S3d); the long-run water trap is the decision the S4 growth lever must learn, with S5 snapshot starts; landmark stages no longer separate good from bad play (reward term `landmarkStage` is nearly constant) |
 | E31 | 11-25 | S3c guards and S3d world variety | S3c: Underrealm guard share 0.01 -> 0.25: deep-raid deaths 24.5 -> 9.0 per 20,000-tick game (z -3.6), 0.7 -> 0.2 on the eval plan (z -2.5), progress -34 (z -4.3): a real defense trade-off, already exposed as `guardMixBias` but restrained by the council. S3d: world profile drawn from the map seed (`src/simulation/world_profile.js`, `variety.ranges`), entering the ledger as `world`; off = bit-identical. On the 8,000-tick eval variety does not change which posture wins (steward beats gov:1/gov:2 in 71-79% of games with narrow or wide ranges; growth 50% a year beats 25% in 20-21 of 24 games because its cost lands later). At 20,000 ticks (16 seeds) no growth rate dominates: best per game 15%/25%/50% = 2/6/8, 25% vs 50% wins 50%; with wide variety 50% a year falls to pop 99 and 4/16 extinctions (188 and 3/16 without) | Wide variety on by default (food 0.7-1.3, water 0.8-1.2, winter 0.5-1.5, needs 0.9-1.1, raids 0.25-1.75); guards and growth rate are S4 lever candidates whose best setting depends on the game only at long horizon |
 | E32 | 11-25 | Scorecard v3 (S3 defaults: growth cap, emergency 0.15, wide variety) | eval 24 games x 8,000 ticks: steward 166.1 (avoidable 13.5, progress 112, 0 extinctions, drawdown 4-8k median 3%), gov:0 identical, everything on 147.4 (-11%, z -2.1), random 151.2 (-9%), neglect 166.0 (=); standard game 32 seeds x 20,000 ticks: steward 169.6 with 4/32 extinctions, everything on 101.8 (-40%, z -3.0, 2/32), neglect 165.2 (3/32, avoidable +19); median Underrealm depth at 8,000 ticks 2 | S3 pass: drawdown, 8k extinctions, depth and defense lever met; 20k extinctions 4/32 (target 3/48) and neglect gap (E26) not met. The growth cap also slows weak players, so skill now shows mainly at 20,000 ticks: S5 must add a 20k check to the gate |
+| E33 | 11-26 | S4a lever audit: horizon-dependent levers and two council inefficiencies | council, 24 eval games x 8,000 ticks and 16 standard games x 20,000, each candidate low/high vs scorecard v3 (paired z; best/game = share of games won by the most frequent setting): growth 50%/yr +39 pop at 8k (z 2.5) but -86 at 20k (z -2.1, avoidable +42, 4 extinctions), best/game 88% at 8k vs 50% at 20k; ventures open (ruins, Underrealm, camps) avoidable +68 (z 3.9) and progress +38 (z 5.0) at 20k, best/game 56-58%; reserves 1.8x target +24 at 8k (z 2.8), best/game 62%; builders 0.10 avoidable +6 (z 3.0) and progress +12 (z 2.2) at 8k, best/game 42-44%; Underrealm share 0.45 -17 pop at 8k (z -2.1), 0.10 progress -16 at 20k (z -2.9), best/game 50-62%; guard share and merchant reserve: no outcome |z| >= 2. Housing target 1.2 (vs 1.7) +122 at 20k (z 4.5, best in 14/16) and later meals (thresholds +40%) +38 at 8k (z 4.2), +97 at 20k (best in 19/24 and 14/16): council inefficiencies, not levers. Both as defaults: council 202 vs 166 at 8k (z 4.0), 352 vs 185 at 20k (z 5.5), 0/16 extinctions; everything-on -87 at 20k (z -3.6) with avoidable +52 and progress +49 | Levers for S4b: growth rate, reserves, builders, Underrealm share, ventures (risk). Housing target and meal thresholds stay at the v3 values and stay out of the AI's reach: adopting them made the council colony nearly immortal (0/16 extinctions at 20k), and the game must stay a challenge (decision 2026-11-26). Open: eating later is free (no morale or work cost); a real cost would turn rationing into a lever |
+| E34 | 11-26 | S4b-S4f built; cadence sweep (one replicate each, 640 episodes, half the episodes from snapshots, gamma for a ~10,000-tick horizon) | action space v2: 9 heads (4 job weights + growth, reserves, builders, Underrealm share, ventures) instead of 33; 7 strategic inputs (age shares, births last year, growth budget, food/water autonomy); snapshot bank of 368 states (48 council games, 2,000-16,000 ticks, 156 MB); training 12-14 min per 640 episodes. vs council, eval 24 x 8,000: every 10 ticks +21 pop (z 2.1), 20 ticks +9, 40 ticks +12 (z 1.8); standard 16 x 20,000: -15, -9, -21 (all n.s.), avoidable +16, +27 (z 2.0), +1; extinctions 0, 1, 1 (council 2). Levers stay near the council midpoint (0.3-0.75) after 640 episodes: growth and reserves slightly up, Underrealm share low early and higher late | Cadence 10 ticks (gamma 0.999); 3 replicates of 1,920 episodes; dual-horizon gate in `promote_best.py` (`canonical.longHorizon`: 16 games x 20,000 ticks, block if paired mean + 1 SE < 0) |
+| E35 | 11-26 | S4 verdict: the v2 stack works, the trained policies do not beat the council at 20,000 ticks | 2 of 3 planned replicates (cadence 10, gamma 0.999, 1,920 episodes, half from snapshots; replicate 3 stopped): eval 24 x 8,000 vs council 166: r1 190 (+14%, z 1.95), r2 156 (-6%, z -1.3); standard 32 x 20,000 vs council 170 (4/32 extinctions): r1 137 (z -1.4, 1/32, median drawdown 54% vs 34%), r2 150 (z -0.7, avoidable +23 z 2.1, 4/32). Training diagnostics: critic explained variance 0 -> 0.93 (the value side learns), but policy entropy rose 5.57 -> 5.90 in both runs: with entropy coefficient 0.008 ramped over 15,000 episodes the exploration bonus outweighs the weak per-decision advantage of 9 strategic heads, so lever means stay near the council midpoint (0.3-0.75) and runs diverge | S4 pass not met (needs +10% at 20,000 with z >= 2 over 3 replicates). Kept: action space v2, strategic inputs, snapshot bank, dual-horizon gate, cadence 10. Next: fix the entropy schedule for v2 (ramp within the run, lower final coefficient), then longer runs, before S5 |
 | E21 | 11-25 | Evaluation speed is not the bottleneck | 24 games x 8,000 ticks: `eval_paired.py` 61 s, in-process JS 60 s; per worker ~270 ticks/s at late-game population (3.7 ms/tick) | Keep `eval_paired.py` as the reference evaluator; noise, not speed, limits decisions |
 
 E19, 24 games x 8,000 ticks (seed base 100000):
@@ -213,7 +216,7 @@ Ranked by expected impact.
 ## 5. Step plan
 
 Order: measure (S0-S1), define "good" with a strong hand-written strategy (S2), rationalize the
-model (R) so the next changes land on a small, visible core, settle the game (S3), then rebuild the learning stack (S4-S6), scale (S7) and ship (S8). The steward comes first
+model (R) so the next changes land on a small, visible core, settle the game (S3), then rebuild the learning stack (S4-S5), scale it with a better observation (S6, which absorbed S7) and ship (S8). The steward comes first
 because it improves the `npm start` game at once, needs no training, and gives every later step a
 serious opponent: if reinforcement learning cannot beat it, that shows early and cheaply. Simulation
 changes (S3) follow it and precede any heavy training, because each one invalidates trained policies.
@@ -392,18 +395,46 @@ open. Scouting only becomes useful after S3d makes games differ.
 A candidate becomes an AI lever only if one direction moves an outcome with |z| >= 2 and the
 best setting differs between scenarios or seasons (otherwise a fixed steward rule is enough).
 
-S4b action space v2. Expose the levers that pass S4a as a handful of heads at strategic cadence
-(S5), discrete where the decision is discrete (Bernoulli or ordinal heads) and initialized to the
-steward posture; the policy may act as a residual on top of the steward. Remove the heads that are
-not levers (festival, building weights, contracts, warriors, social and the inert governor biases).
+The S4a audit (E33) showed the strongest levers pay at 8,000 ticks and cost at 20,000 (growth,
+risk), so a policy trained on today's ~1,000-tick horizon and promoted by the 8,000-tick gate would
+learn "grow fast, risk everything". The training changes once planned for S5 and S6 therefore land
+in S4, before the first fresh training (decision 2026-11-26):
+
+S4b action space v2: keep the four job weights (they carry the per-resource observation rows) and
+replace the festival and the 28 governor heads with one head per lever that passes S4a, initialized
+to the council posture; the council fills every group no head decides.
+S4c strategic cadence: one decision every N ticks for training, gate and game (sweep 10, 20, 40 on
+a short run, keep the best), with gamma per decision set for a ~10,000-tick horizon.
+S4d mid-game snapshot starts (described in S5 below): a bank of states from 2,000-16,000 ticks of
+council and current-policy games, refreshed every chained run; part of the episodes start from tick
+0 (growth decisions), part from the bank (where their cost is paid), with shorter episodes.
+S4e observation: age structure (child, fertile-adult and old-age shares, births in the last year,
+growth budget) and food/water autonomy in ticks; S1 parity check after the change.
+S4f dual-horizon gate: promote only if the 8,000-tick `rpp` gate passes and the 20,000-tick check
+(16 standard games) is not worse than the incumbent.
+Then one fresh training with 3 replicates.
 
 Pass: every exposed lever moves an outcome with |z| >= 2 in the leverage probe; trained policy beats
-steward by >= 10% final population with z >= 2 (48 games, 3 replicates); worse than steward in at
-most 3 of 12 scenarios; fewer action heads than today (29).
+the council by >= 10% final population with z >= 2 on 20,000-tick games and is not worse at 8,000
+(48 games, 3 replicates); no more extinctions than the council at 20,000; worse than the council in
+at most 3 of 12 scenarios; fewer action heads than today (33).
 
-### S5. Decision cadence and full-horizon training (D3, D4, fresh training)
-- One cadence for training, gate and game; sweep 10, 20 and 40 ticks per decision; foundation
-  episodes of 8,000 ticks; gamma per decision set for a ~1,000-1,500-tick horizon.
+Status 2026-11-26: S4 closed, pass not met (E33-E35).
+- Built and kept: five levers (growth rate, reserves, builders, Underrealm share, ventures) as 9-head
+  action space v2 (`src/simulation/levers.js`, `ai.levers`); seven strategic inputs (S4e); snapshot
+  starts (`scripts/build_snapshot_bank.js`, `train.py --snapshot-bank/--snapshot-prob`, ai_server
+  `autostep`/`save_snapshot`/snapshot reset); dual-horizon gate (`canonical.longHorizon`);
+  evaluators use each policy's own action list, so v1 and v2 policies compare under one config.
+- Measured: cadence 10 best of 10/20/40 (E34); replicates 1-2 at 1,920 episodes: +14% and -6% at
+  8,000 ticks, both below the council at 20,000 (E35). Production `models/` unchanged (v1).
+- Cause found: policy entropy grows during v2 training; the entropy schedule tuned for 33 heads
+  and 2-tick decisions is too strong for 9 strategic heads. First thing to fix before S5.
+- Not done in S4: cadence 10 is not yet the default of `train_wrapper` phases, the gate or the game
+  (`ai.stepTicks` stays 5 for the v1 policy); S1-style JS/Python parity run on a v2 policy.
+
+### S5. Two-level policy and chained improvement (D3, D4)
+- Cadence, snapshot starts and the 20,000-tick gate moved into S4 (S4c, S4d, S4f); what stays here
+  is the two-level policy, the snapshot A/B and the chained-run improvement test.
 - Try a two-level policy: a seasonal plan chosen at the start of each season (growth, reserves, risk,
   workforce) plus small adjustments at the regular cadence; it shortens credit assignment to a few
   decisions per year. Adopt it only if it beats the flat policy under the same pass criteria.
@@ -423,18 +454,16 @@ most 3 of 12 scenarios; fewer action heads than today (29).
   (or are dropped); improvement per run: 3 chained runs where each run is >= the previous minus one SE and
   run 3 beats run 1 by >= 5% population with z >= 2.
 
-### S6. Observation v2 (D5, fresh training)
-- Add food/water autonomy in ticks, ticks to the next winter, reserve per dwarf vs the birth
-  requirement, a births-blocked flag, the age structure (child, fertile-adult and old-age shares,
-  mean age of fertile adults, births in the last year, growth budget), deep-raid threat vs defense.
-  Remove features with no permutation importance; keep the vector no larger than today (79).
-- Pass: critic explained variance >= 0.95 on 8,000-tick episodes; +5% population vs S5 with z >= 2.
-
-### S7. Scale and curriculum
-- Dose-response on foundation length (640, 1,280, 2,560 episodes) and a scenario mix weighted toward
-  scenarios where the policy trails the steward.
-- Pass: gain per training minute stays positive up to the chosen budget; the official gate promotes
-  (LCB > 0) against the previous best.
+### S6. Observation v2, scale and curriculum (D5; S6 and S7 merged on 2026-11-26, one fresh training cycle)
+- Observation: age structure and food/water autonomy landed in S4e; add ticks to the next winter,
+  reserve per dwarf vs the birth requirement, a births-blocked flag and deep-raid threat vs defense;
+  remove features with no permutation importance; keep the vector no larger than today (80).
+- Scale: in the same fresh training cycle, dose-response on foundation length (1,920, 3,840 and
+  7,680 episodes at cadence 10) and a scenario mix weighted toward scenarios where the policy trails
+  the council; 3 replicates at the chosen length.
+- Pass: critic explained variance >= 0.95 on 8,000-tick episodes; +5% population vs S5 with z >= 2
+  at 20,000 ticks; gain per training minute stays positive up to the chosen budget; the official
+  dual-horizon gate promotes (LCB > 0 at 8,000, not worse at 20,000) against the previous best.
 
 ### S8. Production hardening (D8)
 - Promote through `npm run ai:train:m4pro -- --fresh`, regenerate regression baselines and
@@ -533,7 +562,11 @@ Deterministic regression of the no-AI game: `npm run bench:candidate` then `npm 
 | 2026-11-25 | R6 | Tuning surface cut to 18 measured keys, 32 frozen (E28); step R complete |
 | 2026-11-25 | S3-0 | Growth becomes an AI lever in S4 (no birth reward); S5 adds mid-game snapshot starts; S6 adds the age structure |
 | 2026-11-25 | S3 | Growth cap 25%/year + floor 20, emergency reflex 0.15, wide per-map variety on; jitter and founder spread rejected; scorecard v3 (E29-E32) |
-| next | S4a | Lever audit with growth rate and guard share first; every lever judged at 8,000 and 20,000 ticks |
+| 2026-11-26 | S4a | Strategic cadence, snapshot starts, age/water observation and a 20,000-tick gate check move into S4, before the first fresh training: the strongest levers pay at 8,000 ticks and cost at 20,000 (E33) |
+| 2026-11-26 | S4a | Levers: growth, reserves, builders, Underrealm share, ventures (E33); housing target and meal thresholds kept at v3 values so the game stays a challenge |
+| 2026-11-26 | S6+S7 | Observation v2, scale and curriculum merged into one step and one fresh training cycle |
+| 2026-11-26 | S4 | Closed without meeting the pass: the v2 stack is kept, trained policies stay at the council level at 20,000 ticks; entropy schedule identified as the first fix (E35) |
+| next | S4 fix | Entropy schedule for v2 (within-run ramp, lower final coefficient), longer runs, parity check; then S5 |
 
 ### Scorecard v1 (S0, session `experiments/runs/2026-11-24_s0`, commit a5e3998, git-ignored)
 

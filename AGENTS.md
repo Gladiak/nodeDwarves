@@ -81,6 +81,7 @@ This file defines how to implement new features in a consistent, stable way.
 - `src/simulation/world_events.js`: world event lifecycle, timed opportunities, and temporary world modifiers.
 - `src/simulation/external_camps.js`: long-lived external faction camps with trade, militia support, and raider pressure.
 - `src/simulation/modifier_ledger.js`: named, bounded multiplier stacks for gather yield, need decay, birth chance and raid chance (STRATEGY.md R3), with the latest breakdown in `state.modifierLedger` for the Colony Report.
+- `src/simulation/levers.js`: strategic levers of action space v2 (STRATEGY.md S4b): `lever_<name>` heads map u in [0, 1] to low/default/high settings read at their config paths, or open council-restrained groups.
 - `src/simulation/world_profile.js`: per-game world character (STRATEGY.md S3d) drawn from `variety.ranges` with a private PRNG seeded by the map seed; enters the ledger as the `world` factor.
 - `src/simulation/steward.js`: Colony Council posture (STRATEGY.md S2): fills the action groups no policy provides, restrained/cautious governor groups from `ai.steward`, RNG-free, `council.posture_changed` decrees.
 - `src/simulation/schism.js`: run-scale social schism arc (pressure/legitimacy, doctrine shifts, ritual windows, decrees, climax lifecycle, and committed structured-event integration).
@@ -136,6 +137,7 @@ This file defines how to implement new features in a consistent, stable way.
 - `scripts/train_continuous.js`: cycle orchestrator for continuous AI training cadence and periodic validation gates.
 - `scripts/regression.js`: AI regression harness and profile recording.
 - `scripts/validate_extended_optimized.js`: optimized full-quality validation orchestrator with per-phase runtime reporting (deduplicates benchmark execution across gate+risk).
+- `scripts/build_snapshot_bank.js`: mid-game snapshot bank for training starts (STRATEGY.md S4d): plays training games through `ai_server.js` (council or a policy) and saves gzip states at fixed ticks.
 - `scripts/headless_benchmark.js`: deterministic headless benchmark CLI for long-run tuning and validation.
 - `scripts/ensure_benchmark_baseline.js`: baseline cache guard that auto-refreshes cached baseline reports when benchmark profile metadata mismatches.
 - `scripts/compare_benchmark_reports.js`: report-to-report benchmark diff CLI for cached baseline/candidate economy, Underrealm, legacy, and epic-conflict comparisons.

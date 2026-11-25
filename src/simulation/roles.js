@@ -1,5 +1,6 @@
 'use strict';
 
+const { getLeverSetting } = require('./levers');
 const { clamp } = require('../utils');
 const { isAdult } = require('./population');
 const { getStockpileRatio } = require('./resources');
@@ -128,6 +129,7 @@ function updateRoles(state, config) {
     return;
   }
   const adults = state.dwarves.filter((dwarf) => isSurfaceAdult(dwarf, config));
+  const builderRatio = clamp(getLeverSetting(state, 'population.roles.builderRatio', roleConfig.builderRatio), 0, 1);
   let builderCount = adults.filter((dwarf) => dwarf.role === 'builder' || dwarf.role === 'manager').length;
   let managerCount = adults.filter((dwarf) => dwarf.role === 'manager').length;
   let totalCount = adults.filter((dwarf) => (
@@ -147,7 +149,7 @@ function updateRoles(state, config) {
       continue;
     }
     const ratio = totalCount > 0 ? builderCount / totalCount : 0;
-    const role = ratio < roleConfig.builderRatio ? 'builder' : 'gatherer';
+    const role = ratio < builderRatio ? 'builder' : 'gatherer';
     dwarf.role = role;
     dwarf.roleCooldown = roleConfig.switchCooldownTicks;
     totalCount += 1;

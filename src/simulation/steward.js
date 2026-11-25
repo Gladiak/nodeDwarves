@@ -8,6 +8,7 @@
 // its own heads. Posture changes that alter what the council holds back become council decrees.
 // Deterministic and RNG-free; its last decision lives in `state.steward` for saves and reports.
 
+const { getLeverOpenGroups } = require('./levers');
 const { emitSecondaryEvent, buildSecondaryActor, buildSettlementActor } = require('./secondary_events');
 
 const GROUPS = ['festivalIntent', 'trade', 'building', 'contracts', 'ruins', 'underrealm', 'externalCamps',
@@ -119,9 +120,10 @@ function applyStewardGroups(state, config, action, settings) {
       emitCouncilDecree(state, config, state.steward, settings);
     }
   }
-  const groups = state.steward.posture === 'cautious'
+  const opened = new Set(getLeverOpenGroups(state));
+  const groups = (state.steward.posture === 'cautious'
     ? [...new Set([...settings.restrainedGroups, ...settings.cautiousGroups])]
-    : settings.restrainedGroups;
+    : settings.restrainedGroups).filter((group) => !opened.has(group));
   if (groups.length === 0) {
     return action;
   }

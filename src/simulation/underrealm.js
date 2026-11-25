@@ -1,5 +1,6 @@
 'use strict';
 
+const { getLeverSetting } = require('./levers');
 const { clamp } = require('../utils');
 const {
   buildResourceConsequences,
@@ -1497,7 +1498,7 @@ function updateCrewAssignments(state, config, action = null) {
     action,
   );
   const surfaceReserveRatio = clamp(Number(governorDecision.surfaceReserveRatio || 0), 0, 1);
-  const maxUnderrealmRatio = clamp(Number(crew.maxUnderrealmRatio ?? 0.6), 0, 1);
+  const maxUnderrealmRatio = clamp(getLeverSetting(state, 'underrealm.crew.max_underrealm_ratio', Number(crew.maxUnderrealmRatio ?? 0.6)), 0, 1);
   const reserveCount = Math.floor(adults.length * surfaceReserveRatio);
   const deepLimit = Math.floor(adults.length * maxUnderrealmRatio);
   const assignable = Math.max(0, Math.min(adults.length - reserveCount, deepLimit));

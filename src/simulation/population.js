@@ -1,5 +1,6 @@
 'use strict';
 
+const { getLeverSetting } = require('./levers');
 const { composeModifiers } = require('./modifier_ledger');
 const { clamp } = require('../utils');
 const { getSeasonModifier } = require('./season');
@@ -811,7 +812,7 @@ function accrueGrowthBudget(state, config, reproduction) {
   const seasons = config.seasons || {};
   const yearTicks = Math.max(1, Number(seasons.durationTicks || 200)
     * Math.max(1, Array.isArray(seasons.order) ? seasons.order.length : 4));
-  const rate = Math.max(0, Number(cap.maxAnnualGrowth ?? 0.5));
+  const rate = Math.max(0, getLeverSetting(state, 'population.reproduction.growthCap.maxAnnualGrowth', Number(cap.maxAnnualGrowth ?? 0.5)));
   const floor = Math.max(0, Number(cap.minBirthsPerYear ?? 0));
   const burst = Math.max(1, Number(cap.burst ?? 2));
   const record = state.growthCap && typeof state.growthCap === 'object' ? state.growthCap : { budget: burst };

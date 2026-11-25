@@ -1,5 +1,6 @@
 'use strict';
 
+const { LEVER_ACTION_PREFIX, isLeverActionId } = require('../simulation/levers');
 const fs = require('fs');
 const path = require('path');
 const { clamp } = require('../utils');
@@ -258,6 +259,7 @@ function buildActionEnvelopeFromVector(resources, outputVector, minWeight, maxWe
   const externalCamps = {};
   const social = {};
   const warriors = {};
+  const levers = {};
 
   for (let i = 0; i < resources.length; i += 1) {
     const actionId = String(resources[i] || '');
@@ -271,6 +273,12 @@ function buildActionEnvelopeFromVector(resources, outputVector, minWeight, maxWe
       : clamp(numeric, minWeight, maxWeight);
     if (actionId === FESTIVAL_ACTION_ID) {
       festivalIntent = scaled;
+      continue;
+    }
+    if (isLeverActionId(actionId)) {
+      // Lever heads (action space v2) report u in [0, 1]; the midpoint keeps the council default.
+      const span = maxWeight - minWeight;
+      levers[actionId.slice(LEVER_ACTION_PREFIX.length)] = span > 0 ? clamp((scaled - minWeight) / span, 0, 1) : 0.5;
       continue;
     }
     if (actionId === TRADE_RESERVE_BIAS_ACTION_ID) {
@@ -388,6 +396,9 @@ function buildActionEnvelopeFromVector(resources, outputVector, minWeight, maxWe
   if (Object.keys(weights).length > 0) {
     payload.weights = weights;
   }
+  if (Object.keys(levers).length > 0) {
+    payload.levers = levers;
+  }
   if (festivalIntent !== undefined) {
     payload.festivalIntent = festivalIntent;
   }
@@ -442,6 +453,9 @@ function normalizeActionEnvelope(action) {
 
   if (Object.prototype.hasOwnProperty.call(action, 'festivalIntent')) {
     normalized.festivalIntent = action.festivalIntent;
+  }
+  if (action.levers && typeof action.levers === 'object') {
+    normalized.levers = { ...action.levers };
   }
   if (action.trade && typeof action.trade === 'object') {
     normalized.trade = { ...action.trade };

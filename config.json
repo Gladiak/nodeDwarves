@@ -1955,6 +1955,16 @@
       "prestige": 0.2,
       "extinction": 20
     },
+    "levers": {
+      "enabled": true,
+      "definitions": {
+        "growth": { "path": "population.reproduction.growthCap.maxAnnualGrowth", "low": 0.1, "high": 0.6 },
+        "reserves": { "paths": ["jobs.gatherTriggerRatio.food", "jobs.gatherTriggerRatio.water"], "low": 1.0, "high": 2.0 },
+        "builders": { "path": "population.roles.builderRatio", "low": 0.05, "high": 0.4 },
+        "deep": { "path": "underrealm.crew.max_underrealm_ratio", "low": 0.05, "high": 0.5 },
+        "ventures": { "groups": ["ruins", "underrealm", "externalCamps"], "openAbove": 0.65 }
+      }
+    },
     "steward": {
       "enabled": true,
       "decisionTicks": 20,
@@ -3034,7 +3044,13 @@
           "seed": 0,
           "endgameEnabled": false,
           "requirePositiveLcb": true,
-          "lcbZ": 1.96
+          "lcbZ": 1.96,
+          "longHorizon": {
+            "enabled": true,
+            "ticks": 20000,
+            "episodes": 16,
+            "z": 1
+          }
         }
       },
       "trainer": {
@@ -3139,7 +3155,14 @@
           "clanShare_abyssborn",
           "clanShare_khorg_embers",
           "clanShare_threshold_wardens",
-          "clanShare_deep_lantern"
+          "clanShare_deep_lantern",
+          "childShare",
+          "fertileShare",
+          "elderShare",
+          "birthsLastYear",
+          "growthBudget",
+          "foodAutonomy",
+          "waterAutonomy"
         ],
         "activation": "tanh",
         "logStdInit": -0.8,

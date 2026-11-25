@@ -1,5 +1,6 @@
 "use strict";
 
+const { getLeverSetting } = require('./levers');
 const { clamp } = require("../utils");
 const { getClanEffects } = require("../clans");
 const { getSeasonModifier } = require("./season");
@@ -1715,7 +1716,13 @@ function getRawActionWeights(action) {
 }
 
 // Resolve the gather trigger ratio for a resource (multiplies the stockpile target).
-function getGatherTriggerRatio(config, resourceId) {
+function getGatherTriggerRatio(config, resourceId, state = null) {
+  if (state) {
+    const chosen = getLeverSetting(state, `jobs.gatherTriggerRatio.${resourceId}`, NaN);
+    if (Number.isFinite(chosen)) {
+      return Math.max(0, chosen);
+    }
+  }
   const jobsConfig = (config && config.jobs) || {};
   const trigger = jobsConfig.gatherTriggerRatio;
   if (Number.isFinite(trigger)) {
@@ -1749,7 +1756,7 @@ function computeShortages(state, targets, weights, config, options = {}) {
     }
 
     const current = Number(stockpile[resource] || 0);
-    const triggerRatio = getGatherTriggerRatio(config, resource);
+    const triggerRatio = getGatherTriggerRatio(config, resource, state);
     const effectiveTarget = target * triggerRatio;
     const missing = effectiveTarget - current;
 

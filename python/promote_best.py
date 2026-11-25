@@ -91,6 +91,9 @@ def build_promote_defaults(config, train_defaults):
         "lcb_z": 1.96,
         "canonical_enabled": False,
         "eval_progress_every": 10,
+        "long_horizon_ticks": 0,
+        "long_horizon_episodes": 16,
+        "long_horizon_z": 1.0,
     }
     if canonical:
         defaults["canonical_enabled"] = train.to_bool(canonical.get("enabled"), True)
@@ -126,6 +129,11 @@ def build_promote_defaults(config, train_defaults):
             True,
         )
         defaults["lcb_z"] = float(train.to_float(canonical.get("lcbZ"), defaults["lcb_z"]))
+        long_horizon = canonical.get("longHorizon") or {}
+        if train.to_bool(long_horizon.get("enabled"), False):
+            defaults["long_horizon_ticks"] = int(train.to_int(long_horizon.get("ticks"), 20000))
+            defaults["long_horizon_episodes"] = int(train.to_int(long_horizon.get("episodes"), 16))
+            defaults["long_horizon_z"] = float(train.to_float(long_horizon.get("z"), 1.0))
     return defaults
 
 
@@ -690,6 +698,11 @@ def parse_args():
         help="Disable paired lower-confidence-bound promotion guard.",
     )
     parser.add_argument("--lcb-z", type=float, default=defaults["lcb_z"])
+    # Dual-horizon gate (STRATEGY.md S4f): a candidate that passes the short gate must also not be
+    # worse than the incumbent on long games (paired mean + z * SE >= 0). 0 ticks disables it.
+    parser.add_argument("--long-horizon-ticks", type=int, default=defaults["long_horizon_ticks"])
+    parser.add_argument("--long-horizon-episodes", type=int, default=defaults["long_horizon_episodes"])
+    parser.add_argument("--long-horizon-z", type=float, default=defaults["long_horizon_z"])
     parser.add_argument(
         "--eval-progress",
         dest="eval_progress",
@@ -820,13 +833,9 @@ def main():
         best_payload = load_policy_payload(args.best_model_path)
         best_payload["__path"] = args.best_model_path
 
-    config_resources = resolve_policy_list(None, resources)
+    # Each policy is evaluated with its own action list (v1 governor heads or v2 lever heads); the
+    # engine decodes both, so a v2 candidate can be compared with a v1 incumbent under one config.
     model_settings = resolve_policy_settings(model_payload, config, train_defaults, resources)
-    if config_resources and model_settings["resources"] != config_resources:
-        raise SystemExit(
-            "Latest policy resources do not match config resources. "
-            "Run with --fresh after changing resource lists."
-        )
     if model_settings.get("normalization_obs_mismatch"):
         raise SystemExit(
             "Latest policy observation normalization shape mismatch. "
@@ -843,11 +852,6 @@ def main():
         )
     if best_payload:
         best_settings = resolve_policy_settings(best_payload, config, train_defaults, resources)
-        if config_resources and best_settings["resources"] != config_resources:
-            raise SystemExit(
-                "Best policy resources do not match config resources. "
-                "Run with --fresh after changing resource lists."
-            )
         if best_settings.get("normalization_obs_mismatch"):
             raise SystemExit(
                 "Best policy observation normalization shape mismatch. "
@@ -1092,6 +1096,59 @@ def main():
         if args.require_positive_lcb and paired_stats:
             promote_allowed = promote_allowed and paired_stats["lower_bound"] > 0.0
             promote_reason = "score_improved_lcb"
+        if promote_allowed and int(args.long_horizon_ticks or 0) > 0:
+            long_steps = max(1, int(args.long_horizon_ticks) // max(1, int(args.step_ticks)))
+            long_episodes = max(2, int(args.long_horizon_episodes))
+            long_scores = {}
+            for label, payload, settings in (
+                ("latest", model_payload, model_settings),
+                ("best", best_payload, best_settings),
+            ):
+                long_stats, _ = evaluate_policy(
+                    proc,
+                    payload,
+                    settings["resources"],
+                    settings["feature_names"],
+                    settings["hidden_sizes"],
+                    settings["activation"],
+                    settings["min_weight"],
+                    settings["max_weight"],
+                    long_steps,
+                    args.step_ticks,
+                    long_episodes,
+                    seed_base,
+                    eval_difficulty,
+                    eval_score_mode,
+                    eval_scenarios,
+                    collect_episode_scores=True,
+                    progress=eval_progress,
+                    progress_every=eval_progress_every,
+                    progress_prefix=f"long_{label}",
+                    obs_normalization=settings["obs_normalization"],
+                    transport=args.transport,
+                    observation_layout=settings["observation_layout"],
+                    parallel=eval_parallel,
+                )
+                long_scores[label] = long_stats.get("episode_scores")
+            long_paired = compute_paired_delta_stats(long_scores["latest"], long_scores["best"], args.long_horizon_z)
+            if long_paired:
+                upper = long_paired["mean_delta"] + args.long_horizon_z * long_paired["se_delta"]
+                print(
+                    "Long-horizon check: "
+                    f"ticks={args.long_horizon_ticks} n={long_paired['count']} "
+                    f"mean_delta={long_paired['mean_delta']:.4f} se={long_paired['se_delta']:.4f} upper={upper:.4f}"
+                )
+                eval_context["longHorizon"] = {
+                    "ticks": int(args.long_horizon_ticks),
+                    "count": int(long_paired["count"]),
+                    "meanDelta": float(long_paired["mean_delta"]),
+                    "seDelta": float(long_paired["se_delta"]),
+                    "upperBound": float(upper),
+                }
+                if upper < 0.0:
+                    promote_allowed = False
+                    promote_reason = "long_horizon_regression"
+                    print("Long-horizon regression: best policy retained.")
         promoted = False
         if promote_allowed:
             if paired_stats:

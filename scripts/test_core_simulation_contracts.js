@@ -19,6 +19,9 @@ const { applySteward } = require('../src/simulation/steward');
 const { composeModifiers, describeModifiers } = require('../src/simulation/modifier_ledger');
 const { CORE_KEYS, FROZEN_KEYS } = require('./audit_config');
 const { createWorldProfile, getWorldYieldFactor } = require('../src/simulation/world_profile');
+const levers = require('../src/simulation/levers');
+const { buildObservationPlan } = require('../src/ai/observation_layout');
+const policyModule = require('../src/ai/policy');
 const { createRefinementTracker, trackRefinementTick, getRefinementReport,
   summarizeRefinementReports } = require('../src/telemetry/refinement');
 
@@ -316,6 +319,39 @@ test('consumption bounds, preference, fractional reserves and empty stocks', (co
   assert(Math.abs(state.stockpile.water - 1.2) < 1e-12);
   assert(Math.abs(dwarf.needs.hunger - (1 - 0.2 * config.consumption.mealRelief
     - 0.8 * config.consumption.rawFoodRelief)) < 1e-12);
+});
+
+test('lever heads map u to low/default/high, reach their read sites and open venture groups', (config, state) => {
+  config.ai.levers.enabled = true;
+  const ids = levers.getLeverActionIds(config);
+  assert.deepEqual(ids, ['lever_growth', 'lever_reserves', 'lever_builders', 'lever_deep', 'lever_ventures']);
+  assert.equal(levers.mapLeverValue(0.5, 0.1, 0.25, 0.6), 0.25, 'midpoint keeps the council default');
+  assert.equal(levers.mapLeverValue(0, 0.1, 0.25, 0.6), 0.1);
+  assert.equal(levers.mapLeverValue(1, 0.1, 0.25, 0.6), 0.6);
+  levers.applyLevers(state, config, { levers: { growth: 1, reserves: 0, builders: 0.5, deep: 1, ventures: 0.9 } });
+  assert.equal(levers.getLeverSetting(state, 'population.reproduction.growthCap.maxAnnualGrowth', -1), 0.6);
+  assert.equal(levers.getLeverSetting(state, 'jobs.gatherTriggerRatio.water', -1), 1.0);
+  assert.equal(levers.getLeverSetting(state, 'population.roles.builderRatio', -1), config.population.roles.builderRatio);
+  assert.deepEqual(levers.getLeverOpenGroups(state), ['ruins', 'underrealm', 'externalCamps']);
+  const council = applySteward(state, config, {});
+  for (const group of ['ruins', 'underrealm', 'externalCamps']) assert(!(group in council), `${group} left open`);
+  assert('warriors' in council, 'other groups stay restrained');
+  const before = state.growthCap ? state.growthCap.budget : null;
+  state.growthCap = { budget: 0 };
+  population.handleReproduction(state, config);
+  const yearTicks = config.seasons.durationTicks * config.seasons.order.length;
+  const expected = Math.max(state.dwarves.length * 0.6, config.population.reproduction.growthCap.minBirthsPerYear) / yearTicks;
+  assert(Math.abs(state.growthCap.budget - expected) < 1e-9 || state.growthCap.budget < 1, 'growth lever sets the accrual rate');
+  void before;
+  const resources = ['food', 'water', 'wood', 'stone', ...ids];
+  const plan = buildObservationPlan(resources, ['shortage', 'nodeScarcity', 'population'], 'factored');
+  assert.deepEqual(plan.resources, ['food', 'water', 'wood', 'stone'], 'lever heads carry no per-resource rows');
+  const envelope = policyModule.normalizeActionEnvelope({ levers: { growth: 0.2 } });
+  assert.deepEqual(envelope.levers, { growth: 0.2 }, 'game inference keeps lever values');
+  const none = clone(state);
+  delete none.levers;
+  levers.applyLevers(none, config, {});
+  assert.equal(none.levers, undefined, 'no lever values, no change');
 });
 
 test('world profile is drawn per map seed, bounded, RNG-free and absent when disabled', (config, state) => {

@@ -117,12 +117,9 @@ def build_model_and_policy_settings(args, config, defaults):
             + ", ".join(invalid_features),
             file=sys.stderr,
         )
-    policy_resources = resolve_policy_list(payload.get("resources"), resources)
-    if policy_resources != list(resources):
-        raise SystemExit(
-            "Policy action head does not match config resources. "
-            "Run training with --fresh before regression."
-        )
+    # A policy carries its own action list (v1 governor heads or v2 lever heads); the engine decodes
+    # both, so evaluate it with its own heads under the current config.
+    resources = resolve_policy_list(payload.get("resources"), resources)
 
     hidden_sizes = resolve_hidden_sizes(payload.get("hiddenSizes"), defaults["hidden_sizes"])
     activation = str(payload.get("activation") or defaults["activation"] or "tanh").lower()

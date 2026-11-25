@@ -8,6 +8,56 @@ const { getExternalCampStatus } = require('../simulation/external_camps');
 const { getSchismStatus } = require('../simulation/schism');
 const { getClanList, getClanShare } = require('../clans');
 const { getTerrainResourceRatio } = require('../simulation/terrain');
+const { isFertileAdult } = require('../simulation/population');
+
+// Strategic feature names (STRATEGY.md S4e), all in [0, 1]: age structure and food/water autonomy.
+const STRATEGIC_FEATURE_NAMES = ['childShare', 'fertileShare', 'elderShare', 'birthsLastYear', 'growthBudget',
+  'foodAutonomy', 'waterAutonomy'];
+
+// Age structure, growth budget and reserve autonomy shared by training and in-game inference.
+// Autonomy = stock / (population x need decay x current need-pace multiplier / relief per unit),
+// as a share of one year. Read-only and RNG-free.
+function buildStrategicObservation(state, config) {
+  const dwarves = (state && state.dwarves) || [];
+  const population = dwarves.length;
+  const seasons = (config && config.seasons) || {};
+  const yearTicks = Math.max(1, Number(seasons.durationTicks || 200)
+    * Math.max(1, Array.isArray(seasons.order) ? seasons.order.length : 4));
+  let children = 0;
+  let fertile = 0;
+  let elders = 0;
+  let recent = 0;
+  for (const dwarf of dwarves) {
+    if (dwarf.lifeStage === 'child') children += 1;
+    if (dwarf.lifeStage === 'elder') elders += 1;
+    if (isFertileAdult(dwarf, config)) fertile += 1;
+    if (Number(dwarf.ageTicks || 0) < yearTicks) recent += 1;
+  }
+  const share = (count) => (population > 0 ? clamp(count / population, 0, 1) : 0);
+  const cap = config && config.population && config.population.reproduction
+    && config.population.reproduction.growthCap;
+  const burst = Math.max(1, Number(cap && cap.burst || 2));
+  const budget = state && state.growthCap ? clamp(Number(state.growthCap.budget || 0) / burst, 0, 1) : 1;
+  const ledger = state && state.modifierLedger && state.modifierLedger.needDecay
+    && state.modifierLedger.needDecay.colony;
+  const pace = ledger && Number.isFinite(Number(ledger.bounded)) ? Number(ledger.bounded) : 1;
+  const decay = (config && config.needs && config.needs.decayPerTick) || {};
+  const consumption = (config && config.consumption) || {};
+  const autonomy = (resource, need, relief) => {
+    const perTick = population * Number(decay[need] || 0) * pace / Math.max(1e-6, Number(relief || 1));
+    if (!(perTick > 0)) return 1;
+    return clamp(Number((state.stockpile || {})[resource] || 0) / (perTick * yearTicks), 0, 1);
+  };
+  return {
+    childShare: share(children),
+    fertileShare: share(fertile),
+    elderShare: share(elders),
+    birthsLastYear: share(recent),
+    growthBudget: budget,
+    foodAutonomy: autonomy('food', 'hunger', consumption.rawFoodRelief),
+    waterAutonomy: autonomy('water', 'thirst', consumption.waterRelief),
+  };
+}
 
 // Build a full observation object from the current state.
 function buildObservation(state, config) {
@@ -58,6 +108,7 @@ function buildObservation(state, config) {
     social: socialObservation,
     warriors: warriorsObservation,
     clanShares,
+    strategic: buildStrategicObservation(state, config),
   };
 }
 
@@ -233,6 +284,10 @@ function buildFeatures(obs, resource, config, featureNames) {
     warriorSurvivability,
     warriorHeroTurnoverPressure,
   };
+  const strategic = obs.strategic || {};
+  for (const name of STRATEGIC_FEATURE_NAMES) {
+    values[name] = clamp(Number(strategic[name] || 0), 0, 1);
+  }
   const mythDefs = (config && config.myths && config.myths.definitions) || {};
   for (const mythId of Object.keys(mythDefs)) {
     const key = `mythFlag_${mythId}`;
@@ -1187,4 +1242,5 @@ function getObservationNodeRatio(state, config) {
   return ratios;
 }
 
-module.exports = { buildObservation, buildFeatures, getObservationNodeRatio };
+module.exports = { buildObservation, buildFeatures, getObservationNodeRatio, buildStrategicObservation,
+  STRATEGIC_FEATURE_NAMES };

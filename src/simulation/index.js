@@ -3,6 +3,7 @@
 const { applySteward } = require('./steward');
 const { composeModifiers } = require('./modifier_ledger');
 const { getWorldFactor } = require('./world_profile');
+const { applyLevers } = require('./levers');
 const { updateSeason, getSeasonModifier } = require('./season');
 const { updateWeather, getWeatherModifier, getWeatherNeedMultipliers } = require('./weather');
 const { updateRaidStart, updateRaidTick } = require('./raids');
@@ -59,6 +60,7 @@ function stepState(state, config, runtime, action, options = {}) {
 // Advance the simulation by one tick.
 function stepStateInner(state, config, runtime, action, options = {}) {
   ensureSettlementFoundingEvent(state, config);
+  applyLevers(state, config, action);
   const resolvedAction = normalizeActionEnvelope(applySteward(state, config, action));
   state.lastGovernorSignals = buildGovernorSignals(config, resolvedAction);
   state.lastConfig = config;
@@ -181,6 +183,9 @@ function normalizeActionEnvelope(action) {
 
   if (Object.prototype.hasOwnProperty.call(action, 'festivalIntent')) {
     normalized.festivalIntent = action.festivalIntent;
+  }
+  if (action.levers && typeof action.levers === 'object') {
+    normalized.levers = { ...action.levers };
   }
   if (action.trade && typeof action.trade === 'object') {
     normalized.trade = { ...action.trade };

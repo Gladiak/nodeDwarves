@@ -1,11 +1,16 @@
 'use strict';
 
+const { LEVER_ACTION_PREFIX, isLeverActionId } = require('./src/simulation/levers');
 const readline = require('readline');
+const fs = require('fs');
+const v8 = require('v8');
+const zlib = require('zlib');
+const { loadPolicy, selectAction, normalizeActionEnvelope: normalizePolicyAction } = require('./src/ai/policy');
 const { loadConfig } = require('./src/config');
 const { buildRuntime } = require('./src/runtime');
 const { createInitialState } = require('./src/state');
 const { stepState } = require('./src/simulation');
-const { buildObservation: buildAiObservation, getObservationNodeRatio } = require('./src/ai/observation');
+const { buildObservation: buildAiObservation, getObservationNodeRatio, STRATEGIC_FEATURE_NAMES } = require('./src/ai/observation');
 const {
   normalizeObservationLayout,
   buildObservationPlan,
@@ -71,6 +76,7 @@ const WARRIORS_TOURNAMENT_RISK_INTENT_ACTION_ID = 'gov_warriors_tournament_risk_
 const WARRIORS_CHAMPION_CHALLENGE_INTENT_ACTION_ID = 'gov_warriors_champion_challenge_intent';
 const WARRIORS_RECOVERY_PRIORITY_INTENT_ACTION_ID = 'gov_warriors_recovery_priority_intent';
 const ACTION_SLOT_WEIGHT = 'weight';
+const ACTION_SLOT_LEVER = 'lever';
 const ACTION_SLOT_FESTIVAL = 'festivalIntent';
 const ACTION_SLOT_TRADE_RESERVE = 'tradeReserveRatioBias';
 const ACTION_SLOT_TRADE_CONTEST = 'tradeContestIntent';
@@ -181,6 +187,7 @@ const STATIC_FEATURE_NAMES = new Set([
   'warriorRetiredShare',
   'warriorSurvivability',
   'warriorHeroTurnoverPressure',
+  ...STRATEGIC_FEATURE_NAMES,
 ]);
 let runtime = buildRuntimeForConfig(baseConfig);
 
@@ -213,6 +220,29 @@ rl.on('line', (line) => {
   }
 
   const cmd = payload && payload.cmd;
+  if (cmd === 'reset' && payload.snapshot) {
+    applySeed(payload.seed);
+    try {
+      resetFromSnapshot(String(payload.snapshot));
+    } catch (error) {
+      writeResponse({ error: 'snapshot_load_failed', message: String(error && error.message || error) });
+      return;
+    }
+    configureTransport(payload.transport, activeConfig);
+    writeResponse(buildResponse(0, false));
+    return;
+  }
+
+  if (cmd === 'autostep') {
+    writeResponse(autoStep(payload));
+    return;
+  }
+
+  if (cmd === 'save_snapshot') {
+    writeResponse(saveSnapshot(String(payload.path || '')));
+    return;
+  }
+
   if (cmd === 'reset') {
     applySeed(payload.seed);
     resetState({
@@ -222,6 +252,7 @@ rl.on('line', (line) => {
       randomize: payload.randomize,
       scenario: payload.scenario,
     });
+    applyEpisodeTickLimit(payload.tickLimit);
     configureTransport(payload.transport, activeConfig);
     writeResponse(buildResponse(0, false));
     return;
@@ -277,6 +308,72 @@ function resetState(options = {}) {
     state.tick = scenario.initialTick;
   }
   prevMetrics = computeMetrics(state, activeConfig);
+}
+
+// Mid-game snapshot starts (STRATEGY.md S4d). A snapshot holds the scenario config, its metadata
+// and the full state of one game at some tick; training resets from it and plays a normal-length
+// episode from there (the tick limit counts from the snapshot tick).
+const SNAPSHOT_VERSION = 1;
+
+// Load a snapshot written by save_snapshot and make it the current episode.
+function resetFromSnapshot(filePath) {
+  const snapshot = v8.deserialize(zlib.gunzipSync(fs.readFileSync(filePath)));
+  if (!snapshot || snapshot.version !== SNAPSHOT_VERSION || !snapshot.state || !snapshot.config) {
+    throw new Error(`unsupported snapshot ${filePath}`);
+  }
+  activeConfig = snapshot.config;
+  scenarioMeta = snapshot.scenarioMeta || null;
+  runtime = buildRuntimeForConfig(activeConfig);
+  state = snapshot.state;
+  state.snapshotStartTick = Number(state.tick || 0);
+  prevMetrics = computeMetrics(state, activeConfig);
+}
+
+// Write the current game (config, scenario metadata, state) atomically to a gzip snapshot file.
+function saveSnapshot(filePath) {
+  if (!filePath || !state) {
+    return { error: 'snapshot_save_failed' };
+  }
+  const payload = zlib.gzipSync(v8.serialize({ version: SNAPSHOT_VERSION, config: activeConfig, scenarioMeta, state }), { level: 6 });
+  const temporary = `${filePath}.partial`;
+  fs.writeFileSync(temporary, payload);
+  fs.renameSync(temporary, filePath);
+  return { ok: true, tick: state.tick, population: state.dwarves.length, bytes: payload.length };
+}
+
+// Play `ticks` ticks without the trainer: the council alone, or a policy file at its own cadence.
+let autoPolicy = { path: null, policy: null };
+function autoStep(payload) {
+  if (!state) {
+    return { error: 'no_state' };
+  }
+  const ticks = Math.max(0, Math.floor(Number(payload.ticks || 0)));
+  const policyPath = payload.policy ? String(payload.policy) : null;
+  if (policyPath && autoPolicy.path !== policyPath) {
+    autoPolicy = { path: policyPath, policy: loadPolicy(policyPath) };
+    if (!autoPolicy.policy) {
+      return { error: 'policy_load_failed' };
+    }
+  }
+  const cadence = Math.max(1, Math.floor(Number(payload.stepTicks || 2)));
+  let action = null;
+  for (let index = 0; index < ticks && state.dwarves.length > 0; index += 1) {
+    if (policyPath && index % cadence === 0) {
+      action = normalizePolicyAction(selectAction(state, activeConfig, autoPolicy.policy));
+    }
+    stepState(state, activeConfig, runtime, action);
+  }
+  prevMetrics = computeMetrics(state, activeConfig);
+  return { ok: true, tick: state.tick, population: state.dwarves.length };
+}
+
+// Optional per-episode tick limit from the reset payload (long-horizon evaluation, STRATEGY.md S4f).
+// It can only extend the configured limit, so existing evaluations end exactly as before.
+function applyEpisodeTickLimit(raw) {
+  const limit = Number(raw);
+  if (state && Number.isFinite(limit) && limit > 0) {
+    state.episodeTickLimit = Math.floor(limit);
+  }
 }
 
 // Function: applySeed.
@@ -386,6 +483,9 @@ function parseStringList(value) {
 
 // Resolve one action slot kind for compact action decoding.
 function resolveActionSlotKind(actionId) {
+  if (isLeverActionId(actionId)) {
+    return ACTION_SLOT_LEVER;
+  }
   if (actionId === FESTIVAL_ACTION_ID) {
     return ACTION_SLOT_FESTIVAL;
   }
@@ -589,7 +689,24 @@ function decodeStepAction(payload) {
   if (Array.isArray(legacy.actionValues)) {
     return decodeCompactActionPayload(legacy.actionValues, legacy);
   }
-  return legacy;
+  return decodeLegacyLevers(legacy);
+}
+
+// Map raw legacy lever values (action weight scale) to u in [0, 1], as the compact path does.
+function decodeLegacyLevers(legacy) {
+  if (!legacy.leverRaw || typeof legacy.leverRaw !== 'object') {
+    return legacy;
+  }
+  const ai = (activeConfig && activeConfig.ai) || {};
+  const low = Number.isFinite(Number(ai.minWeight)) ? Number(ai.minWeight) : 0;
+  const high = Number.isFinite(Number(ai.maxWeight)) ? Number(ai.maxWeight) : 2;
+  const levers = {};
+  for (const [name, raw] of Object.entries(legacy.leverRaw)) {
+    const value = clamp(Number(raw) || 0, low, high);
+    levers[name] = high > low ? (value - low) / (high - low) : 0.5;
+  }
+  const { leverRaw, ...rest } = legacy;
+  return { ...rest, levers };
 }
 
 // Decode compact action vector into the legacy action envelope expected by stepState.
@@ -614,6 +731,7 @@ function decodeCompactActionPayload(actionValues, sourcePayload) {
   let externalCamps;
   let social;
   let warriors;
+  let levers;
   const action = {};
 
   for (let idx = 0; idx < slots.length; idx += 1) {
@@ -627,6 +745,10 @@ function decodeCompactActionPayload(actionValues, sourcePayload) {
     switch (slot.kind) {
       case ACTION_SLOT_FESTIVAL:
         festivalIntent = value;
+        break;
+      case ACTION_SLOT_LEVER:
+        levers = levers || {};
+        levers[String(slot.actionId).slice(LEVER_ACTION_PREFIX.length)] = high > low ? (value - low) / (high - low) : 0.5;
         break;
       case ACTION_SLOT_TRADE_RESERVE:
         trade = trade || {};
@@ -749,6 +871,9 @@ function decodeCompactActionPayload(actionValues, sourcePayload) {
   }
   if (festivalIntent !== undefined) {
     action.festivalIntent = festivalIntent;
+  }
+  if (levers && Object.keys(levers).length > 0) {
+    action.levers = levers;
   }
   if (trade && Object.keys(trade).length > 0) {
     action.trade = trade;
@@ -1179,6 +1304,9 @@ function resolveAiObservation(state, config) {
     clanShares: aiObservation.clanShares && typeof aiObservation.clanShares === 'object'
       ? aiObservation.clanShares
       : {},
+    strategic: aiObservation.strategic && typeof aiObservation.strategic === 'object'
+      ? aiObservation.strategic
+      : {},
   };
 }
 
@@ -1561,6 +1689,7 @@ function buildObservation(state, config, metrics) {
       heroTurnoverPressure: 0,
     },
     clanShares: aiObservation.clanShares || {},
+    strategic: aiObservation.strategic || {},
   };
 }
 
@@ -1704,6 +1833,12 @@ function buildCompactObservationVector(metrics, config) {
     warriorSurvivability: clamp(Number(warriors.survivability || 0), 0, 1),
     warriorHeroTurnoverPressure: clamp(Number(warriors.heroTurnoverPressure || 0), 0, 1),
   };
+  const strategic = aiObservation.strategic && typeof aiObservation.strategic === 'object'
+    ? aiObservation.strategic
+    : {};
+  for (const name of STRATEGIC_FEATURE_NAMES) {
+    staticValues[name] = clamp(Number(strategic[name] || 0), 0, 1);
+  }
 
   // Fill one full feature row for a resource; the observation plan picks the needed slots.
   const buildRow = (resource) => {
@@ -1932,11 +2067,12 @@ function getDoneStatus(state, config, metrics) {
   const aiConfig = config.ai || {};
   const maxTicks = Number(aiConfig.maxTicks || 0);
   const simMaxTicks = Number(config.simulation && config.simulation.maxTicks || 0);
-  const limit = maxTicks > 0 ? maxTicks : simMaxTicks;
+  const limit = Math.max(maxTicks > 0 ? maxTicks : simMaxTicks, Number(state.episodeTickLimit || 0));
   if (state.dwarves.length === 0) {
     return { done: true, reason: 'extinction' };
   }
-  if (limit > 0 && state.tick >= limit) {
+  const startTick = Number(state.snapshotStartTick || 0);
+  if (limit > 0 && state.tick - startTick >= limit) {
     return { done: true, reason: 'maxTicks' };
   }
 

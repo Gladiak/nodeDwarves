@@ -101,9 +101,22 @@ EXTENDED_FEATURE_NAMES = [
     "warriorSurvivability",
     "warriorHeroTurnoverPressure",
 ]
+# Strategic features (STRATEGY.md S4e), computed once in src/ai/observation.js (obs["strategic"]).
+STRATEGIC_FEATURE_NAMES = [
+    "childShare",
+    "fertileShare",
+    "elderShare",
+    "birthsLastYear",
+    "growthBudget",
+    "foodAutonomy",
+    "waterAutonomy",
+]
+EXTENDED_FEATURE_NAMES = EXTENDED_FEATURE_NAMES + STRATEGIC_FEATURE_NAMES
 DYNAMIC_FEATURE_PREFIXES = ("mythFlag_", "clanShare_")
 FEATURE_NAME_SET = set(DEFAULT_FEATURE_NAMES + EXTENDED_FEATURE_NAMES)
 FESTIVAL_ACTION_ID = "festival"
+# Action space v2 (STRATEGY.md S4b): one head per strategic lever, ids "lever_<name>".
+LEVER_ACTION_PREFIX = "lever_"
 TRADE_RESERVE_BIAS_ACTION_ID = "gov_trade_reserve_ratio_bias"
 TRADE_CONTEST_INTENT_ACTION_ID = "gov_trade_contest_intent"
 TRADE_OPPORTUNITY_INTENT_ACTION_ID = "gov_trade_opportunity_intent"
@@ -371,6 +384,27 @@ def mix_seed(seed, salt):
     if mixed <= 0:
         mixed = 1
     return mixed
+
+
+def list_snapshot_bank(bank_dir):
+    if not bank_dir or not os.path.isdir(bank_dir):
+        return []
+    return sorted(
+        os.path.abspath(os.path.join(bank_dir, name))
+        for name in os.listdir(bank_dir)
+        if name.endswith(".v8.gz")
+    )
+
+
+def choose_snapshot(settings, seed, episode_number):
+    files = settings.get("snapshot_files") or []
+    prob = float(settings.get("snapshot_prob") or 0.0)
+    if not files or prob <= 0.0:
+        return None
+    rng = random.Random(((int(seed or 0) * 1000003) ^ (int(episode_number) * 7919)) & 0xFFFFFFFF)
+    if rng.random() >= prob:
+        return None
+    return files[rng.randrange(len(files))]
 
 
 def seed_episode_rng(seed, episode_number):
@@ -1476,7 +1510,25 @@ def get_resources_from_config(config):
     return []
 
 
+def levers_enabled(config):
+    levers = ((config or {}).get("ai") or {}).get("levers") or {}
+    return levers.get("enabled") is True
+
+
+def append_lever_actions(resources, config):
+    levers = ((config or {}).get("ai") or {}).get("levers") or {}
+    merged = list(resources)
+    for name in (levers.get("definitions") or {}):
+        action_id = LEVER_ACTION_PREFIX + name
+        if action_id not in merged:
+            merged.append(action_id)
+    return merged
+
+
 def append_festival_action(resources, config):
+    # Action space v2 replaces the festival and governor heads with lever heads.
+    if levers_enabled(config):
+        return resources
     festivals = (config or {}).get("festivals") or {}
     if festivals.get("enabled", True) is False:
         return resources
@@ -1489,6 +1541,8 @@ def append_festival_action(resources, config):
 
 
 def append_governor_actions(resources, config):
+    if levers_enabled(config):
+        return append_lever_actions(resources, config)
     merged = list(resources)
     ai_config = (config or {}).get("ai") or {}
     governors = ai_config.get("governors") or {}
@@ -1577,7 +1631,8 @@ def append_governor_actions(resources, config):
 
 
 def is_policy_resource_id(resource):
-    return resource != FESTIVAL_ACTION_ID and resource not in GOVERNOR_ACTION_ID_SET
+    return (resource != FESTIVAL_ACTION_ID and resource not in GOVERNOR_ACTION_ID_SET
+            and not str(resource).startswith(LEVER_ACTION_PREFIX))
 
 
 def split_action_payload(action, resources):
@@ -1597,6 +1652,8 @@ def split_action_payload(action, resources):
             value = float(raw)
         except (TypeError, ValueError):
             value = 0.0
+        if str(resource).startswith(LEVER_ACTION_PREFIX):
+            continue
         if resource == FESTIVAL_ACTION_ID:
             festival_intent = value
         elif resource == TRADE_RESERVE_BIAS_ACTION_ID:
@@ -1698,7 +1755,8 @@ def normalize_observation_layout(value, fallback=OBSERVATION_LAYOUT_PER_RESOURCE
 # Real stockpile resources carry per-resource signals; festival/governor heads do not.
 def is_observed_resource_id(resource):
     text = str(resource or "")
-    return bool(text) and text != FESTIVAL_ACTION_ID and not text.startswith("gov_")
+    return (bool(text) and text != FESTIVAL_ACTION_ID and not text.startswith("gov_")
+            and not text.startswith(LEVER_ACTION_PREFIX))
 
 
 # Build the index plan shared by observation size checks and vector assembly.
@@ -1831,6 +1889,15 @@ def build_step_message(action, resources, step_ticks, transport=TRANSPORT_LEGACY
         warriors_payload,
     ) = split_action_payload(action, resources)
     action_payload = {"weights": weights, "ticks": step_ticks}
+    lever_raw = {}
+    for idx, resource in enumerate(resources):
+        if str(resource).startswith(LEVER_ACTION_PREFIX) and idx < len(action):
+            try:
+                lever_raw[str(resource)[len(LEVER_ACTION_PREFIX):]] = float(action[idx])
+            except (TypeError, ValueError):
+                pass
+    if lever_raw:
+        action_payload["leverRaw"] = lever_raw
     if festival_intent is not None:
         action_payload["festivalIntent"] = festival_intent
     if trade_payload:
@@ -2541,6 +2608,7 @@ def worker_loop(worker_id, task_queue, result_queue, update_queue, resources, se
                     obs_normalization=obs_normalization,
                     transport=settings.get("transport", TRANSPORT_LEGACY),
                     observation_layout=observation_layout,
+                    snapshot=choose_snapshot(settings, seed, episode_number),
                 )
             except (BrokenPipeError, EOFError, OSError, RuntimeError) as exc:
                 report_worker_error(
@@ -2760,6 +2828,8 @@ def build_features(obs, resource, feature_names):
         "warriorRetiredShare": warrior_retired_share,
         "warriorSurvivability": warrior_survivability,
         "warriorHeroTurnoverPressure": warrior_hero_turnover_pressure,
+        **{name: clamp(float((obs.get("strategic") or {}).get(name, 0.0) or 0.0), 0.0, 1.0)
+           for name in STRATEGIC_FEATURE_NAMES},
     }
     values = []
     for name in feature_names:
@@ -2999,6 +3069,7 @@ def run_episode(
     obs_normalization=None,
     transport=TRANSPORT_LEGACY,
     observation_layout=OBSERVATION_LAYOUT_PER_RESOURCE,
+    snapshot=None,
 ):
     mode = normalize_transport_mode(transport)
     reset_payload = build_reset_payload(
@@ -3012,6 +3083,8 @@ def run_episode(
         feature_names=feature_names,
         observation_layout=observation_layout,
     )
+    if snapshot:
+        reset_payload["snapshot"] = snapshot
     response = send(proc, reset_payload)
     start_tick = 0
     try:
@@ -3250,6 +3323,8 @@ def run_eval_episode(
         feature_names=feature_names,
         observation_layout=observation_layout,
     )
+    # Let long evaluations run their planned length (the server keeps the larger of this and its limit).
+    reset_payload["tickLimit"] = int(max_steps) * int(step_ticks) + 200
     with inference_mode():
         response = send(proc, reset_payload)
         for step in range(max_steps):
@@ -3920,6 +3995,9 @@ def parse_args():
     parser.add_argument("--episodes", type=int, default=defaults["episodes"])
     parser.add_argument("--max-steps", type=int, default=defaults["max_steps"])
     parser.add_argument("--step-ticks", type=int, default=defaults["step_ticks"])
+    # Mid-game snapshot starts (STRATEGY.md S4d): a bank built by scripts/build_snapshot_bank.js.
+    parser.add_argument("--snapshot-bank", default=None)
+    parser.add_argument("--snapshot-prob", type=float, default=0.0)
     parser.add_argument("--gamma", type=float, default=defaults["gamma"])
     parser.add_argument("--gae-lambda", type=float, default=defaults["gae_lambda"])
     parser.add_argument("--clip-range", type=float, default=defaults["clip_range"])
@@ -4578,6 +4656,8 @@ def main():
         "transport": args.transport,
         "observation_layout": args.observation_layout,
         "seed": args.seed,
+        "snapshot_files": list_snapshot_bank(args.snapshot_bank),
+        "snapshot_prob": max(0.0, min(1.0, float(args.snapshot_prob or 0.0))),
     }
 
     processes = []
