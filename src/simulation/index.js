@@ -1,5 +1,6 @@
 'use strict';
 
+const { applySteward } = require('./steward');
 const { updateSeason, getSeasonModifier } = require('./season');
 const { updateWeather, getWeatherModifier, getWeatherNeedMultipliers } = require('./weather');
 const { updateRaidStart, updateRaidTick } = require('./raids');
@@ -56,7 +57,7 @@ function stepState(state, config, runtime, action, options = {}) {
 // Advance the simulation by one tick.
 function stepStateInner(state, config, runtime, action, options = {}) {
   ensureSettlementFoundingEvent(state, config);
-  const resolvedAction = normalizeActionEnvelope(action);
+  const resolvedAction = normalizeActionEnvelope(applySteward(state, config, action));
   state.lastGovernorSignals = buildGovernorSignals(config, resolvedAction);
   state.lastConfig = config;
   state.tick += 1;

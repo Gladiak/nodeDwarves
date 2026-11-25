@@ -15,6 +15,7 @@ const { moveWithDetour } = require('../src/simulation/movement');
 const { updateRaidStart, updateRaidTick } = require('../src/simulation/raids');
 const { buildObservation } = require('../src/ai/observation');
 const { computeOutcomeSignals, computeOutcomeReward } = require('../src/ai/outcome_reward');
+const { applySteward } = require('../src/simulation/steward');
 const { createRefinementTracker, trackRefinementTick, getRefinementReport,
   summarizeRefinementReports } = require('../src/telemetry/refinement');
 
@@ -172,6 +173,38 @@ test('outcome reward counts avoidable deaths, progress and extinction once', (co
   const reset = { ...after, avoidableDeaths: 1, depth: 0 };
   assert.equal(computeOutcomeReward(after, reset, config).terms.deaths, -2, 'cycle reset counts from zero');
   finite(step);
+});
+
+test('steward fills only missing groups, judges posture from reserves and stays RNG-free', (config, state) => {
+  config.ai.steward = { enabled: false };
+  const policyAction = { weights: { food: 1 }, ruins: { warningDispatchIntent: 2 } };
+  assert.equal(applySteward(state, config, policyAction), policyAction, 'disabled steward is a no-op');
+  config.ai.steward = { enabled: true, decisionTicks: 1, safeReservePerCapita: 3, safeMinPopulation: 0,
+    restrainedGroups: ['warriors'], cautiousGroups: ['ruins', 'trade'] };
+  const population = state.dwarves.length;
+  state.stockpile.food = population * 5;
+  state.stockpile.water = population * 5;
+  delete state.steward;
+  const original = Math.random;
+  Math.random = () => { throw new Error('steward must not use RNG'); };
+  try {
+    const open = applySteward(state, config, null);
+    assert.equal(state.steward.posture, 'open');
+    assert.deepEqual(Object.keys(open).sort(), ['warriors']);
+    assert(Object.values(open.warriors).every((value) => value === 0));
+    state.stockpile.food = population;
+    const eventsBefore = (state.events || []).length;
+    state.tick += 1;
+    const cautious = applySteward(state, config, policyAction);
+    assert.equal(state.steward.posture, 'cautious');
+    assert.equal(state.steward.reason, 'low_reserves');
+    assert.equal(cautious.ruins.warningDispatchIntent, 2, 'policy groups are never overridden');
+    assert.equal(cautious.trade.contestIntent, 0);
+    assert.equal(cautious.weights.food, 1);
+    assert((state.events || []).length > eventsBefore, 'posture change emits a council decree');
+  } finally {
+    Math.random = original;
+  }
 });
 
 test('fractional yields scale below one unit and full beer reserves pause brewing', (config, state) => {

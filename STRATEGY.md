@@ -109,6 +109,8 @@ Paired by seed. "Pop" = final population; "avoidable" = deaths excluding old age
 | E18 | 11-24 | Tight economy applied | 12 games: default 70, gov:0 96, random 89, neglect 23 (7 ext.), const 0 1 (11 ext.); yields were rounded to >= 1 unit (bug); stronger raids rejected (tax without counterplay); node regen inert (terrain tiles) | Current game |
 | E19 | 11-24 | Outcome reward + 8k `rpp` gate | reward vs pop r = 0.89, 93% pairs ranked like pop; table below | Training learns again |
 | E20 | 11-25 | Train/serve skew: the game fed policies different inputs than training | `nodeScarcity` (4 of 79 inputs) was ~0.85-0.98 in training (terrain tiles counted) and always 0 in game inference; first decisions differed across governor thresholds; JS vs Python on 24 games: replicate 2 84.0 vs 71.5 (z ~-2), replicate ranking reversed | Shared `getObservationNodeRatio`; after the fix first decisions match to 1e-7 and JS/Python means agree within one SE (+1.0, -7.3, +1.8) |
+| E22 | 11-25 | The emergency reflex is a poverty trap and the only growth brake | eval plan 24 games: emergency off -> default 57 -> 94 (z 5.6), gov:0 96 -> 124; standard game 20k ticks, 8 seeds, emergency at 0.15: default and gov:0 4/8 extinctions (boom to 200-370 dwarves by 6k ticks, empty larder, famine, aging collapse); water x3 boost off rescues neglect (crowds out food) | Keep `emergencyMinRatio` 0.52 until a growth lever exists (S3/S4a) |
+| E23 | 11-25 | Steward: a fixed "hold every venture back" posture beats state-aware variants | eval 24 games: 96.4 (gov:0 96.0, default 57.0), avoidable 10.0, 0 extinctions; standard 8 seeds: 8k 201 (gov:0 182, default 116), 20k 128 (default 69, gov:0 73, 2/8 extinctions vs 1 and 2); opening ventures when reserves >= 3 per dwarf: 87.8 eval, 101 at 20k | Steward on by default with all governor groups restrained; the difference with gov:0 is the social group, which gov:0 leaves on defaults |
 | E21 | 11-25 | Evaluation speed is not the bottleneck | 24 games x 8,000 ticks: `eval_paired.py` 61 s, in-process JS 60 s; per worker ~270 ticks/s at late-game population (3.7 ms/tick) | Keep `eval_paired.py` as the reference evaluator; noise, not speed, limits decisions |
 
 E19, 24 games x 8,000 ticks (seed base 100000):
@@ -150,7 +152,7 @@ Ranked by expected impact.
   to 128% of target in every season), workforce split (22% builders, 12% managers), housing (build
   below 1.7 beds per dwarf), Underrealm crew size (fixed surface reserve) and defense (24 adults for
   full defense). The AI tunes details while the steering wheel is hard-coded.
-- **D2. Weak reference strategy.** The no-AI posture (every governor on) is worse than random under
+- **D2. Weak reference strategy (addressed by S2).** The no-AI posture (every governor on) is worse than random under
   scarcity (default 57 vs gov:0 96). Gains are measured against a strawman, and `npm start` players
   watch a needlessly poor colony.
 - **D3. Decision cadence and credit assignment.** One decision every 2 ticks means 4,000 decisions in
@@ -174,6 +176,8 @@ Ranked by expected impact.
   emergency gathering reassigns dwarves below 52% food or water (`population.roles.emergencyMinRatio`),
   water gets an automatic x3 priority below 85% (`ai.priorityBoosts`), breweries pause on emergencies.
   They flatten the gap between good and bad play and leave the AI little to decide in a crisis.
+  Measured (E22): the emergency reflex is harmful at 8,000 ticks but is also the only brake on
+  population overshoot; it can only go once growth is controlled.
 - **D10. Levers with tiny ranges.** Several governor biases are capped at +/-0.1 (trade reserve ratio,
   Underrealm surface reserve, depth allocation and role mix), so even their extremes barely move the
   colony; part of the "no leverage" verdict in E16 may be a range problem, not a design problem.
@@ -220,24 +224,32 @@ note whether the colony reads as challenging or merely frustrating.
 - Standing rule: every observation change re-runs this parity check (first-decision match and mean
   population within one SE). Decisions use 48 games (seeds 100000-100047) at ~2 minutes each.
 
-### S2. Steward reference strategy (D2)
-- A config-driven, state-aware no-AI posture: risky governors (ruins dispatch, Underrealm push,
-  external camps, trade contests) switch on only when food and water autonomy and population pass
-  thresholds; job weights lean toward stockpiling before winter.
-- Reflexes move into the steward (D9): emergency gathering, the water priority boost and the brewery
-  emergency pause become steward rules; the engine keeps only a last-resort guard (for example,
-  gathering forced when a stock is about to hit zero). Measure the move alone first: with the steward
-  off, the default player must get worse and neglect much worse, proving the reflexes were hiding
-  decisions.
-- Visibility (D12): every steward (later AI) decision that changes posture is announced as a council
-  decree in the Event Log, and the Colony Report shows the active posture and its reason.
-- Pass: on the eval plan (48 games, 8,000 ticks) steward >= gov:0 on final population and avoidable
-  deaths, with no extinctions; on the standard game steward >= gov:0 at 8,000 ticks and >= default at
-  20,000 ticks (S0: no fixed posture wins both horizons). It becomes the `npm start` default and the
-  reference every trained policy must beat.
+### S2. Steward reference strategy (D2, D9, D12) - done 2026-11-25
+- `src/simulation/steward.js`, config `ai.steward`: the council fills every action group a policy
+  does not provide. `restrainedGroups` are held at their minimum in every posture; `cautiousGroups`
+  only while food and water per dwarf (`safeReservePerCapita`) or population (`safeMinPopulation`)
+  are below threshold, judged every `decisionTicks`. RNG-free; its state lives in `state.steward`.
+- Measured choice (E23): all nine groups restrained, no cautious groups. State-aware variants that
+  reopen ventures when reserves are secure were worse on every horizon tested.
+- Reflexes (E22): removing the emergency reflex lifts 8,000-tick games but lets colonies overshoot
+  and collapse at 20,000 ticks, so it stays until growth is controlled.
+- Visibility: posture changes that alter what is held back become `council.posture_changed`
+  decrees in the Event Log; the Colony Report status page shows a Council row.
+- Pass met: eval plan steward 96.4 >= gov:0 96.0 with fewer avoidable deaths (10.0 vs 11.0) and no
+  extinctions (24 games, not 48: the result is a tie within noise); standard game 201 >= gov:0 182 at
+  8,000 ticks and 128 >= default 69 at 20,000 ticks (8 seeds).
+- `npm start` benchmark (4 seeds x 8,000 ticks): population 111 -> 237, Underrealm depth 0.5 -> 1.5,
+  completed landmarks +2; no negative stocks. Cached baseline refreshed.
+- Side effects: `neglect` now inherits the steward posture (59.5 pop, 1 extinction, -38% vs default;
+  S3 asks for <= -50%); trained policies inherit it for the groups they do not send (today only
+  `social`), so S0 replicate numbers predate the steward.
 
 ### S3. Simulation fairness and earned progress (D6)
 One sub-change at a time, each A/B'd with `--set` before it becomes a default:
+- S3-0 growth control (first, E22): births follow sustainable food and water production rather than
+  a stock snapshot, so colonies stop overshooting into famine. Pass: with the emergency reflex
+  lowered to a last-resort 0.15, the standard game at 20,000 ticks (8 seeds) has no more extinctions
+  than today (steward 2/8) and keeps the 8,000-tick gains of E22.
 - S3a founders: spread founding ages and fertility windows (config-driven jitter) so the colony
   ages continuously.
 - S3b progress pacing: Underrealm depth and landmark stages reachable by good play in the tight
@@ -379,6 +391,8 @@ Deterministic regression of the no-AI game: `npm run bench:candidate` then `npm 
 | Reward | `ai.reward.*` | population 1 per 100, deaths 2, distress 1 at 0.6, reserves 0.3 at 2 per dwarf, depth 20, landmark stage 5, prestige 0.2, extinction 20 |
 | Gate | `ai.training.promotion.canonical` | 24 games, 4,000 steps x 2 ticks, `rpp`, LCB z 1.96 |
 | Trainer | `ai.training.trainer` | gamma 0.998, 2 ticks per step, 2x128 |
+| Steward | `ai.steward` | on; decisions every 20 ticks; all 9 governor groups restrained; safe reserve 3 per dwarf and 30 dwarves for future cautious groups |
+| Emergency reflex | `population.roles.emergencyMinRatio` | 0.52 (see E22 before lowering) |
 
 ---
 
@@ -397,7 +411,8 @@ Deterministic regression of the no-AI game: `npm run bench:candidate` then `npm 
 | 2026-11-25 | D1 | S4 rewritten around a lever audit: expose growth, reserves, workforce, build priority, risk and defense only if they measurably move outcomes |
 | 2026-11-25 | D9-D12 | Added: reflexes move into the steward, widened lever ranges, per-game variety (S3d), rationing/trade/event/scouting levers, seasonal two-level policy, council decrees, AI control share metric |
 | 2026-11-25 | S1 | Train/serve skew fixed (E20); speed hypothesis withdrawn (E21); `eval_paired.py` stays the reference evaluator |
-| next | S2 | Steward reference strategy |
+| 2026-11-25 | S2 | Steward on by default with every venture group restrained (E23); emergency reflex kept (E22); council decrees and Colony Report row added |
+| next | S3 | Simulation fairness, growth control first (E22 makes it the blocker) |
 
 ### Scorecard v1 (S0, session `experiments/runs/2026-11-24_s0`, commit a5e3998, git-ignored)
 

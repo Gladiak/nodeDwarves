@@ -24,6 +24,7 @@ Current release: **v2.5.0 - Saved Holds and Scenario Challenges**. 🍺🗺️
 - 🌦️ Lean winters, weather, festivals, raids, and world events that shift priorities. Stock up before
   the snow, or watch the larder (and the birth rate) empty out. ❄️
 - 🍺 Beer is a luxury, not a water substitute: it costs food, and breweries stop when the cellar is full.
+- 🏛️ Without an AI, the Colony Council steers: it holds risky ventures back so labor and food stay home, announces its decrees in the Event Log, and shows its posture in the Colony Report.
 - 🎯 The AI is trained on what actually matters: a big, alive colony, few avoidable deaths, full larders and real progress (deeper Underrealm, landmarks, prestige). Promotion is judged over 8,000-tick games, where bad choices have time to bite.
 - 🤝 External camps, diplomacy pressure, contracts, and faction trade opportunities.
 - 🎭 Social drama + schism systems for long-horizon political and morale instability. Friendships,

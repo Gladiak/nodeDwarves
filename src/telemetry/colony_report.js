@@ -311,6 +311,7 @@ function collectColonyFacts(state, config, context = {}) {
     births: Math.max(0, Number(safeState.birthsCount || 0)),
     deaths: Math.max(0, Number(safeState.deathsCount || 0)),
     deathsByCause: safeState.deathsByCause || {},
+    council: safeState.steward && typeof safeState.steward === 'object' ? safeState.steward : null,
     housingEnabled,
     beds,
     workforce: collectWorkforce(dwarves),
@@ -616,6 +617,25 @@ function assessConflict(facts) {
   return { label: 'Relations', status: STATUS_GOOD, value, note: 'Few quarrels; friendships hold the colony together.' };
 }
 
+// Describe the council (steward) posture when no AI policy decides the governors.
+function assessCouncil(facts) {
+  const council = facts.council;
+  if (!council) {
+    return null;
+  }
+  const held = Number(council.restrained || 0);
+  const heldText = held > 0 ? `${held} venture group${held === 1 ? '' : 's'} held back` : 'nothing held back';
+  if (council.posture === 'cautious' && Number(council.cautious || 0) > 0) {
+    return {
+      label: 'Council',
+      status: STATUS_INFO,
+      value: 'cautious',
+      note: `Reserves ${Number(council.reservePerCapita || 0).toFixed(1)} per dwarf (needs ${council.threshold}): risky ventures paused; ${heldText}.`,
+    };
+  }
+  return { label: 'Council', status: STATUS_INFO, value: held > 0 ? 'restrained' : 'open', note: `Council posture: ${heldText}.` };
+}
+
 // Build the overall verdict and the "needs attention" list.
 function assessColony(facts, config) {
   const vitals = [
@@ -626,7 +646,7 @@ function assessColony(facts, config) {
     assessSafety(facts),
     assessWorkforce(facts),
   ];
-  const extras = [assessSchism(facts), assessConflict(facts)].filter(Boolean);
+  const extras = [assessSchism(facts), assessConflict(facts), assessCouncil(facts)].filter(Boolean);
   const overall = worstStatus(...vitals.map((row) => row.status), ...extras.map((row) => row.status));
   const attention = [];
   for (const row of [...vitals, ...extras]) {
@@ -732,7 +752,7 @@ function buildStatusPage(facts, assessment) {
     {
       title: 'Long-term progress',
       intro: 'Goals that build up over years.',
-      rows: buildProgressRows(facts),
+      rows: [assessment.extras.find((row) => row.label === 'Council'), ...buildProgressRows(facts)].filter(Boolean),
     },
   ];
 }

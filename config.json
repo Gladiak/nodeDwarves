@@ -1109,6 +1109,7 @@
         "myth.awakened": "major",
         "myth.tradition_formed": "major",
         "alchemy.backlash_started": "major",
+        "council.posture_changed": "notable",
         "alchemy.backlash_losses": "major",
         "festival.started": "notable",
         "weather.changed": "ambient",
@@ -1957,6 +1958,14 @@
       "landmarkStage": 5,
       "prestige": 0.2,
       "extinction": 20
+    },
+    "steward": {
+      "enabled": true,
+      "decisionTicks": 20,
+      "safeReservePerCapita": 3,
+      "safeMinPopulation": 30,
+      "restrainedGroups": ["festivalIntent", "trade", "building", "contracts", "ruins", "underrealm", "externalCamps", "social", "warriors"],
+      "cautiousGroups": []
     },
     "priorityBoosts": {
       "water": {
