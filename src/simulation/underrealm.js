@@ -2187,41 +2187,42 @@ function splitCrewRoles(total, roles) {
 // Pick concrete dwarves from a shared pool for miner/hauler/guard duties.
 function pickDepthCrew(pool, roleCounts, config) {
   const picked = [];
+  // Repeatedly taking the first best-scored dwarf equals a stable descending sort by score (scores
+  // do not change while picking), so score each candidate once, take the top `count` and remove them
+  // from the shared pool in place, keeping the others' order.
   const pickRole = (role, count) => {
-    for (let i = 0; i < count; i += 1) {
-      const index = findBestCandidateIndex(pool, role, config);
-      if (index < 0) {
-        break;
-      }
-      const dwarf = pool.splice(index, 1)[0];
-      if (!dwarf) {
-        continue;
-      }
-      picked.push({ dwarf, role });
+    if (count <= 0) {
+      return;
     }
+    const scored = [];
+    for (let index = 0; index < pool.length; index += 1) {
+      if (pool[index]) {
+        scored.push({ index, score: getDelverRoleScore(pool[index], role, config) });
+      }
+    }
+    scored.sort((a, b) => (b.score > a.score ? 1 : (b.score < a.score ? -1 : 0)));
+    const take = scored.slice(0, count);
+    if (take.length === 0) {
+      return;
+    }
+    const taken = new Set();
+    for (const entry of take) {
+      taken.add(entry.index);
+      picked.push({ dwarf: pool[entry.index], role });
+    }
+    let write = 0;
+    for (let read = 0; read < pool.length; read += 1) {
+      if (!taken.has(read)) {
+        pool[write] = pool[read];
+        write += 1;
+      }
+    }
+    pool.length = write;
   };
   pickRole('miner', Number(roleCounts.miner || 0));
   pickRole('hauler', Number(roleCounts.hauler || 0));
   pickRole('guard', Number(roleCounts.guard || 0));
   return picked;
-}
-
-// Resolve the best candidate index for a role from the current free pool.
-function findBestCandidateIndex(pool, role, config) {
-  let bestIndex = -1;
-  let bestScore = -Infinity;
-  for (let index = 0; index < pool.length; index += 1) {
-    const dwarf = pool[index];
-    if (!dwarf) {
-      continue;
-    }
-    const score = getDelverRoleScore(dwarf, role, config);
-    if (score > bestScore) {
-      bestScore = score;
-      bestIndex = index;
-    }
-  }
-  return bestIndex;
 }
 
 // Score a dwarf for a specific Underrealm role.

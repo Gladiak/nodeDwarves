@@ -4261,6 +4261,7 @@ def save_policy(
     obs_normalization=None,
     return_normalization=None,
     observation_layout=OBSERVATION_LAYOUT_PER_RESOURCE,
+    step_ticks=None,
 ):
     normalization = {
         "version": 1,
@@ -4284,6 +4285,9 @@ def save_policy(
         "logStd": log_std.detach().cpu().tolist(),
         "trainedAt": int(time.time()),
     }
+    # The cadence belongs to the policy (STRATEGY.md T1): game, evaluators and gate read it from here.
+    if step_ticks:
+        payload["stepTicks"] = int(step_ticks)
     if normalization["observation"] is not None or normalization["returns"] is not None:
         payload["normalization"] = normalization
     os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -4946,6 +4950,7 @@ def main():
                         obs_normalization=obs_normalization,
                         return_normalization=return_normalization,
                         observation_layout=args.observation_layout,
+                        step_ticks=args.step_ticks,
                     )
                     save_training_state(
                         args.model_state_path,
@@ -5124,6 +5129,7 @@ def main():
                                 obs_normalization=obs_normalization,
                                 return_normalization=return_normalization,
                                 observation_layout=args.observation_layout,
+                                step_ticks=args.step_ticks,
                             )
                             save_training_state(
                                 args.best_model_state_path,
@@ -5166,6 +5172,7 @@ def main():
                 obs_normalization=obs_normalization,
                 return_normalization=return_normalization,
                 observation_layout=args.observation_layout,
+                step_ticks=args.step_ticks,
             )
             save_training_state(
                 args.model_state_path,

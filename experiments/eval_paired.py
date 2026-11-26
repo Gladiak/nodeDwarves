@@ -202,13 +202,36 @@ def build_synthetic_message(model, settings, step_ticks, rng, last):
     return message
 
 
+# Resolve the decision cadence and episode length. A trained policy decides at the cadence it was
+# trained at (policy JSON `stepTicks`); asking for another one is an error, not a silent override.
+def resolve_cadence(parser, args):
+    trained = None
+    if args.policy != DEFAULT_POLICY and not is_synthetic_policy(args.policy):
+        with open(args.policy, "r", encoding="utf-8") as handle:
+            trained = json.load(handle).get("stepTicks")
+    if trained and args.step_ticks and args.step_ticks != trained:
+        parser.error(f"policy was trained at {trained} ticks per decision; --step-ticks {args.step_ticks} differs")
+    args.step_ticks = int(trained or args.step_ticks or 2)
+    if args.ticks is not None:
+        if args.max_steps is not None:
+            parser.error("pass --ticks or --max-steps, not both")
+        if args.ticks % args.step_ticks != 0:
+            parser.error(f"--ticks {args.ticks} is not a multiple of the cadence {args.step_ticks}")
+        args.max_steps = args.ticks // args.step_ticks
+    elif args.max_steps is None:
+        args.max_steps = 1800
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--policy", required=True)
     parser.add_argument("--config", required=True)
     parser.add_argument("--episodes", type=int, default=24)
-    parser.add_argument("--max-steps", type=int, default=1800)
-    parser.add_argument("--step-ticks", type=int, default=2)
+    parser.add_argument("--ticks", type=int, default=None,
+                        help="game length in ticks (preferred); steps follow from the decision cadence")
+    parser.add_argument("--max-steps", type=int, default=None)
+    parser.add_argument("--step-ticks", type=int, default=None,
+                        help="cadence for players without one; a trained policy always uses its own")
     parser.add_argument("--hold", type=int, default=0)
     parser.add_argument("--workers", type=int, default=7)
     parser.add_argument("--seed-base", type=int, default=100000)
@@ -216,6 +239,7 @@ def main():
                         help="record final colony outcomes per episode (implied by --policy default)")
     parser.add_argument("--out", required=True)
     args = parser.parse_args()
+    resolve_cadence(parser, args)
     config = train.load_config(args.config)
     scenarios = train.get_eval_scenarios(config, train.get_scenario_definitions(config))
     plan = train.build_eval_plan(args.episodes, scenarios, args.seed_base)
@@ -249,6 +273,7 @@ def main():
         scores = result["episode_scores"]
         extra = {key: value for key, value in result.items() if key != "episode_scores"}
     payload = {"policy": args.policy, "config": args.config, "hold": args.hold, "plan": plan,
+               "step_ticks": args.step_ticks, "ticks": args.max_steps * args.step_ticks,
                "scores": scores, "mean": sum(scores) / len(scores), **extra}
     with open(args.out, "w", encoding="utf-8") as handle:
         json.dump(payload, handle, indent=1)

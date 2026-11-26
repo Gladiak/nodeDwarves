@@ -9,7 +9,7 @@
 // Usage:
 //   node scripts/build_snapshot_bank.js --config <session config> --out <dir>
 //     [--games 24] [--ticks 2000,4000,6000,8000,10000,12000,14000,16000] [--policy <file>]
-//     [--policy-share 0.5] [--step-ticks 20] [--workers 7] [--seed 1]
+//     [--policy-share 0.5] [--step-ticks <n>, default: the policy's own cadence] [--workers 7] [--seed 1]
 
 const fs = require('fs');
 const path = require('path');
@@ -19,7 +19,8 @@ const ROOT = path.resolve(__dirname, '..');
 
 function parseArgs(argv) {
   const options = { games: 24, ticks: '2000,4000,6000,8000,10000,12000,14000,16000', policy: null,
-    policyShare: 0.5, stepTicks: 20, workers: 7, seed: 1 };
+    policyShare: 0.5, stepTicks: 0, workers: 7, seed: 1 };
+  // stepTicks 0 = each policy decides at its own trained cadence (policy JSON `stepTicks`).
   for (let i = 0; i < argv.length; i += 1) {
     const key = argv[i].replace(/^--/, '').replace(/-([a-z])/g, (_, c) => c.toUpperCase());
     options[key] = argv[i + 1];

@@ -153,6 +153,7 @@ Bootstrap once, then train and play:
 ```bash
 npm run ai:bootstrap
 npm run ai:train:m4pro    # 12-core Apple M4 Pro (npm run ai:train:m4 on a 10-core M4)
+npm run ai:train:recipe -- --out experiments/runs/my_run   # 🧪 v2 recipe run, isolated from models/
 npm run ai:play
 ```
 

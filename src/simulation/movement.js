@@ -26,6 +26,9 @@ const DWARF_ROAD_AFFINITY_PROFILES = {
   },
 };
 const MAX_PATH_FIELD_CACHE_ENTRIES = 256;
+const MAX_FIELD_MEMO_ENTRIES = 2048;
+// walkability grid -> Map(window key -> distances); the grid never changes during a game.
+const fieldMemos = new WeakMap();
 
 // Resolve the road-affinity profile name and default values.
 function resolveRoadAffinityProfile(rawValue) {
@@ -679,6 +682,17 @@ function buildPathField(state, runtime, targetX, targetY, radius) {
     return null;
   }
 
+  // A field depends only on the walkability grid, the anchor and the window, so identical requests
+  // reuse one BFS (gather jobs share a key but send each dwarf to its own cell, which used to rebuild
+  // the same fields hundreds of times per tick). Callers always get their own distances array.
+  const walkableGrid = state && state.terrain && state.terrain.walkable;
+  const memo = walkableGrid ? getFieldMemo(walkableGrid) : null;
+  const memoKey = memo ? `${anchorX},${anchorY},${minX},${minY},${maxX},${maxY}` : null;
+  const cached = memo ? memo.get(memoKey) : null;
+  if (cached) {
+    return { minX, minY, width: localWidth, height: localHeight, distances: cached.slice() };
+  }
+
   const distances = new Array(total).fill(-1);
   const queue = new Int32Array(total);
   let head = 0;
@@ -736,6 +750,12 @@ function buildPathField(state, runtime, targetX, targetY, radius) {
     }
   }
 
+  if (memo) {
+    if (memo.size >= MAX_FIELD_MEMO_ENTRIES) {
+      memo.delete(memo.keys().next().value);
+    }
+    memo.set(memoKey, distances.slice());
+  }
   return {
     minX,
     minY,
@@ -743,6 +763,16 @@ function buildPathField(state, runtime, targetX, targetY, radius) {
     height: localHeight,
     distances,
   };
+}
+
+// Per-walkability-grid memo of BFS distance arrays (pure cache: eviction never changes results).
+function getFieldMemo(walkableGrid) {
+  let memo = fieldMemos.get(walkableGrid);
+  if (!memo) {
+    memo = new Map();
+    fieldMemos.set(walkableGrid, memo);
+  }
+  return memo;
 }
 
 // Resolve distance to target using field data when available.

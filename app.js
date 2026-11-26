@@ -306,13 +306,6 @@ function resolvePolicyPath(config) {
   return null;
 }
 
-// Function: getActionTicks.
-function getActionTicks(config) {
-  const aiConfig = config.ai || {};
-  const ticks = Number(aiConfig.stepTicks || 1);
-  return Math.max(1, ticks);
-}
-
 // Function: isResizeHandlingEnabled.
 function isResizeHandlingEnabled(config) {
   const display = (config && config.display) || {};

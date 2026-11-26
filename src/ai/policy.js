@@ -131,6 +131,7 @@ function loadPolicy(policyPath) {
   const minWeight = Number(raw.minWeight ?? 0);
   const maxWeight = Number(raw.maxWeight ?? 2);
   const type = raw.type || (Array.isArray(raw.layers) ? 'mlp' : 'linear');
+  const stepTicks = Number.isInteger(raw.stepTicks) && raw.stepTicks > 0 ? raw.stepTicks : null;
   const normalization = raw.normalization && typeof raw.normalization === 'object'
     ? raw.normalization
     : null;
@@ -168,6 +169,7 @@ function loadPolicy(policyPath) {
       outputActivation: raw.outputActivation || 'tanh',
       layers: Array.isArray(raw.layers) ? raw.layers : [],
       observationNormalization,
+      stepTicks,
     };
   }
 
@@ -180,7 +182,36 @@ function loadPolicy(policyPath) {
     featureNames,
     minWeight,
     maxWeight,
+    stepTicks,
   };
+}
+
+// Decision cadence of a policy: the cadence it was trained at (policy JSON `stepTicks`), or
+// `ai.stepTicks` for older policies that do not record one.
+function getPolicyStepTicks(policy, config) {
+  if (policy && Number.isInteger(policy.stepTicks) && policy.stepTicks > 0) return policy.stepTicks;
+  const fallback = Number(config && config.ai && config.ai.stepTicks);
+  return Number.isFinite(fallback) && fallback >= 1 ? Math.floor(fallback) : 1;
+}
+
+// MLP forward pass on one observation: raw input vector and tanh output (null when unusable).
+function forwardMlp(obs, config, policy, resources) {
+  const plan = policy.observationPlan
+    || buildObservationPlan(resources, policy.featureNames, policy.observationLayout);
+  const rawInput = buildObservationVector(obs, config, policy.featureNames, plan);
+  const input = normalizeObservationInput(rawInput, policy.observationNormalization, policy.path);
+  if (!input) {
+    return null;
+  }
+  return { rawInput, output: forwardNetwork(policy.layers, input, policy.activation, policy.outputActivation) };
+}
+
+// Raw observation and network output of an MLP policy for a state (train/serve parity checks).
+function policyForward(state, config, policy) {
+  if (!policy || policy.type !== 'mlp') {
+    return null;
+  }
+  return forwardMlp(buildObservation(state, config), config, policy, policy.resources);
 }
 
 // Select an action based on the active policy and observation.
@@ -194,23 +225,8 @@ function selectAction(state, config, policy) {
     : Object.keys(obs.stockpileRatio || {});
 
   if (policy.type === 'mlp') {
-    const plan = policy.observationPlan
-      || buildObservationPlan(resources, policy.featureNames, policy.observationLayout);
-    const rawInput = buildObservationVector(obs, config, policy.featureNames, plan);
-    const input = normalizeObservationInput(
-      rawInput,
-      policy.observationNormalization,
-      policy.path,
-    );
-    if (!input) {
-      return null;
-    }
-    const output = forwardNetwork(
-      policy.layers,
-      input,
-      policy.activation,
-      policy.outputActivation,
-    );
+    const forward = forwardMlp(obs, config, policy, resources);
+    const output = forward && forward.output;
     if (!output || output.length < resources.length) {
       return null;
     }
@@ -599,4 +615,4 @@ function scaleAction(value, minWeight, maxWeight) {
   return minWeight + (value + 1) * 0.5 * span;
 }
 
-module.exports = { loadPolicy, selectAction, normalizeActionEnvelope };
+module.exports = { loadPolicy, selectAction, normalizeActionEnvelope, getPolicyStepTicks, policyForward };

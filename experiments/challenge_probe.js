@@ -217,6 +217,8 @@ function runEpisode(task, options) {
   const { loadPolicy, selectAction } = require(path.join(ROOT, 'src', 'ai', 'policy'));
   const policy = task.player.startsWith('policy:') ? loadPolicy(path.resolve(ROOT, task.player.slice(7))) : null;
   if (task.player.startsWith('policy:') && !policy) throw new Error(`cannot load ${task.player}`);
+  // A trained policy decides at the cadence it was trained at; other players use --step-ticks.
+  const stepTicks = policy && policy.stepTicks ? policy.stepTicks : options.stepTicks;
   const base = loadConfig(options.config ? path.resolve(ROOT, options.config) : undefined);
   const previousRandom = Math.random;
   Math.random = mulberry32(task.seed);
@@ -260,13 +262,13 @@ function runEpisode(task, options) {
     const NOTABLE = new Set(['notable', 'major', 'critical', 'legendary']);
     let lastEventId = null;
     for (let tick = 1; tick <= options.ticks; tick += 1) {
-      if ((tick - 1) % options.stepTicks === 0) {
+      if ((tick - 1) % stepTicks === 0) {
         action = policy ? selectAction(state, config, policy) : buildAction(task.player, config, actionRng);
       }
       watchStockpile(state, flows);
       // Eval actions carry `ticks` like ai_server step payloads; the standard game passes null.
       const stepAction = options.plan === 'standard' && task.player === 'default'
-        ? null : { ...(action || {}), ticks: options.stepTicks };
+        ? null : { ...(action || {}), ticks: stepTicks };
       stepState(state, config, runtime, stepAction);
       const birthsNow = Number(state.birthsCount || 0);
       births += birthsNow >= lastBirths ? birthsNow - lastBirths : birthsNow;
@@ -288,7 +290,7 @@ function runEpisode(task, options) {
       if (log.length > 0 && log[0]) lastEventId = log[0].id;
       const pop = (state.dwarves || []).length;
       if (pop === 0 && extinctionTick === null) extinctionTick = tick;
-      if (tick % options.stepTicks === 0 || pop === 0) {
+      if (tick % stepTicks === 0 || pop === 0) {
         const next = computeOutcomeSignals(state, config);
         const step = computeOutcomeReward(signals, next, config);
         reward.total += step.total;

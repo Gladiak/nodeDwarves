@@ -833,6 +833,15 @@ def main():
         best_payload = load_policy_payload(args.best_model_path)
         best_payload["__path"] = args.best_model_path
 
+    # The cadence belongs to the policy (STRATEGY.md T1): refuse to judge a policy at another cadence.
+    for label, payload in (("latest", model_payload), ("best", best_payload)):
+        trained = (payload or {}).get("stepTicks")
+        if trained and int(trained) != int(args.step_ticks):
+            raise SystemExit(
+                f"{label} policy was trained at {trained} ticks per decision but the gate runs at "
+                f"{args.step_ticks}; evaluate it at its own cadence."
+            )
+
     # Each policy is evaluated with its own action list (v1 governor heads or v2 lever heads); the
     # engine decodes both, so a v2 candidate can be compared with a v1 incumbent under one config.
     model_settings = resolve_policy_settings(model_payload, config, train_defaults, resources)

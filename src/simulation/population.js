@@ -207,27 +207,33 @@ function assignHousing(state, config) {
     dwarf.homeId = null;
   }
 
+  // Note: `assigned` only fills while housing, so every couple is listed from both partners'
+  // side; kept as is (changing it would change the game).
   const couples = [];
   const assigned = new Set();
+  const byId = indexDwarvesById(state.dwarves);
   for (const dwarf of state.dwarves) {
     if (!dwarf.partnerId || assigned.has(dwarf.id) || assigned.has(dwarf.partnerId)) {
       continue;
     }
-    const partner = state.dwarves.find((candidate) => candidate.id === dwarf.partnerId);
+    const partner = byId.get(dwarf.partnerId);
     if (!partner) {
       continue;
     }
     couples.push([dwarf, partner]);
   }
 
-  couples.sort((a, b) => {
-    const aScore = Number(isAdult(a[0], config)) + Number(isAdult(a[1], config));
-    const bScore = Number(isAdult(b[0], config)) + Number(isAdult(b[1], config));
-    return bScore - aScore;
-  });
+  const adult = new Map(state.dwarves.map((dwarf) => [dwarf, Number(isAdult(dwarf, config))]));
+  couples.sort((a, b) => (adult.get(b[0]) + adult.get(b[1])) - (adult.get(a[0]) + adult.get(a[1])));
 
+  // Slots only lose capacity, so the first slot with room for k never moves backwards: a forward
+  // cursor returns exactly what `houseSlots.find(entry => entry.remaining >= k)` would.
+  let pairCursor = 0;
   for (const [dwarf, partner] of couples) {
-    const slot = houseSlots.find((entry) => entry.remaining >= 2);
+    while (pairCursor < houseSlots.length && houseSlots[pairCursor].remaining < 2) {
+      pairCursor += 1;
+    }
+    const slot = houseSlots[pairCursor];
     if (!slot) {
       continue;
     }
@@ -240,10 +246,14 @@ function assignHousing(state, config) {
 
   const unassigned = state.dwarves
     .filter((dwarf) => !dwarf.homeId)
-    .sort((a, b) => Number(isAdult(b, config)) - Number(isAdult(a, config)));
+    .sort((a, b) => adult.get(b) - adult.get(a));
 
+  let singleCursor = 0;
   for (const dwarf of unassigned) {
-    const slot = houseSlots.find((entry) => entry.remaining >= 1);
+    while (singleCursor < houseSlots.length && houseSlots[singleCursor].remaining < 1) {
+      singleCursor += 1;
+    }
+    const slot = houseSlots[singleCursor];
     if (!slot) {
       break;
     }
@@ -855,16 +865,28 @@ function countCooldowns(dwarves) {
   return count;
 }
 
+// Map dwarf id -> first dwarf with that id (same result as `dwarves.find` by id, in O(n)).
+function indexDwarvesById(dwarves) {
+  const byId = new Map();
+  for (const dwarf of dwarves) {
+    if (!byId.has(dwarf.id)) {
+      byId.set(dwarf.id, dwarf);
+    }
+  }
+  return byId;
+}
+
 // Gather bonded couples for reproduction checks.
 function collectCouples(state) {
   const couples = [];
   const visited = new Set();
+  const byId = indexDwarvesById(state.dwarves);
 
   for (const dwarf of state.dwarves) {
     if (!dwarf.partnerId || visited.has(dwarf.id) || visited.has(dwarf.partnerId)) {
       continue;
     }
-    const partner = state.dwarves.find((candidate) => candidate.id === dwarf.partnerId);
+    const partner = byId.get(dwarf.partnerId);
     if (!partner) {
       continue;
     }

@@ -53,6 +53,7 @@ This file defines how to implement new features in a consistent, stable way.
 - `scripts/validate_scenarios.js`: milestone-only two-seed catalog validation, long pressure runs, checkpoint restoration and canonical-policy compatibility.
 - `debug/scenario_validation_latest.json` (written by `scripts/validate_scenarios.js`): latest scenario-catalog validation.
 - `saves/`: git-ignored per-colony checkpoints and previous valid backups.
+- `.cache/snapshot_bank/`: git-ignored snapshot banks keyed by game config, bank shape and start policy (built by `scripts/train_recipe.js`).
 - `.cache/promote_eval_cache.json`: git-ignored, bounded cache of deterministic best-policy promotion evals, keyed by simulation/evaluator sources, eval config, policy file and eval parameters.
 - `src/simulation/`: simulation systems split by theme.
 - `src/simulation/index.js`: simulation orchestrator.
@@ -138,7 +139,10 @@ This file defines how to implement new features in a consistent, stable way.
 - `scripts/regression.js`: AI regression harness and profile recording.
 - `scripts/validate_extended_optimized.js`: optimized full-quality validation orchestrator with per-phase runtime reporting (deduplicates benchmark execution across gate+risk).
 - `scripts/build_snapshot_bank.js`: mid-game snapshot bank for training starts (STRATEGY.md S4d): plays training games through `ai_server.js` (council or a policy) and saves gzip states at fixed ticks.
+- `scripts/train_recipe.js`: single training entry point (STRATEGY.md T1, `npm run ai:train:recipe`): runs `ai.training.recipe` into a self-contained run folder (frozen phase configs, effective recipe, logs, policy), builds or reuses the cached snapshot bank, never writes `models/`.
+- `scripts/test_recipe_contracts.js`: recipe validation, recipe-only train arguments, phase configs and policy-owned cadence contracts (included in `npm test`).
 - `scripts/headless_benchmark.js`: deterministic headless benchmark CLI for long-run tuning and validation.
+- `scripts/sim_fingerprint.js`: full-state canonical fingerprint of seeded no-AI games at fixed checkpoints (`--save` before, `--compare` after) for bit-identical refactors and optimizations (`npm run sim:fingerprint`).
 - `scripts/ensure_benchmark_baseline.js`: baseline cache guard that auto-refreshes cached baseline reports when benchmark profile metadata mismatches.
 - `scripts/compare_benchmark_reports.js`: report-to-report benchmark diff CLI for cached baseline/candidate economy, Underrealm, legacy, and epic-conflict comparisons.
 - `scripts/clean_debug.js`: debug artifact housekeeping utility (transient cleanup + run retention).
@@ -169,7 +173,10 @@ This file defines how to implement new features in a consistent, stable way.
 - `chronicles/`: git-ignored deterministic Markdown/JSON Chronicle exports created on demand.
 - `regression/baselines/regression_baseline.json`: durable regression baseline profiles used by checks.
 - `python/bootstrap.py`: venv bootstrap.
-- `python/train.py`: PPO training loop and logging.
+- `python/train.py`: legacy PPO training loop (v1 and v2 heads) used by `train_wrapper.js` profiles; replaced by `trainer_v2.py` and removed in STRATEGY.md T4.
+- `python/trainer_v2.py`: lean deterministic PPO trainer for action space v2 (STRATEGY.md T2); runs one phase of a `scripts/train_recipe.js` run folder (`--run`, `--phase`, `--rep`).
+- `python/v2/`: trainer modules: `env.py` (ai_server compact protocol, action ids, pure per-episode settings), `model.py` (actor-critic, running statistics, PopArt rescaling, policy JSON), `ppo.py` (GAE, PPO update), `rollout.py` (versioned-weight workers, lever noise hold).
+- `python/test_trainer_v2.py`: bit parity with the old trainer's numerics, JS/Python inference parity and policy round trip (run by `scripts/test_recipe_contracts.js`).
 - `python/regression_rollout.py`: rollout-only randomized regression runner (no PPO updates, no checkpoint writes).
 - `python/agent.py`: example Python agent.
 - `experiments/`: measurement tools used by the `STRATEGY.md` protocol.
@@ -178,6 +185,7 @@ This file defines how to implement new features in a consistent, stable way.
   - `exp_run.js`: isolated m4-pro training variants (`--fresh-start`, `--chain`, `--set`, `--freeze-only`); never writes `models/`, verifies it by hash.
   - `leverage_probe.py`: resumable per-governor-group leverage probe with paired report.
   - `analyze.py`: paired-delta summary of `exp_run.js` variants.
+  - `pairing_probe.py`: variance of lever-effect estimates from bank snapshots (antithetic lever noise, shared vs different game seeds); tells whether paired branches or a given exploration scale can carry learning signal.
   - `sensitivity_screen.js`: resumable one-at-a-time +/-25% screen of `CORE_KEYS` (`--keys all` adds `FROZEN_KEYS`) with paired effects on population, avoidable deaths and progress.
   - `runs/`: git-ignored session outputs.
 
@@ -216,7 +224,12 @@ This file defines how to implement new features in a consistent, stable way.
 
 ## AI training
 
-- PPO only (2x128 MLP). Keep JSON weights for JS inference.
+- PPO only (2x128 MLP). Keep JSON weights for JS inference. New training work goes in `python/trainer_v2.py` / `python/v2/`; `python/train.py` only serves the legacy wrapper profiles until T4.
+- Training runs must be deterministic: episode settings are pure functions of the run seed and episode number, each episode reseeds its RNG, and each episode plays a weight version fixed by rule (`policyLagBatches`), never whatever a worker happens to hold. Two runs of the same recipe must give identical weights.
+- Observations for training come only from the JS server (compact transport); never re-implement observation features in Python.
+- Every run-shape knob (cadence, gamma, episodes, episode ticks, snapshot starts, entropy and learning-rate schedules, noise hold) lives in `ai.training.recipe` and reaches `train.py` only through `scripts/train_recipe.js`; never pass them as ad-hoc flags in a measured run.
+- The decision cadence belongs to the policy: the trainer writes `stepTicks` into the policy file, and every consumer (game, `ai_server`, evaluators, gate) must use it or refuse to run, never override it silently.
+- Training must not cut game phases out: stable termination stays off, only extinction is terminal, time limits bootstrap, and the snapshot bank covers the long game.
 - Training must be resumable from the best-eval snapshot (default `models/policy_best.json`).
 - If observation/action shapes change, require `--fresh` training.
 - Keep the observation layout identical across `ai_server.js`, `src/ai/policy.js` and `python/train.py` (shared plan in `src/ai/observation_layout.js`).
@@ -247,6 +260,7 @@ This file defines how to implement new features in a consistent, stable way.
 ## Performance and UX
 
 - Avoid O(n^2) scans in per-tick logic when possible.
+- Performance work must be bit-identical unless it is a measured game change: save `node scripts/sim_fingerprint.js --save <file>` before and require `--compare <file>` to report IDENTICAL after, plus `npm test`; caches must be pure (eviction never changes results) and keyed by the data they depend on.
 - Prefer early exits and precomputed counts.
 - Keep telemetry lines short enough for the configured width.
 - Every time telemetry sections, labels, or metrics are changed, verify the Colony Report (`src/telemetry/colony_report.js`, `src/telemetry/telemetry_panel.js`) is coherent with the current telemetry and update it in the same change set. Keep its rows plain-language: a status, a value and one sentence on what it means.

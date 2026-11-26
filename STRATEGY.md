@@ -124,6 +124,11 @@ Paired by seed. "Pop" = final population; "avoidable" = deaths excluding old age
 | E34 | 11-26 | S4b-S4f built; cadence sweep (one replicate each, 640 episodes, half the episodes from snapshots, gamma for a ~10,000-tick horizon) | action space v2: 9 heads (4 job weights + growth, reserves, builders, Underrealm share, ventures) instead of 33; 7 strategic inputs (age shares, births last year, growth budget, food/water autonomy); snapshot bank of 368 states (48 council games, 2,000-16,000 ticks, 156 MB); training 12-14 min per 640 episodes. vs council, eval 24 x 8,000: every 10 ticks +21 pop (z 2.1), 20 ticks +9, 40 ticks +12 (z 1.8); standard 16 x 20,000: -15, -9, -21 (all n.s.), avoidable +16, +27 (z 2.0), +1; extinctions 0, 1, 1 (council 2). Levers stay near the council midpoint (0.3-0.75) after 640 episodes: growth and reserves slightly up, Underrealm share low early and higher late | Cadence 10 ticks (gamma 0.999); 3 replicates of 1,920 episodes; dual-horizon gate in `promote_best.py` (`canonical.longHorizon`: 16 games x 20,000 ticks, block if paired mean + 1 SE < 0) |
 | E35 | 11-26 | S4 verdict: the v2 stack works, the trained policies do not beat the council at 20,000 ticks | 2 of 3 planned replicates (cadence 10, gamma 0.999, 1,920 episodes, half from snapshots; replicate 3 stopped): eval 24 x 8,000 vs council 166: r1 190 (+14%, z 1.95), r2 156 (-6%, z -1.3); standard 32 x 20,000 vs council 170 (4/32 extinctions): r1 137 (z -1.4, 1/32, median drawdown 54% vs 34%), r2 150 (z -0.7, avoidable +23 z 2.1, 4/32). Training diagnostics: critic explained variance 0 -> 0.93 (the value side learns), but policy entropy rose 5.57 -> 5.90 in both runs: with entropy coefficient 0.008 ramped over 15,000 episodes the exploration bonus outweighs the weak per-decision advantage of 9 strategic heads, so lever means stay near the council midpoint (0.3-0.75) and runs diverge | S4 pass not met (needs +10% at 20,000 with z >= 2 over 3 replicates). Kept: action space v2, strategic inputs, snapshot bank, dual-horizon gate, cadence 10. Next: fix the entropy schedule for v2 (ramp within the run, lower final coefficient), then longer runs, before S5 |
 | E36 | 11-26 | S4 fix screen: the entropy schedule is not what keeps v2 levers at the midpoint | E35 recipe rebuilt (cadence 10, gamma 0.999, 280 steps = 2,800 ticks per foundation episode, 50% starts from a fresh 368-state council bank), 320 foundation episodes, 1 replicate each: old schedule (0.008, ramp 15,000) entropy 5.569 -> 5.609, ramp within the run 0.008 -> 0 flat (5.568 -> 5.566), 0.002 -> 0 falling (5.563 -> 5.534); per-head log std -0.79 to -0.81 in all three (init -0.80), mean reward 427/428/434. One run makes ~1,500-2,000 Adam steps at lr <= 2.5e-4, so log std can move at most ~0.3-0.4 whatever the schedule (E35 moved +0.04 per head): exploration noise is set by `logStdInit`. Likely bottleneck: noise is drawn independently every 10 ticks while levers act over years, so one decision's effect is lost in game variance. Training speed 30-41 episodes/min (1,920 episodes ~50-65 min) | Entropy schedule unchanged (a 3+3 replicate test would cost ~7 h for an expected null); next step is temporally correlated exploration (S5) |
+| E37 | 11-26 | T1: the old trainer is not deterministic | `scripts/train_recipe.js` driving the old `train.py`, default recipe with the E36 bank: two 16 + 8-episode runs gave identical weights, but two 64-episode runs did not. Workers pick up new weights whenever they arrive (an episode plays whichever version is in the queue when it starts) and the adaptive scenario sampler reweights scenarios at timing-dependent moments | Every earlier training replicate mixed seed variance with timing variance; determinism becomes a T2 requirement of the new trainer |
+| E38 | 11-26 | T2: the lean v2 trainer matches the old numerics, the game's inference and itself | `python/trainer_v2.py` + `python/v2/` (~700 lines instead of `train.py`'s 5,200): GAE, running statistics, PopArt return rescaling and two full PPO updates bit-identical to the old functions; a saved policy gives the same outputs in the JS game inference (max difference 4-9e-8 on real states); two 64-episode runs give identical weights. Integration vs the E36 control (old trainer), same settings (stable termination on, E36 bank, 320 foundation episodes, 1 replicate each): mean reward per window 370/351 (episodes 1-160/161-320) vs 353/362, entropy +0.024 vs +0.040 under the same schedule, critic explained variance 0.60 vs 0.17 over episodes 161-320, wall clock 600 s vs 526 s. Found on the way: fresh episodes start at tick 300-800 (random season start) but `ai.maxTicks` counted from tick 0, so they were cut short (old recipe headroom hid it); the limit now counts ticks played in the episode | Lean trainer adopted for v2 runs (`scripts/train_recipe.js`); the gate's 8,200-tick canonical config is affected by the tick-limit fix and is rebuilt in T3; `policyLagBatches` (1) is the knob if throughput matters |
+| E39 | 11-26 | Simulation hot spots removed, bit-identical | Profile of a 510-dwarf state (11.3 ms/tick): path fields 23% (gather jobs share one cache key but send each dwarf to its own cell, so the same BFS ran up to 260 times per tick), housing 12% plus couple lookups 10% (O(n^2) partner `find` and slot scans), Underrealm crew scoring 14% (every pick rescored the whole pool); narrative systems together ~5%. Fixes: pure memo of BFS fields per walkability grid (`movement.js`), id index and monotone slot cursors (`population.js`), score-once stable selection (`underrealm.js`). Checks: full state and RNG stream identical on 61 bank snapshots x 300 ticks and a fresh 3,000-tick game, `scripts/sim_fingerprint.js` identical to the previous commit (4 seeds x 1,000/4,000/8,000 ticks), headless benchmark reports identical, a 64-episode training run gives the same weights. Speed: heavy state 11.3 -> 5.4 ms/tick, snapshot set 1.86x, standard benchmark 67 -> 46 s, short training run 148 -> 127 s (colonies of 80-150 dwarves gain least). The profile is now flat (top function 6%) | `scripts/sim_fingerprint.js` becomes the gate for every performance change; found on the way: `assignHousing` lists every couple twice (from both partners), wasting house slots; kept for identity, a candidate game fix |
+| E40 | 11-26 | Paired branches do not reduce variance; trainer-scale lever noise is invisible in an episode | `experiments/pairing_probe.py`: 48 bank snapshots, 2,800 ticks, four rollouts each (antithetic lever noise +e/-e, two game seeds), job weights neutral. Seasonal noise at the trainer's sigma (0.45 pre-tanh, held 20 decisions): Var(return difference) paired 34.1k, unpaired 35.2k, game noise alone (same noise, other seed) 41.7k; efficiency multiplier 1.03 and no lever effect above game noise. Strong noise (sigma 1.5 held all episode): paired 58.5k, unpaired 58.7k, game noise 44.7k, multiplier 1.00; lever effect variance ~14k (SD ~117 on mean return 595, about 0.55 of the game-noise SD per pair). The game draws everything from one `Math.random` stream, so a single different choice shifts every later draw and a shared seed gives no common randomness | Paired branches dropped. The S4 failure has a measured cause: with the exploration the trainer uses, a lever choice does not change an episode's return detectably, so the lever gradient is mostly noise. Options: persistent, larger lever exploration (episode-level hold, wider sigma), per-system RNG streams (would make pairing and paired evaluation effective, a game-identity change), or a black-box optimizer for the 5 levers |
+| E41 | 11-26 | Persistent wide lever exploration makes the levers learn; the learned levers pay at 8,000 ticks, not at 20,000 | One replicate each, lean trainer, E36 bank (2,000-16,000 ticks), 960 foundation + 50 finetune episodes; control = default recipe (lever noise redrawn every decision, sigma 0.45), persistent = noise held all episode (`leverNoiseHold` 280) and lever sigma 1.0 (`leverLogStdInit` 0). Deterministic lever choice on 62 bank states (u, 0.5 = council): control growth 0.58, reserves 0.56, builders 0.47, Underrealm share 0.56, ventures 0.52 (spread 0.08-0.13); persistent 0.76, 0.60, 0.75, 0.34, 0.38 (spread 0.16-0.34, state-dependent). vs council, eval 24 x 8,000: control 175.7 vs 166.1 (+9.5, z 1.0, 13/24), persistent 221.3 (+55.2, +33%, z 3.7, 18/24), avoidable 17.3 vs 14.8 both, 0 extinctions. Standard 16 x 20,000: council 185.3 (2 extinctions, avoidable 47), control 161.1 (-24, z -0.7, 2 ext.), persistent 180.8 (-4, z -0.1, 4 ext., avoidable 76). PPO KL higher with held noise (0.007-0.018, no early stops); foundation 1,176 s vs 1,309 s | First trained policy whose levers move and react to the state. The levers it learned (high growth and builders, fewer ventures) are the E33 short-horizon optimum, so the next lever on quality is the horizon: the 40,000-tick bank and stable termination off of the default recipe, then 3 replicates before adoption |
 | E21 | 11-25 | Evaluation speed is not the bottleneck | 24 games x 8,000 ticks: `eval_paired.py` 61 s, in-process JS 60 s; per worker ~270 ticks/s at late-game population (3.7 ms/tick) | Keep `eval_paired.py` as the reference evaluator; noise, not speed, limits decisions |
 
 E19, 24 games x 8,000 ticks (seed base 100000):
@@ -217,7 +222,7 @@ Ranked by expected impact.
 ## 5. Step plan
 
 Order: measure (S0-S1), define "good" with a strong hand-written strategy (S2), rationalize the
-model (R) so the next changes land on a small, visible core, settle the game (S3), then rebuild the learning stack (S4-S5), scale it with a better observation (S6, which absorbed S7) and ship (S8). The steward comes first
+model (R) so the next changes land on a small, visible core, settle the game (S3), then rebuild the learning stack (S4), lay a clean training foundation (T), then improve learning (S5), scale it with a better observation (S6, which absorbed S7) and ship (S8). The steward comes first
 because it improves the `npm start` game at once, needs no training, and gives every later step a
 serious opponent: if reinforcement learning cannot beat it, that shows early and cheaply. Simulation
 changes (S3) follow it and precede any heavy training, because each one invalidates trained policies.
@@ -435,6 +440,63 @@ Status 2026-11-26: S4 closed, pass not met (E33-E35).
 - Not done in S4: cadence 10 is not yet the default of `train_wrapper` phases, the gate or the game
   (`ai.stepTicks` stays 5 for the v1 policy); S1-style JS/Python parity run on a v2 policy.
 
+### T. Training foundation (D7, D13; decision 2026-11-26)
+S4-E36 showed the training stack had become the main source of cost and doubt: the E35 recipe lived
+only in ad-hoc `--set` flags and had to be rebuilt by hand, the snapshot bank was lost with its run
+folder, trainer, gate and game used three different cadences (2, 2 and 5 ticks) while v2 policies were
+trained at 10, and the train/serve bugs of E20 and E27 both came from overlapping layers (~15,000
+lines across `train.py`, `ai_server.js`, `train_wrapper.js`, `regression.js`, `promote_best.py` and
+`train_continuous.js`; 709 config values in `ai.training`). The game side stays frozen during T.
+Goal: one recipe, one command, one evaluator, one gate; every run repeatable from its own folder.
+- T0 cleanup: stale workbook, per-seed regression folders and old run folders removed.
+- T1 one recipe: `ai.training.recipe` holds every run-shape knob (cadence, gamma, workers, seeds, noise
+  hold, stable termination, snapshot bank, per-phase episodes, episode ticks, difficulty, epochs,
+  batches, learning rate and entropy schedule); `scripts/train_recipe.js` (`npm run ai:train:recipe`)
+  freezes the phase configs and the effective recipe into the run folder, builds or reuses the
+  snapshot bank (cached by config, bank shape and start policy; a chained run `--from` a policy
+  rebuilds it with that policy playing `policyShare` of the games), runs the phases and refuses to
+  finish if `models/` changed. The cadence belongs to the policy: the trainer writes `stepTicks` into
+  the policy file; the game, `ai_server` autostep, `challenge_probe` and the snapshot builder use it;
+  `eval_paired.py` (new `--ticks`) and `promote_best.py` refuse a different cadence instead of
+  silently using it. No tick ceiling on what training sees: stable termination is off (it cut settled
+  colonies out of training) and the bank covers 2,000-40,000 ticks; episodes stay ~2,800-tick
+  segments with time-limit bootstrap (the effective horizon is set by gamma, ~10,000 ticks).
+- T2 lean v2 trainer: a PPO trainer for lever heads only, reusing `ai_server`; every fix of the old
+  trainer (output-preserving return rescaling, time-limit bootstrap, observation normalization, value
+  clipping) ported with a test. Parity: with `stableTermination=true` and the E36 bank it reproduces
+  the E36 control within noise; then a new baseline on the default recipe (3 replicates vs council).
+- T3 one evaluator and one gate, both in ticks and at each policy's own cadence: 8,000 and 20,000
+  ticks vs the council (council results cached per config); one command writes the full scorecard.
+- T4 delete the old stack: v1 heads, legacy observation layout, wrapper profiles, continuous
+  training, regression profiles, `exp_run.js`; `ai.training` from 709 values to ~50, guarded by a
+  contract test.
+- T5 close the loop: train and promote a v2 policy with the new stack (even if only level with the
+  council) so `npm run ai:play` works again; regenerate baselines.
+- Pass: two runs of the same recipe give bit-identical weights; one command per run, evaluation and
+  gate; no run-shape value outside the recipe; `npm test` green; `npm run ai:play` runs a v2 policy.
+
+Status 2026-11-26: T0 and T1 done.
+- T1 checks: `npm test` green with the new `scripts/test_recipe_contracts.js`; `eval_paired.py --ticks`
+  runs a v2 policy at its own 10-tick cadence and rejects `--step-ticks 2`. Determinism of the old
+  trainer held at 16 episodes but failed at 64 (E37), so it moved into T2.
+- Not measured yet: stable termination off and the 40,000-tick bank change the recipe against E36;
+  T2 measures the new default against the parity setting.
+
+Status 2026-11-26: T2 built and checked (E38); the new-default baseline is not run yet.
+- `python/trainer_v2.py` + `python/v2/` replace `train.py` for v2 runs: compact transport only (no
+  Python observation code), action ids from config, per-episode settings as pure functions of run
+  seed and episode number, fixed scenario weights (the adaptive sampler is gone), weight version per
+  episode fixed by `policyLagBatches`, everything else read from the run folder. `scripts/train_recipe.js`
+  calls it; `python/test_trainer_v2.py` (inside `npm test`) guards numeric parity with the old trainer
+  (while it exists), JS/Python inference parity and policy round trips, and a source check forbids the
+  trainer from reading run-shape keys outside the recipe.
+- `ai_server.js`: episode tick limits count from the episode's own start tick (E38).
+- Worker count is a pure speed knob: 4, 5, 6, 7 and 9 workers give identical weights. Time for 160
+  foundation episodes: 6 workers 198 s, 7 workers 201 s (the 4- and 5-worker runs overlapped another job
+  and are not comparable); the recipe keeps 7.
+- Left for later in T2: the new-default baseline (3 replicates x 1,920 episodes, ~1 h each, plus the
+  40,000-tick bank build, ~30-40 min once) against the council at 8,000 and 20,000 ticks.
+
 ### S5. Two-level policy and chained improvement (D3, D4)
 - Cadence, snapshot starts and the 20,000-tick gate moved into S4 (S4c, S4d, S4f); what stays here
   is the two-level policy, the snapshot A/B and the chained-run improvement test.
@@ -540,8 +602,9 @@ Deterministic regression of the no-AI game: `npm run bench:candidate` then `npm 
 | World variety | `variety.ranges` | on; food 0.7-1.3, water 0.8-1.2, winter 0.5-1.5, needs 0.9-1.1, raids 0.25-1.75 (E31) |
 | Lifespan jitter | `population.aging.lifespanJitter` | 0 (E30, not adopted) |
 | Reward | `ai.reward.*` | population 1 per 100, deaths 2, distress 1 at 0.6, reserves 0.3 at 2 per dwarf, depth 20, landmark stage 5, prestige 0.2, extinction 20 |
-| Gate | `ai.training.promotion.canonical` | 24 games, 4,000 steps x 2 ticks, `rpp`, LCB z 1.96 |
-| Trainer | `ai.training.trainer` | gamma 0.998, 2 ticks per step, 2x128 |
+| Recipe | `ai.training.recipe` | `v2-base`: 10 ticks per decision, gamma 0.999, 7 workers, noise hold 1, policy lag 1 batch, stable termination off, bank 48 council games at 2,000-40,000 ticks (policy share 0.5 on chained runs); foundation 1,920 episodes x 2,800 ticks, 50% snapshot starts, entropy 0.008 -> 0.002 over 15,000 episodes; finetune 50 x 3,600 ticks (T1) |
+| Gate | `ai.training.promotion.canonical` | 24 games, 4,000 steps x 2 ticks, `rpp`, LCB z 1.96; refuses policies trained at another cadence until T3 |
+| Trainer | `ai.training.trainer` | algorithm hyperparameters (clip, KL, GAE, value loss, normalization, 2x128); its run-shape keys (episodes, steps, cadence, gamma, entropy) are ignored by recipe runs and go in T4 |
 | Steward | `ai.steward` | on; decisions every 20 ticks; all 9 governor groups restrained; safe reserve 3 per dwarf and 30 dwarves for future cautious groups |
 | Emergency reflex | `population.roles.emergencyMinRatio` | 0.15, last resort (E29) |
 | Modifier bounds | `simulation.modifierBounds` | gather yield 0.35-1.6, need decay 0.8-1.4 |
@@ -575,7 +638,13 @@ Deterministic regression of the no-AI game: `npm run bench:candidate` then `npm 
 | 2026-11-26 | S6+S7 | Observation v2, scale and curriculum merged into one step and one fresh training cycle |
 | 2026-11-26 | S4 | Closed without meeting the pass: the v2 stack is kept, trained policies stay at the council level at 20,000 ticks; entropy schedule identified as the first fix (E35) |
 | 2026-11-26 | E36 | Entropy schedule left unchanged: within a run it cannot move the exploration noise; S4 fix replaced by temporally correlated exploration |
-| next | S5 | Exploration noise held for K decisions (screen K, then 3 replicates vs the council); cadence 10 as recipe default and S1 parity check on a v2 policy |
+| 2026-11-26 | T | Training foundation step inserted before S5: one recipe, one command, policy-owned cadence, no tick ceiling (stable termination off, bank to 40,000 ticks) |
+| 2026-11-26 | T0-T1 | Cleanup done; `ai.training.recipe` + `scripts/train_recipe.js`; the old trainer is timing-dependent (E37) |
+| 2026-11-26 | T2 | Lean deterministic v2 trainer adopted for recipe runs (E38); episode tick limits count from the episode start; adaptive scenario sampler dropped |
+| 2026-11-26 | E39 | Bit-identical simulation optimizations (path-field memo, housing/couple indexes, Underrealm scoring); `sim_fingerprint.js` gates performance changes |
+| 2026-11-26 | E40 | Paired branches dropped (no common randomness with one RNG stream); lever exploration at trainer scale carries no measurable signal per episode |
+| 2026-11-26 | E41 | Persistent wide lever exploration (`leverNoiseHold`, `leverLogStdInit`) is the lever-learning approach to replicate; not yet the recipe default (1 replicate) |
+| next | T2 | 3 replicates of persistent exploration on the default recipe (40,000-tick bank, no stable termination) vs the council at 8,000 and 20,000 ticks; adopt if 20,000 is not worse; then T3 |
 
 ### Scorecard v1 (S0, session `experiments/runs/2026-11-24_s0`, commit a5e3998, git-ignored)
 

@@ -3053,6 +3053,61 @@
           }
         }
       },
+      "recipe": {
+        "name": "v2-base",
+        "stepTicks": 10,
+        "gamma": 0.999,
+        "workers": 7,
+        "seedBase": 7000,
+        "leverNoiseHold": 1,
+        "leverLogStdInit": null,
+        "policyLagBatches": 1,
+        "stableTermination": false,
+        "snapshotBank": {
+          "dir": ".cache/snapshot_bank",
+          "games": 48,
+          "policyShare": 0.5,
+          "ticks": [2000, 4000, 6000, 8000, 10000, 12000, 14000, 16000, 18000, 20000, 22000, 24000, 26000, 28000, 30000, 32000, 34000, 36000, 38000, 40000]
+        },
+        "phases": [
+          {
+            "name": "foundation",
+            "episodes": 1920,
+            "episodeTicks": 2800,
+            "snapshotProb": 0.5,
+            "fullSim": false,
+            "difficultyStart": 0.12,
+            "difficultyEnd": 1,
+            "difficultyRampRatio": 0.75,
+            "epochs": 3,
+            "batchEpisodes": 8,
+            "miniBatchSize": 1024,
+            "lr": 0.00025,
+            "lrFinal": 0.0001,
+            "entropyCoef": 0.008,
+            "entropyCoefFinal": 0.002,
+            "entropyRampEpisodes": 15000
+          },
+          {
+            "name": "finetune",
+            "episodes": 50,
+            "episodeTicks": 3600,
+            "snapshotProb": 0,
+            "fullSim": true,
+            "difficultyStart": 1,
+            "difficultyEnd": 1,
+            "difficultyRampRatio": 0,
+            "epochs": 3,
+            "batchEpisodes": 8,
+            "miniBatchSize": 1024,
+            "lr": 0.00012,
+            "lrFinal": 0.00006,
+            "entropyCoef": 0.002,
+            "entropyCoefFinal": 0.001,
+            "entropyRampEpisodes": 50
+          }
+        ]
+      },
       "trainer": {
         "algorithm": "ppo",
         "episodes": 40000,
@@ -3166,7 +3221,6 @@
         ],
         "activation": "tanh",
         "logStdInit": -0.8,
-        "leverNoiseHold": 1,
         "maxGradNorm": 0.5,
         "workers": 6,
         "transport": "compact",

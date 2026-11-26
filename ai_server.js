@@ -307,6 +307,9 @@ function resetState(options = {}) {
   if (scenario.initialTick !== null) {
     state.tick = scenario.initialTick;
   }
+  // Episode tick limits count ticks played in this episode, whatever tick it starts at (random
+  // season start, scenario start or snapshot).
+  state.episodeStartTick = Number(state.tick || 0);
   prevMetrics = computeMetrics(state, activeConfig);
 }
 
@@ -325,7 +328,7 @@ function resetFromSnapshot(filePath) {
   scenarioMeta = snapshot.scenarioMeta || null;
   runtime = buildRuntimeForConfig(activeConfig);
   state = snapshot.state;
-  state.snapshotStartTick = Number(state.tick || 0);
+  state.episodeStartTick = Number(state.tick || 0);
   prevMetrics = computeMetrics(state, activeConfig);
 }
 
@@ -355,7 +358,13 @@ function autoStep(payload) {
       return { error: 'policy_load_failed' };
     }
   }
-  const cadence = Math.max(1, Math.floor(Number(payload.stepTicks || 2)));
+  // A policy decides at the cadence it was trained at; an explicit different cadence is an error.
+  const requested = Math.max(0, Math.floor(Number(payload.stepTicks || 0)));
+  const trained = policyPath ? autoPolicy.policy.stepTicks : null;
+  if (trained && requested > 0 && requested !== trained) {
+    return { error: 'step_ticks_mismatch', policyStepTicks: trained, requested };
+  }
+  const cadence = trained || requested || 2;
   let action = null;
   for (let index = 0; index < ticks && state.dwarves.length > 0; index += 1) {
     if (policyPath && index % cadence === 0) {
@@ -2071,7 +2080,7 @@ function getDoneStatus(state, config, metrics) {
   if (state.dwarves.length === 0) {
     return { done: true, reason: 'extinction' };
   }
-  const startTick = Number(state.snapshotStartTick || 0);
+  const startTick = Number(state.episodeStartTick || 0);
   if (limit > 0 && state.tick - startTick >= limit) {
     return { done: true, reason: 'maxTicks' };
   }

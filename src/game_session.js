@@ -3,7 +3,7 @@
 const crypto = require('crypto');
 const { createInitialState } = require('./state');
 const { stepState } = require('./simulation');
-const { selectAction, normalizeActionEnvelope } = require('./ai_policy');
+const { selectAction, normalizeActionEnvelope, getPolicyStepTicks } = require('./ai_policy');
 const { createSessionRandom, validateSessionRandom, withSessionRandom } = require('./session_random');
 
 // Resolve explicit config paths without allowing prototype traversal or silent missing settings.
@@ -97,7 +97,7 @@ function advanceGameSession(session) {
     const { state, config, runtime, controller, policy } = session;
     if (policy && state.tick >= controller.nextActionTick) {
       controller.currentAction = normalizeActionEnvelope(selectAction(state, config, policy));
-      controller.nextActionTick = state.tick + Math.max(1, Number(config.ai && config.ai.stepTicks || 1));
+      controller.nextActionTick = state.tick + getPolicyStepTicks(policy, config);
     }
     stepState(state, config, runtime, controller.currentAction, { suppressEndgameReset: true });
     controller.advances += 1;
