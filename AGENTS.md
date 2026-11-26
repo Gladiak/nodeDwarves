@@ -172,7 +172,7 @@ This file defines how to implement new features in a consistent, stable way.
 - `debug/headless_benchmark_candidate.json`, `debug/headless_benchmark_diff.json`: latest canonical `4 x 8000` candidate and its cached-baseline comparison.
 - `chronicles/`: git-ignored deterministic Markdown/JSON Chronicle exports created on demand.
 - `regression/baselines/regression_baseline.json`: durable regression baseline profiles used by checks.
-- `python/bootstrap.py`: venv bootstrap.
+- `python/bootstrap.py`: venv bootstrap with pinned torch and numpy versions (runs reproduce bit for bit only with the same versions).
 - `python/train.py`: legacy PPO training loop (v1 and v2 heads) used by `train_wrapper.js` profiles; replaced by `trainer_v2.py` and removed in STRATEGY.md T4.
 - `python/trainer_v2.py`: lean deterministic PPO trainer for action space v2 (STRATEGY.md T2); runs one phase of a `scripts/train_recipe.js` run folder (`--run`, `--phase`, `--rep`).
 - `python/v2/`: trainer modules: `env.py` (ai_server compact protocol, action ids, pure per-episode settings), `model.py` (actor-critic, running statistics, PopArt rescaling, policy JSON), `ppo.py` (GAE, PPO update), `rollout.py` (versioned-weight workers, lever noise hold).
@@ -185,6 +185,7 @@ This file defines how to implement new features in a consistent, stable way.
   - `exp_run.js`: isolated m4-pro training variants (`--fresh-start`, `--chain`, `--set`, `--freeze-only`); never writes `models/`, verifies it by hash.
   - `leverage_probe.py`: resumable per-governor-group leverage probe with paired report.
   - `analyze.py`: paired-delta summary of `exp_run.js` variants.
+  - `replicates.js`: one resumable command for replicated recipe runs: trains each replicate with `scripts/train_recipe.js`, evaluates it and the council at 8,000 (eval plan) and 20,000 ticks (standard game), reads the policy's lever choices and writes a pooled paired summary.
   - `pairing_probe.py`: variance of lever-effect estimates from bank snapshots (antithetic lever noise, shared vs different game seeds); tells whether paired branches or a given exploration scale can carry learning signal.
   - `sensitivity_screen.js`: resumable one-at-a-time +/-25% screen of `CORE_KEYS` (`--keys all` adds `FROZEN_KEYS`) with paired effects on population, avoidable deaths and progress.
   - `runs/`: git-ignored session outputs.

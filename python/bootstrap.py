@@ -19,31 +19,35 @@ def ensure_venv(venv_dir):
     subprocess.check_call([sys.executable, "-m", "venv", venv_dir])
 
 
-def get_missing_packages(python_bin, packages):
-    if not packages:
-        return []
+# Pinned versions: training is deterministic for a given torch build, so every machine that should
+# reproduce a run (or join its replicates) needs the same versions.
+PINNED_PACKAGES = {"torch": "2.10.0", "numpy": "2.4.3"}
+
+
+def get_mismatched_packages(python_bin, pinned):
     check_code = (
-        "import importlib.util, sys\n"
-        "missing = [name for name in sys.argv[1:] "
-        "if importlib.util.find_spec(name) is None]\n"
-        "print('\\n'.join(missing))\n"
+        "import importlib.metadata as md, sys, json\n"
+        "pins = json.loads(sys.argv[1])\n"
+        "out = []\n"
+        "for name, version in pins.items():\n"
+        "    try:\n"
+        "        if md.version(name) != version: out.append(name)\n"
+        "    except md.PackageNotFoundError:\n"
+        "        out.append(name)\n"
+        "print('\\n'.join(out))\n"
     )
-    output = subprocess.check_output(
-        [python_bin, "-c", check_code, *packages],
-        text=True,
-    ).strip()
-    if not output:
-        return []
+    import json
+    output = subprocess.check_output([python_bin, "-c", check_code, json.dumps(pinned)], text=True).strip()
     return [line.strip() for line in output.splitlines() if line.strip()]
 
 
-def ensure_packages(python_bin, packages):
-    missing = get_missing_packages(python_bin, packages)
-    if not missing:
-        print("ai:bootstrap: dependencies already installed")
+def ensure_packages(python_bin, pinned):
+    mismatched = get_mismatched_packages(python_bin, pinned)
+    if not mismatched:
+        print("ai:bootstrap: dependencies already installed at the pinned versions")
         return
     subprocess.check_call([python_bin, "-m", "pip", "install", "-U", "pip", "setuptools", "wheel"])
-    subprocess.check_call([python_bin, "-m", "pip", "install", "-U", *missing])
+    subprocess.check_call([python_bin, "-m", "pip", "install", *[f"{name}=={pinned[name]}" for name in mismatched]])
 
 
 def main():
@@ -51,7 +55,7 @@ def main():
     venv_dir = os.path.join(project_root, ".venv")
     ensure_venv(venv_dir)
     python_bin = venv_python(venv_dir)
-    ensure_packages(python_bin, ["torch", "numpy"])
+    ensure_packages(python_bin, PINNED_PACKAGES)
 
 
 if __name__ == "__main__":

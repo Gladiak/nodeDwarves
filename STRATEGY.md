@@ -582,6 +582,14 @@ node experiments/exp_run.js --out $S --name <variant> --rep 1 --fresh-start --ch
 .venv/bin/python experiments/eval_paired.py --policy $S/<variant>_r1/p.json --outcomes --config $S/configs/config_endgame.json --max-steps 4000 --episodes 24 --workers 8 --out $S/eval_<variant>.json
 ```
 
+Replicated recipe runs against the council (training, 8,000- and 20,000-tick evaluations, lever
+readout, pooled paired summary in `<session>/<name>_summary.json`; resumable, any machine with
+`npm run ai:bootstrap` done, since torch and numpy are pinned so runs reproduce across machines):
+
+```bash
+node experiments/replicates.js --session experiments/runs/2026-11-27_e42 --name persist --set leverNoiseHold=280 --set leverLogStdInit=0
+```
+
 Simulation A/B without code changes: add `--set path=value` (JSON values) to `challenge_probe.js`;
 the override applies to the final effective config of every game.
 
@@ -644,7 +652,8 @@ Deterministic regression of the no-AI game: `npm run bench:candidate` then `npm 
 | 2026-11-26 | E39 | Bit-identical simulation optimizations (path-field memo, housing/couple indexes, Underrealm scoring); `sim_fingerprint.js` gates performance changes |
 | 2026-11-26 | E40 | Paired branches dropped (no common randomness with one RNG stream); lever exploration at trainer scale carries no measurable signal per episode |
 | 2026-11-26 | E41 | Persistent wide lever exploration (`leverNoiseHold`, `leverLogStdInit`) is the lever-learning approach to replicate; not yet the recipe default (1 replicate) |
-| next | T2 | 3 replicates of persistent exploration on the default recipe (40,000-tick bank, no stable termination) vs the council at 8,000 and 20,000 ticks; adopt if 20,000 is not worse; then T3 |
+| 2026-11-26 | T | `experiments/replicates.js` runs replicated recipe runs and their council comparison in one resumable command; `ai:bootstrap` pins torch 2.10.0 and numpy 2.4.3 |
+| next | T2 (E42) | 3 replicates of persistent exploration on the default recipe (40,000-tick bank, no stable termination) vs the council at 8,000 and 20,000 ticks with the `replicates.js` command in section 6; adopt if 20,000 is not worse; then T3 |
 
 ### Scorecard v1 (S0, session `experiments/runs/2026-11-24_s0`, commit a5e3998, git-ignored)
 
