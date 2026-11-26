@@ -85,7 +85,6 @@ function validateRecipe(recipe) {
     throw new Error("recipe.policyLagBatches must be a non-negative integer");
   }
   if (!Number.isInteger(recipe.seedBase)) throw new Error("recipe.seedBase must be an integer");
-  if (typeof recipe.stableTermination !== "boolean") throw new Error("recipe.stableTermination must be true or false");
   if (recipe.leverLogStdInit !== null && !(typeof recipe.leverLogStdInit === "number" && Number.isFinite(recipe.leverLogStdInit))) {
     throw new Error("recipe.leverLogStdInit must be null (same as the other heads) or a number");
   }
@@ -119,25 +118,16 @@ function validateRecipe(recipe) {
   return recipe;
 }
 
-// Game config one phase trains on: the base config with the episode length and the training
-// termination profile as profile overrides (training and eval), endgame off.
+// Game config one phase trains on: the base config with the episode length as a profile override
+// (training and eval), endgame off. No game phase is cut out of training: episodes end only on
+// extinction (terminal) or the tick limit (bootstrapped).
 function buildPhaseConfig(baseConfig, recipe, phase) {
   const config = JSON.parse(JSON.stringify(baseConfig));
   const training = config.ai.training;
-  // Stable termination ends an episode early once the colony looks settled; off by default so no
-  // game phase is cut out of training (time limits bootstrap, only extinction is terminal).
-  const termination = recipe.stableTermination === true && training.terminationProfile
-    && training.terminationProfile.enabled === true
-    ? { ...training.terminationProfile }
-    : { enabled: false };
   for (const key of ["configOverrides", "evalOverrides"]) {
     const overrides = training[key] || {};
     overrides.endgame = { ...(overrides.endgame || {}), enabled: false };
-    overrides.ai = {
-      ...(overrides.ai || {}),
-      maxTicks: phase.episodeTicks,
-      termination: key === "configOverrides" ? { ...((overrides.ai || {}).termination || {}), ...termination } : { enabled: false },
-    };
+    overrides.ai = { ...(overrides.ai || {}), maxTicks: phase.episodeTicks };
     training[key] = overrides;
   }
   return config;
@@ -157,6 +147,7 @@ function sha256(text) {
 // Hash every file in models/ so the run can prove it never touched production checkpoints.
 function hashModels() {
   const dir = path.join(ROOT, "models");
+  if (!fs.existsSync(dir)) return "";
   return fs.readdirSync(dir).sort()
     .map((file) => `${file}:${sha256(fs.readFileSync(path.join(dir, file)))}`).join("\n");
 }

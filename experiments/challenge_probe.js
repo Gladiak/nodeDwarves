@@ -9,7 +9,7 @@ and deaths by cause. Measurement only: it never writes models/ or config.json.
 
 Two plans:
   --plan standard  the npm start game (config.json, no AI), headless benchmark seeds and layout.
-  --plan eval      the training eval scenarios of a session config (same reset as eval_paired.py:
+  --plan eval      the eval-plan scenarios (`ai.evaluation.scenarios`) of a config (same reset as ai_server eval:
                    training + eval overrides, scenario overrides, no randomization, difficulty 1).
 
 Players: default (no action fields), const:X, random (uniform [min,max] per decision),
@@ -19,7 +19,6 @@ JS inference, src/ai/policy.js, deterministic mean action).
 
 Example:
   node experiments/challenge_probe.js --plan eval \
-    --config experiments/runs/2026-11-24_vs_default/configs/config_endgame.json \
     --players default,const:0,random,neglect --ticks 8000 --out <dir>/challenge_eval.json
 */
 const fs = require('fs');
@@ -92,7 +91,7 @@ function buildEvalConfig(base, scenarioName) {
   config.ai.difficulty = 1;
   if (isPlainObject(training.configOverrides)) mergeDeep(config, training.configOverrides);
   if (isPlainObject(training.evalOverrides)) mergeDeep(config, training.evalOverrides);
-  const scenario = (training.scenarios || []).find((entry) => entry && entry.name === scenarioName);
+  const scenario = (base.scenarios || []).find((entry) => entry && entry.name === scenarioName);
   if (scenarioName && !scenario) throw new Error(`unknown scenario ${scenarioName}`);
   if (scenario && scenario.overrides) mergeDeep(config, scenario.overrides);
   return config;
@@ -122,7 +121,7 @@ function buildTasks(options, baseConfig) {
   if (options.plan === 'standard') {
     for (const seed of String(options.seeds).split(',').map(Number)) episodes.push({ seed, scenario: 'standard' });
   } else {
-    const scenarios = (baseConfig.ai.training.evalScenarios || []).slice();
+    const scenarios = (baseConfig.ai.evaluation.scenarios || []).slice();
     const perScenario = Math.floor(options.episodes / scenarios.length);
     const remainder = options.episodes % scenarios.length;
     let index = 0;
@@ -157,7 +156,7 @@ function buildAction(player, config, rng) {
   if (!governorsOnly) {
     for (const resource of Object.keys(config.resources.targets || {}).sort()) action.weights[resource] = value();
   }
-  // Same action heads as python/train.py append_festival_action / append_governor_actions.
+  // The same festival and governor intents the v1 action heads used to set (kept as a probe player).
   const festivals = config.festivals || {};
   if (festivals.enabled !== false && (festivals.ai || {}).enabled !== false) action.festivalIntent = pick();
   const governors = config.ai.governors || {};

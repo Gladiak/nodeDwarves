@@ -6,67 +6,11 @@ const path = require('path');
 const { clamp } = require('../utils');
 const { buildObservation, buildFeatures } = require('./observation');
 const {
-  normalizeObservationLayout,
+  OBSERVATION_LAYOUT_FACTORED,
   buildObservationPlan,
   assembleObservationVector,
 } = require('./observation_layout');
 
-const FESTIVAL_ACTION_ID = 'festival';
-const TRADE_RESERVE_BIAS_ACTION_ID = 'gov_trade_reserve_ratio_bias';
-const TRADE_CONTEST_INTENT_ACTION_ID = 'gov_trade_contest_intent';
-const TRADE_OPPORTUNITY_INTENT_ACTION_ID = 'gov_trade_opportunity_intent';
-const BUILDING_HOUSING_WEIGHT_ACTION_ID = 'gov_building_housing_weight';
-const BUILDING_ECONOMY_WEIGHT_ACTION_ID = 'gov_building_economy_weight';
-const BUILDING_DEFENSE_WEIGHT_ACTION_ID = 'gov_building_defense_weight';
-const BUILDING_SPECIAL_WEIGHT_ACTION_ID = 'gov_building_special_weight';
-const BUILDING_MINE_BIAS_ACTION_ID = 'gov_building_mine_bias';
-const BUILDING_UPGRADE_BIAS_ACTION_ID = 'gov_building_upgrade_bias';
-const CONTRACT_COMMIT_INTENT_ACTION_ID = 'gov_contract_commit_intent';
-const RUINS_WARNING_DISPATCH_INTENT_ACTION_ID = 'gov_ruins_warning_dispatch_intent';
-const RUINS_MITHRIL_REINFORCEMENT_INTENT_ACTION_ID = 'gov_ruins_mithril_reinforcement_intent';
-const UNDERREALM_SURFACE_RESERVE_BIAS_ACTION_ID = 'gov_underrealm_surface_reserve_bias';
-const UNDERREALM_DEPTH_ALLOCATION_BIAS_ACTION_ID = 'gov_underrealm_depth_allocation_bias';
-const UNDERREALM_MINER_MIX_BIAS_ACTION_ID = 'gov_underrealm_miner_mix_bias';
-const UNDERREALM_HAULER_MIX_BIAS_ACTION_ID = 'gov_underrealm_hauler_mix_bias';
-const UNDERREALM_GUARD_MIX_BIAS_ACTION_ID = 'gov_underrealm_guard_mix_bias';
-const EXTERNAL_CAMPS_MILITIA_INTENT_ACTION_ID = 'gov_external_militia_support_intent';
-const EXTERNAL_CAMPS_RAIDER_INTENT_ACTION_ID = 'gov_external_raider_tribute_intent';
-const SOCIAL_MEDIATION_BIAS_ACTION_ID = 'gov_social_mediation_bias';
-const SOCIAL_MENTORSHIP_BIAS_ACTION_ID = 'gov_social_mentorship_bias';
-const SOCIAL_ACCOUNTABILITY_BIAS_ACTION_ID = 'gov_social_accountability_bias';
-const WARRIORS_TRAINING_INTENT_ACTION_ID = 'gov_warriors_training_intent';
-const WARRIORS_ROTATION_INTENT_ACTION_ID = 'gov_warriors_rotation_intent';
-const WARRIORS_TOURNAMENT_RISK_INTENT_ACTION_ID = 'gov_warriors_tournament_risk_intent';
-const WARRIORS_CHAMPION_CHALLENGE_INTENT_ACTION_ID = 'gov_warriors_champion_challenge_intent';
-const WARRIORS_RECOVERY_PRIORITY_INTENT_ACTION_ID = 'gov_warriors_recovery_priority_intent';
-
-const DEFAULT_FEATURES = [
-  'shortage',
-  'nodeScarcity',
-  'criticalNeeds',
-  'idleAdults',
-  'populationBalance',
-  'seasonIndex',
-  'seasonProgress',
-  'weatherSeverity',
-  'weatherTimeLeft',
-  'raidActive',
-  'raidTimeLeft',
-  'raidExposed',
-  'raidDefense',
-  'housingShortage',
-  'seasonEligible',
-  'mythsActiveRatio',
-  'mythsSeverity',
-  'festivalActive',
-  'festivalTimeLeft',
-  'festivalEligible',
-  'festivalCostRatio',
-  'mythFlag_rationing_oath',
-  'mythFlag_blood_vigil',
-  'mythFlag_relic_fever',
-  'mythFlag_dry_wells',
-];
 const OBS_NORM_VERSION = 1;
 const WARNED_KEYS = new Set();
 
@@ -115,7 +59,9 @@ function parseObservationNormalization(raw, policyPath) {
   };
 }
 
-// Load a policy definition from disk.
+// Load a v2 policy (STRATEGY.md T4): an MLP with the factored observation layout, its own decision
+// cadence (`stepTicks`) and only job-weight and lever heads. Returns null when the file does not
+// exist; throws on any other policy shape (v1 policies were removed with the old training stack).
 function loadPolicy(policyPath) {
   if (!policyPath) {
     return null;
@@ -125,17 +71,12 @@ function loadPolicy(policyPath) {
     return null;
   }
   const raw = JSON.parse(fs.readFileSync(resolved, 'utf8'));
-  const featureNames = Array.isArray(raw.featureNames) && raw.featureNames.length > 0
-    ? raw.featureNames
-    : DEFAULT_FEATURES;
-  const minWeight = Number(raw.minWeight ?? 0);
-  const maxWeight = Number(raw.maxWeight ?? 2);
-  const type = raw.type || (Array.isArray(raw.layers) ? 'mlp' : 'linear');
-  const stepTicks = Number.isInteger(raw.stepTicks) && raw.stepTicks > 0 ? raw.stepTicks : null;
-  const normalization = raw.normalization && typeof raw.normalization === 'object'
-    ? raw.normalization
-    : null;
+  const problem = describeUnsupportedPolicy(raw);
+  if (problem) {
+    throw new Error(`[ai-policy] ${resolved} is not a v2 policy (${problem}); train one with npm run ai:train:recipe`);
+  }
   let observationNormalization = null;
+  const normalization = raw.normalization && typeof raw.normalization === 'object' ? raw.normalization : null;
   if (normalization) {
     const version = Number(normalization.version ?? 0);
     if (version && version !== OBS_NORM_VERSION) {
@@ -144,61 +85,49 @@ function loadPolicy(policyPath) {
         `[ai-policy] Unsupported normalization version (${version}) in ${resolved}; using raw observations.`,
       );
     } else {
-      observationNormalization = parseObservationNormalization(
-        normalization.observation,
-        resolved,
-      );
+      observationNormalization = parseObservationNormalization(normalization.observation, resolved);
     }
   }
-
-  if (type === 'mlp') {
-    const resources = raw.resources || [];
-    const observationLayout = normalizeObservationLayout(raw.observationLayout);
-    return {
-      type,
-      path: resolved,
-      resources,
-      featureNames,
-      observationLayout,
-      observationPlan: resources.length > 0
-        ? buildObservationPlan(resources, featureNames, observationLayout)
-        : null,
-      minWeight,
-      maxWeight,
-      activation: raw.activation || 'tanh',
-      outputActivation: raw.outputActivation || 'tanh',
-      layers: Array.isArray(raw.layers) ? raw.layers : [],
-      observationNormalization,
-      stepTicks,
-    };
-  }
-
+  const resources = raw.resources.slice();
+  const featureNames = raw.featureNames.slice();
   return {
-    type: 'linear',
+    type: 'mlp',
     path: resolved,
-    resources: raw.resources || [],
-    weights: raw.weights || {},
-    biases: raw.biases || {},
+    resources,
     featureNames,
-    minWeight,
-    maxWeight,
-    stepTicks,
+    observationLayout: OBSERVATION_LAYOUT_FACTORED,
+    observationPlan: buildObservationPlan(resources, featureNames),
+    minWeight: Number(raw.minWeight ?? 0),
+    maxWeight: Number(raw.maxWeight ?? 2),
+    activation: raw.activation || 'tanh',
+    outputActivation: raw.outputActivation || 'tanh',
+    layers: raw.layers,
+    observationNormalization,
+    stepTicks: raw.stepTicks,
   };
 }
 
-// Decision cadence of a policy: the cadence it was trained at (policy JSON `stepTicks`), or
-// `ai.stepTicks` for older policies that do not record one.
-function getPolicyStepTicks(policy, config) {
-  if (policy && Number.isInteger(policy.stepTicks) && policy.stepTicks > 0) return policy.stepTicks;
-  const fallback = Number(config && config.ai && config.ai.stepTicks);
-  return Number.isFinite(fallback) && fallback >= 1 ? Math.floor(fallback) : 1;
+// Why a parsed policy file is not a loadable v2 policy, or null when it is.
+function describeUnsupportedPolicy(raw) {
+  if (!raw || typeof raw !== 'object') return 'not a JSON object';
+  if ((raw.type || 'mlp') !== 'mlp' || !Array.isArray(raw.layers) || raw.layers.length === 0) return 'not an MLP';
+  if (raw.observationLayout !== OBSERVATION_LAYOUT_FACTORED) return `observation layout ${JSON.stringify(raw.observationLayout)}`;
+  if (!Number.isInteger(raw.stepTicks) || raw.stepTicks < 1) return 'no stepTicks cadence';
+  if (!Array.isArray(raw.featureNames) || raw.featureNames.length === 0) return 'no featureNames';
+  if (!Array.isArray(raw.resources) || raw.resources.length === 0) return 'no action heads';
+  const v1Head = raw.resources.find((id) => id === 'festival' || String(id).startsWith('gov_'));
+  if (v1Head) return `v1 action head ${v1Head}`;
+  return null;
+}
+
+// Decision cadence of a policy: the cadence it was trained at (policy JSON `stepTicks`).
+function getPolicyStepTicks(policy) {
+  return policy.stepTicks;
 }
 
 // MLP forward pass on one observation: raw input vector and tanh output (null when unusable).
-function forwardMlp(obs, config, policy, resources) {
-  const plan = policy.observationPlan
-    || buildObservationPlan(resources, policy.featureNames, policy.observationLayout);
-  const rawInput = buildObservationVector(obs, config, policy.featureNames, plan);
+function forwardMlp(obs, config, policy) {
+  const rawInput = buildObservationVector(obs, config, policy.featureNames, policy.observationPlan);
   const input = normalizeObservationInput(rawInput, policy.observationNormalization, policy.path);
   if (!input) {
     return null;
@@ -206,12 +135,12 @@ function forwardMlp(obs, config, policy, resources) {
   return { rawInput, output: forwardNetwork(policy.layers, input, policy.activation, policy.outputActivation) };
 }
 
-// Raw observation and network output of an MLP policy for a state (train/serve parity checks).
+// Raw observation and network output of a policy for a state (train/serve parity checks).
 function policyForward(state, config, policy) {
-  if (!policy || policy.type !== 'mlp') {
+  if (!policy) {
     return null;
   }
-  return forwardMlp(buildObservation(state, config), config, policy, policy.resources);
+  return forwardMlp(buildObservation(state, config), config, policy);
 }
 
 // Select an action based on the active policy and observation.
@@ -219,64 +148,19 @@ function selectAction(state, config, policy) {
   if (!policy) {
     return null;
   }
-  const obs = buildObservation(state, config);
-  const resources = policy.resources && policy.resources.length > 0
-    ? policy.resources
-    : Object.keys(obs.stockpileRatio || {});
-
-  if (policy.type === 'mlp') {
-    const forward = forwardMlp(obs, config, policy, resources);
-    const output = forward && forward.output;
-    if (!output || output.length < resources.length) {
-      return null;
-    }
-    const envelope = buildActionEnvelopeFromVector(
-      resources,
-      output,
-      policy.minWeight,
-      policy.maxWeight,
-      true,
-    );
-    return normalizeActionEnvelope(envelope);
+  const forward = forwardMlp(buildObservation(state, config), config, policy);
+  const output = forward && forward.output;
+  if (!output || output.length < policy.resources.length) {
+    return null;
   }
-
-  const outputVector = new Array(resources.length).fill(0);
-  for (let index = 0; index < resources.length; index += 1) {
-    const resource = resources[index];
-    const featureValues = buildFeatures(obs, resource, config, policy.featureNames);
-    const params = policy.weights[resource] || [];
-    const bias = Number(policy.biases[resource] || 0);
-    let mean = bias;
-    for (let i = 0; i < featureValues.length; i += 1) {
-      mean += Number(params[i] || 0) * featureValues[i];
-    }
-    outputVector[index] = clamp(mean, policy.minWeight, policy.maxWeight);
-  }
-
-  const envelope = buildActionEnvelopeFromVector(
-    resources,
-    outputVector,
-    policy.minWeight,
-    policy.maxWeight,
-    false,
-  );
-  return normalizeActionEnvelope(envelope);
+  return normalizeActionEnvelope(buildActionEnvelopeFromVector(policy.resources, output, policy.minWeight, policy.maxWeight));
 }
 
-// Build a governor-ready action envelope from one policy output vector.
-function buildActionEnvelopeFromVector(resources, outputVector, minWeight, maxWeight, normalizeFromTanh) {
+// Build a governor-ready action envelope from one tanh policy output vector: job weights in
+// [minWeight, maxWeight], lever heads as u in [0, 1] (the midpoint keeps the council default).
+function buildActionEnvelopeFromVector(resources, outputVector, minWeight, maxWeight) {
   const weights = {};
-  let festivalIntent;
-  const trade = {};
-  const building = {};
-  const contracts = {};
-  const ruins = {};
-  const underrealm = {};
-  const externalCamps = {};
-  const social = {};
-  const warriors = {};
   const levers = {};
-
   for (let i = 0; i < resources.length; i += 1) {
     const actionId = String(resources[i] || '');
     if (!actionId) {
@@ -284,163 +168,20 @@ function buildActionEnvelopeFromVector(resources, outputVector, minWeight, maxWe
     }
     const raw = Number(outputVector[i] ?? 0);
     const numeric = Number.isFinite(raw) ? raw : 0;
-    const scaled = normalizeFromTanh
-      ? scaleAction(clamp(numeric, -1, 1), minWeight, maxWeight)
-      : clamp(numeric, minWeight, maxWeight);
-    if (actionId === FESTIVAL_ACTION_ID) {
-      festivalIntent = scaled;
-      continue;
-    }
+    const scaled = scaleAction(clamp(numeric, -1, 1), minWeight, maxWeight);
     if (isLeverActionId(actionId)) {
-      // Lever heads (action space v2) report u in [0, 1]; the midpoint keeps the council default.
       const span = maxWeight - minWeight;
       levers[actionId.slice(LEVER_ACTION_PREFIX.length)] = span > 0 ? clamp((scaled - minWeight) / span, 0, 1) : 0.5;
       continue;
     }
-    if (actionId === TRADE_RESERVE_BIAS_ACTION_ID) {
-      trade.reserveRatioBias = scaled;
-      continue;
-    }
-    if (actionId === TRADE_CONTEST_INTENT_ACTION_ID) {
-      trade.contestIntent = scaled;
-      continue;
-    }
-    if (actionId === TRADE_OPPORTUNITY_INTENT_ACTION_ID) {
-      trade.opportunityIntent = scaled;
-      continue;
-    }
-    if (actionId === BUILDING_HOUSING_WEIGHT_ACTION_ID) {
-      building.housingWeight = scaled;
-      continue;
-    }
-    if (actionId === BUILDING_ECONOMY_WEIGHT_ACTION_ID) {
-      building.economyWeight = scaled;
-      continue;
-    }
-    if (actionId === BUILDING_DEFENSE_WEIGHT_ACTION_ID) {
-      building.defenseWeight = scaled;
-      continue;
-    }
-    if (actionId === BUILDING_SPECIAL_WEIGHT_ACTION_ID) {
-      building.specialWeight = scaled;
-      continue;
-    }
-    if (actionId === BUILDING_MINE_BIAS_ACTION_ID) {
-      building.mineBias = scaled;
-      continue;
-    }
-    if (actionId === BUILDING_UPGRADE_BIAS_ACTION_ID) {
-      building.upgradeBias = scaled;
-      continue;
-    }
-    if (actionId === CONTRACT_COMMIT_INTENT_ACTION_ID) {
-      contracts.commitIntent = scaled;
-      continue;
-    }
-    if (actionId === RUINS_WARNING_DISPATCH_INTENT_ACTION_ID) {
-      ruins.warningDispatchIntent = scaled;
-      continue;
-    }
-    if (actionId === RUINS_MITHRIL_REINFORCEMENT_INTENT_ACTION_ID) {
-      ruins.mithrilReinforcementIntent = scaled;
-      continue;
-    }
-    if (actionId === UNDERREALM_SURFACE_RESERVE_BIAS_ACTION_ID) {
-      underrealm.surfaceReserveBias = scaled;
-      continue;
-    }
-    if (actionId === UNDERREALM_DEPTH_ALLOCATION_BIAS_ACTION_ID) {
-      underrealm.depthAllocationBias = scaled;
-      continue;
-    }
-    if (actionId === UNDERREALM_MINER_MIX_BIAS_ACTION_ID) {
-      underrealm.minerMixBias = scaled;
-      continue;
-    }
-    if (actionId === UNDERREALM_HAULER_MIX_BIAS_ACTION_ID) {
-      underrealm.haulerMixBias = scaled;
-      continue;
-    }
-    if (actionId === UNDERREALM_GUARD_MIX_BIAS_ACTION_ID) {
-      underrealm.guardMixBias = scaled;
-      continue;
-    }
-    if (actionId === EXTERNAL_CAMPS_MILITIA_INTENT_ACTION_ID) {
-      externalCamps.militiaSupportIntent = scaled;
-      continue;
-    }
-    if (actionId === EXTERNAL_CAMPS_RAIDER_INTENT_ACTION_ID) {
-      externalCamps.raiderTributeIntent = scaled;
-      continue;
-    }
-    if (actionId === SOCIAL_MEDIATION_BIAS_ACTION_ID) {
-      social.mediationBias = scaled;
-      continue;
-    }
-    if (actionId === SOCIAL_MENTORSHIP_BIAS_ACTION_ID) {
-      social.mentorshipBias = scaled;
-      continue;
-    }
-    if (actionId === SOCIAL_ACCOUNTABILITY_BIAS_ACTION_ID) {
-      social.accountabilityBias = scaled;
-      continue;
-    }
-    if (actionId === WARRIORS_TRAINING_INTENT_ACTION_ID) {
-      warriors.trainingIntent = scaled;
-      continue;
-    }
-    if (actionId === WARRIORS_ROTATION_INTENT_ACTION_ID) {
-      warriors.rotationIntent = scaled;
-      continue;
-    }
-    if (actionId === WARRIORS_TOURNAMENT_RISK_INTENT_ACTION_ID) {
-      warriors.tournamentRiskIntent = scaled;
-      continue;
-    }
-    if (actionId === WARRIORS_CHAMPION_CHALLENGE_INTENT_ACTION_ID) {
-      warriors.championChallengeIntent = scaled;
-      continue;
-    }
-    if (actionId === WARRIORS_RECOVERY_PRIORITY_INTENT_ACTION_ID) {
-      warriors.recoveryPriorityIntent = scaled;
-      continue;
-    }
     weights[actionId] = scaled;
   }
-
   const payload = {};
   if (Object.keys(weights).length > 0) {
     payload.weights = weights;
   }
   if (Object.keys(levers).length > 0) {
     payload.levers = levers;
-  }
-  if (festivalIntent !== undefined) {
-    payload.festivalIntent = festivalIntent;
-  }
-  if (Object.keys(trade).length > 0) {
-    payload.trade = trade;
-  }
-  if (Object.keys(building).length > 0) {
-    payload.building = building;
-  }
-  if (Object.keys(contracts).length > 0) {
-    payload.contracts = contracts;
-  }
-  if (Object.keys(ruins).length > 0) {
-    payload.ruins = ruins;
-  }
-  if (Object.keys(underrealm).length > 0) {
-    payload.underrealm = underrealm;
-  }
-  if (Object.keys(externalCamps).length > 0) {
-    payload.externalCamps = externalCamps;
-  }
-  if (Object.keys(social).length > 0) {
-    payload.social = social;
-  }
-  if (Object.keys(warriors).length > 0) {
-    payload.warriors = warriors;
   }
   return payload;
 }

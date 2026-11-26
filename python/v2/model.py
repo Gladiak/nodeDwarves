@@ -1,6 +1,6 @@
 """Actor-critic, running statistics and the policy JSON read by the game (src/ai/policy.js).
 
-Numerics are ported unchanged from the old python/train.py (checked by the T2 parity test):
+Numerics were ported unchanged from the old python/train.py (bit parity checked in E38, before T4 deleted it):
 tanh-squashed Gaussian heads with a state-independent log std, a critic that predicts normalized
 returns, PopArt-style output-preserving rescaling when the return statistics move, and observation
 normalization with the same mean/var/clip/epsilon semantics as the JS inference.

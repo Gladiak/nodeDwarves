@@ -3,8 +3,8 @@
 
 // Snapshot bank builder (STRATEGY.md S4d). Plays training games through ai_server (the same reset
 // and scenario configs the trainer uses) with the council or a policy, and saves gzip snapshots at
-// fixed ticks. The trainer can then start part of its episodes from these mid-game states
-// (`train.py --snapshot-bank <dir> --snapshot-prob <p>`). Outputs stay outside models/.
+// fixed ticks. scripts/train_recipe.js builds and caches the bank; python/trainer_v2.py starts
+// `snapshotProb` of its episodes from these mid-game states. Outputs stay outside models/.
 //
 // Usage:
 //   node scripts/build_snapshot_bank.js --config <session config> --out <dir>

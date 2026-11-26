@@ -12,7 +12,7 @@ const { createInitialState } = require('./src/state');
 const { stepState } = require('./src/simulation');
 const { buildObservation: buildAiObservation, getObservationNodeRatio, STRATEGIC_FEATURE_NAMES } = require('./src/ai/observation');
 const {
-  normalizeObservationLayout,
+  OBSERVATION_LAYOUT_FACTORED,
   buildObservationPlan,
   assembleObservationVector,
 } = require('./src/ai/observation_layout');
@@ -47,64 +47,8 @@ const DEFAULT_FEATURE_NAMES = [
   'festivalEligible',
   'festivalCostRatio',
 ];
-const FESTIVAL_ACTION_ID = 'festival';
-const TRADE_RESERVE_BIAS_ACTION_ID = 'gov_trade_reserve_ratio_bias';
-const TRADE_CONTEST_INTENT_ACTION_ID = 'gov_trade_contest_intent';
-const TRADE_OPPORTUNITY_INTENT_ACTION_ID = 'gov_trade_opportunity_intent';
-const BUILDING_HOUSING_WEIGHT_ACTION_ID = 'gov_building_housing_weight';
-const BUILDING_ECONOMY_WEIGHT_ACTION_ID = 'gov_building_economy_weight';
-const BUILDING_DEFENSE_WEIGHT_ACTION_ID = 'gov_building_defense_weight';
-const BUILDING_SPECIAL_WEIGHT_ACTION_ID = 'gov_building_special_weight';
-const BUILDING_MINE_BIAS_ACTION_ID = 'gov_building_mine_bias';
-const BUILDING_UPGRADE_BIAS_ACTION_ID = 'gov_building_upgrade_bias';
-const CONTRACT_COMMIT_INTENT_ACTION_ID = 'gov_contract_commit_intent';
-const RUINS_WARNING_DISPATCH_INTENT_ACTION_ID = 'gov_ruins_warning_dispatch_intent';
-const RUINS_MITHRIL_REINFORCEMENT_INTENT_ACTION_ID = 'gov_ruins_mithril_reinforcement_intent';
-const UNDERREALM_SURFACE_RESERVE_BIAS_ACTION_ID = 'gov_underrealm_surface_reserve_bias';
-const UNDERREALM_DEPTH_ALLOCATION_BIAS_ACTION_ID = 'gov_underrealm_depth_allocation_bias';
-const UNDERREALM_MINER_MIX_BIAS_ACTION_ID = 'gov_underrealm_miner_mix_bias';
-const UNDERREALM_HAULER_MIX_BIAS_ACTION_ID = 'gov_underrealm_hauler_mix_bias';
-const UNDERREALM_GUARD_MIX_BIAS_ACTION_ID = 'gov_underrealm_guard_mix_bias';
-const EXTERNAL_CAMPS_MILITIA_INTENT_ACTION_ID = 'gov_external_militia_support_intent';
-const EXTERNAL_CAMPS_RAIDER_INTENT_ACTION_ID = 'gov_external_raider_tribute_intent';
-const SOCIAL_MEDIATION_BIAS_ACTION_ID = 'gov_social_mediation_bias';
-const SOCIAL_MENTORSHIP_BIAS_ACTION_ID = 'gov_social_mentorship_bias';
-const SOCIAL_ACCOUNTABILITY_BIAS_ACTION_ID = 'gov_social_accountability_bias';
-const WARRIORS_TRAINING_INTENT_ACTION_ID = 'gov_warriors_training_intent';
-const WARRIORS_ROTATION_INTENT_ACTION_ID = 'gov_warriors_rotation_intent';
-const WARRIORS_TOURNAMENT_RISK_INTENT_ACTION_ID = 'gov_warriors_tournament_risk_intent';
-const WARRIORS_CHAMPION_CHALLENGE_INTENT_ACTION_ID = 'gov_warriors_champion_challenge_intent';
-const WARRIORS_RECOVERY_PRIORITY_INTENT_ACTION_ID = 'gov_warriors_recovery_priority_intent';
 const ACTION_SLOT_WEIGHT = 'weight';
 const ACTION_SLOT_LEVER = 'lever';
-const ACTION_SLOT_FESTIVAL = 'festivalIntent';
-const ACTION_SLOT_TRADE_RESERVE = 'tradeReserveRatioBias';
-const ACTION_SLOT_TRADE_CONTEST = 'tradeContestIntent';
-const ACTION_SLOT_TRADE_OPPORTUNITY = 'tradeOpportunityIntent';
-const ACTION_SLOT_BUILDING_HOUSING = 'buildingHousingWeight';
-const ACTION_SLOT_BUILDING_ECONOMY = 'buildingEconomyWeight';
-const ACTION_SLOT_BUILDING_DEFENSE = 'buildingDefenseWeight';
-const ACTION_SLOT_BUILDING_SPECIAL = 'buildingSpecialWeight';
-const ACTION_SLOT_BUILDING_MINE = 'buildingMineBias';
-const ACTION_SLOT_BUILDING_UPGRADE = 'buildingUpgradeBias';
-const ACTION_SLOT_CONTRACT_COMMIT = 'contractCommitIntent';
-const ACTION_SLOT_RUINS_WARNING_DISPATCH = 'ruinsWarningDispatchIntent';
-const ACTION_SLOT_RUINS_MITHRIL_REINFORCEMENT = 'ruinsMithrilReinforcementIntent';
-const ACTION_SLOT_UNDERREALM_SURFACE_RESERVE = 'underrealmSurfaceReserveBias';
-const ACTION_SLOT_UNDERREALM_DEPTH_ALLOCATION = 'underrealmDepthAllocationBias';
-const ACTION_SLOT_UNDERREALM_MINER_MIX = 'underrealmMinerMixBias';
-const ACTION_SLOT_UNDERREALM_HAULER_MIX = 'underrealmHaulerMixBias';
-const ACTION_SLOT_UNDERREALM_GUARD_MIX = 'underrealmGuardMixBias';
-const ACTION_SLOT_EXTERNAL_CAMPS_MILITIA = 'externalCampsMilitiaIntent';
-const ACTION_SLOT_EXTERNAL_CAMPS_RAIDER = 'externalCampsRaiderIntent';
-const ACTION_SLOT_SOCIAL_MEDIATION = 'socialMediationBias';
-const ACTION_SLOT_SOCIAL_MENTORSHIP = 'socialMentorshipBias';
-const ACTION_SLOT_SOCIAL_ACCOUNTABILITY = 'socialAccountabilityBias';
-const ACTION_SLOT_WARRIORS_TRAINING = 'warriorsTrainingIntent';
-const ACTION_SLOT_WARRIORS_ROTATION = 'warriorsRotationIntent';
-const ACTION_SLOT_WARRIORS_TOURNAMENT_RISK = 'warriorsTournamentRiskIntent';
-const ACTION_SLOT_WARRIORS_CHAMPION_CHALLENGE = 'warriorsChampionChallengeIntent';
-const ACTION_SLOT_WARRIORS_RECOVERY_PRIORITY = 'warriorsRecoveryPriorityIntent';
 const FEATURE_KIND_SHORTAGE = 'shortage';
 const FEATURE_KIND_NODE_SCARCITY = 'nodeScarcity';
 const FEATURE_KIND_STATIC = 'static';
@@ -220,6 +164,12 @@ rl.on('line', (line) => {
   }
 
   const cmd = payload && payload.cmd;
+  const transportProblem = cmd === 'reset' ? describeUnsupportedTransport(payload.transport) : null;
+  if (transportProblem) {
+    writeResponse({ error: 'unsupported_transport', message: transportProblem });
+    return;
+  }
+
   if (cmd === 'reset' && payload.snapshot) {
     applySeed(payload.seed);
     try {
@@ -272,7 +222,7 @@ rl.on('line', (line) => {
     const metrics = computeMetrics(state, activeConfig);
     const reward = computeReward(prevMetrics, metrics, activeConfig, stepAction);
     prevMetrics = metrics;
-    const doneStatus = getDoneStatus(state, activeConfig, metrics);
+    const doneStatus = getDoneStatus(state, activeConfig);
     writeResponse(buildResponse(reward, doneStatus.done, doneStatus.reason, forceDebug));
     return;
   }
@@ -353,10 +303,16 @@ function autoStep(payload) {
   const ticks = Math.max(0, Math.floor(Number(payload.ticks || 0)));
   const policyPath = payload.policy ? String(payload.policy) : null;
   if (policyPath && autoPolicy.path !== policyPath) {
-    autoPolicy = { path: policyPath, policy: loadPolicy(policyPath) };
-    if (!autoPolicy.policy) {
+    let policy = null;
+    try {
+      policy = loadPolicy(policyPath);
+    } catch (error) {
+      return { error: 'policy_load_failed', message: String(error && error.message || error) };
+    }
+    if (!policy) {
       return { error: 'policy_load_failed' };
     }
+    autoPolicy = { path: policyPath, policy };
   }
   // A policy decides at the cadence it was trained at; an explicit different cadence is an error.
   const requested = Math.max(0, Math.floor(Number(payload.stepTicks || 0)));
@@ -490,96 +446,10 @@ function parseStringList(value) {
   return parsed;
 }
 
-// Resolve one action slot kind for compact action decoding.
-function resolveActionSlotKind(actionId) {
-  if (isLeverActionId(actionId)) {
-    return ACTION_SLOT_LEVER;
-  }
-  if (actionId === FESTIVAL_ACTION_ID) {
-    return ACTION_SLOT_FESTIVAL;
-  }
-  if (actionId === TRADE_RESERVE_BIAS_ACTION_ID) {
-    return ACTION_SLOT_TRADE_RESERVE;
-  }
-  if (actionId === TRADE_CONTEST_INTENT_ACTION_ID) {
-    return ACTION_SLOT_TRADE_CONTEST;
-  }
-  if (actionId === TRADE_OPPORTUNITY_INTENT_ACTION_ID) {
-    return ACTION_SLOT_TRADE_OPPORTUNITY;
-  }
-  if (actionId === BUILDING_HOUSING_WEIGHT_ACTION_ID) {
-    return ACTION_SLOT_BUILDING_HOUSING;
-  }
-  if (actionId === BUILDING_ECONOMY_WEIGHT_ACTION_ID) {
-    return ACTION_SLOT_BUILDING_ECONOMY;
-  }
-  if (actionId === BUILDING_DEFENSE_WEIGHT_ACTION_ID) {
-    return ACTION_SLOT_BUILDING_DEFENSE;
-  }
-  if (actionId === BUILDING_SPECIAL_WEIGHT_ACTION_ID) {
-    return ACTION_SLOT_BUILDING_SPECIAL;
-  }
-  if (actionId === BUILDING_MINE_BIAS_ACTION_ID) {
-    return ACTION_SLOT_BUILDING_MINE;
-  }
-  if (actionId === BUILDING_UPGRADE_BIAS_ACTION_ID) {
-    return ACTION_SLOT_BUILDING_UPGRADE;
-  }
-  if (actionId === CONTRACT_COMMIT_INTENT_ACTION_ID) {
-    return ACTION_SLOT_CONTRACT_COMMIT;
-  }
-  if (actionId === RUINS_WARNING_DISPATCH_INTENT_ACTION_ID) {
-    return ACTION_SLOT_RUINS_WARNING_DISPATCH;
-  }
-  if (actionId === RUINS_MITHRIL_REINFORCEMENT_INTENT_ACTION_ID) {
-    return ACTION_SLOT_RUINS_MITHRIL_REINFORCEMENT;
-  }
-  if (actionId === UNDERREALM_SURFACE_RESERVE_BIAS_ACTION_ID) {
-    return ACTION_SLOT_UNDERREALM_SURFACE_RESERVE;
-  }
-  if (actionId === UNDERREALM_DEPTH_ALLOCATION_BIAS_ACTION_ID) {
-    return ACTION_SLOT_UNDERREALM_DEPTH_ALLOCATION;
-  }
-  if (actionId === UNDERREALM_MINER_MIX_BIAS_ACTION_ID) {
-    return ACTION_SLOT_UNDERREALM_MINER_MIX;
-  }
-  if (actionId === UNDERREALM_HAULER_MIX_BIAS_ACTION_ID) {
-    return ACTION_SLOT_UNDERREALM_HAULER_MIX;
-  }
-  if (actionId === UNDERREALM_GUARD_MIX_BIAS_ACTION_ID) {
-    return ACTION_SLOT_UNDERREALM_GUARD_MIX;
-  }
-  if (actionId === EXTERNAL_CAMPS_MILITIA_INTENT_ACTION_ID) {
-    return ACTION_SLOT_EXTERNAL_CAMPS_MILITIA;
-  }
-  if (actionId === EXTERNAL_CAMPS_RAIDER_INTENT_ACTION_ID) {
-    return ACTION_SLOT_EXTERNAL_CAMPS_RAIDER;
-  }
-  if (actionId === SOCIAL_MEDIATION_BIAS_ACTION_ID) {
-    return ACTION_SLOT_SOCIAL_MEDIATION;
-  }
-  if (actionId === SOCIAL_MENTORSHIP_BIAS_ACTION_ID) {
-    return ACTION_SLOT_SOCIAL_MENTORSHIP;
-  }
-  if (actionId === SOCIAL_ACCOUNTABILITY_BIAS_ACTION_ID) {
-    return ACTION_SLOT_SOCIAL_ACCOUNTABILITY;
-  }
-  if (actionId === WARRIORS_TRAINING_INTENT_ACTION_ID) {
-    return ACTION_SLOT_WARRIORS_TRAINING;
-  }
-  if (actionId === WARRIORS_ROTATION_INTENT_ACTION_ID) {
-    return ACTION_SLOT_WARRIORS_ROTATION;
-  }
-  if (actionId === WARRIORS_TOURNAMENT_RISK_INTENT_ACTION_ID) {
-    return ACTION_SLOT_WARRIORS_TOURNAMENT_RISK;
-  }
-  if (actionId === WARRIORS_CHAMPION_CHALLENGE_INTENT_ACTION_ID) {
-    return ACTION_SLOT_WARRIORS_CHAMPION_CHALLENGE;
-  }
-  if (actionId === WARRIORS_RECOVERY_PRIORITY_INTENT_ACTION_ID) {
-    return ACTION_SLOT_WARRIORS_RECOVERY_PRIORITY;
-  }
-  return ACTION_SLOT_WEIGHT;
+// Action heads of action space v2: job weights and levers. v1 heads (festival, gov_*) were removed in
+// STRATEGY.md T4 and are refused at reset.
+function isRemovedActionId(actionId) {
+  return actionId === 'festival' || actionId.startsWith('gov_');
 }
 
 // Compile resource slots for compact action decoding.
@@ -591,7 +461,7 @@ function compileActionSlots(resources) {
       continue;
     }
     slots.push({
-      kind: resolveActionSlotKind(actionId),
+      kind: isLeverActionId(actionId) ? ACTION_SLOT_LEVER : ACTION_SLOT_WEIGHT,
       actionId,
     });
   }
@@ -653,6 +523,19 @@ function getActionClampBounds(config) {
   };
 }
 
+// Reason a reset's transport request is unsupported (v1 heads, non-factored layout), or null.
+function describeUnsupportedTransport(rawTransport) {
+  if (!rawTransport || typeof rawTransport !== 'object') {
+    return null;
+  }
+  const layout = rawTransport.observationLayout;
+  if (layout !== undefined && layout !== null && layout !== OBSERVATION_LAYOUT_FACTORED) {
+    return `observation layout ${JSON.stringify(layout)} was removed (STRATEGY.md T4)`;
+  }
+  const removed = parseStringList(rawTransport.resources).find(isRemovedActionId);
+  return removed ? `action head ${removed} was removed (STRATEGY.md T4)` : null;
+}
+
 // Apply transport config for current session.
 function configureTransport(rawTransport, config) {
   const mode = normalizeTransportMode(rawTransport && rawTransport.mode ? rawTransport.mode : rawTransport);
@@ -664,17 +547,13 @@ function configureTransport(rawTransport, config) {
     : [];
   const bounds = getActionClampBounds(config);
   const featureSpecs = compileFeatureSpecs(featureNames);
-  const observationLayout = normalizeObservationLayout(
-    rawTransport && typeof rawTransport === 'object' ? rawTransport.observationLayout : null,
-  );
   transportState = {
     mode,
     resources,
     featureNames,
     featureSpecs,
-    observationLayout,
     observationPlan: resources.length > 0
-      ? buildObservationPlan(resources, featureSpecs.map((spec) => spec.name), observationLayout)
+      ? buildObservationPlan(resources, featureSpecs.map((spec) => spec.name))
       : null,
     actionSlots: compileActionSlots(resources),
     actionClampLow: bounds.low,
@@ -687,38 +566,22 @@ function isCompactTransport() {
   return transportState && transportState.mode === TRANSPORT_COMPACT;
 }
 
-// Decode one step action payload with legacy + compact compatibility.
+// Decode one step action payload: a compact action vector, or a JSON action envelope.
 function decodeStepAction(payload) {
   if (Array.isArray(payload && payload.actionValues)) {
     return decodeCompactActionPayload(payload.actionValues, payload);
   }
-  const legacy = payload && payload.action && typeof payload.action === 'object'
+  const envelope = payload && payload.action && typeof payload.action === 'object'
     ? payload.action
     : {};
-  if (Array.isArray(legacy.actionValues)) {
-    return decodeCompactActionPayload(legacy.actionValues, legacy);
+  if (Array.isArray(envelope.actionValues)) {
+    return decodeCompactActionPayload(envelope.actionValues, envelope);
   }
-  return decodeLegacyLevers(legacy);
+  return envelope;
 }
 
-// Map raw legacy lever values (action weight scale) to u in [0, 1], as the compact path does.
-function decodeLegacyLevers(legacy) {
-  if (!legacy.leverRaw || typeof legacy.leverRaw !== 'object') {
-    return legacy;
-  }
-  const ai = (activeConfig && activeConfig.ai) || {};
-  const low = Number.isFinite(Number(ai.minWeight)) ? Number(ai.minWeight) : 0;
-  const high = Number.isFinite(Number(ai.maxWeight)) ? Number(ai.maxWeight) : 2;
-  const levers = {};
-  for (const [name, raw] of Object.entries(legacy.leverRaw)) {
-    const value = clamp(Number(raw) || 0, low, high);
-    levers[name] = high > low ? (value - low) / (high - low) : 0.5;
-  }
-  const { leverRaw, ...rest } = legacy;
-  return { ...rest, levers };
-}
-
-// Decode compact action vector into the legacy action envelope expected by stepState.
+// Decode a compact action vector into the action envelope expected by stepState: job weights in the
+// clamp range, lever heads mapped to u in [0, 1].
 function decodeCompactActionPayload(actionValues, sourcePayload) {
   const slots = Array.isArray(transportState && transportState.actionSlots)
     ? transportState.actionSlots
@@ -731,15 +594,6 @@ function decodeCompactActionPayload(actionValues, sourcePayload) {
     : 2;
 
   let weights;
-  let festivalIntent;
-  let trade;
-  let building;
-  let contracts;
-  let ruins;
-  let underrealm;
-  let externalCamps;
-  let social;
-  let warriors;
   let levers;
   const action = {};
 
@@ -751,162 +605,20 @@ function decodeCompactActionPayload(actionValues, sourcePayload) {
     const rawValue = Number(actionValues[idx]);
     const safeValue = Number.isFinite(rawValue) ? rawValue : 0;
     const value = clamp(safeValue, low, high);
-    switch (slot.kind) {
-      case ACTION_SLOT_FESTIVAL:
-        festivalIntent = value;
-        break;
-      case ACTION_SLOT_LEVER:
-        levers = levers || {};
-        levers[String(slot.actionId).slice(LEVER_ACTION_PREFIX.length)] = high > low ? (value - low) / (high - low) : 0.5;
-        break;
-      case ACTION_SLOT_TRADE_RESERVE:
-        trade = trade || {};
-        trade.reserveRatioBias = value;
-        break;
-      case ACTION_SLOT_TRADE_CONTEST:
-        trade = trade || {};
-        trade.contestIntent = value;
-        break;
-      case ACTION_SLOT_TRADE_OPPORTUNITY:
-        trade = trade || {};
-        trade.opportunityIntent = value;
-        break;
-      case ACTION_SLOT_BUILDING_HOUSING:
-        building = building || {};
-        building.housingWeight = value;
-        break;
-      case ACTION_SLOT_BUILDING_ECONOMY:
-        building = building || {};
-        building.economyWeight = value;
-        break;
-      case ACTION_SLOT_BUILDING_DEFENSE:
-        building = building || {};
-        building.defenseWeight = value;
-        break;
-      case ACTION_SLOT_BUILDING_SPECIAL:
-        building = building || {};
-        building.specialWeight = value;
-        break;
-      case ACTION_SLOT_BUILDING_MINE:
-        building = building || {};
-        building.mineBias = value;
-        break;
-      case ACTION_SLOT_BUILDING_UPGRADE:
-        building = building || {};
-        building.upgradeBias = value;
-        break;
-      case ACTION_SLOT_CONTRACT_COMMIT:
-        contracts = contracts || {};
-        contracts.commitIntent = value;
-        break;
-      case ACTION_SLOT_RUINS_WARNING_DISPATCH:
-        ruins = ruins || {};
-        ruins.warningDispatchIntent = value;
-        break;
-      case ACTION_SLOT_RUINS_MITHRIL_REINFORCEMENT:
-        ruins = ruins || {};
-        ruins.mithrilReinforcementIntent = value;
-        break;
-      case ACTION_SLOT_UNDERREALM_SURFACE_RESERVE:
-        underrealm = underrealm || {};
-        underrealm.surfaceReserveBias = value;
-        break;
-      case ACTION_SLOT_UNDERREALM_DEPTH_ALLOCATION:
-        underrealm = underrealm || {};
-        underrealm.depthAllocationBias = value;
-        break;
-      case ACTION_SLOT_UNDERREALM_MINER_MIX:
-        underrealm = underrealm || {};
-        underrealm.minerMixBias = value;
-        break;
-      case ACTION_SLOT_UNDERREALM_HAULER_MIX:
-        underrealm = underrealm || {};
-        underrealm.haulerMixBias = value;
-        break;
-      case ACTION_SLOT_UNDERREALM_GUARD_MIX:
-        underrealm = underrealm || {};
-        underrealm.guardMixBias = value;
-        break;
-      case ACTION_SLOT_EXTERNAL_CAMPS_MILITIA:
-        externalCamps = externalCamps || {};
-        externalCamps.militiaSupportIntent = value;
-        break;
-      case ACTION_SLOT_EXTERNAL_CAMPS_RAIDER:
-        externalCamps = externalCamps || {};
-        externalCamps.raiderTributeIntent = value;
-        break;
-      case ACTION_SLOT_SOCIAL_MEDIATION:
-        social = social || {};
-        social.mediationBias = value;
-        break;
-      case ACTION_SLOT_SOCIAL_MENTORSHIP:
-        social = social || {};
-        social.mentorshipBias = value;
-        break;
-      case ACTION_SLOT_SOCIAL_ACCOUNTABILITY:
-        social = social || {};
-        social.accountabilityBias = value;
-        break;
-      case ACTION_SLOT_WARRIORS_TRAINING:
-        warriors = warriors || {};
-        warriors.trainingIntent = value;
-        break;
-      case ACTION_SLOT_WARRIORS_ROTATION:
-        warriors = warriors || {};
-        warriors.rotationIntent = value;
-        break;
-      case ACTION_SLOT_WARRIORS_TOURNAMENT_RISK:
-        warriors = warriors || {};
-        warriors.tournamentRiskIntent = value;
-        break;
-      case ACTION_SLOT_WARRIORS_CHAMPION_CHALLENGE:
-        warriors = warriors || {};
-        warriors.championChallengeIntent = value;
-        break;
-      case ACTION_SLOT_WARRIORS_RECOVERY_PRIORITY:
-        warriors = warriors || {};
-        warriors.recoveryPriorityIntent = value;
-        break;
-      case ACTION_SLOT_WEIGHT:
-      default:
-        weights = weights || {};
-        weights[slot.actionId] = value;
-        break;
+    if (slot.kind === ACTION_SLOT_LEVER) {
+      levers = levers || {};
+      levers[String(slot.actionId).slice(LEVER_ACTION_PREFIX.length)] = high > low ? (value - low) / (high - low) : 0.5;
+    } else {
+      weights = weights || {};
+      weights[slot.actionId] = value;
     }
   }
 
   if (weights && Object.keys(weights).length > 0) {
     action.weights = weights;
   }
-  if (festivalIntent !== undefined) {
-    action.festivalIntent = festivalIntent;
-  }
   if (levers && Object.keys(levers).length > 0) {
     action.levers = levers;
-  }
-  if (trade && Object.keys(trade).length > 0) {
-    action.trade = trade;
-  }
-  if (building && Object.keys(building).length > 0) {
-    action.building = building;
-  }
-  if (contracts && Object.keys(contracts).length > 0) {
-    action.contracts = contracts;
-  }
-  if (ruins && Object.keys(ruins).length > 0) {
-    action.ruins = ruins;
-  }
-  if (underrealm && Object.keys(underrealm).length > 0) {
-    action.underrealm = underrealm;
-  }
-  if (externalCamps && Object.keys(externalCamps).length > 0) {
-    action.externalCamps = externalCamps;
-  }
-  if (social && Object.keys(social).length > 0) {
-    action.social = social;
-  }
-  if (warriors && Object.keys(warriors).length > 0) {
-    action.warriors = warriors;
   }
 
   const ticksRaw = Number(sourcePayload && sourcePayload.ticks);
@@ -1877,11 +1589,7 @@ function buildCompactObservationVector(metrics, config) {
 
   const plan = transportState && transportState.observationPlan
     ? transportState.observationPlan
-    : buildObservationPlan(
-      resources,
-      featureSpecs.map((spec) => spec.name),
-      transportState && transportState.observationLayout,
-    );
+    : buildObservationPlan(resources, featureSpecs.map((spec) => spec.name));
   const vector = assembleObservationVector(plan, buildRow);
 
   return vector;
@@ -2071,8 +1779,9 @@ function getPopulationFactor(population, config) {
   return population > 0 ? 1 : 0;
 }
 
-// Function: getDoneStatus.
-function getDoneStatus(state, config, metrics) {
+// Episode end: extinction (terminal) or the episode tick limit (a time limit, bootstrapped by the
+// trainer). There is no early stop for settled colonies (stable termination was removed in T4).
+function getDoneStatus(state, config) {
   const aiConfig = config.ai || {};
   const maxTicks = Number(aiConfig.maxTicks || 0);
   const simMaxTicks = Number(config.simulation && config.simulation.maxTicks || 0);
@@ -2085,111 +1794,7 @@ function getDoneStatus(state, config, metrics) {
     return { done: true, reason: 'maxTicks' };
   }
 
-  const termination = aiConfig.termination || {};
-  if (termination.enabled === true) {
-    const safeMetrics = metrics || computeMetrics(state, config);
-    if (shouldTerminateStable(state, safeMetrics, termination)) {
-      return { done: true, reason: 'stable' };
-    }
-  }
-
   return { done: false, reason: null };
-}
-
-// Function: shouldTerminateStable.
-function shouldTerminateStable(state, metrics, termination) {
-  if (!metrics) {
-    return false;
-  }
-  const minTicks = Math.max(0, Number(termination.minTicks ?? 0));
-  const stableTicksTarget = Math.max(1, Number(termination.stableTicks ?? 0));
-  const minStockpileAvg = clamp(Number(termination.minStockpileAvg ?? 0), 0, 1);
-  const minStockpileMin = clamp(Number(termination.minStockpileMin ?? 0), 0, 1);
-  const maxCriticalNeeds = clamp(Number(termination.maxCriticalNeeds ?? 1), 0, 1);
-  const maxIdleAdults = clamp(Number(termination.maxIdleAdults ?? 1), 0, 1);
-  const minPopulationBalance = clamp(Number(termination.minPopulationBalance ?? 0), 0, 1);
-  const maxUnderrealmCombatPressure = clamp(
-    Number(termination.maxUnderrealmCombatPressure ?? 1),
-    0,
-    1,
-  );
-  const maxMythsSeverity = clamp(Number(termination.maxMythsSeverity ?? 1), 0, 1);
-  const allowDuringRaid = termination.allowDuringRaid === true;
-  const stockpileEps = Math.max(0, Number(termination.stockpileEps ?? 0.01));
-  const resourceEps = Math.max(0, Number(termination.resourceEps ?? stockpileEps));
-  const progressEps = Math.max(0, Number(termination.progressEps ?? stockpileEps));
-
-  const populationTotal = metrics.population && Number(metrics.population.total || 0);
-  const raidActive = Boolean(metrics.raid && metrics.raid.active);
-  const healthy = populationTotal > 0
-    && Number(metrics.stockpileAvg || 0) >= minStockpileAvg
-    && Number(metrics.stockpileMin || 0) >= minStockpileMin
-    && Number(metrics.criticalNeedsFraction || 0) <= maxCriticalNeeds
-    && Number(metrics.idleAdultsFraction || 0) <= maxIdleAdults
-    && Number(metrics.populationBalance || 0) >= minPopulationBalance
-    && Number(metrics.underrealmCombatPressure || 0) <= maxUnderrealmCombatPressure
-    && Number(metrics.mythsSeverity || 0) <= maxMythsSeverity
-    && (allowDuringRaid || !raidActive);
-
-  const tracker = state.termination || {};
-  const lastTick = Number.isFinite(tracker.lastTick) ? tracker.lastTick : state.tick;
-  const deltaTicks = Math.max(0, state.tick - lastTick);
-  const prevAvg = Number(tracker.stockpileAvg);
-  const avg = Number(metrics.stockpileAvg || 0);
-  const avgDelta = Number.isFinite(prevAvg) ? Math.abs(avg - prevAvg) : 0;
-  const scaledEps = stockpileEps <= 0 ? Infinity : stockpileEps * Math.max(1, deltaTicks);
-  const stableDelta = avgDelta <= scaledEps;
-  const ratios = metrics.stockpileRatio || {};
-  const prevRatios = tracker.stockpileRatios || {};
-  const resourceList = Array.isArray(termination.resources) && termination.resources.length > 0
-    ? termination.resources
-    : Object.keys(ratios);
-  let maxResourceDelta = 0;
-  const nextRatios = {};
-  for (const resource of resourceList) {
-    const current = Number(ratios[resource] ?? 0);
-    const prev = Number(prevRatios[resource]);
-    const delta = Number.isFinite(prev) ? Math.abs(current - prev) : 0;
-    if (delta > maxResourceDelta) {
-      maxResourceDelta = delta;
-    }
-    nextRatios[resource] = current;
-  }
-  const scaledResourceEps = resourceEps <= 0 ? Infinity : resourceEps * Math.max(1, deltaTicks);
-  const stableResources = maxResourceDelta <= scaledResourceEps;
-  const progressScore = clamp(
-    (Number(metrics.populationBalance || 0) * 0.4)
-      + (Number(metrics.underrealmDepthProgress || 0) * 0.3)
-      + (Number(metrics.underrealmChampionProgress || 0) * 0.2)
-      + (Number(metrics.underrealmReadinessScore || 0) * 0.1),
-    0,
-    1,
-  );
-  const prevProgressScore = Number(tracker.progressScore);
-  const progressDelta = Number.isFinite(prevProgressScore)
-    ? Math.abs(progressScore - prevProgressScore)
-    : 0;
-  const scaledProgressEps = progressEps <= 0 ? Infinity : progressEps * Math.max(1, deltaTicks);
-  const stableProgress = progressDelta <= scaledProgressEps;
-
-  let stableTicks = Number(tracker.stableTicks || 0);
-  if (state.tick < minTicks) {
-    stableTicks = 0;
-  } else if (healthy && stableDelta && stableResources && stableProgress) {
-    stableTicks += deltaTicks > 0 ? deltaTicks : 1;
-  } else {
-    stableTicks = 0;
-  }
-
-  state.termination = {
-    lastTick: state.tick,
-    stockpileAvg: avg,
-    stockpileRatios: nextRatios,
-    progressScore,
-    stableTicks,
-  };
-
-  return state.tick >= minTicks && stableTicksTarget > 0 && stableTicks >= stableTicksTarget;
 }
 
 // Function: countLifeStages.
@@ -2276,12 +1881,12 @@ function buildScenarioConfig(base, options) {
   const evalOverrides = isPlainObject(training.evalOverrides)
     ? training.evalOverrides
     : null;
-  const scenarios = Array.isArray(training.scenarios) ? training.scenarios : [];
+  const scenarios = Array.isArray(base.scenarios) ? base.scenarios : [];
   const trainingFlag = options.training !== undefined ? options.training : true;
   const evalFlag = options.eval === true;
-  const enabled = training.enabled !== false && trainingFlag !== false;
-  const requestedDifficulty = options.difficulty !== undefined ? options.difficulty : training.difficultyStart;
-  const difficulty = clamp(Number(requestedDifficulty ?? 0), 0, 1);
+  const enabled = trainingFlag !== false;
+  // Every training and evaluation client sends its difficulty; without one the game plays at full difficulty.
+  const difficulty = clamp(Number(options.difficulty ?? 1), 0, 1);
   const requestedScenario = typeof options.scenario === 'string' ? options.scenario : null;
   const scenarioDef = requestedScenario
     ? scenarios.find((entry) => entry && entry.name === requestedScenario) || null

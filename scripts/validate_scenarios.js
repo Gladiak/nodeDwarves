@@ -11,6 +11,7 @@ const { createGameSession, advanceGameSession } = require('../src/game_session')
 const { withSessionRandom } = require('../src/session_random');
 const { getSaveSettings, saveGame, loadGame } = require('../src/persistence');
 const { loadPolicy } = require('../src/ai_policy');
+const { writeTestPolicy } = require('./test_policy_fixture');
 const { shouldTriggerEndgameReset } = require('../src/simulation/endgame');
 const { appHelpers, assertSessionEqual } = require('./test_save_contracts');
 
@@ -63,16 +64,19 @@ function main() {
   assert(selected.length > 0, 'No matching scenarios');
   if (options.only) assert(options.only.every((id) => selected.some((entry) => entry.id === id)), 'Unknown scenario ID');
   const longScenarios = new Set(['raider_frontier', 'divided_halls', 'below_the_gate', 'compound_crisis']);
-  const modelPath = path.join(__dirname, '../models/policy_best.json');
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'nodedwarves-scenario-milestone-'));
+  // The promoted policy when one exists, otherwise the deterministic v2 fixture (STRATEGY.md T4).
+  const promoted = path.join(__dirname, '../models/policy_best.json');
+  const modelPath = fs.existsSync(promoted) ? promoted : writeTestPolicy(path.join(directory, 'fixture_policy.json'), config);
+  const policySource = modelPath === promoted ? 'promoted' : 'fixture';
   const modelHash = crypto.createHash('sha256').update(fs.readFileSync(modelPath)).digest('hex');
   const trainingHash = crypto.createHash('sha256').update(JSON.stringify(config.ai.training)).digest('hex');
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'nodedwarves-scenario-milestone-'));
   const settings = { ...getSaveSettings(config), directory };
   const runtime = { gridWidth: 120, gridHeight: 40, playableArea: 4800,
     totalWidth: 120, totalHeight: 40, frameEnabled: false, mapInset: null };
   const report = { schemaVersion: 1, completed: false, passed: false,
     configHash: crypto.createHash('sha256').update(fs.readFileSync(path.join(__dirname, '../config.json'))).digest('hex'),
-    modelHash, trainingHash, options, cases: [] };
+    policySource, modelHash, trainingHash, options, cases: [] };
   const cases = [];
   for (const scenario of selected) {
     const seed = scenario.seed ?? 101;

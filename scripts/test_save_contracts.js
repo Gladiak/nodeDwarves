@@ -18,6 +18,7 @@ const { runEndgameReset } = require('../src/simulation/endgame');
 const { buildCurrentChronicleSnapshot } = require('../src/simulation/chronicle');
 const events = require('../src/simulation/endgame_events');
 const { loadPolicy, selectAction } = require('../src/ai_policy');
+const { writeTestPolicy } = require('./test_policy_fixture');
 const { buildObservation } = require('../src/ai/observation');
 const { createTerrain } = require('../src/state/terrain');
 const { updateSeason } = require('../src/simulation/season');
@@ -201,8 +202,8 @@ async function main() {
     for (let i = 0; i < 90; i += 1) { advanceGameSession(session); advanceGameSession(restored); }
     assertSessionEqual(restored, session, 'Autonomous continuation');
 
-    const policy = loadPolicy(path.join(__dirname, '../models/policy_best.json'));
-    assert(policy, 'Missing canonical policy');
+    const policy = loadPolicy(writeTestPolicy(path.join(directory, 'policy.json'), baseConfig));
+    assert(policy, 'Missing fixture policy');
     const governed = createGameSession(config, runtime, { seed: 303, policy });
     for (let i = 0; i < 27; i += 1) advanceGameSession(governed);
     const governedCopy = decodeSave(encodeSave(governed)).session;

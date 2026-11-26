@@ -102,10 +102,15 @@ async function main() {
     session = choice.loaded.session;
   } else {
     const policyPath = resolvePolicyPath(baseConfig);
+    const policy = policyPath ? loadPolicy(policyPath) : null;
+    if (policyPath && !policy) {
+      throw new Error(`No policy at ${policyPath}. Train a v2 policy with npm run ai:train:recipe and promote it`
+        + ' with npm run ai:promote (STRATEGY.md T5).');
+    }
     session = createGameSession(baseConfig, buildRuntime(baseConfig.display, getTerminalSize(baseConfig.display)), {
       scenarioId: choice.scenarioId,
       seed: options.seed,
-      policy: policyPath ? loadPolicy(policyPath) : null,
+      policy,
     });
   }
   config = session.config;

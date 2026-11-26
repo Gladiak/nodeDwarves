@@ -75,6 +75,9 @@ function validateSettings(settings) {
     if (!Number.isInteger(value) || value <= 0) throw new Error(`ai.evaluation.${name} must be a positive integer`);
   };
   positive(settings.councilStepTicks, 'councilStepTicks');
+  if (!Array.isArray(settings.scenarios) || settings.scenarios.length === 0 || settings.scenarios.some((name) => typeof name !== 'string')) {
+    throw new Error('ai.evaluation.scenarios must list the eval-plan scenario names');
+  }
   if (!Array.isArray(settings.horizons) || settings.horizons.length === 0) throw new Error('ai.evaluation.horizons is empty');
   const names = new Set();
   settings.horizons.forEach((h, i) => {
@@ -200,6 +203,7 @@ function requireV2Policy(file) {
   if (!Number.isInteger(policy.stepTicks) || policy.stepTicks <= 0) {
     throw new Error(`${label(file)} has no stepTicks: only policies from scripts/train_recipe.js can be scored`);
   }
+  require(path.join(ROOT, 'src', 'ai', 'policy')).loadPolicy(file); // throws on any other non-v2 shape
   return policy;
 }
 
@@ -266,6 +270,7 @@ function promote(policyFile, card, target) {
     fs.renameSync(tmp, to);
   };
   const stem = target.replace(/\.json$/, '');
+  fs.mkdirSync(path.dirname(target), { recursive: true });
   copy(policyFile, target);
   const state = policyFile.replace(/\.json$/, '.state.pt');
   if (fs.existsSync(state)) copy(state, `${stem}.state.pt`);

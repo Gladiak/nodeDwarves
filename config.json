@@ -1852,7 +1852,7 @@
     "criticalNeedThreshold": 0.3,
     "runtime": {
       "enabled": false,
-      "policyPath": "models/policy.json"
+      "policyPath": "models/policy_best.json"
     },
     "defaultWeights": {
       "food": 2,
@@ -1981,90 +1981,7 @@
         "exponent": 1.5
       }
     },
-    "termination": {
-      "enabled": false,
-      "minTicks": 0,
-      "stableTicks": 0,
-      "minStockpileAvg": 0.7,
-      "minStockpileMin": 0.55,
-      "maxCriticalNeeds": 0.05,
-      "maxIdleAdults": 0.2,
-      "minPopulationBalance": 0.6,
-      "stockpileEps": 0.01,
-      "resourceEps": 0.01,
-      "progressEps": 0.01,
-      "allowDuringRaid": true,
-      "maxUnderrealmCombatPressure": 1,
-      "maxMythsSeverity": 1,
-      "resources": []
-    },
     "training": {
-      "enabled": true,
-      "difficultyStart": 0.12,
-      "difficultyEnd": 1,
-      "difficultyRampEpisodes": 8000,
-      "terminationProfile": {
-        "enabled": true,
-        "minTicks": 2200,
-        "stableTicks": 520,
-        "minStockpileAvg": 0.74,
-        "minStockpileMin": 0.58,
-        "maxCriticalNeeds": 0.06,
-        "maxIdleAdults": 0.24,
-        "minPopulationBalance": 0.55,
-        "stockpileEps": 0.007,
-        "resourceEps": 0.009,
-        "progressEps": 0.006,
-        "allowDuringRaid": false,
-        "maxUnderrealmCombatPressure": 0.72,
-        "maxMythsSeverity": 0.68,
-        "resources": ["food", "water", "wood", "stone"]
-      },
-      "scenarioSampling": {
-        "mode": "adaptive",
-        "updateEvery": 72,
-        "emaAlpha": 0.2,
-        "boost": 1.1,
-        "exponent": 1.2,
-        "minWeightRatio": 0.6,
-        "maxWeightRatio": 1.8,
-        "difficultyPhases": [
-          {
-            "name": "early",
-            "maxDifficulty": 0.34,
-            "updateEvery": 88,
-            "boost": 0.9,
-            "exponent": 1
-          },
-          {
-            "name": "mid",
-            "minDifficulty": 0.34,
-            "maxDifficulty": 0.72,
-            "updateEvery": 72,
-            "boost": 1.15,
-            "exponent": 1.2
-          },
-          {
-            "name": "late",
-            "minDifficulty": 0.72,
-            "updateEvery": 48,
-            "boost": 1.35,
-            "exponent": 1.3
-          }
-        ]
-      },
-      "deepChecks": {
-        "seedPackRotation": {
-          "defaultMode": "weekly",
-          "packs": {
-            "pack_alpha": [12345, 22222, 33333, 44444],
-            "pack_beta": [13579, 24680, 11223, 33445],
-            "pack_gamma": [31415, 27182, 16180, 14142],
-            "pack_delta": [42424, 51515, 60606, 70707]
-          },
-          "weeklyOrder": ["pack_alpha", "pack_beta", "pack_gamma", "pack_delta"]
-        }
-      },
       "randomization": {
         "stockpileScale": [0.92, 1.05],
         "stockpileFloor": {
@@ -2086,10 +2003,7 @@
           "maxEntries": 3
         },
         "ai": {
-          "maxTicks": 7000,
-          "termination": {
-            "enabled": false
-          }
+          "maxTicks": 7000
         },
         "merchant": {
           "enabled": false
@@ -2103,954 +2017,13 @@
           "maxEntries": 5
         },
         "ai": {
-          "maxTicks": 7000,
-          "termination": {
-            "enabled": false
-          }
+          "maxTicks": 7000
         },
         "merchant": {
           "enabled": true
         },
         "endgame": {
           "enabled": false
-        }
-      },
-      "scenarios": [
-        {
-          "name": "baseline",
-          "weight": 0.15
-        },
-        {
-          "name": "full_sim",
-          "weight": 0.1,
-          "difficultyMin": 0.6,
-          "difficultyMax": 1,
-          "difficultyMinMultiplier": 0,
-          "difficultyMaxMultiplier": 1,
-          "overrides": {
-            "events": {
-              "maxEntries": 5
-            },
-            "dwarves": {
-              "count": 20
-            },
-            "merchant": {
-              "enabled": true
-            },
-            "needs": {
-              "decayPerTick": {
-                "hunger": 0.002,
-                "thirst": 0.003
-              }
-            },
-            "consumption": {
-              "hungerThreshold": 0.3,
-              "thirstThreshold": 0.25,
-              "hungerTarget": 0.3,
-              "thirstTarget": 0.2,
-              "rawFoodRelief": 0.35,
-              "waterRelief": 0.35
-            },
-            "resources": {
-              "stockpile": {
-                "food": 100,
-                "water": 100,
-                "wood": 20,
-                "stone": 17
-              },
-              "targets": {
-                "food": 140,
-                "water": 140,
-                "wood": 24,
-                "stone": 20
-              },
-              "nodeCapacity": {
-                "food": 12,
-                "water": 16,
-                "wood": 8,
-                "stone": 8
-              },
-              "nodes": {
-                "food": 60,
-                "water": 48,
-                "wood": 28,
-                "stone": 20
-              },
-              "nodeRegen": {
-                "intervalTicks": 40,
-                "amount": 3
-              }
-            },
-            "population": {
-              "relationships": {
-                "interactionsPerTick": 4,
-                "idleInteractionMultiplier": 1.5
-              },
-              "reproduction": {
-                "softCap": 48,
-                "baseChance": 0.018,
-                "cooldownTicks": 35
-              }
-            },
-            "structures": {
-              "well": {
-                "maxCount": 6
-              },
-              "field": {
-                "maxCount": 8
-              }
-            }
-          }
-        },
-        {
-          "name": "mid_sim",
-          "weight": 0.1,
-          "difficultyMin": 0.2,
-          "difficultyMax": 0.8,
-          "difficultyMinMultiplier": 0,
-          "difficultyMaxMultiplier": 1,
-          "overrides": {
-            "events": {
-              "maxEntries": 4
-            },
-            "dwarves": {
-              "count": 20
-            },
-            "merchant": {
-              "enabled": true
-            },
-            "needs": {
-              "decayPerTick": {
-                "hunger": 0.0021,
-                "thirst": 0.0031
-              }
-            },
-            "consumption": {
-              "hungerThreshold": 0.32,
-              "thirstThreshold": 0.27,
-              "hungerTarget": 0.32,
-              "thirstTarget": 0.22,
-              "rawFoodRelief": 0.34,
-              "waterRelief": 0.34
-            },
-            "resources": {
-              "stockpile": {
-                "food": 100,
-                "water": 100,
-                "wood": 20,
-                "stone": 17
-              },
-              "targets": {
-                "food": 140,
-                "water": 140,
-                "wood": 24,
-                "stone": 20
-              },
-              "nodeCapacity": {
-                "food": 12,
-                "water": 16,
-                "wood": 8,
-                "stone": 8
-              },
-              "nodes": {
-                "food": 60,
-                "water": 48,
-                "wood": 28,
-                "stone": 20
-              },
-              "nodeRegen": {
-                "intervalTicks": 40,
-                "amount": 3
-              }
-            },
-            "population": {
-              "relationships": {
-                "interactionsPerTick": 2,
-                "idleInteractionMultiplier": 1.3
-              },
-              "reproduction": {
-                "softCap": 40,
-                "baseChance": 0.018,
-                "cooldownTicks": 35
-              }
-            },
-            "structures": {
-              "well": {
-                "maxCount": 4
-              },
-              "field": {
-                "maxCount": 6
-              }
-            }
-          }
-        },
-        {
-          "name": "wildlife_raid",
-          "weight": 0.18,
-          "difficultyMin": 0,
-          "difficultyMax": 1,
-          "difficultyMinMultiplier": 0.5,
-          "difficultyMaxMultiplier": 1,
-          "overrides": {
-            "raids": {
-              "enabled": true
-            }
-          }
-        },
-        {
-          "name": "ruins_focus",
-          "weight": 0.14,
-          "overrides": {
-            "dwarves": {
-              "count": 22
-            },
-            "structures": {
-              "armory": {
-                "kitTicks": 14,
-                "kitOutput": 2,
-                "kitMax": 40,
-                "buildMinResources": {
-                  "food": 0.6,
-                  "water": 0.6,
-                  "wood": 0.55,
-                  "stone": 0.55
-                }
-              }
-            },
-            "ruins": {
-              "expedition": {
-                "minIdleAdults": 2,
-                "minPopulation": 8,
-                "cooldownTicks": 12,
-                "failureCooldownTicks": 24,
-                "partySizeMin": 2,
-                "partySizeMax": 6,
-                "minStockpileRatio": {
-                  "food": 0.4,
-                  "water": 0.4,
-                  "wood": 0.35,
-                  "stone": 0.35
-                },
-                "failureLossMin": 1,
-                "failureLossMax": 2
-              },
-              "rooms": [
-                {
-                  "id": "entry",
-                  "name": "Fractured Entrance",
-                  "expeditionTicks": 90,
-                  "partySize": 3,
-                  "cost": {
-                    "food": 5,
-                    "water": 5,
-                    "wood": 2,
-                    "stone": 2
-                  },
-                  "hazardChance": 0.1,
-                  "guardianChance": 0,
-                  "guardianPower": 0,
-                  "artifactChance": 0.08,
-                  "artifactRolls": 1
-                },
-                {
-                  "id": "runes",
-                  "name": "Rune Hall",
-                  "expeditionTicks": 130,
-                  "partySize": 4,
-                  "cost": {
-                    "food": 7,
-                    "water": 7,
-                    "wood": 3,
-                    "stone": 3
-                  },
-                  "hazardChance": 0.18,
-                  "guardianChance": 0.1,
-                  "guardianPower": 3,
-                  "artifactChance": 0.18,
-                  "artifactRolls": 1
-                },
-                {
-                  "id": "forge",
-                  "name": "Ancient Forge",
-                  "expeditionTicks": 180,
-                  "partySize": 5,
-                  "cost": {
-                    "food": 9,
-                    "water": 9,
-                    "wood": 4,
-                    "stone": 4,
-                    "iron": 2
-                  },
-                  "hazardChance": 0.28,
-                  "guardianChance": 0.35,
-                  "guardianPower": 5,
-                  "artifactChance": 0.3,
-                  "artifactRolls": 1
-                },
-                {
-                  "id": "archive",
-                  "name": "Masters' Archive",
-                  "expeditionTicks": 240,
-                  "partySize": 6,
-                  "cost": {
-                    "food": 11,
-                    "water": 11,
-                    "wood": 4,
-                    "stone": 5,
-                    "iron": 3
-                  },
-                  "hazardChance": 0.4,
-                  "guardianChance": 0.55,
-                  "guardianPower": 7,
-                  "artifactChance": 0.4,
-                  "artifactRolls": 1
-                },
-                {
-                  "id": "sanctum",
-                  "name": "Stone King's Sanctum",
-                  "expeditionTicks": 320,
-                  "partySize": 7,
-                  "cost": {
-                    "food": 13,
-                    "water": 13,
-                    "wood": 5,
-                    "stone": 6,
-                    "iron": 4
-                  },
-                  "hazardChance": 0.55,
-                  "guardianChance": 0.75,
-                  "guardianPower": 9,
-                  "artifactChance": 0.5,
-                  "artifactRolls": 1
-                }
-              ]
-            }
-          }
-        },
-        {
-          "name": "underrealm_push",
-          "weight": 0.12,
-          "difficultyMin": 0.45,
-          "difficultyMax": 1,
-          "difficultyMinMultiplier": 0.25,
-          "difficultyMaxMultiplier": 1,
-          "overrides": {
-            "dwarves": {
-              "count": 22
-            },
-            "structures": {
-              "armory": {
-                "kitTicks": 16,
-                "kitOutput": 2,
-                "kitMax": 42
-              }
-            },
-            "ruins": {
-              "expedition": {
-                "cooldownTicks": 10,
-                "failureCooldownTicks": 20,
-                "minStockpileRatio": {
-                  "food": 0.38,
-                  "water": 0.38,
-                  "wood": 0.33,
-                  "stone": 0.33
-                }
-              }
-            },
-            "raids": {
-              "deathRate": {
-                "min": 0.14,
-                "max": 0.26
-              }
-            },
-            "wildlife": {
-              "hunt": {
-                "risk": {
-                  "death_chance": 0.05
-                }
-              }
-            },
-            "underrealm": {
-              "discovery": {
-                "min_tick": 70,
-                "max_tick": 180,
-                "population_min_for_timer": 14,
-                "population_max_for_timer": 24
-              },
-              "progression": {
-                "min_frontier_miners": 1,
-                "build_ticks_base": 150,
-                "build_ticks_per_depth": 96,
-                "stockpile_cost_base": {
-                  "stone": 28,
-                  "iron": 10
-                },
-                "stockpile_cost_per_depth": {
-                  "stone": 18,
-                  "iron": 8
-                },
-                "mined_cost_base": {
-                  "stone": 48,
-                  "iron": 16
-                },
-                "mined_cost_per_depth": {
-                  "stone": 30,
-                  "iron": 14
-                }
-              },
-              "combat": {
-                "readiness": {
-                  "warning_zone_risk_multiplier": 1
-                },
-                "encounter": {
-                  "retry_cooldown_ticks_base": 128,
-                  "retry_cooldown_ticks_per_depth": 52
-                },
-                "floors": {
-                  "defaults": {
-                    "readiness": {
-                      "min_score_base": 21,
-                      "min_score_per_depth": 11,
-                      "recommended_score_base": 32,
-                      "recommended_score_per_depth": 14
-                    }
-                  }
-                }
-              },
-              "crew": {
-                "surface_reserve_ratio": 0.6,
-                "max_underrealm_ratio": 0.3,
-                "roles": {
-                  "miner_ratio": 0.19,
-                  "hauler_ratio": 0.11,
-                  "guard_ratio": 0.1
-                }
-              }
-            }
-          }
-        },
-        {
-          "name": "underrealm_late_gauntlet",
-          "weight": 0.14,
-          "difficultyMin": 0.72,
-          "difficultyMax": 1,
-          "difficultyMinMultiplier": 0,
-          "difficultyMaxMultiplier": 1,
-          "overrides": {
-            "underrealm": {
-              "discovery": {
-                "min_tick": 70,
-                "max_tick": 170,
-                "population_min_for_timer": 14,
-                "population_max_for_timer": 26
-              },
-              "progression": {
-                "min_frontier_miners": 1,
-                "build_ticks_base": 190,
-                "build_ticks_per_depth": 120,
-                "stockpile_cost_base": {
-                  "stone": 42,
-                  "iron": 16
-                },
-                "stockpile_cost_per_depth": {
-                  "stone": 30,
-                  "iron": 13
-                },
-                "mined_cost_base": {
-                  "stone": 54,
-                  "iron": 20
-                },
-                "mined_cost_per_depth": {
-                  "stone": 34,
-                  "iron": 16
-                }
-              },
-              "combat": {
-                "readiness": {
-                  "warning_zone_hard_guard": {
-                    "enabled": true,
-                    "min_depth": 2,
-                    "min_recommended_score_ratio": 1.02
-                  }
-                },
-                "encounter": {
-                  "retry_cooldown_ticks_base": 100,
-                  "retry_cooldown_ticks_per_depth": 36
-                },
-                "floors": {
-                  "defaults": {
-                    "readiness": {
-                      "min_score_base": 22,
-                      "min_score_per_depth": 11,
-                      "recommended_score_base": 34,
-                      "recommended_score_per_depth": 13
-                    }
-                  }
-                }
-              },
-              "crew": {
-                "surface_reserve_ratio": 0.62,
-                "max_underrealm_ratio": 0.3
-              }
-            },
-            "ruins": {
-              "expedition": {
-                "minStockpileRatio": {
-                  "food": 0.5,
-                  "water": 0.5,
-                  "wood": 0.44,
-                  "stone": 0.44
-                }
-              }
-            }
-          }
-        },
-        {
-          "name": "compound_crisis",
-          "weight": 0.12,
-          "difficultyMin": 0.2,
-          "difficultyMax": 1,
-          "difficultyMinMultiplier": 0.45,
-          "difficultyMaxMultiplier": 1,
-          "overrides": {
-            "resources": {
-              "stockpile": {
-                "food": 44,
-                "water": 46,
-                "wood": 11,
-                "stone": 11
-              },
-              "nodes": {
-                "food": 32,
-                "water": 27
-              },
-              "nodeCapacity": {
-                "food": 8,
-                "water": 9
-              }
-            },
-            "needs": {
-              "decayPerTick": {
-                "hunger": 0.0022,
-                "thirst": 0.0034
-              }
-            },
-            "population": {
-              "housing": {
-                "buildTargetRatio": 1.95
-              }
-            },
-            "structures": {
-              "house": {
-                "buildTicks": 34,
-                "buildCost": {
-                  "wood": 9,
-                  "stone": 7
-                }
-              }
-            },
-            "raids": {
-              "chance": {
-                "min": 0.16,
-                "max": 0.3
-              },
-              "deathRate": {
-                "min": 0.18,
-                "max": 0.34
-              },
-              "resourceLoss": {
-                "min": 0.05,
-                "max": 0.13
-              }
-            },
-            "weather": {
-              "states": {
-                "clear": {
-                  "weight": 1.5
-                },
-                "storm": {
-                  "weight": 0.45
-                },
-                "drought": {
-                  "weight": 0.7
-                },
-                "cold": {
-                  "weight": 0.65
-                }
-              }
-            }
-          }
-        },
-        {
-          "name": "governance_pressure",
-          "weight": 0.2,
-          "difficultyMin": 0.45,
-          "difficultyMax": 1,
-          "difficultyMinMultiplier": 0.45,
-          "difficultyMaxMultiplier": 1,
-          "overrides": {
-            "worldEvents": {
-              "spawnRangeTicks": {
-                "min": 200,
-                "max": 300
-              },
-              "globalCooldownTicks": 90,
-              "traveling_bards": {
-                "cooldownTicks": 250
-              },
-              "rival_caravans": {
-                "cooldownTicks": 280
-              },
-              "limited_opportunities": {
-                "cooldownTicks": 220,
-                "expiryTicks": 95,
-                "failureLossRatio": 0.055
-              }
-            },
-            "externalCamps": {
-              "spawnRangeTicks": {
-                "min": 260,
-                "max": 420
-              },
-              "maxActive": 4,
-              "globalCooldownTicks": 100,
-              "factionCooldownTicks": {
-                "min": 300,
-                "max": 520
-              },
-              "influence": {
-                "tradeRadius": 36,
-                "militiaRadius": 34,
-                "raiderRadius": 32,
-                "minStrength": 0.35
-              },
-              "caravans": {
-                "intercept": {
-                  "baseChancePerStep": 0.012,
-                  "raiderPressureScale": 0.07,
-                  "militiaMitigationScale": 0.015
-                }
-              },
-              "militia": {
-                "contractIntervalTicks": 60,
-                "baseRaidDefenseBonus": 0.07
-              },
-              "raider": {
-                "demandIntervalTicks": 72,
-                "hostilityInitial": 0.45,
-                "hostilityGainOnReject": 0.14,
-                "raidDeathRateBonusMax": 0.22,
-                "raidResourceLossBonusMax": 0.26
-              },
-              "factions": {
-                "thronesteel_concord": {
-                  "weight": 0.95
-                },
-                "shadowdeep_vanguard": {
-                  "weight": 1
-                },
-                "ashen_marauders": {
-                  "weight": 1.35
-                }
-              }
-            },
-            "schism": {
-              "start_pressure": 0.28,
-              "start_legitimacy": 0.4,
-              "phase_thresholds": {
-                "murmurs": 0.32,
-                "fracture": 0.54,
-                "reckoning": 0.74
-              },
-              "pressure": {
-                "drift_per_tick": 0.001,
-                "world_failure_shock": 0.065,
-                "contract_failure_shock": 0.055
-              }
-            }
-          }
-        },
-        {
-          "name": "social_tension_pressure",
-          "weight": 0.14,
-          "difficultyMin": 0.35,
-          "difficultyMax": 1,
-          "difficultyMinMultiplier": 0.5,
-          "difficultyMaxMultiplier": 1,
-          "overrides": {
-            "dwarves": {
-              "count": 24
-            },
-            "population": {
-              "housing": {
-                "buildTargetRatio": 1.72
-              },
-              "socialDrama": {
-                "tickInterval": 10,
-                "pairSamplesPerUpdate": 34,
-                "friendshipThreshold": 0.62,
-                "rivalryThreshold": 0.46,
-                "grudgeThreshold": 0.34,
-                "rivalryStressScale": 0.08,
-                "grudgeStressThreshold": 0.56,
-                "grudgeStressScale": 0.07,
-                "longArc": {
-                  "enabled": false
-                },
-                "incidents": {
-                  "intervalTicks": 18,
-                  "baseChancePerRoll": 0.58,
-                  "maxPerUpdate": 2,
-                  "globalCooldownTicks": 14,
-                  "perPairCooldownTicks": 90,
-                  "weights": {
-                    "mentorship_breakthrough": 0.82,
-                    "rivalry_clash": 1.25,
-                    "grudge_escalation": 1.35,
-                    "reconciliation": 0.68
-                  }
-                }
-              }
-            },
-            "schism": {
-              "start_pressure": 0.32,
-              "start_legitimacy": 0.38,
-              "pressure": {
-                "drift_per_tick": 0.00105,
-                "world_failure_shock": 0.068,
-                "contract_failure_shock": 0.058
-              }
-            }
-          }
-        },
-        {
-          "name": "warrior_realism_pressure",
-          "weight": 0.18,
-          "difficultyMin": 0.35,
-          "difficultyMax": 1,
-          "difficultyMinMultiplier": 0.55,
-          "difficultyMaxMultiplier": 1,
-          "overrides": {
-            "dwarves": {
-              "count": 24
-            },
-            "ruins": {
-              "expedition": {
-                "cooldownTicks": 10,
-                "failureCooldownTicks": 26,
-                "partySizeMin": 2,
-                "partySizeMax": 7,
-                "minStockpileRatio": {
-                  "food": 0.38,
-                  "water": 0.38,
-                  "wood": 0.34,
-                  "stone": 0.34
-                }
-              }
-            },
-            "warriors": {
-              "tournaments": {
-                "interval_seasons": 1,
-                "max_participants": 20,
-                "consequences": {
-                  "injury_base_chance": 0.28,
-                  "injury_score_gap_scale": 0.4,
-                  "risk_intent_injury_scale": 0.9,
-                  "recovery_intent_injury_reduction": 0.65,
-                  "allow_retirements": true
-                }
-              },
-              "training": {
-                "tick_interval": 30,
-                "base_participants": 3,
-                "max_participants": 7,
-                "rotation_window_ticks": 140,
-                "min_condition_score": 0.38,
-                "fatigue_ceiling": 0.84,
-                "stress_ceiling": 0.86
-              }
-            },
-            "externalCamps": {
-              "influence": {
-                "tradeRadius": 30,
-                "militiaRadius": 28,
-                "raiderRadius": 28,
-                "minStrength": 0.3
-              },
-              "caravans": {
-                "intercept": {
-                  "baseChancePerStep": 0.008,
-                  "raiderPressureScale": 0.06
-                }
-              },
-              "militia": {
-                "contractIntervalTicks": 64,
-                "baseRaidDefenseBonus": 0.06
-              },
-              "raider": {
-                "demandIntervalTicks": 78,
-                "hostilityInitial": 0.48
-              }
-            }
-          }
-        },
-        {
-          "name": "clan_abyssborn",
-          "weight": 0.08,
-          "overrides": {
-            "clans": {
-              "distribution": {
-                "abyssborn": 0.55,
-                "khorg_embers": 0.15,
-                "threshold_wardens": 0.15,
-                "deep_lantern": 0.15
-              }
-            }
-          }
-        },
-        {
-          "name": "clan_embers",
-          "weight": 0.08,
-          "overrides": {
-            "clans": {
-              "distribution": {
-                "abyssborn": 0.15,
-                "khorg_embers": 0.55,
-                "threshold_wardens": 0.15,
-                "deep_lantern": 0.15
-              }
-            }
-          }
-        },
-        {
-          "name": "clan_wardens",
-          "weight": 0.08,
-          "overrides": {
-            "clans": {
-              "distribution": {
-                "abyssborn": 0.15,
-                "khorg_embers": 0.15,
-                "threshold_wardens": 0.55,
-                "deep_lantern": 0.15
-              }
-            }
-          }
-        },
-        {
-          "name": "clan_lantern",
-          "weight": 0.08,
-          "overrides": {
-            "clans": {
-              "distribution": {
-                "abyssborn": 0.15,
-                "khorg_embers": 0.15,
-                "threshold_wardens": 0.15,
-                "deep_lantern": 0.55
-              }
-            }
-          }
-        },
-        {
-          "name": "water_scarce",
-          "weight": 0.22,
-          "overrides": {
-            "resources": {
-              "nodes": {
-                "water": 27
-              },
-              "nodeCapacity": {
-                "water": 10
-              }
-            }
-          }
-        },
-        {
-          "name": "food_scarce",
-          "weight": 0.2,
-          "overrides": {
-            "resources": {
-              "nodes": {
-                "food": 33
-              },
-              "nodeCapacity": {
-                "food": 8
-              }
-            }
-          }
-        },
-        {
-          "name": "low_stockpile",
-          "weight": 0.18,
-          "overrides": {
-            "resources": {
-              "stockpile": {
-                "food": 47,
-                "water": 47,
-                "wood": 13,
-                "stone": 14
-              }
-            }
-          }
-        },
-        {
-          "name": "housing_pressure",
-          "weight": 0.2,
-          "overrides": {
-            "dwarves": {
-              "count": 20
-            },
-            "population": {
-              "housing": {
-                "buildTargetRatio": 1.4
-              }
-            },
-            "structures": {
-              "house": {
-                "buildTicks": 30,
-                "buildCost": {
-                  "wood": 8,
-                  "stone": 6
-                }
-              }
-            }
-          }
-        }
-      ],
-      "evalScenarios": [
-        "baseline",
-        "full_sim",
-        "wildlife_raid",
-        "water_scarce",
-        "food_scarce",
-        "ruins_focus",
-        "underrealm_push",
-        "underrealm_late_gauntlet",
-        "compound_crisis",
-        "governance_pressure",
-        "social_tension_pressure",
-        "warrior_realism_pressure"
-      ],
-      "promotion": {
-        "canonical": {
-          "enabled": true,
-          "evalEpisodes": 24,
-          "evalMaxSteps": 4000,
-          "stepTicks": 2,
-          "maxSteps": 4000,
-          "maxTicks": 8200,
-          "evalDifficulty": 1,
-          "evalScore": "rpp",
-          "minImprove": 0.005,
-          "seed": 0,
-          "endgameEnabled": false,
-          "requirePositiveLcb": true,
-          "lcbZ": 1.96,
-          "longHorizon": {
-            "enabled": true,
-            "ticks": 20000,
-            "episodes": 16,
-            "z": 1
-          }
         }
       },
       "recipe": {
@@ -3062,7 +2035,6 @@
         "leverNoiseHold": 1,
         "leverLogStdInit": null,
         "policyLagBatches": 1,
-        "stableTermination": false,
         "snapshotBank": {
           "dir": ".cache/snapshot_bank",
           "games": 48,
@@ -3109,17 +2081,9 @@
         ]
       },
       "trainer": {
-        "algorithm": "ppo",
-        "episodes": 40000,
-        "maxSteps": 3500,
-        "stepTicks": 2,
-        "gamma": 0.998,
         "gaeLambda": 0.97,
         "clipRange": 0.2,
         "targetKl": 0.03,
-        "entropyCoef": 0.008,
-        "entropyCoefFinal": 0.002,
-        "entropyRampEpisodes": 15000,
         "valueCoef": 0.5,
         "valueClipRange": 0.2,
         "valueHuberDelta": 1,
@@ -3130,13 +2094,7 @@
         "returnNormClip": 5,
         "returnNormEpsilon": 1e-8,
         "returnNormMaxCount": 200000,
-        "lr": 0.00025,
-        "lrFinal": 0.0001,
-        "epochs": 4,
-        "miniBatchSize": 512,
-        "batchEpisodes": 16,
         "hiddenSizes": [128, 128],
-        "observationLayout": "factored",
         "featureNames": [
           "shortage",
           "nodeScarcity",
@@ -3219,33 +2177,27 @@
           "foodAutonomy",
           "waterAutonomy"
         ],
-        "activation": "tanh",
         "logStdInit": -0.8,
-        "maxGradNorm": 0.5,
-        "workers": 6,
-        "transport": "compact",
-        "logEvery": 2000,
-        "saveEvery": 4000,
-        "debugMode": "summary",
-        "evalEvery": 3000,
-        "evalEpisodes": 20,
-        "evalMaxSteps": 0,
-        "evalDifficulty": 1,
-        "evalScore": "rpt",
-        "sampleScore": "rpt",
-        "modelPath": "models/policy.json",
-        "modelStatePath": "models/policy.state.pt",
-        "bestModelPath": "models/policy_best.json",
-        "bestModelMetaPath": "models/policy_best.meta.json",
-        "bestModelStatePath": "models/policy_best.state.pt",
-        "resumeFromBest": true,
-        "saveBestDuringTraining": true,
-        "seed": 0
+        "maxGradNorm": 0.5
       }
     },
     "evaluation": {
       "councilStepTicks": 10,
       "cacheDir": ".cache/scorecard",
+      "scenarios": [
+        "baseline",
+        "full_sim",
+        "wildlife_raid",
+        "water_scarce",
+        "food_scarce",
+        "ruins_focus",
+        "underrealm_push",
+        "underrealm_late_gauntlet",
+        "compound_crisis",
+        "governance_pressure",
+        "social_tension_pressure",
+        "warrior_realism_pressure"
+      ],
       "horizons": [
         { "name": "8k", "plan": "eval", "ticks": 8000, "games": 24, "seedBase": 100000 },
         { "name": "20k", "plan": "standard", "ticks": 20000, "games": 32, "seedBase": 101 }
@@ -3253,6 +2205,907 @@
       "gate": { "horizon": "8k", "minImprove": 0.005, "lcbZ": 1.96, "guardHorizon": "20k", "guardZ": 1 }
     }
   },
+  "scenarios": [
+    {
+      "name": "baseline",
+      "weight": 0.15
+    },
+    {
+      "name": "full_sim",
+      "weight": 0.1,
+      "difficultyMin": 0.6,
+      "difficultyMax": 1,
+      "difficultyMinMultiplier": 0,
+      "difficultyMaxMultiplier": 1,
+      "overrides": {
+        "events": {
+          "maxEntries": 5
+        },
+        "dwarves": {
+          "count": 20
+        },
+        "merchant": {
+          "enabled": true
+        },
+        "needs": {
+          "decayPerTick": {
+            "hunger": 0.002,
+            "thirst": 0.003
+          }
+        },
+        "consumption": {
+          "hungerThreshold": 0.3,
+          "thirstThreshold": 0.25,
+          "hungerTarget": 0.3,
+          "thirstTarget": 0.2,
+          "rawFoodRelief": 0.35,
+          "waterRelief": 0.35
+        },
+        "resources": {
+          "stockpile": {
+            "food": 100,
+            "water": 100,
+            "wood": 20,
+            "stone": 17
+          },
+          "targets": {
+            "food": 140,
+            "water": 140,
+            "wood": 24,
+            "stone": 20
+          },
+          "nodeCapacity": {
+            "food": 12,
+            "water": 16,
+            "wood": 8,
+            "stone": 8
+          },
+          "nodes": {
+            "food": 60,
+            "water": 48,
+            "wood": 28,
+            "stone": 20
+          },
+          "nodeRegen": {
+            "intervalTicks": 40,
+            "amount": 3
+          }
+        },
+        "population": {
+          "relationships": {
+            "interactionsPerTick": 4,
+            "idleInteractionMultiplier": 1.5
+          },
+          "reproduction": {
+            "softCap": 48,
+            "baseChance": 0.018,
+            "cooldownTicks": 35
+          }
+        },
+        "structures": {
+          "well": {
+            "maxCount": 6
+          },
+          "field": {
+            "maxCount": 8
+          }
+        }
+      }
+    },
+    {
+      "name": "mid_sim",
+      "weight": 0.1,
+      "difficultyMin": 0.2,
+      "difficultyMax": 0.8,
+      "difficultyMinMultiplier": 0,
+      "difficultyMaxMultiplier": 1,
+      "overrides": {
+        "events": {
+          "maxEntries": 4
+        },
+        "dwarves": {
+          "count": 20
+        },
+        "merchant": {
+          "enabled": true
+        },
+        "needs": {
+          "decayPerTick": {
+            "hunger": 0.0021,
+            "thirst": 0.0031
+          }
+        },
+        "consumption": {
+          "hungerThreshold": 0.32,
+          "thirstThreshold": 0.27,
+          "hungerTarget": 0.32,
+          "thirstTarget": 0.22,
+          "rawFoodRelief": 0.34,
+          "waterRelief": 0.34
+        },
+        "resources": {
+          "stockpile": {
+            "food": 100,
+            "water": 100,
+            "wood": 20,
+            "stone": 17
+          },
+          "targets": {
+            "food": 140,
+            "water": 140,
+            "wood": 24,
+            "stone": 20
+          },
+          "nodeCapacity": {
+            "food": 12,
+            "water": 16,
+            "wood": 8,
+            "stone": 8
+          },
+          "nodes": {
+            "food": 60,
+            "water": 48,
+            "wood": 28,
+            "stone": 20
+          },
+          "nodeRegen": {
+            "intervalTicks": 40,
+            "amount": 3
+          }
+        },
+        "population": {
+          "relationships": {
+            "interactionsPerTick": 2,
+            "idleInteractionMultiplier": 1.3
+          },
+          "reproduction": {
+            "softCap": 40,
+            "baseChance": 0.018,
+            "cooldownTicks": 35
+          }
+        },
+        "structures": {
+          "well": {
+            "maxCount": 4
+          },
+          "field": {
+            "maxCount": 6
+          }
+        }
+      }
+    },
+    {
+      "name": "wildlife_raid",
+      "weight": 0.18,
+      "difficultyMin": 0,
+      "difficultyMax": 1,
+      "difficultyMinMultiplier": 0.5,
+      "difficultyMaxMultiplier": 1,
+      "overrides": {
+        "raids": {
+          "enabled": true
+        }
+      }
+    },
+    {
+      "name": "ruins_focus",
+      "weight": 0.14,
+      "overrides": {
+        "dwarves": {
+          "count": 22
+        },
+        "structures": {
+          "armory": {
+            "kitTicks": 14,
+            "kitOutput": 2,
+            "kitMax": 40,
+            "buildMinResources": {
+              "food": 0.6,
+              "water": 0.6,
+              "wood": 0.55,
+              "stone": 0.55
+            }
+          }
+        },
+        "ruins": {
+          "expedition": {
+            "minIdleAdults": 2,
+            "minPopulation": 8,
+            "cooldownTicks": 12,
+            "failureCooldownTicks": 24,
+            "partySizeMin": 2,
+            "partySizeMax": 6,
+            "minStockpileRatio": {
+              "food": 0.4,
+              "water": 0.4,
+              "wood": 0.35,
+              "stone": 0.35
+            },
+            "failureLossMin": 1,
+            "failureLossMax": 2
+          },
+          "rooms": [
+            {
+              "id": "entry",
+              "name": "Fractured Entrance",
+              "expeditionTicks": 90,
+              "partySize": 3,
+              "cost": {
+                "food": 5,
+                "water": 5,
+                "wood": 2,
+                "stone": 2
+              },
+              "hazardChance": 0.1,
+              "guardianChance": 0,
+              "guardianPower": 0,
+              "artifactChance": 0.08,
+              "artifactRolls": 1
+            },
+            {
+              "id": "runes",
+              "name": "Rune Hall",
+              "expeditionTicks": 130,
+              "partySize": 4,
+              "cost": {
+                "food": 7,
+                "water": 7,
+                "wood": 3,
+                "stone": 3
+              },
+              "hazardChance": 0.18,
+              "guardianChance": 0.1,
+              "guardianPower": 3,
+              "artifactChance": 0.18,
+              "artifactRolls": 1
+            },
+            {
+              "id": "forge",
+              "name": "Ancient Forge",
+              "expeditionTicks": 180,
+              "partySize": 5,
+              "cost": {
+                "food": 9,
+                "water": 9,
+                "wood": 4,
+                "stone": 4,
+                "iron": 2
+              },
+              "hazardChance": 0.28,
+              "guardianChance": 0.35,
+              "guardianPower": 5,
+              "artifactChance": 0.3,
+              "artifactRolls": 1
+            },
+            {
+              "id": "archive",
+              "name": "Masters' Archive",
+              "expeditionTicks": 240,
+              "partySize": 6,
+              "cost": {
+                "food": 11,
+                "water": 11,
+                "wood": 4,
+                "stone": 5,
+                "iron": 3
+              },
+              "hazardChance": 0.4,
+              "guardianChance": 0.55,
+              "guardianPower": 7,
+              "artifactChance": 0.4,
+              "artifactRolls": 1
+            },
+            {
+              "id": "sanctum",
+              "name": "Stone King's Sanctum",
+              "expeditionTicks": 320,
+              "partySize": 7,
+              "cost": {
+                "food": 13,
+                "water": 13,
+                "wood": 5,
+                "stone": 6,
+                "iron": 4
+              },
+              "hazardChance": 0.55,
+              "guardianChance": 0.75,
+              "guardianPower": 9,
+              "artifactChance": 0.5,
+              "artifactRolls": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "underrealm_push",
+      "weight": 0.12,
+      "difficultyMin": 0.45,
+      "difficultyMax": 1,
+      "difficultyMinMultiplier": 0.25,
+      "difficultyMaxMultiplier": 1,
+      "overrides": {
+        "dwarves": {
+          "count": 22
+        },
+        "structures": {
+          "armory": {
+            "kitTicks": 16,
+            "kitOutput": 2,
+            "kitMax": 42
+          }
+        },
+        "ruins": {
+          "expedition": {
+            "cooldownTicks": 10,
+            "failureCooldownTicks": 20,
+            "minStockpileRatio": {
+              "food": 0.38,
+              "water": 0.38,
+              "wood": 0.33,
+              "stone": 0.33
+            }
+          }
+        },
+        "raids": {
+          "deathRate": {
+            "min": 0.14,
+            "max": 0.26
+          }
+        },
+        "wildlife": {
+          "hunt": {
+            "risk": {
+              "death_chance": 0.05
+            }
+          }
+        },
+        "underrealm": {
+          "discovery": {
+            "min_tick": 70,
+            "max_tick": 180,
+            "population_min_for_timer": 14,
+            "population_max_for_timer": 24
+          },
+          "progression": {
+            "min_frontier_miners": 1,
+            "build_ticks_base": 150,
+            "build_ticks_per_depth": 96,
+            "stockpile_cost_base": {
+              "stone": 28,
+              "iron": 10
+            },
+            "stockpile_cost_per_depth": {
+              "stone": 18,
+              "iron": 8
+            },
+            "mined_cost_base": {
+              "stone": 48,
+              "iron": 16
+            },
+            "mined_cost_per_depth": {
+              "stone": 30,
+              "iron": 14
+            }
+          },
+          "combat": {
+            "readiness": {
+              "warning_zone_risk_multiplier": 1
+            },
+            "encounter": {
+              "retry_cooldown_ticks_base": 128,
+              "retry_cooldown_ticks_per_depth": 52
+            },
+            "floors": {
+              "defaults": {
+                "readiness": {
+                  "min_score_base": 21,
+                  "min_score_per_depth": 11,
+                  "recommended_score_base": 32,
+                  "recommended_score_per_depth": 14
+                }
+              }
+            }
+          },
+          "crew": {
+            "surface_reserve_ratio": 0.6,
+            "max_underrealm_ratio": 0.3,
+            "roles": {
+              "miner_ratio": 0.19,
+              "hauler_ratio": 0.11,
+              "guard_ratio": 0.1
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "underrealm_late_gauntlet",
+      "weight": 0.14,
+      "difficultyMin": 0.72,
+      "difficultyMax": 1,
+      "difficultyMinMultiplier": 0,
+      "difficultyMaxMultiplier": 1,
+      "overrides": {
+        "underrealm": {
+          "discovery": {
+            "min_tick": 70,
+            "max_tick": 170,
+            "population_min_for_timer": 14,
+            "population_max_for_timer": 26
+          },
+          "progression": {
+            "min_frontier_miners": 1,
+            "build_ticks_base": 190,
+            "build_ticks_per_depth": 120,
+            "stockpile_cost_base": {
+              "stone": 42,
+              "iron": 16
+            },
+            "stockpile_cost_per_depth": {
+              "stone": 30,
+              "iron": 13
+            },
+            "mined_cost_base": {
+              "stone": 54,
+              "iron": 20
+            },
+            "mined_cost_per_depth": {
+              "stone": 34,
+              "iron": 16
+            }
+          },
+          "combat": {
+            "readiness": {
+              "warning_zone_hard_guard": {
+                "enabled": true,
+                "min_depth": 2,
+                "min_recommended_score_ratio": 1.02
+              }
+            },
+            "encounter": {
+              "retry_cooldown_ticks_base": 100,
+              "retry_cooldown_ticks_per_depth": 36
+            },
+            "floors": {
+              "defaults": {
+                "readiness": {
+                  "min_score_base": 22,
+                  "min_score_per_depth": 11,
+                  "recommended_score_base": 34,
+                  "recommended_score_per_depth": 13
+                }
+              }
+            }
+          },
+          "crew": {
+            "surface_reserve_ratio": 0.62,
+            "max_underrealm_ratio": 0.3
+          }
+        },
+        "ruins": {
+          "expedition": {
+            "minStockpileRatio": {
+              "food": 0.5,
+              "water": 0.5,
+              "wood": 0.44,
+              "stone": 0.44
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "compound_crisis",
+      "weight": 0.12,
+      "difficultyMin": 0.2,
+      "difficultyMax": 1,
+      "difficultyMinMultiplier": 0.45,
+      "difficultyMaxMultiplier": 1,
+      "overrides": {
+        "resources": {
+          "stockpile": {
+            "food": 44,
+            "water": 46,
+            "wood": 11,
+            "stone": 11
+          },
+          "nodes": {
+            "food": 32,
+            "water": 27
+          },
+          "nodeCapacity": {
+            "food": 8,
+            "water": 9
+          }
+        },
+        "needs": {
+          "decayPerTick": {
+            "hunger": 0.0022,
+            "thirst": 0.0034
+          }
+        },
+        "population": {
+          "housing": {
+            "buildTargetRatio": 1.95
+          }
+        },
+        "structures": {
+          "house": {
+            "buildTicks": 34,
+            "buildCost": {
+              "wood": 9,
+              "stone": 7
+            }
+          }
+        },
+        "raids": {
+          "chance": {
+            "min": 0.16,
+            "max": 0.3
+          },
+          "deathRate": {
+            "min": 0.18,
+            "max": 0.34
+          },
+          "resourceLoss": {
+            "min": 0.05,
+            "max": 0.13
+          }
+        },
+        "weather": {
+          "states": {
+            "clear": {
+              "weight": 1.5
+            },
+            "storm": {
+              "weight": 0.45
+            },
+            "drought": {
+              "weight": 0.7
+            },
+            "cold": {
+              "weight": 0.65
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "governance_pressure",
+      "weight": 0.2,
+      "difficultyMin": 0.45,
+      "difficultyMax": 1,
+      "difficultyMinMultiplier": 0.45,
+      "difficultyMaxMultiplier": 1,
+      "overrides": {
+        "worldEvents": {
+          "spawnRangeTicks": {
+            "min": 200,
+            "max": 300
+          },
+          "globalCooldownTicks": 90,
+          "traveling_bards": {
+            "cooldownTicks": 250
+          },
+          "rival_caravans": {
+            "cooldownTicks": 280
+          },
+          "limited_opportunities": {
+            "cooldownTicks": 220,
+            "expiryTicks": 95,
+            "failureLossRatio": 0.055
+          }
+        },
+        "externalCamps": {
+          "spawnRangeTicks": {
+            "min": 260,
+            "max": 420
+          },
+          "maxActive": 4,
+          "globalCooldownTicks": 100,
+          "factionCooldownTicks": {
+            "min": 300,
+            "max": 520
+          },
+          "influence": {
+            "tradeRadius": 36,
+            "militiaRadius": 34,
+            "raiderRadius": 32,
+            "minStrength": 0.35
+          },
+          "caravans": {
+            "intercept": {
+              "baseChancePerStep": 0.012,
+              "raiderPressureScale": 0.07,
+              "militiaMitigationScale": 0.015
+            }
+          },
+          "militia": {
+            "contractIntervalTicks": 60,
+            "baseRaidDefenseBonus": 0.07
+          },
+          "raider": {
+            "demandIntervalTicks": 72,
+            "hostilityInitial": 0.45,
+            "hostilityGainOnReject": 0.14,
+            "raidDeathRateBonusMax": 0.22,
+            "raidResourceLossBonusMax": 0.26
+          },
+          "factions": {
+            "thronesteel_concord": {
+              "weight": 0.95
+            },
+            "shadowdeep_vanguard": {
+              "weight": 1
+            },
+            "ashen_marauders": {
+              "weight": 1.35
+            }
+          }
+        },
+        "schism": {
+          "start_pressure": 0.28,
+          "start_legitimacy": 0.4,
+          "phase_thresholds": {
+            "murmurs": 0.32,
+            "fracture": 0.54,
+            "reckoning": 0.74
+          },
+          "pressure": {
+            "drift_per_tick": 0.001,
+            "world_failure_shock": 0.065,
+            "contract_failure_shock": 0.055
+          }
+        }
+      }
+    },
+    {
+      "name": "social_tension_pressure",
+      "weight": 0.14,
+      "difficultyMin": 0.35,
+      "difficultyMax": 1,
+      "difficultyMinMultiplier": 0.5,
+      "difficultyMaxMultiplier": 1,
+      "overrides": {
+        "dwarves": {
+          "count": 24
+        },
+        "population": {
+          "housing": {
+            "buildTargetRatio": 1.72
+          },
+          "socialDrama": {
+            "tickInterval": 10,
+            "pairSamplesPerUpdate": 34,
+            "friendshipThreshold": 0.62,
+            "rivalryThreshold": 0.46,
+            "grudgeThreshold": 0.34,
+            "rivalryStressScale": 0.08,
+            "grudgeStressThreshold": 0.56,
+            "grudgeStressScale": 0.07,
+            "longArc": {
+              "enabled": false
+            },
+            "incidents": {
+              "intervalTicks": 18,
+              "baseChancePerRoll": 0.58,
+              "maxPerUpdate": 2,
+              "globalCooldownTicks": 14,
+              "perPairCooldownTicks": 90,
+              "weights": {
+                "mentorship_breakthrough": 0.82,
+                "rivalry_clash": 1.25,
+                "grudge_escalation": 1.35,
+                "reconciliation": 0.68
+              }
+            }
+          }
+        },
+        "schism": {
+          "start_pressure": 0.32,
+          "start_legitimacy": 0.38,
+          "pressure": {
+            "drift_per_tick": 0.00105,
+            "world_failure_shock": 0.068,
+            "contract_failure_shock": 0.058
+          }
+        }
+      }
+    },
+    {
+      "name": "warrior_realism_pressure",
+      "weight": 0.18,
+      "difficultyMin": 0.35,
+      "difficultyMax": 1,
+      "difficultyMinMultiplier": 0.55,
+      "difficultyMaxMultiplier": 1,
+      "overrides": {
+        "dwarves": {
+          "count": 24
+        },
+        "ruins": {
+          "expedition": {
+            "cooldownTicks": 10,
+            "failureCooldownTicks": 26,
+            "partySizeMin": 2,
+            "partySizeMax": 7,
+            "minStockpileRatio": {
+              "food": 0.38,
+              "water": 0.38,
+              "wood": 0.34,
+              "stone": 0.34
+            }
+          }
+        },
+        "warriors": {
+          "tournaments": {
+            "interval_seasons": 1,
+            "max_participants": 20,
+            "consequences": {
+              "injury_base_chance": 0.28,
+              "injury_score_gap_scale": 0.4,
+              "risk_intent_injury_scale": 0.9,
+              "recovery_intent_injury_reduction": 0.65,
+              "allow_retirements": true
+            }
+          },
+          "training": {
+            "tick_interval": 30,
+            "base_participants": 3,
+            "max_participants": 7,
+            "rotation_window_ticks": 140,
+            "min_condition_score": 0.38,
+            "fatigue_ceiling": 0.84,
+            "stress_ceiling": 0.86
+          }
+        },
+        "externalCamps": {
+          "influence": {
+            "tradeRadius": 30,
+            "militiaRadius": 28,
+            "raiderRadius": 28,
+            "minStrength": 0.3
+          },
+          "caravans": {
+            "intercept": {
+              "baseChancePerStep": 0.008,
+              "raiderPressureScale": 0.06
+            }
+          },
+          "militia": {
+            "contractIntervalTicks": 64,
+            "baseRaidDefenseBonus": 0.06
+          },
+          "raider": {
+            "demandIntervalTicks": 78,
+            "hostilityInitial": 0.48
+          }
+        }
+      }
+    },
+    {
+      "name": "clan_abyssborn",
+      "weight": 0.08,
+      "overrides": {
+        "clans": {
+          "distribution": {
+            "abyssborn": 0.55,
+            "khorg_embers": 0.15,
+            "threshold_wardens": 0.15,
+            "deep_lantern": 0.15
+          }
+        }
+      }
+    },
+    {
+      "name": "clan_embers",
+      "weight": 0.08,
+      "overrides": {
+        "clans": {
+          "distribution": {
+            "abyssborn": 0.15,
+            "khorg_embers": 0.55,
+            "threshold_wardens": 0.15,
+            "deep_lantern": 0.15
+          }
+        }
+      }
+    },
+    {
+      "name": "clan_wardens",
+      "weight": 0.08,
+      "overrides": {
+        "clans": {
+          "distribution": {
+            "abyssborn": 0.15,
+            "khorg_embers": 0.15,
+            "threshold_wardens": 0.55,
+            "deep_lantern": 0.15
+          }
+        }
+      }
+    },
+    {
+      "name": "clan_lantern",
+      "weight": 0.08,
+      "overrides": {
+        "clans": {
+          "distribution": {
+            "abyssborn": 0.15,
+            "khorg_embers": 0.15,
+            "threshold_wardens": 0.15,
+            "deep_lantern": 0.55
+          }
+        }
+      }
+    },
+    {
+      "name": "water_scarce",
+      "weight": 0.22,
+      "overrides": {
+        "resources": {
+          "nodes": {
+            "water": 27
+          },
+          "nodeCapacity": {
+            "water": 10
+          }
+        }
+      }
+    },
+    {
+      "name": "food_scarce",
+      "weight": 0.2,
+      "overrides": {
+        "resources": {
+          "nodes": {
+            "food": 33
+          },
+          "nodeCapacity": {
+            "food": 8
+          }
+        }
+      }
+    },
+    {
+      "name": "low_stockpile",
+      "weight": 0.18,
+      "overrides": {
+        "resources": {
+          "stockpile": {
+            "food": 47,
+            "water": 47,
+            "wood": 13,
+            "stone": 14
+          }
+        }
+      }
+    },
+    {
+      "name": "housing_pressure",
+      "weight": 0.2,
+      "overrides": {
+        "dwarves": {
+          "count": 20
+        },
+        "population": {
+          "housing": {
+            "buildTargetRatio": 1.4
+          }
+        },
+        "structures": {
+          "house": {
+            "buildTicks": 30,
+            "buildCost": {
+              "wood": 8,
+              "stone": 6
+            }
+          }
+        }
+      }
+    }
+  ],
   "variety": {
     "enabled": true,
     "ranges": {

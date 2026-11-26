@@ -35,10 +35,8 @@ This file defines how to implement new features in a consistent, stable way.
 - `README.md`: product overview, quick start, controls and essential commands.
 - `AGENTS.md`: contributor and agent guidelines.
 - `STRATEGY.md`: state of the art, evidence, measurement protocol, step plan and decision log.
-- `.github/workflows/quality_gates.yml`: CI automation for extended/weekly training quality gates and artifact upload.
-- `scripts/assemble_quality_artifacts.js`: content-fingerprinted CI evidence assembly with commit/run provenance, stale-report exclusion and explicit missing-phase status.
 - `scripts/review_chronicle_retention.js`: read-only snapshot/replay study of Chronicle density, source integrity, saga-status coverage, bounds and deterministic export hashes.
-- `scripts/test_operational_closure_contracts.js`: deterministic CI freshness, failed/skipped-phase, retained-claim, source/bounds and RNG-purity contracts (included in `npm test`).
+- `scripts/test_chronicle_retention_contracts.js`: Chronicle retention study contracts: retained claims, source integrity, bounds, replay and RNG purity (included in `npm test`).
 - `scripts/test_legend_panel.js`: complete surface/deep symbol visibility, responsive pagination, color bounds and real arrow-dispatch contracts (included in `npm test`).
 - `scripts/test_telemetry_report_contracts.js`: Colony Report bounded pages, read-only/no-RNG rendering, verdict rules, config thresholds, history bounds and lossless wrapping (included in `npm test`).
 - `src/config.js`: config loader.
@@ -50,12 +48,12 @@ This file defines how to implement new features in a consistent, stable way.
 - `scripts/test_save_contracts.js`: lossless graph, resume, recovery, presentation, menu and AI isolation contracts.
 - `scripts/validate_save_continuity.js`: milestone-only short/long deterministic uninterrupted-versus-resumed validation.
 - `scripts/test_scenario_contracts.js`: curated scenario, filtered test-template reuse, precedence, save pinning and standard-game/PPO isolation contracts.
-- `scripts/validate_scenarios.js`: milestone-only two-seed catalog validation, long pressure runs, checkpoint restoration and canonical-policy compatibility.
+- `scripts/validate_scenarios.js`: milestone-only two-seed catalog validation, long pressure runs, checkpoint restoration and policy compatibility (promoted policy, or the test fixture while none is promoted).
 - `debug/scenario_validation_latest.json` (written by `scripts/validate_scenarios.js`): latest scenario-catalog validation.
 - `saves/`: git-ignored per-colony checkpoints and previous valid backups.
+- `models/`: the promoted v2 policy (`policy_best.json`, `.state.pt`, `.meta.json`), written only by `npm run ai:promote`; absent until a policy passes the gate.
 - `.cache/snapshot_bank/`: git-ignored snapshot banks keyed by game config, bank shape and start policy (built by `scripts/train_recipe.js`).
 - `.cache/scorecard/`: git-ignored scorecard results per (simulation sources, config, horizon, player content), written by `scripts/scorecard.js`.
-- `.cache/promote_eval_cache.json`: git-ignored, bounded cache of deterministic best-policy promotion evals, keyed by simulation/evaluator sources, eval config, policy file and eval parameters.
 - `src/simulation/`: simulation systems split by theme.
 - `src/simulation/index.js`: simulation orchestrator.
 - `src/simulation/tick_config_cache.js`: per-tick, deep-frozen memo for pure config normalizers (warriors, landmarks, temple stages) and the tick-scope flag that lets the Story Director skip re-repairing an already normalized story; active only inside `stepState`.
@@ -136,12 +134,10 @@ This file defines how to implement new features in a consistent, stable way.
 - `scripts/config_trace.js`: preload (`NODE_OPTIONS=-r`) that records which config paths a run reads, for the config audit.
 - `scripts/audit_config.js`: config audit (trace-based never-read keys, section classes) the `CORE_KEYS` tuning surface and the screened `FROZEN_KEYS`.
 - `scripts/export_map.js`: CLI map export pipeline (PNG + SVG).
-- `scripts/train_continuous.js`: cycle orchestrator for continuous AI training cadence and periodic validation gates.
-- `scripts/regression.js`: AI regression harness and profile recording.
-- `scripts/validate_extended_optimized.js`: optimized full-quality validation orchestrator with per-phase runtime reporting (deduplicates benchmark execution across gate+risk).
 - `scripts/build_snapshot_bank.js`: mid-game snapshot bank for training starts (STRATEGY.md S4d): plays training games through `ai_server.js` (council or a policy) and saves gzip states at fixed ticks.
 - `scripts/train_recipe.js`: single training entry point (STRATEGY.md T1, `npm run ai:train:recipe`): runs `ai.training.recipe` into a self-contained run folder (frozen phase configs, effective recipe, logs, policy), builds or reuses the cached snapshot bank (`--bank-only` stops after it), never writes `models/`.
-- `scripts/test_recipe_contracts.js`: recipe validation, recipe-only train arguments, phase configs and policy-owned cadence contracts (included in `npm test`).
+- `scripts/test_recipe_contracts.js`: recipe validation, recipe-only train arguments, phase configs, policy-owned cadence, v1-policy refusal, the `ai.training` key surface and scorecard contracts (included in `npm test`).
+- `scripts/test_policy_fixture.js`: deterministic small v2 policy (trainer file schema, seeded weights) used by contracts and validators instead of a promoted policy.
 - `scripts/scorecard.js`: single evaluator and promotion gate (STRATEGY.md T3, `npm run ai:scorecard`, `npm run ai:promote`): plays a policy at its own cadence and the council on the `ai.evaluation` horizons (8,000-tick eval plan, 20,000-tick standard game) through `experiments/challenge_probe.js`, caches results by simulation sources, config, horizon and player content in `.cache/scorecard/`, and promotes to `models/policy_best.*` only when the gate passes.
 - `scripts/headless_benchmark.js`: deterministic headless benchmark CLI for long-run tuning and validation.
 - `scripts/sim_fingerprint.js`: full-state canonical fingerprint of seeded no-AI games at fixed checkpoints (`--save` before, `--compare` after) for bit-identical refactors and optimizations (`npm run sim:fingerprint`).
@@ -168,25 +164,17 @@ This file defines how to implement new features in a consistent, stable way.
 - `scripts/test_road_routing_contracts.js`: deterministic road dominance, actual-mover, RNG, work-family, cache, reload and PPO contracts (included in `npm test`).
 - `scripts/test_social_memory_contracts.js`: focused long-arc support/burden, mood, shock, decay, disabled-mode, and save contracts for M1.
 - `scripts/test_core_simulation_contracts.js`: deterministic economy, consumption, population, structure, movement, raid, save, and read-only measurement contracts (included in `npm test`).
-- `scripts/test_training_contracts.js`: deterministic technical contract suite for training/validation schemas (included in `npm test`).
-- `debug/regression_*_latest.json`, `debug/canonical_master_latest.json` (written by `npm run ai:validate`): latest model non-regression evidence; regenerate after promoting a policy.
+- `scripts/test_governor_contracts.js`: game governor action-envelope contracts (external camps, contracts, ruins, Underrealm, warriors, social) and warrior/social observation parity across JS, JSON and compact transports (included in `npm test`).
 - `benchmark_cache/headless_benchmark_baseline.json`: versioned cached headless benchmark baseline used for report diffs.
 - `debug/headless_benchmark_candidate.json`, `debug/headless_benchmark_diff.json`: latest canonical `4 x 8000` candidate and its cached-baseline comparison.
 - `chronicles/`: git-ignored deterministic Markdown/JSON Chronicle exports created on demand.
-- `regression/baselines/regression_baseline.json`: durable regression baseline profiles used by checks.
 - `python/bootstrap.py`: venv bootstrap with pinned torch and numpy versions (runs reproduce bit for bit only with the same versions).
-- `python/train.py`: legacy PPO training loop (v1 and v2 heads) used by `train_wrapper.js` profiles; replaced by `trainer_v2.py` and removed in STRATEGY.md T4.
 - `python/trainer_v2.py`: lean deterministic PPO trainer for action space v2 (STRATEGY.md T2); runs one phase of a `scripts/train_recipe.js` run folder (`--run`, `--phase`, `--rep`).
 - `python/v2/`: trainer modules: `env.py` (ai_server compact protocol, action ids, pure per-episode settings), `model.py` (actor-critic, running statistics, PopArt rescaling, policy JSON), `ppo.py` (GAE, PPO update), `rollout.py` (versioned-weight workers, lever noise hold).
-- `python/test_trainer_v2.py`: bit parity with the old trainer's numerics, JS/Python inference parity and policy round trip (run by `scripts/test_recipe_contracts.js`).
-- `python/regression_rollout.py`: rollout-only randomized regression runner (no PPO updates, no checkpoint writes).
-- `python/agent.py`: example Python agent.
+- `python/test_trainer_v2.py`: JS/Python inference parity, policy round trip and pure episode settings (run by `scripts/test_recipe_contracts.js`).
+- `python/agent.py`: example Python agent for the `ai_server.js` JSON transport.
 - `experiments/`: measurement tools used by the `STRATEGY.md` protocol.
   - `challenge_probe.js`: in-process scorecard for synthetic players and trained policies (`policy:<file>`, game JS inference): stock flows, reserve autonomy, labor mix, deaths, outcome-reward score, progress; eval plan or the `npm start` game, with `--set` A/B overrides.
-  - `eval_paired.py`: paired evaluation of real policies through `ai_server.js` (`--outcomes`, `rpp`), plus default/constant/random/per-group probes.
-  - `exp_run.js`: isolated m4-pro training variants (`--fresh-start`, `--chain`, `--set`, `--freeze-only`); never writes `models/`, verifies it by hash.
-  - `leverage_probe.py`: resumable per-governor-group leverage probe with paired report.
-  - `analyze.py`: paired-delta summary of `exp_run.js` variants.
   - `replicates.js`: one resumable command for replicated recipe runs: trains each replicate with `scripts/train_recipe.js`, scores it with `scripts/scorecard.js` (council cached), reads the policy's lever choices and writes a pooled paired summary.
   - `pairing_probe.py`: variance of lever-effect estimates from bank snapshots (antithetic lever noise, shared vs different game seeds); tells whether paired branches or a given exploration scale can carry learning signal.
   - `sensitivity_screen.js`: resumable one-at-a-time +/-25% screen of `CORE_KEYS` (`--keys all` adds `FROZEN_KEYS`) with paired effects on population, avoidable deaths and progress.
@@ -199,6 +187,7 @@ This file defines how to implement new features in a consistent, stable way.
 - Avoid comments in JSON.
 - Keep ratios in [0, 1] where possible to simplify tuning.
 - `ai.training.configOverrides` and `evalOverrides` hold profile keys only (`events`, `ai`, `merchant`, `endgame`); the economy comes from the base config and scenarios (enforced by a core contract).
+- `ai.training` holds only what the v2 stack reads: `recipe`, `trainer` (algorithm hyperparameters and feature list), the two profile overrides and `randomization` (enforced by `scripts/test_recipe_contracts.js`). The scenario catalog is the top-level `scenarios` section; the eval-plan scenario names are `ai.evaluation.scenarios`.
 - New economic effects from any system enter through `src/simulation/modifier_ledger.js` with a named factor, never as a new inline multiplier.
 - Decision chain: policy, then council (steward), then engine defaults; the engine may only add last-resort guards (today: emergency gathering), never adjust a policy's choices.
 - Before deleting config keys, trace real reads with `scripts/config_trace.js` and `scripts/audit_config.js`; a key absent from the trace may be content that never triggered.
@@ -227,15 +216,15 @@ This file defines how to implement new features in a consistent, stable way.
 
 ## AI training
 
-- PPO only (2x128 MLP). Keep JSON weights for JS inference. New training work goes in `python/trainer_v2.py` / `python/v2/`; `python/train.py` only serves the legacy wrapper profiles until T4.
+- PPO only (2x128 MLP). Keep JSON weights for JS inference. Training is `python/trainer_v2.py` / `python/v2/` driven by `scripts/train_recipe.js`; only v2 policies (factored layout, job-weight and lever heads, own `stepTicks`) load anywhere.
 - Training runs must be deterministic: episode settings are pure functions of the run seed and episode number, each episode reseeds its RNG, and each episode plays a weight version fixed by rule (`policyLagBatches`), never whatever a worker happens to hold. Two runs of the same recipe must give identical weights.
 - Observations for training come only from the JS server (compact transport); never re-implement observation features in Python.
-- Every run-shape knob (cadence, gamma, episodes, episode ticks, snapshot starts, entropy and learning-rate schedules, noise hold) lives in `ai.training.recipe` and reaches `train.py` only through `scripts/train_recipe.js`; never pass them as ad-hoc flags in a measured run.
+- Every run-shape knob (cadence, gamma, episodes, episode ticks, snapshot starts, entropy and learning-rate schedules, noise hold) lives in `ai.training.recipe` and reaches the trainer only through `scripts/train_recipe.js`; never pass them as ad-hoc flags in a measured run.
 - The decision cadence belongs to the policy: the trainer writes `stepTicks` into the policy file, and every consumer (game, `ai_server`, evaluators, gate) must use it or refuse to run, never override it silently.
-- Training must not cut game phases out: stable termination stays off, only extinction is terminal, time limits bootstrap, and the snapshot bank covers the long game.
-- Training must be resumable from the best-eval snapshot (default `models/policy_best.json`).
+- Training must not cut game phases out: there is no early stop for settled colonies, only extinction is terminal, time limits bootstrap, and the snapshot bank covers the long game.
+- Chained runs start from a policy file (`scripts/train_recipe.js --from`, e.g. the promoted `models/policy_best.json`).
 - If observation/action shapes change, require `--fresh` training.
-- Keep the observation layout identical across `ai_server.js`, `src/ai/policy.js` and `python/train.py` (shared plan in `src/ai/observation_layout.js`).
+- Keep the observation layout identical across `ai_server.js`, `src/ai/policy.js` and `python/v2/env.py` (shared plan in `src/ai/observation_layout.js`).
 - Training and in-game inference must see the same observation values: share helpers between `ai_server.js` and `src/ai/observation.js` (e.g. `getObservationNodeRatio`) and re-run the `STRATEGY.md` S1 parity check after any observation change.
 - The critic predicts normalized returns with output-preserving rescaling; only true terminal states (extinction) cut bootstrap, time limits bootstrap.
 - The reward is the compact outcome reward (`src/ai/outcome_reward.js`, weights in `ai.reward`); keep it short and tied to colony outcomes. Check new terms with `experiments/challenge_probe.js` (score vs final population and avoidable deaths) before training.
@@ -252,7 +241,7 @@ This file defines how to implement new features in a consistent, stable way.
 ## Debug housekeeping
 
 - Keep `debug/` clean and ordered after every development/optimization cycle.
-- Retain only current JSON reports (benchmark, canonical, regression, scenario validation) and at
+- Retain only current JSON reports (benchmark, scenario validation) and at
   most the latest 2-3 `debug/run_*` folders; delete reports that describe a superseded game or policy.
 - Remove transient artifacts once their numbers are in `STRATEGY.md`: smoke logs, per-seed
   regression folders (`debug/regression_eval_*`, `debug/regression_random_*`), finished

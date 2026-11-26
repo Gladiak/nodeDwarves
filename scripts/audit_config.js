@@ -26,7 +26,7 @@ const SECTION_CLASS = {
   festivals: 'narrative', worldEvents: 'narrative', externalCamps: 'narrative', contracts: 'narrative',
   ruins: 'narrative', villages: 'narrative', roads: 'narrative', prestige: 'narrative', endgame: 'narrative',
   display: 'presentation', symbols: 'presentation', events: 'presentation',
-  startup: 'infrastructure', persistence: 'infrastructure',
+  startup: 'infrastructure', persistence: 'infrastructure', scenarios: 'infrastructure',
 };
 // The tuning surface (STRATEGY.md R6, E28): core keys whose +/-25% change moved final population,
 // avoidable deaths or progress with |z| >= 2 on the 24-game plan. Only these are changed when
@@ -59,7 +59,7 @@ const FROZEN_KEYS = [
 ];
 
 // Subtrees of the ai section that are training infrastructure rather than game behavior.
-const AI_INFRA = ['ai.training', 'ai.runtime'];
+const AI_INFRA = ['ai.training', 'ai.runtime', 'ai.evaluation'];
 
 function parseArgs(argv) {
   const options = { traces: [], json: null };

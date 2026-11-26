@@ -44,13 +44,10 @@ def parse_args():
     return parser.parse_args()
 
 
-# Algorithm hyperparameters from ai.training.trainer, with the invariants v2 relies on checked.
+# Algorithm hyperparameters from ai.training.trainer (PPO, tanh MLP, factored layout and compact
+# transport are fixed by the v2 trainer itself).
 def read_hyperparameters(config):
     trainer = config["ai"]["training"]["trainer"]
-    for key, expected in (("algorithm", "ppo"), ("observationLayout", "factored"),
-                          ("transport", "compact"), ("activation", "tanh")):
-        if trainer.get(key) != expected:
-            raise SystemExit(f"ai.training.trainer.{key} must be {expected!r} for the v2 trainer")
     return {
         "gae_lambda": float(trainer["gaeLambda"]),
         "clip_range": float(trainer["clipRange"]),

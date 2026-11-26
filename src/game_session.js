@@ -52,13 +52,13 @@ function resolveScenario(config, scenarioId = 'free') {
   const resolved = structuredClone(config);
   const template = scenario.test_template;
   if (template) {
-    const source = config.ai?.training?.scenarios?.find((entry) => entry.name === template.scenario);
+    const source = config.scenarios?.find((entry) => entry.name === template.scenario);
     if (!source?.overrides) throw new Error(`Unknown scenario test template: ${template.scenario}`);
     if (!Array.isArray(template.paths) || template.paths.length === 0) {
       throw new Error(`Select explicit gameplay paths for test template: ${template.scenario}`);
     }
     for (const key of template.paths) {
-      if (['ai', 'startup', 'persistence', 'simulation', 'display', 'symbols', 'events'].includes(String(key).split('.')[0])) {
+      if (['ai', 'scenarios', 'startup', 'persistence', 'simulation', 'display', 'symbols', 'events'].includes(String(key).split('.')[0])) {
         throw new Error(`Test template cannot override session or training settings: ${key}`);
       }
       copyTemplateSetting(resolved, key, readScenarioSetting(source.overrides, key));
@@ -118,8 +118,10 @@ function validateGameSession(session) {
     throw new Error('Incomplete saved game.');
   }
   validateSessionRandom(session.random);
-  if (session.policy && !['mlp', 'linear'].includes(session.policy.type)) {
-    throw new Error('Invalid saved AI policy.');
+  const policy = session.policy;
+  if (policy && (policy.type !== 'mlp' || policy.observationLayout !== 'factored' || !Number.isInteger(policy.stepTicks)
+      || !Array.isArray(policy.resources) || policy.resources.some((id) => id === 'festival' || String(id).startsWith('gov_')))) {
+    throw new Error('This save carries a v1 AI policy, which this build no longer runs (STRATEGY.md T4).');
   }
   return session;
 }

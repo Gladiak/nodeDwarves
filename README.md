@@ -83,9 +83,10 @@ Current release: **v2.5.0 - Saved Holds and Scenario Challenges**. 🍺🗺️
 - 🌤️ In-map Ops Snapshot shows a live weather token (`Wx:*`, e.g. `Clear`, `Rain`, `Storm`) for at-a-glance climate context.
 - 📊 In-game Colony Report (`h`): a GOOD / WATCH / BAD health check where every line says in plain words what it means, a "needs attention" list, Economy, People and Frontier pages, plus a Technical page for AI and Story Director internals.
 - 🔬 The Economy page explains what drives the colony right now: food yield x0.44 because of winter, need pace x1.07 because of schism... every economic multiplier has a name and a ceiling.
-- 🤖 PPO training pipeline in Python with JS runtime inference (`models/*.json`), a lean ~80-signal
-  colony observation, and a self-scaling critic that reports its own health (`ev=`) in the logs.
-- 🧪 Deterministic benchmark/regression tooling with a cached baseline, plus a fast in-process scorecard that pits default, careless and trained play against each other.
+- 🤖 Deterministic PPO training in Python with JS runtime inference: one recipe, one command, one run
+  folder; the policy steers job weights and five strategic levers (growth, reserves, builders,
+  Underrealm share, ventures) from a lean ~80-signal colony observation.
+- 🧪 Deterministic benchmark tooling with a cached baseline, plus a fast in-process scorecard that pits the council, careless and trained play against each other.
 
 ## Quick Start 🚀
 
@@ -122,7 +123,7 @@ new colony; `--ai FILE` picks a policy for it (loaded games keep their own).
 apart), on `s` and on Ctrl+C, with the previous valid file kept as `.json.bak` and recovered
 automatically. Resume with the same game build and Node.js major version for identical replays.
 
-Run with the best trained policy (if available):
+Run with the promoted policy (once one is promoted, see below):
 
 ```bash
 npm run ai:play
@@ -152,17 +153,17 @@ Bootstrap once, then train and play:
 
 ```bash
 npm run ai:bootstrap
-npm run ai:train:m4pro    # 12-core Apple M4 Pro (npm run ai:train:m4 on a 10-core M4)
-npm run ai:train:recipe -- --out experiments/runs/my_run   # 🧪 v2 recipe run, isolated from models/
+npm run ai:train:recipe -- --out experiments/runs/my_run   # 🧪 recipe run, isolated from models/
 npm run ai:scorecard -- --policy experiments/runs/my_run/p.json   # 📊 8k + 20k scorecard vs the council
 npm run ai:promote -- --policy experiments/runs/my_run/p.json     # 🏆 gate, then models/policy_best.json
 npm run ai:play
 ```
 
 The trainer is PPO with a compact outcome reward 🎯 (a big, living colony, few avoidable deaths, full
-larders, real progress) and promotion judged over 8,000-tick games. Add `--fresh` after the profile
-when the observation or action shape changes. Other wrapper profiles: `fast`, `quality`,
-`quality-mixed`, `m4-balanced`, `full`, `endgame`, `benchmark` (`npm run ai:train -- <profile>`).
+larders, real progress). Every run-shape knob lives in `ai.training.recipe`; two runs of the same
+recipe give identical weights. Promotion is judged against the council (or the incumbent) on
+8,000-tick and 20,000-tick games. `npm run ai:play` needs a promoted policy: until the first one
+passes the gate it exits with a hint instead of starting.
 
 🧭 Where the simulation and the AI stand, what was measured and the step plan to improve both live in
 [STRATEGY.md](STRATEGY.md), together with the measurement tools in `experiments/`.
@@ -173,15 +174,13 @@ when the observation or action shape changes. Other wrapper profiles: `fast`, `q
 npm test                                   # every contract suite (or node scripts/<suite>.js)
 npm run bench:candidate -- --set path=value
 npm run bench:diff                         # refreshes the cached baseline when the profile changed
-npm run ai:validate                        # milestone gate: canonical policy, simulation, regression
-npm run ai:validate:weekly
 npm run debug:clean
 node scripts/audit_config.js --trace <trace.jsonl>   # config audit (see STRATEGY.md, step R)
 ```
 
 Milestone checks: `node scripts/validate_save_continuity.js` (uninterrupted vs resumed worlds) and
 `node scripts/validate_scenarios.js [--only <id>]` (every preset, two seeds). Reports are JSON in
-`debug/`; CI bundles identify their run and commit and show skipped phases explicitly.
+`debug/`.
 
 ## Documentation 📚
 
@@ -192,23 +191,21 @@ Milestone checks: `node scripts/validate_save_continuity.js` (uninterrupted vs r
 ## Project Layout (High Level) 🧱
 
 - `app.js`: terminal application entrypoint.
-- `config.json`: gameplay, rendering and training settings.
+- `config.json`: gameplay, scenario catalog, rendering and training settings.
 - `src/simulation/`: colony economy, population, stories, roads and world systems.
 - `src/state/`: state creation and terrain generation.
 - `src/game_session.js`, `src/session_random.js`, `src/persistence.js`: resumable sessions and save storage.
 - `src/render/`, `src/runtime/`, `src/telemetry/`: terminal views, controls and diagnostics.
 - `src/ai/` and `ai_server.js`: policy inference, outcome reward and training bridge.
-- `scripts/`: tests, benchmarks, validation, map export, CI artifacts and cleanup tools.
-- `python/`: PPO training and regression rollout tools.
+- `scripts/`: tests, training recipe, scorecard, benchmarks, validation, map export and cleanup tools.
+- `python/`: the deterministic PPO trainer (`trainer_v2.py`, `v2/`) and its venv bootstrap.
 - `experiments/`: measurement tools for STRATEGY.md 🧪 (outputs in git-ignored `experiments/runs/`).
-- `models/`: runtime policies and resumable training metadata.
-- `regression/baselines/`: durable model-quality reference profiles.
+- `models/`: the promoted policy, written only by `npm run ai:promote`.
 - `benchmark_cache/`: shared deterministic benchmark baseline.
 - `debug/`: current JSON validation and comparison reports.
 - `chronicles/`: generated Chronicle exports (git-ignored).
 - `saves/`: local colony checkpoints and backups (git-ignored).
-- `.cache/`: local promotion-eval cache, rebuilt on demand (git-ignored).
-- `.github/workflows/quality_gates.yml`: extended and weekly quality checks.
+- `.cache/`: local snapshot banks and scorecard results, rebuilt on demand (git-ignored).
 
 ## Contributing 🤝
 

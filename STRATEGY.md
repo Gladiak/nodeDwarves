@@ -65,16 +65,19 @@ relative to default. It measures how much of the outcome decisions control and m
   -2 per avoidable death (starvation, raids, deep raids, ruins, hunts, Warrior League; not old age),
   -1 x share of dwarves with hunger or thirst >= 0.6, +0.3 x food/water reserve per dwarf (2 units =
   full), +20 per Underrealm depth, +5 per landmark stage, +0.2 per prestige point, -20 on extinction.
-- Recipe `m4-pro`: foundation 640 episodes of 1,400 steps x 2 ticks (2,800 ticks) with a difficulty
-  ramp, finetune 50 episodes, 7 workers, gamma 0.998 (~1,000-tick horizon), ~6 minutes on an M4 Pro.
+- Recipe `v2-base` (`ai.training.recipe`, section 7), run by `scripts/train_recipe.js` and the lean
+  deterministic trainer `python/trainer_v2.py`: 9 heads (4 job weights, 5 levers), decisions every
+  10 ticks, gamma 0.999, foundation 1,920 episodes of 2,800 ticks (half from a 2,000-40,000-tick
+  snapshot bank), finetune 50 episodes, 7 workers, ~35 min of foundation on an M4 Pro (E42). The old
+  stack (`train.py`, wrapper profiles, continuous training, regression harness, v1 heads and the
+  per-resource observation layout) was deleted in T4.
 - Promotion gate (`scripts/scorecard.js --promote`, settings in `ai.evaluation`, T3): 24 eval-plan
   games x 8,000 ticks, `rpp` score (reward per planned tick, so an early extinction scores zero for
   the ticks it did not live), paired delta >= 0.005 with lower confidence bound (z 1.96) > 0, and no
   regression on 32 standard games x 20,000 ticks (upper bound at z 1 >= 0); the incumbent is the best
   v2 policy, or the council while `models/` holds none.
-- Production artifacts are stale: `models/policy_best.json` and `models/policy.json` were trained
-  on the old, easy game; `regression/baselines/` describes that game too. Model-quality reports were
-  removed and are regenerated in S8.
+- `models/` is empty since T4 (the v1 policies were trained on the old, easy game and no longer
+  load); T5 promotes the first v2 policy so `npm run ai:play` runs again.
 
 ### 2.4 Measurement tooling (`experiments/`, outputs in git-ignored `experiments/runs/`)
 
@@ -82,13 +85,15 @@ relative to default. It measures how much of the outcome decisions control and m
 |---|---|---|
 | `challenge_probe.js` | In-process scorecard: synthetic players (`default`, `const:X`, `random`, `neglect`, `gov:X`) and trained ones (`policy:<file>`, the game's JS inference), stock flows, reserve autonomy, labor mix, deaths, outcome-reward score, progress (max Underrealm depth, landmark stages, prestige); `--set path=value` A/B on the effective config; `--plan eval` or `standard` | 48 games x 8,000 ticks in ~3 min |
 | `scripts/scorecard.js` | The single evaluator (T3): a policy at its own cadence and the council on the `ai.evaluation` horizons through `challenge_probe.js`, paired population and `rpp`, results cached per game version in `.cache/scorecard/`; `--gate`/`--promote` | 24 x 8,000 + 32 x 20,000 ticks per new player |
-| `eval_paired.py` | Paired evaluation of real policies through `ai_server.js` (`--outcomes` adds population, deaths by cause, `rpp`) | 24 games x 8,000 ticks in ~3 min |
-| `exp_run.js` | Isolated training variants (`--fresh-start`, `--chain k`, `--set phase:--flag=value`, `--freeze-only`); never writes `models/` | ~6 min per run |
-| `leverage_probe.py` | One governor group at an extreme vs default | ~1 h |
-| `analyze.py` | Paired summary of `exp_run.js` variants | seconds |
+| `replicates.js` | Replicated recipe runs (training, scorecard, lever readout, pooled paired summary), resumable | ~45 min training + ~8 min scorecard per replicate |
+| `pairing_probe.py` | Variance of lever-effect estimates from bank snapshots (E40) | ~30 min |
+| `sensitivity_screen.js` | One-at-a-time +/-25% screen of `CORE_KEYS` (E28) | ~1-2 h |
 
-Bit-identity checks (E17-E19): `challenge_probe.js` reproduces `eval_paired.py` for default and
-constant players and the cached benchmark rows for the standard game.
+`eval_paired.py`, `exp_run.js`, `leverage_probe.py` and `analyze.py` served the v1 stack and were
+deleted in T4; earlier evidence rows that cite them stay as recorded.
+
+Bit-identity checks (E17-E19, E43): `challenge_probe.js` reproduced `eval_paired.py` for default,
+constant and council players and the cached benchmark rows for the standard game.
 
 ---
 
@@ -133,7 +138,9 @@ Paired by seed. "Pop" = final population; "avoidable" = deaths excluding old age
 | E39 | 11-26 | Simulation hot spots removed, bit-identical | Profile of a 510-dwarf state (11.3 ms/tick): path fields 23% (gather jobs share one cache key but send each dwarf to its own cell, so the same BFS ran up to 260 times per tick), housing 12% plus couple lookups 10% (O(n^2) partner `find` and slot scans), Underrealm crew scoring 14% (every pick rescored the whole pool); narrative systems together ~5%. Fixes: pure memo of BFS fields per walkability grid (`movement.js`), id index and monotone slot cursors (`population.js`), score-once stable selection (`underrealm.js`). Checks: full state and RNG stream identical on 61 bank snapshots x 300 ticks and a fresh 3,000-tick game, `scripts/sim_fingerprint.js` identical to the previous commit (4 seeds x 1,000/4,000/8,000 ticks), headless benchmark reports identical, a 64-episode training run gives the same weights. Speed: heavy state 11.3 -> 5.4 ms/tick, snapshot set 1.86x, standard benchmark 67 -> 46 s, short training run 148 -> 127 s (colonies of 80-150 dwarves gain least). The profile is now flat (top function 6%) | `scripts/sim_fingerprint.js` becomes the gate for every performance change; found on the way: `assignHousing` lists every couple twice (from both partners), wasting house slots; kept for identity, a candidate game fix |
 | E40 | 11-26 | Paired branches do not reduce variance; trainer-scale lever noise is invisible in an episode | `experiments/pairing_probe.py`: 48 bank snapshots, 2,800 ticks, four rollouts each (antithetic lever noise +e/-e, two game seeds), job weights neutral. Seasonal noise at the trainer's sigma (0.45 pre-tanh, held 20 decisions): Var(return difference) paired 34.1k, unpaired 35.2k, game noise alone (same noise, other seed) 41.7k; efficiency multiplier 1.03 and no lever effect above game noise. Strong noise (sigma 1.5 held all episode): paired 58.5k, unpaired 58.7k, game noise 44.7k, multiplier 1.00; lever effect variance ~14k (SD ~117 on mean return 595, about 0.55 of the game-noise SD per pair). The game draws everything from one `Math.random` stream, so a single different choice shifts every later draw and a shared seed gives no common randomness | Paired branches dropped. The S4 failure has a measured cause: with the exploration the trainer uses, a lever choice does not change an episode's return detectably, so the lever gradient is mostly noise. Options: persistent, larger lever exploration (episode-level hold, wider sigma), per-system RNG streams (would make pairing and paired evaluation effective, a game-identity change), or a black-box optimizer for the 5 levers |
 | E41 | 11-26 | Persistent wide lever exploration makes the levers learn; the learned levers pay at 8,000 ticks, not at 20,000 | One replicate each, lean trainer, E36 bank (2,000-16,000 ticks), 960 foundation + 50 finetune episodes; control = default recipe (lever noise redrawn every decision, sigma 0.45), persistent = noise held all episode (`leverNoiseHold` 280) and lever sigma 1.0 (`leverLogStdInit` 0). Deterministic lever choice on 62 bank states (u, 0.5 = council): control growth 0.58, reserves 0.56, builders 0.47, Underrealm share 0.56, ventures 0.52 (spread 0.08-0.13); persistent 0.76, 0.60, 0.75, 0.34, 0.38 (spread 0.16-0.34, state-dependent). vs council, eval 24 x 8,000: control 175.7 vs 166.1 (+9.5, z 1.0, 13/24), persistent 221.3 (+55.2, +33%, z 3.7, 18/24), avoidable 17.3 vs 14.8 both, 0 extinctions. Standard 16 x 20,000: council 185.3 (2 extinctions, avoidable 47), control 161.1 (-24, z -0.7, 2 ext.), persistent 180.8 (-4, z -0.1, 4 ext., avoidable 76). PPO KL higher with held noise (0.007-0.018, no early stops); foundation 1,176 s vs 1,309 s | First trained policy whose levers move and react to the state. The levers it learned (high growth and builders, fewer ventures) are the E33 short-horizon optimum, so the next lever on quality is the horizon: the 40,000-tick bank and stable termination off of the default recipe, then 3 replicates before adoption |
+| E42 | 11-26 | Persistent wide lever exploration on the default recipe: large, replicable gain at 8,000 ticks, worse at 20,000 | `experiments/replicates.js` (session `2026-11-27_e42`, a797a67, game identical to e77e8f7), 3 replicates, default recipe (1,920 foundation + 50 finetune episodes, 40,000-tick bank of 753 council snapshots, stable termination off) with `leverNoiseHold` 280 and `leverLogStdInit` 0, scored by `scripts/scorecard.js` vs the council. 8k (24 games, council 166.1, avoidable 13.5, 0 ext.): replicates 268.5 / 210.2 / 256.5 (+102 z 4.1, +44 z 2.2, +90 z 3.4); pooled 245.1, +78.9 (SE 19.2, z 4.1, 20/24), replicate SD 30.8; avoidable 15.3 / 19.2 / 37.7 (mean 24.0); 0 extinctions. 20k (32 standard games, council 169.6, 4 ext., avoidable 43.8): 132.2 / 124.8 / 167.8 (-37 z -1.0, -45 z -1.6, -2 z -0.1); pooled 141.6, -28.0 (SE 25.4, z -1.1, 14/32), replicate SD 23.0; extinctions 9 / 6 / 7 (22 of 96 = 23% vs 12.5%); avoidable 61.8 / 52.7 / 67.2 (mean 60.6). `rpp` vs council at 20k +0.019 / -0.011 / +0.008: two of three replicates would pass today's gate (8k `rpp` LCB > 0, 20k guard) while doubling extinctions. Levers (u on 60 bank states, 0.5 = council): growth 0.83 / 0.69 / 0.81, reserves 0.78 / 0.49 / 0.56, builders 0.58 / 0.45 / 0.30, Underrealm share 0.21 / 0.22 / 0.22, ventures 0.23 / 0.46 / 0.46 (state SD 0.16-0.34). Foundation 2,007-2,126 s per replicate on an M4 Pro (critic EV 0.96-0.98); whole session 3 h 22 min including the bank | Not adopted as the recipe default: 20,000 ticks is worse (population z -1.1, extinctions and avoidable deaths up well beyond one SE). The 40,000-tick bank and gamma 0.999 did not teach the long horizon: every replicate learned high growth and a small Underrealm share, the E33 short-horizon optimum. Persistent exploration stays the way levers learn at all (E41); the horizon is the open problem, and the gate must see extinctions before T5 promotes anything |
 | E43 | 11-26 | T3: one in-process evaluator reproduces the old ones and is faster | `scripts/scorecard.js` on the E41 persistent-exploration policy. Council at 8,000 ticks: the same 24 games as `eval_paired.py` give the same final population game by game (166.1, 24/24 identical); council 24 x 8,000 ticks in 75 s (`eval_paired.py` ~3 min), 32 x 20,000 standard ticks in 413 s. Policy at 8,000 ticks: 243.3 vs 221.3 through `ai_server` + Python inference, per-game difference +22.0 (SE 16.1, z 1.4), chaotic both ways (-113 to +212): float32 Python vs float64 JS inference, not a bias. Full scorecard vs council: 8k pop +77.1 (z 4.8, 20/24), `rpp` +0.0096 (z 1.4); 20k (32 games) pop +17.9 (z 0.5), `rpp` +0.029 (z 2.8), extinctions 8 vs 4, avoidable 63.5 vs 43.8. The gate would refuse it vs the council (8k `rpp` lower bound < 0) while population is far ahead, and its 20k `rpp` guard does not see the doubled extinctions | Scorecard adopted as the only evaluator and gate for v2 policies; `rpp` vs population/extinctions disagreement left as a gate-metric question for T5 |
+| E44 | 11-26 | T4: deleting the old stack changes no game, training run or evaluation | Removed `train.py`, `train_wrapper.js`, `train_continuous.js`, `regression.js`, `regression_rollout.py`, `promote_best.py`, `validate_extended_optimized.js`, the CI workflow and its artifact assembler, `eval_paired.py`, `exp_run.js`, `leverage_probe.py`, `analyze.py`, the v1 models and regression baselines; v1 heads (festival, `gov_*`), the per-resource layout, stable termination and `leverRaw` decoding left `ai_server.js` and `src/ai/policy.js`, which now refuse v1 policies. ~14,300 lines of code removed (models and baselines aside). `ai.training` 772 -> 185 values (80 are the feature list); the 19-scenario catalog (455 values) moved to a top-level `scenarios` section, the eval plan names to `ai.evaluation.scenarios`. Checks against the pre-T4 tree (a797a67): `sim_fingerprint.js` identical (4 seeds x 1,000/4,000/8,000 ticks); a 16 + 8-episode recipe run on the E42 bank gives identical weights; scorecard outcomes of the E42 r1 policy identical game by game on both horizons (smoke size); `npm test` green | Old stack gone; tests that used the v1 model now use a seeded v2 fixture (`scripts/test_policy_fixture.js`); the bank and scorecard caches rebuild once because the config hash changed |
 | E21 | 11-25 | Evaluation speed is not the bottleneck | 24 games x 8,000 ticks: `eval_paired.py` 61 s, in-process JS 60 s; per worker ~270 ticks/s at late-game population (3.7 ms/tick) | Keep `eval_paired.py` as the reference evaluator; noise, not speed, limits decisions |
 
 E19, 24 games x 8,000 ticks (seed base 100000):
@@ -518,16 +525,33 @@ Status 2026-11-26: T3 built and checked (E43).
   `ai.evaluation`) rebuilds a bank whose content is identical; banks stay out of git (250-400 MB of
   binaries, invalidated by T4) and are moved between machines by hand with `--bank <dir>` if needed.
 
+Status 2026-11-26: T4 done (E44).
+- Deleted: v1 heads, legacy observation layout, wrapper profiles, continuous training, regression
+  profiles and baselines, `promote_best.py`, `exp_run.js`, `eval_paired.py`, `leverage_probe.py`,
+  `analyze.py`, the CI workflow (it trained with the old stack and never installed torch) and the v1
+  models. `npm run ai:play` refuses to start until T5 promotes a v2 policy; saves that carry a v1
+  policy are refused with a message.
+- `ai.training` holds `recipe`, `trainer` (17 keys: algorithm hyperparameters and the feature list),
+  the two profile overrides and `randomization`: 185 values instead of 772, all read by the v2 stack,
+  guarded by `testTrainingConfigSurface` in `scripts/test_recipe_contracts.js`. The ~50 of the plan is
+  met without the feature list and the recipe's 20 bank ticks; the scenario catalog is game content
+  and moved to the top-level `scenarios` section (the game's scenario templates read it too).
+- Stable termination is gone (`ai.termination`, the profile and `recipe.stableTermination`): only
+  extinction ends an episode early.
+- Tests that needed a policy use a seeded v2 fixture; the old-trainer parity test retired with
+  `train.py` (E38 stands as the record).
+
 Where we are (2026-11-26, end of day):
-- Done and pushed: T0, T1, T2 (trainer built, E38), T3 (scorecard and gate, E43), last commit e77e8f7.
-- Running elsewhere: E42 is launched on another machine at e77e8f7 (so it is scored by
-  `scripts/scorecard.js`), building its own 40,000-tick bank on the first replicate; about 3 h on a
-  10-core M4 (bank ~25 min, council ~10 min, per replicate ~45-50 min training + ~13 min scorecard).
-  Result: `experiments/runs/2026-11-27_e42/persist_summary.json` on that machine.
-- To resume: read E42 (pooled 8k and 20k vs council, extinctions, avoidable deaths, lever readout);
-  adopt persistent exploration (`leverNoiseHold` 280, `leverLogStdInit` 0) as the recipe default if
-  20,000 is not worse, record E42 and the decision; then T4 (can start before E42 ends: it does not
-  change the game or the recipe), then T5 with the gate-metric question of E43.
+- Done: T0-T3 (pushed, e77e8f7 and a797a67) and T4 (E44, branch `ai/t4-delete-old-stack`); E42 run
+  and recorded: persistent exploration wins at 8,000 ticks and loses at 20,000, not adopted.
+- Next, T5 in this order: (1) gate metric (E43, E42): the 8k `rpp` gate with a 20k `rpp` guard would
+  promote E42 replicates that double 20k extinctions, so the guard must also bound 20k extinctions
+  and population before anything is promoted; (2) the long-horizon problem: the learned levers are the
+  E33 short-horizon optimum (growth up, Underrealm share down) whatever the bank and gamma, candidates
+  are a reward or critic signal that sees cohort aging (S6 observation: ticks to winter, births
+  blocked, age structure already in), longer finetune episodes from late bank states, or a 20k-aware
+  selection among replicates; (3) promote the first v2 policy that passes the corrected gate so
+  `npm run ai:play` works again, then regenerate the benchmark baseline.
 
 ### S5. Two-level policy and chained improvement (D3, D4)
 - Cadence, snapshot starts and the 20,000-tick gate moved into S4 (S4c, S4d, S4f); what stays here
@@ -591,11 +615,7 @@ Rules:
 Commands (`S=experiments/runs/<session>`):
 
 ```bash
-node experiments/exp_run.js --out experiments/runs/<session> --freeze-only
-```
-
-```bash
-node experiments/challenge_probe.js --plan eval --config $S/configs/config_endgame.json --players default,gov:0,random,neglect --episodes 24 --ticks 8000 --workers 8 --out $S/scorecard.json
+node experiments/challenge_probe.js --plan eval --players default,gov:2,random,neglect --episodes 24 --ticks 8000 --workers 8 --out $S/scorecard.json
 ```
 
 ```bash
@@ -606,12 +626,10 @@ node experiments/challenge_probe.js --plan standard --players default --ticks 80
 node experiments/challenge_probe.js --report $S/scorecard.json $S/standard.json
 ```
 
-```bash
-node experiments/exp_run.js --out $S --name <variant> --rep 1 --fresh-start --chain 2 --set all:--gamma=0.998
-```
+One recipe run (any recipe key can be overridden with `--set`; the folder is self-contained):
 
 ```bash
-.venv/bin/python experiments/eval_paired.py --policy $S/<variant>_r1/p.json --outcomes --config $S/configs/config_endgame.json --max-steps 4000 --episodes 24 --workers 8 --out $S/eval_<variant>.json
+npm run ai:train:recipe -- --out $S/<variant>_r1 --set leverNoiseHold=280
 ```
 
 Scorecard of one policy against the council (or `--against <policy>`), and the promotion gate:
@@ -652,10 +670,10 @@ Deterministic regression of the no-AI game: `npm run bench:candidate` then `npm 
 | World variety | `variety.ranges` | on; food 0.7-1.3, water 0.8-1.2, winter 0.5-1.5, needs 0.9-1.1, raids 0.25-1.75 (E31) |
 | Lifespan jitter | `population.aging.lifespanJitter` | 0 (E30, not adopted) |
 | Reward | `ai.reward.*` | population 1 per 100, deaths 2, distress 1 at 0.6, reserves 0.3 at 2 per dwarf, depth 20, landmark stage 5, prestige 0.2, extinction 20 |
-| Recipe | `ai.training.recipe` | `v2-base`: 10 ticks per decision, gamma 0.999, 7 workers, noise hold 1, policy lag 1 batch, stable termination off, bank 48 council games at 2,000-40,000 ticks (policy share 0.5 on chained runs); foundation 1,920 episodes x 2,800 ticks, 50% snapshot starts, entropy 0.008 -> 0.002 over 15,000 episodes; finetune 50 x 3,600 ticks (T1) |
-| Evaluation and gate | `ai.evaluation` | council at 10 ticks per decision; horizons 8k (eval plan, 24 games, seeds from 100,000) and 20k (standard game, 32 games, seeds 101 x i); gate on 8k `rpp`: delta >= 0.005, LCB z 1.96 > 0; guard 20k `rpp` upper bound z 1 >= 0 (T3) |
-| Legacy gate | `ai.training.promotion.canonical` | v1 policies only (`promote_best.py`, 4,000 steps x 2 ticks); deleted in T4 |
-| Trainer | `ai.training.trainer` | algorithm hyperparameters (clip, KL, GAE, value loss, normalization, 2x128); its run-shape keys (episodes, steps, cadence, gamma, entropy) are ignored by recipe runs and go in T4 |
+| Recipe | `ai.training.recipe` | `v2-base`: 10 ticks per decision, gamma 0.999, 7 workers, noise hold 1, policy lag 1 batch, bank 48 council games at 2,000-40,000 ticks (policy share 0.5 on chained runs); foundation 1,920 episodes x 2,800 ticks, 50% snapshot starts, entropy 0.008 -> 0.002 over 15,000 episodes; finetune 50 x 3,600 ticks (T1) |
+| Evaluation and gate | `ai.evaluation` | council at 10 ticks per decision; eval plan = 12 named scenarios (`ai.evaluation.scenarios`); horizons 8k (eval plan, 24 games, seeds from 100,000) and 20k (standard game, 32 games, seeds 101 x i); gate on 8k `rpp`: delta >= 0.005, LCB z 1.96 > 0; guard 20k `rpp` upper bound z 1 >= 0 (T3) |
+| Trainer | `ai.training.trainer` | algorithm hyperparameters only (clip, KL, GAE, value loss and clipping, normalization, 2x128, log std init) plus the 80-name feature list (T4) |
+| Scenarios | `scenarios` (top level) | 19-entry catalog: training weights and difficulty windows, overrides; the game's scenario presets reuse its overrides as test templates (T4 moved it out of `ai.training`) |
 | Steward | `ai.steward` | on; decisions every 20 ticks; all 9 governor groups restrained; safe reserve 3 per dwarf and 30 dwarves for future cautious groups |
 | Emergency reflex | `population.roles.emergencyMinRatio` | 0.15, last resort (E29) |
 | Modifier bounds | `simulation.modifierBounds` | gather yield 0.35-1.6, need decay 0.8-1.4 |
@@ -697,7 +715,9 @@ Deterministic regression of the no-AI game: `npm run bench:candidate` then `npm 
 | 2026-11-26 | E41 | Persistent wide lever exploration (`leverNoiseHold`, `leverLogStdInit`) is the lever-learning approach to replicate; not yet the recipe default (1 replicate) |
 | 2026-11-26 | T | `experiments/replicates.js` runs replicated recipe runs and their council comparison in one resumable command; `ai:bootstrap` pins torch 2.10.0 and numpy 2.4.3 |
 | 2026-11-26 | T3 (E43) | `scripts/scorecard.js` (`npm run ai:scorecard`, `ai:promote`) is the single evaluator and gate for v2 policies, settings in `ai.evaluation`, council cached per game version; same gate rules as before (8k `rpp` LCB, 20k guard), now in ticks at each policy's cadence |
-| next | T2 (E42), T4 | E42: 3 replicates of persistent exploration on the default recipe vs the council with the `replicates.js` command in section 6 (launched on another machine at e77e8f7, scored by `scripts/scorecard.js`; see "Where we are" under T3); adopt if 20,000 is not worse. In parallel T4: delete the old stack. Open for T5: whether the gate keeps `rpp` or adds population/extinction rules (E43) |
+| 2026-11-26 | T4 (E44) | Old training stack deleted (v1 heads, legacy layout, wrapper profiles, continuous training, regression harness, CI workflow, `promote_best.py`, `eval_paired.py`, `exp_run.js`); `ai.training` 772 -> 185 values guarded by a contract; scenario catalog top-level; stable termination removed; games, training weights and scorecards bit-identical |
+| 2026-11-26 | E42 | Persistent lever exploration (`leverNoiseHold` 280, `leverLogStdInit` 0) not adopted as the recipe default: pooled 8k +79 (z 4.1) but 20k -28 (z -1.1) with extinctions 23% vs 12.5% and avoidable deaths +17; the recipe default stays noise hold 1 |
+| next | T5 | Gate metric first (20k extinctions and population guard, E42/E43), then the long-horizon problem, then promote the first v2 policy and restore `npm run ai:play`; see "Where we are" under T |
 
 ### Scorecard v1 (S0, session `experiments/runs/2026-11-24_s0`, commit a5e3998, git-ignored)
 

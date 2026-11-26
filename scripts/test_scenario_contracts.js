@@ -4,8 +4,10 @@
 const assert = require('assert/strict');
 const crypto = require('crypto');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const config = require('../config.json');
+const { writeTestPolicy } = require('./test_policy_fixture');
 const { createGameSession, advanceGameSession, resolveScenario } = require('../src/game_session');
 const { encodeSave, decodeSave } = require('../src/persistence');
 const { loadPolicy, selectAction } = require('../src/ai_policy');
@@ -45,7 +47,7 @@ function main() {
       'Test-only social-memory disablement leaked into a game');
     assert.deepEqual(resolved.underrealm.combat.readiness, config.underrealm.combat.readiness, 'Changed combat readiness gates');
     if (scenario.test_template) {
-      const source = config.ai.training.scenarios.find((entry) => entry.name === scenario.test_template.scenario);
+      const source = config.scenarios.find((entry) => entry.name === scenario.test_template.scenario);
       for (const key of scenario.test_template.paths) {
         if (Object.hasOwn(scenario.overrides, key)) continue;
         assertTemplateLeaves(valueAt(resolved, key), valueAt(source.overrides, key), `${scenario.id}: source mismatch at ${key}`);
@@ -59,7 +61,7 @@ function main() {
   assert.deepEqual(resolveScenario(config, 'free').config, config);
 
   const editable = structuredClone(config);
-  const source = editable.ai.training.scenarios.find((entry) => entry.name === 'housing_pressure');
+  const source = editable.scenarios.find((entry) => entry.name === 'housing_pressure');
   source.overrides.structures.house.buildTicks = 47;
   assert.equal(resolveScenario(editable, 'crowded_hearth').config.structures.house.buildTicks, 47);
   editable.startup.scenarios.find((entry) => entry.id === 'crowded_hearth').overrides['structures.house.buildTicks'] = 31;
@@ -72,7 +74,8 @@ function main() {
     { scenario: 'missing-template', paths: ['dwarves.count'] },
     { scenario: 'housing_pressure', paths: [] },
     { scenario: 'housing_pressure', paths: ['missing.setting'] },
-    { scenario: 'housing_pressure', paths: ['ai.training.enabled'] },
+    { scenario: 'housing_pressure', paths: ['ai.training.recipe'] },
+    { scenario: 'housing_pressure', paths: ['scenarios'] },
     { scenario: 'housing_pressure', paths: ['__proto__.polluted'] },
   ]) {
     const invalid = structuredClone(config);
@@ -84,7 +87,7 @@ function main() {
 
   const runtime = { gridWidth: 60, gridHeight: 30, playableArea: 1800,
     totalWidth: 60, totalHeight: 30, frameEnabled: false, mapInset: null };
-  const policyPath = path.join(__dirname, '../models/policy_best.json');
+  const policyPath = writeTestPolicy(path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'nodedwarves-scenario-')), 'policy.json'), config);
   const modelHash = crypto.createHash('sha256').update(fs.readFileSync(policyPath)).digest('hex');
   const policy = loadPolicy(policyPath);
   const free = createGameSession(config, runtime, { seed: 101, policy });

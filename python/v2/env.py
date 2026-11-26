@@ -49,7 +49,7 @@ def mix_seed(seed, salt):
 # Training scenarios with positive weight, as (name, weight, difficulty window) tuples.
 def training_scenarios(config):
     entries = []
-    for entry in ((config.get("ai") or {}).get("training") or {}).get("scenarios") or []:
+    for entry in config.get("scenarios") or []:
         weight = float(entry.get("weight", 1.0))
         if entry.get("name") and weight > 0:
             entries.append({

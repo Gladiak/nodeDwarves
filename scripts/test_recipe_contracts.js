@@ -3,9 +3,9 @@
 
 // Training recipe and policy-cadence contracts (STRATEGY.md step T, T1), included in `npm test`:
 // the recipe in config.json is valid and is the only source of run-shape knobs for the v2 trainer,
-// phase configs carry the episode length and termination exactly as the recipe says, the trainer's
-// numerics and JS inference agree (python/test_trainer_v2.py), and a policy decides at the cadence
-// recorded in its own file everywhere it is played.
+// phase configs carry the episode length exactly as the recipe says, the trainer's numerics and JS
+// inference agree (python/test_trainer_v2.py), a policy decides at the cadence recorded in its own file
+// everywhere it is played, and ai.training holds only what the v2 stack reads (T4).
 
 const assert = require('assert/strict');
 const fs = require('fs');
@@ -18,6 +18,7 @@ const { loadPolicy, getPolicyStepTicks } = require('../src/ai_policy');
 const { createGameSession, advanceGameSession } = require('../src/game_session');
 const { buildRuntime } = require('../src/runtime');
 const { scorecard, evaluationSettings, gateDecision, cacheKey } = require('./scorecard');
+const { createTestPolicyPayload } = require('./test_policy_fixture');
 
 const passed = [];
 
@@ -29,7 +30,6 @@ function recipeWith(sets = []) {
 function testRecipeIsValid() {
   const recipe = validateRecipe(recipeWith());
   assert(recipe.phases.length >= 1, 'recipe has no phases');
-  assert.equal(recipe.stableTermination, false, 'stable termination must stay off: it cuts settled colonies out of training');
   const lastBankTick = Math.max(...recipe.snapshotBank.ticks);
   assert(lastBankTick >= 20000, `snapshot bank must cover the long game (last tick ${lastBankTick})`);
   passed.push('recipe_valid');
@@ -41,7 +41,7 @@ function testRecipeRejectsMistakes() {
   assert.throws(() => validateRecipe(recipeWith(['phases.0.episodeTicks=2805'])), /multiple of stepTicks/);
   assert.throws(() => validateRecipe(recipeWith(['phases.0.snapshotProb=1.5'])), /\[0, 1\]/);
   assert.throws(() => validateRecipe(recipeWith(['gamma=1'])), /gamma/);
-  assert.throws(() => validateRecipe(recipeWith(['stableTermination="no"'])), /stableTermination/);
+  assert.throws(() => applySets(recipeWith(), ['stableTermination=true']), /unknown recipe key/);
   assert.throws(() => validateRecipe(recipeWith(['policyLagBatches=-1'])), /policyLagBatches/);
   assert.throws(() => validateRecipe(recipeWith(['leverLogStdInit="wide"'])), /leverLogStdInit/);
   validateRecipe(recipeWith(['leverLogStdInit=0']));
@@ -80,11 +80,7 @@ function testPhaseConfig() {
     assert.equal(config.ai.training[key].ai.maxTicks, phase.episodeTicks, `${key}.ai.maxTicks`);
     assert.equal(config.ai.training[key].endgame.enabled, false, `${key}.endgame`);
   }
-  assert.equal(config.ai.training.configOverrides.ai.termination.enabled, false, 'stable termination leaked in');
-  const stable = buildPhaseConfig(baseConfig, { ...recipe, stableTermination: true }, phase);
-  assert.equal(stable.ai.training.configOverrides.ai.termination.enabled,
-    baseConfig.ai.training.terminationProfile.enabled === true, 'stableTermination=true must use the profile');
-  assert.equal(stable.ai.training.evalOverrides.ai.termination.enabled, false, 'evaluation never terminates early');
+  assert.equal(config.ai.termination, undefined, 'stable termination is gone: only extinction ends an episode early');
   const untouched = structuredClone(baseConfig);
   buildPhaseConfig(untouched, recipe, phase);
   assert.deepEqual(untouched, baseConfig, 'buildPhaseConfig mutated the base config');
@@ -94,15 +90,23 @@ function testPhaseConfig() {
 function testPolicyCadence() {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'nodedwarves-recipe-'));
   try {
-    const source = JSON.parse(fs.readFileSync(path.join(__dirname, '../models/policy_best.json'), 'utf8'));
+    const source = createTestPolicyPayload(baseConfig, { stepTicks: 10 });
     const file = path.join(directory, 'policy.json');
-    fs.writeFileSync(file, JSON.stringify({ ...source, stepTicks: 10 }));
+    fs.writeFileSync(file, JSON.stringify(source));
     const trained = loadPolicy(file);
     assert.equal(trained.stepTicks, 10, 'loadPolicy dropped stepTicks');
     assert.equal(getPolicyStepTicks(trained, baseConfig), 10);
-    const legacy = loadPolicy(path.join(__dirname, '../models/policy_best.json'));
-    assert.equal(legacy.stepTicks, null);
-    assert.equal(getPolicyStepTicks(legacy, baseConfig), Math.max(1, Math.floor(baseConfig.ai.stepTicks)));
+    // v1 policies (no cadence, legacy layout, governor heads) are refused, not silently replayed.
+    const refuse = (name, payload) => {
+      const bad = path.join(directory, `${name}.json`);
+      fs.writeFileSync(bad, JSON.stringify(payload));
+      assert.throws(() => loadPolicy(bad), /not a v2 policy/, `loadPolicy accepted ${name}`);
+    };
+    refuse('no_cadence', { ...source, stepTicks: undefined });
+    refuse('legacy_layout', { ...source, observationLayout: 'per_resource' });
+    refuse('governor_head', { ...source, resources: [...source.resources, 'gov_trade_contest_intent'] });
+    refuse('linear', { ...source, type: 'linear' });
+    assert.equal(loadPolicy(path.join(directory, 'missing.json')), null);
 
     // The interactive game decides at the policy's own cadence.
     const runtime = buildRuntime({ ...baseConfig.display, autoSize: false, width: 120, height: 40 }, { columns: 120, rows: 40 });
@@ -114,6 +118,25 @@ function testPolicyCadence() {
     fs.rmSync(directory, { recursive: true, force: true });
   }
   passed.push('policy_cadence');
+}
+
+// ai.training holds only what the v2 stack reads (STRATEGY.md T4): the recipe, the trainer's algorithm
+// hyperparameters and feature list, the profile overrides and the training randomization. The scenario
+// catalog is game content (top-level `scenarios`), the eval plan lives in ai.evaluation.
+function testTrainingConfigSurface() {
+  const training = baseConfig.ai.training;
+  assert.deepEqual(Object.keys(training).sort(), ['configOverrides', 'evalOverrides', 'randomization', 'recipe', 'trainer']);
+  assert.deepEqual(Object.keys(training.trainer).sort(), ['clipRange', 'featureNames', 'gaeLambda', 'hiddenSizes',
+    'logStdInit', 'maxGradNorm', 'obsNorm', 'obsNormClip', 'obsNormEpsilon', 'returnNorm', 'returnNormClip',
+    'returnNormEpsilon', 'returnNormMaxCount', 'targetKl', 'valueClipRange', 'valueCoef', 'valueHuberDelta']);
+  const count = (value) => (value && typeof value === 'object' ? Object.values(value).reduce((sum, v) => sum + count(v), 0) : 1);
+  const withoutFeatures = count(training) - training.trainer.featureNames.length;
+  assert(withoutFeatures <= 110, `ai.training grew to ${withoutFeatures} values besides the feature list`);
+  assert.equal(baseConfig.ai.termination, undefined, 'ai.termination was removed with stable termination');
+  assert(Array.isArray(baseConfig.scenarios) && baseConfig.scenarios.length > 0, 'top-level scenario catalog missing');
+  const names = new Set(baseConfig.scenarios.map((entry) => entry.name));
+  for (const name of baseConfig.ai.evaluation.scenarios) assert(names.has(name), `eval scenario ${name} not in the catalog`);
+  passed.push('training_config_surface');
 }
 
 // The evaluation settings are complete and mistakes are refused; the gate applies its three rules.
@@ -139,11 +162,11 @@ function testEvaluationSettingsAndGate() {
 async function testScorecard() {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'nodedwarves-scorecard-'));
   try {
-    const source = JSON.parse(fs.readFileSync(path.join(__dirname, '../models/policy_best.json'), 'utf8'));
+    const source = createTestPolicyPayload(baseConfig, { stepTicks: 10 });
     const legacy = path.join(directory, 'legacy.json');
-    fs.writeFileSync(legacy, JSON.stringify(source));
+    fs.writeFileSync(legacy, JSON.stringify({ ...source, stepTicks: undefined }));
     const file = path.join(directory, 'policy.json');
-    fs.writeFileSync(file, JSON.stringify({ ...source, stepTicks: 10 }));
+    fs.writeFileSync(file, JSON.stringify(source));
     const sets = ['horizons.0.ticks=60', 'horizons.0.games=2', 'horizons.1.ticks=60', 'horizons.1.games=2',
       `cacheDir=${JSON.stringify(path.join(directory, 'cache'))}`];
     await assert.rejects(scorecard({ policy: legacy, sets, workers: 2 }), /stepTicks/);
@@ -175,6 +198,7 @@ async function testScorecard() {
   testTrainerNumericsAndInference();
   testPhaseConfig();
   testPolicyCadence();
+  testTrainingConfigSurface();
   testEvaluationSettingsAndGate();
   await testScorecard();
   console.log(`[test:recipe] PASS ${passed.join(' ')}`);

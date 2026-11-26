@@ -1,4 +1,4 @@
-"""GAE and the clipped PPO update, ported unchanged from the old python/train.py (T2 parity test)."""
+"""GAE and the clipped PPO update, ported unchanged from the old python/train.py (bit parity checked in E38)."""
 
 import torch
 import torch.nn as nn

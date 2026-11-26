@@ -11,6 +11,7 @@ const { createGameSession, advanceGameSession } = require('../src/game_session')
 const { withSessionRandom } = require('../src/session_random');
 const { getSaveSettings, saveGame, loadGame } = require('../src/persistence');
 const { loadPolicy } = require('../src/ai_policy');
+const { writeTestPolicy } = require('./test_policy_fixture');
 const { shouldTriggerEndgameReset } = require('../src/simulation/endgame');
 const { appHelpers, assertSessionEqual } = require('./test_save_contracts');
 
@@ -35,7 +36,9 @@ function main() {
   const cut = Math.floor(ticks / 2) + 1;
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'nodedwarves-save-continuity-'));
   const settings = { ...getSaveSettings(baseConfig), directory };
-  const modelPath = path.join(__dirname, '../models/policy_best.json');
+  // The promoted policy when one exists, otherwise the deterministic v2 fixture (STRATEGY.md T4).
+  const promoted = path.join(__dirname, '../models/policy_best.json');
+  const modelPath = fs.existsSync(promoted) ? promoted : writeTestPolicy(path.join(directory, 'fixture_policy.json'), baseConfig);
   const modelHash = crypto.createHash('sha256').update(fs.readFileSync(modelPath)).digest('hex');
   const runtime = { gridWidth: 120, gridHeight: 40, playableArea: 4800,
     totalWidth: 120, totalHeight: 40, frameEnabled: false, mapInset: null };
@@ -72,7 +75,7 @@ function main() {
       process.stdout.write(`[save-continuity] ${fixture.name} PASS complete state/RNG/AI identity; tick=${resumed.state.tick} cycles=${resumed.state.cycleStats.count} saveBytes=${fs.statSync(filePath).size}\n`);
     }
     assert.equal(crypto.createHash('sha256').update(fs.readFileSync(modelPath)).digest('hex'), modelHash);
-    process.stdout.write(`[save-continuity] PASS all cases; canonical model unchanged sha256=${modelHash}\n`);
+    process.stdout.write(`[save-continuity] PASS all cases; policy unchanged (${modelPath === promoted ? 'promoted' : 'fixture'}) sha256=${modelHash}\n`);
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }
