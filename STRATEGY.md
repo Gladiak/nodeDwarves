@@ -67,8 +67,11 @@ relative to default. It measures how much of the outcome decisions control and m
   full), +20 per Underrealm depth, +5 per landmark stage, +0.2 per prestige point, -20 on extinction.
 - Recipe `m4-pro`: foundation 640 episodes of 1,400 steps x 2 ticks (2,800 ticks) with a difficulty
   ramp, finetune 50 episodes, 7 workers, gamma 0.998 (~1,000-tick horizon), ~6 minutes on an M4 Pro.
-- Promotion gate: 24 games x 8,000 ticks, `rpp` score (reward per planned tick, so an early
-  extinction scores zero for the ticks it did not live), paired lower confidence bound > 0.
+- Promotion gate (`scripts/scorecard.js --promote`, settings in `ai.evaluation`, T3): 24 eval-plan
+  games x 8,000 ticks, `rpp` score (reward per planned tick, so an early extinction scores zero for
+  the ticks it did not live), paired delta >= 0.005 with lower confidence bound (z 1.96) > 0, and no
+  regression on 32 standard games x 20,000 ticks (upper bound at z 1 >= 0); the incumbent is the best
+  v2 policy, or the council while `models/` holds none.
 - Production artifacts are stale: `models/policy_best.json` and `models/policy.json` were trained
   on the old, easy game; `regression/baselines/` describes that game too. Model-quality reports were
   removed and are regenerated in S8.
@@ -78,6 +81,7 @@ relative to default. It measures how much of the outcome decisions control and m
 | Tool | Purpose | Cost |
 |---|---|---|
 | `challenge_probe.js` | In-process scorecard: synthetic players (`default`, `const:X`, `random`, `neglect`, `gov:X`) and trained ones (`policy:<file>`, the game's JS inference), stock flows, reserve autonomy, labor mix, deaths, outcome-reward score, progress (max Underrealm depth, landmark stages, prestige); `--set path=value` A/B on the effective config; `--plan eval` or `standard` | 48 games x 8,000 ticks in ~3 min |
+| `scripts/scorecard.js` | The single evaluator (T3): a policy at its own cadence and the council on the `ai.evaluation` horizons through `challenge_probe.js`, paired population and `rpp`, results cached per game version in `.cache/scorecard/`; `--gate`/`--promote` | 24 x 8,000 + 32 x 20,000 ticks per new player |
 | `eval_paired.py` | Paired evaluation of real policies through `ai_server.js` (`--outcomes` adds population, deaths by cause, `rpp`) | 24 games x 8,000 ticks in ~3 min |
 | `exp_run.js` | Isolated training variants (`--fresh-start`, `--chain k`, `--set phase:--flag=value`, `--freeze-only`); never writes `models/` | ~6 min per run |
 | `leverage_probe.py` | One governor group at an extreme vs default | ~1 h |
@@ -129,6 +133,7 @@ Paired by seed. "Pop" = final population; "avoidable" = deaths excluding old age
 | E39 | 11-26 | Simulation hot spots removed, bit-identical | Profile of a 510-dwarf state (11.3 ms/tick): path fields 23% (gather jobs share one cache key but send each dwarf to its own cell, so the same BFS ran up to 260 times per tick), housing 12% plus couple lookups 10% (O(n^2) partner `find` and slot scans), Underrealm crew scoring 14% (every pick rescored the whole pool); narrative systems together ~5%. Fixes: pure memo of BFS fields per walkability grid (`movement.js`), id index and monotone slot cursors (`population.js`), score-once stable selection (`underrealm.js`). Checks: full state and RNG stream identical on 61 bank snapshots x 300 ticks and a fresh 3,000-tick game, `scripts/sim_fingerprint.js` identical to the previous commit (4 seeds x 1,000/4,000/8,000 ticks), headless benchmark reports identical, a 64-episode training run gives the same weights. Speed: heavy state 11.3 -> 5.4 ms/tick, snapshot set 1.86x, standard benchmark 67 -> 46 s, short training run 148 -> 127 s (colonies of 80-150 dwarves gain least). The profile is now flat (top function 6%) | `scripts/sim_fingerprint.js` becomes the gate for every performance change; found on the way: `assignHousing` lists every couple twice (from both partners), wasting house slots; kept for identity, a candidate game fix |
 | E40 | 11-26 | Paired branches do not reduce variance; trainer-scale lever noise is invisible in an episode | `experiments/pairing_probe.py`: 48 bank snapshots, 2,800 ticks, four rollouts each (antithetic lever noise +e/-e, two game seeds), job weights neutral. Seasonal noise at the trainer's sigma (0.45 pre-tanh, held 20 decisions): Var(return difference) paired 34.1k, unpaired 35.2k, game noise alone (same noise, other seed) 41.7k; efficiency multiplier 1.03 and no lever effect above game noise. Strong noise (sigma 1.5 held all episode): paired 58.5k, unpaired 58.7k, game noise 44.7k, multiplier 1.00; lever effect variance ~14k (SD ~117 on mean return 595, about 0.55 of the game-noise SD per pair). The game draws everything from one `Math.random` stream, so a single different choice shifts every later draw and a shared seed gives no common randomness | Paired branches dropped. The S4 failure has a measured cause: with the exploration the trainer uses, a lever choice does not change an episode's return detectably, so the lever gradient is mostly noise. Options: persistent, larger lever exploration (episode-level hold, wider sigma), per-system RNG streams (would make pairing and paired evaluation effective, a game-identity change), or a black-box optimizer for the 5 levers |
 | E41 | 11-26 | Persistent wide lever exploration makes the levers learn; the learned levers pay at 8,000 ticks, not at 20,000 | One replicate each, lean trainer, E36 bank (2,000-16,000 ticks), 960 foundation + 50 finetune episodes; control = default recipe (lever noise redrawn every decision, sigma 0.45), persistent = noise held all episode (`leverNoiseHold` 280) and lever sigma 1.0 (`leverLogStdInit` 0). Deterministic lever choice on 62 bank states (u, 0.5 = council): control growth 0.58, reserves 0.56, builders 0.47, Underrealm share 0.56, ventures 0.52 (spread 0.08-0.13); persistent 0.76, 0.60, 0.75, 0.34, 0.38 (spread 0.16-0.34, state-dependent). vs council, eval 24 x 8,000: control 175.7 vs 166.1 (+9.5, z 1.0, 13/24), persistent 221.3 (+55.2, +33%, z 3.7, 18/24), avoidable 17.3 vs 14.8 both, 0 extinctions. Standard 16 x 20,000: council 185.3 (2 extinctions, avoidable 47), control 161.1 (-24, z -0.7, 2 ext.), persistent 180.8 (-4, z -0.1, 4 ext., avoidable 76). PPO KL higher with held noise (0.007-0.018, no early stops); foundation 1,176 s vs 1,309 s | First trained policy whose levers move and react to the state. The levers it learned (high growth and builders, fewer ventures) are the E33 short-horizon optimum, so the next lever on quality is the horizon: the 40,000-tick bank and stable termination off of the default recipe, then 3 replicates before adoption |
+| E43 | 11-26 | T3: one in-process evaluator reproduces the old ones and is faster | `scripts/scorecard.js` on the E41 persistent-exploration policy. Council at 8,000 ticks: the same 24 games as `eval_paired.py` give the same final population game by game (166.1, 24/24 identical); council 24 x 8,000 ticks in 75 s (`eval_paired.py` ~3 min), 32 x 20,000 standard ticks in 413 s. Policy at 8,000 ticks: 243.3 vs 221.3 through `ai_server` + Python inference, per-game difference +22.0 (SE 16.1, z 1.4), chaotic both ways (-113 to +212): float32 Python vs float64 JS inference, not a bias. Full scorecard vs council: 8k pop +77.1 (z 4.8, 20/24), `rpp` +0.0096 (z 1.4); 20k (32 games) pop +17.9 (z 0.5), `rpp` +0.029 (z 2.8), extinctions 8 vs 4, avoidable 63.5 vs 43.8. The gate would refuse it vs the council (8k `rpp` lower bound < 0) while population is far ahead, and its 20k `rpp` guard does not see the doubled extinctions | Scorecard adopted as the only evaluator and gate for v2 policies; `rpp` vs population/extinctions disagreement left as a gate-metric question for T5 |
 | E21 | 11-25 | Evaluation speed is not the bottleneck | 24 games x 8,000 ticks: `eval_paired.py` 61 s, in-process JS 60 s; per worker ~270 ticks/s at late-game population (3.7 ms/tick) | Keep `eval_paired.py` as the reference evaluator; noise, not speed, limits decisions |
 
 E19, 24 games x 8,000 ticks (seed base 100000):
@@ -497,6 +502,18 @@ Status 2026-11-26: T2 built and checked (E38); the new-default baseline is not r
 - Left for later in T2: the new-default baseline (3 replicates x 1,920 episodes, ~1 h each, plus the
   40,000-tick bank build, ~30-40 min once) against the council at 8,000 and 20,000 ticks.
 
+Status 2026-11-26: T3 built and checked (E43).
+- `scripts/scorecard.js` is the single evaluator: `experiments/challenge_probe.js` plays every player
+  in-process (a policy at its own `stepTicks`, the council at `ai.evaluation.councilStepTicks`) on the
+  `ai.evaluation` horizons; results are cached in `.cache/scorecard/` by simulation sources, probe
+  source, evaluation version, config, horizon and player content, so the council and an unchanged
+  incumbent are played once per game version. `--gate` judges a candidate against the best v2 policy
+  (the council while `models/` holds only the v1 policy); `--promote` writes `models/policy_best.*`
+  only on a pass. `experiments/replicates.js` scores replicates through it.
+- Contracts (`scripts/test_recipe_contracts.js`): settings validation, the three gate rules, refusal of
+  policies without a cadence, reproducible scorecards, cache hits, same games for every player.
+- `eval_paired.py`, `promote_best.py` and `ai.training.promotion` remain for v1 policies until T4.
+
 ### S5. Two-level policy and chained improvement (D3, D4)
 - Cadence, snapshot starts and the 20,000-tick gate moved into S4 (S4c, S4d, S4f); what stays here
   is the two-level policy, the snapshot A/B and the chained-run improvement test.
@@ -582,9 +599,19 @@ node experiments/exp_run.js --out $S --name <variant> --rep 1 --fresh-start --ch
 .venv/bin/python experiments/eval_paired.py --policy $S/<variant>_r1/p.json --outcomes --config $S/configs/config_endgame.json --max-steps 4000 --episodes 24 --workers 8 --out $S/eval_<variant>.json
 ```
 
-Replicated recipe runs against the council (training, 8,000- and 20,000-tick evaluations, lever
-readout, pooled paired summary in `<session>/<name>_summary.json`; resumable, any machine with
-`npm run ai:bootstrap` done, since torch and numpy are pinned so runs reproduce across machines):
+Scorecard of one policy against the council (or `--against <policy>`), and the promotion gate:
+
+```bash
+npm run ai:scorecard -- --policy experiments/runs/<run>/p.json
+```
+
+```bash
+npm run ai:promote -- --policy experiments/runs/<run>/p.json
+```
+
+Replicated recipe runs against the council (training, scorecard, lever readout, pooled paired summary
+in `<session>/<name>_summary.json`; resumable, any machine with `npm run ai:bootstrap` done, since
+torch and numpy are pinned so runs reproduce across machines):
 
 ```bash
 node experiments/replicates.js --session experiments/runs/2026-11-27_e42 --name persist --set leverNoiseHold=280 --set leverLogStdInit=0
@@ -611,7 +638,8 @@ Deterministic regression of the no-AI game: `npm run bench:candidate` then `npm 
 | Lifespan jitter | `population.aging.lifespanJitter` | 0 (E30, not adopted) |
 | Reward | `ai.reward.*` | population 1 per 100, deaths 2, distress 1 at 0.6, reserves 0.3 at 2 per dwarf, depth 20, landmark stage 5, prestige 0.2, extinction 20 |
 | Recipe | `ai.training.recipe` | `v2-base`: 10 ticks per decision, gamma 0.999, 7 workers, noise hold 1, policy lag 1 batch, stable termination off, bank 48 council games at 2,000-40,000 ticks (policy share 0.5 on chained runs); foundation 1,920 episodes x 2,800 ticks, 50% snapshot starts, entropy 0.008 -> 0.002 over 15,000 episodes; finetune 50 x 3,600 ticks (T1) |
-| Gate | `ai.training.promotion.canonical` | 24 games, 4,000 steps x 2 ticks, `rpp`, LCB z 1.96; refuses policies trained at another cadence until T3 |
+| Evaluation and gate | `ai.evaluation` | council at 10 ticks per decision; horizons 8k (eval plan, 24 games, seeds from 100,000) and 20k (standard game, 32 games, seeds 101 x i); gate on 8k `rpp`: delta >= 0.005, LCB z 1.96 > 0; guard 20k `rpp` upper bound z 1 >= 0 (T3) |
+| Legacy gate | `ai.training.promotion.canonical` | v1 policies only (`promote_best.py`, 4,000 steps x 2 ticks); deleted in T4 |
 | Trainer | `ai.training.trainer` | algorithm hyperparameters (clip, KL, GAE, value loss, normalization, 2x128); its run-shape keys (episodes, steps, cadence, gamma, entropy) are ignored by recipe runs and go in T4 |
 | Steward | `ai.steward` | on; decisions every 20 ticks; all 9 governor groups restrained; safe reserve 3 per dwarf and 30 dwarves for future cautious groups |
 | Emergency reflex | `population.roles.emergencyMinRatio` | 0.15, last resort (E29) |
@@ -653,7 +681,8 @@ Deterministic regression of the no-AI game: `npm run bench:candidate` then `npm 
 | 2026-11-26 | E40 | Paired branches dropped (no common randomness with one RNG stream); lever exploration at trainer scale carries no measurable signal per episode |
 | 2026-11-26 | E41 | Persistent wide lever exploration (`leverNoiseHold`, `leverLogStdInit`) is the lever-learning approach to replicate; not yet the recipe default (1 replicate) |
 | 2026-11-26 | T | `experiments/replicates.js` runs replicated recipe runs and their council comparison in one resumable command; `ai:bootstrap` pins torch 2.10.0 and numpy 2.4.3 |
-| next | T2 (E42) | 3 replicates of persistent exploration on the default recipe (40,000-tick bank, no stable termination) vs the council at 8,000 and 20,000 ticks with the `replicates.js` command in section 6; adopt if 20,000 is not worse; then T3 |
+| 2026-11-26 | T3 (E43) | `scripts/scorecard.js` (`npm run ai:scorecard`, `ai:promote`) is the single evaluator and gate for v2 policies, settings in `ai.evaluation`, council cached per game version; same gate rules as before (8k `rpp` LCB, 20k guard), now in ticks at each policy's cadence |
+| next | T2 (E42), T4 | E42: 3 replicates of persistent exploration on the default recipe vs the council with the `replicates.js` command in section 6 (running on another machine on commit 50fffda, which still evaluates with `eval_paired.py` at 8,000 ticks; compare within that session); adopt if 20,000 is not worse. In parallel T4: delete the old stack. Open for T5: whether the gate keeps `rpp` or adds population/extinction rules (E43) |
 
 ### Scorecard v1 (S0, session `experiments/runs/2026-11-24_s0`, commit a5e3998, git-ignored)
 

@@ -17,6 +17,7 @@ const { applySets, validateRecipe, buildPhaseConfig, buildTrainerArgs } = requir
 const { loadPolicy, getPolicyStepTicks } = require('../src/ai_policy');
 const { createGameSession, advanceGameSession } = require('../src/game_session');
 const { buildRuntime } = require('../src/runtime');
+const { scorecard, evaluationSettings, gateDecision, cacheKey } = require('./scorecard');
 
 const passed = [];
 
@@ -115,10 +116,69 @@ function testPolicyCadence() {
   passed.push('policy_cadence');
 }
 
-testRecipeIsValid();
-testRecipeRejectsMistakes();
-testTrainerReadsOnlyTheRunFolder();
-testTrainerNumericsAndInference();
-testPhaseConfig();
-testPolicyCadence();
-console.log(`[test:recipe] PASS ${passed.join(' ')}`);
+// The evaluation settings are complete and mistakes are refused; the gate applies its three rules.
+function testEvaluationSettingsAndGate() {
+  const settings = evaluationSettings(baseConfig);
+  assert.deepEqual(settings.horizons.map((h) => [h.plan, h.ticks]), [['eval', 8000], ['standard', 20000]]);
+  for (const bad of ['horizons.1.name="8k"', 'horizons.0.plan="other"', 'horizons.0.ticks=0', 'gate.horizon="5k"',
+    'gate.lcbZ=-1', 'councilStepTicks=0']) {
+    assert.throws(() => evaluationSettings(baseConfig, [bad]), undefined, `accepted ${bad}`);
+  }
+  const gate = { horizon: 'a', guardHorizon: 'b', minImprove: 0.005, lcbZ: 1.96, guardZ: 1 };
+  const card = (primary, guard) => ({ a: { vsAgainst: { rpp: primary } }, b: { vsAgainst: { rpp: guard } } });
+  const p = (mean, se) => ({ mean, se });
+  assert.equal(gateDecision(card(p(0.02, 0.005), p(-0.01, 0.02)), gate).pass, true);
+  assert.equal(gateDecision(card(p(0.004, 0.0001), p(0, 0.01)), gate).pass, false, 'passed below minImprove');
+  assert.equal(gateDecision(card(p(0.02, 0.02), p(0, 0.01)), gate).pass, false, 'passed with lower bound <= 0');
+  assert.equal(gateDecision(card(p(0.02, 0.005), p(-0.05, 0.01)), gate).pass, false, 'passed a long-horizon regression');
+  passed.push('evaluation_gate');
+}
+
+// The scorecard refuses policies without a cadence, is deterministic, caches by player content and
+// pairs the same games for every player.
+async function testScorecard() {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'nodedwarves-scorecard-'));
+  try {
+    const source = JSON.parse(fs.readFileSync(path.join(__dirname, '../models/policy_best.json'), 'utf8'));
+    const legacy = path.join(directory, 'legacy.json');
+    fs.writeFileSync(legacy, JSON.stringify(source));
+    const file = path.join(directory, 'policy.json');
+    fs.writeFileSync(file, JSON.stringify({ ...source, stepTicks: 10 }));
+    const sets = ['horizons.0.ticks=60', 'horizons.0.games=2', 'horizons.1.ticks=60', 'horizons.1.games=2',
+      `cacheDir=${JSON.stringify(path.join(directory, 'cache'))}`];
+    await assert.rejects(scorecard({ policy: legacy, sets, workers: 2 }), /stepTicks/);
+    const first = await scorecard({ policy: file, against: 'council', sets, workers: 2 });
+    const cached = fs.readdirSync(path.join(directory, 'cache')).length;
+    assert.equal(cached, 4, 'expected council and policy cached on both horizons');
+    const second = await scorecard({ policy: file, against: 'council', sets, workers: 2 });
+    assert.deepEqual(second.horizons, first.horizons, 'scorecard is not reproducible');
+    assert.equal(fs.readdirSync(path.join(directory, 'cache')).length, cached, 'cached results were played again');
+    for (const h of Object.values(first.horizons)) {
+      assert.deepEqual(h.outcomes.policy.map((g) => g.key), h.outcomes.council.map((g) => g.key), 'players saw different games');
+    }
+    const settings = evaluationSettings(baseConfig, sets);
+    const key = (player, horizon) => cacheKey(player, horizon, settings, 'config');
+    const changed = path.join(directory, 'changed.json');
+    fs.writeFileSync(changed, JSON.stringify({ ...source, stepTicks: 5 }));
+    assert.notEqual(key(`policy:${file}`, settings.horizons[0]), key(`policy:${changed}`, settings.horizons[0]));
+    assert.notEqual(key('default', settings.horizons[0]), key('default', settings.horizons[1]));
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+  passed.push('scorecard');
+}
+
+(async () => {
+  testRecipeIsValid();
+  testRecipeRejectsMistakes();
+  testTrainerReadsOnlyTheRunFolder();
+  testTrainerNumericsAndInference();
+  testPhaseConfig();
+  testPolicyCadence();
+  testEvaluationSettingsAndGate();
+  await testScorecard();
+  console.log(`[test:recipe] PASS ${passed.join(' ')}`);
+})().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});

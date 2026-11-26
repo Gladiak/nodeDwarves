@@ -6,14 +6,13 @@
 // restarted from scratch (runs are deterministic, so nothing is lost but time).
 //
 //   node experiments/replicates.js --session experiments/runs/<date>_<topic> --name <variant> \
-//     [--reps 3] [--set <recipe path>=<json>]... [--workers 7] [--games8k 24] [--seeds20k 32]
-//     [--bank <existing bank dir>] [--ticks8k 8000] [--ticks20k 20000]   (the last three for smoke tests)
+//     [--reps 3] [--set <recipe path>=<json>]... [--workers 7] [--bank <existing bank dir>]
+//     [--eval-set <ai.evaluation path>=<json>]...   (e.g. horizons.0.ticks=400 for smoke tests)
 //
-// Steps: (1) evaluation config frozen in the session, (2) council evaluated once at 8,000 ticks (eval
-// plan, eval_paired.py) and 20,000 ticks (standard game, challenge_probe.js), (3) per replicate:
-// training through scripts/train_recipe.js (the snapshot bank is built and cached on first use), the
-// same two evaluations, and the policy's deterministic lever choices on bank states, (4) a paired
-// summary per replicate and pooled over replicates, written to <session>/<name>_summary.json.
+// Per replicate: training through scripts/train_recipe.js (the snapshot bank is built and cached on
+// first use), the scorecard of scripts/scorecard.js on every ai.evaluation horizon (the council is
+// played once and cached), and the policy's deterministic lever choices on bank states. The summary
+// per replicate and pooled over replicates goes to <session>/<name>_summary.json.
 //
 // Example (E42, persistent lever exploration):
 //   node experiments/replicates.js --session experiments/runs/2026-11-27_e42 --name persist \
@@ -27,10 +26,11 @@ const zlib = require('zlib');
 const { spawnSync } = require('child_process');
 
 const ROOT = path.resolve(__dirname, '..');
+const { scorecard, paired } = require(path.join(ROOT, 'scripts', 'scorecard.js'));
 const PYTHON = path.join(ROOT, '.venv', 'bin', 'python');
 
 function parseArgs(argv) {
-  const options = { reps: 3, sets: [], workers: null, games8k: 24, seeds20k: 32, ticks8k: 8000, ticks20k: 20000, bank: null };
+  const options = { reps: 3, sets: [], evalSets: [], workers: null, bank: null };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     const next = () => argv[++i];
@@ -39,10 +39,7 @@ function parseArgs(argv) {
     else if (arg === '--reps') options.reps = Number(next());
     else if (arg === '--set') options.sets.push(next());
     else if (arg === '--workers') options.workers = Number(next());
-    else if (arg === '--games8k') options.games8k = Number(next());
-    else if (arg === '--seeds20k') options.seeds20k = Number(next());
-    else if (arg === '--ticks8k') options.ticks8k = Number(next());
-    else if (arg === '--ticks20k') options.ticks20k = Number(next());
+    else if (arg === '--eval-set') options.evalSets.push(next());
     else if (arg === '--bank') options.bank = path.resolve(next());
     else throw new Error(`Unknown option ${arg}`);
   }
@@ -56,33 +53,6 @@ function run(command, args) {
   console.log(`[replicates] ${path.basename(command)} ${args.map((a) => path.isAbsolute(a) ? path.relative(ROOT, a) : a).join(' ')}`);
   const result = spawnSync(command, args, { cwd: ROOT, stdio: 'inherit' });
   if (result.status !== 0) throw new Error(`${path.basename(command)} failed (exit ${result.status})`);
-}
-
-// Evaluation config: the endgame profile the protocol evaluates on, frozen once per session.
-function ensureEvalConfig(session) {
-  const target = path.join(session, 'config_eval.json');
-  if (!fs.existsSync(target)) {
-    const wrapper = require(path.join(ROOT, 'scripts', 'train_wrapper'));
-    const { runDir, files } = wrapper.prepareRunFiles(ROOT, 'm4-balanced', {}, false);
-    fs.copyFileSync(files.endgame, target);
-    fs.rmSync(runDir, { recursive: true, force: true });
-  }
-  return target;
-}
-
-function eval8k(policy, out, evalConfig, options) {
-  if (fs.existsSync(out)) return;
-  const args = [path.join('experiments', 'eval_paired.py'), '--policy', policy, '--outcomes', '--config', evalConfig,
-    '--ticks', String(options.ticks8k), '--episodes', String(options.games8k), '--workers', String(options.workers || 7), '--out', out];
-  if (policy === 'default') args.push('--step-ticks', '10');
-  run(PYTHON, args);
-}
-
-function eval20k(player, out, options) {
-  if (fs.existsSync(out)) return;
-  const seeds = Array.from({ length: options.seeds20k }, (_, i) => 101 * (i + 1)).join(',');
-  run(process.execPath, [path.join('experiments', 'challenge_probe.js'), '--plan', 'standard', '--seeds', seeds,
-    '--ticks', String(options.ticks20k), '--workers', String(options.workers || 7), '--players', player, '--out', out]);
 }
 
 // Deterministic lever choices (u in [0, 1], 0.5 = council default) on a sample of bank states.
@@ -105,59 +75,34 @@ function leverReadout(policyFile, bankDir) {
   }));
 }
 
-// Paired statistics of a - b over games.
-function paired(a, b) {
-  const d = a.map((x, i) => x - b[i]);
-  const n = d.length;
-  const mean = d.reduce((s, x) => s + x, 0) / n;
-  const sd = n > 1 ? Math.sqrt(d.reduce((s, x) => s + (x - mean) ** 2, 0) / (n - 1)) : 0;
-  const se = sd / Math.sqrt(n);
-  return { mean: +mean.toFixed(2), se: +se.toFixed(2), z: se > 0 ? +(mean / se).toFixed(2) : 0, wins: d.filter((x) => x > 0).length, n };
-}
 const average = (xs) => +(xs.reduce((s, x) => s + x, 0) / xs.length).toFixed(2);
+const round = (p) => ({ mean: +p.mean.toFixed(4), se: +p.se.toFixed(4), z: +p.z.toFixed(2), wins: p.wins, n: p.n });
 
-// Per-game outcomes of one evaluation file, keyed by game.
-function outcomes8k(file) {
-  return JSON.parse(fs.readFileSync(file, 'utf8')).episodes_detail.map((e) => ({
-    key: `${e.seed}:${e.scenario}`, pop: Number(e.pop || 0), extinct: Number(e.pop || 0) === 0,
-    avoidable: Object.entries(e.deaths_by_cause || {}).filter(([k]) => k !== 'oldAge').reduce((s, [, v]) => s + Number(v || 0), 0),
-  }));
-}
-function outcomes20k(file) {
-  return JSON.parse(fs.readFileSync(file, 'utf8')).episodes.map((e) => e.summary).sort((a, b) => a.seed - b.seed)
-    .map((s) => ({ key: String(s.seed), pop: s.final_pop, extinct: s.extinction_tick !== null, avoidable: s.avoidable_deaths }));
-}
-
-// Compare a list of replicate outcome sets with the council on the same games.
-function compare(council, replicates) {
-  const keys = council.map((g) => g.key);
-  const align = (set) => keys.map((k) => set.find((g) => g.key === k));
-  const perRep = replicates.map((set) => {
-    const games = align(set);
-    return { pop: average(games.map((g) => g.pop)), vsCouncil: paired(games.map((g) => g.pop), council.map((g) => g.pop)),
-      avoidable: average(games.map((g) => g.avoidable)), extinctions: games.filter((g) => g.extinct).length };
+// Pool replicate scorecards of one horizon: per replicate and mean-over-replicates paired with the council.
+function pool(cards, horizon) {
+  const council = cards[0].horizons[horizon].outcomes.council;
+  const perRep = cards.map((card) => {
+    const h = card.horizons[horizon];
+    return { pop: +h.policy.pop.toFixed(2), vsCouncil: round(h.vsCouncil.pop), rppVsCouncil: round(h.vsCouncil.rpp),
+      avoidable: +h.policy.avoidable.toFixed(2), extinctions: h.policy.extinctions };
   });
-  const pooledPop = keys.map((_, i) => average(replicates.map((set) => align(set)[i].pop)));
+  const pooledPop = council.map((_, i) => average(cards.map((card) => card.horizons[horizon].outcomes.policy[i].pop)));
+  const pop = perRep.map((r) => r.pop);
   return {
     council: { pop: average(council.map((g) => g.pop)), avoidable: average(council.map((g) => g.avoidable)), extinctions: council.filter((g) => g.extinct).length },
     replicates: perRep,
-    pooled: { pop: average(pooledPop), vsCouncil: paired(pooledPop, council.map((g) => g.pop)),
-      replicateSd: +Math.sqrt(perRep.map((r) => r.pop).reduce((s, x, _, xs) => s + (x - average(xs)) ** 2, 0) / Math.max(1, perRep.length - 1)).toFixed(2) },
+    pooled: { pop: average(pooledPop), vsCouncil: round(paired(pooledPop, council.map((g) => g.pop))),
+      replicateSd: +Math.sqrt(pop.reduce((s, x) => s + (x - average(pop)) ** 2, 0) / Math.max(1, pop.length - 1)).toFixed(2) },
   };
 }
 
-function main() {
+async function main() {
   const options = parseArgs(process.argv.slice(2));
   fs.mkdirSync(options.session, { recursive: true });
-  const evalConfig = ensureEvalConfig(options.session);
-  const council8k = path.join(options.session, 'council_eval8k.json');
-  const council20k = path.join(options.session, 'council_standard20k.json');
-  eval8k('default', council8k, evalConfig, options);
-  eval20k('default', council20k, options);
-
   const sets = [...options.sets];
   if (options.workers) sets.push(`workers=${options.workers}`);
   const reps = [];
+  const cards = [];
   for (let rep = 1; rep <= options.reps; rep += 1) {
     const dir = path.join(options.session, `${options.name}_r${rep}`);
     if (fs.existsSync(dir) && !fs.existsSync(path.join(dir, 'run.json'))) {
@@ -169,33 +114,33 @@ function main() {
         ...(options.bank ? ['--bank', options.bank] : []), ...sets.flatMap((s) => ['--set', s])]);
     }
     const policy = path.join(dir, 'p.json');
-    eval8k(policy, path.join(dir, 'eval8k.json'), evalConfig, options);
-    eval20k(`policy:${policy}`, path.join(dir, 'standard20k.json'), options);
+    // The council and finished replicates come from the scorecard cache on later calls.
+    const card = await scorecard({ policy, against: 'council', sets: options.evalSets, workers: options.workers || 7 });
+    fs.writeFileSync(path.join(dir, 'scorecard.json'), `${JSON.stringify(card, null, 1)}\n`);
+    cards.push(card);
     const runInfo = JSON.parse(fs.readFileSync(path.join(dir, 'run.json'), 'utf8'));
     reps.push({ rep, dir, levers: runInfo.bank ? leverReadout(policy, path.resolve(ROOT, runInfo.bank)) : null,
       seconds: runInfo.timing.reduce((s, t) => s + t.seconds, 0) });
   }
 
+  const horizons = Object.keys(cards[0].horizons);
   const summary = {
-    name: options.name, sets: options.sets, host: os.hostname(), finishedAt: new Date().toISOString(),
-    ticks8k: compare(outcomes8k(council8k), reps.map((r) => outcomes8k(path.join(r.dir, 'eval8k.json')))),
-    ticks20k: compare(outcomes20k(council20k), reps.map((r) => outcomes20k(path.join(r.dir, 'standard20k.json')))),
+    name: options.name, sets: options.sets, evalSets: options.evalSets, host: os.hostname(), finishedAt: new Date().toISOString(),
+    horizons: Object.fromEntries(horizons.map((h) => [h, pool(cards, h)])),
     levers: reps.map((r) => ({ rep: r.rep, ...r.levers })),
     trainingSeconds: reps.map((r) => Math.round(r.seconds)),
   };
   const out = path.join(options.session, `${options.name}_summary.json`);
   fs.writeFileSync(out, `${JSON.stringify(summary, null, 2)}\n`);
-  for (const horizon of ['ticks8k', 'ticks20k']) {
-    const h = summary[horizon];
+  for (const horizon of horizons) {
+    const h = summary.horizons[horizon];
     console.log(`${horizon}: council pop ${h.council.pop} (ext ${h.council.extinctions}) | pooled ${h.pooled.pop} vs council ${h.pooled.vsCouncil.mean} (SE ${h.pooled.vsCouncil.se}, z ${h.pooled.vsCouncil.z}, wins ${h.pooled.vsCouncil.wins}/${h.pooled.vsCouncil.n}), replicate SD ${h.pooled.replicateSd}`);
     h.replicates.forEach((r, i) => console.log(`  r${i + 1}: pop ${r.pop} vs council ${r.vsCouncil.mean} (z ${r.vsCouncil.z}), avoidable ${r.avoidable}, extinctions ${r.extinctions}`));
   }
   console.log(`[replicates] summary written to ${path.relative(ROOT, out)}`);
 }
 
-try {
-  main();
-} catch (error) {
+main().catch((error) => {
   console.error(`[replicates] ${error.message}`);
   process.exit(1);
-}
+});

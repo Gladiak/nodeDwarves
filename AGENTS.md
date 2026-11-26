@@ -54,6 +54,7 @@ This file defines how to implement new features in a consistent, stable way.
 - `debug/scenario_validation_latest.json` (written by `scripts/validate_scenarios.js`): latest scenario-catalog validation.
 - `saves/`: git-ignored per-colony checkpoints and previous valid backups.
 - `.cache/snapshot_bank/`: git-ignored snapshot banks keyed by game config, bank shape and start policy (built by `scripts/train_recipe.js`).
+- `.cache/scorecard/`: git-ignored scorecard results per (simulation sources, config, horizon, player content), written by `scripts/scorecard.js`.
 - `.cache/promote_eval_cache.json`: git-ignored, bounded cache of deterministic best-policy promotion evals, keyed by simulation/evaluator sources, eval config, policy file and eval parameters.
 - `src/simulation/`: simulation systems split by theme.
 - `src/simulation/index.js`: simulation orchestrator.
@@ -141,6 +142,7 @@ This file defines how to implement new features in a consistent, stable way.
 - `scripts/build_snapshot_bank.js`: mid-game snapshot bank for training starts (STRATEGY.md S4d): plays training games through `ai_server.js` (council or a policy) and saves gzip states at fixed ticks.
 - `scripts/train_recipe.js`: single training entry point (STRATEGY.md T1, `npm run ai:train:recipe`): runs `ai.training.recipe` into a self-contained run folder (frozen phase configs, effective recipe, logs, policy), builds or reuses the cached snapshot bank, never writes `models/`.
 - `scripts/test_recipe_contracts.js`: recipe validation, recipe-only train arguments, phase configs and policy-owned cadence contracts (included in `npm test`).
+- `scripts/scorecard.js`: single evaluator and promotion gate (STRATEGY.md T3, `npm run ai:scorecard`, `npm run ai:promote`): plays a policy at its own cadence and the council on the `ai.evaluation` horizons (8,000-tick eval plan, 20,000-tick standard game) through `experiments/challenge_probe.js`, caches results by simulation sources, config, horizon and player content in `.cache/scorecard/`, and promotes to `models/policy_best.*` only when the gate passes.
 - `scripts/headless_benchmark.js`: deterministic headless benchmark CLI for long-run tuning and validation.
 - `scripts/sim_fingerprint.js`: full-state canonical fingerprint of seeded no-AI games at fixed checkpoints (`--save` before, `--compare` after) for bit-identical refactors and optimizations (`npm run sim:fingerprint`).
 - `scripts/ensure_benchmark_baseline.js`: baseline cache guard that auto-refreshes cached baseline reports when benchmark profile metadata mismatches.
@@ -185,7 +187,7 @@ This file defines how to implement new features in a consistent, stable way.
   - `exp_run.js`: isolated m4-pro training variants (`--fresh-start`, `--chain`, `--set`, `--freeze-only`); never writes `models/`, verifies it by hash.
   - `leverage_probe.py`: resumable per-governor-group leverage probe with paired report.
   - `analyze.py`: paired-delta summary of `exp_run.js` variants.
-  - `replicates.js`: one resumable command for replicated recipe runs: trains each replicate with `scripts/train_recipe.js`, evaluates it and the council at 8,000 (eval plan) and 20,000 ticks (standard game), reads the policy's lever choices and writes a pooled paired summary.
+  - `replicates.js`: one resumable command for replicated recipe runs: trains each replicate with `scripts/train_recipe.js`, scores it with `scripts/scorecard.js` (council cached), reads the policy's lever choices and writes a pooled paired summary.
   - `pairing_probe.py`: variance of lever-effect estimates from bank snapshots (antithetic lever noise, shared vs different game seeds); tells whether paired branches or a given exploration scale can carry learning signal.
   - `sensitivity_screen.js`: resumable one-at-a-time +/-25% screen of `CORE_KEYS` (`--keys all` adds `FROZEN_KEYS`) with paired effects on population, avoidable deaths and progress.
   - `runs/`: git-ignored session outputs.
@@ -237,7 +239,7 @@ This file defines how to implement new features in a consistent, stable way.
 - Training and in-game inference must see the same observation values: share helpers between `ai_server.js` and `src/ai/observation.js` (e.g. `getObservationNodeRatio`) and re-run the `STRATEGY.md` S1 parity check after any observation change.
 - The critic predicts normalized returns with output-preserving rescaling; only true terminal states (extinction) cut bootstrap, time limits bootstrap.
 - The reward is the compact outcome reward (`src/ai/outcome_reward.js`, weights in `ai.reward`); keep it short and tied to colony outcomes. Check new terms with `experiments/challenge_probe.js` (score vs final population and avoidable deaths) before training.
-- Promotion compares policies over 8,000 ticks with `rpp` (reward per planned tick), so an early extinction scores zero for the ticks it did not live.
+- Promotion compares policies over 8,000 ticks with `rpp` (reward per planned tick), so an early extinction scores zero for the ticks it did not live, and refuses a 20,000-tick regression; v2 policies are scored and promoted only through `scripts/scorecard.js` (one evaluator, settings in `ai.evaluation`).
 - Keep logs low-noise: `diag` should be averaged per log window.
 - Track model quality over time and prefer steady, incremental improvements over sudden unstable jumps.
 

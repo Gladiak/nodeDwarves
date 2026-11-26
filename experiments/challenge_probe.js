@@ -403,7 +403,7 @@ function runPool(tasks, options) {
       worker.once('message', (episode) => {
         results.push(episode);
         const s = episode.summary;
-        console.log(`[challenge] ${results.length}/${tasks.length} ${s.player} ${s.scenario} seed=${s.seed} `
+        if (!options.quiet) console.log(`[challenge] ${results.length}/${tasks.length} ${s.player} ${s.scenario} seed=${s.seed} `
           + `pop=${s.final_pop} avoid=${s.avoidable_deaths} ${((Date.now() - started) / 1000).toFixed(0)}s`);
       });
       worker.once('error', reject);
@@ -457,8 +457,11 @@ async function main() {
   console.log(`[challenge] wrote ${options.out}`);
 }
 
+// Episode runner shared with scripts/scorecard.js (the single evaluator, STRATEGY.md T3).
+module.exports = { buildTasks, runPool, summarize };
+
 if (isMainThread) {
-  main().catch((error) => { console.error(error); process.exit(1); });
+  if (require.main === module) main().catch((error) => { console.error(error); process.exit(1); });
 } else {
   const episode = runEpisode(workerData.task, workerData.options);
   if (configTrace) configTrace.flush();

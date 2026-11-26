@@ -9,6 +9,8 @@
     "ai:play": "node app.js --ai models/policy_best.json",
     "ai:train": "node scripts/train_wrapper.js",
     "ai:train:recipe": "node scripts/train_recipe.js",
+    "ai:scorecard": "node scripts/scorecard.js",
+    "ai:promote": "node scripts/scorecard.js --promote",
     "sim:fingerprint": "node scripts/sim_fingerprint.js",
     "ai:train:m4": "node scripts/train_wrapper.js m4",
     "ai:train:m4pro": "node scripts/train_wrapper.js m4-pro",

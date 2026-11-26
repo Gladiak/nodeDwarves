@@ -3242,6 +3242,15 @@
         "saveBestDuringTraining": true,
         "seed": 0
       }
+    },
+    "evaluation": {
+      "councilStepTicks": 10,
+      "cacheDir": ".cache/scorecard",
+      "horizons": [
+        { "name": "8k", "plan": "eval", "ticks": 8000, "games": 24, "seedBase": 100000 },
+        { "name": "20k", "plan": "standard", "ticks": 20000, "games": 32, "seedBase": 101 }
+      ],
+      "gate": { "horizon": "8k", "minImprove": 0.005, "lcbZ": 1.96, "guardHorizon": "20k", "guardZ": 1 }
     }
   },
   "variety": {
