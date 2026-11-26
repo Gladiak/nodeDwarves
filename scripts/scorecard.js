@@ -12,8 +12,10 @@
 //   options for smoke tests: --config <file>, --set <ai.evaluation path>=<json> (e.g. horizons.0.ticks=400)
 //
 // Gate (ai.evaluation.gate): paired reward per planned tick (`rpp`) of the candidate minus the
-// incumbent on the gate horizon must exceed minImprove with a lower bound (lcbZ) above zero, and the
-// guard horizon must not regress (upper bound at guardZ not below zero). The incumbent is the current
+// incumbent on the gate horizon must exceed minImprove with a lower bound (lcbZ) above zero, and on the
+// guard horizon no metric listed in `guards` may be worse beyond guardZ standard errors: rpp and final
+// population (upper bound not below zero), extinctions and avoidable deaths (lower bound not above
+// zero), as the section 6 protocol of STRATEGY.md asks of training changes. The incumbent is the current
 // best policy when it is a v2 policy (has stepTicks), otherwise the council. --promote copies a passing
 // candidate (and its trainer state) to models/policy_best.* and writes the scorecard as its meta.
 
@@ -28,6 +30,8 @@ const AVOIDABLE = ['starvation', 'raid', 'deepRaid', 'ruins', 'warriorLeague'];
 // of every cache key, like the simulation sources and experiments/challenge_probe.js.
 const EVALUATION_VERSION = 1;
 // Repository-relative label for files inside the repository, absolute otherwise.
+// Guard metrics of the gate and their direction: +1 = higher is better, -1 = lower is better.
+const GUARD_DIRECTION = { rpp: 1, pop: 1, extinctions: -1, avoidable: -1 };
 const label = (file) => (path.relative(ROOT, file).startsWith('..') ? file : path.relative(ROOT, file));
 
 function parseArgs(argv) {
@@ -92,6 +96,10 @@ function validateSettings(settings) {
   if (!names.has(gate.horizon) || !names.has(gate.guardHorizon)) throw new Error('ai.evaluation.gate horizons must name configured horizons');
   for (const key of ['minImprove', 'lcbZ', 'guardZ']) {
     if (!Number.isFinite(gate[key]) || gate[key] < 0) throw new Error(`ai.evaluation.gate.${key} must be a number >= 0`);
+  }
+  if (!Array.isArray(gate.guards) || gate.guards.length === 0 || gate.guards.some((m) => !(m in GUARD_DIRECTION))
+      || new Set(gate.guards).size !== gate.guards.length) {
+    throw new Error(`ai.evaluation.gate.guards must list distinct metrics among ${Object.keys(GUARD_DIRECTION).join(', ')}`);
   }
 }
 
@@ -180,21 +188,36 @@ function aggregate(games) {
     avoidable: average(games.map((g) => g.avoidable)), extinctions: games.filter((g) => g.extinct).length, games: games.length };
 }
 
+// Paired candidate-minus-other deltas per game: final population, rpp, extinction (1/0), avoidable deaths.
 function comparison(a, b) {
-  return { pop: paired(a.map((g) => g.pop), b.map((g) => g.pop)), rpp: paired(a.map((g) => g.rpp), b.map((g) => g.rpp)) };
+  const pair = (value) => paired(a.map(value), b.map(value));
+  return { pop: pair((g) => g.pop), rpp: pair((g) => g.rpp), extinctions: pair((g) => (g.extinct ? 1 : 0)),
+    avoidable: pair((g) => g.avoidable) };
 }
 
 // Gate decision on the scorecard of a candidate against the incumbent.
+// A guard metric is "worse beyond guardZ SE" when even its most favourable bound is on the wrong side:
+// upper bound below zero for higher-is-better metrics, lower bound above zero for lower-is-better ones.
 function gateDecision(horizons, gate) {
   const primary = horizons[gate.horizon].vsAgainst.rpp;
-  const guard = horizons[gate.guardHorizon].vsAgainst.rpp;
   const lower = primary.mean - gate.lcbZ * primary.se;
-  const upper = guard.mean + gate.guardZ * guard.se;
   const reasons = [];
   if (primary.mean < gate.minImprove) reasons.push(`${gate.horizon} rpp delta ${primary.mean.toFixed(4)} < minImprove ${gate.minImprove}`);
   if (lower <= 0) reasons.push(`${gate.horizon} rpp lower bound ${lower.toFixed(4)} <= 0`);
-  if (upper < 0) reasons.push(`${gate.guardHorizon} rpp upper bound ${upper.toFixed(4)} < 0 (long-horizon regression)`);
-  return { pass: reasons.length === 0, lowerBound: lower, guardUpperBound: upper, reasons };
+  const guards = {};
+  for (const metric of gate.guards) {
+    const delta = horizons[gate.guardHorizon].vsAgainst[metric];
+    const direction = GUARD_DIRECTION[metric];
+    // Rounded so that a bound of exactly zero (e.g. 3/32 - 1 x 3/32) is not lost to float residue.
+    const bound = Math.round((delta.mean + direction * gate.guardZ * delta.se) * 1e9) / 1e9;
+    const ok = direction > 0 ? bound >= 0 : bound <= 0;
+    guards[metric] = { mean: delta.mean, se: delta.se, bound, ok };
+    if (!ok) {
+      reasons.push(`${gate.guardHorizon} ${metric} worse beyond ${gate.guardZ} SE: delta ${delta.mean.toFixed(4)}, `
+        + `${direction > 0 ? 'upper' : 'lower'} bound ${bound.toFixed(4)} ${direction > 0 ? '< 0' : '> 0'}`);
+    }
+  }
+  return { pass: reasons.length === 0, lowerBound: lower, guards, reasons };
 }
 
 // Load a policy file and require the cadence the evaluator plays it at.
@@ -252,12 +275,15 @@ function printScorecard(card) {
     console.log(`${name} (${h.plan}, ${h.ticks} ticks, ${h.policy.games} games): council pop ${h.council.pop.toFixed(1)} `
       + `ext ${h.council.extinctions} avoidable ${h.council.avoidable.toFixed(1)} | policy pop ${h.policy.pop.toFixed(1)} `
       + `ext ${h.policy.extinctions} avoidable ${h.policy.avoidable.toFixed(1)}`);
-    console.log(`  vs council: pop ${formatPaired(h.vsCouncil.pop)}, rpp ${formatPaired(h.vsCouncil.rpp)}`);
-    if (h.against) console.log(`  vs ${card.against}: pop ${formatPaired(h.vsAgainst.pop)}, rpp ${formatPaired(h.vsAgainst.rpp)}`);
+    const line = (c) => `pop ${formatPaired(c.pop)}, rpp ${formatPaired(c.rpp)}, extinct ${formatPaired(c.extinctions)}, `
+      + `avoidable ${formatPaired(c.avoidable)}`;
+    console.log(`  vs council: ${line(h.vsCouncil)}`);
+    if (h.against) console.log(`  vs ${card.against}: ${line(h.vsAgainst)}`);
   }
   if (card.gate) {
+    const guards = Object.entries(card.gate.guards).map(([m, g]) => `${m} ${g.ok ? 'ok' : 'FAIL'} ${g.bound.toFixed(4)}`).join(', ');
     console.log(`gate vs ${card.against}: ${card.gate.pass ? 'PASS' : 'FAIL'}`
-      + ` (lower bound ${card.gate.lowerBound.toFixed(4)}, guard upper bound ${card.gate.guardUpperBound.toFixed(4)})`);
+      + ` (${card.settings.gate.horizon} rpp lower bound ${card.gate.lowerBound.toFixed(4)}; ${card.settings.gate.guardHorizon} guards: ${guards})`);
     for (const reason of card.gate.reasons) console.log(`  - ${reason}`);
   }
 }
@@ -301,7 +327,7 @@ async function main() {
   }
 }
 
-module.exports = { scorecard, evaluationSettings, gateDecision, paired, horizonOptions, cacheKey };
+module.exports = { scorecard, evaluationSettings, gateDecision, comparison, paired, horizonOptions, cacheKey };
 
 if (require.main === module) {
   main().catch((error) => { console.error(`[scorecard] ${error.message}`); process.exit(1); });

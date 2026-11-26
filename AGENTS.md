@@ -228,7 +228,7 @@ This file defines how to implement new features in a consistent, stable way.
 - Training and in-game inference must see the same observation values: share helpers between `ai_server.js` and `src/ai/observation.js` (e.g. `getObservationNodeRatio`) and re-run the `STRATEGY.md` S1 parity check after any observation change.
 - The critic predicts normalized returns with output-preserving rescaling; only true terminal states (extinction) cut bootstrap, time limits bootstrap.
 - The reward is the compact outcome reward (`src/ai/outcome_reward.js`, weights in `ai.reward`); keep it short and tied to colony outcomes. Check new terms with `experiments/challenge_probe.js` (score vs final population and avoidable deaths) before training.
-- Promotion compares policies over 8,000 ticks with `rpp` (reward per planned tick), so an early extinction scores zero for the ticks it did not live, and refuses a 20,000-tick regression; v2 policies are scored and promoted only through `scripts/scorecard.js` (one evaluator, settings in `ai.evaluation`).
+- Promotion compares policies over 8,000 ticks with `rpp` (reward per planned tick), so an early extinction scores zero for the ticks it did not live, and refuses a 20,000-tick regression in `rpp`, population, extinctions or avoidable deaths beyond one SE; v2 policies are scored and promoted only through `scripts/scorecard.js` (one evaluator, settings in `ai.evaluation`).
 - Keep logs low-noise: `diag` should be averaged per log window.
 - Track model quality over time and prefer steady, incremental improvements over sudden unstable jumps.
 

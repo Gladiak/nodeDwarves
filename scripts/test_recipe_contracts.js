@@ -17,7 +17,7 @@ const { applySets, validateRecipe, buildPhaseConfig, buildTrainerArgs } = requir
 const { loadPolicy, getPolicyStepTicks } = require('../src/ai_policy');
 const { createGameSession, advanceGameSession } = require('../src/game_session');
 const { buildRuntime } = require('../src/runtime');
-const { scorecard, evaluationSettings, gateDecision, cacheKey } = require('./scorecard');
+const { scorecard, evaluationSettings, gateDecision, comparison, cacheKey } = require('./scorecard');
 const { createTestPolicyPayload } = require('./test_policy_fixture');
 
 const passed = [];
@@ -139,21 +139,39 @@ function testTrainingConfigSurface() {
   passed.push('training_config_surface');
 }
 
-// The evaluation settings are complete and mistakes are refused; the gate applies its three rules.
+// The evaluation settings are complete and mistakes are refused; the gate applies its rules: 8k rpp
+// improvement with a lower bound above zero, and no 20k guard metric worse beyond guardZ SE.
 function testEvaluationSettingsAndGate() {
   const settings = evaluationSettings(baseConfig);
   assert.deepEqual(settings.horizons.map((h) => [h.plan, h.ticks]), [['eval', 8000], ['standard', 20000]]);
+  assert.deepEqual(settings.gate.guards, ['rpp', 'pop', 'extinctions', 'avoidable'], 'the 20k guards are the section 6 rule');
   for (const bad of ['horizons.1.name="8k"', 'horizons.0.plan="other"', 'horizons.0.ticks=0', 'gate.horizon="5k"',
-    'gate.lcbZ=-1', 'councilStepTicks=0']) {
+    'gate.lcbZ=-1', 'councilStepTicks=0', 'gate.guards=[]', 'gate.guards=["deaths"]', 'gate.guards=["pop","pop"]']) {
     assert.throws(() => evaluationSettings(baseConfig, [bad]), undefined, `accepted ${bad}`);
   }
-  const gate = { horizon: 'a', guardHorizon: 'b', minImprove: 0.005, lcbZ: 1.96, guardZ: 1 };
-  const card = (primary, guard) => ({ a: { vsAgainst: { rpp: primary } }, b: { vsAgainst: { rpp: guard } } });
+  const gate = { horizon: 'a', guardHorizon: 'b', minImprove: 0.005, lcbZ: 1.96, guardZ: 1,
+    guards: ['rpp', 'pop', 'extinctions', 'avoidable'] };
   const p = (mean, se) => ({ mean, se });
-  assert.equal(gateDecision(card(p(0.02, 0.005), p(-0.01, 0.02)), gate).pass, true);
-  assert.equal(gateDecision(card(p(0.004, 0.0001), p(0, 0.01)), gate).pass, false, 'passed below minImprove');
-  assert.equal(gateDecision(card(p(0.02, 0.02), p(0, 0.01)), gate).pass, false, 'passed with lower bound <= 0');
-  assert.equal(gateDecision(card(p(0.02, 0.005), p(-0.05, 0.01)), gate).pass, false, 'passed a long-horizon regression');
+  const fine = { rpp: p(0, 0.01), pop: p(0, 10), extinctions: p(0, 0.05), avoidable: p(0, 5) };
+  const card = (primary, guard = {}) => ({ a: { vsAgainst: { rpp: primary } }, b: { vsAgainst: { ...fine, ...guard } } });
+  assert.equal(gateDecision(card(p(0.02, 0.005), { rpp: p(-0.01, 0.02) }), gate).pass, true);
+  assert.equal(gateDecision(card(p(0.004, 0.0001)), gate).pass, false, 'passed below minImprove');
+  assert.equal(gateDecision(card(p(0.02, 0.02)), gate).pass, false, 'passed with lower bound <= 0');
+  assert.equal(gateDecision(card(p(0.02, 0.005), { rpp: p(-0.05, 0.01) }), gate).pass, false, 'passed an rpp regression');
+  assert.equal(gateDecision(card(p(0.02, 0.005), { pop: p(-37.4, 36.3) }), gate).pass, false, 'passed a population regression');
+  assert.equal(gateDecision(card(p(0.02, 0.005), { extinctions: p(0.156, 0.101) }), gate).pass, false, 'passed more extinctions');
+  assert.equal(gateDecision(card(p(0.02, 0.005), { avoidable: p(23.4, 9.6) }), gate).pass, false, 'passed more avoidable deaths');
+  assert.equal(gateDecision(card(p(0.02, 0.005), { pop: p(-20, 30), extinctions: p(0.09, 0.09), avoidable: p(5, 9) }), gate).pass,
+    true, 'refused a change within one SE');
+  assert.equal(gateDecision(card(p(0.02, 0.005), { extinctions: p(3 / 32, 3 / 32) }), gate).guards.extinctions.ok, true,
+    'a bound of exactly zero is not worse');
+  assert.equal(gateDecision(card(p(0.02, 0.005), { avoidable: p(23.4, 9.6) }), { ...gate, guards: ['rpp'] }).pass, true,
+    'guards outside the configured list must not count');
+
+  // Paired comparison: extinction is a 1/0 per game, avoidable deaths are counts.
+  const games = (rows) => rows.map(([pop, extinct, avoidable], i) => ({ key: `g${i}`, pop, extinct, avoidable, rpp: pop / 1000 }));
+  const delta = comparison(games([[0, true, 9], [120, false, 4]]), games([[100, false, 3], [100, false, 4]]));
+  assert.deepEqual([delta.extinctions.mean, delta.avoidable.mean, delta.pop.mean], [0.5, 3, -40]);
   passed.push('evaluation_gate');
 }
 
