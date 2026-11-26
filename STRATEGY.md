@@ -513,6 +513,21 @@ Status 2026-11-26: T3 built and checked (E43).
 - Contracts (`scripts/test_recipe_contracts.js`): settings validation, the three gate rules, refusal of
   policies without a cadence, reproducible scorecards, cache hits, same games for every player.
 - `eval_paired.py`, `promote_best.py` and `ai.training.promotion` remain for v1 policies until T4.
+- `scripts/train_recipe.js --bank-only` builds (or finds) the cached snapshot bank and stops, to prepare
+  a machine ahead of a run. The bank cache key hashes the whole config, so any config edit (even
+  `ai.evaluation`) rebuilds a bank whose content is identical; banks stay out of git (250-400 MB of
+  binaries, invalidated by T4) and are moved between machines by hand with `--bank <dir>` if needed.
+
+Where we are (2026-11-26, end of day):
+- Done and pushed: T0, T1, T2 (trainer built, E38), T3 (scorecard and gate, E43), last commit e77e8f7.
+- Running elsewhere: E42 is launched on another machine at e77e8f7 (so it is scored by
+  `scripts/scorecard.js`), building its own 40,000-tick bank on the first replicate; about 3 h on a
+  10-core M4 (bank ~25 min, council ~10 min, per replicate ~45-50 min training + ~13 min scorecard).
+  Result: `experiments/runs/2026-11-27_e42/persist_summary.json` on that machine.
+- To resume: read E42 (pooled 8k and 20k vs council, extinctions, avoidable deaths, lever readout);
+  adopt persistent exploration (`leverNoiseHold` 280, `leverLogStdInit` 0) as the recipe default if
+  20,000 is not worse, record E42 and the decision; then T4 (can start before E42 ends: it does not
+  change the game or the recipe), then T5 with the gate-metric question of E43.
 
 ### S5. Two-level policy and chained improvement (D3, D4)
 - Cadence, snapshot starts and the 20,000-tick gate moved into S4 (S4c, S4d, S4f); what stays here
@@ -682,7 +697,7 @@ Deterministic regression of the no-AI game: `npm run bench:candidate` then `npm 
 | 2026-11-26 | E41 | Persistent wide lever exploration (`leverNoiseHold`, `leverLogStdInit`) is the lever-learning approach to replicate; not yet the recipe default (1 replicate) |
 | 2026-11-26 | T | `experiments/replicates.js` runs replicated recipe runs and their council comparison in one resumable command; `ai:bootstrap` pins torch 2.10.0 and numpy 2.4.3 |
 | 2026-11-26 | T3 (E43) | `scripts/scorecard.js` (`npm run ai:scorecard`, `ai:promote`) is the single evaluator and gate for v2 policies, settings in `ai.evaluation`, council cached per game version; same gate rules as before (8k `rpp` LCB, 20k guard), now in ticks at each policy's cadence |
-| next | T2 (E42), T4 | E42: 3 replicates of persistent exploration on the default recipe vs the council with the `replicates.js` command in section 6 (running on another machine on commit 50fffda, which still evaluates with `eval_paired.py` at 8,000 ticks; compare within that session); adopt if 20,000 is not worse. In parallel T4: delete the old stack. Open for T5: whether the gate keeps `rpp` or adds population/extinction rules (E43) |
+| next | T2 (E42), T4 | E42: 3 replicates of persistent exploration on the default recipe vs the council with the `replicates.js` command in section 6 (launched on another machine at e77e8f7, scored by `scripts/scorecard.js`; see "Where we are" under T3); adopt if 20,000 is not worse. In parallel T4: delete the old stack. Open for T5: whether the gate keeps `rpp` or adds population/extinction rules (E43) |
 
 ### Scorecard v1 (S0, session `experiments/runs/2026-11-24_s0`, commit a5e3998, git-ignored)
 

@@ -8,7 +8,7 @@
 //
 // Usage:
 //   node scripts/train_recipe.js --out <run dir> [--rep 1] [--phases foundation,finetune]
-//     [--set <recipe path>=<json>] [--bank <existing bank dir>] [--from <policy.json>] [--dry-run]
+//     [--set <recipe path>=<json>] [--bank <existing bank dir>] [--from <policy.json>] [--dry-run] [--bank-only]
 //
 // Examples:
 //   node scripts/train_recipe.js --out experiments/runs/t1/base_r1
@@ -25,7 +25,7 @@ const PYTHON = path.join(ROOT, ".venv", "bin", "python");
 
 // Parse CLI options into a plain object.
 function parseOptions(argv) {
-  const options = { rep: 1, sets: [], phases: null, bank: null, from: null, dryRun: false };
+  const options = { rep: 1, sets: [], phases: null, bank: null, from: null, dryRun: false, bankOnly: false };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     const next = () => {
@@ -40,6 +40,7 @@ function parseOptions(argv) {
     else if (arg === "--bank") options.bank = path.resolve(next());
     else if (arg === "--from") options.from = path.resolve(next());
     else if (arg === "--dry-run") options.dryRun = true;
+    else if (arg === "--bank-only") options.bankOnly = true;
     else throw new Error(`Unknown option: ${arg}`);
   }
   if (!options.out) throw new Error("--out is required");
@@ -214,6 +215,11 @@ function main() {
     const first = selected.findIndex(({ phase }) => phase.snapshotProb > 0);
     bank = options.bank
       || ensureSnapshotBank(recipe, phaseFiles[first].config, phaseFiles[first].payload, options.from, options.dryRun);
+  }
+  // --bank-only builds (or finds) the cached snapshot bank ahead of a run and stops there.
+  if (options.bankOnly) {
+    console.log(`[recipe] snapshot bank: ${bank ? path.relative(ROOT, bank) : "none (no phase uses snapshot starts)"}`);
+    return;
   }
   if (options.from) {
     fs.copyFileSync(options.from, path.join(options.out, "p.json"));
