@@ -5,7 +5,7 @@ Every change to difficulty, reward, action/observation design or the training re
 with the protocol in section 6 and recorded here (section 8). `README.md` describes the product;
 `AGENTS.md` holds contributor rules. No other Markdown is kept in the repository.
 
-Status date: 2026-11-24.
+Status date: 2026-11-26.
 
 ---
 
@@ -123,6 +123,7 @@ Paired by seed. "Pop" = final population; "avoidable" = deaths excluding old age
 | E33 | 11-26 | S4a lever audit: horizon-dependent levers and two council inefficiencies | council, 24 eval games x 8,000 ticks and 16 standard games x 20,000, each candidate low/high vs scorecard v3 (paired z; best/game = share of games won by the most frequent setting): growth 50%/yr +39 pop at 8k (z 2.5) but -86 at 20k (z -2.1, avoidable +42, 4 extinctions), best/game 88% at 8k vs 50% at 20k; ventures open (ruins, Underrealm, camps) avoidable +68 (z 3.9) and progress +38 (z 5.0) at 20k, best/game 56-58%; reserves 1.8x target +24 at 8k (z 2.8), best/game 62%; builders 0.10 avoidable +6 (z 3.0) and progress +12 (z 2.2) at 8k, best/game 42-44%; Underrealm share 0.45 -17 pop at 8k (z -2.1), 0.10 progress -16 at 20k (z -2.9), best/game 50-62%; guard share and merchant reserve: no outcome |z| >= 2. Housing target 1.2 (vs 1.7) +122 at 20k (z 4.5, best in 14/16) and later meals (thresholds +40%) +38 at 8k (z 4.2), +97 at 20k (best in 19/24 and 14/16): council inefficiencies, not levers. Both as defaults: council 202 vs 166 at 8k (z 4.0), 352 vs 185 at 20k (z 5.5), 0/16 extinctions; everything-on -87 at 20k (z -3.6) with avoidable +52 and progress +49 | Levers for S4b: growth rate, reserves, builders, Underrealm share, ventures (risk). Housing target and meal thresholds stay at the v3 values and stay out of the AI's reach: adopting them made the council colony nearly immortal (0/16 extinctions at 20k), and the game must stay a challenge (decision 2026-11-26). Open: eating later is free (no morale or work cost); a real cost would turn rationing into a lever |
 | E34 | 11-26 | S4b-S4f built; cadence sweep (one replicate each, 640 episodes, half the episodes from snapshots, gamma for a ~10,000-tick horizon) | action space v2: 9 heads (4 job weights + growth, reserves, builders, Underrealm share, ventures) instead of 33; 7 strategic inputs (age shares, births last year, growth budget, food/water autonomy); snapshot bank of 368 states (48 council games, 2,000-16,000 ticks, 156 MB); training 12-14 min per 640 episodes. vs council, eval 24 x 8,000: every 10 ticks +21 pop (z 2.1), 20 ticks +9, 40 ticks +12 (z 1.8); standard 16 x 20,000: -15, -9, -21 (all n.s.), avoidable +16, +27 (z 2.0), +1; extinctions 0, 1, 1 (council 2). Levers stay near the council midpoint (0.3-0.75) after 640 episodes: growth and reserves slightly up, Underrealm share low early and higher late | Cadence 10 ticks (gamma 0.999); 3 replicates of 1,920 episodes; dual-horizon gate in `promote_best.py` (`canonical.longHorizon`: 16 games x 20,000 ticks, block if paired mean + 1 SE < 0) |
 | E35 | 11-26 | S4 verdict: the v2 stack works, the trained policies do not beat the council at 20,000 ticks | 2 of 3 planned replicates (cadence 10, gamma 0.999, 1,920 episodes, half from snapshots; replicate 3 stopped): eval 24 x 8,000 vs council 166: r1 190 (+14%, z 1.95), r2 156 (-6%, z -1.3); standard 32 x 20,000 vs council 170 (4/32 extinctions): r1 137 (z -1.4, 1/32, median drawdown 54% vs 34%), r2 150 (z -0.7, avoidable +23 z 2.1, 4/32). Training diagnostics: critic explained variance 0 -> 0.93 (the value side learns), but policy entropy rose 5.57 -> 5.90 in both runs: with entropy coefficient 0.008 ramped over 15,000 episodes the exploration bonus outweighs the weak per-decision advantage of 9 strategic heads, so lever means stay near the council midpoint (0.3-0.75) and runs diverge | S4 pass not met (needs +10% at 20,000 with z >= 2 over 3 replicates). Kept: action space v2, strategic inputs, snapshot bank, dual-horizon gate, cadence 10. Next: fix the entropy schedule for v2 (ramp within the run, lower final coefficient), then longer runs, before S5 |
+| E36 | 11-26 | S4 fix screen: the entropy schedule is not what keeps v2 levers at the midpoint | E35 recipe rebuilt (cadence 10, gamma 0.999, 280 steps = 2,800 ticks per foundation episode, 50% starts from a fresh 368-state council bank), 320 foundation episodes, 1 replicate each: old schedule (0.008, ramp 15,000) entropy 5.569 -> 5.609, ramp within the run 0.008 -> 0 flat (5.568 -> 5.566), 0.002 -> 0 falling (5.563 -> 5.534); per-head log std -0.79 to -0.81 in all three (init -0.80), mean reward 427/428/434. One run makes ~1,500-2,000 Adam steps at lr <= 2.5e-4, so log std can move at most ~0.3-0.4 whatever the schedule (E35 moved +0.04 per head): exploration noise is set by `logStdInit`. Likely bottleneck: noise is drawn independently every 10 ticks while levers act over years, so one decision's effect is lost in game variance. Training speed 30-41 episodes/min (1,920 episodes ~50-65 min) | Entropy schedule unchanged (a 3+3 replicate test would cost ~7 h for an expected null); next step is temporally correlated exploration (S5) |
 | E21 | 11-25 | Evaluation speed is not the bottleneck | 24 games x 8,000 ticks: `eval_paired.py` 61 s, in-process JS 60 s; per worker ~270 ticks/s at late-game population (3.7 ms/tick) | Keep `eval_paired.py` as the reference evaluator; noise, not speed, limits decisions |
 
 E19, 24 games x 8,000 ticks (seed base 100000):
@@ -427,14 +428,21 @@ Status 2026-11-26: S4 closed, pass not met (E33-E35).
   evaluators use each policy's own action list, so v1 and v2 policies compare under one config.
 - Measured: cadence 10 best of 10/20/40 (E34); replicates 1-2 at 1,920 episodes: +14% and -6% at
   8,000 ticks, both below the council at 20,000 (E35). Production `models/` unchanged (v1).
-- Cause found: policy entropy grows during v2 training; the entropy schedule tuned for 33 heads
-  and 2-tick decisions is too strong for 9 strategic heads. First thing to fix before S5.
+- Suspected cause: policy entropy grows during v2 training under the schedule tuned for 33 heads.
+  The S4 fix screen (E36) showed the schedule barely moves the noise (log std stays at its init
+  within a run); the likely bottleneck is per-decision independent exploration noise, which S5
+  addresses first.
 - Not done in S4: cadence 10 is not yet the default of `train_wrapper` phases, the gate or the game
   (`ai.stepTicks` stays 5 for the v1 policy); S1-style JS/Python parity run on a v2 policy.
 
 ### S5. Two-level policy and chained improvement (D3, D4)
 - Cadence, snapshot starts and the 20,000-tick gate moved into S4 (S4c, S4d, S4f); what stays here
   is the two-level policy, the snapshot A/B and the chained-run improvement test.
+- First (E36): temporally correlated exploration. The trainer draws the lever exploration noise once
+  and holds it for K decisions (about a season) instead of redrawing it every 10 ticks, so one
+  exploratory choice lasts long enough to change the outcome. Screen K against the per-decision
+  control on the E36 recipe, then 3 replicates of the best K against the council at 8,000 and
+  20,000 ticks. This is the cheap precursor of the seasonal plan below.
 - Try a two-level policy: a seasonal plan chosen at the start of each season (growth, reserves, risk,
   workforce) plus small adjustments at the regular cadence; it shortens credit assignment to a few
   decisions per year. Adopt it only if it beats the flat policy under the same pass criteria.
@@ -566,7 +574,8 @@ Deterministic regression of the no-AI game: `npm run bench:candidate` then `npm 
 | 2026-11-26 | S4a | Levers: growth, reserves, builders, Underrealm share, ventures (E33); housing target and meal thresholds kept at v3 values so the game stays a challenge |
 | 2026-11-26 | S6+S7 | Observation v2, scale and curriculum merged into one step and one fresh training cycle |
 | 2026-11-26 | S4 | Closed without meeting the pass: the v2 stack is kept, trained policies stay at the council level at 20,000 ticks; entropy schedule identified as the first fix (E35) |
-| next | S4 fix | Entropy schedule for v2 (within-run ramp, lower final coefficient), longer runs, parity check; then S5 |
+| 2026-11-26 | E36 | Entropy schedule left unchanged: within a run it cannot move the exploration noise; S4 fix replaced by temporally correlated exploration |
+| next | S5 | Exploration noise held for K decisions (screen K, then 3 replicates vs the council); cadence 10 as recipe default and S1 parity check on a v2 policy |
 
 ### Scorecard v1 (S0, session `experiments/runs/2026-11-24_s0`, commit a5e3998, git-ignored)
 

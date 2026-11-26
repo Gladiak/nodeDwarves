@@ -2609,6 +2609,7 @@ def worker_loop(worker_id, task_queue, result_queue, update_queue, resources, se
                     transport=settings.get("transport", TRANSPORT_LEGACY),
                     observation_layout=observation_layout,
                     snapshot=choose_snapshot(settings, seed, episode_number),
+                    lever_noise_hold=settings.get("lever_noise_hold", 1),
                 )
             except (BrokenPipeError, EOFError, OSError, RuntimeError) as exc:
                 report_worker_error(
@@ -2947,7 +2948,7 @@ class ActorCritic(nn.Module):
     def value_raw(self, obs):
         return self.value(obs).squeeze(-1) * self.value_std + self.value_mean
 
-    def act(self, obs, min_weight, max_weight, deterministic=False):
+    def act(self, obs, min_weight, max_weight, deterministic=False, noise=None):
         mean = self.policy(obs)
         if deterministic:
             tanh_action = torch.tanh(mean)
@@ -2956,7 +2957,9 @@ class ActorCritic(nn.Module):
         else:
             std = self.log_std.exp()
             dist = Normal(mean, std)
-            pre_tanh = dist.rsample()
+            # `noise` (standard normal, same shape as mean) lets the rollout hold exploration noise
+            # across decisions (STRATEGY.md E36); each draw stays N(0, 1), so log_prob is unchanged.
+            pre_tanh = dist.rsample() if noise is None else mean + std * noise
             tanh_action = torch.tanh(pre_tanh)
             action = scale_action(tanh_action, min_weight, max_weight)
             log_prob = dist.log_prob(pre_tanh) - torch.log(1 - tanh_action.pow(2) + 1e-6)
@@ -3070,6 +3073,7 @@ def run_episode(
     transport=TRANSPORT_LEGACY,
     observation_layout=OBSERVATION_LAYOUT_PER_RESOURCE,
     snapshot=None,
+    lever_noise_hold=1,
 ):
     mode = normalize_transport_mode(transport)
     reset_payload = build_reset_payload(
@@ -3119,6 +3123,13 @@ def run_episode(
     ipc_read_seconds = 0.0
     ipc_parse_seconds = 0.0
     ipc_calls = 0
+    noise_hold = max(1, int(lever_noise_hold or 1))
+    lever_mask = None
+    held_noise = None
+    if noise_hold > 1:
+        mask = [1.0 if str(resource).startswith(LEVER_ACTION_PREFIX) else 0.0 for resource in resources]
+        if any(mask):
+            lever_mask = torch.tensor(mask, dtype=torch.float32).unsqueeze(0)
 
     with inference_mode():
         for step in range(max_steps):
@@ -3131,11 +3142,19 @@ def run_episode(
             )
             vector = normalize_vector(raw_vector, obs_normalization)
             obs_tensor = torch.as_tensor(vector, dtype=torch.float32).unsqueeze(0)
+            noise = None
+            if lever_mask is not None:
+                # Lever heads keep one noise draw for `noise_hold` decisions; job heads redraw each step.
+                fresh = torch.randn(lever_mask.shape)
+                if held_noise is None or step % noise_hold == 0:
+                    held_noise = fresh
+                noise = lever_mask * held_noise + (1.0 - lever_mask) * fresh
             action_tensor, log_prob, value = model.act(
                 obs_tensor,
                 min_weight,
                 max_weight,
                 deterministic=False,
+                noise=noise,
             )
             action = action_tensor.squeeze(0).tolist()
             step_message = build_step_message(
@@ -3922,6 +3941,7 @@ def build_training_defaults(config):
         "feature_names": feature_names,
         "activation": to_str(trainer.get("activation"), "tanh"),
         "log_std_init": to_float(trainer.get("logStdInit"), -0.5),
+        "lever_noise_hold": to_int(trainer.get("leverNoiseHold"), 1),
         "max_grad_norm": to_float(trainer.get("maxGradNorm"), 0.5),
         "workers": to_int(trainer.get("workers"), 1),
         "transport": normalize_transport_mode(
@@ -3998,6 +4018,8 @@ def parse_args():
     # Mid-game snapshot starts (STRATEGY.md S4d): a bank built by scripts/build_snapshot_bank.js.
     parser.add_argument("--snapshot-bank", default=None)
     parser.add_argument("--snapshot-prob", type=float, default=0.0)
+    # Temporally correlated exploration (STRATEGY.md S5/E36): lever noise held for N decisions.
+    parser.add_argument("--lever-noise-hold", type=int, default=defaults["lever_noise_hold"])
     parser.add_argument("--gamma", type=float, default=defaults["gamma"])
     parser.add_argument("--gae-lambda", type=float, default=defaults["gae_lambda"])
     parser.add_argument("--clip-range", type=float, default=defaults["clip_range"])
@@ -4658,6 +4680,7 @@ def main():
         "seed": args.seed,
         "snapshot_files": list_snapshot_bank(args.snapshot_bank),
         "snapshot_prob": max(0.0, min(1.0, float(args.snapshot_prob or 0.0))),
+        "lever_noise_hold": max(1, int(args.lever_noise_hold or 1)),
     }
 
     processes = []
