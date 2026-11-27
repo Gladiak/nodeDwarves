@@ -572,8 +572,11 @@ Where we are (2026-11-27):
   +0.0079, 20k population +33, extinctions level, avoidable deaths -8.6); `npm run ai:play` loads it
   (cadence 10 ticks). The headless benchmark plays no policy, so its baseline is unaffected (it
   refreshes itself on the config change).
-- Next, T5: make `leverNoiseHold` 280 / `leverLogStdInit` 0 the recipe default (6 replicates behind it);
-  future candidates face E48 r3 as the incumbent.
+- Persistent lever exploration is the recipe default (2026-11-27): `leverNoiseHold` 280, `leverLogStdInit`
+  0, the recipe of E47 and E48 (6 replicates). A default run of replicate 1 gives E48 r1's weights
+  bit for bit (session `2026-11-27_default_check`; the bank was rebuilt under the new config key with the
+  same 753 snapshots).
+- Future candidates face E48 r3 as the incumbent.
 
 ### S5. Two-level policy and chained improvement (D3, D4)
 - Cadence, snapshot starts and the 20,000-tick gate moved into S4 (S4c, S4d, S4f); what stays here
@@ -651,7 +654,7 @@ node experiments/challenge_probe.js --report $S/scorecard.json $S/standard.json
 One recipe run (any recipe key can be overridden with `--set`; the folder is self-contained):
 
 ```bash
-npm run ai:train:recipe -- --out $S/<variant>_r1 --set leverNoiseHold=280
+npm run ai:train:recipe -- --out $S/<variant>_r1 --set gamma=0.998
 ```
 
 Scorecard of one policy against the council (or `--against <policy>`), and the promotion gate:
@@ -669,7 +672,7 @@ in `<session>/<name>_summary.json`; resumable, any machine with `npm run ai:boot
 torch and numpy are pinned so runs reproduce across machines):
 
 ```bash
-node experiments/replicates.js --session experiments/runs/2026-11-27_e42 --name persist --set leverNoiseHold=280 --set leverLogStdInit=0
+node experiments/replicates.js --session experiments/runs/<date>_<id> --name <variant> --set <recipe key>=<json>
 ```
 
 Simulation A/B without code changes: add `--set path=value` (JSON values) to `challenge_probe.js`;
@@ -692,7 +695,7 @@ Deterministic regression of the no-AI game: `npm run bench:candidate` then `npm 
 | World variety | `variety.ranges` | on; food 0.7-1.3, water 0.8-1.2, winter 0.5-1.5, needs 0.9-1.1, raids 0.25-1.75 (E31) |
 | Lifespan jitter | `population.aging.lifespanJitter` | 0 (E30, not adopted) |
 | Reward | `ai.reward.*` | population 1 per 100, deaths 2, distress 1 at 0.6, reserves 0.3 at 2 per dwarf, depth 20, landmark stage 5, prestige 0.2, drawdown 1 per 100 below the cycle peak, extinction 2,000 (T5, E46; was 20 without drawdown) |
-| Recipe | `ai.training.recipe` | `v2-base`: 10 ticks per decision, gamma 0.999, 7 workers, noise hold 1, policy lag 1 batch, bank 48 council games at 2,000-40,000 ticks (policy share 0.5 on chained runs); foundation 1,920 episodes x 2,800 ticks, 50% snapshot starts, entropy 0.008 -> 0.002 over 15,000 episodes; finetune 50 x 3,600 ticks (T1) |
+| Recipe | `ai.training.recipe` | `v2-base`: 10 ticks per decision, gamma 0.999, 7 workers, lever noise held 280 decisions with lever log std 0 (E47, E48; was 1 and the job-head value), policy lag 1 batch, bank 48 council games at 2,000-40,000 ticks (policy share 0.5 on chained runs); foundation 1,920 episodes x 2,800 ticks, 50% snapshot starts, entropy 0.008 -> 0.002 over 15,000 episodes; finetune 50 x 3,600 ticks (T1) |
 | Evaluation and gate | `ai.evaluation` | council at 10 ticks per decision; eval plan = 12 named scenarios (`ai.evaluation.scenarios`); horizons 8k (eval plan, 24 games, seeds from 100,000) and 20k (standard game, 32 games, seeds 101 x i); gate on 8k `rpp`: delta >= 0.005, LCB z 1.96 > 0; 20k guards `rpp`, population, extinctions, avoidable deaths, none worse beyond 1 SE (T3, T5/E45) |
 | Trainer | `ai.training.trainer` | algorithm hyperparameters only (clip, KL, GAE, value loss and clipping, normalization, 2x128, log std init) plus the 80-name feature list (T4) |
 | Scenarios | `scenarios` (top level) | 19-entry catalog: training weights and difficulty windows, overrides; the game's scenario presets reuse its overrides as test templates (T4 moved it out of `ai.training`) |
@@ -743,7 +746,8 @@ Deterministic regression of the no-AI game: `npm run bench:candidate` then `npm 
 | 2026-11-27 | T5 (E46, E47) | Reward gains a drawdown term (1 per 100 dwarves below the cycle peak, per decision) and extinction -2,000 (was -20); observation gains `populationToPeak`; with persistent lever exploration 2 of 3 fresh replicates pass the gate at 8k and 20k (pooled 20k +43, z 1.6) |
 | 2026-11-27 | T5 (E48) | PPO ratio computed from stored pre-tanh samples (was the inverted, clamped squashed action): removes a spurious KL of up to 0.29 on saturated levers; training weights change, outcomes measured in E48 |
 | 2026-11-27 | T5 | First v2 policy promoted: E48 r3 (passes the gate vs the council; chosen over the slightly stronger E47 r3 because the current trainer reproduces it); `npm run ai:play` runs again |
-| next | T5 | Make persistent exploration the recipe default; later candidates are gated against E48 r3; see "Where we are" under T |
+| 2026-11-27 | T5 (E47, E48) | Persistent lever exploration (`leverNoiseHold` 280, `leverLogStdInit` 0) becomes the recipe default: with the drawdown reward 6 of 6 replicates beat the council at 8k, 5 of 6 at 20k on population and avoidable deaths, 3 of 6 pass the gate (reverses the E42 decision, which was taken under the old reward) |
+| next | T5 | Later candidates are gated against E48 r3; see "Where we are" under T |
 
 ### Scorecard v1 (S0, session `experiments/runs/2026-11-24_s0`, commit a5e3998, git-ignored)
 

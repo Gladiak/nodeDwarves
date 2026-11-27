@@ -2033,8 +2033,8 @@
         "gamma": 0.999,
         "workers": 7,
         "seedBase": 7000,
-        "leverNoiseHold": 1,
-        "leverLogStdInit": null,
+        "leverNoiseHold": 280,
+        "leverLogStdInit": 0,
         "policyLagBatches": 1,
         "snapshotBank": {
           "dir": ".cache/snapshot_bank",

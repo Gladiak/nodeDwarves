@@ -14,9 +14,9 @@
 // played once and cached), and the policy's deterministic lever choices on bank states. The summary
 // per replicate and pooled over replicates goes to <session>/<name>_summary.json.
 //
-// Example (E42, persistent lever exploration):
-//   node experiments/replicates.js --session experiments/runs/2026-11-27_e42 --name persist \
-//     --set leverNoiseHold=280 --set leverLogStdInit=0
+// Example (a gamma variant of the default recipe):
+//   node experiments/replicates.js --session experiments/runs/<date>_<id> --name gamma998 \
+//     --set gamma=0.998
 
 const fs = require('fs');
 const os = require('os');
