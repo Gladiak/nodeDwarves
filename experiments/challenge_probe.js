@@ -346,7 +346,8 @@ function runEpisode(task, options) {
     }
     const scored = { score: reward.total / options.ticks,
       terms: Object.fromEntries(Object.entries(reward.terms).map(([k, v]) => [k, v / options.ticks])) };
-    return { ...task, startPop, extinctionTick, targets, flows, deaths, births, samples, reward: scored, progress,
+    return { ...task, ticks: options.ticks, sampleEvery: options.sampleEvery, startPop, extinctionTick, targets, flows,
+      deaths, births, samples, reward: scored, progress,
       narrative, ...(signalRows ? { signalFields: SIGNAL_FIELDS, signals: signalRows } : {}) };
   } finally {
     Math.random = previousRandom;
@@ -393,9 +394,16 @@ function summarize(episode) {
   const avoidable = ['starvation', 'raid', 'deepRaid', 'ruins', 'warriorLeague']
     .reduce((a, k) => a + Number(episode.deaths[k] || 0), 0);
   const pops = samples.map((s) => s.pop);
+  // Mean population over the second half of the planned horizon on the sampling grid, 0 after an
+  // extinction: a time average is far less noisy than the final snapshot of an oscillating colony (E50).
+  const grid = [];
+  for (let t = episode.sampleEvery; t <= episode.ticks; t += episode.sampleEvery) if (t > episode.ticks / 2) grid.push(t);
+  const popAt = new Map(samples.map((s) => [s.tick, s.pop]));
+  const meanPopSecondHalf = grid.length ? grid.reduce((sum, t) => sum + (popAt.get(t) || 0), 0) / grid.length : last.pop;
   return {
     seed: episode.seed, scenario: episode.scenario, player: episode.player,
     start_pop: episode.startPop, final_pop: last.pop, min_pop: Math.min(...pops), peak_pop: Math.max(...pops),
+    mean_pop_second_half: meanPopSecondHalf,
     drawdown: Math.max(...pops) > 0 ? 1 - last.pop / Math.max(...pops) : 0,
     extinction_tick: episode.extinctionTick, births: episode.births, deaths: episode.deaths,
     avoidable_deaths: avoidable,

@@ -13,11 +13,14 @@
 //
 // Gate (ai.evaluation.gate): paired reward per planned tick (`rpp`) of the candidate minus the
 // incumbent on the gate horizon must exceed minImprove with a lower bound (lcbZ) above zero, and on the
-// guard horizon no metric listed in `guards` may be worse beyond guardZ standard errors: rpp and final
-// population (upper bound not below zero), extinctions and avoidable deaths (lower bound not above
-// zero), as the section 6 protocol of STRATEGY.md asks of training changes. The incumbent is the current
-// best policy when it is a v2 policy (has stepTicks), otherwise the council. --promote copies a passing
-// candidate (and its trainer state) to models/policy_best.* and writes the scorecard as its meta.
+// guard horizon no metric listed in `guards` may be worse beyond guardZ standard errors: rpp, final
+// population and mean population over the second half (`latePop`; upper bound not below zero),
+// extinctions and avoidable deaths (lower bound not above zero), as the section 6 protocol of
+// STRATEGY.md asks of training changes. With `staged` the gate horizon is played first and the other
+// horizons only when the candidate passes its primary test (E51), so a failing candidate costs one
+// short horizon. The incumbent is the current best policy when it is a v2 policy (has stepTicks),
+// otherwise the council. --promote copies a passing candidate (and its trainer state) to
+// models/policy_best.* and writes the scorecard as its meta.
 
 const crypto = require('crypto');
 const fs = require('fs');
@@ -28,10 +31,10 @@ const probe = require(path.join(ROOT, 'experiments', 'challenge_probe.js'));
 const AVOIDABLE = ['starvation', 'raid', 'deepRaid', 'ruins', 'warriorLeague'];
 // Bump when the way games are set up or scored here changes (horizonOptions, gameOutcome): it is part
 // of every cache key, like the simulation sources and experiments/challenge_probe.js.
-const EVALUATION_VERSION = 1;
+const EVALUATION_VERSION = 2;
 // Repository-relative label for files inside the repository, absolute otherwise.
 // Guard metrics of the gate and their direction: +1 = higher is better, -1 = lower is better.
-const GUARD_DIRECTION = { rpp: 1, pop: 1, extinctions: -1, avoidable: -1 };
+const GUARD_DIRECTION = { rpp: 1, pop: 1, latePop: 1, extinctions: -1, avoidable: -1 };
 const label = (file) => (path.relative(ROOT, file).startsWith('..') ? file : path.relative(ROOT, file));
 
 function parseArgs(argv) {
@@ -97,6 +100,8 @@ function validateSettings(settings) {
   for (const key of ['minImprove', 'lcbZ', 'guardZ']) {
     if (!Number.isFinite(gate[key]) || gate[key] < 0) throw new Error(`ai.evaluation.gate.${key} must be a number >= 0`);
   }
+  if (typeof settings.staged !== 'boolean') throw new Error('ai.evaluation.staged must be true or false');
+  if (!Number.isFinite(settings.earlyStopZ)) throw new Error('ai.evaluation.earlyStopZ must be a number');
   if (!Array.isArray(gate.guards) || gate.guards.length === 0 || gate.guards.some((m) => !(m in GUARD_DIRECTION))
       || new Set(gate.guards).size !== gate.guards.length) {
     throw new Error(`ai.evaluation.gate.guards must list distinct metrics among ${Object.keys(GUARD_DIRECTION).join(', ')}`);
@@ -147,7 +152,8 @@ function cacheKey(player, horizon, settings, configText) {
 
 // Compact per-game outcome kept in the cache and the scorecard.
 function gameOutcome(summary) {
-  return { key: `${summary.seed}:${summary.scenario}`, pop: summary.final_pop, extinct: summary.extinction_tick !== null,
+  return { key: `${summary.seed}:${summary.scenario}`, pop: summary.final_pop, latePop: summary.mean_pop_second_half,
+    extinct: summary.extinction_tick !== null,
     avoidable: AVOIDABLE.reduce((s, k) => s + Number((summary.deaths || {})[k] || 0), 0), rpp: summary.outcome_score };
 }
 
@@ -184,27 +190,39 @@ function paired(a, b) {
 const average = (xs) => xs.reduce((s, x) => s + x, 0) / xs.length;
 
 function aggregate(games) {
-  return { pop: average(games.map((g) => g.pop)), rpp: average(games.map((g) => g.rpp)),
+  return { pop: average(games.map((g) => g.pop)), latePop: average(games.map((g) => g.latePop)), rpp: average(games.map((g) => g.rpp)),
     avoidable: average(games.map((g) => g.avoidable)), extinctions: games.filter((g) => g.extinct).length, games: games.length };
 }
 
-// Paired candidate-minus-other deltas per game: final population, rpp, extinction (1/0), avoidable deaths.
+// Paired candidate-minus-other deltas per game: final and second-half population, rpp, extinction (1/0),
+// avoidable deaths.
 function comparison(a, b) {
   const pair = (value) => paired(a.map(value), b.map(value));
-  return { pop: pair((g) => g.pop), rpp: pair((g) => g.rpp), extinctions: pair((g) => (g.extinct ? 1 : 0)),
+  return { pop: pair((g) => g.pop), latePop: pair((g) => g.latePop), rpp: pair((g) => g.rpp),
+    extinctions: pair((g) => (g.extinct ? 1 : 0)),
     avoidable: pair((g) => g.avoidable) };
 }
 
 // Gate decision on the scorecard of a candidate against the incumbent.
 // A guard metric is "worse beyond guardZ SE" when even its most favourable bound is on the wrong side:
 // upper bound below zero for higher-is-better metrics, lower bound above zero for lower-is-better ones.
-function gateDecision(horizons, gate) {
-  const primary = horizons[gate.horizon].vsAgainst.rpp;
+// Primary test of the gate on the gate horizon: rpp delta >= minImprove with its lower bound above zero.
+function primaryTest(entry, gate) {
+  const primary = entry.vsAgainst.rpp;
   const lower = primary.mean - gate.lcbZ * primary.se;
   const reasons = [];
   if (primary.mean < gate.minImprove) reasons.push(`${gate.horizon} rpp delta ${primary.mean.toFixed(4)} < minImprove ${gate.minImprove}`);
   if (lower <= 0) reasons.push(`${gate.horizon} rpp lower bound ${lower.toFixed(4)} <= 0`);
+  return { lower, reasons };
+}
+
+function gateDecision(horizons, gate) {
+  const { lower, reasons } = primaryTest(horizons[gate.horizon], gate);
   const guards = {};
+  if (!horizons[gate.guardHorizon]) {
+    reasons.push(`${gate.guardHorizon} not played (staged evaluation stops after a failed ${gate.horizon} test)`);
+    return { pass: false, lowerBound: lower, guards, reasons };
+  }
   for (const metric of gate.guards) {
     const delta = horizons[gate.guardHorizon].vsAgainst[metric];
     const direction = GUARD_DIRECTION[metric];
@@ -247,23 +265,35 @@ async function scorecard({ policy, against = null, configFile = null, sets = [],
     cacheDir: path.resolve(ROOT, settings.cacheDir) };
   const againstPlayer = against && against !== 'council' ? `policy:${against}` : null;
   const horizons = {};
-  for (const horizon of settings.horizons) {
+  // Staged evaluation plays the gate horizon first and stops when the candidate fails its primary test.
+  const staged = settings.staged && Boolean(against);
+  const ordered = staged
+    ? [...settings.horizons].sort((a, b) => (b.name === settings.gate.horizon) - (a.name === settings.gate.horizon))
+    : settings.horizons;
+  const skipped = [];
+  let stop = false;
+  for (const horizon of ordered) {
+    if (stop) { skipped.push(horizon.name); continue; }
     const council = await playHorizon('default', horizon, settings, context);
     const candidate = await playHorizon(`policy:${policy}`, horizon, settings, context);
     const entry = { plan: horizon.plan, ticks: horizon.ticks, council: aggregate(council), policy: aggregate(candidate),
       vsCouncil: comparison(candidate, council) };
+    entry.outcomes = { council, policy: candidate };
     if (againstPlayer) {
       const other = await playHorizon(againstPlayer, horizon, settings, context);
       entry.against = aggregate(other);
       entry.vsAgainst = comparison(candidate, other);
+      entry.outcomes.against = other;
     } else if (against === 'council') {
       entry.vsAgainst = entry.vsCouncil;
     }
-    entry.outcomes = { council, policy: candidate };
     horizons[horizon.name] = entry;
+    if (staged && horizon.name === settings.gate.horizon && primaryTest(entry, settings.gate).reasons.length) {
+      stop = true;
+    }
   }
   return { policy: label(policy), against: against ? (against === 'council' ? 'council' : label(against)) : null,
-    settings, sources: sourcesDigest(), horizons };
+    settings, sources: sourcesDigest(), horizons, skipped };
 }
 
 function formatPaired(p) {
@@ -275,11 +305,12 @@ function printScorecard(card) {
     console.log(`${name} (${h.plan}, ${h.ticks} ticks, ${h.policy.games} games): council pop ${h.council.pop.toFixed(1)} `
       + `ext ${h.council.extinctions} avoidable ${h.council.avoidable.toFixed(1)} | policy pop ${h.policy.pop.toFixed(1)} `
       + `ext ${h.policy.extinctions} avoidable ${h.policy.avoidable.toFixed(1)}`);
-    const line = (c) => `pop ${formatPaired(c.pop)}, rpp ${formatPaired(c.rpp)}, extinct ${formatPaired(c.extinctions)}, `
+    const line = (c) => `pop ${formatPaired(c.pop)}, late pop ${formatPaired(c.latePop)}, rpp ${formatPaired(c.rpp)}, extinct ${formatPaired(c.extinctions)}, `
       + `avoidable ${formatPaired(c.avoidable)}`;
     console.log(`  vs council: ${line(h.vsCouncil)}`);
     if (h.against) console.log(`  vs ${card.against}: ${line(h.vsAgainst)}`);
   }
+  if (card.skipped && card.skipped.length) console.log(`(staged: ${card.skipped.join(', ')} not played after a failed ${card.settings.gate.horizon} test)`);
   if (card.gate) {
     const guards = Object.entries(card.gate.guards).map(([m, g]) => `${m} ${g.ok ? 'ok' : 'FAIL'} ${g.bound.toFixed(4)}`).join(', ');
     console.log(`gate vs ${card.against}: ${card.gate.pass ? 'PASS' : 'FAIL'}`
@@ -327,7 +358,7 @@ async function main() {
   }
 }
 
-module.exports = { scorecard, evaluationSettings, gateDecision, comparison, paired, horizonOptions, cacheKey };
+module.exports = { scorecard, evaluationSettings, gateDecision, primaryTest, comparison, paired, horizonOptions, cacheKey };
 
 if (require.main === module) {
   main().catch((error) => { console.error(`[scorecard] ${error.message}`); process.exit(1); });

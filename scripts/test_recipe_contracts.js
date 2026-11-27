@@ -13,7 +13,7 @@ const os = require('os');
 const path = require('path');
 const baseConfig = require('../config.json');
 const { spawnSync } = require('child_process');
-const { applySets, validateRecipe, buildPhaseConfig, buildTrainerArgs } = require('./train_recipe');
+const { applySets, validateRecipe, buildPhaseConfig, buildTrainerArgs, bankKeyConfig } = require('./train_recipe');
 const { loadPolicy, getPolicyStepTicks } = require('../src/ai_policy');
 const { createGameSession, advanceGameSession } = require('../src/game_session');
 const { buildRuntime } = require('../src/runtime');
@@ -84,6 +84,13 @@ function testPhaseConfig() {
   const untouched = structuredClone(baseConfig);
   buildPhaseConfig(untouched, recipe, phase);
   assert.deepEqual(untouched, baseConfig, 'buildPhaseConfig mutated the base config');
+  // The bank key ignores evaluation settings and the recipe (no game code reads them), not the game.
+  const tweaked = structuredClone(config);
+  tweaked.ai.evaluation.earlyStopZ = 5;
+  tweaked.ai.training.recipe.gamma = 0.5;
+  assert.deepEqual(bankKeyConfig(tweaked), bankKeyConfig(config), 'evaluation or recipe changes rebuild the bank');
+  tweaked.population.reproduction.baseChance += 0.001;
+  assert.notDeepEqual(bankKeyConfig(tweaked), bankKeyConfig(config), 'a game change reuses an old bank');
   passed.push('phase_config');
 }
 
@@ -144,21 +151,26 @@ function testTrainingConfigSurface() {
 function testEvaluationSettingsAndGate() {
   const settings = evaluationSettings(baseConfig);
   assert.deepEqual(settings.horizons.map((h) => [h.plan, h.ticks]), [['eval', 8000], ['standard', 20000]]);
-  assert.deepEqual(settings.gate.guards, ['rpp', 'pop', 'extinctions', 'avoidable'], 'the 20k guards are the section 6 rule');
+  assert.deepEqual(settings.gate.guards, ['rpp', 'latePop', 'extinctions', 'avoidable'], 'the 20k guards are the section 6 rule on the E51 metric');
+  assert.equal(settings.staged, true, 'the gate horizon is played first');
   for (const bad of ['horizons.1.name="8k"', 'horizons.0.plan="other"', 'horizons.0.ticks=0', 'gate.horizon="5k"',
-    'gate.lcbZ=-1', 'councilStepTicks=0', 'gate.guards=[]', 'gate.guards=["deaths"]', 'gate.guards=["pop","pop"]']) {
+    'gate.lcbZ=-1', 'councilStepTicks=0', 'gate.guards=[]', 'gate.guards=["deaths"]', 'gate.guards=["pop","pop"]', 'staged="yes"', 'earlyStopZ="low"']) {
     assert.throws(() => evaluationSettings(baseConfig, [bad]), undefined, `accepted ${bad}`);
   }
   const gate = { horizon: 'a', guardHorizon: 'b', minImprove: 0.005, lcbZ: 1.96, guardZ: 1,
-    guards: ['rpp', 'pop', 'extinctions', 'avoidable'] };
+    guards: ['rpp', 'pop', 'latePop', 'extinctions', 'avoidable'] };
   const p = (mean, se) => ({ mean, se });
-  const fine = { rpp: p(0, 0.01), pop: p(0, 10), extinctions: p(0, 0.05), avoidable: p(0, 5) };
+  const fine = { rpp: p(0, 0.01), pop: p(0, 10), latePop: p(0, 8), extinctions: p(0, 0.05), avoidable: p(0, 5) };
   const card = (primary, guard = {}) => ({ a: { vsAgainst: { rpp: primary } }, b: { vsAgainst: { ...fine, ...guard } } });
   assert.equal(gateDecision(card(p(0.02, 0.005), { rpp: p(-0.01, 0.02) }), gate).pass, true);
   assert.equal(gateDecision(card(p(0.004, 0.0001)), gate).pass, false, 'passed below minImprove');
   assert.equal(gateDecision(card(p(0.02, 0.02)), gate).pass, false, 'passed with lower bound <= 0');
   assert.equal(gateDecision(card(p(0.02, 0.005), { rpp: p(-0.05, 0.01) }), gate).pass, false, 'passed an rpp regression');
   assert.equal(gateDecision(card(p(0.02, 0.005), { pop: p(-37.4, 36.3) }), gate).pass, false, 'passed a population regression');
+  assert.equal(gateDecision(card(p(0.02, 0.005), { latePop: p(-25, 20) }), gate).pass, false, 'passed a late-population regression');
+  const staged = gateDecision({ a: { vsAgainst: { rpp: p(0.001, 0.01) } } }, gate);
+  assert.equal(staged.pass, false, 'passed without the guard horizon');
+  assert.match(staged.reasons.join(' '), /not played/, 'a staged stop must say the guard horizon was not played');
   assert.equal(gateDecision(card(p(0.02, 0.005), { extinctions: p(0.156, 0.101) }), gate).pass, false, 'passed more extinctions');
   assert.equal(gateDecision(card(p(0.02, 0.005), { avoidable: p(23.4, 9.6) }), gate).pass, false, 'passed more avoidable deaths');
   assert.equal(gateDecision(card(p(0.02, 0.005), { pop: p(-20, 30), extinctions: p(0.09, 0.09), avoidable: p(5, 9) }), gate).pass,
@@ -169,9 +181,9 @@ function testEvaluationSettingsAndGate() {
     'guards outside the configured list must not count');
 
   // Paired comparison: extinction is a 1/0 per game, avoidable deaths are counts.
-  const games = (rows) => rows.map(([pop, extinct, avoidable], i) => ({ key: `g${i}`, pop, extinct, avoidable, rpp: pop / 1000 }));
+  const games = (rows) => rows.map(([pop, extinct, avoidable], i) => ({ key: `g${i}`, pop, latePop: pop / 2, extinct, avoidable, rpp: pop / 1000 }));
   const delta = comparison(games([[0, true, 9], [120, false, 4]]), games([[100, false, 3], [100, false, 4]]));
-  assert.deepEqual([delta.extinctions.mean, delta.avoidable.mean, delta.pop.mean], [0.5, 3, -40]);
+  assert.deepEqual([delta.extinctions.mean, delta.avoidable.mean, delta.pop.mean, delta.latePop.mean], [0.5, 3, -40, -20]);
   passed.push('evaluation_gate');
 }
 
@@ -185,7 +197,7 @@ async function testScorecard() {
     fs.writeFileSync(legacy, JSON.stringify({ ...source, stepTicks: undefined }));
     const file = path.join(directory, 'policy.json');
     fs.writeFileSync(file, JSON.stringify(source));
-    const sets = ['horizons.0.ticks=60', 'horizons.0.games=2', 'horizons.1.ticks=60', 'horizons.1.games=2',
+    const sets = ['horizons.0.ticks=60', 'horizons.0.games=2', 'horizons.1.ticks=60', 'horizons.1.games=2', 'staged=false',
       `cacheDir=${JSON.stringify(path.join(directory, 'cache'))}`];
     await assert.rejects(scorecard({ policy: legacy, sets, workers: 2 }), /stepTicks/);
     const first = await scorecard({ policy: file, against: 'council', sets, workers: 2 });
@@ -196,7 +208,12 @@ async function testScorecard() {
     assert.equal(fs.readdirSync(path.join(directory, 'cache')).length, cached, 'cached results were played again');
     for (const h of Object.values(first.horizons)) {
       assert.deepEqual(h.outcomes.policy.map((g) => g.key), h.outcomes.council.map((g) => g.key), 'players saw different games');
+      assert.ok(h.outcomes.policy.every((g) => Number.isFinite(g.latePop) && g.latePop >= 0), 'missing second-half population');
     }
+    // Staged: a candidate that fails the gate test is not played on the guard horizon.
+    const stagedCard = await scorecard({ policy: file, against: 'council', workers: 2,
+      sets: [...sets.filter((s) => s !== 'staged=false'), 'staged=true', 'gate.minImprove=1000'] });
+    assert.deepEqual([Object.keys(stagedCard.horizons), stagedCard.skipped], [['8k'], ['20k']], 'staged evaluation played the guard horizon');
     const settings = evaluationSettings(baseConfig, sets);
     const key = (player, horizon) => cacheKey(player, horizon, settings, 'config');
     const changed = path.join(directory, 'changed.json');

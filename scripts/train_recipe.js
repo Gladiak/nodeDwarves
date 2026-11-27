@@ -152,14 +152,24 @@ function hashModels() {
     .map((file) => `${file}:${sha256(fs.readFileSync(path.join(dir, file)))}`).join("\n");
 }
 
-// Reuse or build the snapshot bank. The cache key is the game config, the bank shape and the start
-// policy: a chained run (--from) rebuilds the bank with that policy playing `policyShare` of the
-// games, so training also sees the late-game states the current policy produces itself.
+// The part of a phase config the bank games depend on: everything but the evaluation settings and the
+// training recipe, which no game code reads (the bank shape enters the key separately), so tuning the
+// evaluator or a recipe knob reuses the bank instead of replaying 48 games.
+function bankKeyConfig(config) {
+  const copy = JSON.parse(JSON.stringify(config));
+  if (copy.ai) delete copy.ai.evaluation;
+  if (copy.ai && copy.ai.training) delete copy.ai.training.recipe;
+  return copy;
+}
+
+// Reuse or build the snapshot bank. The cache key is the game config (bankKeyConfig), the bank shape
+// and the start policy: a chained run (--from) rebuilds the bank with that policy playing `policyShare`
+// of the games, so training also sees the late-game states the current policy produces itself.
 function ensureSnapshotBank(recipe, bankConfigPath, bankConfig, fromPolicy, dryRun) {
   const settings = recipe.snapshotBank;
   const policyHash = fromPolicy ? sha256(fs.readFileSync(fromPolicy)) : null;
   const share = fromPolicy ? settings.policyShare : 0;
-  const key = sha256(JSON.stringify({ config: bankConfig, games: settings.games, ticks: settings.ticks, policyHash, share }))
+  const key = sha256(JSON.stringify({ config: bankKeyConfig(bankConfig), games: settings.games, ticks: settings.ticks, policyHash, share }))
     .slice(0, 16);
   const dir = path.resolve(ROOT, settings.dir, key);
   if (fs.existsSync(path.join(dir, "manifest.json")) || dryRun) return dir;
@@ -247,7 +257,7 @@ function main() {
   fs.writeFileSync(path.join(options.out, "run.json"), `${JSON.stringify(run, null, 2)}\n`);
 }
 
-module.exports = { applySets, validateRecipe, buildPhaseConfig, buildTrainerArgs };
+module.exports = { applySets, validateRecipe, buildPhaseConfig, buildTrainerArgs, bankKeyConfig };
 
 if (require.main === module) {
   try {

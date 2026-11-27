@@ -2186,6 +2186,8 @@
     "evaluation": {
       "councilStepTicks": 10,
       "cacheDir": ".cache/scorecard",
+      "staged": true,
+      "earlyStopZ": -1,
       "scenarios": [
         "baseline",
         "full_sim",
@@ -2205,7 +2207,7 @@
         { "name": "20k", "plan": "standard", "ticks": 20000, "games": 32, "seedBase": 101 }
       ],
       "gate": { "horizon": "8k", "minImprove": 0.005, "lcbZ": 1.96, "guardHorizon": "20k", "guardZ": 1,
-        "guards": ["rpp", "pop", "extinctions", "avoidable"] }
+        "guards": ["rpp", "latePop", "extinctions", "avoidable"] }
     }
   },
   "scenarios": [
@@ -5832,8 +5834,8 @@
         "water": 0.54
       },
       "minStockpileRatio": {
-        "food": 0.6,
-        "water": 0.6
+        "food": 0,
+        "water": 0
       }
     },
     "death": {

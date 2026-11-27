@@ -727,6 +727,8 @@ function attemptConceptions(state, config, reproduction) {
     return;
   }
 
+  // Optional hard stop below `minStockpileRatio` (0 by default since E52: the per-capita reserve factor
+  // slows births instead, so a long shortage no longer outlasts the fertile window).
   const minRatios = reproduction.minStockpileRatio || {};
   for (const [resource, ratioRaw] of Object.entries(minRatios)) {
     const minRatio = clamp(Number(ratioRaw || 0), 0, 1);
