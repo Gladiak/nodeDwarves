@@ -1,4 +1,5 @@
-"""GAE and the clipped PPO update, ported unchanged from the old python/train.py (bit parity checked in E38)."""
+"""GAE and the clipped PPO update, ported from the old python/train.py (bit parity checked in E38); since
+E48 the ratio uses the stored pre-tanh samples instead of inverting the squashed actions."""
 
 import torch
 import torch.nn as nn
@@ -37,9 +38,9 @@ def value_loss_elements(prediction, target, huber_delta):
 
 # One PPO update over a batch of transitions. `hp` holds the algorithm hyperparameters; returns
 # averaged statistics plus the critic's explained variance before the update.
-def ppo_update(model, optimizer, batch, low, high, hp, entropy_coef, return_stats):
+def ppo_update(model, optimizer, batch, hp, entropy_coef, return_stats):
     obs = torch.tensor(batch["obs"], dtype=torch.float32)
-    actions = torch.tensor(batch["actions"], dtype=torch.float32)
+    pre_tanh = torch.tensor(batch["pre_tanh"], dtype=torch.float32)
     old_log_probs = torch.tensor(batch["log_probs"], dtype=torch.float32)
     returns_raw = torch.tensor(batch["returns"], dtype=torch.float32)
     old_values_raw = torch.tensor(batch["values"], dtype=torch.float32)
@@ -76,7 +77,7 @@ def ppo_update(model, optimizer, batch, low, high, hp, entropy_coef, return_stat
         for start in range(0, batch_size, hp["mini_batch_size"]):
             idx = indices[start:start + hp["mini_batch_size"]]
             mean = model.policy(obs[idx])
-            log_prob = log_prob_of(mean, model.log_std, actions[idx], low, high)
+            log_prob = log_prob_of(mean, model.log_std, pre_tanh[idx])
             log_ratio = log_prob - old_log_probs[idx]
             ratio = torch.exp(log_ratio)
             approx_kl = ((ratio - 1.0) - log_ratio).mean()

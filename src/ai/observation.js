@@ -8,11 +8,11 @@ const { getExternalCampStatus } = require('../simulation/external_camps');
 const { getSchismStatus } = require('../simulation/schism');
 const { getClanList, getClanShare } = require('../clans');
 const { getTerrainResourceRatio } = require('../simulation/terrain');
-const { isFertileAdult } = require('../simulation/population');
+const { isFertileAdult, getPopulationPeak } = require('../simulation/population');
 
 // Strategic feature names (STRATEGY.md S4e), all in [0, 1]: age structure and food/water autonomy.
 const STRATEGIC_FEATURE_NAMES = ['childShare', 'fertileShare', 'elderShare', 'birthsLastYear', 'growthBudget',
-  'foodAutonomy', 'waterAutonomy'];
+  'foodAutonomy', 'waterAutonomy', 'populationToPeak'];
 
 // Age structure, growth budget and reserve autonomy shared by training and in-game inference.
 // Autonomy = stock / (population x need decay x current need-pace multiplier / relief per unit),
@@ -56,6 +56,8 @@ function buildStrategicObservation(state, config) {
     growthBudget: budget,
     foodAutonomy: autonomy('food', 'hunger', consumption.rawFoodRelief),
     waterAutonomy: autonomy('water', 'thirst', consumption.waterRelief),
+    // Population against the cycle peak, the quantity the reward's drawdown term charges (T5, E46).
+    populationToPeak: population > 0 ? clamp(population / getPopulationPeak(state), 0, 1) : 0,
   };
 }
 

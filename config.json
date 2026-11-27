@@ -1953,7 +1953,8 @@
       "depth": 20,
       "landmarkStage": 5,
       "prestige": 0.2,
-      "extinction": 20
+      "drawdown": 1,
+      "extinction": 2000
     },
     "levers": {
       "enabled": true,
@@ -2175,7 +2176,8 @@
           "birthsLastYear",
           "growthBudget",
           "foodAutonomy",
-          "waterAutonomy"
+          "waterAutonomy",
+          "populationToPeak"
         ],
         "logStdInit": -0.8,
         "maxGradNorm": 0.5

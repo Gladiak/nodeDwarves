@@ -1168,7 +1168,32 @@ function updateDerivedState(dwarf) {
   dwarf.state.fatigue = clamp(avgNeed, 0, 1);
 }
 
+// Running population peak of the current cycle (STRATEGY.md T5, E46), read by the outcome reward's
+// drawdown term and the AI observation (population / peak). Bookkeeping only: no RNG, no gameplay effect.
+function trackPopulationPeak(state) {
+  const cycle = Number((state.cycleStats && state.cycleStats.count) || 0);
+  const population = Array.isArray(state.dwarves) ? state.dwarves.length : 0;
+  const record = state.populationPeak;
+  if (!record || record.cycle !== cycle) {
+    state.populationPeak = { cycle, value: population };
+  } else if (population > record.value) {
+    record.value = population;
+  }
+}
+
+// Population peak of the current cycle, never below the current population (states saved before the
+// tracker existed, or a cycle that has not ticked yet, report the population itself).
+function getPopulationPeak(state) {
+  const population = Array.isArray(state && state.dwarves) ? state.dwarves.length : 0;
+  const cycle = Number((state && state.cycleStats && state.cycleStats.count) || 0);
+  const record = state && state.populationPeak;
+  const value = record && record.cycle === cycle ? Number(record.value) || 0 : 0;
+  return Math.max(population, value);
+}
+
 module.exports = {
+  trackPopulationPeak,
+  getPopulationPeak,
   advanceAge,
   drawLifespanScale,
   getLifespanScale,

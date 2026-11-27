@@ -32,7 +32,7 @@ def run_episode(server, model, obs_stats, spec, settings):
     hold = settings["lever_noise_hold"]
     lever_mask = torch.tensor([[1.0 if env.is_lever(a) else 0.0 for a in actions_ids]]) if hold > 1 else None
     held_noise = None
-    rollout = {"obs": [], "obs_raw": [], "actions": [], "log_probs": [], "values": [], "rewards": [], "dones": []}
+    rollout = {"obs": [], "obs_raw": [], "pre_tanh": [], "log_probs": [], "values": [], "rewards": [], "dones": []}
     done = terminated = False
     steps = 0
     total_reward = 0.0
@@ -48,7 +48,7 @@ def run_episode(server, model, obs_stats, spec, settings):
                 if held_noise is None or step % hold == 0:
                     held_noise = fresh
                 noise = lever_mask * held_noise + (1.0 - lever_mask) * fresh
-            action, log_prob, value = model.act(obs_tensor, low, high, noise=noise)
+            action, log_prob, value, pre_tanh = model.act(obs_tensor, low, high, noise=noise)
             action_values = action.squeeze(0).tolist()
             response = server.step(action_values, settings["step_ticks"])
             reward = float(response.get("reward", 0.0))
@@ -58,7 +58,7 @@ def run_episode(server, model, obs_stats, spec, settings):
             terminated = done and reason not in env.TRUNCATION_REASONS
             rollout["obs"].append(vector)
             rollout["obs_raw"].append(raw)
-            rollout["actions"].append(action_values)
+            rollout["pre_tanh"].append(pre_tanh.squeeze(0).tolist())
             rollout["log_probs"].append(float(log_prob.item()))
             rollout["values"].append(float(value.item()))
             rollout["rewards"].append(reward)

@@ -51,7 +51,7 @@ This file defines how to implement new features in a consistent, stable way.
 - `scripts/validate_scenarios.js`: milestone-only two-seed catalog validation, long pressure runs, checkpoint restoration and policy compatibility (promoted policy, or the test fixture while none is promoted).
 - `debug/scenario_validation_latest.json` (written by `scripts/validate_scenarios.js`): latest scenario-catalog validation.
 - `saves/`: git-ignored per-colony checkpoints and previous valid backups.
-- `models/`: the promoted v2 policy (`policy_best.json`, `.state.pt`, `.meta.json`), written only by `npm run ai:promote`; absent until a policy passes the gate.
+- `models/`: the promoted v2 policy (`policy_best.json`, `.state.pt`, `.meta.json`), written only by `npm run ai:promote` (first v2 policy: E48 r3, 2026-11-27).
 - `.cache/snapshot_bank/`: git-ignored snapshot banks keyed by game config, bank shape and start policy (built by `scripts/train_recipe.js`).
 - `.cache/scorecard/`: git-ignored scorecard results per (simulation sources, config, horizon, player content), written by `scripts/scorecard.js`.
 - `src/simulation/`: simulation systems split by theme.
@@ -125,7 +125,7 @@ This file defines how to implement new features in a consistent, stable way.
   labels, coordinates, and event/UI location lookup.
 - `src/ai/`: AI modules (policy and observation).
 - `src/ai/observation_layout.js`: shared legacy/factored observation layout plans used by the training server and in-game policy inference.
-- `src/ai/outcome_reward.js`: compact outcome-tied training reward (population, avoidable deaths, distress, reserves, progress, extinction) used by `ai_server.js` when `ai.reward.mode` is `outcome`.
+- `src/ai/outcome_reward.js`: compact outcome-tied training reward (population, avoidable deaths, distress, reserves, progress, drawdown below the cycle population peak, extinction) used by `ai_server.js` and the evaluators.
 - `src/ai_policy.js`: thin wrapper for `src/ai/policy.js`.
 - `src/clans.js`: clan helpers and weighted clan distribution.
 - `src/dwarf_lore.js`: deterministic lore seed and generation for identity, inspect, and narrative consumers.
@@ -174,7 +174,8 @@ This file defines how to implement new features in a consistent, stable way.
 - `python/test_trainer_v2.py`: JS/Python inference parity, policy round trip and pure episode settings (run by `scripts/test_recipe_contracts.js`).
 - `python/agent.py`: example Python agent for the `ai_server.js` JSON transport.
 - `experiments/`: measurement tools used by the `STRATEGY.md` protocol.
-  - `challenge_probe.js`: in-process scorecard for synthetic players and trained policies (`policy:<file>`, game JS inference): stock flows, reserve autonomy, labor mix, deaths, outcome-reward score, progress; eval plan or the `npm start` game, with `--set` A/B overrides.
+  - `challenge_probe.js`: in-process scorecard for synthetic players and trained policies (`policy:<file>`, game JS inference): stock flows, reserve autonomy, labor mix, deaths, outcome-reward score, progress; eval plan or the `npm start` game, with `--set` A/B overrides; optional per-decision signal rows (`recordSignals`) for the reward screen.
+  - `reward_screen.js`: offline reward screen (STRATEGY.md T5): records per-decision outcome signals and age structure of several players on the 20,000-tick scorecard horizon (`challenge_probe` `recordSignals`), then replays candidate rewards and reports how well each ranks players and games like final population at 20,000 ticks (undiscounted, discounted from mid-game starts, and at 8,000 ticks).
   - `replicates.js`: one resumable command for replicated recipe runs: trains each replicate with `scripts/train_recipe.js`, scores it with `scripts/scorecard.js` (council cached), reads the policy's lever choices and writes a pooled paired summary.
   - `pairing_probe.py`: variance of lever-effect estimates from bank snapshots (antithetic lever noise, shared vs different game seeds); tells whether paired branches or a given exploration scale can carry learning signal.
   - `sensitivity_screen.js`: resumable one-at-a-time +/-25% screen of `CORE_KEYS` (`--keys all` adds `FROZEN_KEYS`) with paired effects on population, avoidable deaths and progress.

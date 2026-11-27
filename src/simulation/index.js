@@ -22,6 +22,7 @@ const {
   assignHousing,
   cohouseCouples,
   getWinterHousingPenalty,
+  trackPopulationPeak,
 } = require('./population');
 const { updateBrewmasters, updateRoles } = require('./roles');
 const { assignJobs } = require('./jobs');
@@ -157,6 +158,7 @@ function stepStateInner(state, config, runtime, action, options = {}) {
   if (!options.suppressEndgameReset) {
     maybeHandleEndgameReset(state, config, runtime);
   }
+  trackPopulationPeak(state);
 }
 
 // Normalize incoming AI action to governor envelope with legacy fallback.

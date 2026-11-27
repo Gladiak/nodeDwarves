@@ -147,8 +147,9 @@ test('proportional allocation follows weights and an explicit zero ignores a res
 test('outcome reward counts avoidable deaths, progress and extinction once', (config, state) => {
   config.ai.reward = { population: 1, populationScale: 10, deaths: 2, distress: 1,
     distressThreshold: 0.6, reserves: 0.5, reservePerCapita: 1, depth: 3, landmarkStage: 1,
-    prestige: 0.5, extinction: 7 };
+    prestige: 0.5, drawdown: 0.5, extinction: 7 };
   state.dwarves = state.dwarves.slice(0, 4);
+  delete state.populationPeak;
   for (const dwarf of state.dwarves) dwarf.needs = { hunger: 0.1, thirst: 0.1 };
   state.dwarves[0].needs.thirst = 0.7;
   state.stockpile.food = 2;
@@ -178,7 +179,31 @@ test('outcome reward counts avoidable deaths, progress and extinction once', (co
   assert.equal(computeOutcomeReward(empty, empty, config).terms.extinction, 0, 'extinction counts once');
   const reset = { ...after, avoidableDeaths: 1, depth: 0 };
   assert.equal(computeOutcomeReward(after, reset, config).terms.deaths, -2, 'cycle reset counts from zero');
+  assert.equal(step.terms.drawdown, 0, 'at its peak a colony pays no drawdown');
   finite(step);
+});
+
+test('population peak follows the cycle and drives the drawdown reward and observation (T5, E46)', (config, state) => {
+  config.ai.reward = { ...(config.ai.reward || {}), populationScale: 10, drawdown: 0.5 };
+  state.dwarves = state.dwarves.slice(0, 6);
+  state.cycleStats = { count: 0 };
+  delete state.populationPeak;
+  assert.equal(population.getPopulationPeak(state), 6, 'without a record the peak is the population');
+  population.trackPopulationPeak(state);
+  assert.deepEqual(state.populationPeak, { cycle: 0, value: 6 });
+  state.dwarves = state.dwarves.slice(0, 4);
+  population.trackPopulationPeak(state);
+  assert.deepEqual(state.populationPeak, { cycle: 0, value: 6 }, 'the peak never falls within a cycle');
+  const signals = computeOutcomeSignals(state, config);
+  assert.equal(signals.peak, 6);
+  assert.equal(computeOutcomeReward(signals, signals, config).terms.drawdown, -0.5 * (6 - 4) / 10);
+  assert.equal(buildObservation(state, config).strategic.populationToPeak, 4 / 6);
+  state.cycleStats = { count: 1 };
+  assert.equal(population.getPopulationPeak(state), 4, 'a stale cycle record is ignored');
+  population.trackPopulationPeak(state);
+  assert.deepEqual(state.populationPeak, { cycle: 1, value: 4 }, 'a new cycle restarts the peak');
+  state.dwarves = [];
+  assert.equal(buildObservation(state, config).strategic.populationToPeak, 0);
 });
 
 test('steward fills only missing groups, judges posture from reserves and stays RNG-free', (config, state) => {

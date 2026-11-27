@@ -109,8 +109,24 @@ def test_episode_specs_are_pure():
     passed.append("episode_specs_pure")
 
 
+# With unchanged weights the PPO ratio is exactly 1, saturated lever samples included (E48: inverting
+# the squashed action clamped them and gave a KL of 0.29 with no update).
+def test_zero_update_ratio():
+    torch.manual_seed(5)
+    policy = v2m.ActorCritic(OBS, len(ACTIONS), HIDDEN, 0.0)
+    with torch.no_grad():
+        policy.policy.linear_layers()[-1].bias.fill_(-6.0)  # every head deep in saturation
+        obs = torch.randn(256, OBS)
+        _, stored, _, pre_tanh = policy.act(obs, 0.0, 2.0)
+        replayed = v2m.log_prob_of(policy.policy(obs), policy.log_std, torch.tensor(pre_tanh.tolist()))
+    worst = float((replayed - stored).abs().max())
+    assert worst < 1e-4, f"zero-update log-ratio reaches {worst}"
+    passed.append(f"zero_update_ratio(max={worst:.1e})")
+
+
 def main():
     test_episode_specs_are_pure()
+    test_zero_update_ratio()
     with tempfile.TemporaryDirectory() as directory:
         test_train_serve_parity(directory)
         test_round_trip(directory)

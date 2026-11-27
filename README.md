@@ -123,7 +123,7 @@ new colony; `--ai FILE` picks a policy for it (loaded games keep their own).
 apart), on `s` and on Ctrl+C, with the previous valid file kept as `.json.bak` and recovered
 automatically. Resume with the same game build and Node.js major version for identical replays.
 
-Run with the promoted policy (once one is promoted, see below):
+Run with the promoted policy 🤖 (the trained colony manager in `models/`):
 
 ```bash
 npm run ai:play
@@ -162,8 +162,8 @@ npm run ai:play
 The trainer is PPO with a compact outcome reward 🎯 (a big, living colony, few avoidable deaths, full
 larders, real progress). Every run-shape knob lives in `ai.training.recipe`; two runs of the same
 recipe give identical weights. Promotion is judged against the council (or the incumbent) on
-8,000-tick and 20,000-tick games. `npm run ai:play` needs a promoted policy: until the first one
-passes the gate it exits with a hint instead of starting.
+8,000-tick and 20,000-tick games; only a policy that passes the gate lands in `models/` and drives
+`npm run ai:play`.
 
 🧭 Where the simulation and the AI stand, what was measured and the step plan to improve both live in
 [STRATEGY.md](STRATEGY.md), together with the measurement tools in `experiments/`.

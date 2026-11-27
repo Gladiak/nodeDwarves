@@ -155,16 +155,10 @@ class Mlp(nn.Module):
             module.bias.data.copy_(biases)
 
 
-# Map tanh output in [-1, 1] to the action range and back.
+# Map tanh output in [-1, 1] to the action range.
 def scale_action(action, low, high):
     return low + (action + 1.0) * 0.5 * (high - low)
 
-
-def unscale_action(action, low, high):
-    scale = high - low
-    if scale <= 0:
-        return torch.zeros_like(action)
-    return (action - low) * 2.0 / scale - 1.0
 
 
 class ActorCritic(nn.Module):
@@ -190,15 +184,15 @@ class ActorCritic(nn.Module):
         tanh_action = torch.tanh(pre_tanh)
         action = scale_action(tanh_action, low, high)
         log_prob = (dist.log_prob(pre_tanh) - torch.log(1 - tanh_action.pow(2) + 1e-6)).sum(-1)
-        return action, log_prob, self.value_raw(obs)
+        return action, log_prob, self.value_raw(obs), pre_tanh
 
 
-# Log-probability of stored actions under the current policy (tanh-corrected).
-def log_prob_of(mean, log_std, actions, low, high):
-    scaled = torch.clamp(unscale_action(actions, low, high), -0.999, 0.999)
-    pre_tanh = 0.5 * torch.log((1 + scaled) / (1 - scaled))
+# Log-probability of stored pre-tanh samples under the current policy (tanh-corrected), the same
+# expression act() uses. Inverting the squashed action instead (atanh of a clamped value) misreads
+# saturated samples and gives a nonzero KL with unchanged weights (STRATEGY.md E48).
+def log_prob_of(mean, log_std, pre_tanh):
     dist = Normal(mean, log_std.exp())
-    return (dist.log_prob(pre_tanh) - torch.log(1 - scaled.pow(2) + 1e-6)).sum(-1)
+    return (dist.log_prob(pre_tanh) - torch.log(1 - torch.tanh(pre_tanh).pow(2) + 1e-6)).sum(-1)
 
 
 # Entropy of the pre-tanh Gaussian (depends on log std only).

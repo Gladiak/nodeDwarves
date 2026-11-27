@@ -1,6 +1,6 @@
 'use strict';
 
-// Compact outcome-tied reward (redesign R1). Six explainable terms, all read from simulation state:
+// Compact outcome-tied reward (redesign R1, drawdown added in T5). Seven explainable terms, all read from simulation state:
 //   population  + weight x population / populationScale        (sustained colony size, every step)
 //   deaths      - weight x avoidable deaths this step         (starvation, raids, deep raids, ruins,
 //                                                               hunts, Warrior League; not old age)
@@ -8,8 +8,13 @@
 //   reserves    + weight x min over food/water of stock / (reservePerCapita x population), capped at 1
 //   progress    + depthWeight per Underrealm depth unlocked, landmarkWeight per landmark stage built,
 //                 prestigeWeight x prestige gained
-//   extinction  - weight once, when the last dwarf dies
+//   drawdown    - weight x (population peak of the cycle - population) / populationScale, every step:
+//                 a bust after a boom costs (STRATEGY.md E46)
+//   extinction  - weight once, when the last dwarf dies (large: losing the colony must outweigh the
+//                 population area a boom earned before it, E46)
 // Weights live in `ai.reward`. Pure functions: no RNG, no state writes. Used by ai_server.js.
+
+const { getPopulationPeak } = require('../simulation/population');
 
 const AVOIDABLE_CAUSES = ['starvation', 'raid', 'deepRaid', 'ruins', 'hunt', 'warriorLeague'];
 
@@ -24,7 +29,8 @@ const DEFAULTS = {
   depth: 20,
   landmarkStage: 5,
   prestige: 0.2,
-  extinction: 20,
+  drawdown: 1,
+  extinction: 2000,
 };
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
@@ -65,6 +71,7 @@ function computeOutcomeSignals(state, config) {
   }
   return {
     population,
+    peak: getPopulationPeak(state),
     distressShare: population > 0 ? distressed / population : 0,
     avoidableDeaths,
     reserve,
@@ -93,6 +100,8 @@ function computeOutcomeReward(previous, current, config) {
     progress: settings.depth * counterDelta(current.depth, prev.depth)
       + settings.landmarkStage * counterDelta(current.landmarkStages, prev.landmarkStages)
       + settings.prestige * counterDelta(current.prestige, prev.prestige),
+    drawdown: current.peak > current.population
+      ? -settings.drawdown * (num(current.peak) - current.population) / settings.populationScale : 0,
     extinction: current.population === 0 && prev.population > 0 ? -settings.extinction : 0,
   };
   const total = Object.values(terms).reduce((sum, value) => sum + value, 0);

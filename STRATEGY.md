@@ -53,9 +53,10 @@ relative to default. It measures how much of the outcome decisions control and m
   3 trade, 6 building, 1 contracts, 2 ruins, 5 Underrealm, 2 external camps, 5 warriors (social heads
   disabled). Governor intents are thresholds on value/2 (usually >= 0.5); a missing action means
   intent 1, so the default posture is "everything on".
-- Observation: 73 named features in a 79-value factored vector (`src/ai/observation_layout.js`),
-  including clan shares, social and warrior signals; no direct signal for food autonomy, time to
-  winter, birth gating or the age structure.
+- Observation: 81 named features in an 87-value factored vector (`src/ai/observation_layout.js`),
+  including clan shares, social and warrior signals, the age structure, births last year, growth
+  budget, food/water autonomy (S4e) and population against the cycle peak (`populationToPeak`, T5);
+  the simulation tracks that peak in `state.populationPeak` (bookkeeping only, games unchanged).
 - Decisions every 2 ticks in training and promotion (5 in the interactive game).
 
 ### 2.3 Training
@@ -64,7 +65,9 @@ relative to default. It measures how much of the outcome decisions control and m
 - Reward (`src/ai/outcome_reward.js`, weights in `ai.reward`): population per 100 dwarves every step,
   -2 per avoidable death (starvation, raids, deep raids, ruins, hunts, Warrior League; not old age),
   -1 x share of dwarves with hunger or thirst >= 0.6, +0.3 x food/water reserve per dwarf (2 units =
-  full), +20 per Underrealm depth, +5 per landmark stage, +0.2 per prestige point, -20 on extinction.
+  full), +20 per Underrealm depth, +5 per landmark stage, +0.2 per prestige point, -1 per 100 dwarves
+  below the population peak of the current cycle every step (drawdown), -2,000 on extinction (T5, E46:
+  until then -20 and no drawdown, which made the reward the area under the population curve).
 - Recipe `v2-base` (`ai.training.recipe`, section 7), run by `scripts/train_recipe.js` and the lean
   deterministic trainer `python/trainer_v2.py`: 9 heads (4 job weights, 5 levers), decisions every
   10 ticks, gamma 0.999, foundation 1,920 episodes of 2,800 ticks (half from a 2,000-40,000-tick
@@ -77,8 +80,8 @@ relative to default. It measures how much of the outcome decisions control and m
   32 standard games x 20,000 ticks no guard metric worse beyond one SE: `rpp` and final population
   (upper bound >= 0), extinctions and avoidable deaths (lower bound <= 0) (T5, E45); the incumbent is
   the best v2 policy, or the council while `models/` holds none.
-- `models/` is empty since T4 (the v1 policies were trained on the old, easy game and no longer
-  load); T5 promotes the first v2 policy so `npm run ai:play` runs again.
+- `models/` was empty from T4 (the v1 policies were trained on the old, easy game and no longer
+  load) until T5 promoted the first v2 policy, E48 r3 (2026-11-27), so `npm run ai:play` runs again.
 
 ### 2.4 Measurement tooling (`experiments/`, outputs in git-ignored `experiments/runs/`)
 
@@ -143,6 +146,9 @@ Paired by seed. "Pop" = final population; "avoidable" = deaths excluding old age
 | E43 | 11-26 | T3: one in-process evaluator reproduces the old ones and is faster | `scripts/scorecard.js` on the E41 persistent-exploration policy. Council at 8,000 ticks: the same 24 games as `eval_paired.py` give the same final population game by game (166.1, 24/24 identical); council 24 x 8,000 ticks in 75 s (`eval_paired.py` ~3 min), 32 x 20,000 standard ticks in 413 s. Policy at 8,000 ticks: 243.3 vs 221.3 through `ai_server` + Python inference, per-game difference +22.0 (SE 16.1, z 1.4), chaotic both ways (-113 to +212): float32 Python vs float64 JS inference, not a bias. Full scorecard vs council: 8k pop +77.1 (z 4.8, 20/24), `rpp` +0.0096 (z 1.4); 20k (32 games) pop +17.9 (z 0.5), `rpp` +0.029 (z 2.8), extinctions 8 vs 4, avoidable 63.5 vs 43.8. The gate would refuse it vs the council (8k `rpp` lower bound < 0) while population is far ahead, and its 20k `rpp` guard does not see the doubled extinctions | Scorecard adopted as the only evaluator and gate for v2 policies; `rpp` vs population/extinctions disagreement left as a gate-metric question for T5 |
 | E44 | 11-26 | T4: deleting the old stack changes no game, training run or evaluation | Removed `train.py`, `train_wrapper.js`, `train_continuous.js`, `regression.js`, `regression_rollout.py`, `promote_best.py`, `validate_extended_optimized.js`, the CI workflow and its artifact assembler, `eval_paired.py`, `exp_run.js`, `leverage_probe.py`, `analyze.py`, the v1 models and regression baselines; v1 heads (festival, `gov_*`), the per-resource layout, stable termination and `leverRaw` decoding left `ai_server.js` and `src/ai/policy.js`, which now refuse v1 policies. ~14,300 lines of code removed (models and baselines aside). `ai.training` 772 -> 185 values (80 are the feature list); the 19-scenario catalog (455 values) moved to a top-level `scenarios` section, the eval plan names to `ai.evaluation.scenarios`. Checks against the pre-T4 tree (a797a67): `sim_fingerprint.js` identical (4 seeds x 1,000/4,000/8,000 ticks); a 16 + 8-episode recipe run on the E42 bank gives identical weights; scorecard outcomes of the E42 r1 policy identical game by game on both horizons (smoke size); `npm test` green | Old stack gone; tests that used the v1 model now use a seeded v2 fixture (`scripts/test_policy_fixture.js`); the bank and scorecard caches rebuild once because the config hash changed |
 | E45 | 11-26 | T5 gate: a 20k `rpp` guard alone promotes policies that double extinctions; the section 6 guards refuse them | Replay on the cached E42 scorecards (no games played), candidate minus council, bounds at 1 SE on 32 standard games x 20,000 ticks. Old gate (8k `rpp` LCB z 1.96 > 0, 20k `rpp` upper bound >= 0): r1 PASS, r2 FAIL (8k LCB -0.0004), r3 PASS. New 20k guards: r1 `rpp` +0.033 ok, population upper bound -1.0 FAIL, extinctions lower bound +0.055 FAIL (9 vs 4), avoidable +5.1 FAIL; r2 `rpp` -0.0009 FAIL, population -16.0 FAIL, extinctions -0.027 ok, avoidable +1.4 FAIL; r3 `rpp` +0.022 ok, population +28.7 ok, extinctions 0.000 ok (7 vs 4: 32 games cannot see it), avoidable +13.8 FAIL (+23.4, SE 9.6). All three refused. An avoidable-death guard at 8k would refuse even r1 (+1.7, SE 1.5): there deaths grow with a much larger colony, so the avoidable guard stays on the 20k horizon. 8k primary stays `rpp` (E43's population-vs-`rpp` disagreement left as is: the 20k guards now catch the long-horizon damage that a population primary would let through) | Gate = 8k `rpp` LCB > 0 with minImprove 0.005, plus 20k guards `rpp`, population, extinctions, avoidable deaths at guardZ 1 (`ai.evaluation.gate.guards`); bounds rounded to 1e-9 so an exact zero is not worse |
+| E46 | 11-26 | T5 long horizon: the reward itself prefers boom-and-bust; extinction and drawdown terms realign it | 20k replay, council vs E42 r1 (32 standard games): `rpp` +0.019 for r1 comes from the population term (+0.031 per tick, SE 0.012; area under the population curve), offset by progress -0.007, reserves -0.003, avoidable deaths -0.002, extinction -0.0002 (a -20 extinction costs about one decision of a 170-dwarf colony). Mean population every 2,000 ticks: council 42 89 147 187 193 168 153 148 162 170 (4 ext.), r1 40 106 220 296 302 239 168 126 130 132 (9 ext., all at 13,000-19,000 ticks: the boom cohort ages out, life is at most 7,600 ticks); r1 beats the council on population area in 20/32 games and on final population in 10/32. Offline screen (`experiments/reward_screen.js`, session `2026-11-27_t5_reward`): 7 players (council 170 / 4 ext., `gov:2` 102 / 2, `random` 71 / 9, `neglect` 165 / 3, E42 r1-r3 132 / 9, 125 / 6, 168 / 7) x 32 games x 20,000 ticks, per-decision signals; share of same-seed player pairs where the candidate's return agrees in sign with final population at 20k (0 if extinct), undiscounted / discounted with gamma 0.999 from tick 0 / 8k-check; council-minus-policy z for r1, r2, r3. Today's reward 0.749 / 0.652 / 0.824, z -1.28 +1.08 -0.58 (prefers r1 and r3). Extinction 2,000: 0.793 / 0.712 / 0.824, z -0.15 +1.10 +0.06; extinction 5,000: 0.793 / 0.740 / 0.824, z +0.56 +0.97 +0.48. Drawdown (k x (cycle peak - population) / 100 per decision) 1: 0.763 / 0.692 / 0.833; drawdown 1 + extinction 2,000: 0.807 / 0.745 / 0.833, z +0.98 +1.16 +1.30; drawdown 1 + extinction 5,000: 0.807 / 0.766 / 0.833, z +1.25 +1.04 +1.28; population in remaining lifetime (x2) + drawdown 1 + extinction 2,000: 0.817 / 0.743 / 0.866, Kendall tau of player means 0.81 (today 0.52). Lifetime-weighted population alone (0.766 / 0.659) and sqrt population (8k agreement falls to 0.745) do not fix the ranking | The long-horizon failure is a reward misalignment, not only a credit-assignment horizon: the outcome reward is area under the population curve. A heavy extinction penalty plus a drawdown term makes the council beat every E42 replicate and raises agreement from tick 0 by ~0.09-0.11 without losing the 8k ranking; the drawdown term needs the cycle peak (or population/peak) in the observation to stay Markov, which a fresh training cycle allows |
+| E47 | 11-27 | T5 long horizon: with the drawdown + extinction reward, persistent lever exploration wins at 20k too; 2 of 3 replicates pass the gate | `experiments/replicates.js`, session `2026-11-27_e47` (HEAD 5c5320a + reward/observation diff), recipe with `leverNoiseHold` 280, `leverLogStdInit` 0, reward drawdown 1 + extinction 2,000, observation +`populationToPeak` (87 inputs, fresh), bank rebuilt (753 snapshots); 3 replicates vs council, same scorecard games as E42. 8k (24 games): council pop 166; replicates 207 / 250 / 301, pooled +86.5 (SE 15.6, z 5.5, 21/24), no extinctions, avoidable 13.3 / 18.5 / 18.9 vs 13.5. 20k (32 games): council pop 170, 4 ext., avoidable 43.8; replicates 218 / 202 / 218, pooled +43.1 (SE 26.3, z 1.6, 20/32, replicate SD 9.2), extinctions 3 / 7 / 4, avoidable 46.1 / 39.6 / 38.5. E42 at 20k on the same games: 132 / 125 / 168, pooled -28.0, extinctions 9 / 6 / 7, avoidable 61.8 / 52.7 / 67.2. Gate (new reward): r1 FAIL (8k `rpp` +0.0008, LCB -0.010; 20k guards ok), r2 PASS (8k LCB +0.004; 20k extinctions +0.094, SE 0.094, bound exactly 0), r3 PASS (8k LCB +0.021, `rpp` z 4.0; 20k population +48.4, extinctions 0.000, avoidable -5.2). Levers (mean over play): growth 0.87 / 0.79 / 0.73 (E42 0.83 / 0.69 / 0.81), reserves 0.36 / 0.51 / 0.76, builders 0.60 / 0.49 / 0.55, deep 0.15 / 0.15 / 0.11, ventures 0.17 / 0.49 / 0.23. Training stable in r2 and r3 (KL <= 0.06); r1 drifted from episode 1,320 (KL 0.06-0.37 every window to the end, clip fraction up to 0.37; E42 max 0.07) and is the replicate that fails the 8k gate | The reward was the long-horizon problem: the same recipe that lost 28 dwarves at 20k under the old reward gains 43 with fewer avoidable deaths. The extinction gap is closed only partly (14/96 vs 12/96 for the council), and r2 passes the extinction guard on its bound. Growth stays high; what changed is reserves and the bust after the boom. One replicate in three runs away in KL late in foundation; E48 traces it to a log-probability bug, not to the learning rate |
+| E48 | 11-27 | T5: the late KL drift was a log-probability bug; with it fixed training is stable, 8k unchanged, 20k gain smaller | Zero-update check (scratch probe, final policies of E47, 16 late-foundation episodes each, real rollouts, weights unchanged): KL r1 0.286, r2 0.0045, r3 0.0009; share of decisions with the deep lever at |tanh| > 0.999: 27% / 4.5% / 2.6%. Cause: `log_prob_of` rebuilt the pre-tanh sample from the stored squashed action clamped to +/-0.999, so a sample at pre-tanh -8 was read as -3.8 (log-ratio down to -8.8). Fix: rollouts store the exact pre-tanh sample and the PPO ratio uses it (`python/v2/model.py`, `ppo.py`, `rollout.py`, `trainer_v2.py`; zero-update ratio exactly 1 in `python/test_trainer_v2.py`; two 64-episode runs give identical weights; `npm test` green). E48 = E47 recipe and reward with the fix, session `2026-11-27_e48`, same bank and scorecard games. Training: max window KL 0.024 / 0.022 / 0.025, no window above 0.05, no early stops (E47 r1: 16 windows above 0.05, max 0.37). 8k (24 games): replicates 217 / 232 / 290, pooled +80.3 vs council (SE 14.8, z 5.4, 23/24), no extinctions, avoidable 10.5 / 14.8 / 21.7 vs 13.5; `rpp` vs council +0.007 / +0.010 / +0.031. 20k (32 games): replicates 177 / 167 / 203, pooled +12.6 (SE 22.7, z 0.55, 19/32, replicate SD 18.7), extinctions 4 / 5 / 4 vs 4, avoidable 41.1 / 37.8 / 35.1 vs 43.8. Gate: r1 FAIL (8k `rpp` LCB -0.0047), r2 FAIL (-0.0039), r3 PASS (LCB +0.0079; 20k population +33.3, avoidable -8.6). Levers: growth 0.85 / 0.83 / 0.75, reserves 0.38 / 0.35 / 0.66, builders 0.47 / 0.82 / 0.24, deep 0.16 / 0.17 / 0.07, ventures 0.29 / 0.24 / 0.14. E47 + E48 (6 replicates, persistent exploration, new reward): 20k population 218 / 202 / 218 / 177 / 167 / 203, mean 198 vs council 170, extinctions 27/192 vs 24/192, avoidable deaths below the council in 5 of 6 | The fix is a correctness fix and stays: the old ratio trained the saturated lever on actions never played. It does not improve outcomes: 8k is unchanged and the 20k gain is smaller than E47's (+13 vs +43; the difference is within about two replicate SEs, and E47's lead rests on three runs). The recipe with persistent exploration and the new reward beats the council at 20k in 5 of 6 replicates on population and in 5 of 6 on avoidable deaths, with extinctions level; 3 of 6 pass the gate (E47 r2, r3; E48 r3) |
 | E21 | 11-25 | Evaluation speed is not the bottleneck | 24 games x 8,000 ticks: `eval_paired.py` 61 s, in-process JS 60 s; per worker ~270 ticks/s at late-game population (3.7 ms/tick) | Keep `eval_paired.py` as the reference evaluator; noise, not speed, limits decisions |
 
 E19, 24 games x 8,000 ticks (seed base 100000):
@@ -543,17 +549,31 @@ Status 2026-11-26: T4 done (E44).
 - Tests that needed a policy use a seeded v2 fixture; the old-trainer parity test retired with
   `train.py` (E38 stands as the record).
 
-Where we are (2026-11-26, end of day):
+Where we are (2026-11-27):
 - Done: T0-T3 (pushed, e77e8f7 and a797a67) and T4 (E44, a9b5219); E42 run
   and recorded: persistent exploration wins at 8,000 ticks and loses at 20,000, not adopted.
 - T5 (1) done: the gate (E45) adds 20k guards on population, extinctions and avoidable deaths to the
   `rpp` guard (all at one SE, the section 6 rule) and refuses every E42 replicate.
-- Next, T5: (2) the long-horizon problem: the learned levers are the
-  E33 short-horizon optimum (growth up, Underrealm share down) whatever the bank and gamma, candidates
-  are a reward or critic signal that sees cohort aging (S6 observation: ticks to winter, births
-  blocked, age structure already in), longer finetune episodes from late bank states, or a 20k-aware
-  selection among replicates; (3) promote the first v2 policy that passes the corrected gate so
-  `npm run ai:play` works again, then regenerate the benchmark baseline.
+- T5 (2) diagnosed (E46): the reward rewards boom-and-bust; candidate fix = drawdown + heavy extinction terms.
+- T5 (2) measured (E47, 2026-11-27): with drawdown 1 + extinction 2,000 and `populationToPeak`, the
+  persistent-exploration recipe gains +86 dwarves at 8k and +43 at 20k over the council (E42: -28),
+  avoidable deaths at or below the council; r2 and r3 pass the gate, r1 fails at 8k after a late KL
+  drift (0.06-0.37 from episode 1,320). Extinctions 14/96 vs 12/96: closed only partly.
+- T5 (3) diagnosed (E48): the KL drift is a log-probability bug. The PPO ratio rebuilt each action's
+  pre-tanh value from the squashed action clamped to +/-0.999 (|pre-tanh| <= 3.8); on real late-foundation
+  rollouts r1's final policy saturates the deep lever in 27% of decisions and shows KL 0.286 with
+  unchanged weights (r2 0.0045, r3 0.0009). Those samples get a ratio near e^-8, always count as clipped
+  and push the gradient toward an action never played. Fix: rollouts store the exact pre-tanh sample and
+  the ratio uses it (zero-update ratio exactly 1, `python/test_trainer_v2.py`). E48 (E47 recipe + fix):
+  training KL <= 0.025 everywhere; 8k pooled +80 (z 5.4), 20k pooled +13 (z 0.55), avoidable deaths below
+  the council in all three, extinctions 13/96 vs 12/96; only r3 passes the gate. Over E47 + E48, 3 of 6
+  replicates pass; E47 r3 is the strongest (8k LCB +0.021, 20k population +48, avoidable -5).
+- T5 (4) done (2026-11-27): E48 r3 promoted against the council (`npm run ai:promote`; 8k `rpp` LCB
+  +0.0079, 20k population +33, extinctions level, avoidable deaths -8.6); `npm run ai:play` loads it
+  (cadence 10 ticks). The headless benchmark plays no policy, so its baseline is unaffected (it
+  refreshes itself on the config change).
+- Next, T5: make `leverNoiseHold` 280 / `leverLogStdInit` 0 the recipe default (6 replicates behind it);
+  future candidates face E48 r3 as the incumbent.
 
 ### S5. Two-level policy and chained improvement (D3, D4)
 - Cadence, snapshot starts and the 20,000-tick gate moved into S4 (S4c, S4d, S4f); what stays here
@@ -671,7 +691,7 @@ Deterministic regression of the no-AI game: `npm run bench:candidate` then `npm 
 | Growth cap | `population.reproduction.growthCap` | on; 25% a year, at least 20 births a year, burst 2 (E29) |
 | World variety | `variety.ranges` | on; food 0.7-1.3, water 0.8-1.2, winter 0.5-1.5, needs 0.9-1.1, raids 0.25-1.75 (E31) |
 | Lifespan jitter | `population.aging.lifespanJitter` | 0 (E30, not adopted) |
-| Reward | `ai.reward.*` | population 1 per 100, deaths 2, distress 1 at 0.6, reserves 0.3 at 2 per dwarf, depth 20, landmark stage 5, prestige 0.2, extinction 20 |
+| Reward | `ai.reward.*` | population 1 per 100, deaths 2, distress 1 at 0.6, reserves 0.3 at 2 per dwarf, depth 20, landmark stage 5, prestige 0.2, drawdown 1 per 100 below the cycle peak, extinction 2,000 (T5, E46; was 20 without drawdown) |
 | Recipe | `ai.training.recipe` | `v2-base`: 10 ticks per decision, gamma 0.999, 7 workers, noise hold 1, policy lag 1 batch, bank 48 council games at 2,000-40,000 ticks (policy share 0.5 on chained runs); foundation 1,920 episodes x 2,800 ticks, 50% snapshot starts, entropy 0.008 -> 0.002 over 15,000 episodes; finetune 50 x 3,600 ticks (T1) |
 | Evaluation and gate | `ai.evaluation` | council at 10 ticks per decision; eval plan = 12 named scenarios (`ai.evaluation.scenarios`); horizons 8k (eval plan, 24 games, seeds from 100,000) and 20k (standard game, 32 games, seeds 101 x i); gate on 8k `rpp`: delta >= 0.005, LCB z 1.96 > 0; 20k guards `rpp`, population, extinctions, avoidable deaths, none worse beyond 1 SE (T3, T5/E45) |
 | Trainer | `ai.training.trainer` | algorithm hyperparameters only (clip, KL, GAE, value loss and clipping, normalization, 2x128, log std init) plus the 80-name feature list (T4) |
@@ -720,7 +740,10 @@ Deterministic regression of the no-AI game: `npm run bench:candidate` then `npm 
 | 2026-11-26 | T4 (E44) | Old training stack deleted (v1 heads, legacy layout, wrapper profiles, continuous training, regression harness, CI workflow, `promote_best.py`, `eval_paired.py`, `exp_run.js`); `ai.training` 772 -> 185 values guarded by a contract; scenario catalog top-level; stable termination removed; games, training weights and scorecards bit-identical |
 | 2026-11-26 | E42 | Persistent lever exploration (`leverNoiseHold` 280, `leverLogStdInit` 0) not adopted as the recipe default: pooled 8k +79 (z 4.1) but 20k -28 (z -1.1) with extinctions 23% vs 12.5% and avoidable deaths +17; the recipe default stays noise hold 1 |
 | 2026-11-26 | T5 (E45) | Gate: 8k `rpp` primary unchanged; 20k guards extended from `rpp` to population, extinctions and avoidable deaths (one SE each, section 6 rule); every E42 replicate is refused |
-| next | T5 | Long-horizon problem, then promote the first v2 policy and restore `npm run ai:play`; see "Where we are" under T |
+| 2026-11-27 | T5 (E46, E47) | Reward gains a drawdown term (1 per 100 dwarves below the cycle peak, per decision) and extinction -2,000 (was -20); observation gains `populationToPeak`; with persistent lever exploration 2 of 3 fresh replicates pass the gate at 8k and 20k (pooled 20k +43, z 1.6) |
+| 2026-11-27 | T5 (E48) | PPO ratio computed from stored pre-tanh samples (was the inverted, clamped squashed action): removes a spurious KL of up to 0.29 on saturated levers; training weights change, outcomes measured in E48 |
+| 2026-11-27 | T5 | First v2 policy promoted: E48 r3 (passes the gate vs the council; chosen over the slightly stronger E47 r3 because the current trainer reproduces it); `npm run ai:play` runs again |
+| next | T5 | Make persistent exploration the recipe default; later candidates are gated against E48 r3; see "Where we are" under T |
 
 ### Scorecard v1 (S0, session `experiments/runs/2026-11-24_s0`, commit a5e3998, git-ignored)
 

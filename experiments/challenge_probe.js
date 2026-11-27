@@ -206,6 +206,30 @@ function laborMix(state, config) {
   return mix;
 }
 
+// Per-decision signal row for experiments/reward_screen.js (read-only, no RNG): the outcome-reward
+// signals plus the age structure, so alternative rewards can be replayed offline.
+const SIGNAL_FIELDS = ['tick', 'pop', 'avoidableDeaths', 'distressShare', 'reserve', 'depth', 'landmarkStages',
+  'prestige', 'lifeAhead', 'fertile', 'elders', 'cycle', 'peak'];
+function signalRow(tick, signals, state, config) {
+  const aging = (config.population && config.population.aging) || {};
+  const maxAge = Number(aging.maxAge || Infinity);
+  const adultAge = Number(aging.adultAge || 0);
+  const fertileStart = Number(aging.fertileStart ?? adultAge);
+  let lifeAhead = 0;
+  let fertile = 0;
+  let elders = 0;
+  for (const dwarf of state.dwarves || []) {
+    const scale = Number(dwarf.lifespanScale) > 0 ? Number(dwarf.lifespanScale) : 1;
+    const age = Number(dwarf.ageTicks || 0);
+    if (Number.isFinite(maxAge)) lifeAhead += Math.max(0, maxAge * scale - age) / maxAge;
+    if (age >= Math.max(adultAge, fertileStart) && age < Number(aging.fertileEnd ?? Infinity) * scale) fertile += 1;
+    if (age >= Number(aging.oldAgeStart || Infinity) * scale) elders += 1;
+  }
+  return [tick, signals.population, signals.avoidableDeaths, signals.distressShare, signals.reserve,
+    signals.depth, signals.landmarkStages, signals.prestige, +lifeAhead.toFixed(3), fertile, elders,
+    Number((state.cycleStats && state.cycleStats.count) || 0), signals.peak];
+}
+
 // Run one episode and return its sampled trajectory.
 function runEpisode(task, options) {
   const { loadConfig } = require(path.join(ROOT, 'src', 'config'));
@@ -253,6 +277,7 @@ function runEpisode(task, options) {
     // Outcome reward (src/ai/outcome_reward.js), accumulated per decision step like ai_server.
     let signals = computeOutcomeSignals(state, config);
     const reward = { total: 0, terms: {} };
+    const signalRows = options.recordSignals ? [signalRow(0, signals, state, config)] : null;
     // Progress milestones (cycle-safe: counters that reset count from zero).
     const progress = { maxDepth: signals.depth, landmarkStages: 0, prestige: 0 };
     const gain = (current, previous) => (current >= previous ? current - previous : current);
@@ -294,6 +319,7 @@ function runEpisode(task, options) {
         const step = computeOutcomeReward(signals, next, config);
         reward.total += step.total;
         for (const [key, value] of Object.entries(step.terms)) reward.terms[key] = (reward.terms[key] || 0) + value;
+        if (signalRows) signalRows.push(signalRow(tick, next, state, config));
         progress.maxDepth = Math.max(progress.maxDepth, next.depth);
         progress.landmarkStages += gain(next.landmarkStages, signals.landmarkStages);
         progress.prestige += gain(next.prestige, signals.prestige);
@@ -321,7 +347,7 @@ function runEpisode(task, options) {
     const scored = { score: reward.total / options.ticks,
       terms: Object.fromEntries(Object.entries(reward.terms).map(([k, v]) => [k, v / options.ticks])) };
     return { ...task, startPop, extinctionTick, targets, flows, deaths, births, samples, reward: scored, progress,
-      narrative };
+      narrative, ...(signalRows ? { signalFields: SIGNAL_FIELDS, signals: signalRows } : {}) };
   } finally {
     Math.random = previousRandom;
   }

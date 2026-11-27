@@ -190,7 +190,7 @@ def main():
     next_episode = 1
     in_flight = 0
     buffered = {}
-    batch = {key: [] for key in ("obs", "obs_raw", "actions", "log_probs", "returns", "advantages", "values")}
+    batch = {key: [] for key in ("obs", "obs_raw", "pre_tanh", "log_probs", "returns", "advantages", "values")}
     batch_count = 0
     window = []
     ppo_window = empty_ppo_window()
@@ -215,7 +215,7 @@ def main():
             return
         entropy_coef = ent0 + (ent1 - ent0) * min(1.0, current_episode / max(1, ent_ramp))
         update_return_normalization(model, return_stats, batch["returns"])
-        stats = ppo_update(model, optimizer, batch, low, high, hp, entropy_coef, return_stats)
+        stats = ppo_update(model, optimizer, batch, hp, entropy_coef, return_stats)
         update_stats(obs_stats, batch["obs_raw"])
         for key in ("approx_kl", "clip_frac", "value_loss", "policy_loss", "entropy"):
             ppo_window[key] += stats[key] * stats["updates"]
@@ -242,7 +242,7 @@ def main():
             while completed + 1 in buffered:
                 rollout, summary = buffered.pop(completed + 1)
                 completed += 1
-                for key in ("obs", "obs_raw", "actions", "log_probs", "returns", "advantages", "values"):
+                for key in ("obs", "obs_raw", "pre_tanh", "log_probs", "returns", "advantages", "values"):
                     batch[key].extend(rollout[key])
                 batch_count += 1
                 window.append(summary)
