@@ -460,7 +460,7 @@ Status 2026-11-26: S4 closed, pass not met (E33-E35).
 - Not done in S4: cadence 10 is not yet the default of `train_wrapper` phases, the gate or the game
   (`ai.stepTicks` stays 5 for the v1 policy); S1-style JS/Python parity run on a v2 policy.
 
-### T. Training foundation (D7, D13; decision 2026-11-26)
+### T. Training foundation (D7, D13; decision 2026-11-26) - done 2026-11-27
 S4-E36 showed the training stack had become the main source of cost and doubt: the E35 recipe lived
 only in ad-hoc `--set` flags and had to be rebuilt by hand, the snapshot bank was lost with its run
 folder, trainer, gate and game used three different cadences (2, 2 and 5 ticks) while v2 policies were
@@ -576,7 +576,13 @@ Where we are (2026-11-27):
   0, the recipe of E47 and E48 (6 replicates). A default run of replicate 1 gives E48 r1's weights
   bit for bit (session `2026-11-27_default_check`; the bank was rebuilt under the new config key with the
   same 753 snapshots).
-- Future candidates face E48 r3 as the incumbent.
+- T closed (2026-11-27): every pass criterion holds (identical weights for two runs of one recipe, one
+  command per run, evaluation and gate, no run-shape value outside the recipe, `npm test` green,
+  `npm run ai:play` runs a v2 policy). Milestone checks with the promoted policy: `validate_scenarios.js`
+  PASS 25/25 (canonical `compound_crisis` 8,000 ticks: final population 168;
+  `debug/scenario_validation_latest.json`); the headless benchmark baseline, last generated at S2
+  (d0953dc), was refreshed for the current game (no-AI, 4 seeds x 8,000 ticks: mean population 167).
+- Future candidates face E48 r3 as the incumbent; next is S5 (chained runs from the promoted policy).
 
 ### S5. Two-level policy and chained improvement (D3, D4)
 - Cadence, snapshot starts and the 20,000-tick gate moved into S4 (S4c, S4d, S4f); what stays here
@@ -747,7 +753,8 @@ Deterministic regression of the no-AI game: `npm run bench:candidate` then `npm 
 | 2026-11-27 | T5 (E48) | PPO ratio computed from stored pre-tanh samples (was the inverted, clamped squashed action): removes a spurious KL of up to 0.29 on saturated levers; training weights change, outcomes measured in E48 |
 | 2026-11-27 | T5 | First v2 policy promoted: E48 r3 (passes the gate vs the council; chosen over the slightly stronger E47 r3 because the current trainer reproduces it); `npm run ai:play` runs again |
 | 2026-11-27 | T5 (E47, E48) | Persistent lever exploration (`leverNoiseHold` 280, `leverLogStdInit` 0) becomes the recipe default: with the drawdown reward 6 of 6 replicates beat the council at 8k, 5 of 6 at 20k on population and avoidable deaths, 3 of 6 pass the gate (reverses the E42 decision, which was taken under the old reward) |
-| next | T5 | Later candidates are gated against E48 r3; see "Where we are" under T |
+| 2026-11-27 | T | Training foundation closed: one recipe, one evaluator and gate, first v2 policy promoted, scenario validation 25/25 and benchmark baseline refreshed |
+| next | S5 | Chained runs from E48 r3 (bank with the policy playing half the games), gated against the incumbent |
 
 ### Scorecard v1 (S0, session `experiments/runs/2026-11-24_s0`, commit a5e3998, git-ignored)
 
